@@ -468,7 +468,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-01T14:53:25Z",
+  "generated_at": "2026-05-01T15:51:37Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
@@ -648,6 +648,1012 @@
     ],
     "updated_label": "updated recently"
   },
+  "modules": {
+    "breadth_momentum": {
+      "chains": [
+        {
+          "average_move_pct": 43.22,
+          "breadth_state": "broad",
+          "chain": "solana",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 351,
+          "confidence": "medium",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "eligible_token_count": 351,
+          "followthrough_state": "strong",
+          "fresh_pair_count": null,
+          "fresh_pair_state": "unknown",
+          "green_pct": 67.52,
+          "loser_15_pct": 13.96,
+          "median_move_pct": 10.05,
+          "observed_sample_size": 990,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 990,
+          "red_pct": 32.19,
+          "risk_read": "healthy",
+          "sample_size": 351,
+          "warnings": [
+            "fresh_pair_age_unavailable"
+          ],
+          "winner_100_pct": 17.95,
+          "winner_15_pct": 45.3,
+          "winner_50_pct": 29.34
+        },
+        {
+          "average_move_pct": null,
+          "breadth_state": "unknown",
+          "chain": "eth",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 895,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "eligible_token_count": 895,
+          "followthrough_state": "unknown",
+          "fresh_pair_count": 0,
+          "fresh_pair_state": "unknown",
+          "green_pct": null,
+          "loser_15_pct": null,
+          "median_move_pct": null,
+          "observed_sample_size": 895,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 895,
+          "red_pct": null,
+          "risk_read": "unknown",
+          "sample_size": 895,
+          "warnings": [
+            "source_sample_insufficient"
+          ],
+          "winner_100_pct": null,
+          "winner_15_pct": null,
+          "winner_50_pct": null
+        },
+        {
+          "average_move_pct": null,
+          "breadth_state": "unknown",
+          "chain": "base",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 281,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "eligible_token_count": 281,
+          "followthrough_state": "unknown",
+          "fresh_pair_count": 0,
+          "fresh_pair_state": "unknown",
+          "green_pct": null,
+          "loser_15_pct": null,
+          "median_move_pct": null,
+          "observed_sample_size": 281,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 281,
+          "red_pct": null,
+          "risk_read": "unknown",
+          "sample_size": 281,
+          "warnings": [
+            "source_sample_insufficient"
+          ],
+          "winner_100_pct": null,
+          "winner_15_pct": null,
+          "winner_50_pct": null
+        }
+      ],
+      "generated_at": "2026-04-29T16:39:10Z",
+      "market": {
+        "breadth_state": "broad",
+        "confidence": "medium",
+        "failure_state": "normal",
+        "followthrough_state": "strong",
+        "fresh_pair_state": "unknown",
+        "risk_read": "healthy",
+        "warnings": [
+          "fresh_pair_age_unavailable",
+          "source_sample_insufficient"
+        ],
+        "winner_rate_state": "extreme"
+      },
+      "window": "6h"
+    },
+    "cap_band_pulse": {
+      "chains": {
+        "base": {
+          "bands": {
+            "fresh_pairs": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "high_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "majors": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "micro_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "mid_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            }
+          },
+          "best_band": null,
+          "confidence": "low",
+          "coverage_state": "thin",
+          "summary": "BASE cap-band coverage is still developing.",
+          "worst_band": null
+        },
+        "eth": {
+          "bands": {
+            "fresh_pairs": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "high_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "majors": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "micro_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "mid_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            }
+          },
+          "best_band": null,
+          "confidence": "low",
+          "coverage_state": "thin",
+          "summary": "ETH cap-band coverage is still developing.",
+          "worst_band": null
+        },
+        "solana": {
+          "bands": {
+            "fresh_pairs": {
+              "activity_state": "hot",
+              "avg_move_pct": 38.0,
+              "confidence": "high",
+              "failure_rate": 28.66,
+              "green_pct": 70.75,
+              "median_move_pct": 10.4,
+              "read": "favorable",
+              "red_pct": 28.66,
+              "sample_size": 335,
+              "winner_rate": 70.75
+            },
+            "high_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "majors": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "micro_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            },
+            "mid_caps": {
+              "activity_state": "unknown",
+              "avg_move_pct": null,
+              "confidence": "low",
+              "failure_rate": null,
+              "green_pct": null,
+              "median_move_pct": null,
+              "read": "unknown",
+              "red_pct": null,
+              "sample_size": 0,
+              "winner_rate": null
+            }
+          },
+          "best_band": "fresh_pairs",
+          "confidence": "high",
+          "coverage_state": "strong",
+          "summary": "SOLANA shows improving conditions in sampled fresh pairs.",
+          "worst_band": null
+        }
+      },
+      "module": "cap_band_pulse",
+      "updated_at": "2026-04-29T14:28:39Z",
+      "version": "1.18",
+      "warnings": [
+        "eth_cap_band_coverage_developing",
+        "base_cap_band_coverage_developing"
+      ],
+      "window_hours": 6
+    },
+    "cash_rotation": {
+      "chains": [
+        {
+          "cash_rotation_state": "unknown",
+          "chain": "solana",
+          "confidence": "low",
+          "risk_appetite": "unknown",
+          "risk_to_stable_swap_count": null,
+          "rotation_intensity": "unknown",
+          "stable_buy_volume_usd": null,
+          "stable_flow_bias": "unknown",
+          "stable_sell_volume_usd": null,
+          "stable_to_risk_swap_count": null,
+          "warnings": [
+            "stable_direction_unavailable"
+          ]
+        }
+      ],
+      "generated_at": "2026-04-29T14:28:06Z",
+      "market": {
+        "cash_rotation_state": "unknown",
+        "confidence": "low",
+        "risk_appetite": "unknown",
+        "rotation_intensity": "unknown",
+        "stable_flow_bias": "unknown",
+        "warnings": [
+          "stable_direction_unavailable"
+        ]
+      },
+      "window": "6h"
+    },
+    "chain_pulse": {
+      "chains": [
+        {
+          "activity_state": "hot",
+          "average_move_pct": 37.57,
+          "chain": "solana",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 351,
+          "confidence": "low",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": 67.52,
+          "loser_15_pct": 13.96,
+          "median_move_pct": 10.05,
+          "metadata": {
+            "current_row_count": 2147,
+            "eligible_token_count": 351,
+            "observed_token_count": 990
+          },
+          "observed_sample_size": 990,
+          "participant_outcome_estimate": "healthy",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 990,
+          "red_pct": 32.19,
+          "risk_read": "improving",
+          "sample_size": 351,
+          "volume_state": "unknown",
+          "volume_usd": null,
+          "warnings": [
+            "source_sample_or_freshness_limited"
+          ],
+          "winner_15_pct": 45.3,
+          "winner_50_pct": 29.34
+        },
+        {
+          "activity_state": "normal",
+          "average_move_pct": null,
+          "chain": "eth",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 895,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": null,
+          "loser_15_pct": null,
+          "median_move_pct": null,
+          "metadata": {
+            "current_row_count": 5931,
+            "eligible_token_count": 895,
+            "observed_token_count": 895,
+            "sample_source": "token_layer"
+          },
+          "observed_sample_size": 895,
+          "participant_outcome_estimate": "unknown",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 895,
+          "red_pct": null,
+          "risk_read": "unknown",
+          "sample_size": 895,
+          "volume_state": "unknown",
+          "volume_usd": null,
+          "warnings": [
+            "source_sample_insufficient"
+          ],
+          "winner_15_pct": null,
+          "winner_50_pct": null
+        },
+        {
+          "activity_state": "normal",
+          "average_move_pct": null,
+          "chain": "base",
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 281,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": null,
+          "loser_15_pct": null,
+          "median_move_pct": null,
+          "metadata": {
+            "current_row_count": 1048,
+            "eligible_token_count": 281,
+            "observed_token_count": 281,
+            "sample_source": "token_layer"
+          },
+          "observed_sample_size": 281,
+          "participant_outcome_estimate": "unknown",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 281,
+          "red_pct": null,
+          "risk_read": "unknown",
+          "sample_size": 281,
+          "volume_state": "unknown",
+          "volume_usd": null,
+          "warnings": [
+            "source_sample_insufficient"
+          ],
+          "winner_15_pct": null,
+          "winner_50_pct": null
+        }
+      ],
+      "generated_at": "2026-04-29T16:39:10Z",
+      "window": "6h"
+    },
+    "churn_trap_index": {
+      "chains": [
+        {
+          "activity_quality": "unknown",
+          "chain": "solana",
+          "churn_state": "unknown",
+          "confidence": "low",
+          "trap_risk": "unknown",
+          "warnings": [
+            "churn_inputs_limited"
+          ]
+        }
+      ],
+      "generated_at": "2026-04-29T14:28:02Z",
+      "market": {
+        "activity_quality": "unknown",
+        "churn_state": "unknown",
+        "confidence": "low",
+        "risk_read": "unknown",
+        "trap_risk": "unknown",
+        "warnings": [
+          "churn_inputs_limited"
+        ]
+      },
+      "status": "unavailable",
+      "window": "6h"
+    },
+    "condition_alerts": {
+      "alerts": [
+        {
+          "category": "breadth",
+          "chain": null,
+          "confidence": "medium",
+          "message": "participation is improving across the observed market.",
+          "scope": "market",
+          "severity": "watch",
+          "title": "breadth turning broad"
+        }
+      ],
+      "generated_at": "2026-04-29T16:10:20Z",
+      "status": "available",
+      "window": "6h"
+    },
+    "followthrough_quality": {
+      "chains": [
+        {
+          "chain": "solana",
+          "confidence": "low",
+          "failure_after_pump_pct": null,
+          "followthrough_state": "improving",
+          "move_hold_15m_pct": null,
+          "move_hold_1h_pct": null,
+          "move_hold_3h_pct": null,
+          "second_wave_pct": null,
+          "warnings": [
+            "followthrough_data_limited"
+          ]
+        }
+      ],
+      "generated_at": "2026-04-29T14:28:02Z",
+      "market": {
+        "confidence": "low",
+        "failure_after_move_state": "normal",
+        "followthrough_state": "improving",
+        "risk_read": "healthy",
+        "second_wave_state": "unknown",
+        "warnings": [
+          "followthrough_data_limited"
+        ]
+      },
+      "status": "partial",
+      "window": "6h"
+    },
+    "liquidity_quality": {
+      "chains": [
+        {
+          "chain": "solana",
+          "confidence": "low",
+          "liquidity_retention": "unknown",
+          "liquidity_state": "unknown",
+          "thin_move_risk": "unknown",
+          "warnings": [
+            "liquidity_data_limited"
+          ]
+        }
+      ],
+      "generated_at": "2026-04-29T10:37:52Z",
+      "market": {
+        "confidence": "low",
+        "liquidity_retention": "unknown",
+        "liquidity_state": "unknown",
+        "risk_read": "unknown",
+        "thin_move_risk": "unknown",
+        "warnings": [
+          "liquidity_data_limited"
+        ]
+      },
+      "status": "unavailable",
+      "window": "6h"
+    },
+    "macro_regime_context": {
+      "generated_at": "2026-04-28T22:23:52Z",
+      "locked": true,
+      "market": {
+        "confidence": "low",
+        "defensive_bid": "unknown",
+        "dollar_pressure": "unknown",
+        "equity_beta_context": "unknown",
+        "liquidity_context": "unknown",
+        "rates_pressure": "unknown",
+        "regime_state": "unknown",
+        "risk_read": "unknown",
+        "warnings": [
+          "macro_context_unavailable"
+        ]
+      },
+      "status": "unavailable",
+      "window": "6h"
+    },
+    "market_context": {
+      "assets": [
+        {
+          "change_24h_pct": null,
+          "price_usd": null,
+          "symbol": "BTC"
+        },
+        {
+          "change_24h_pct": null,
+          "price_usd": null,
+          "symbol": "ETH"
+        },
+        {
+          "change_24h_pct": null,
+          "price_usd": null,
+          "symbol": "SOL"
+        }
+      ],
+      "generated_at": "2026-04-29T10:37:57Z",
+      "status": "partial",
+      "tape": [
+        "breadth improving",
+        "followthrough improving",
+        "solana activity hot",
+        "stable flow unconfirmed",
+        "micro caps selective"
+      ],
+      "updated_label": "updated recently"
+    },
+    "participant_outcome_pulse": {
+      "chains": {
+        "base": {
+          "bands": {
+            "fresh_pairs": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "high_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "majors": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "micro_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "mid_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            }
+          },
+          "confidence": "low",
+          "coverage_state": "thin",
+          "estimated_losing_pct": null,
+          "estimated_profitable_pct": null,
+          "participant_outcome": "unknown",
+          "summary": "Participant outcome is not reliable enough to publish yet."
+        },
+        "eth": {
+          "bands": {
+            "fresh_pairs": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "high_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "majors": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "micro_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "mid_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            }
+          },
+          "confidence": "low",
+          "coverage_state": "thin",
+          "estimated_losing_pct": null,
+          "estimated_profitable_pct": null,
+          "participant_outcome": "unknown",
+          "summary": "Participant outcome is not reliable enough to publish yet."
+        },
+        "solana": {
+          "bands": {
+            "fresh_pairs": {
+              "confidence": "high",
+              "coverage_state": "strong",
+              "estimated_losing_pct": 28.66,
+              "estimated_profitable_pct": 70.75,
+              "participant_outcome": "favorable",
+              "summary": "Sampled participants appear to be rewarded in this bucket."
+            },
+            "high_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "majors": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "micro_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            },
+            "mid_caps": {
+              "confidence": "low",
+              "coverage_state": "thin",
+              "estimated_losing_pct": null,
+              "estimated_profitable_pct": null,
+              "participant_outcome": "unknown",
+              "summary": "Participant outcome is not reliable enough to publish yet."
+            }
+          },
+          "confidence": "medium",
+          "coverage_state": "usable",
+          "estimated_losing_pct": 28.66,
+          "estimated_profitable_pct": 70.75,
+          "participant_outcome": "favorable",
+          "summary": "SOLANA participant outcome looks favorable within current coverage."
+        }
+      },
+      "module": "participant_outcome_pulse",
+      "overall": {
+        "confidence": "medium",
+        "coverage_state": "usable",
+        "estimated_losing_pct": null,
+        "estimated_profitable_pct": null,
+        "participant_outcome": "favorable",
+        "summary": "Aggregate participant outcome looks favorable within current coverage."
+      },
+      "updated_at": "2026-04-29T14:28:46Z",
+      "version": "1.20",
+      "warnings": [
+        "eth_participant_outcome_unknown",
+        "base_participant_outcome_unknown"
+      ],
+      "window_hours": 6
+    },
+    "perp_pressure": {
+      "generated_at": "2026-04-29T10:37:52Z",
+      "market": {
+        "basis_context": "unknown",
+        "confidence": "low",
+        "funding_context": "unknown",
+        "leverage_bias": "unknown",
+        "liquidation_risk": "unknown",
+        "open_interest_state": "unknown",
+        "pressure_state": "unknown",
+        "risk_read": "unknown",
+        "spot_perp_alignment": "unknown",
+        "warnings": [
+          "perp_market_data_unavailable"
+        ]
+      },
+      "status": "unavailable",
+      "symbols": [],
+      "window": "6h"
+    },
+    "revival_pressure": {
+      "chains": [
+        {
+          "chain": "solana",
+          "confidence": "low",
+          "locked": true,
+          "reversion_state": "unknown",
+          "revival_state": "unknown",
+          "warnings": [
+            "revival_data_limited"
+          ]
+        }
+      ],
+      "generated_at": "2026-04-28T22:23:53Z",
+      "locked": true,
+      "market": {
+        "confidence": "low",
+        "reversion_state": "unknown",
+        "revival_quality": "unknown",
+        "revival_state": "unknown",
+        "warnings": [
+          "revival_data_limited"
+        ]
+      },
+      "status": "unavailable",
+      "window": "6h"
+    },
+    "risk_ladder": {
+      "generated_at": "2026-04-28T22:23:52Z",
+      "locked": true,
+      "market": {
+        "confidence": "low",
+        "lagging_zone": "unknown",
+        "leading_zone": "micro_caps",
+        "risk_ladder_state": "moving_toward_risk",
+        "rotation_quality": "selective",
+        "warnings": []
+      },
+      "status": "partial",
+      "window": "6h"
+    },
+    "token_snapshot_spine": {
+      "cap_band_rollup": {
+        "base": {},
+        "eth": {},
+        "solana": {}
+      },
+      "chains": {
+        "base": {
+          "activity_state": "normal",
+          "avg_move_pct": null,
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 281,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": null,
+          "median_move_pct": null,
+          "observed_sample_size": 281,
+          "observed_volume_usd": null,
+          "participant_outcome": "unknown",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 281,
+          "read": "unknown",
+          "red_pct": null,
+          "sample_provenance": {
+            "dropped_missing_chain": 0,
+            "dropped_missing_price": 0,
+            "dropped_missing_window": 0,
+            "dropped_public_safety": 0,
+            "eligible_observation_count": 281,
+            "primary_source": "token_layer",
+            "source_count": 3
+          },
+          "sample_size": 281
+        },
+        "eth": {
+          "activity_state": "normal",
+          "avg_move_pct": null,
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 895,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": null,
+          "median_move_pct": null,
+          "observed_sample_size": 895,
+          "observed_volume_usd": null,
+          "participant_outcome": "unknown",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 895,
+          "read": "unknown",
+          "red_pct": null,
+          "sample_provenance": {
+            "dropped_missing_chain": 0,
+            "dropped_missing_price": 0,
+            "dropped_missing_window": 0,
+            "dropped_public_safety": 0,
+            "eligible_observation_count": 895,
+            "primary_source": "token_layer",
+            "source_count": 3
+          },
+          "sample_size": 895
+        },
+        "solana": {
+          "activity_state": "hot",
+          "avg_move_pct": 37.57,
+          "clean_coverage_state": "strong",
+          "clean_econ_sample_size": 351,
+          "confidence": "high",
+          "coverage_state": "strong",
+          "data_status": "observed",
+          "green_pct": 67.52,
+          "median_move_pct": 10.05,
+          "observed_sample_size": 990,
+          "observed_volume_usd": null,
+          "participant_outcome": "favorable",
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 990,
+          "read": "improving",
+          "red_pct": 32.19,
+          "sample_provenance": {
+            "dropped_missing_chain": 0,
+            "dropped_missing_price": 0,
+            "dropped_missing_window": 0,
+            "dropped_public_safety": 0,
+            "eligible_observation_count": 351,
+            "primary_source": "token_tapes",
+            "source_count": 1
+          },
+          "sample_size": 351
+        }
+      },
+      "module": "token_snapshot_spine",
+      "updated_at": "2026-04-29T16:39:09Z",
+      "warnings": [],
+      "window_hours": 6
+    },
+    "trade_weather": {
+      "lanes": {
+        "fresh_pairs": {
+          "badge": "favorable",
+          "sample_state": "strong",
+          "summary": "Fresh pairs: risk is being rewarded within current coverage.",
+          "tier": "free",
+          "weather": "clean"
+        },
+        "high_caps": {
+          "badge": "unknown",
+          "sample_state": "thin",
+          "summary": "High caps: not enough clean data yet.",
+          "tier": "pro",
+          "weather": "unknown"
+        },
+        "majors": {
+          "badge": "unknown",
+          "sample_state": "thin",
+          "summary": "Majors: not enough clean data yet.",
+          "tier": "free",
+          "weather": "unknown"
+        },
+        "micro_caps": {
+          "badge": "unknown",
+          "sample_state": "thin",
+          "summary": "Micro caps: not enough clean data yet.",
+          "tier": "pro",
+          "weather": "unknown"
+        },
+        "mid_caps": {
+          "badge": "unknown",
+          "sample_state": "thin",
+          "summary": "Mid caps: not enough clean data yet.",
+          "tier": "pro",
+          "weather": "unknown"
+        },
+        "perps": {
+          "badge": "unknown",
+          "sample_state": "unknown",
+          "summary": "Perps: leverage pressure and instability are available on Desk.",
+          "tier": "desk",
+          "weather": "unknown"
+        }
+      },
+      "module": "trade_weather",
+      "overall": {
+        "confidence": "medium",
+        "coverage_state": "usable",
+        "headline": "today's trade weather: constructive",
+        "summary": "Risk is being rewarded in the public lanes RavenOS can currently observe.",
+        "weather": "constructive"
+      },
+      "reasons": [
+        {
+          "label": "Breadth",
+          "summary": "RavenOS weighs whether activity is broad enough to trust."
+        },
+        {
+          "label": "Follow-through",
+          "summary": "Moves that fail quickly lower the weather read."
+        }
+      ],
+      "updated_at": "2026-04-29T16:10:20Z",
+      "version": "1.19",
+      "warnings": [],
+      "window_hours": 6
+    }
+  },
   "participant_outcome_pulse": {
     "generated_at": "2026-04-29T14:28:46Z",
     "locked": true,
@@ -766,6 +1772,103 @@
   "source_quality": {
     "lane_data_status": "available",
     "status": "stale"
+  },
+  "token_snapshot_spine": {
+    "cap_band_rollup": {
+      "base": {},
+      "eth": {},
+      "solana": {}
+    },
+    "chains": {
+      "base": {
+        "activity_state": "normal",
+        "avg_move_pct": null,
+        "clean_coverage_state": "strong",
+        "clean_econ_sample_size": 281,
+        "confidence": "high",
+        "coverage_state": "strong",
+        "data_status": "observed",
+        "green_pct": null,
+        "median_move_pct": null,
+        "observed_sample_size": 281,
+        "observed_volume_usd": null,
+        "participant_outcome": "unknown",
+        "raw_coverage_state": "strong",
+        "raw_sample_size": 281,
+        "read": "unknown",
+        "red_pct": null,
+        "sample_provenance": {
+          "dropped_missing_chain": 0,
+          "dropped_missing_price": 0,
+          "dropped_missing_window": 0,
+          "dropped_public_safety": 0,
+          "eligible_observation_count": 281,
+          "primary_source": "token_layer",
+          "source_count": 3
+        },
+        "sample_size": 281
+      },
+      "eth": {
+        "activity_state": "normal",
+        "avg_move_pct": null,
+        "clean_coverage_state": "strong",
+        "clean_econ_sample_size": 895,
+        "confidence": "high",
+        "coverage_state": "strong",
+        "data_status": "observed",
+        "green_pct": null,
+        "median_move_pct": null,
+        "observed_sample_size": 895,
+        "observed_volume_usd": null,
+        "participant_outcome": "unknown",
+        "raw_coverage_state": "strong",
+        "raw_sample_size": 895,
+        "read": "unknown",
+        "red_pct": null,
+        "sample_provenance": {
+          "dropped_missing_chain": 0,
+          "dropped_missing_price": 0,
+          "dropped_missing_window": 0,
+          "dropped_public_safety": 0,
+          "eligible_observation_count": 895,
+          "primary_source": "token_layer",
+          "source_count": 3
+        },
+        "sample_size": 895
+      },
+      "solana": {
+        "activity_state": "hot",
+        "avg_move_pct": 37.57,
+        "clean_coverage_state": "strong",
+        "clean_econ_sample_size": 351,
+        "confidence": "high",
+        "coverage_state": "strong",
+        "data_status": "observed",
+        "green_pct": 67.52,
+        "median_move_pct": 10.05,
+        "observed_sample_size": 990,
+        "observed_volume_usd": null,
+        "participant_outcome": "favorable",
+        "raw_coverage_state": "strong",
+        "raw_sample_size": 990,
+        "read": "improving",
+        "red_pct": 32.19,
+        "sample_provenance": {
+          "dropped_missing_chain": 0,
+          "dropped_missing_price": 0,
+          "dropped_missing_window": 0,
+          "dropped_public_safety": 0,
+          "eligible_observation_count": 351,
+          "primary_source": "token_tapes",
+          "source_count": 1
+        },
+        "sample_size": 351
+      }
+    },
+    "module": "token_snapshot_spine",
+    "updated_at": "2026-04-29T16:39:09Z",
+    "warnings": [],
+    "window_hours": 6
   },
   "trade_weather": {
     "generated_at": "2026-04-29T16:10:20Z",
