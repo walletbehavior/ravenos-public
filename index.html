@@ -417,8 +417,14 @@
   </main>
 
   <script>
-    const SNAPSHOT_URL = "/ravenos_public_snapshot.json";
-    const LATEST_URL = "/ravenos_latest.json";
+    const SNAPSHOT_URLS = [
+      "/ravenos_public_snapshot.json",
+      "/public/ravenos_public_snapshot.json",
+    ];
+    const LATEST_URLS = [
+      "/ravenos_latest.json",
+      "/public/ravenos_latest.json",
+    ];
 
     const PRO_MODULES = [
       ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
@@ -483,6 +489,11 @@
 
     function rawText(value, fallback = "") {
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    }
+
+    function freshUrl(url) {
+      const join = url.includes("?") ? "&" : "?";
+      return `${url}${join}v=${Date.now()}`;
     }
 
     function titleCase(value) {
@@ -564,6 +575,20 @@
       return clean;
     }
 
+    function firstNonEmpty(...values) {
+      for (const value of values) {
+        if (typeof value === "string" && value.trim()) return value.trim();
+      }
+      return "";
+    }
+
+    function firstFinite(...values) {
+      for (const value of values) {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+      }
+      return null;
+    }
+
     function mergeChainReadSource(snapshot, latest) {
       const reads = {};
 
@@ -582,23 +607,84 @@
         reads[norm] = {
           ...(reads[norm] || {}),
           chain: norm,
-          activity_state: row.activity_state,
-          data_status: row.data_status,
-          coverage_state: row.coverage_state || row.clean_coverage_state || row.raw_coverage_state,
-          participant_outcome: row.participant_outcome,
-          read: row.read,
-          confidence: row.confidence,
-          sample_size: row.sample_size,
-          clean_econ_sample_size: row.clean_econ_sample_size,
-          observed_sample_size: row.observed_sample_size,
-          raw_sample_size: row.raw_sample_size,
-          green_pct: row.green_pct,
-          red_pct: row.red_pct,
-          avg_move_pct: row.avg_move_pct,
-          average_move_pct: row.average_move_pct,
-          median_move_pct: row.median_move_pct,
+          activity_state: firstNonEmpty(reads[norm]?.activity_state, row.activity_state),
+          data_status: firstNonEmpty(reads[norm]?.data_status, row.data_status),
+          coverage_state: firstNonEmpty(reads[norm]?.coverage_state, row.coverage_state, row.clean_coverage_state, row.raw_coverage_state),
+          participant_outcome: firstNonEmpty(reads[norm]?.participant_outcome, row.participant_outcome),
+          read: firstNonEmpty(reads[norm]?.read, row.read),
+          confidence: firstNonEmpty(reads[norm]?.confidence, row.confidence),
+          sample_size: firstFinite(reads[norm]?.sample_size, row.sample_size),
+          clean_econ_sample_size: firstFinite(reads[norm]?.clean_econ_sample_size, row.clean_econ_sample_size),
+          observed_sample_size: firstFinite(reads[norm]?.observed_sample_size, row.observed_sample_size),
+          raw_sample_size: firstFinite(reads[norm]?.raw_sample_size, row.raw_sample_size),
+          green_pct: firstFinite(reads[norm]?.green_pct, row.green_pct),
+          red_pct: firstFinite(reads[norm]?.red_pct, row.red_pct),
+          avg_move_pct: firstFinite(reads[norm]?.avg_move_pct, row.avg_move_pct, row.average_move_pct),
+          average_move_pct: firstFinite(reads[norm]?.average_move_pct, row.average_move_pct, row.avg_move_pct),
+          median_move_pct: firstFinite(reads[norm]?.median_move_pct, row.median_move_pct),
+          followthrough_quality: firstNonEmpty(reads[norm]?.followthrough_quality, row.followthrough_quality),
+          outlier_warning: Boolean(reads[norm]?.outlier_warning || row.outlier_warning),
         };
       });
+
+      const mergeRows = (rows, updater) => {
+        for (const item of list(rows)) {
+          const row = isObject(item) ? item : {};
+          const chain = normalizeChainKey(row.chain);
+          if (!chain) continue;
+          reads[chain] = updater(chain, reads[chain] || {}, row);
+        }
+      };
+
+      mergeRows(snapshot.chain_pulse, (chain, existing, row) => ({
+        ...existing,
+        chain,
+        activity_state: firstNonEmpty(existing.activity_state, row.activity_state),
+        data_status: firstNonEmpty(existing.data_status, row.data_status),
+        participant_outcome: firstNonEmpty(existing.participant_outcome, row.participant_outcome_estimate, row.participant_outcome),
+        read: firstNonEmpty(existing.read, row.risk_read, row.read),
+        confidence: firstNonEmpty(existing.confidence, row.confidence),
+        sample_size: firstFinite(existing.sample_size, row.sample_size),
+        clean_econ_sample_size: firstFinite(existing.clean_econ_sample_size, row.clean_econ_sample_size, row.sample_size),
+        observed_sample_size: firstFinite(existing.observed_sample_size, row.observed_sample_size, row.raw_sample_size),
+        raw_sample_size: firstFinite(existing.raw_sample_size, row.raw_sample_size, row.observed_sample_size),
+        green_pct: firstFinite(existing.green_pct, row.green_pct),
+        red_pct: firstFinite(existing.red_pct, row.red_pct),
+        avg_move_pct: firstFinite(existing.avg_move_pct, row.average_move_pct, row.avg_move_pct),
+        average_move_pct: firstFinite(existing.average_move_pct, row.average_move_pct, row.avg_move_pct),
+        median_move_pct: firstFinite(existing.median_move_pct, row.median_move_pct),
+        followthrough_quality: firstNonEmpty(existing.followthrough_quality, row.followthrough_state),
+        coverage_state: firstNonEmpty(existing.coverage_state, row.coverage_state),
+      }));
+
+      mergeRows(snapshot.breadth_momentum && snapshot.breadth_momentum.chains, (chain, existing, row) => ({
+        ...existing,
+        chain,
+        activity_state: firstNonEmpty(existing.activity_state, row.activity_state),
+        data_status: firstNonEmpty(existing.data_status, row.data_status),
+        participant_outcome: firstNonEmpty(existing.participant_outcome, row.participant_outcome, row.participant_outcome_estimate),
+        read: firstNonEmpty(existing.read, row.risk_read, row.read),
+        confidence: firstNonEmpty(existing.confidence, row.confidence),
+        sample_size: firstFinite(existing.sample_size, row.sample_size, row.eligible_token_count),
+        clean_econ_sample_size: firstFinite(existing.clean_econ_sample_size, row.clean_econ_sample_size, row.sample_size, row.eligible_token_count),
+        observed_sample_size: firstFinite(existing.observed_sample_size, row.observed_sample_size, row.raw_sample_size),
+        raw_sample_size: firstFinite(existing.raw_sample_size, row.raw_sample_size, row.observed_sample_size),
+        green_pct: firstFinite(existing.green_pct, row.green_pct),
+        red_pct: firstFinite(existing.red_pct, row.red_pct),
+        avg_move_pct: firstFinite(existing.avg_move_pct, row.average_move_pct, row.avg_move_pct),
+        average_move_pct: firstFinite(existing.average_move_pct, row.average_move_pct, row.avg_move_pct),
+        median_move_pct: firstFinite(existing.median_move_pct, row.median_move_pct),
+        followthrough_quality: firstNonEmpty(existing.followthrough_quality, row.followthrough_state),
+        coverage_state: firstNonEmpty(existing.coverage_state, row.coverage_state),
+      }));
+
+      mergeRows(snapshot.participant_outcome_pulse && snapshot.participant_outcome_pulse.chains, (chain, existing, row) => ({
+        ...existing,
+        chain,
+        participant_outcome: firstNonEmpty(existing.participant_outcome, row.participant_outcome, row.participant_outcome_estimate),
+        confidence: firstNonEmpty(existing.confidence, row.confidence),
+        coverage_state: firstNonEmpty(existing.coverage_state, row.coverage_state),
+      }));
 
       const chains = Array.isArray(latest.chains) ? latest.chains : [];
       chains.forEach((chainRow) => {
@@ -611,22 +697,22 @@
 
         reads[chain] = {
           chain,
-          activity_state: existing.activity_state || chainRow.status || bestLane.status || "coming_online",
-          data_status: existing.data_status || (sampleSize > 0 ? "observed" : "coming_online"),
-          coverage_state: existing.coverage_state || (bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown"),
-          participant_outcome: existing.participant_outcome || bestLane.status || chainRow.status || "unknown",
-          read: existing.read || bestLane.status || chainRow.status || "unknown",
-          confidence: existing.confidence || bestLane.trust_level || "low",
-          sample_size: typeof existing.sample_size === "number" ? existing.sample_size : sampleSize,
-          clean_econ_sample_size: typeof existing.clean_econ_sample_size === "number" ? existing.clean_econ_sample_size : sampleSize,
-          observed_sample_size: typeof existing.observed_sample_size === "number" ? existing.observed_sample_size : sampleSize,
-          raw_sample_size: typeof existing.raw_sample_size === "number" ? existing.raw_sample_size : sampleSize,
-          green_pct: existing.green_pct,
-          red_pct: existing.red_pct,
-          avg_move_pct: existing.avg_move_pct,
-          average_move_pct: existing.average_move_pct,
-          median_move_pct: existing.median_move_pct,
-          followthrough_quality: existing.followthrough_quality || bestLane.followthrough_quality || "unknown",
+          activity_state: firstNonEmpty(existing.activity_state, chainRow.status, bestLane.status, "coming_online"),
+          data_status: firstNonEmpty(existing.data_status, sampleSize > 0 ? "observed" : "coming_online"),
+          coverage_state: firstNonEmpty(existing.coverage_state, bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown"),
+          participant_outcome: firstNonEmpty(existing.participant_outcome, bestLane.status, chainRow.status, "unknown"),
+          read: firstNonEmpty(existing.read, bestLane.status, chainRow.status, "unknown"),
+          confidence: firstNonEmpty(existing.confidence, bestLane.trust_level, "low"),
+          sample_size: firstFinite(existing.sample_size, sampleSize),
+          clean_econ_sample_size: firstFinite(existing.clean_econ_sample_size, sampleSize),
+          observed_sample_size: firstFinite(existing.observed_sample_size, sampleSize),
+          raw_sample_size: firstFinite(existing.raw_sample_size, sampleSize),
+          green_pct: firstFinite(existing.green_pct),
+          red_pct: firstFinite(existing.red_pct),
+          avg_move_pct: firstFinite(existing.avg_move_pct),
+          average_move_pct: firstFinite(existing.average_move_pct),
+          median_move_pct: firstFinite(existing.median_move_pct),
+          followthrough_quality: firstNonEmpty(existing.followthrough_quality, bestLane.followthrough_quality, "unknown"),
           outlier_warning: Boolean(existing.outlier_warning || bestLane.outlier_warning),
         };
       });
@@ -962,20 +1048,10 @@
     }
 
     async function boot() {
-      let snapshot = {};
-      let latest = {};
-      try {
-        const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
-        if (response.ok) snapshot = await response.json();
-      } catch (_) {
-        snapshot = {};
-      }
-      try {
-        const response = await fetch(LATEST_URL, { cache: "no-store" });
-        if (response.ok) latest = await response.json();
-      } catch (_) {
-        latest = {};
-      }
+      const snapshots = await fetchJsonCandidates(SNAPSHOT_URLS);
+      const latests = await fetchJsonCandidates(LATEST_URLS);
+      let snapshot = freshestByGeneratedAt(snapshots);
+      let latest = freshestByGeneratedAt(latests);
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
@@ -994,3 +1070,31 @@
   </script>
 </body>
 </html>
+    async function fetchJsonCandidates(urls) {
+      const results = [];
+      for (const url of urls) {
+        try {
+          const response = await fetch(freshUrl(url), { cache: "no-store" });
+          if (!response.ok) continue;
+          const payload = await response.json();
+          if (isObject(payload)) results.push(payload);
+        } catch (_) {
+          // ignore and continue to the next candidate
+        }
+      }
+      return results;
+    }
+
+    function freshestByGeneratedAt(items) {
+      let best = {};
+      let bestTs = -Infinity;
+      for (const item of items) {
+        const clean = rawText(item.generated_at || item.updated_at);
+        const ts = Date.parse(clean);
+        if (Number.isFinite(ts) && ts > bestTs) {
+          best = item;
+          bestTs = ts;
+        }
+      }
+      return best;
+    }
