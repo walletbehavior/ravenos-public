@@ -1,0 +1,19 @@
+
+# private Raven / operator files
+.env
+*.env
+*.sqlite
+*.db
+*.log
+logs/
+data/
+state/
+wallet_memory*
+precursor*
+shadow_trades*
+raven_live*
+atlas_permission.json
+atlas_research_permission.json
+telegram*
+*.key
+*.pem
