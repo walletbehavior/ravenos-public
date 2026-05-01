@@ -1,9 +1,9 @@
 {
   "freshness": {
-    "age_seconds": 1,
+    "age_seconds": 0,
     "status": "fresh"
   },
-  "generated_at": "2026-05-01T14:00:03Z",
+  "generated_at": "2026-05-01T14:15:03Z",
   "lane_quality": [],
   "notes": [
     "public_safe_only",
