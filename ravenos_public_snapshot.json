@@ -1,0 +1,501 @@
+{
+  "behavior_guidance": {
+    "confidence_requirement": "high",
+    "desk_action": "caution",
+    "notes": [
+      "read_only_guidance_only",
+      "bias_risk:false_confidence_from_outlier",
+      "bias_risk:ignoring_longer_window_weakness",
+      "bias_risk:overweighting_recent_wins",
+      "bias_risk:premature_strategy_validation"
+    ],
+    "read_mode": "watchlist",
+    "risk_language": "caution"
+  },
+  "desk_read": "Latest read is positive; longer-window confirmation is conflicting. This is a system-quality summary, not financial advice.",
+  "desk_risks": [
+    "false_confidence_from_outlier",
+    "ignoring_longer_window_weakness",
+    "overweighting_recent_wins",
+    "premature_strategy_validation"
+  ],
+  "generated_at": "2026-05-01T14:30:01Z",
+  "lane_quality": [
+    {
+      "chain": "eth",
+      "concentration": "not_flagged",
+      "desk_risks": [],
+      "flow_direction": "negative",
+      "followthrough_quality": "strong",
+      "lane": "Ethereum flow lane",
+      "lane_strength": "negative",
+      "outlier_warning": false,
+      "pnl_direction": "negative",
+      "public_safe": true,
+      "sample_size": 37,
+      "sample_size_trust": "high",
+      "status": "negative",
+      "trust_level": "medium",
+      "trust_reasons": [
+        "followthrough_strong",
+        "sample_size_30_plus"
+      ],
+      "win_rate_band": "medium"
+    },
+    {
+      "chain": "eth",
+      "concentration": "not_flagged",
+      "desk_risks": [
+        "small_sample_overread",
+        "weak_followthrough"
+      ],
+      "flow_direction": "negative",
+      "followthrough_quality": "weak",
+      "lane": "Ethereum flow lane",
+      "lane_strength": "negative",
+      "outlier_warning": false,
+      "pnl_direction": "negative",
+      "public_safe": true,
+      "sample_size": 2,
+      "sample_size_trust": "low",
+      "status": "negative",
+      "trust_level": "low",
+      "trust_reasons": [
+        "followthrough_weak",
+        "sample_size_below_10"
+      ],
+      "win_rate_band": "low"
+    },
+    {
+      "chain": "eth",
+      "concentration": "not_flagged",
+      "desk_risks": [
+        "small_sample_overread"
+      ],
+      "flow_direction": "negative",
+      "followthrough_quality": "mixed",
+      "lane": "Ethereum flow lane",
+      "lane_strength": "negative",
+      "outlier_warning": false,
+      "pnl_direction": "negative",
+      "public_safe": true,
+      "sample_size": 5,
+      "sample_size_trust": "low",
+      "status": "negative",
+      "trust_level": "low",
+      "trust_reasons": [
+        "followthrough_mixed",
+        "sample_size_below_10"
+      ],
+      "win_rate_band": "low"
+    },
+    {
+      "chain": "solana",
+      "concentration": "not_flagged",
+      "desk_risks": [
+        "false_confidence_from_outlier",
+        "small_sample_overread"
+      ],
+      "flow_direction": "positive",
+      "followthrough_quality": "strong",
+      "lane": "Solana flow lane",
+      "lane_strength": "positive",
+      "outlier_warning": false,
+      "pnl_direction": "positive",
+      "public_safe": true,
+      "sample_size": 5,
+      "sample_size_trust": "low",
+      "status": "positive",
+      "trust_level": "low",
+      "trust_reasons": [
+        "followthrough_strong",
+        "positive_read_under_global_outlier_dependency",
+        "sample_size_below_10"
+      ],
+      "win_rate_band": "high"
+    }
+  ],
+  "packet_type": "ravenos_public_snapshot",
+  "public_sections": {
+    "behavior_guidance": {
+      "confidence_requirement": "high",
+      "desk_action": "caution",
+      "notes": [
+        "read_only_guidance_only",
+        "bias_risk:false_confidence_from_outlier",
+        "bias_risk:ignoring_longer_window_weakness",
+        "bias_risk:overweighting_recent_wins",
+        "bias_risk:premature_strategy_validation"
+      ],
+      "read_mode": "watchlist",
+      "risk_language": "caution"
+    },
+    "desk_risks": [
+      "false_confidence_from_outlier",
+      "ignoring_longer_window_weakness",
+      "overweighting_recent_wins",
+      "premature_strategy_validation"
+    ],
+    "lane_health": {
+      "evm_surface": {
+        "breadth": "broad",
+        "direction": "positive",
+        "trend": "improving",
+        "warnings": []
+      },
+      "solana_surface": {
+        "breadth": "narrow",
+        "direction": "flat",
+        "trend": "flat",
+        "warnings": []
+      }
+    },
+    "market_posture": {
+      "confidence": "medium",
+      "crypto_beta_health": "unknown",
+      "crypto_breadth": "unknown",
+      "crypto_trend": "unknown",
+      "data_freshness": {
+        "atlas_state": "fresh",
+        "raven_truth": "fresh",
+        "regime": "stale",
+        "system_advisory": "fresh"
+      },
+      "headline": "Atlas: inflationary_stress | medium | Mkt=massive ok=1 f=0 fresh=1 cache=0 fb=Y | Vol=neutral/stable | Breadth=crypto:risk_on/expanding equity:risk_off/mixed rates:risk_off/mixed fx:neutral/mixed energy:risk_off/contracting | OptMacro=neutral/fragile | Crypto=risk_on/expanding/cooling/healthy | Opts=SPY:balanced/neutral QQQ:balanced/neutral IWM:balanced/neutral",
+      "macro_posture": "constrained"
+    },
+    "raven_summary": {
+      "evm_status": "token health/liquidity/focus-token filters dominate visible EVM dropoffs",
+      "flow_direction_mix": {
+        "flat": 3,
+        "negative": 5,
+        "positive": 2
+      },
+      "lane_count": 10,
+      "sample_size_trust_mix": {
+        "unknown": 10
+      },
+      "solana_status": {
+        "avg_consensus_score": 0.624682,
+        "clusters_seen": 1179,
+        "consensus_boost_applied_count": 217,
+        "consensus_boost_avg": 0.036556,
+        "consensus_single_entry_guard_hits": 838,
+        "eligible_clusters": 217,
+        "entries_suppressed_same_token": 838,
+        "rapid_fail_cooldowns": 0,
+        "window_sec": 86400
+      },
+      "truth_windows": {
+        "1h": {
+          "degraded": false,
+          "followthrough_learning": {
+            "sample_size": 1,
+            "sources_with_followthrough_score_gt_0": 0,
+            "sources_with_regret_or_save_metrics": 0
+          },
+          "lane_data_status": "available",
+          "lanes": [
+            {
+              "chain": "eth",
+              "flow_direction": "flat",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "flat",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.0
+            },
+            {
+              "chain": "eth",
+              "flow_direction": "flat",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "flat",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.0
+            }
+          ],
+          "null_reason": null,
+          "stale": false,
+          "window_sec": 3600
+        },
+        "24h": {
+          "degraded": true,
+          "followthrough_learning": {
+            "sample_size": 0,
+            "sources_with_followthrough_score_gt_0": 0,
+            "sources_with_regret_or_save_metrics": 0
+          },
+          "lane_data_status": "stale",
+          "lanes": [
+            {
+              "chain": "eth",
+              "flow_direction": "negative",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "negative",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.432432
+            },
+            {
+              "chain": "eth",
+              "flow_direction": "negative",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "negative",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.0
+            },
+            {
+              "chain": "eth",
+              "flow_direction": "negative",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "negative",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.2
+            },
+            {
+              "chain": "solana",
+              "flow_direction": "positive",
+              "followthrough_quality": "weak",
+              "lane": "Solana flow lane",
+              "lane_strength": "positive",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.6
+            }
+          ],
+          "null_reason": "truth_packet_shadow_jsonl_tail_incomplete",
+          "stale": true,
+          "window_sec": 86400
+        },
+        "6h": {
+          "degraded": false,
+          "followthrough_learning": {
+            "sample_size": 1,
+            "sources_with_followthrough_score_gt_0": 0,
+            "sources_with_regret_or_save_metrics": 0
+          },
+          "lane_data_status": "available",
+          "lanes": [
+            {
+              "chain": "eth",
+              "flow_direction": "negative",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "negative",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.375
+            },
+            {
+              "chain": "eth",
+              "flow_direction": "flat",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "flat",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.0
+            },
+            {
+              "chain": "eth",
+              "flow_direction": "negative",
+              "followthrough_quality": "weak",
+              "lane": "Ethereum flow lane",
+              "lane_strength": "negative",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.2
+            },
+            {
+              "chain": "solana",
+              "flow_direction": "positive",
+              "followthrough_quality": "weak",
+              "lane": "Solana flow lane",
+              "lane_strength": "positive",
+              "net_pnl_usd": null,
+              "sample_size": null,
+              "sample_size_trust": "unknown",
+              "warnings": [],
+              "win_rate": 0.333333
+            }
+          ],
+          "null_reason": null,
+          "stale": false,
+          "window_sec": 21600
+        }
+      }
+    },
+    "regime_summary": {
+      "broad_read": "mixed with broad negative pressure",
+      "outlier_dependency": "concentrated",
+      "windows": {
+        "24h": {
+          "best_lane": "Ethereum flow lane",
+          "concentration": "broad",
+          "desk_language": "caution",
+          "desk_read": "positive but concentrated",
+          "direction": "positive",
+          "flow_direction": "positive",
+          "lane_coverage": "thin",
+          "outlier_dependency": "broad",
+          "outlier_lane": "Ethereum flow lane",
+          "posture": "watch",
+          "sample_size": 39,
+          "sample_size_trust": "high",
+          "warnings": [
+            "current_context_only",
+            "missing_mae",
+            "historical_atlas_alignment_unavailable",
+            "high_outlier_dependency"
+          ],
+          "window": "24h",
+          "worst_direction": "flat",
+          "worst_lane": "Ethereum flow lane"
+        },
+        "72h": {
+          "best_lane": "Solana flow lane",
+          "concentration": "concentrated",
+          "desk_language": "avoid",
+          "desk_read": "negative or thin edge",
+          "direction": "negative",
+          "flow_direction": "negative",
+          "lane_coverage": "present",
+          "outlier_dependency": "concentrated",
+          "outlier_lane": "Solana flow lane",
+          "posture": "avoid",
+          "sample_size": 29,
+          "sample_size_trust": "medium",
+          "warnings": [
+            "current_context_only",
+            "missing_mae",
+            "historical_atlas_alignment_unavailable",
+            "high_outlier_dependency"
+          ],
+          "window": "72h",
+          "worst_direction": "flat",
+          "worst_lane": "Ethereum flow lane"
+        },
+        "7d": {
+          "best_lane": "Solana flow lane",
+          "concentration": "concentrated",
+          "desk_language": "avoid",
+          "desk_read": "negative or thin edge",
+          "direction": "negative",
+          "flow_direction": "negative",
+          "lane_coverage": "present",
+          "outlier_dependency": "concentrated",
+          "outlier_lane": "Solana flow lane",
+          "posture": "avoid",
+          "sample_size": 45,
+          "sample_size_trust": "high",
+          "warnings": [
+            "current_context_only",
+            "missing_mae",
+            "historical_atlas_alignment_unavailable",
+            "high_outlier_dependency"
+          ],
+          "window": "7d",
+          "worst_direction": "negative",
+          "worst_lane": "Ethereum flow lane"
+        }
+      }
+    },
+    "system_state": {
+      "confidence": "low",
+      "public_read": "RavenOS sees a positive but unstable edge with unresolved confirmation or outlier risk.",
+      "reasons": [
+        "sources_or_emerging_present",
+        "latest_window_positive",
+        "longer_window_conflicting",
+        "flow_confirmation_not_established",
+        "outlier_dependency_high"
+      ],
+      "state": "caution"
+    },
+    "warnings": [
+      "do_not_overread:atlas_context_current_context_only",
+      "do_not_overread:flow_confirmation_not_established",
+      "do_not_overread:longer_windows_disagree_with_24h",
+      "do_not_overread:positive_24h_outlier_driven",
+      "do_not_overread:source_sample_insufficient",
+      "do_not_overread:source_sample_or_freshness_limited",
+      "regime_data_stale"
+    ]
+  },
+  "redaction_scan": {
+    "status": "clean",
+    "warnings": []
+  },
+  "regime_quality": {
+    "consistency": "low",
+    "desk_read": "24h is positive; longer windows are conflicting; outlier dependency is high; consistency is low. Atlas alignment is current-context-only.",
+    "latest_window_direction": "positive",
+    "longer_window_confirmation": "conflicting",
+    "outlier_dependency": "high",
+    "public_read": "Latest read is positive; longer-window confirmation is conflicting. This is a system-quality summary, not financial advice."
+  },
+  "schema_version": "ravenos.public_snapshot.v02",
+  "snapshot_version": "0.3",
+  "source_health": {
+    "aging_count": 0,
+    "blocking_warnings": [],
+    "fresh_count": 8,
+    "overall_status": "stale",
+    "stale_count": 1,
+    "warning_count": 6
+  },
+  "source_quality": {
+    "label": "degraded",
+    "status": "stale",
+    "warning_count": 7
+  },
+  "source_snapshot_generated_at": "2026-05-01T14:30:01Z",
+  "system_state": {
+    "confidence": "low",
+    "public_read": "RavenOS sees a positive but unstable edge with unresolved confirmation or outlier risk.",
+    "reasons": [
+      "sources_or_emerging_present",
+      "latest_window_positive",
+      "longer_window_conflicting",
+      "flow_confirmation_not_established",
+      "outlier_dependency_high"
+    ],
+    "state": "caution"
+  },
+  "visibility_tier": "public",
+  "warnings": [
+    "do_not_overread:atlas_context_current_context_only",
+    "do_not_overread:flow_confirmation_not_established",
+    "do_not_overread:longer_windows_disagree_with_24h",
+    "do_not_overread:positive_24h_outlier_driven",
+    "do_not_overread:source_sample_insufficient",
+    "do_not_overread:source_sample_or_freshness_limited",
+    "regime_data_stale"
+  ]
+}

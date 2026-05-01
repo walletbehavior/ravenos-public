@@ -26,6 +26,7 @@
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
+      letter-spacing: 0;
     }
 
     main {
@@ -52,7 +53,7 @@
 
     h1 {
       font-size: 25px;
-      font-weight: 750;
+      font-weight: 700;
     }
 
     .stamp {
@@ -62,7 +63,7 @@
     }
 
     .intro {
-      max-width: 860px;
+      max-width: 820px;
       color: var(--muted);
       font-size: 14px;
       line-height: 1.55;
@@ -70,8 +71,45 @@
 
     .sharp {
       color: var(--text);
-      font-weight: 700;
+      font-weight: 650;
       margin-top: 8px;
+    }
+
+    .context-strip {
+      display: grid;
+      gap: 8px;
+      padding: 12px 0 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .asset-row,
+    .tape-row,
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chip,
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .badge {
+      color: var(--accent);
+      border-color: rgba(121, 208, 191, 0.42);
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 14px;
     }
 
     .hero {
@@ -88,23 +126,26 @@
       border-radius: 8px;
     }
 
-    .panel { padding: 18px; }
-    .card { padding: 16px; }
+    .panel {
+      padding: 18px;
+    }
+
+    .card {
+      padding: 16px;
+    }
 
     .eyebrow,
     .section-title {
       color: var(--muted);
       font-size: 12px;
       text-transform: uppercase;
-      letter-spacing: .02em;
     }
 
     .primary-read {
       margin-top: 8px;
       font-size: 28px;
       line-height: 1.18;
-      font-weight: 750;
-      text-transform: lowercase;
+      font-weight: 700;
     }
 
     .support {
@@ -136,11 +177,10 @@
     .section-title {
       margin: 30px 0 11px;
       font-size: 13px;
-      font-weight: 800;
     }
 
-    .chain-grid,
     .weather-grid,
+    .chain-grid,
     .free-grid,
     .pro-grid,
     .pricing-grid {
@@ -148,13 +188,14 @@
       gap: 14px;
     }
 
-    .chain-grid {
+    .weather-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .weather-grid {
+    .chain-grid,
+    .free-grid,
+    .pro-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: 10px;
     }
 
     .free-grid,
@@ -178,57 +219,23 @@
       line-height: 1.45;
     }
 
-    .badge,
-    .chip,
     .state {
       display: inline-flex;
-      width: fit-content;
-      border: 1px solid var(--line);
+      margin-bottom: 12px;
       border-radius: 999px;
       padding: 4px 8px;
       font-size: 12px;
+      border: 1px solid var(--line);
       color: var(--muted);
-      margin-bottom: 12px;
     }
 
-    .badge {
-      color: var(--accent);
-      border-color: rgba(121, 208, 191, 0.42);
+    .card > .state:first-child {
+      margin-bottom: 14px;
     }
 
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .chip {
-      margin-bottom: 0;
-      overflow-wrap: anywhere;
-    }
-
-    .state.fresh,
-    .state.positive,
-    .state.good {
-      color: var(--good);
-      border-color: rgba(136, 199, 127, 0.42);
-    }
-
-    .state.degraded,
-    .state.conflicting,
-    .state.watchlist,
-    .state.low {
-      color: var(--warn);
-      border-color: rgba(217, 184, 106, 0.44);
-    }
-
-    .state.stale,
-    .state.negative,
-    .state.bad {
-      color: var(--bad);
-      border-color: rgba(217, 120, 112, 0.44);
-    }
+    .state.favorable { color: var(--good); border-color: rgba(136, 199, 127, 0.42); }
+    .state.selective, .state.fragile, .state.choppy { color: var(--warn); border-color: rgba(217, 184, 106, 0.44); }
+    .state.hostile, .state.unstable { color: var(--bad); border-color: rgba(217, 120, 112, 0.44); }
 
     .details {
       display: grid;
@@ -256,7 +263,7 @@
       display: block;
       margin: 8px 0;
       font-size: 28px;
-      font-weight: 750;
+      font-weight: 700;
     }
 
     .features {
@@ -309,9 +316,14 @@
       }
 
       .topline,
+      .detail {
+        align-items: flex-start;
+      }
+
+      .topline,
       .hero,
-      .chain-grid,
       .weather-grid,
+      .chain-grid,
       .free-grid,
       .pro-grid,
       .pricing-grid {
@@ -350,12 +362,13 @@
         <p>RavenOS does not tell you what to buy. It shows when market conditions are rewarding risk, when moves are failing, and when a lane is likely to punish participants.</p>
         <p class="sharp">Know when not to trade. See where risk is actually being rewarded.</p>
       </div>
+      <div class="context-strip" id="marketContext"></div>
     </header>
 
     <section class="hero" aria-label="current market read">
-      <article class="panel" id="liveRead">
+      <article class="panel">
         <p class="eyebrow">current market read</p>
-        <h2 class="primary-read" id="primaryRead">current market read is developing</h2>
+        <h2 class="primary-read" id="primaryRead">market read is developing</h2>
         <p class="support" id="secondaryRead">RavenOS is preparing the public read for this window.</p>
         <div class="chips" id="heroChips"></div>
       </article>
@@ -366,12 +379,12 @@
           <strong id="coverageLabel">developing read</strong>
         </div>
         <div class="metric">
-          <span class="eyebrow">direction</span>
-          <strong id="directionLabel">developing</strong>
+          <span class="eyebrow">breadth</span>
+          <strong id="breadthLabel">developing</strong>
         </div>
         <div class="metric">
-          <span class="eyebrow">confirmation</span>
-          <strong id="confirmationLabel">developing</strong>
+          <span class="eyebrow">moves holding</span>
+          <strong id="followLabel">developing</strong>
         </div>
         <div class="metric">
           <span class="eyebrow">caution</span>
@@ -404,7 +417,8 @@
   </main>
 
   <script>
-    const SUMMARY_URL = "/public/data/ravenos_summary.json";
+    const SNAPSHOT_URL = "/ravenos_public_snapshot.json";
+    const LATEST_URL = "/ravenos_latest.json";
 
     const PRO_MODULES = [
       ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
@@ -455,17 +469,105 @@
       return value && typeof value === "object" && !Array.isArray(value);
     }
 
+    function list(value) {
+      return Array.isArray(value) ? value : [];
+    }
+
+    function text(value, fallback = "developing") {
+      if (typeof value !== "string") return fallback;
+      const clean = value.trim();
+      if (!clean) return fallback;
+      if (["unknown", "unavailable", "partial", "locked", "low"].includes(clean.toLowerCase())) return fallback;
+      return clean;
+    }
+
     function rawText(value, fallback = "") {
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
     }
 
-    function pretty(value, fallback = "developing") {
-      const clean = rawText(value, fallback);
-      return clean.replaceAll("_", " ");
+    function titleCase(value) {
+      return text(value).replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
-    function titleCase(value, fallback = "Developing") {
-      return pretty(value, fallback).replace(/\b\w/g, char => char.toUpperCase());
+    function publicLabel(value, fallback = "not enough clean data yet") {
+      const clean = rawText(value).toLowerCase();
+      if (!clean || clean === "unknown") return fallback;
+      return clean.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function coverageLabel(value) {
+      const clean = rawText(value, "developing").toLowerCase();
+      if (clean === "strong") return "strong sample";
+      if (clean === "usable") return "usable sample";
+      if (clean === "thin") return "thin sample";
+      if (clean === "unknown") return "not enough clean data yet";
+      if (clean === "insufficient") return "insufficient coverage";
+      return "developing read";
+    }
+
+    function dataStatusLabel(value) {
+      const clean = rawText(value, "coming online").toLowerCase();
+      if (clean === "observed") return "observed";
+      if (clean === "coming_online") return "coming online";
+      if (clean === "insufficient_clean_sample") return "not enough clean data yet";
+      if (clean === "unavailable") return "unavailable";
+      return "coming online";
+    }
+
+    function chainReadStatusLabel(row) {
+      const source = isObject(row) ? row : {};
+      const status = rawText(source.data_status, "coming online").toLowerCase();
+      const coverage = rawText(source.coverage_state, "unknown").toLowerCase();
+      const clean = typeof source.clean_econ_sample_size === "number" ? source.clean_econ_sample_size : (typeof source.sample_size === "number" ? source.sample_size : 0);
+      const observed = typeof source.observed_sample_size === "number" ? source.observed_sample_size : (typeof source.raw_sample_size === "number" ? source.raw_sample_size : 0);
+      if (status === "insufficient_clean_sample") return "insufficient clean sample";
+      if (status === "coming_online") return "coming online";
+      if (status === "observed" && coverage === "strong") return "observed";
+      if (status === "observed" && coverage === "usable") return "building clean read";
+      if (status === "observed" && coverage === "thin") return observed > 0 ? "observed, but clean sample is still thin" : "building clean read";
+      if (clean > 0 && observed > clean) return "building clean read";
+      return dataStatusLabel(status);
+    }
+
+    function normalizeChainKey(value) {
+      const clean = rawText(value, "").toLowerCase();
+      if (clean === "solana" || clean === "sol") return "sol";
+      if (clean === "ethereum" || clean === "eth") return "eth";
+      if (clean === "base") return "base";
+      return clean;
+    }
+
+    function mergeChainReadSource(snapshot, latest) {
+      const reads = {};
+      const raw = isObject(snapshot.chain_reads) ? snapshot.chain_reads : {};
+      Object.entries(raw).forEach(([key, row]) => {
+        const norm = normalizeChainKey(key);
+        if (norm && isObject(row)) reads[norm] = row;
+      });
+      const chains = Array.isArray(latest.chains) ? latest.chains : [];
+      chains.forEach((chainRow) => {
+        const chain = normalizeChainKey(chainRow.chain);
+        if (!chain) return;
+        const lanes = Array.isArray(chainRow.lanes) ? chainRow.lanes.filter(isObject) : [];
+        const bestLane = lanes.sort((a, b) => (Number(b.sample_size) || 0) - (Number(a.sample_size) || 0))[0] || {};
+        const sampleSize = typeof bestLane.sample_size === "number" ? bestLane.sample_size : 0;
+        reads[chain] = {
+          chain,
+          activity_state: chainRow.status || bestLane.status || "coming_online",
+          data_status: "observed",
+          coverage_state: bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown",
+          participant_outcome: bestLane.status || chainRow.status || "unknown",
+          read: bestLane.status || chainRow.status || "unknown",
+          confidence: bestLane.trust_level || "low",
+          sample_size: sampleSize,
+          clean_econ_sample_size: sampleSize,
+          observed_sample_size: sampleSize,
+          raw_sample_size: sampleSize,
+          followthrough_quality: bestLane.followthrough_quality || "unknown",
+          outlier_warning: Boolean(bestLane.outlier_warning),
+        };
+      });
+      return reads;
     }
 
     function formatUpdated(value) {
@@ -481,6 +583,27 @@
       return `updated ${yyyy}-${mm}-${dd} · ${hh}:${min} UTC`;
     }
 
+    function formatUsd(value) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "";
+      if (value >= 1000) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+      return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    }
+
+    function formatPct(value) {
+      if (typeof value !== "number" || !Number.isFinite(value)) return "";
+      const sign = value > 0 ? "+" : "";
+      return `${sign}${value.toFixed(1)}%`;
+    }
+
+    function meaningful(value) {
+      return rawText(value).toLowerCase();
+    }
+
+    function isMeaningfulState(value) {
+      const clean = meaningful(value);
+      return clean && !["developing", "unknown", "unavailable", "partial", "locked", "low"].includes(clean);
+    }
+
     function setText(id, value) {
       const node = document.getElementById(id);
       if (node) node.textContent = value;
@@ -489,80 +612,119 @@
     function card(title, copy, badge = "") {
       const article = document.createElement("article");
       article.className = "card";
-
       if (badge) {
         const mark = document.createElement("span");
         mark.className = "badge";
         mark.textContent = badge;
         article.appendChild(mark);
       }
-
       const h3 = document.createElement("h3");
       h3.textContent = title;
-
       const p = document.createElement("p");
       p.textContent = copy;
-
       article.append(h3, p);
       return article;
     }
 
-    function appendDetails(node, rows) {
-      const wrap = document.createElement("div");
-      wrap.className = "details";
-
-      rows.forEach(([label, value]) => {
-        const row = document.createElement("div");
-        row.className = "detail";
-
-        const left = document.createElement("span");
-        left.textContent = label;
-
-        const right = document.createElement("strong");
-        right.textContent = value;
-
-        row.append(left, right);
-        wrap.appendChild(row);
-      });
-
-      node.appendChild(wrap);
+    function availabilityCard(title, copy, tier = "Available on Pro") {
+      const article = card(title, copy, "");
+      const badge = document.createElement("span");
+      badge.className = "state";
+      badge.textContent = tier;
+      article.insertBefore(badge, article.firstChild);
+      return article;
     }
 
-    function renderHero(summary) {
-      const regime = isObject(summary.regime) ? summary.regime : {};
-      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
-      const freshness = isObject(summary.freshness) ? summary.freshness : {};
+    function renderMarketContext(context) {
+      const node = document.getElementById("marketContext");
+      node.textContent = "";
+      const assets = isObject(context) ? list(context.assets).filter(isObject) : [];
+      const tape = isObject(context) ? list(context.tape).map((item) => rawText(item)).filter(Boolean).slice(0, 6) : [];
+      const priced = assets
+        .map((asset) => {
+          const price = formatUsd(asset.price_usd);
+          const pct = formatPct(asset.change_24h_pct);
+          return price ? `${rawText(asset.symbol)} ${price}${pct ? ` ${pct}` : ""}` : "";
+        })
+        .filter(Boolean);
 
-      const direction = pretty(regime.direction, "developing");
-      const confirmation = pretty(regime.confirmation, "developing");
-      const consistency = pretty(regime.consistency, "developing");
-      const outlier = pretty(regime.outlier_dependency, "developing");
-      const readMode = pretty(summary.read_mode, "watchlist");
-      const sourceLabel = pretty(sourceQuality.label, "developing");
-      const freshStatus = pretty(freshness.status, "fresh");
+      if (priced.length) {
+        const row = document.createElement("div");
+        row.className = "asset-row";
+        priced.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = item;
+          row.appendChild(chip);
+        });
+        node.appendChild(row);
+      }
 
-      setText("primaryRead", `current market read: ${direction}`);
-      setText("secondaryRead", rawText(
-        summary.public_read,
-        "RavenOS shows when crypto market conditions are rewarding risk, when moves are failing, and when specific lanes are likely to punish participants."
-      ));
+      if (tape.length) {
+        const row = document.createElement("div");
+        row.className = "tape-row";
+        const label = document.createElement("span");
+        label.className = "eyebrow";
+        label.textContent = "RavenOS tape";
+        row.appendChild(label);
+        tape.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = item;
+          row.appendChild(chip);
+        });
+        node.appendChild(row);
+      }
+    }
 
-      setText("coverageLabel", sourceLabel);
-      setText("directionLabel", direction);
-      setText("confirmationLabel", confirmation);
-      setText("cautionLabel", readMode);
+    function derivePrimary(snapshot) {
+      const weather = isObject(snapshot.trade_weather) ? snapshot.trade_weather : {};
+      const overall = isObject(weather.overall) ? weather.overall : {};
+      const state = meaningful(overall.state);
+      if (state && state !== "unknown") {
+        return `today's trade weather: ${state}`;
+      }
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      if (isObject(breadth) && isMeaningfulState(breadth.risk_read)) {
+        return `current market read: ${text(breadth.risk_read)}`;
+      }
+      return "current market read is developing";
+    }
 
-      const chips = [
-        `freshness ${freshStatus}`,
-        `confirmation ${confirmation}`,
-        `consistency ${consistency}`,
-        `outlier dependency ${outlier}`,
-        `read mode ${readMode}`
-      ];
+    function deriveSecondary(snapshot) {
+      const weather = isObject(snapshot.trade_weather) ? snapshot.trade_weather : {};
+      const overall = isObject(weather.overall) ? weather.overall : {};
+      if (isMeaningfulState(overall.summary)) return rawText(overall.summary);
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      if (isObject(breadth) && breadth.risk_read === "fragile") {
+        return "Within current RavenOS coverage, activity is improving, but followthrough remains weak.";
+      }
+      return "RavenOS shows when crypto market conditions are rewarding risk, when moves are failing, and when specific lanes are likely to punish participants.";
+    }
+
+    function renderHero(snapshot) {
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      const follow = snapshot.followthrough_quality && snapshot.followthrough_quality.market;
+      const churn = snapshot.churn_trap_index && snapshot.churn_trap_index.market;
+      const weather = snapshot.trade_weather && snapshot.trade_weather.overall;
+      const coverage = isObject(weather) ? coverageLabel(weather.coverage_level) : coverageLabel(breadth && breadth.coverage && breadth.coverage.level);
+      const chips = [];
+
+      if (isObject(breadth) && isMeaningfulState(breadth.breadth_state)) chips.push(`breadth ${text(breadth.breadth_state)}`);
+      if (isObject(follow) && isMeaningfulState(follow.followthrough_state)) chips.push(`followthrough ${text(follow.followthrough_state)}`);
+      if (isObject(churn) && isMeaningfulState(churn.trap_risk)) chips.push(`trap risk ${text(churn.trap_risk)}`);
+      if (isObject(weather) && isMeaningfulState(weather.confidence)) chips.push(`${text(weather.confidence)} confidence`);
+
+      setText("primaryRead", derivePrimary(snapshot));
+      setText("secondaryRead", deriveSecondary(snapshot));
+      setText("coverageLabel", coverage);
+      setText("breadthLabel", isObject(breadth) ? titleCase(breadth.breadth_state) : "Developing");
+      setText("followLabel", isObject(follow) ? titleCase(follow.followthrough_state) : "Developing");
+      setText("cautionLabel", isObject(churn) && isMeaningfulState(churn.trap_risk) ? titleCase(churn.trap_risk) : "Watchful");
 
       const node = document.getElementById("heroChips");
       node.textContent = "";
-      chips.forEach(item => {
+      chips.slice(0, 5).forEach((item) => {
         const chip = document.createElement("span");
         chip.className = "chip";
         chip.textContent = item;
@@ -570,92 +732,122 @@
       });
     }
 
-    function renderChainReads(summary) {
-      const node = document.getElementById("chainReads");
+    function renderTradeWeather(weather) {
+      const overall = isObject(weather) && isObject(weather.overall) ? weather.overall : {};
+      const weatherText = rawText(overall.weather, rawText(overall.state, "developing"));
+      setText("weatherTitle", rawText(overall.headline, `today's trade weather: ${text(weatherText, "developing")}`));
+      setText("weatherSummary", rawText(overall.summary, "Coverage is developing, so this read should be treated as early."));
+
+      const node = document.getElementById("weatherLanes");
       node.textContent = "";
-
-      const laneQuality = Array.isArray(summary.lane_quality) ? summary.lane_quality : [];
-      const byChain = {};
-
-      laneQuality.forEach(row => {
-        if (!isObject(row)) return;
-        const chain = rawText(row.chain || row.network || row.name).toLowerCase();
-        if (chain) byChain[chain] = row;
+      const laneSource = isObject(weather) && isObject(weather.lanes)
+        ? Object.entries(weather.lanes).map(([lane, row]) => ({ lane, ...(isObject(row) ? row : {}) }))
+        : (isObject(weather) ? list(weather.lanes).filter(isObject) : []);
+      const freeLanes = laneSource.filter((lane) => {
+        const laneKey = rawText(lane.lane);
+        const tier = rawText(lane.tier, rawText(lane.available_tier));
+        return tier === "free" && lane.locked !== true && ["fresh_pairs", "majors"].includes(laneKey);
       });
 
-      const labels = { solana: "Solana", eth: "ETH", base: "Base" };
+      for (const lane of freeLanes) {
+        const title = titleCase(rawText(lane.lane, rawText(lane.label, "lane")));
+        const stateText = text(rawText(lane.weather, rawText(lane.state)), "developing");
+        const article = card(title, rawText(lane.summary, "Lane read is developing."), "");
+        const badge = document.createElement("span");
+        badge.className = `state ${stateText}`;
+        badge.textContent = stateText;
+        article.insertBefore(badge, article.firstChild);
+        const cov = document.createElement("span");
+        cov.className = "chip";
+        cov.textContent = coverageLabel(lane.coverage_level);
+        article.appendChild(cov);
+        node.appendChild(article);
+      }
 
-      ["solana", "eth", "base"].forEach(chain => {
-        const row = byChain[chain] || {};
+      node.appendChild(availabilityCard(
+        "Market-cap breakdown",
+        "See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Participant outcome",
+        "Estimate whether active traders are being rewarded or punished by chain and market-cap band.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Trade avoidance map",
+        "Identify which lanes are currently choppy, thin, overextended, or punishing newcomers.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Perp pressure",
+        "Track leverage pressure and instability.",
+        "Available on Desk"
+      ));
+    }
+
+    function renderChainReads(snapshot, latest) {
+      const node = document.getElementById("chainReads");
+      node.textContent = "";
+      const reads = mergeChainReadSource(snapshot, latest);
+      const labels = { sol: "Solana", eth: "ETH", base: "Base" };
+      ["sol", "eth", "base"].forEach((chain) => {
+        const row = isObject(reads[chain]) ? reads[chain] : {};
         const item = card(labels[chain], "Public chain read for activity, breadth, participant outcome, and coverage quality.");
-
+        const move = typeof row.avg_move_pct === "number" ? row.avg_move_pct : row.median_move_pct;
+        const observedLabel = typeof row.observed_sample_size === "number" && row.observed_sample_size > 0 ? String(row.observed_sample_size) : "not enough clean data yet";
+        const cleanLabel = typeof row.clean_econ_sample_size === "number" && row.clean_econ_sample_size > 0 ? String(row.clean_econ_sample_size) : (typeof row.sample_size === "number" && row.sample_size > 0 ? String(row.sample_size) : "not enough clean data yet");
         appendDetails(item, [
-          ["activity", pretty(row.activity_state, "coming online")],
-          ["status", pretty(row.status, "coming online")],
-          ["observed tokens", row.observed_tokens || row.observed_sample_size || "not enough clean data yet"],
-          ["clean sample", row.clean_sample || row.clean_econ_sample_size || "not enough clean data yet"],
-          ["green / red", row.green_red || "not enough clean data yet"],
-          ["move", row.move || row.avg_move_pct || "not enough clean data yet"]
-        ]);
-
+          ["activity", publicLabel(row.activity_state, "coming online")],
+          ["status", chainReadStatusLabel(row)],
+          ["observed tokens", observedLabel],
+          ["clean sample", cleanLabel],
+          ["green / red", typeof row.green_pct === "number" && typeof row.red_pct === "number" ? `${formatPct(row.green_pct)} / ${formatPct(row.red_pct)}` : "not enough clean data yet"],
+          ["move", typeof move === "number" ? formatPct(move) : "not enough clean data yet"],
+          ["participant outcome", publicLabel(row.participant_outcome)],
+          ["read", publicLabel(row.read)],
+          ["confidence", publicLabel(row.confidence, "Low")],
+          ["coverage", `${coverageLabel(row.coverage_state)}${typeof row.clean_econ_sample_size === "number" ? ` · clean ${row.clean_econ_sample_size}` : (typeof row.sample_size === "number" ? ` · clean ${row.sample_size}` : "")}`]
+        ], true);
         node.appendChild(item);
       });
     }
 
-    function renderTradeWeather(summary) {
-      const regime = isObject(summary.regime) ? summary.regime : {};
-      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
-
-      const direction = pretty(regime.direction, "developing");
-      const confirmation = pretty(regime.confirmation, "developing");
-      const consistency = pretty(regime.consistency, "developing");
-      const sourceLabel = pretty(sourceQuality.label, "developing");
-
-      setText("weatherTitle", `today's trade weather: ${direction}`);
-      setText("weatherSummary", sourceLabel === "degraded"
-        ? "Coverage is degraded, so this read should be treated as early."
-        : "Coverage is developing, so this read should be treated as early."
-      );
-
-      const node = document.getElementById("weatherLanes");
-      node.textContent = "";
-
-      node.appendChild(card("Market-cap breakdown", "See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.", "Available on Pro"));
-      node.appendChild(card("Participant outcome", "Estimate whether active traders are being rewarded or punished by chain and market-cap band.", "Available on Pro"));
-      node.appendChild(card("Trade avoidance map", `Current public confirmation is ${confirmation}; consistency is ${consistency}. Use this read as market weather, not a trade call.`, "Available on Pro"));
-      node.appendChild(card("Perp pressure", "Track leverage pressure and instability.", "Available on Desk"));
-    }
-
-    function renderConditionAlerts(summary) {
-      const node = document.getElementById("conditionAlerts");
-      node.textContent = "";
-
-      const warnings = Array.isArray(summary.warnings) ? summary.warnings : [];
-
-      if (!warnings.length) {
-        const p = document.createElement("p");
-        p.textContent = "No major public caution flags are active.";
-        node.appendChild(p);
-        return;
-      }
-
-      warnings.slice(0, 5).forEach(warning => {
-        const text = pretty(warning, "caution flag");
-        node.appendChild(card("Caution", text));
-      });
-    }
-
-    function renderWhyRead(summary) {
+    function renderWhyRead(snapshot) {
       const node = document.getElementById("whyRead");
       node.textContent = "";
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      const follow = snapshot.followthrough_quality && snapshot.followthrough_quality.market;
+      const churn = snapshot.churn_trap_index && snapshot.churn_trap_index.market;
+      const cards = [];
 
-      const regime = isObject(summary.regime) ? summary.regime : {};
-      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
+      if (isObject(breadth) && isMeaningfulState(breadth.risk_read)) {
+        cards.push(["Breadth", `Within current coverage, breadth looks ${text(breadth.breadth_state)} and the risk read is ${text(breadth.risk_read)}.`]);
+      }
+      if (isObject(follow) && isMeaningfulState(follow.followthrough_state)) {
+        cards.push(["Followthrough", `Moves holding after initial strength look ${text(follow.followthrough_state)}.`]);
+      }
+      if (isObject(churn) && isMeaningfulState(churn.trap_risk)) {
+        cards.push(["Churn / trap risk", `Trap risk is ${text(churn.trap_risk)}, so failed moves matter more than surface activity.`]);
+      }
+      if (!cards.length) cards.push(["Coverage", "Coverage is still developing, so this read should be treated as early."]);
+      cards.slice(0, 4).forEach(([title, copy]) => node.appendChild(card(title, copy)));
+    }
 
-      node.appendChild(card("Direction", `Current public direction is ${pretty(regime.direction, "developing")}.`));
-      node.appendChild(card("Confirmation", `Longer-window confirmation is ${pretty(regime.confirmation, "developing")}.`));
-      node.appendChild(card("Consistency", `Current consistency is ${pretty(regime.consistency, "developing")}.`));
-      node.appendChild(card("Source quality", `Source quality is ${pretty(sourceQuality.label, "developing")} with ${sourceQuality.warning_count ?? "some"} public warnings.`));
+    function appendDetails(node, rows, showAll = false) {
+      const wrap = document.createElement("div");
+      wrap.className = "details";
+      rows.filter(([, value]) => showAll || isMeaningfulState(value)).forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "detail";
+        const left = document.createElement("span");
+        left.textContent = label;
+        const right = document.createElement("strong");
+        right.textContent = value;
+        row.append(left, right);
+        wrap.appendChild(row);
+      });
+      if (wrap.childNodes.length) node.appendChild(wrap);
     }
 
     function renderProModules() {
@@ -667,55 +859,70 @@
     function renderPricing() {
       const node = document.getElementById("pricing");
       node.textContent = "";
-
-      PRICING.forEach(tier => {
+      PRICING.forEach((tier) => {
         const item = card(tier.name, tier.copy, tier.badge);
-
         const price = document.createElement("strong");
         price.className = "price";
         price.textContent = tier.price;
         item.insertBefore(price, item.querySelector("p"));
-
         const ul = document.createElement("ul");
         ul.className = "features";
-
-        tier.features.forEach(feature => {
+        tier.features.forEach((feature) => {
           const li = document.createElement("li");
           li.textContent = feature;
           ul.appendChild(li);
         });
-
         const cta = document.createElement(tier.live ? "a" : "span");
         cta.className = tier.live ? "cta" : "cta disabled";
         cta.textContent = tier.cta;
         if (tier.live) cta.href = "#liveRead";
-
         item.append(ul, cta);
         node.appendChild(item);
       });
     }
 
-    async function boot() {
-      let summary = {};
-
-      try {
-        const response = await fetch(`${SUMMARY_URL}?t=${Date.now()}`, { cache: "no-store" });
-        if (response.ok) summary = await response.json();
-      } catch (_) {
-        summary = {};
+    function renderConditionAlerts(conditionAlerts) {
+      const node = document.getElementById("conditionAlerts");
+      node.textContent = "";
+      const alerts = isObject(conditionAlerts) ? list(conditionAlerts.alerts).filter(isObject).slice(0, 3) : [];
+      if (!alerts.length) {
+        const p = document.createElement("p");
+        p.textContent = "No major public caution flags are active.";
+        node.appendChild(p);
+        return;
       }
+      alerts.forEach((alert) => {
+        const item = card(rawText(alert.title, "Condition alert"), rawText(alert.message, "Market conditions changed."), titleCase(alert.severity));
+        node.appendChild(item);
+      });
+    }
 
-      if (!isObject(summary)) summary = {};
-
-      setText("generatedAt", formatUpdated(summary.generated_at));
-
-      renderHero(summary);
-      renderChainReads(summary);
-      renderTradeWeather(summary);
-      renderConditionAlerts(summary);
-      renderWhyRead(summary);
+    async function boot() {
+      let snapshot = {};
+      let latest = {};
+      try {
+        const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+        if (response.ok) snapshot = await response.json();
+      } catch (_) {
+        snapshot = {};
+      }
+      try {
+        const response = await fetch(LATEST_URL, { cache: "no-store" });
+        if (response.ok) latest = await response.json();
+      } catch (_) {
+        latest = {};
+      }
+      if (!isObject(snapshot)) snapshot = {};
+      if (!isObject(latest)) latest = {};
+      setText("generatedAt", formatUpdated(snapshot.generated_at));
+      renderMarketContext(snapshot.market_context);
+      renderHero(snapshot);
+      renderChainReads(snapshot, latest);
+      renderTradeWeather(snapshot.trade_weather);
+      renderWhyRead(snapshot);
       renderProModules();
       renderPricing();
+      renderConditionAlerts(snapshot.condition_alerts);
     }
 
     boot();
