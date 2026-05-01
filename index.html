@@ -417,8 +417,14 @@
   </main>
 
   <script>
-    const SNAPSHOT_URL = "/ravenos_public_snapshot.json";
-    const LATEST_URL = "/ravenos_latest.json";
+    const SNAPSHOT_URLS = [
+      "/ravenos_public_snapshot.json",
+      "/public/ravenos_public_snapshot.json",
+    ];
+    const LATEST_URLS = [
+      "/ravenos_latest.json",
+      "/public/ravenos_latest.json",
+    ];
 
     const PRO_MODULES = [
       ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
@@ -483,6 +489,11 @@
 
     function rawText(value, fallback = "") {
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    }
+
+    function freshUrl(url) {
+      const join = url.includes("?") ? "&" : "?";
+      return `${url}${join}v=${Date.now()}`;
     }
 
     function titleCase(value) {
@@ -898,23 +909,13 @@
     }
 
     async function boot() {
-      let snapshot = {};
-      let latest = {};
-      try {
-        const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
-        if (response.ok) snapshot = await response.json();
-      } catch (_) {
-        snapshot = {};
-      }
-      try {
-        const response = await fetch(LATEST_URL, { cache: "no-store" });
-        if (response.ok) latest = await response.json();
-      } catch (_) {
-        latest = {};
-      }
+      const snapshots = await fetchJsonCandidates(SNAPSHOT_URLS);
+      const latests = await fetchJsonCandidates(LATEST_URLS);
+      let snapshot = freshestByGeneratedAt(snapshots);
+      let latest = freshestByGeneratedAt(latests);
       if (!isObject(snapshot)) snapshot = {};
       if (!isObject(latest)) latest = {};
-      setText("generatedAt", formatUpdated(snapshot.generated_at));
+      setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
@@ -929,3 +930,31 @@
   </script>
 </body>
 </html>
+    async function fetchJsonCandidates(urls) {
+      const results = [];
+      for (const url of urls) {
+        try {
+          const response = await fetch(freshUrl(url), { cache: "no-store" });
+          if (!response.ok) continue;
+          const payload = await response.json();
+          if (isObject(payload)) results.push(payload);
+        } catch (_) {
+          // ignore and continue to the next candidate
+        }
+      }
+      return results;
+    }
+
+    function freshestByGeneratedAt(items) {
+      let best = {};
+      let bestTs = -Infinity;
+      for (const item of items) {
+        const clean = rawText(item.generated_at || item.updated_at);
+        const ts = Date.parse(clean);
+        if (Number.isFinite(ts) && ts > bestTs) {
+          best = item;
+          bestTs = ts;
+        }
+      }
+      return best;
+    }
