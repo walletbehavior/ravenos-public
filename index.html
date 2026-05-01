@@ -5,43 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
   <title>RavenOS</title>
-  <meta
-    name="description"
-    content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts."
-  />
-
+  <meta name="description" content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts." />
   <style>
     :root {
-      --bg: #07080b;
-      --panel: rgba(255, 255, 255, 0.055);
-      --panel-strong: rgba(255, 255, 255, 0.09);
-      --line: rgba(255, 255, 255, 0.12);
-      --text: #f4f0e8;
-      --muted: rgba(244, 240, 232, 0.64);
-      --soft: rgba(244, 240, 232, 0.42);
-      --good: #b7f7c3;
-      --warn: #f4d38b;
-      --bad: #f1a7a7;
-      --blue: #a9c7ff;
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
-      --radius: 28px;
+      --bg: #050809;
+      --panel: rgba(22, 26, 28, 0.78);
+      --panel2: rgba(29, 34, 36, 0.82);
+      --line: rgba(255,255,255,0.13);
+      --line2: rgba(255,255,255,0.20);
+      --text: #f4f1e9;
+      --muted: rgba(244,241,233,0.66);
+      --dim: rgba(244,241,233,0.48);
+      --green: #b7ffc4;
+      --blue: #abc5ff;
+      --yellow: #ffdd8a;
+      --cyan: #8ee8dc;
+      --shadow: 0 30px 120px rgba(0,0,0,0.42);
+      --radius: 34px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
-    body {
+    html, body {
       margin: 0;
-      min-height: 100vh;
+      min-height: 100%;
       background:
-        radial-gradient(circle at 15% 10%, rgba(120, 141, 255, 0.18), transparent 32%),
-        radial-gradient(circle at 82% 18%, rgba(183, 247, 195, 0.10), transparent 30%),
-        radial-gradient(circle at 52% 85%, rgba(244, 211, 139, 0.10), transparent 34%),
+        radial-gradient(circle at 18% 9%, rgba(74, 89, 145, 0.30), transparent 34%),
+        radial-gradient(circle at 63% 46%, rgba(114, 129, 138, 0.18), transparent 22%),
+        radial-gradient(circle at 88% 20%, rgba(65, 96, 82, 0.16), transparent 28%),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
         var(--bg);
+      background-size: auto, auto, auto, 96px 96px, 96px 96px, auto;
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
-      letter-spacing: -0.02em;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-x: hidden;
     }
 
     body::before {
@@ -49,639 +47,545 @@
       position: fixed;
       inset: 0;
       pointer-events: none;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 70%);
+      background: linear-gradient(180deg, rgba(255,255,255,0.035), transparent 22%, rgba(0,0,0,0.25));
+      z-index: 0;
     }
 
     .shell {
-      width: min(1180px, calc(100% - 32px));
+      position: relative;
+      z-index: 1;
+      width: min(1920px, 100%);
       margin: 0 auto;
-      padding: 44px 0 28px;
+      padding: 78px 24px 80px;
     }
 
-    .nav {
+    header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 64px;
-      color: var(--muted);
-      font-size: 13px;
+      margin-bottom: 128px;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
-      letter-spacing: 0.14em;
+      font-weight: 800;
+      color: rgba(244,241,233,0.72);
     }
 
-    .mark {
+    .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      color: var(--text);
-      font-weight: 700;
+      gap: 20px;
+      color: #fff;
+      font-size: 28px;
     }
 
     .dot {
-      width: 9px;
-      height: 9px;
+      width: 18px;
+      height: 18px;
       border-radius: 999px;
-      background: var(--good);
-      box-shadow: 0 0 24px rgba(183, 247, 195, 0.9);
+      background: var(--green);
+      box-shadow: 0 0 28px rgba(183,255,196,0.7);
     }
 
-    .hero {
+    .kicker {
+      font-size: 28px;
+      white-space: nowrap;
+    }
+
+    .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
-      gap: 26px;
-      align-items: stretch;
-      margin-bottom: 26px;
+      grid-template-columns: 2.1fr 1fr;
+      gap: 52px;
+      margin-bottom: 52px;
     }
 
-    .hero-main,
-    .hero-side,
-    .panel {
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.038));
+    .hero-card,
+    .side-card,
+    .wide-card,
+    .section-card {
+      border: 1px solid var(--line2);
+      background:
+        radial-gradient(circle at 82% 86%, rgba(116, 133, 148, 0.28), transparent 22%),
+        linear-gradient(130deg, rgba(48, 54, 76, 0.84), rgba(19, 24, 24, 0.80));
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       backdrop-filter: blur(18px);
     }
 
-    .hero-main {
-      padding: clamp(28px, 5vw, 56px);
-      min-height: 430px;
+    .hero-card {
+      min-height: 620px;
+      padding: 100px 106px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .hero-main::after {
-      content: "";
-      position: absolute;
-      right: -120px;
-      bottom: -160px;
-      width: 360px;
-      height: 360px;
-      border-radius: 999px;
-      background: rgba(169, 199, 255, 0.12);
-      filter: blur(4px);
+      justify-content: center;
     }
 
     .eyebrow {
       color: var(--blue);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.16em;
       text-transform: uppercase;
-      margin-bottom: 18px;
+      letter-spacing: 0.28em;
+      font-weight: 900;
+      font-size: 28px;
+      margin-bottom: 42px;
     }
 
     h1 {
-      margin: 0;
-      max-width: 760px;
-      font-size: clamp(46px, 8vw, 92px);
-      line-height: 0.91;
-      letter-spacing: -0.075em;
+      font-size: clamp(70px, 8vw, 154px);
+      line-height: 0.92;
+      letter-spacing: -0.085em;
+      margin: 0 0 58px;
+      max-width: 1050px;
     }
 
     .lede {
-      max-width: 690px;
-      margin: 26px 0 0;
       color: var(--muted);
-      font-size: clamp(17px, 2vw, 21px);
-      line-height: 1.55;
-      letter-spacing: -0.025em;
-    }
-
-    .hero-footer {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 42px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .tag {
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.18);
-      color: var(--muted);
-      border-radius: 999px;
-      padding: 9px 12px;
-      font-size: 13px;
-    }
-
-    .hero-side {
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 18px;
-    }
-
-    .big-state {
-      padding: 22px;
-      border-radius: 22px;
-      background: rgba(0, 0, 0, 0.20);
-      border: 1px solid var(--line);
-    }
-
-    .big-label {
-      color: var(--muted);
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      margin-bottom: 10px;
-    }
-
-    .big-value {
-      display: block;
-      font-size: 36px;
-      font-weight: 800;
-      line-height: 1;
-      text-transform: capitalize;
-    }
-
-    .big-sub {
-      display: block;
-      color: var(--soft);
-      margin-top: 12px;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-
-    .status-grid {
-      display: grid;
-      gap: 10px;
-    }
-
-    .mini {
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.045);
-      border: 1px solid var(--line);
-    }
-
-    .mini span {
-      display: block;
-      color: var(--soft);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      margin-bottom: 7px;
-    }
-
-    .mini strong {
-      font-size: 15px;
-      overflow-wrap: anywhere;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 26px;
-      margin-bottom: 26px;
-    }
-
-    .panel {
-      padding: 24px;
-    }
-
-    .panel-wide {
-      grid-column: 1 / -1;
-    }
-
-    .panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    h2 {
+      font-size: clamp(26px, 2.3vw, 42px);
+      line-height: 1.5;
+      max-width: 1080px;
       margin: 0;
-      font-size: 18px;
-      letter-spacing: -0.035em;
-    }
-
-    .pill {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 7px 10px;
-      color: var(--muted);
-      background: rgba(0,0,0,0.18);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      white-space: nowrap;
-    }
-
-    .summary {
-      margin: 0;
-      color: rgba(244, 240, 232, 0.88);
-      font-size: clamp(22px, 3.5vw, 42px);
-      line-height: 1.08;
+      font-weight: 650;
       letter-spacing: -0.055em;
-      max-width: 980px;
     }
 
     .chips {
       display: flex;
+      gap: 18px;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 26px;
+      margin-top: 86px;
     }
 
     .chip {
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(0,0,0,0.20);
-      color: var(--muted);
+      border: 1px solid var(--line2);
       border-radius: 999px;
-      padding: 8px 10px;
-      font-size: 12px;
-      letter-spacing: -0.01em;
+      padding: 18px 26px;
+      color: var(--muted);
+      font-size: 24px;
+      font-weight: 750;
+      background: rgba(0,0,0,0.18);
+    }
+
+    .side-card {
+      padding: 48px;
+      display: grid;
+      align-content: stretch;
+      gap: 22px;
+      background: linear-gradient(145deg, rgba(34,39,38,0.84), rgba(10,13,13,0.84));
+    }
+
+    .metric {
+      border: 1px solid var(--line2);
+      border-radius: 28px;
+      padding: 38px 34px;
+      background: rgba(255,255,255,0.025);
+    }
+
+    .metric.large { min-height: 280px; }
+
+    .label {
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.22em;
+      font-size: 26px;
+      font-weight: 850;
+      margin-bottom: 22px;
+    }
+
+    .value {
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+    }
+
+    .value.green { color: var(--green); }
+
+    .sub {
+      color: var(--dim);
+      font-size: 28px;
+      line-height: 1.45;
+      margin-top: 28px;
+      font-weight: 720;
+      letter-spacing: -0.045em;
+    }
+
+    .wide-card {
+      padding: 54px 50px;
+      margin-bottom: 52px;
+      background: linear-gradient(145deg, rgba(22,24,25,0.88), rgba(14,15,16,0.90));
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 44px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: -0.06em;
+    }
+
+    .pill {
+      border: 1px solid var(--line2);
+      border-radius: 999px;
+      padding: 13px 22px;
+      color: var(--yellow);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-weight: 900;
+      font-size: 20px;
+    }
+
+    .public-read {
+      font-size: clamp(42px, 4.2vw, 72px);
+      line-height: 1.16;
+      letter-spacing: -0.085em;
+      font-weight: 780;
+      color: rgba(244,241,233,0.92);
+      margin: 0;
+      max-width: 1700px;
+    }
+
+    .warnings {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 48px;
+    }
+
+    .warning {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 14px 22px;
+      color: var(--muted);
+      font-size: 22px;
+      font-weight: 720;
+      background: rgba(0,0,0,0.16);
+    }
+
+    .lower-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+      margin-bottom: 52px;
+    }
+
+    .section-title {
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 900;
+      font-size: 28px;
+      margin: 76px 0 24px;
+    }
+
+    .section-card {
+      padding: 38px;
+      background: rgba(18,22,23,0.78);
     }
 
     .facts {
       display: grid;
-      gap: 12px;
-      margin: 0;
+      gap: 20px;
     }
 
-    .facts div {
+    .fact {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      padding: 14px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-
-    .facts div:last-child {
-      border-bottom: 0;
-    }
-
-    dt {
+      gap: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      padding-bottom: 18px;
+      font-size: 26px;
       color: var(--muted);
-      font-size: 14px;
     }
 
-    dd {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 750;
+    .fact strong {
+      color: var(--text);
       text-align: right;
-      text-transform: capitalize;
     }
 
-    .lanes {
+    .coming-grid {
       display: grid;
-      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 28px;
     }
 
-    .lane-empty {
-      color: var(--muted);
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(0,0,0,0.16);
+    .chain-card {
       border: 1px solid var(--line);
-      line-height: 1.5;
-    }
-
-    .lane {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 14px;
-      align-items: center;
-      padding: 16px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.16);
-      border: 1px solid var(--line);
+      padding: 30px;
+      background: rgba(17,21,22,0.82);
     }
 
-    .lane-name {
-      font-weight: 750;
-      overflow-wrap: anywhere;
+    .chain-card h3 {
+      margin: 0 0 18px;
+      font-size: 32px;
+      letter-spacing: -0.06em;
     }
 
-    .lane-meta {
+    .chain-card p {
+      margin: 0 0 26px;
       color: var(--muted);
-      font-size: 13px;
-      margin-top: 5px;
+      font-size: 24px;
+      line-height: 1.45;
+      font-weight: 650;
     }
 
-    .footer {
+    .mini-row {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
-      padding: 18px 4px 0;
-      color: var(--soft);
-      font-size: 13px;
+      gap: 18px;
+      border-top: 1px solid rgba(255,255,255,0.11);
+      padding: 14px 0;
+      color: var(--muted);
+      font-size: 22px;
     }
 
-    .positive,
-    .fresh,
-    .available {
-      color: var(--good);
+    .mini-row strong {
+      color: var(--text);
+      text-align: right;
     }
 
-    .conflicting,
-    .degraded,
-    .watchlist,
-    .low,
-    .high {
-      color: var(--warn);
+    footer {
+      color: var(--dim);
+      margin-top: 70px;
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      font-size: 18px;
     }
 
-    .negative,
-    .stale,
-    .unavailable {
-      color: var(--bad);
-    }
-
-    @media (max-width: 860px) {
-      .shell {
-        width: min(100% - 22px, 1180px);
-        padding-top: 24px;
-      }
-
-      .nav {
-        margin-bottom: 28px;
-      }
-
-      .hero,
-      .grid {
+    @media (max-width: 1100px) {
+      .shell { padding: 34px 16px 52px; }
+      header { margin-bottom: 56px; }
+      .kicker { display: none; }
+      .hero-grid, .lower-grid, .coming-grid {
         grid-template-columns: 1fr;
       }
-
-      .hero-main {
-        min-height: 390px;
+      .hero-card {
+        min-height: auto;
+        padding: 54px 32px;
       }
-
-      .summary {
-        font-size: 28px;
-      }
-
-      .footer {
-        flex-direction: column;
-      }
+      .side-card { padding: 24px; }
+      .chips { margin-top: 44px; }
+      .chip, .warning { font-size: 16px; }
+      .metric { padding: 28px 24px; }
+      .label { font-size: 18px; }
+      .public-read { font-size: 42px; }
+      footer { flex-direction: column; }
     }
   </style>
 </head>
 
 <body>
   <main class="shell">
-    <nav class="nav">
-      <div class="mark"><span class="dot"></span><span>RavenOS</span></div>
-      <div>public market weather</div>
-    </nav>
+    <header>
+      <div class="brand"><span class="dot"></span><span>RavenOS</span></div>
+      <div class="kicker">Public Market Weather</div>
+    </header>
 
-    <section class="hero">
-      <article class="hero-main">
-        <div>
-          <div class="eyebrow">RavenOS Public</div>
-          <h1>Market weather, not trade calls.</h1>
-          <p class="lede">
-            Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists,
-            raw logs, private internals, or execution logic are exposed here.
-          </p>
-        </div>
-
-        <div class="hero-footer">
-          <span class="tag">public-safe only</span>
-          <span class="tag">sanitized artifacts</span>
-          <span class="tag">no execution logic</span>
-          <span class="tag">updated by cron</span>
+    <section class="hero-grid">
+      <article class="hero-card">
+        <div class="eyebrow">RavenOS Public</div>
+        <h1>Market weather, not trade calls.</h1>
+        <p class="lede">
+          Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists, raw logs,
+          private internals, or execution logic are exposed here.
+        </p>
+        <div class="chips">
+          <span class="chip">public-safe only</span>
+          <span class="chip">sanitized artifacts</span>
+          <span class="chip">no execution logic</span>
+          <span class="chip">updated by cron</span>
         </div>
       </article>
 
-      <aside class="hero-side">
-        <div class="big-state">
-          <div class="big-label">Current direction</div>
-          <strong id="hero-direction" class="big-value">Loading</strong>
-          <span id="hero-sub" class="big-sub">Waiting for public data...</span>
+      <aside class="side-card">
+        <div class="metric large">
+          <div class="label">Current direction</div>
+          <div id="direction" class="value green">loading</div>
+          <div id="confirmation" class="sub">confirmation: loading · consistency: loading</div>
         </div>
 
-        <div class="status-grid">
-          <div class="mini">
-            <span>Freshness</span>
-            <strong id="freshness">Loading...</strong>
-          </div>
-          <div class="mini">
-            <span>Read mode</span>
-            <strong id="read-mode">Loading...</strong>
-          </div>
-          <div class="mini">
-            <span>Updated at</span>
-            <strong id="generated-at">Loading...</strong>
-          </div>
+        <div class="metric">
+          <div class="label">Freshness</div>
+          <div id="freshness" class="value">loading</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">Read mode</div>
+          <div id="read-mode" class="value">loading</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">Updated at</div>
+          <div id="updated-at" class="value">loading</div>
         </div>
       </aside>
     </section>
 
-    <section class="grid">
-      <article class="panel panel-wide">
-        <div class="panel-head">
-          <h2>Public read</h2>
-          <span id="status-pill" class="pill">Loading</span>
-        </div>
-        <p id="public-read" class="summary">Loading RavenOS public summary...</p>
-        <div id="warning-list" class="chips"></div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <h2>Regime</h2>
-        </div>
-        <dl class="facts">
-          <div><dt>Direction</dt><dd id="regime-direction">Loading...</dd></div>
-          <div><dt>Confirmation</dt><dd id="regime-confirmation">Loading...</dd></div>
-          <div><dt>Consistency</dt><dd id="regime-consistency">Loading...</dd></div>
-          <div><dt>Outlier dependency</dt><dd id="regime-outlier">Loading...</dd></div>
-        </dl>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <h2>Source quality</h2>
-        </div>
-        <dl class="facts">
-          <div><dt>Status</dt><dd id="source-status">Loading...</dd></div>
-          <div><dt>Label</dt><dd id="source-label">Loading...</dd></div>
-          <div><dt>Age</dt><dd id="source-age">Loading...</dd></div>
-          <div><dt>TTL</dt><dd id="source-ttl">Loading...</dd></div>
-        </dl>
-      </article>
-    </section>
-
-    <section class="panel">
+    <section class="wide-card">
       <div class="panel-head">
-        <h2>Lane health</h2>
-        <span class="pill">public layer</span>
+        <h2>Public read</h2>
+        <span id="quality-pill" class="pill">loading</span>
       </div>
-      <div id="lane-list" class="lanes"></div>
+      <p id="public-read" class="public-read">Loading public RavenOS read.</p>
+      <div id="warnings" class="warnings"></div>
     </section>
 
-    <footer class="footer">
-      <span>RavenOS public dashboard.</span>
-      <span>System-quality summary, not financial advice.</span>
+    <section class="lower-grid">
+      <article class="section-card">
+        <div class="label">Regime</div>
+        <div class="facts">
+          <div class="fact"><span>direction</span><strong id="regime-direction">loading</strong></div>
+          <div class="fact"><span>confirmation</span><strong id="regime-confirmation">loading</strong></div>
+          <div class="fact"><span>consistency</span><strong id="regime-consistency">loading</strong></div>
+          <div class="fact"><span>outlier dependency</span><strong id="regime-outlier">loading</strong></div>
+        </div>
+      </article>
+
+      <article class="section-card">
+        <div class="label">Source quality</div>
+        <div class="facts">
+          <div class="fact"><span>status</span><strong id="source-status">loading</strong></div>
+          <div class="fact"><span>label</span><strong id="source-label">loading</strong></div>
+          <div class="fact"><span>warning count</span><strong id="warning-count">loading</strong></div>
+          <div class="fact"><span>ttl</span><strong id="ttl">loading</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <div class="section-title">Live chain reads</div>
+    <section class="coming-grid">
+      <article class="chain-card">
+        <h3>Solana</h3>
+        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
+        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
+      </article>
+
+      <article class="chain-card">
+        <h3>ETH</h3>
+        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
+        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
+      </article>
+
+      <article class="chain-card">
+        <h3>Base</h3>
+        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
+        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
+        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
+      </article>
+    </section>
+
+    <div class="section-title">Today’s trade weather</div>
+    <section class="wide-card">
+      <div class="label" id="weather-title">Today’s trade weather: developing</div>
+      <p class="lede" style="max-width: none; font-size: 30px;">
+        Coverage is developing, so this read should be treated as early.
+      </p>
+      <div class="coming-grid" style="margin-top: 28px;">
+        <article class="chain-card">
+          <span class="chip">Available on Pro</span>
+          <h3 style="margin-top: 28px;">Market-cap breakdown</h3>
+          <p>See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.</p>
+        </article>
+        <article class="chain-card">
+          <span class="chip">Available on Pro</span>
+          <h3 style="margin-top: 28px;">Participant outcome</h3>
+          <p>Estimate whether active traders are being rewarded or punished by chain and market-cap band.</p>
+        </article>
+        <article class="chain-card">
+          <span class="chip">Available on Pro</span>
+          <h3 style="margin-top: 28px;">Trade avoidance map</h3>
+          <p>Identify which lanes are choppy, thin, overextended, or punishing newcomers.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      <span>Public-safe only. No wallet lists, raw logs, private DB, or execution logic.</span>
+      <span id="packet-type">packet: loading</span>
     </footer>
   </main>
 
   <script>
-    const DATA_URL = "/public/data/ravenos_summary.json";
+    const DATA_URL = "./public/data/ravenos_summary.json";
 
     const $ = (id) => document.getElementById(id);
 
-    function clean(value, fallback = "unknown") {
-      if (value === null || value === undefined || value === "") return fallback;
-      return String(value).replaceAll("_", " ");
+    function cleanWarning(w) {
+      return String(w || "")
+        .replaceAll("do_not_overread:", "do not overread:")
+        .replaceAll("_", " ");
     }
 
-    function setText(id, value, fallback) {
-      const el = $(id);
-      if (!el) return;
-      el.textContent = clean(value, fallback);
-      el.className = "";
-      const cls = String(value || "").toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      if (cls) el.classList.add(cls);
-    }
-
-    function formatAge(seconds) {
-      const n = Number(seconds);
-      if (!Number.isFinite(n)) return "unknown";
-      if (n < 60) return `${Math.round(n)}s`;
-      if (n < 3600) return `${Math.round(n / 60)}m`;
-      return `${(n / 3600).toFixed(1)}h`;
-    }
-
-    function formatDate(value) {
-      if (!value) return "unknown";
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return value;
+    function formatDate(iso) {
+      if (!iso) return "unknown";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
       return d.toLocaleString(undefined, {
         month: "short",
         day: "numeric",
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit"
       });
     }
 
-    function renderWarnings(warnings) {
-      const wrap = $("warning-list");
-      wrap.innerHTML = "";
+    function render(data) {
+      const regime = data.regime || {};
+      const freshness = data.freshness || {};
+      const source = data.source_quality || {};
 
-      const items = Array.isArray(warnings) ? warnings : [];
-      if (!items.length) {
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = "no public warnings";
-        wrap.appendChild(chip);
-        return;
-      }
+      $("direction").textContent = regime.direction || "developing";
+      $("confirmation").textContent = `confirmation: ${regime.confirmation || "developing"} · consistency: ${regime.consistency || "developing"}`;
+      $("freshness").textContent = `${freshness.status || "unknown"} / ${freshness.age_seconds ?? "?"}s`;
+      $("read-mode").textContent = data.read_mode || "watchlist";
+      $("updated-at").textContent = formatDate(data.generated_at);
 
-      for (const warning of items) {
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = clean(warning);
-        wrap.appendChild(chip);
-      }
-    }
+      $("quality-pill").textContent = source.label || source.status || "public";
+      $("public-read").textContent = data.public_read || "Current public read is developing.";
 
-    function renderLanes(lanes) {
-      const wrap = $("lane-list");
-      wrap.innerHTML = "";
+      $("regime-direction").textContent = regime.direction || "developing";
+      $("regime-confirmation").textContent = regime.confirmation || "developing";
+      $("regime-consistency").textContent = regime.consistency || "developing";
+      $("regime-outlier").textContent = regime.outlier_dependency || "developing";
 
-      if (!Array.isArray(lanes) || lanes.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "lane-empty";
-        empty.textContent =
-          "No public lane breakdown is exposed in this summary yet. The top-level read is available and sanitized.";
-        wrap.appendChild(empty);
-        return;
-      }
+      $("source-status").textContent = source.status || "unknown";
+      $("source-label").textContent = source.label || "unknown";
+      $("warning-count").textContent = source.warning_count ?? (data.warnings || []).length;
+      $("ttl").textContent = `${data.ttl_seconds || 900}s`;
+      $("packet-type").textContent = `packet: ${data.packet_type || "unknown"}`;
 
-      for (const lane of lanes) {
-        const row = document.createElement("div");
-        row.className = "lane";
-
-        const left = document.createElement("div");
-        const name = document.createElement("div");
-        name.className = "lane-name";
-        name.textContent = clean(lane.name || lane.lane || lane.id, "unnamed lane");
-
-        const meta = document.createElement("div");
-        meta.className = "lane-meta";
-        meta.textContent = [
-          lane.direction && `direction: ${clean(lane.direction)}`,
-          lane.followthrough && `followthrough: ${clean(lane.followthrough)}`,
-          lane.samples !== undefined && `samples: ${lane.samples}`
-        ].filter(Boolean).join(" · ") || "public lane signal";
-
-        left.appendChild(name);
-        left.appendChild(meta);
-
-        const right = document.createElement("span");
-        right.className = "pill";
-        right.textContent = clean(lane.status || lane.quality || "public");
-
-        row.appendChild(left);
-        row.appendChild(right);
-        wrap.appendChild(row);
-      }
+      const warnings = $("warnings");
+      warnings.innerHTML = "";
+      (data.warnings || []).forEach((warning) => {
+        const span = document.createElement("span");
+        span.className = "warning";
+        span.textContent = cleanWarning(warning);
+        warnings.appendChild(span);
+      });
     }
 
     async function load() {
       try {
         const res = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const data = await res.json();
-        const regime = data.regime || {};
-        const freshness = data.freshness || {};
-        const source = data.source_quality || {};
-
-        setText("hero-direction", regime.direction, "unknown");
-        $("hero-sub").textContent = `confirmation: ${clean(regime.confirmation)} · consistency: ${clean(regime.consistency)}`;
-
-        $("freshness").textContent = `${clean(freshness.status)} / ${formatAge(freshness.age_seconds)}`;
-        $("read-mode").textContent = clean(data.read_mode, "unknown");
-        $("generated-at").textContent = formatDate(data.generated_at);
-
-        $("public-read").textContent = clean(data.public_read, "No public read available.");
-
-        const pill = $("status-pill");
-        pill.textContent = clean(source.label || freshness.status || "loaded");
-        pill.className = "pill " + clean(source.label || freshness.status || "loaded").toLowerCase();
-
-        setText("regime-direction", regime.direction, "unknown");
-        setText("regime-confirmation", regime.confirmation, "unknown");
-        setText("regime-consistency", regime.consistency, "unknown");
-        setText("regime-outlier", regime.outlier_dependency, "unknown");
-
-        setText("source-status", source.status, "unknown");
-        setText("source-label", source.label, "unknown");
-        $("source-age").textContent = formatAge(freshness.age_seconds);
-        $("source-ttl").textContent = data.ttl_seconds ? `${data.ttl_seconds}s` : "unknown";
-
-        renderWarnings(data.warnings);
-        renderLanes(data.lane_quality);
+        render(data);
       } catch (err) {
-        $("public-read").textContent =
-          "RavenOS public data is not available yet. The dashboard shell loaded, but the public JSON fetch failed.";
-        $("status-pill").textContent = "data error";
-        $("hero-direction").textContent = "offline";
-        $("hero-sub").textContent = err.message || "unknown fetch error";
-        renderWarnings(["public_json_fetch_failed"]);
-        renderLanes([]);
+        $("public-read").textContent = "Public RavenOS data is temporarily unavailable.";
+        $("quality-pill").textContent = "offline";
+        console.error(err);
       }
     }
 
     load();
-    setInterval(load, 60_000);
   </script>
 </body>
 </html>
