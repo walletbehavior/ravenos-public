@@ -720,6 +720,35 @@
       return reads;
     }
 
+    async function fetchJsonCandidates(urls) {
+      const results = [];
+      for (const url of urls) {
+        try {
+          const response = await fetch(freshUrl(url), { cache: "no-store" });
+          if (!response.ok) continue;
+          const payload = await response.json();
+          if (isObject(payload)) results.push(payload);
+        } catch (_) {
+          // ignore and continue to the next candidate
+        }
+      }
+      return results;
+    }
+
+    function freshestByGeneratedAt(items) {
+      let best = {};
+      let bestTs = -Infinity;
+      for (const item of items) {
+        const clean = rawText(item.generated_at || item.updated_at);
+        const ts = Date.parse(clean);
+        if (Number.isFinite(ts) && ts > bestTs) {
+          best = item;
+          bestTs = ts;
+        }
+      }
+      return best;
+    }
+
     function formatUpdated(value) {
       const clean = rawText(value);
       if (!clean) return "updated recently";
@@ -1070,31 +1099,3 @@
   </script>
 </body>
 </html>
-    async function fetchJsonCandidates(urls) {
-      const results = [];
-      for (const url of urls) {
-        try {
-          const response = await fetch(freshUrl(url), { cache: "no-store" });
-          if (!response.ok) continue;
-          const payload = await response.json();
-          if (isObject(payload)) results.push(payload);
-        } catch (_) {
-          // ignore and continue to the next candidate
-        }
-      }
-      return results;
-    }
-
-    function freshestByGeneratedAt(items) {
-      let best = {};
-      let bestTs = -Infinity;
-      for (const item of items) {
-        const clean = rawText(item.generated_at || item.updated_at);
-        const ts = Date.parse(clean);
-        if (Number.isFinite(ts) && ts > bestTs) {
-          best = item;
-          bestTs = ts;
-        }
-      }
-      return best;
-    }
