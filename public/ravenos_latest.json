@@ -1,14 +1,19 @@
 {
   "chain_lane_freshness": {
     "base": {
-      "age_s": 16,
+      "age_s": 0,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-05-01T14:53:25Z"
+      "updated_at": "2026-05-01T15:00:02Z"
+    },
+    "eth": {
+      "age_s": 0,
+      "source": "ravenos_public_snapshot.json",
+      "updated_at": "2026-05-01T15:00:02Z"
     },
     "sol": {
-      "age_s": 16,
+      "age_s": 0,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-05-01T14:53:25Z"
+      "updated_at": "2026-05-01T15:00:02Z"
     }
   },
   "chains": [
@@ -30,41 +35,41 @@
       "status": "unknown"
     },
     {
-      "chain": "Evm",
+      "chain": "Ethereum",
       "lane_count": 3,
       "lanes": [
         {
-          "chain": "Evm",
-          "followthrough_quality": "developing",
-          "lane": "evm / canary",
+          "chain": "Ethereum",
+          "followthrough_quality": "strong",
+          "lane": "Ethereum flow lane",
           "outlier_warning": false,
           "sample_size": 37,
-          "sample_size_trust": "unknown",
-          "status": "unknown",
+          "sample_size_trust": "high",
+          "status": "negative",
           "trust_level": "medium"
         },
         {
-          "chain": "Evm",
-          "followthrough_quality": "partial",
-          "lane": "evm / confirmation",
+          "chain": "Ethereum",
+          "followthrough_quality": "weak",
+          "lane": "Ethereum flow lane",
           "outlier_warning": false,
-          "sample_size": 5,
-          "sample_size_trust": "unknown",
-          "status": "unknown",
+          "sample_size": 2,
+          "sample_size_trust": "low",
+          "status": "negative",
           "trust_level": "low"
         },
         {
-          "chain": "Evm",
-          "followthrough_quality": "early",
-          "lane": "evm / emergence",
+          "chain": "Ethereum",
+          "followthrough_quality": "mixed",
+          "lane": "Ethereum flow lane",
           "outlier_warning": false,
-          "sample_size": 2,
-          "sample_size_trust": "unknown",
-          "status": "unknown",
+          "sample_size": 5,
+          "sample_size_trust": "low",
+          "status": "negative",
           "trust_level": "low"
         }
       ],
-      "status": "unknown"
+      "status": "negative"
     },
     {
       "chain": "Solana",
@@ -72,24 +77,24 @@
       "lanes": [
         {
           "chain": "Solana",
-          "followthrough_quality": "developing",
-          "lane": "solana / emergence",
+          "followthrough_quality": "strong",
+          "lane": "Solana flow lane",
           "outlier_warning": false,
           "sample_size": 5,
-          "sample_size_trust": "unknown",
-          "status": "unknown",
+          "sample_size_trust": "low",
+          "status": "positive",
           "trust_level": "low"
         }
       ],
-      "status": "unknown"
+      "status": "positive"
     }
   ],
   "freshness": {
-    "age_seconds": 16,
+    "age_seconds": 0,
     "status": "fresh"
   },
-  "generated_at": "2026-05-01T14:53:44Z",
-  "public_read": "crypto is attempting to stabilize, but the move is still fragile.",
+  "generated_at": "2026-05-01T15:00:03Z",
+  "public_read": "Latest read is positive; longer-window confirmation is conflicting. This is a system-quality summary, not financial advice.",
   "regime": {
     "confirmation": "conflicting",
     "consistency": "low",
@@ -97,18 +102,21 @@
     "outlier_dependency": "high"
   },
   "source_artifact_mtimes": {
-    "ravenos_public_snapshot.json": 1777647207
+    "ravenos_public_snapshot.json": 1777647602
   },
   "source_quality": {
-    "label": "live",
+    "label": "degraded",
     "status": "available",
-    "warning_count": 0
+    "warning_count": 7
   },
   "ttl_seconds": 900,
   "warnings": [
-    "confirmation_incomplete",
-    "longer_windows_disagree",
-    "positive_24h_outlier_driven",
-    "source_sample_insufficient"
+    "current_context_only",
+    "do_not_overread:flow_confirmation_not_established",
+    "do_not_overread:longer_windows_disagree_with_24h",
+    "do_not_overread:positive_24h_outlier_driven",
+    "do_not_overread:source_sample_insufficient",
+    "do_not_overread:source_sample_or_freshness_limited",
+    "regime_data_stale"
   ]
 }
