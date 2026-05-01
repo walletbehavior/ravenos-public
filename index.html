@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>RavenOS</title>
+    <meta
+      name="description"
+      content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="eyebrow">RavenOS Public</div>
+        <h1>Market weather, not trade calls.</h1>
+        <p class="lede">
+          Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists, raw logs,
+          private internals, or execution logic are exposed here.
+        </p>
+        <div class="status-row">
+          <div class="status-card">
+            <span class="label">Freshness</span>
+            <strong id="freshness">Loading...</strong>
+          </div>
+          <div class="status-card">
+            <span class="label">Read mode</span>
+            <strong id="read-mode">Loading...</strong>
+          </div>
+          <div class="status-card">
+            <span class="label">Updated at</span>
+            <strong id="generated-at">Loading...</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <article class="panel panel-wide">
+          <div class="panel-head">
+            <h2>Public read</h2>
+            <span id="status-pill" class="pill">Loading</span>
+          </div>
+          <p id="public-read" class="summary"></p>
+          <div id="warning-list" class="chips"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Regime</h2>
+          </div>
+          <dl class="facts">
+            <div><dt>Direction</dt><dd id="regime-direction">Loading...</dd></div>
+            <div><dt>Confirmation</dt><dd id="regime-confirmation">Loading...</dd></div>
+            <div><dt>Consistency</dt><dd id="regime-consistency">Loading...</dd></div>
+            <div><dt>Outlier dependency</dt><dd id="regime-outlier">Loading...</dd></div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Source quality</h2>
+          </div>
+          <dl class="facts">
+            <div><dt>Status</dt><dd id="source-status">Loading...</dd></div>
+            <div><dt>Label</dt><dd id="source-label">Loading...</dd></div>
+            <div><dt>Age</dt><dd id="source-age">Loading...</dd></div>
+            <div><dt>TTL</dt><dd id="source-ttl">Loading...</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Lane health</h2>
+        </div>
+        <div id="lane-list" class="lanes"></div>
+      </section>
+
+      <footer class="footer">
+        <span>Cloudflare Pages compatible.</span>
+        <span>Public-safe only.</span>
+      </footer>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

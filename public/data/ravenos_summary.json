@@ -1,0 +1,40 @@
+{
+  "freshness": {
+    "age_seconds": 732,
+    "status": "fresh"
+  },
+  "generated_at": "2026-04-29T22:04:58Z",
+  "lane_quality": [],
+  "notes": [
+    "public_safe_only",
+    "no_wallet_lists",
+    "no_raw_logs",
+    "no_private_db",
+    "no_private_internals"
+  ],
+  "packet_type": "ravenos_public_summary",
+  "public_read": "Latest read is positive; longer-window confirmation is conflicting. This is a system-quality summary, not financial advice.",
+  "read_mode": "watchlist",
+  "regime": {
+    "confirmation": "conflicting",
+    "consistency": "low",
+    "direction": "positive",
+    "outlier_dependency": "high"
+  },
+  "source_path": "/srv/raven/app/data/public/ravenos_latest.json",
+  "source_quality": {
+    "label": "degraded",
+    "status": "available",
+    "warning_count": 7
+  },
+  "ttl_seconds": 900,
+  "warnings": [
+    "current_context_only",
+    "do_not_overread:flow_confirmation_not_established",
+    "do_not_overread:longer_windows_disagree_with_24h",
+    "do_not_overread:positive_24h_outlier_driven",
+    "do_not_overread:source_sample_insufficient",
+    "do_not_overread:source_sample_or_freshness_limited",
+    "regime_data_stale"
+  ]
+}
