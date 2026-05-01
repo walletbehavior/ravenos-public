@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-05-01T15:51:37Z",
+  "one_sentence_read": "crypto is attempting to stabilize, but the move is still fragile.",
+  "warnings": [
+    "confirmation_incomplete",
+    "longer_windows_disagree",
+    "positive_24h_outlier_driven",
+    "source_sample_insufficient"
+  ]
+}

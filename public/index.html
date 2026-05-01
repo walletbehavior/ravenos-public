@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RavenOS</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c0f10;
+      --panel: #15191b;
+      --soft: #101314;
+      --text: #eef3f2;
+      --muted: #9aa5a4;
+      --line: #283133;
+      --accent: #79d0bf;
+      --good: #88c77f;
+      --warn: #d9b86a;
+      --bad: #d97870;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 42px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    header {
+      display: grid;
+      gap: 14px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: baseline;
+    }
+
+    h1 {
+      font-size: 25px;
+      font-weight: 700;
+    }
+
+    .stamp {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .intro {
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .sharp {
+      color: var(--text);
+      font-weight: 650;
+      margin-top: 8px;
+    }
+
+    .context-strip {
+      display: grid;
+      gap: 8px;
+      padding: 12px 0 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .asset-row,
+    .tape-row,
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chip,
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .badge {
+      color: var(--accent);
+      border-color: rgba(121, 208, 191, 0.42);
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 14px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .panel,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .eyebrow,
+    .section-title {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .primary-read {
+      margin-top: 8px;
+      font-size: 28px;
+      line-height: 1.18;
+      font-weight: 700;
+    }
+
+    .support {
+      margin-top: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      gap: 10px;
+    }
+
+    .metric {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 11px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 16px;
+      overflow-wrap: anywhere;
+    }
+
+    .section-title {
+      margin: 30px 0 11px;
+      font-size: 13px;
+    }
+
+    .weather-grid,
+    .chain-grid,
+    .free-grid,
+    .pro-grid,
+    .pricing-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .weather-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .chain-grid,
+    .free-grid,
+    .pro-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .free-grid,
+    .pro-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pricing-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .card p,
+    .alert-list p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .state {
+      display: inline-flex;
+      margin-bottom: 12px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .card > .state:first-child {
+      margin-bottom: 14px;
+    }
+
+    .state.favorable { color: var(--good); border-color: rgba(136, 199, 127, 0.42); }
+    .state.selective, .state.fragile, .state.choppy { color: var(--warn); border-color: rgba(217, 184, 106, 0.44); }
+    .state.hostile, .state.unstable { color: var(--bad); border-color: rgba(217, 120, 112, 0.44); }
+
+    .details {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .detail {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .detail strong {
+      color: var(--text);
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .price {
+      display: block;
+      margin: 8px 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .features {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .features li {
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+
+    .cta {
+      display: inline-flex;
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 13px;
+      text-decoration: none;
+      background: var(--soft);
+    }
+
+    .cta.disabled {
+      color: var(--muted);
+      cursor: default;
+    }
+
+    .alert-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    @media (max-width: 960px) {
+      .pricing-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100% - 24px, 680px);
+        padding: 20px 0 32px;
+      }
+
+      .topline,
+      .detail {
+        align-items: flex-start;
+      }
+
+      .topline,
+      .hero,
+      .weather-grid,
+      .chain-grid,
+      .free-grid,
+      .pro-grid,
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topline {
+        display: grid;
+      }
+
+      .stamp {
+        white-space: normal;
+      }
+
+      .primary-read {
+        font-size: 22px;
+      }
+
+      .panel,
+      .card {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="topline">
+        <h1>RavenOS</h1>
+        <p class="stamp" id="generatedAt">updated recently</p>
+      </div>
+      <div class="intro">
+        <p>RavenOS reads crypto market behavior across chains, breadth, liquidity, leverage, and risk rotation.</p>
+        <p>It helps show where activity is improving, where moves are failing, and where conditions are punishing participants.</p>
+        <p>RavenOS does not tell you what to buy. It shows when market conditions are rewarding risk, when moves are failing, and when a lane is likely to punish participants.</p>
+        <p class="sharp">Know when not to trade. See where risk is actually being rewarded.</p>
+      </div>
+      <div class="context-strip" id="marketContext"></div>
+    </header>
+
+    <section class="hero" aria-label="current market read">
+      <article class="panel">
+        <p class="eyebrow">current market read</p>
+        <h2 class="primary-read" id="primaryRead">market read is developing</h2>
+        <p class="support" id="secondaryRead">RavenOS is preparing the public read for this window.</p>
+        <div class="chips" id="heroChips"></div>
+      </article>
+
+      <aside class="panel metrics" aria-label="read summary">
+        <div class="metric">
+          <span class="eyebrow">coverage</span>
+          <strong id="coverageLabel">developing read</strong>
+        </div>
+        <div class="metric">
+          <span class="eyebrow">breadth</span>
+          <strong id="breadthLabel">developing</strong>
+        </div>
+        <div class="metric">
+          <span class="eyebrow">moves holding</span>
+          <strong id="followLabel">developing</strong>
+        </div>
+        <div class="metric">
+          <span class="eyebrow">caution</span>
+          <strong id="cautionLabel">watchful</strong>
+        </div>
+      </aside>
+    </section>
+
+    <h2 class="section-title">live chain reads</h2>
+    <section class="chain-grid" id="chainReads"></section>
+
+    <h2 class="section-title">today's trade weather</h2>
+    <section class="panel">
+      <p class="eyebrow" id="weatherTitle">today's trade weather: developing</p>
+      <p class="support" id="weatherSummary">Coverage is developing, so this read should be treated as early.</p>
+      <div class="weather-grid" id="weatherLanes"></div>
+    </section>
+
+    <h2 class="section-title">condition alerts</h2>
+    <section class="panel alert-list" id="conditionAlerts"></section>
+
+    <h2 class="section-title">why this read</h2>
+    <section class="free-grid" id="whyRead"></section>
+
+    <h2 class="section-title">available on pro</h2>
+    <section class="pro-grid" id="proModules"></section>
+
+    <h2 class="section-title">pricing</h2>
+    <section class="pricing-grid" id="pricing"></section>
+  </main>
+
+  <script>
+    const SNAPSHOT_URL = "/ravenos_public_snapshot.json";
+    const LATEST_URL = "/ravenos_latest.json";
+
+    const PRO_MODULES = [
+      ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
+      ["Participant outcome", "Estimate whether active traders are being rewarded or punished by chain and market-cap band.", "Available on Pro"],
+      ["Risk ladder", "Track whether flow is moving toward cash, majors, micro caps, fresh pairs, or leverage.", "Available on Pro"],
+      ["Revival scanner", "Detect when older or compressed tokens begin reactivating.", "Available on Pro"],
+      ["Perp pressure", "See when leverage is building, confirming, flushing, or becoming unstable.", "Available on Desk"],
+      ["Macro regime", "Cross-market context for liquidity, risk appetite, dollar pressure, rates, and broader alignment.", "Available on Desk"]
+    ];
+
+    const PRICING = [
+      {
+        name: "Free",
+        price: "$0",
+        copy: "Live market read, chain pulse, basic breadth, and public caution flags.",
+        badge: "",
+        features: ["current market read", "chain pulse", "market breadth", "basic caution flags"],
+        cta: "Live now",
+        live: true
+      },
+      {
+        name: "Pro",
+        price: "$149/mo",
+        copy: "Lane-quality intelligence for traders who want to know where risk is being rewarded and where conditions are punishing participants.",
+        badge: "Early access",
+        features: ["cap-band breakdown", "participant outcome by lane", "followthrough quality", "liquidity quality", "risk ladder", "revival scanner", "condition alerts"],
+        cta: "Available soon"
+      },
+      {
+        name: "Desk",
+        price: "$499/mo",
+        copy: "Deeper market-regime, leverage, and cross-market context for active desks and serious teams.",
+        badge: "Desk intelligence",
+        features: ["everything in Pro", "perp pressure", "macro regime context", "advanced context", "higher-frequency intelligence", "historical condition replay"],
+        cta: "Available soon"
+      },
+      {
+        name: "Enterprise",
+        price: "Custom",
+        copy: "Custom dashboards, team access, API/export options, dedicated deployment options, and research support.",
+        badge: "",
+        features: ["team access", "custom alerts", "API / data exports", "dedicated deployment options", "custom reporting"],
+        cta: "Contact for access"
+      }
+    ];
+
+    function isObject(value) {
+      return value && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function list(value) {
+      return Array.isArray(value) ? value : [];
+    }
+
+    function text(value, fallback = "developing") {
+      if (typeof value !== "string") return fallback;
+      const clean = value.trim();
+      if (!clean) return fallback;
+      if (["unknown", "unavailable", "partial", "locked", "low"].includes(clean.toLowerCase())) return fallback;
+      return clean;
+    }
+
+    function rawText(value, fallback = "") {
+      return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    }
+
+    function titleCase(value) {
+      return text(value).replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function publicLabel(value, fallback = "not enough clean data yet") {
+      const clean = rawText(value).toLowerCase();
+      if (!clean || clean === "unknown") return fallback;
+      return clean.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function coverageLabel(value) {
+      const clean = rawText(value, "developing").toLowerCase();
+      if (clean === "strong") return "strong sample";
+      if (clean === "usable") return "usable sample";
+      if (clean === "thin") return "thin sample";
+      if (clean === "unknown") return "not enough clean data yet";
+      if (clean === "insufficient") return "insufficient coverage";
+      return "developing read";
+    }
+
+    function dataStatusLabel(value) {
+      const clean = rawText(value, "coming online").toLowerCase();
+      if (clean === "observed") return "observed";
+      if (clean === "coming_online") return "coming online";
+      if (clean === "insufficient_clean_sample") return "not enough clean data yet";
+      if (clean === "unavailable") return "unavailable";
+      return "coming online";
+    }
+
+    function chainReadStatusLabel(row) {
+      const source = isObject(row) ? row : {};
+      const status = rawText(source.data_status, "coming online").toLowerCase();
+      const coverage = rawText(source.coverage_state, "unknown").toLowerCase();
+      const clean = typeof source.clean_econ_sample_size === "number" ? source.clean_econ_sample_size : (typeof source.sample_size === "number" ? source.sample_size : 0);
+      const observed = typeof source.observed_sample_size === "number" ? source.observed_sample_size : (typeof source.raw_sample_size === "number" ? source.raw_sample_size : 0);
+      if (status === "insufficient_clean_sample") return "insufficient clean sample";
+      if (status === "coming_online") return "coming online";
+      if (status === "observed" && coverage === "strong") return "observed";
+      if (status === "observed" && coverage === "usable") return "building clean read";
+      if (status === "observed" && coverage === "thin") return observed > 0 ? "observed, but clean sample is still thin" : "building clean read";
+      if (clean > 0 && observed > clean) return "building clean read";
+      return dataStatusLabel(status);
+    }
+
+
+    function normalizePublicPayload(payload) {
+      const out = isObject(payload) ? { ...payload } : {};
+      const modules = isObject(out.modules) ? out.modules : {};
+      [
+        "chain_pulse",
+        "breadth_momentum",
+        "cash_rotation",
+        "cap_band_pulse",
+        "perp_pressure",
+        "macro_regime_context",
+        "risk_ladder",
+        "followthrough_quality",
+        "revival_pressure",
+        "liquidity_quality",
+        "churn_trap_index",
+        "participant_outcome_pulse",
+        "condition_alerts",
+        "market_context",
+        "trade_weather",
+        "token_snapshot_spine"
+      ].forEach((key) => {
+        if (!isObject(out[key]) && isObject(modules[key])) out[key] = modules[key];
+      });
+      return out;
+    }
+
+    function normalizeChainKey(value) {
+      const clean = rawText(value, "").toLowerCase();
+      if (clean === "solana" || clean === "sol") return "sol";
+      if (clean === "ethereum" || clean === "eth") return "eth";
+      if (clean === "base") return "base";
+      return clean;
+    }
+
+    function mergeChainReadSource(snapshot, latest) {
+      const reads = {};
+
+      const raw = isObject(snapshot.chain_reads) ? snapshot.chain_reads : {};
+      Object.entries(raw).forEach(([key, row]) => {
+        const norm = normalizeChainKey(key);
+        if (norm && isObject(row)) reads[norm] = { ...row };
+      });
+
+      const spineChains = isObject(snapshot.token_snapshot_spine) && isObject(snapshot.token_snapshot_spine.chains)
+        ? snapshot.token_snapshot_spine.chains
+        : {};
+      Object.entries(spineChains).forEach(([key, row]) => {
+        const norm = normalizeChainKey(key);
+        if (!norm || !isObject(row)) return;
+        reads[norm] = {
+          ...(reads[norm] || {}),
+          chain: norm,
+          activity_state: row.activity_state,
+          data_status: row.data_status,
+          coverage_state: row.coverage_state || row.clean_coverage_state || row.raw_coverage_state,
+          participant_outcome: row.participant_outcome,
+          read: row.read,
+          confidence: row.confidence,
+          sample_size: row.sample_size,
+          clean_econ_sample_size: row.clean_econ_sample_size,
+          observed_sample_size: row.observed_sample_size,
+          raw_sample_size: row.raw_sample_size,
+          green_pct: row.green_pct,
+          red_pct: row.red_pct,
+          avg_move_pct: row.avg_move_pct,
+          average_move_pct: row.average_move_pct,
+          median_move_pct: row.median_move_pct,
+        };
+      });
+
+      const chains = Array.isArray(latest.chains) ? latest.chains : [];
+      chains.forEach((chainRow) => {
+        const chain = normalizeChainKey(chainRow.chain);
+        if (!chain) return;
+        const existing = reads[chain] || {};
+        const lanes = Array.isArray(chainRow.lanes) ? chainRow.lanes.filter(isObject) : [];
+        const bestLane = lanes.sort((a, b) => (Number(b.sample_size) || 0) - (Number(a.sample_size) || 0))[0] || {};
+        const sampleSize = typeof bestLane.sample_size === "number" ? bestLane.sample_size : 0;
+
+        reads[chain] = {
+          chain,
+          activity_state: existing.activity_state || chainRow.status || bestLane.status || "coming_online",
+          data_status: existing.data_status || (sampleSize > 0 ? "observed" : "coming_online"),
+          coverage_state: existing.coverage_state || (bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown"),
+          participant_outcome: existing.participant_outcome || bestLane.status || chainRow.status || "unknown",
+          read: existing.read || bestLane.status || chainRow.status || "unknown",
+          confidence: existing.confidence || bestLane.trust_level || "low",
+          sample_size: typeof existing.sample_size === "number" ? existing.sample_size : sampleSize,
+          clean_econ_sample_size: typeof existing.clean_econ_sample_size === "number" ? existing.clean_econ_sample_size : sampleSize,
+          observed_sample_size: typeof existing.observed_sample_size === "number" ? existing.observed_sample_size : sampleSize,
+          raw_sample_size: typeof existing.raw_sample_size === "number" ? existing.raw_sample_size : sampleSize,
+          green_pct: existing.green_pct,
+          red_pct: existing.red_pct,
+          avg_move_pct: existing.avg_move_pct,
+          average_move_pct: existing.average_move_pct,
+          median_move_pct: existing.median_move_pct,
+          followthrough_quality: existing.followthrough_quality || bestLane.followthrough_quality || "unknown",
+          outlier_warning: Boolean(existing.outlier_warning || bestLane.outlier_warning),
+        };
+      });
+
+      return reads;
+    }
+
+    function formatUpdated(value) {
+      const clean = rawText(value);
+      if (!clean) return "updated recently";
+      const date = new Date(clean);
+      if (Number.isNaN(date.getTime())) return "updated recently";
+      const yyyy = String(date.getUTCFullYear());
+      const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(date.getUTCDate()).padStart(2, "0");
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const min = String(date.getUTCMinutes()).padStart(2, "0");
+      return `updated ${yyyy}-${mm}-${dd} · ${hh}:${min} UTC`;
+    }
+
+    function formatUsd(value) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "";
+      if (value >= 1000) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+      return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    }
+
+    function formatPct(value) {
+      if (typeof value !== "number" || !Number.isFinite(value)) return "";
+      const sign = value > 0 ? "+" : "";
+      return `${sign}${value.toFixed(1)}%`;
+    }
+
+    function meaningful(value) {
+      return rawText(value).toLowerCase();
+    }
+
+    function isMeaningfulState(value) {
+      const clean = meaningful(value);
+      return clean && !["developing", "unknown", "unavailable", "partial", "locked", "low"].includes(clean);
+    }
+
+    function setText(id, value) {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value;
+    }
+
+    function card(title, copy, badge = "") {
+      const article = document.createElement("article");
+      article.className = "card";
+      if (badge) {
+        const mark = document.createElement("span");
+        mark.className = "badge";
+        mark.textContent = badge;
+        article.appendChild(mark);
+      }
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      const p = document.createElement("p");
+      p.textContent = copy;
+      article.append(h3, p);
+      return article;
+    }
+
+    function availabilityCard(title, copy, tier = "Available on Pro") {
+      const article = card(title, copy, "");
+      const badge = document.createElement("span");
+      badge.className = "state";
+      badge.textContent = tier;
+      article.insertBefore(badge, article.firstChild);
+      return article;
+    }
+
+    function renderMarketContext(context) {
+      const node = document.getElementById("marketContext");
+      node.textContent = "";
+      const assets = isObject(context) ? list(context.assets).filter(isObject) : [];
+      const tape = isObject(context) ? list(context.tape).map((item) => rawText(item)).filter(Boolean).slice(0, 6) : [];
+      const priced = assets
+        .map((asset) => {
+          const price = formatUsd(asset.price_usd);
+          const pct = formatPct(asset.change_24h_pct);
+          return price ? `${rawText(asset.symbol)} ${price}${pct ? ` ${pct}` : ""}` : "";
+        })
+        .filter(Boolean);
+
+      if (priced.length) {
+        const row = document.createElement("div");
+        row.className = "asset-row";
+        priced.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = item;
+          row.appendChild(chip);
+        });
+        node.appendChild(row);
+      }
+
+      if (tape.length) {
+        const row = document.createElement("div");
+        row.className = "tape-row";
+        const label = document.createElement("span");
+        label.className = "eyebrow";
+        label.textContent = "RavenOS tape";
+        row.appendChild(label);
+        tape.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = item;
+          row.appendChild(chip);
+        });
+        node.appendChild(row);
+      }
+    }
+
+    function derivePrimary(snapshot) {
+      const weather = isObject(snapshot.trade_weather) ? snapshot.trade_weather : {};
+      const overall = isObject(weather.overall) ? weather.overall : {};
+      const state = meaningful(overall.state);
+      if (state && state !== "unknown") {
+        return `today's trade weather: ${state}`;
+      }
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      if (isObject(breadth) && isMeaningfulState(breadth.risk_read)) {
+        return `current market read: ${text(breadth.risk_read)}`;
+      }
+      return "current market read is developing";
+    }
+
+    function deriveSecondary(snapshot) {
+      const weather = isObject(snapshot.trade_weather) ? snapshot.trade_weather : {};
+      const overall = isObject(weather.overall) ? weather.overall : {};
+      if (isMeaningfulState(overall.summary)) return rawText(overall.summary);
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      if (isObject(breadth) && breadth.risk_read === "fragile") {
+        return "Within current RavenOS coverage, activity is improving, but followthrough remains weak.";
+      }
+      return "RavenOS shows when crypto market conditions are rewarding risk, when moves are failing, and when specific lanes are likely to punish participants.";
+    }
+
+    function renderHero(snapshot) {
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      const follow = snapshot.followthrough_quality && snapshot.followthrough_quality.market;
+      const churn = snapshot.churn_trap_index && snapshot.churn_trap_index.market;
+      const weather = snapshot.trade_weather && snapshot.trade_weather.overall;
+      const coverage = isObject(weather) ? coverageLabel(weather.coverage_level) : coverageLabel(breadth && breadth.coverage && breadth.coverage.level);
+      const chips = [];
+
+      if (isObject(breadth) && isMeaningfulState(breadth.breadth_state)) chips.push(`breadth ${text(breadth.breadth_state)}`);
+      if (isObject(follow) && isMeaningfulState(follow.followthrough_state)) chips.push(`followthrough ${text(follow.followthrough_state)}`);
+      if (isObject(churn) && isMeaningfulState(churn.trap_risk)) chips.push(`trap risk ${text(churn.trap_risk)}`);
+      if (isObject(weather) && isMeaningfulState(weather.confidence)) chips.push(`${text(weather.confidence)} confidence`);
+
+      setText("primaryRead", derivePrimary(snapshot));
+      setText("secondaryRead", deriveSecondary(snapshot));
+      setText("coverageLabel", coverage);
+      setText("breadthLabel", isObject(breadth) ? titleCase(breadth.breadth_state) : "Developing");
+      setText("followLabel", isObject(follow) ? titleCase(follow.followthrough_state) : "Developing");
+      setText("cautionLabel", isObject(churn) && isMeaningfulState(churn.trap_risk) ? titleCase(churn.trap_risk) : "Watchful");
+
+      const node = document.getElementById("heroChips");
+      node.textContent = "";
+      chips.slice(0, 5).forEach((item) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = item;
+        node.appendChild(chip);
+      });
+    }
+
+    function renderTradeWeather(weather) {
+      const overall = isObject(weather) && isObject(weather.overall) ? weather.overall : {};
+      const weatherText = rawText(overall.weather, rawText(overall.state, "developing"));
+      setText("weatherTitle", rawText(overall.headline, `today's trade weather: ${text(weatherText, "developing")}`));
+      setText("weatherSummary", rawText(overall.summary, "Coverage is developing, so this read should be treated as early."));
+
+      const node = document.getElementById("weatherLanes");
+      node.textContent = "";
+      const laneSource = isObject(weather) && isObject(weather.lanes)
+        ? Object.entries(weather.lanes).map(([lane, row]) => ({ lane, ...(isObject(row) ? row : {}) }))
+        : (isObject(weather) ? list(weather.lanes).filter(isObject) : []);
+      const freeLanes = laneSource.filter((lane) => {
+        const laneKey = rawText(lane.lane);
+        const tier = rawText(lane.tier, rawText(lane.available_tier));
+        return tier === "free" && lane.locked !== true && ["fresh_pairs", "majors"].includes(laneKey);
+      });
+
+      for (const lane of freeLanes) {
+        const title = titleCase(rawText(lane.lane, rawText(lane.label, "lane")));
+        const stateText = text(rawText(lane.weather, rawText(lane.state)), "developing");
+        const article = card(title, rawText(lane.summary, "Lane read is developing."), "");
+        const badge = document.createElement("span");
+        badge.className = `state ${stateText}`;
+        badge.textContent = stateText;
+        article.insertBefore(badge, article.firstChild);
+        const cov = document.createElement("span");
+        cov.className = "chip";
+        cov.textContent = coverageLabel(lane.coverage_level);
+        article.appendChild(cov);
+        node.appendChild(article);
+      }
+
+      node.appendChild(availabilityCard(
+        "Market-cap breakdown",
+        "See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Participant outcome",
+        "Estimate whether active traders are being rewarded or punished by chain and market-cap band.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Trade avoidance map",
+        "Identify which lanes are currently choppy, thin, overextended, or punishing newcomers.",
+        "Available on Pro"
+      ));
+      node.appendChild(availabilityCard(
+        "Perp pressure",
+        "Track leverage pressure and instability.",
+        "Available on Desk"
+      ));
+    }
+
+    function renderChainReads(snapshot, latest) {
+      const node = document.getElementById("chainReads");
+      node.textContent = "";
+      const reads = mergeChainReadSource(snapshot, latest);
+      const labels = { sol: "Solana", eth: "ETH", base: "Base" };
+      ["sol", "eth", "base"].forEach((chain) => {
+        const row = isObject(reads[chain]) ? reads[chain] : {};
+        const item = card(labels[chain], "Public chain read for activity, breadth, participant outcome, and coverage quality.");
+        const move = typeof row.avg_move_pct === "number" ? row.avg_move_pct : row.median_move_pct;
+        const observedLabel = typeof row.observed_sample_size === "number" && row.observed_sample_size > 0 ? String(row.observed_sample_size) : "not enough clean data yet";
+        const cleanLabel = typeof row.clean_econ_sample_size === "number" && row.clean_econ_sample_size > 0 ? String(row.clean_econ_sample_size) : (typeof row.sample_size === "number" && row.sample_size > 0 ? String(row.sample_size) : "not enough clean data yet");
+        appendDetails(item, [
+          ["activity", publicLabel(row.activity_state, "coming online")],
+          ["status", chainReadStatusLabel(row)],
+          ["observed tokens", observedLabel],
+          ["clean sample", cleanLabel],
+          ["green / red", typeof row.green_pct === "number" && typeof row.red_pct === "number" ? `${formatPct(row.green_pct)} / ${formatPct(row.red_pct)}` : "not enough clean data yet"],
+          ["move", typeof move === "number" ? formatPct(move) : "not enough clean data yet"],
+          ["participant outcome", publicLabel(row.participant_outcome)],
+          ["read", publicLabel(row.read)],
+          ["confidence", publicLabel(row.confidence, "Low")],
+          ["coverage", `${coverageLabel(row.coverage_state)}${typeof row.clean_econ_sample_size === "number" ? ` · clean ${row.clean_econ_sample_size}` : (typeof row.sample_size === "number" ? ` · clean ${row.sample_size}` : "")}`]
+        ], true);
+        node.appendChild(item);
+      });
+    }
+
+    function renderWhyRead(snapshot) {
+      const node = document.getElementById("whyRead");
+      node.textContent = "";
+      const breadth = snapshot.breadth_momentum && snapshot.breadth_momentum.market;
+      const follow = snapshot.followthrough_quality && snapshot.followthrough_quality.market;
+      const churn = snapshot.churn_trap_index && snapshot.churn_trap_index.market;
+      const cards = [];
+
+      if (isObject(breadth) && isMeaningfulState(breadth.risk_read)) {
+        cards.push(["Breadth", `Within current coverage, breadth looks ${text(breadth.breadth_state)} and the risk read is ${text(breadth.risk_read)}.`]);
+      }
+      if (isObject(follow) && isMeaningfulState(follow.followthrough_state)) {
+        cards.push(["Followthrough", `Moves holding after initial strength look ${text(follow.followthrough_state)}.`]);
+      }
+      if (isObject(churn) && isMeaningfulState(churn.trap_risk)) {
+        cards.push(["Churn / trap risk", `Trap risk is ${text(churn.trap_risk)}, so failed moves matter more than surface activity.`]);
+      }
+      if (!cards.length) cards.push(["Coverage", "Coverage is still developing, so this read should be treated as early."]);
+      cards.slice(0, 4).forEach(([title, copy]) => node.appendChild(card(title, copy)));
+    }
+
+    function appendDetails(node, rows, showAll = false) {
+      const wrap = document.createElement("div");
+      wrap.className = "details";
+      rows.filter(([, value]) => showAll || isMeaningfulState(value)).forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "detail";
+        const left = document.createElement("span");
+        left.textContent = label;
+        const right = document.createElement("strong");
+        right.textContent = value;
+        row.append(left, right);
+        wrap.appendChild(row);
+      });
+      if (wrap.childNodes.length) node.appendChild(wrap);
+    }
+
+    function renderProModules() {
+      const node = document.getElementById("proModules");
+      node.textContent = "";
+      PRO_MODULES.forEach(([title, copy, badge]) => node.appendChild(card(title, copy, badge)));
+    }
+
+    function renderPricing() {
+      const node = document.getElementById("pricing");
+      node.textContent = "";
+      PRICING.forEach((tier) => {
+        const item = card(tier.name, tier.copy, tier.badge);
+        const price = document.createElement("strong");
+        price.className = "price";
+        price.textContent = tier.price;
+        item.insertBefore(price, item.querySelector("p"));
+        const ul = document.createElement("ul");
+        ul.className = "features";
+        tier.features.forEach((feature) => {
+          const li = document.createElement("li");
+          li.textContent = feature;
+          ul.appendChild(li);
+        });
+        const cta = document.createElement(tier.live ? "a" : "span");
+        cta.className = tier.live ? "cta" : "cta disabled";
+        cta.textContent = tier.cta;
+        if (tier.live) cta.href = "#liveRead";
+        item.append(ul, cta);
+        node.appendChild(item);
+      });
+    }
+
+    function renderConditionAlerts(conditionAlerts) {
+      const node = document.getElementById("conditionAlerts");
+      node.textContent = "";
+      const alerts = isObject(conditionAlerts) ? list(conditionAlerts.alerts).filter(isObject).slice(0, 3) : [];
+      if (!alerts.length) {
+        const p = document.createElement("p");
+        p.textContent = "No major public caution flags are active.";
+        node.appendChild(p);
+        return;
+      }
+      alerts.forEach((alert) => {
+        const item = card(rawText(alert.title, "Condition alert"), rawText(alert.message, "Market conditions changed."), titleCase(alert.severity));
+        node.appendChild(item);
+      });
+    }
+
+    async function boot() {
+      let snapshot = {};
+      let latest = {};
+      try {
+        const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+        if (response.ok) snapshot = await response.json();
+      } catch (_) {
+        snapshot = {};
+      }
+      try {
+        const response = await fetch(LATEST_URL, { cache: "no-store" });
+        if (response.ok) latest = await response.json();
+      } catch (_) {
+        latest = {};
+      }
+      snapshot = normalizePublicPayload(snapshot);
+      latest = normalizePublicPayload(latest);
+      setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
+      renderMarketContext(snapshot.market_context);
+      renderHero(snapshot);
+      renderChainReads(snapshot, latest);
+      renderTradeWeather(snapshot.trade_weather);
+      renderWhyRead(snapshot);
+      renderProModules();
+      renderPricing();
+      renderConditionAlerts(snapshot.condition_alerts);
+    }
+
+
+    boot();
+  </script>
+</body>
+</html>
