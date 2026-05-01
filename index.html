@@ -1,89 +1,687 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <title>RavenOS</title>
-    <meta
-      name="description"
-      content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts."
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero">
-        <div class="eyebrow">RavenOS Public</div>
-        <h1>Market weather, not trade calls.</h1>
-        <p class="lede">
-          Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists, raw logs,
-          private internals, or execution logic are exposed here.
-        </p>
-        <div class="status-row">
-          <div class="status-card">
-            <span class="label">Freshness</span>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>RavenOS</title>
+  <meta
+    name="description"
+    content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts."
+  />
+
+  <style>
+    :root {
+      --bg: #07080b;
+      --panel: rgba(255, 255, 255, 0.055);
+      --panel-strong: rgba(255, 255, 255, 0.09);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #f4f0e8;
+      --muted: rgba(244, 240, 232, 0.64);
+      --soft: rgba(244, 240, 232, 0.42);
+      --good: #b7f7c3;
+      --warn: #f4d38b;
+      --bad: #f1a7a7;
+      --blue: #a9c7ff;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+      --radius: 28px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(120, 141, 255, 0.18), transparent 32%),
+        radial-gradient(circle at 82% 18%, rgba(183, 247, 195, 0.10), transparent 30%),
+        radial-gradient(circle at 52% 85%, rgba(244, 211, 139, 0.10), transparent 34%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      letter-spacing: -0.02em;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 70%);
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 44px 0 28px;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 64px;
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--good);
+      box-shadow: 0 0 24px rgba(183, 247, 195, 0.9);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+      gap: 26px;
+      align-items: stretch;
+      margin-bottom: 26px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.038));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero-main {
+      padding: clamp(28px, 5vw, 56px);
+      min-height: 430px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-main::after {
+      content: "";
+      position: absolute;
+      right: -120px;
+      bottom: -160px;
+      width: 360px;
+      height: 360px;
+      border-radius: 999px;
+      background: rgba(169, 199, 255, 0.12);
+      filter: blur(4px);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: clamp(46px, 8vw, 92px);
+      line-height: 0.91;
+      letter-spacing: -0.075em;
+    }
+
+    .lede {
+      max-width: 690px;
+      margin: 26px 0 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 21px);
+      line-height: 1.55;
+      letter-spacing: -0.025em;
+    }
+
+    .hero-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 42px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.18);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-size: 13px;
+    }
+
+    .hero-side {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .big-state {
+      padding: 22px;
+      border-radius: 22px;
+      background: rgba(0, 0, 0, 0.20);
+      border: 1px solid var(--line);
+    }
+
+    .big-label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-bottom: 10px;
+    }
+
+    .big-value {
+      display: block;
+      font-size: 36px;
+      font-weight: 800;
+      line-height: 1;
+      text-transform: capitalize;
+    }
+
+    .big-sub {
+      display: block;
+      color: var(--soft);
+      margin-top: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .status-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--line);
+    }
+
+    .mini span {
+      display: block;
+      color: var(--soft);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 7px;
+    }
+
+    .mini strong {
+      font-size: 15px;
+      overflow-wrap: anywhere;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 26px;
+      margin-bottom: 26px;
+    }
+
+    .panel {
+      padding: 24px;
+    }
+
+    .panel-wide {
+      grid-column: 1 / -1;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.035em;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: var(--muted);
+      background: rgba(0,0,0,0.18);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      white-space: nowrap;
+    }
+
+    .summary {
+      margin: 0;
+      color: rgba(244, 240, 232, 0.88);
+      font-size: clamp(22px, 3.5vw, 42px);
+      line-height: 1.08;
+      letter-spacing: -0.055em;
+      max-width: 980px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 26px;
+    }
+
+    .chip {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.20);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .facts {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+    }
+
+    .facts div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .facts div:last-child {
+      border-bottom: 0;
+    }
+
+    dt {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    dd {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 750;
+      text-align: right;
+      text-transform: capitalize;
+    }
+
+    .lanes {
+      display: grid;
+      gap: 10px;
+    }
+
+    .lane-empty {
+      color: var(--muted);
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.16);
+      border: 1px solid var(--line);
+      line-height: 1.5;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.16);
+      border: 1px solid var(--line);
+    }
+
+    .lane-name {
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .lane-meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 5px;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 4px 0;
+      color: var(--soft);
+      font-size: 13px;
+    }
+
+    .positive,
+    .fresh,
+    .available {
+      color: var(--good);
+    }
+
+    .conflicting,
+    .degraded,
+    .watchlist,
+    .low,
+    .high {
+      color: var(--warn);
+    }
+
+    .negative,
+    .stale,
+    .unavailable {
+      color: var(--bad);
+    }
+
+    @media (max-width: 860px) {
+      .shell {
+        width: min(100% - 22px, 1180px);
+        padding-top: 24px;
+      }
+
+      .nav {
+        margin-bottom: 28px;
+      }
+
+      .hero,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-main {
+        min-height: 390px;
+      }
+
+      .summary {
+        font-size: 28px;
+      }
+
+      .footer {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <nav class="nav">
+      <div class="mark"><span class="dot"></span><span>RavenOS</span></div>
+      <div>public market weather</div>
+    </nav>
+
+    <section class="hero">
+      <article class="hero-main">
+        <div>
+          <div class="eyebrow">RavenOS Public</div>
+          <h1>Market weather, not trade calls.</h1>
+          <p class="lede">
+            Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists,
+            raw logs, private internals, or execution logic are exposed here.
+          </p>
+        </div>
+
+        <div class="hero-footer">
+          <span class="tag">public-safe only</span>
+          <span class="tag">sanitized artifacts</span>
+          <span class="tag">no execution logic</span>
+          <span class="tag">updated by cron</span>
+        </div>
+      </article>
+
+      <aside class="hero-side">
+        <div class="big-state">
+          <div class="big-label">Current direction</div>
+          <strong id="hero-direction" class="big-value">Loading</strong>
+          <span id="hero-sub" class="big-sub">Waiting for public data...</span>
+        </div>
+
+        <div class="status-grid">
+          <div class="mini">
+            <span>Freshness</span>
             <strong id="freshness">Loading...</strong>
           </div>
-          <div class="status-card">
-            <span class="label">Read mode</span>
+          <div class="mini">
+            <span>Read mode</span>
             <strong id="read-mode">Loading...</strong>
           </div>
-          <div class="status-card">
-            <span class="label">Updated at</span>
+          <div class="mini">
+            <span>Updated at</span>
             <strong id="generated-at">Loading...</strong>
           </div>
         </div>
-      </section>
+      </aside>
+    </section>
 
-      <section class="panel-grid">
-        <article class="panel panel-wide">
-          <div class="panel-head">
-            <h2>Public read</h2>
-            <span id="status-pill" class="pill">Loading</span>
-          </div>
-          <p id="public-read" class="summary"></p>
-          <div id="warning-list" class="chips"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <h2>Regime</h2>
-          </div>
-          <dl class="facts">
-            <div><dt>Direction</dt><dd id="regime-direction">Loading...</dd></div>
-            <div><dt>Confirmation</dt><dd id="regime-confirmation">Loading...</dd></div>
-            <div><dt>Consistency</dt><dd id="regime-consistency">Loading...</dd></div>
-            <div><dt>Outlier dependency</dt><dd id="regime-outlier">Loading...</dd></div>
-          </dl>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <h2>Source quality</h2>
-          </div>
-          <dl class="facts">
-            <div><dt>Status</dt><dd id="source-status">Loading...</dd></div>
-            <div><dt>Label</dt><dd id="source-label">Loading...</dd></div>
-            <div><dt>Age</dt><dd id="source-age">Loading...</dd></div>
-            <div><dt>TTL</dt><dd id="source-ttl">Loading...</dd></div>
-          </dl>
-        </article>
-      </section>
-
-      <section class="panel">
+    <section class="grid">
+      <article class="panel panel-wide">
         <div class="panel-head">
-          <h2>Lane health</h2>
+          <h2>Public read</h2>
+          <span id="status-pill" class="pill">Loading</span>
         </div>
-        <div id="lane-list" class="lanes"></div>
-      </section>
+        <p id="public-read" class="summary">Loading RavenOS public summary...</p>
+        <div id="warning-list" class="chips"></div>
+      </article>
 
-      <footer class="footer">
-        <span>Cloudflare Pages compatible.</span>
-        <span>Public-safe only.</span>
-      </footer>
-    </main>
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Regime</h2>
+        </div>
+        <dl class="facts">
+          <div><dt>Direction</dt><dd id="regime-direction">Loading...</dd></div>
+          <div><dt>Confirmation</dt><dd id="regime-confirmation">Loading...</dd></div>
+          <div><dt>Consistency</dt><dd id="regime-consistency">Loading...</dd></div>
+          <div><dt>Outlier dependency</dt><dd id="regime-outlier">Loading...</dd></div>
+        </dl>
+      </article>
 
-    <script src="./app.js" type="module"></script>
-  </body>
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Source quality</h2>
+        </div>
+        <dl class="facts">
+          <div><dt>Status</dt><dd id="source-status">Loading...</dd></div>
+          <div><dt>Label</dt><dd id="source-label">Loading...</dd></div>
+          <div><dt>Age</dt><dd id="source-age">Loading...</dd></div>
+          <div><dt>TTL</dt><dd id="source-ttl">Loading...</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Lane health</h2>
+        <span class="pill">public layer</span>
+      </div>
+      <div id="lane-list" class="lanes"></div>
+    </section>
+
+    <footer class="footer">
+      <span>RavenOS public dashboard.</span>
+      <span>System-quality summary, not financial advice.</span>
+    </footer>
+  </main>
+
+  <script>
+    const DATA_URL = "/public/data/ravenos_summary.json";
+
+    const $ = (id) => document.getElementById(id);
+
+    function clean(value, fallback = "unknown") {
+      if (value === null || value === undefined || value === "") return fallback;
+      return String(value).replaceAll("_", " ");
+    }
+
+    function setText(id, value, fallback) {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = clean(value, fallback);
+      el.className = "";
+      const cls = String(value || "").toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      if (cls) el.classList.add(cls);
+    }
+
+    function formatAge(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "unknown";
+      if (n < 60) return `${Math.round(n)}s`;
+      if (n < 3600) return `${Math.round(n / 60)}m`;
+      return `${(n / 3600).toFixed(1)}h`;
+    }
+
+    function formatDate(value) {
+      if (!value) return "unknown";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      return d.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function renderWarnings(warnings) {
+      const wrap = $("warning-list");
+      wrap.innerHTML = "";
+
+      const items = Array.isArray(warnings) ? warnings : [];
+      if (!items.length) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = "no public warnings";
+        wrap.appendChild(chip);
+        return;
+      }
+
+      for (const warning of items) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = clean(warning);
+        wrap.appendChild(chip);
+      }
+    }
+
+    function renderLanes(lanes) {
+      const wrap = $("lane-list");
+      wrap.innerHTML = "";
+
+      if (!Array.isArray(lanes) || lanes.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "lane-empty";
+        empty.textContent =
+          "No public lane breakdown is exposed in this summary yet. The top-level read is available and sanitized.";
+        wrap.appendChild(empty);
+        return;
+      }
+
+      for (const lane of lanes) {
+        const row = document.createElement("div");
+        row.className = "lane";
+
+        const left = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "lane-name";
+        name.textContent = clean(lane.name || lane.lane || lane.id, "unnamed lane");
+
+        const meta = document.createElement("div");
+        meta.className = "lane-meta";
+        meta.textContent = [
+          lane.direction && `direction: ${clean(lane.direction)}`,
+          lane.followthrough && `followthrough: ${clean(lane.followthrough)}`,
+          lane.samples !== undefined && `samples: ${lane.samples}`
+        ].filter(Boolean).join(" · ") || "public lane signal";
+
+        left.appendChild(name);
+        left.appendChild(meta);
+
+        const right = document.createElement("span");
+        right.className = "pill";
+        right.textContent = clean(lane.status || lane.quality || "public");
+
+        row.appendChild(left);
+        row.appendChild(right);
+        wrap.appendChild(row);
+      }
+    }
+
+    async function load() {
+      try {
+        const res = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const regime = data.regime || {};
+        const freshness = data.freshness || {};
+        const source = data.source_quality || {};
+
+        setText("hero-direction", regime.direction, "unknown");
+        $("hero-sub").textContent = `confirmation: ${clean(regime.confirmation)} · consistency: ${clean(regime.consistency)}`;
+
+        $("freshness").textContent = `${clean(freshness.status)} / ${formatAge(freshness.age_seconds)}`;
+        $("read-mode").textContent = clean(data.read_mode, "unknown");
+        $("generated-at").textContent = formatDate(data.generated_at);
+
+        $("public-read").textContent = clean(data.public_read, "No public read available.");
+
+        const pill = $("status-pill");
+        pill.textContent = clean(source.label || freshness.status || "loaded");
+        pill.className = "pill " + clean(source.label || freshness.status || "loaded").toLowerCase();
+
+        setText("regime-direction", regime.direction, "unknown");
+        setText("regime-confirmation", regime.confirmation, "unknown");
+        setText("regime-consistency", regime.consistency, "unknown");
+        setText("regime-outlier", regime.outlier_dependency, "unknown");
+
+        setText("source-status", source.status, "unknown");
+        setText("source-label", source.label, "unknown");
+        $("source-age").textContent = formatAge(freshness.age_seconds);
+        $("source-ttl").textContent = data.ttl_seconds ? `${data.ttl_seconds}s` : "unknown";
+
+        renderWarnings(data.warnings);
+        renderLanes(data.lane_quality);
+      } catch (err) {
+        $("public-read").textContent =
+          "RavenOS public data is not available yet. The dashboard shell loaded, but the public JSON fetch failed.";
+        $("status-pill").textContent = "data error";
+        $("hero-direction").textContent = "offline";
+        $("hero-sub").textContent = err.message || "unknown fetch error";
+        renderWarnings(["public_json_fetch_failed"]);
+        renderLanes([]);
+      }
+    }
+
+    load();
+    setInterval(load, 60_000);
+  </script>
+</body>
 </html>
