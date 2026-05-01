@@ -1,591 +1,724 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RavenOS</title>
-  <meta name="description" content="Public RavenOS market-weather dashboard. Read-only, sanitized, and updated from public-safe artifacts." />
   <style>
     :root {
-      --bg: #050809;
-      --panel: rgba(22, 26, 28, 0.78);
-      --panel2: rgba(29, 34, 36, 0.82);
-      --line: rgba(255,255,255,0.13);
-      --line2: rgba(255,255,255,0.20);
-      --text: #f4f1e9;
-      --muted: rgba(244,241,233,0.66);
-      --dim: rgba(244,241,233,0.48);
-      --green: #b7ffc4;
-      --blue: #abc5ff;
-      --yellow: #ffdd8a;
-      --cyan: #8ee8dc;
-      --shadow: 0 30px 120px rgba(0,0,0,0.42);
-      --radius: 34px;
+      color-scheme: dark;
+      --bg: #0c0f10;
+      --panel: #15191b;
+      --soft: #101314;
+      --text: #eef3f2;
+      --muted: #9aa5a4;
+      --line: #283133;
+      --accent: #79d0bf;
+      --good: #88c77f;
+      --warn: #d9b86a;
+      --bad: #d97870;
     }
 
     * { box-sizing: border-box; }
 
-    html, body {
+    body {
       margin: 0;
-      min-height: 100%;
-      background:
-        radial-gradient(circle at 18% 9%, rgba(74, 89, 145, 0.30), transparent 34%),
-        radial-gradient(circle at 63% 46%, rgba(114, 129, 138, 0.18), transparent 22%),
-        radial-gradient(circle at 88% 20%, rgba(65, 96, 82, 0.16), transparent 28%),
-        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
-        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-        var(--bg);
-      background-size: auto, auto, auto, 96px 96px, 96px 96px, auto;
-      color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background: linear-gradient(180deg, rgba(255,255,255,0.035), transparent 22%, rgba(0,0,0,0.25));
-      z-index: 0;
-    }
-
-    .shell {
-      position: relative;
-      z-index: 1;
-      width: min(1920px, 100%);
+    main {
+      width: min(1120px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 78px 24px 80px;
+      padding: 28px 0 42px;
     }
+
+    h1, h2, h3, p { margin: 0; }
 
     header {
+      display: grid;
+      gap: 14px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topline {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 128px;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      font-weight: 800;
-      color: rgba(244,241,233,0.72);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      color: #fff;
-      font-size: 28px;
-    }
-
-    .dot {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      background: var(--green);
-      box-shadow: 0 0 28px rgba(183,255,196,0.7);
-    }
-
-    .kicker {
-      font-size: 28px;
-      white-space: nowrap;
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: 2.1fr 1fr;
-      gap: 52px;
-      margin-bottom: 52px;
-    }
-
-    .hero-card,
-    .side-card,
-    .wide-card,
-    .section-card {
-      border: 1px solid var(--line2);
-      background:
-        radial-gradient(circle at 82% 86%, rgba(116, 133, 148, 0.28), transparent 22%),
-        linear-gradient(130deg, rgba(48, 54, 76, 0.84), rgba(19, 24, 24, 0.80));
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
-    }
-
-    .hero-card {
-      min-height: 620px;
-      padding: 100px 106px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .eyebrow {
-      color: var(--blue);
-      text-transform: uppercase;
-      letter-spacing: 0.28em;
-      font-weight: 900;
-      font-size: 28px;
-      margin-bottom: 42px;
+      gap: 16px;
+      align-items: baseline;
     }
 
     h1 {
-      font-size: clamp(70px, 8vw, 154px);
-      line-height: 0.92;
-      letter-spacing: -0.085em;
-      margin: 0 0 58px;
-      max-width: 1050px;
+      font-size: 25px;
+      font-weight: 750;
     }
 
-    .lede {
+    .stamp {
       color: var(--muted);
-      font-size: clamp(26px, 2.3vw, 42px);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .intro {
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .sharp {
+      color: var(--text);
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .panel,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel { padding: 18px; }
+    .card { padding: 16px; }
+
+    .eyebrow,
+    .section-title {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+
+    .primary-read {
+      margin-top: 8px;
+      font-size: 28px;
+      line-height: 1.18;
+      font-weight: 750;
+      text-transform: lowercase;
+    }
+
+    .support {
+      margin-top: 12px;
+      color: var(--muted);
       line-height: 1.5;
-      max-width: 1080px;
-      margin: 0;
-      font-weight: 650;
-      letter-spacing: -0.055em;
+      font-size: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      gap: 10px;
+    }
+
+    .metric {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 11px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 16px;
+      overflow-wrap: anywhere;
+    }
+
+    .section-title {
+      margin: 30px 0 11px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .chain-grid,
+    .weather-grid,
+    .free-grid,
+    .pro-grid,
+    .pricing-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .chain-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .weather-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 10px;
+    }
+
+    .free-grid,
+    .pro-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pricing-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .card p,
+    .alert-list p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .badge,
+    .chip,
+    .state {
+      display: inline-flex;
+      width: fit-content;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      color: var(--accent);
+      border-color: rgba(121, 208, 191, 0.42);
     }
 
     .chips {
       display: flex;
-      gap: 18px;
       flex-wrap: wrap;
-      margin-top: 86px;
+      gap: 8px;
+      margin-top: 14px;
     }
 
     .chip {
-      border: 1px solid var(--line2);
-      border-radius: 999px;
-      padding: 18px 26px;
+      margin-bottom: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .state.fresh,
+    .state.positive,
+    .state.good {
+      color: var(--good);
+      border-color: rgba(136, 199, 127, 0.42);
+    }
+
+    .state.degraded,
+    .state.conflicting,
+    .state.watchlist,
+    .state.low {
+      color: var(--warn);
+      border-color: rgba(217, 184, 106, 0.44);
+    }
+
+    .state.stale,
+    .state.negative,
+    .state.bad {
+      color: var(--bad);
+      border-color: rgba(217, 120, 112, 0.44);
+    }
+
+    .details {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .detail {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
       color: var(--muted);
-      font-size: 24px;
+      font-size: 13px;
+    }
+
+    .detail strong {
+      color: var(--text);
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .price {
+      display: block;
+      margin: 8px 0;
+      font-size: 28px;
       font-weight: 750;
-      background: rgba(0,0,0,0.18);
     }
 
-    .side-card {
-      padding: 48px;
+    .features {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
       display: grid;
-      align-content: stretch;
-      gap: 22px;
-      background: linear-gradient(145deg, rgba(34,39,38,0.84), rgba(10,13,13,0.84));
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
     }
 
-    .metric {
-      border: 1px solid var(--line2);
-      border-radius: 28px;
-      padding: 38px 34px;
-      background: rgba(255,255,255,0.025);
+    .features li {
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
     }
 
-    .metric.large { min-height: 280px; }
-
-    .label {
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: 0.22em;
-      font-size: 26px;
-      font-weight: 850;
-      margin-bottom: 22px;
-    }
-
-    .value {
-      font-size: 30px;
-      font-weight: 900;
-      letter-spacing: -0.05em;
-    }
-
-    .value.green { color: var(--green); }
-
-    .sub {
-      color: var(--dim);
-      font-size: 28px;
-      line-height: 1.45;
-      margin-top: 28px;
-      font-weight: 720;
-      letter-spacing: -0.045em;
-    }
-
-    .wide-card {
-      padding: 54px 50px;
-      margin-bottom: 52px;
-      background: linear-gradient(145deg, rgba(22,24,25,0.88), rgba(14,15,16,0.90));
-    }
-
-    .panel-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 24px;
-      margin-bottom: 44px;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: 34px;
-      letter-spacing: -0.06em;
-    }
-
-    .pill {
-      border: 1px solid var(--line2);
-      border-radius: 999px;
-      padding: 13px 22px;
-      color: var(--yellow);
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      font-weight: 900;
-      font-size: 20px;
-    }
-
-    .public-read {
-      font-size: clamp(42px, 4.2vw, 72px);
-      line-height: 1.16;
-      letter-spacing: -0.085em;
-      font-weight: 780;
-      color: rgba(244,241,233,0.92);
-      margin: 0;
-      max-width: 1700px;
-    }
-
-    .warnings {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      margin-top: 48px;
-    }
-
-    .warning {
+    .cta {
+      display: inline-flex;
+      margin-top: 16px;
       border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 14px 22px;
-      color: var(--muted);
-      font-size: 22px;
-      font-weight: 720;
-      background: rgba(0,0,0,0.16);
-    }
-
-    .lower-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 28px;
-      margin-bottom: 52px;
-    }
-
-    .section-title {
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 900;
-      font-size: 28px;
-      margin: 76px 0 24px;
-    }
-
-    .section-card {
-      padding: 38px;
-      background: rgba(18,22,23,0.78);
-    }
-
-    .facts {
-      display: grid;
-      gap: 20px;
-    }
-
-    .fact {
-      display: flex;
-      justify-content: space-between;
-      gap: 24px;
-      border-bottom: 1px solid rgba(255,255,255,0.10);
-      padding-bottom: 18px;
-      font-size: 26px;
-      color: var(--muted);
-    }
-
-    .fact strong {
+      border-radius: 6px;
+      padding: 8px 10px;
       color: var(--text);
-      text-align: right;
+      font-size: 13px;
+      text-decoration: none;
+      background: var(--soft);
     }
 
-    .coming-grid {
+    .cta.disabled {
+      color: var(--muted);
+      cursor: default;
+    }
+
+    .alert-list {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 28px;
+      gap: 12px;
     }
 
-    .chain-card {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 30px;
-      background: rgba(17,21,22,0.82);
+    @media (max-width: 960px) {
+      .pricing-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
 
-    .chain-card h3 {
-      margin: 0 0 18px;
-      font-size: 32px;
-      letter-spacing: -0.06em;
-    }
+    @media (max-width: 760px) {
+      main {
+        width: min(100% - 24px, 680px);
+        padding: 20px 0 32px;
+      }
 
-    .chain-card p {
-      margin: 0 0 26px;
-      color: var(--muted);
-      font-size: 24px;
-      line-height: 1.45;
-      font-weight: 650;
-    }
-
-    .mini-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      border-top: 1px solid rgba(255,255,255,0.11);
-      padding: 14px 0;
-      color: var(--muted);
-      font-size: 22px;
-    }
-
-    .mini-row strong {
-      color: var(--text);
-      text-align: right;
-    }
-
-    footer {
-      color: var(--dim);
-      margin-top: 70px;
-      display: flex;
-      justify-content: space-between;
-      gap: 24px;
-      font-size: 18px;
-    }
-
-    @media (max-width: 1100px) {
-      .shell { padding: 34px 16px 52px; }
-      header { margin-bottom: 56px; }
-      .kicker { display: none; }
-      .hero-grid, .lower-grid, .coming-grid {
+      .topline,
+      .hero,
+      .chain-grid,
+      .weather-grid,
+      .free-grid,
+      .pro-grid,
+      .pricing-grid {
         grid-template-columns: 1fr;
       }
-      .hero-card {
-        min-height: auto;
-        padding: 54px 32px;
+
+      .topline {
+        display: grid;
       }
-      .side-card { padding: 24px; }
-      .chips { margin-top: 44px; }
-      .chip, .warning { font-size: 16px; }
-      .metric { padding: 28px 24px; }
-      .label { font-size: 18px; }
-      .public-read { font-size: 42px; }
-      footer { flex-direction: column; }
+
+      .stamp {
+        white-space: normal;
+      }
+
+      .primary-read {
+        font-size: 22px;
+      }
+
+      .panel,
+      .card {
+        padding: 14px;
+      }
     }
   </style>
 </head>
-
 <body>
-  <main class="shell">
+  <main>
     <header>
-      <div class="brand"><span class="dot"></span><span>RavenOS</span></div>
-      <div class="kicker">Public Market Weather</div>
+      <div class="topline">
+        <h1>RavenOS</h1>
+        <p class="stamp" id="generatedAt">updated recently</p>
+      </div>
+      <div class="intro">
+        <p>RavenOS reads crypto market behavior across chains, breadth, liquidity, leverage, and risk rotation.</p>
+        <p>It helps show where activity is improving, where moves are failing, and where conditions are punishing participants.</p>
+        <p>RavenOS does not tell you what to buy. It shows when market conditions are rewarding risk, when moves are failing, and when a lane is likely to punish participants.</p>
+        <p class="sharp">Know when not to trade. See where risk is actually being rewarded.</p>
+      </div>
     </header>
 
-    <section class="hero-grid">
-      <article class="hero-card">
-        <div class="eyebrow">RavenOS Public</div>
-        <h1>Market weather, not trade calls.</h1>
-        <p class="lede">
-          Read-only public dashboard built from sanitized RavenOS artifacts. No wallet lists, raw logs,
-          private internals, or execution logic are exposed here.
-        </p>
-        <div class="chips">
-          <span class="chip">public-safe only</span>
-          <span class="chip">sanitized artifacts</span>
-          <span class="chip">no execution logic</span>
-          <span class="chip">updated by cron</span>
-        </div>
+    <section class="hero" aria-label="current market read">
+      <article class="panel" id="liveRead">
+        <p class="eyebrow">current market read</p>
+        <h2 class="primary-read" id="primaryRead">current market read is developing</h2>
+        <p class="support" id="secondaryRead">RavenOS is preparing the public read for this window.</p>
+        <div class="chips" id="heroChips"></div>
       </article>
 
-      <aside class="side-card">
-        <div class="metric large">
-          <div class="label">Current direction</div>
-          <div id="direction" class="value green">loading</div>
-          <div id="confirmation" class="sub">confirmation: loading · consistency: loading</div>
-        </div>
-
+      <aside class="panel metrics" aria-label="read summary">
         <div class="metric">
-          <div class="label">Freshness</div>
-          <div id="freshness" class="value">loading</div>
+          <span class="eyebrow">coverage</span>
+          <strong id="coverageLabel">developing read</strong>
         </div>
-
         <div class="metric">
-          <div class="label">Read mode</div>
-          <div id="read-mode" class="value">loading</div>
+          <span class="eyebrow">direction</span>
+          <strong id="directionLabel">developing</strong>
         </div>
-
         <div class="metric">
-          <div class="label">Updated at</div>
-          <div id="updated-at" class="value">loading</div>
+          <span class="eyebrow">confirmation</span>
+          <strong id="confirmationLabel">developing</strong>
+        </div>
+        <div class="metric">
+          <span class="eyebrow">caution</span>
+          <strong id="cautionLabel">watchful</strong>
         </div>
       </aside>
     </section>
 
-    <section class="wide-card">
-      <div class="panel-head">
-        <h2>Public read</h2>
-        <span id="quality-pill" class="pill">loading</span>
-      </div>
-      <p id="public-read" class="public-read">Loading public RavenOS read.</p>
-      <div id="warnings" class="warnings"></div>
+    <h2 class="section-title">live chain reads</h2>
+    <section class="chain-grid" id="chainReads"></section>
+
+    <h2 class="section-title">today's trade weather</h2>
+    <section class="panel">
+      <p class="eyebrow" id="weatherTitle">today's trade weather: developing</p>
+      <p class="support" id="weatherSummary">Coverage is developing, so this read should be treated as early.</p>
+      <div class="weather-grid" id="weatherLanes"></div>
     </section>
 
-    <section class="lower-grid">
-      <article class="section-card">
-        <div class="label">Regime</div>
-        <div class="facts">
-          <div class="fact"><span>direction</span><strong id="regime-direction">loading</strong></div>
-          <div class="fact"><span>confirmation</span><strong id="regime-confirmation">loading</strong></div>
-          <div class="fact"><span>consistency</span><strong id="regime-consistency">loading</strong></div>
-          <div class="fact"><span>outlier dependency</span><strong id="regime-outlier">loading</strong></div>
-        </div>
-      </article>
+    <h2 class="section-title">condition alerts</h2>
+    <section class="panel alert-list" id="conditionAlerts"></section>
 
-      <article class="section-card">
-        <div class="label">Source quality</div>
-        <div class="facts">
-          <div class="fact"><span>status</span><strong id="source-status">loading</strong></div>
-          <div class="fact"><span>label</span><strong id="source-label">loading</strong></div>
-          <div class="fact"><span>warning count</span><strong id="warning-count">loading</strong></div>
-          <div class="fact"><span>ttl</span><strong id="ttl">loading</strong></div>
-        </div>
-      </article>
-    </section>
+    <h2 class="section-title">why this read</h2>
+    <section class="free-grid" id="whyRead"></section>
 
-    <div class="section-title">Live chain reads</div>
-    <section class="coming-grid">
-      <article class="chain-card">
-        <h3>Solana</h3>
-        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
-        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
-      </article>
+    <h2 class="section-title">available on pro</h2>
+    <section class="pro-grid" id="proModules"></section>
 
-      <article class="chain-card">
-        <h3>ETH</h3>
-        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
-        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
-      </article>
-
-      <article class="chain-card">
-        <h3>Base</h3>
-        <p>Public chain read for activity, breadth, participant outcome, and coverage quality.</p>
-        <div class="mini-row"><span>activity</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>status</span><strong>coming online</strong></div>
-        <div class="mini-row"><span>observed tokens</span><strong>not enough clean data yet</strong></div>
-      </article>
-    </section>
-
-    <div class="section-title">Today’s trade weather</div>
-    <section class="wide-card">
-      <div class="label" id="weather-title">Today’s trade weather: developing</div>
-      <p class="lede" style="max-width: none; font-size: 30px;">
-        Coverage is developing, so this read should be treated as early.
-      </p>
-      <div class="coming-grid" style="margin-top: 28px;">
-        <article class="chain-card">
-          <span class="chip">Available on Pro</span>
-          <h3 style="margin-top: 28px;">Market-cap breakdown</h3>
-          <p>See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.</p>
-        </article>
-        <article class="chain-card">
-          <span class="chip">Available on Pro</span>
-          <h3 style="margin-top: 28px;">Participant outcome</h3>
-          <p>Estimate whether active traders are being rewarded or punished by chain and market-cap band.</p>
-        </article>
-        <article class="chain-card">
-          <span class="chip">Available on Pro</span>
-          <h3 style="margin-top: 28px;">Trade avoidance map</h3>
-          <p>Identify which lanes are choppy, thin, overextended, or punishing newcomers.</p>
-        </article>
-      </div>
-    </section>
-
-    <footer>
-      <span>Public-safe only. No wallet lists, raw logs, private DB, or execution logic.</span>
-      <span id="packet-type">packet: loading</span>
-    </footer>
+    <h2 class="section-title">pricing</h2>
+    <section class="pricing-grid" id="pricing"></section>
   </main>
 
   <script>
-    const DATA_URL = "./public/data/ravenos_summary.json";
+    const SUMMARY_URL = "/public/data/ravenos_summary.json";
 
-    const $ = (id) => document.getElementById(id);
+    const PRO_MODULES = [
+      ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
+      ["Participant outcome", "Estimate whether active traders are being rewarded or punished by chain and market-cap band.", "Available on Pro"],
+      ["Risk ladder", "Track whether flow is moving toward cash, majors, micro caps, fresh pairs, or leverage.", "Available on Pro"],
+      ["Revival scanner", "Detect when older or compressed tokens begin reactivating.", "Available on Pro"],
+      ["Perp pressure", "See when leverage is building, confirming, flushing, or becoming unstable.", "Available on Desk"],
+      ["Macro regime", "Cross-market context for liquidity, risk appetite, dollar pressure, rates, and broader alignment.", "Available on Desk"]
+    ];
 
-    function cleanWarning(w) {
-      return String(w || "")
-        .replaceAll("do_not_overread:", "do not overread:")
-        .replaceAll("_", " ");
-    }
-
-    function formatDate(iso) {
-      if (!iso) return "unknown";
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return iso;
-      return d.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit"
-      });
-    }
-
-    function render(data) {
-      const regime = data.regime || {};
-      const freshness = data.freshness || {};
-      const source = data.source_quality || {};
-
-      $("direction").textContent = regime.direction || "developing";
-      $("confirmation").textContent = `confirmation: ${regime.confirmation || "developing"} · consistency: ${regime.consistency || "developing"}`;
-      $("freshness").textContent = `${freshness.status || "unknown"} / ${freshness.age_seconds ?? "?"}s`;
-      $("read-mode").textContent = data.read_mode || "watchlist";
-      $("updated-at").textContent = formatDate(data.generated_at);
-
-      $("quality-pill").textContent = source.label || source.status || "public";
-      $("public-read").textContent = data.public_read || "Current public read is developing.";
-
-      $("regime-direction").textContent = regime.direction || "developing";
-      $("regime-confirmation").textContent = regime.confirmation || "developing";
-      $("regime-consistency").textContent = regime.consistency || "developing";
-      $("regime-outlier").textContent = regime.outlier_dependency || "developing";
-
-      $("source-status").textContent = source.status || "unknown";
-      $("source-label").textContent = source.label || "unknown";
-      $("warning-count").textContent = source.warning_count ?? (data.warnings || []).length;
-      $("ttl").textContent = `${data.ttl_seconds || 900}s`;
-      $("packet-type").textContent = `packet: ${data.packet_type || "unknown"}`;
-
-      const warnings = $("warnings");
-      warnings.innerHTML = "";
-      (data.warnings || []).forEach((warning) => {
-        const span = document.createElement("span");
-        span.className = "warning";
-        span.textContent = cleanWarning(warning);
-        warnings.appendChild(span);
-      });
-    }
-
-    async function load() {
-      try {
-        const res = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        render(data);
-      } catch (err) {
-        $("public-read").textContent = "Public RavenOS data is temporarily unavailable.";
-        $("quality-pill").textContent = "offline";
-        console.error(err);
+    const PRICING = [
+      {
+        name: "Free",
+        price: "$0",
+        copy: "Live market read, chain pulse, basic breadth, and public caution flags.",
+        badge: "",
+        features: ["current market read", "chain pulse", "market breadth", "basic caution flags"],
+        cta: "Live now",
+        live: true
+      },
+      {
+        name: "Pro",
+        price: "$149/mo",
+        copy: "Lane-quality intelligence for traders who want to know where risk is being rewarded and where conditions are punishing participants.",
+        badge: "Early access",
+        features: ["cap-band breakdown", "participant outcome by lane", "followthrough quality", "liquidity quality", "risk ladder", "revival scanner", "condition alerts"],
+        cta: "Available soon"
+      },
+      {
+        name: "Desk",
+        price: "$499/mo",
+        copy: "Deeper market-regime, leverage, and cross-market context for active desks and serious teams.",
+        badge: "Desk intelligence",
+        features: ["everything in Pro", "perp pressure", "macro regime context", "advanced context", "higher-frequency intelligence", "historical condition replay"],
+        cta: "Available soon"
+      },
+      {
+        name: "Enterprise",
+        price: "Custom",
+        copy: "Custom dashboards, team access, API/export options, dedicated deployment options, and research support.",
+        badge: "",
+        features: ["team access", "custom alerts", "API / data exports", "dedicated deployment options", "custom reporting"],
+        cta: "Contact for access"
       }
+    ];
+
+    function isObject(value) {
+      return value && typeof value === "object" && !Array.isArray(value);
     }
 
-    load();
+    function rawText(value, fallback = "") {
+      return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    }
+
+    function pretty(value, fallback = "developing") {
+      const clean = rawText(value, fallback);
+      return clean.replaceAll("_", " ");
+    }
+
+    function titleCase(value, fallback = "Developing") {
+      return pretty(value, fallback).replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function formatUpdated(value) {
+      const clean = rawText(value);
+      if (!clean) return "updated recently";
+      const date = new Date(clean);
+      if (Number.isNaN(date.getTime())) return "updated recently";
+      const yyyy = String(date.getUTCFullYear());
+      const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(date.getUTCDate()).padStart(2, "0");
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const min = String(date.getUTCMinutes()).padStart(2, "0");
+      return `updated ${yyyy}-${mm}-${dd} · ${hh}:${min} UTC`;
+    }
+
+    function setText(id, value) {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value;
+    }
+
+    function card(title, copy, badge = "") {
+      const article = document.createElement("article");
+      article.className = "card";
+
+      if (badge) {
+        const mark = document.createElement("span");
+        mark.className = "badge";
+        mark.textContent = badge;
+        article.appendChild(mark);
+      }
+
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+
+      const p = document.createElement("p");
+      p.textContent = copy;
+
+      article.append(h3, p);
+      return article;
+    }
+
+    function appendDetails(node, rows) {
+      const wrap = document.createElement("div");
+      wrap.className = "details";
+
+      rows.forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "detail";
+
+        const left = document.createElement("span");
+        left.textContent = label;
+
+        const right = document.createElement("strong");
+        right.textContent = value;
+
+        row.append(left, right);
+        wrap.appendChild(row);
+      });
+
+      node.appendChild(wrap);
+    }
+
+    function renderHero(summary) {
+      const regime = isObject(summary.regime) ? summary.regime : {};
+      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
+      const freshness = isObject(summary.freshness) ? summary.freshness : {};
+
+      const direction = pretty(regime.direction, "developing");
+      const confirmation = pretty(regime.confirmation, "developing");
+      const consistency = pretty(regime.consistency, "developing");
+      const outlier = pretty(regime.outlier_dependency, "developing");
+      const readMode = pretty(summary.read_mode, "watchlist");
+      const sourceLabel = pretty(sourceQuality.label, "developing");
+      const freshStatus = pretty(freshness.status, "fresh");
+
+      setText("primaryRead", `current market read: ${direction}`);
+      setText("secondaryRead", rawText(
+        summary.public_read,
+        "RavenOS shows when crypto market conditions are rewarding risk, when moves are failing, and when specific lanes are likely to punish participants."
+      ));
+
+      setText("coverageLabel", sourceLabel);
+      setText("directionLabel", direction);
+      setText("confirmationLabel", confirmation);
+      setText("cautionLabel", readMode);
+
+      const chips = [
+        `freshness ${freshStatus}`,
+        `confirmation ${confirmation}`,
+        `consistency ${consistency}`,
+        `outlier dependency ${outlier}`,
+        `read mode ${readMode}`
+      ];
+
+      const node = document.getElementById("heroChips");
+      node.textContent = "";
+      chips.forEach(item => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = item;
+        node.appendChild(chip);
+      });
+    }
+
+    function renderChainReads(summary) {
+      const node = document.getElementById("chainReads");
+      node.textContent = "";
+
+      const laneQuality = Array.isArray(summary.lane_quality) ? summary.lane_quality : [];
+      const byChain = {};
+
+      laneQuality.forEach(row => {
+        if (!isObject(row)) return;
+        const chain = rawText(row.chain || row.network || row.name).toLowerCase();
+        if (chain) byChain[chain] = row;
+      });
+
+      const labels = { solana: "Solana", eth: "ETH", base: "Base" };
+
+      ["solana", "eth", "base"].forEach(chain => {
+        const row = byChain[chain] || {};
+        const item = card(labels[chain], "Public chain read for activity, breadth, participant outcome, and coverage quality.");
+
+        appendDetails(item, [
+          ["activity", pretty(row.activity_state, "coming online")],
+          ["status", pretty(row.status, "coming online")],
+          ["observed tokens", row.observed_tokens || row.observed_sample_size || "not enough clean data yet"],
+          ["clean sample", row.clean_sample || row.clean_econ_sample_size || "not enough clean data yet"],
+          ["green / red", row.green_red || "not enough clean data yet"],
+          ["move", row.move || row.avg_move_pct || "not enough clean data yet"]
+        ]);
+
+        node.appendChild(item);
+      });
+    }
+
+    function renderTradeWeather(summary) {
+      const regime = isObject(summary.regime) ? summary.regime : {};
+      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
+
+      const direction = pretty(regime.direction, "developing");
+      const confirmation = pretty(regime.confirmation, "developing");
+      const consistency = pretty(regime.consistency, "developing");
+      const sourceLabel = pretty(sourceQuality.label, "developing");
+
+      setText("weatherTitle", `today's trade weather: ${direction}`);
+      setText("weatherSummary", sourceLabel === "degraded"
+        ? "Coverage is degraded, so this read should be treated as early."
+        : "Coverage is developing, so this read should be treated as early."
+      );
+
+      const node = document.getElementById("weatherLanes");
+      node.textContent = "";
+
+      node.appendChild(card("Market-cap breakdown", "See whether micro caps, mid caps, high caps, and majors are cleaner or more punishing than fresh pairs.", "Available on Pro"));
+      node.appendChild(card("Participant outcome", "Estimate whether active traders are being rewarded or punished by chain and market-cap band.", "Available on Pro"));
+      node.appendChild(card("Trade avoidance map", `Current public confirmation is ${confirmation}; consistency is ${consistency}. Use this read as market weather, not a trade call.`, "Available on Pro"));
+      node.appendChild(card("Perp pressure", "Track leverage pressure and instability.", "Available on Desk"));
+    }
+
+    function renderConditionAlerts(summary) {
+      const node = document.getElementById("conditionAlerts");
+      node.textContent = "";
+
+      const warnings = Array.isArray(summary.warnings) ? summary.warnings : [];
+
+      if (!warnings.length) {
+        const p = document.createElement("p");
+        p.textContent = "No major public caution flags are active.";
+        node.appendChild(p);
+        return;
+      }
+
+      warnings.slice(0, 5).forEach(warning => {
+        const text = pretty(warning, "caution flag");
+        node.appendChild(card("Caution", text));
+      });
+    }
+
+    function renderWhyRead(summary) {
+      const node = document.getElementById("whyRead");
+      node.textContent = "";
+
+      const regime = isObject(summary.regime) ? summary.regime : {};
+      const sourceQuality = isObject(summary.source_quality) ? summary.source_quality : {};
+
+      node.appendChild(card("Direction", `Current public direction is ${pretty(regime.direction, "developing")}.`));
+      node.appendChild(card("Confirmation", `Longer-window confirmation is ${pretty(regime.confirmation, "developing")}.`));
+      node.appendChild(card("Consistency", `Current consistency is ${pretty(regime.consistency, "developing")}.`));
+      node.appendChild(card("Source quality", `Source quality is ${pretty(sourceQuality.label, "developing")} with ${sourceQuality.warning_count ?? "some"} public warnings.`));
+    }
+
+    function renderProModules() {
+      const node = document.getElementById("proModules");
+      node.textContent = "";
+      PRO_MODULES.forEach(([title, copy, badge]) => node.appendChild(card(title, copy, badge)));
+    }
+
+    function renderPricing() {
+      const node = document.getElementById("pricing");
+      node.textContent = "";
+
+      PRICING.forEach(tier => {
+        const item = card(tier.name, tier.copy, tier.badge);
+
+        const price = document.createElement("strong");
+        price.className = "price";
+        price.textContent = tier.price;
+        item.insertBefore(price, item.querySelector("p"));
+
+        const ul = document.createElement("ul");
+        ul.className = "features";
+
+        tier.features.forEach(feature => {
+          const li = document.createElement("li");
+          li.textContent = feature;
+          ul.appendChild(li);
+        });
+
+        const cta = document.createElement(tier.live ? "a" : "span");
+        cta.className = tier.live ? "cta" : "cta disabled";
+        cta.textContent = tier.cta;
+        if (tier.live) cta.href = "#liveRead";
+
+        item.append(ul, cta);
+        node.appendChild(item);
+      });
+    }
+
+    async function boot() {
+      let summary = {};
+
+      try {
+        const response = await fetch(`${SUMMARY_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (response.ok) summary = await response.json();
+      } catch (_) {
+        summary = {};
+      }
+
+      if (!isObject(summary)) summary = {};
+
+      setText("generatedAt", formatUpdated(summary.generated_at));
+
+      renderHero(summary);
+      renderChainReads(summary);
+      renderTradeWeather(summary);
+      renderConditionAlerts(summary);
+      renderWhyRead(summary);
+      renderProModules();
+      renderPricing();
+    }
+
+    boot();
   </script>
 </body>
 </html>
