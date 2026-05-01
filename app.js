@@ -1,4 +1,4 @@
-const DATA_URL = "./data/ravenos_summary.json";
+const DATA_URL = "./public/data/ravenos_summary.json";
 
 function fmtDate(value) {
   if (!value) return "Unknown";
