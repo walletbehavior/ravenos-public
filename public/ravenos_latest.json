@@ -89,24 +89,16 @@
     "status": "fresh"
   },
   "generated_at": "2026-05-01T14:53:44Z",
-  "lane_quality": [],
-  "notes": [
-    "public_safe_only",
-    "no_wallet_lists",
-    "no_raw_logs",
-    "no_private_db",
-    "no_private_internals"
-  ],
-  "packet_type": "ravenos_public_summary",
   "public_read": "crypto is attempting to stabilize, but the move is still fragile.",
-  "read_mode": "watchlist",
   "regime": {
     "confirmation": "conflicting",
     "consistency": "low",
     "direction": "positive",
     "outlier_dependency": "high"
   },
-  "source_path": "/srv/raven/app/data/public/ravenos_latest.json",
+  "source_artifact_mtimes": {
+    "ravenos_public_snapshot.json": 1777647207
+  },
   "source_quality": {
     "label": "live",
     "status": "available",

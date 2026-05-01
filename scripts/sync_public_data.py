@@ -63,6 +63,8 @@ def to_summary(source: dict, source_path: Path | None) -> dict:
         "regime": source.get("regime") or source.get("regime_quality") or {},
         "source_quality": source.get("source_quality") or {"status": "available" if source else "missing", "label": "public_safe"},
         "lane_quality": lane_quality,
+        "chains": source.get("chains") or source.get("chain_lanes") or [],
+        "chain_lane_freshness": source.get("chain_lane_freshness") or {},
         "warnings": warnings,
         "notes": [
             "public_safe_only",
@@ -88,6 +90,8 @@ def placeholder_summary() -> dict:
         "regime": {"direction": "unknown", "confirmation": "unknown", "consistency": "unknown", "outlier_dependency": "unknown"},
         "source_quality": {"status": "missing", "label": "placeholder"},
         "lane_quality": [],
+        "chains": [],
+        "chain_lane_freshness": {},
         "warnings": ["awaiting_public_safe_sync"],
         "notes": ["placeholder_mode", "public_safe_only"],
     }
@@ -131,8 +135,36 @@ def main(argv: list[str]) -> int:
     # Keep the repo free of private sources; only the derived summary is written.
     print(f"wrote {out_path}")
     print(f"source={source_path or 'placeholder'}")
+    _copy_browser_facing_artifacts(repo_root, source_root)
     return 0
 
+def _copy_browser_facing_artifacts(repo_root, source_root):
+    """Copy live RavenOS browser feeds into the static public root."""
+    from pathlib import Path
+
+    repo_root = Path(repo_root)
+    source_root = Path(source_root)
+    public_root = repo_root / "public"
+
+    copies = [
+        (
+            source_root / "data/public/ravenos_latest.json",
+            public_root / "ravenos_latest.json",
+        ),
+        (
+            source_root / "data/ravenos/ravenos_public_snapshot.json",
+            public_root / "ravenos_public_snapshot.json",
+        ),
+    ]
+
+    for src, dst in copies:
+        if not src.exists():
+            print(f"missing optional browser artifact: {src}")
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(src.read_bytes())
+        dst.chmod(0o644)
+        print(f"copied browser artifact {src} -> {dst}")
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv))
