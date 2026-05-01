@@ -417,14 +417,8 @@
   </main>
 
   <script>
-    const SNAPSHOT_URLS = [
-      "/ravenos_public_snapshot.json",
-      "/public/ravenos_public_snapshot.json",
-    ];
-    const LATEST_URLS = [
-      "/ravenos_latest.json",
-      "/public/ravenos_latest.json",
-    ];
+    const SNAPSHOT_URL = "/ravenos_public_snapshot.json";
+    const LATEST_URL = "/ravenos_latest.json";
 
     const PRO_MODULES = [
       ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
@@ -491,11 +485,6 @@
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
     }
 
-    function freshUrl(url) {
-      const join = url.includes("?") ? "&" : "?";
-      return `${url}${join}v=${Date.now()}`;
-    }
-
     function titleCase(value) {
       return text(value).replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
@@ -540,6 +529,33 @@
       return dataStatusLabel(status);
     }
 
+
+    function normalizePublicPayload(payload) {
+      const out = isObject(payload) ? { ...payload } : {};
+      const modules = isObject(out.modules) ? out.modules : {};
+      [
+        "chain_pulse",
+        "breadth_momentum",
+        "cash_rotation",
+        "cap_band_pulse",
+        "perp_pressure",
+        "macro_regime_context",
+        "risk_ladder",
+        "followthrough_quality",
+        "revival_pressure",
+        "liquidity_quality",
+        "churn_trap_index",
+        "participant_outcome_pulse",
+        "condition_alerts",
+        "market_context",
+        "trade_weather",
+        "token_snapshot_spine"
+      ].forEach((key) => {
+        if (!isObject(out[key]) && isObject(modules[key])) out[key] = modules[key];
+      });
+      return out;
+    }
+
     function normalizeChainKey(value) {
       const clean = rawText(value, "").toLowerCase();
       if (clean === "solana" || clean === "sol") return "sol";
@@ -550,34 +566,71 @@
 
     function mergeChainReadSource(snapshot, latest) {
       const reads = {};
+
       const raw = isObject(snapshot.chain_reads) ? snapshot.chain_reads : {};
       Object.entries(raw).forEach(([key, row]) => {
         const norm = normalizeChainKey(key);
-        if (norm && isObject(row)) reads[norm] = row;
+        if (norm && isObject(row)) reads[norm] = { ...row };
       });
+
+      const spineChains = isObject(snapshot.token_snapshot_spine) && isObject(snapshot.token_snapshot_spine.chains)
+        ? snapshot.token_snapshot_spine.chains
+        : {};
+      Object.entries(spineChains).forEach(([key, row]) => {
+        const norm = normalizeChainKey(key);
+        if (!norm || !isObject(row)) return;
+        reads[norm] = {
+          ...(reads[norm] || {}),
+          chain: norm,
+          activity_state: row.activity_state,
+          data_status: row.data_status,
+          coverage_state: row.coverage_state || row.clean_coverage_state || row.raw_coverage_state,
+          participant_outcome: row.participant_outcome,
+          read: row.read,
+          confidence: row.confidence,
+          sample_size: row.sample_size,
+          clean_econ_sample_size: row.clean_econ_sample_size,
+          observed_sample_size: row.observed_sample_size,
+          raw_sample_size: row.raw_sample_size,
+          green_pct: row.green_pct,
+          red_pct: row.red_pct,
+          avg_move_pct: row.avg_move_pct,
+          average_move_pct: row.average_move_pct,
+          median_move_pct: row.median_move_pct,
+        };
+      });
+
       const chains = Array.isArray(latest.chains) ? latest.chains : [];
       chains.forEach((chainRow) => {
         const chain = normalizeChainKey(chainRow.chain);
         if (!chain) return;
+        const existing = reads[chain] || {};
         const lanes = Array.isArray(chainRow.lanes) ? chainRow.lanes.filter(isObject) : [];
         const bestLane = lanes.sort((a, b) => (Number(b.sample_size) || 0) - (Number(a.sample_size) || 0))[0] || {};
         const sampleSize = typeof bestLane.sample_size === "number" ? bestLane.sample_size : 0;
+
         reads[chain] = {
           chain,
-          activity_state: chainRow.status || bestLane.status || "coming_online",
-          data_status: "observed",
-          coverage_state: bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown",
-          participant_outcome: bestLane.status || chainRow.status || "unknown",
-          read: bestLane.status || chainRow.status || "unknown",
-          confidence: bestLane.trust_level || "low",
-          sample_size: sampleSize,
-          clean_econ_sample_size: sampleSize,
-          observed_sample_size: sampleSize,
-          raw_sample_size: sampleSize,
-          followthrough_quality: bestLane.followthrough_quality || "unknown",
-          outlier_warning: Boolean(bestLane.outlier_warning),
+          activity_state: existing.activity_state || chainRow.status || bestLane.status || "coming_online",
+          data_status: existing.data_status || (sampleSize > 0 ? "observed" : "coming_online"),
+          coverage_state: existing.coverage_state || (bestLane.sample_size_trust === "high" ? "strong" : bestLane.sample_size_trust === "medium" ? "usable" : sampleSize > 0 ? "thin" : "unknown"),
+          participant_outcome: existing.participant_outcome || bestLane.status || chainRow.status || "unknown",
+          read: existing.read || bestLane.status || chainRow.status || "unknown",
+          confidence: existing.confidence || bestLane.trust_level || "low",
+          sample_size: typeof existing.sample_size === "number" ? existing.sample_size : sampleSize,
+          clean_econ_sample_size: typeof existing.clean_econ_sample_size === "number" ? existing.clean_econ_sample_size : sampleSize,
+          observed_sample_size: typeof existing.observed_sample_size === "number" ? existing.observed_sample_size : sampleSize,
+          raw_sample_size: typeof existing.raw_sample_size === "number" ? existing.raw_sample_size : sampleSize,
+          green_pct: existing.green_pct,
+          red_pct: existing.red_pct,
+          avg_move_pct: existing.avg_move_pct,
+          average_move_pct: existing.average_move_pct,
+          median_move_pct: existing.median_move_pct,
+          followthrough_quality: existing.followthrough_quality || bestLane.followthrough_quality || "unknown",
+          outlier_warning: Boolean(existing.outlier_warning || bestLane.outlier_warning),
         };
       });
+
       return reads;
     }
 
@@ -909,12 +962,22 @@
     }
 
     async function boot() {
-      const snapshots = await fetchJsonCandidates(SNAPSHOT_URLS);
-      const latests = await fetchJsonCandidates(LATEST_URLS);
-      let snapshot = freshestByGeneratedAt(snapshots);
-      let latest = freshestByGeneratedAt(latests);
-      if (!isObject(snapshot)) snapshot = {};
-      if (!isObject(latest)) latest = {};
+      let snapshot = {};
+      let latest = {};
+      try {
+        const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+        if (response.ok) snapshot = await response.json();
+      } catch (_) {
+        snapshot = {};
+      }
+      try {
+        const response = await fetch(LATEST_URL, { cache: "no-store" });
+        if (response.ok) latest = await response.json();
+      } catch (_) {
+        latest = {};
+      }
+      snapshot = normalizePublicPayload(snapshot);
+      latest = normalizePublicPayload(latest);
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
@@ -926,35 +989,8 @@
       renderConditionAlerts(snapshot.condition_alerts);
     }
 
+
     boot();
   </script>
 </body>
 </html>
-    async function fetchJsonCandidates(urls) {
-      const results = [];
-      for (const url of urls) {
-        try {
-          const response = await fetch(freshUrl(url), { cache: "no-store" });
-          if (!response.ok) continue;
-          const payload = await response.json();
-          if (isObject(payload)) results.push(payload);
-        } catch (_) {
-          // ignore and continue to the next candidate
-        }
-      }
-      return results;
-    }
-
-    function freshestByGeneratedAt(items) {
-      let best = {};
-      let bestTs = -Infinity;
-      for (const item of items) {
-        const clean = rawText(item.generated_at || item.updated_at);
-        const ts = Date.parse(clean);
-        if (Number.isFinite(ts) && ts > bestTs) {
-          best = item;
-          bestTs = ts;
-        }
-      }
-      return best;
-    }
