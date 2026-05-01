@@ -1,9 +1,77 @@
 {
+  "chain_lane_freshness": {
+    "eth": {
+      "age_s": 0,
+      "source": "ravenos_public_snapshot.json",
+      "updated_at": "2026-05-01T14:45:02Z"
+    },
+    "sol": {
+      "age_s": 0,
+      "source": "ravenos_public_snapshot.json",
+      "updated_at": "2026-05-01T14:45:02Z"
+    }
+  },
+  "chains": [
+    {
+      "chain": "Ethereum",
+      "lane_count": 3,
+      "lanes": [
+        {
+          "chain": "Ethereum",
+          "followthrough_quality": "strong",
+          "lane": "Ethereum flow lane",
+          "outlier_warning": false,
+          "sample_size": 37,
+          "sample_size_trust": "high",
+          "status": "negative",
+          "trust_level": "medium"
+        },
+        {
+          "chain": "Ethereum",
+          "followthrough_quality": "weak",
+          "lane": "Ethereum flow lane",
+          "outlier_warning": false,
+          "sample_size": 2,
+          "sample_size_trust": "low",
+          "status": "negative",
+          "trust_level": "low"
+        },
+        {
+          "chain": "Ethereum",
+          "followthrough_quality": "mixed",
+          "lane": "Ethereum flow lane",
+          "outlier_warning": false,
+          "sample_size": 5,
+          "sample_size_trust": "low",
+          "status": "negative",
+          "trust_level": "low"
+        }
+      ],
+      "status": "negative"
+    },
+    {
+      "chain": "Solana",
+      "lane_count": 1,
+      "lanes": [
+        {
+          "chain": "Solana",
+          "followthrough_quality": "strong",
+          "lane": "Solana flow lane",
+          "outlier_warning": false,
+          "sample_size": 5,
+          "sample_size_trust": "low",
+          "status": "positive",
+          "trust_level": "low"
+        }
+      ],
+      "status": "positive"
+    }
+  ],
   "freshness": {
-    "age_seconds": 1,
+    "age_seconds": 0,
     "status": "fresh"
   },
-  "generated_at": "2026-05-01T14:30:03Z",
+  "generated_at": "2026-05-01T14:45:03Z",
   "lane_quality": [],
   "notes": [
     "public_safe_only",
