@@ -739,6 +739,39 @@
       return clean.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
+    function marketStateFilterValue(state, key) {
+      if (!isObject(state)) return "unknown";
+      if (key === "risk") return rawText(state.risk && state.risk.level, "unknown");
+      if (key === "data_quality") return rawText(state.data_quality && state.data_quality.status, "unknown");
+      if (key === "participant_outcome") return rawText(state.participant_outcome && state.participant_outcome.direction, "unknown");
+      return rawText(state[key], "unknown");
+    }
+
+    function marketStateSearchText(state) {
+      if (!isObject(state)) return "";
+      const breadth = state.breadth || {};
+      const participant = state.participant_outcome || {};
+      const risk = state.risk || {};
+      const quality = state.data_quality || {};
+      return [
+        state.chain,
+        state.cap_band,
+        state.window,
+        state.condition,
+        quality.status,
+        participant.direction,
+        risk.level,
+        list(risk.drivers).join(" "),
+        list(state.warnings).join(" "),
+        state.summary,
+        breadth.direction,
+        breadth.strength,
+      ]
+        .map((value) => rawText(value, "").toLowerCase())
+        .filter(Boolean)
+        .join(" ");
+    }
+
     function coverageLabel(value) {
       const clean = rawText(value, "developing").toLowerCase();
       if (clean === "strong") return "strong sample";
@@ -1347,37 +1380,12 @@
 
     function marketStateMatchesFilters(state, filters) {
       if (!isObject(state)) return false;
-      const query = rawText(filters.query).toLowerCase();
-      const haystack = [
-        state.chain,
-        state.cap_band,
-        state.window,
-        state.condition,
-        state.summary,
-        state.participant_outcome && state.participant_outcome.direction,
-        state.breadth && state.breadth.direction,
-        state.breadth && state.breadth.strength,
-        state.risk && state.risk.level,
-        state.data_quality && state.data_quality.status,
-        ...(list(state.warnings) || [])
-      ].map((value) => rawText(value).toLowerCase());
-      if (query && !haystack.some((item) => item.includes(query))) return false;
+      const query = rawText(filters.query).trim().toLowerCase();
+      if (query && !marketStateSearchText(state).includes(query)) return false;
       for (const key of ["chain", "cap_band", "window", "condition", "risk", "data_quality", "participant_outcome"]) {
-        const selected = filters[key];
-        if (!selected || selected === "all") continue;
-        if (key === "risk") {
-          if (rawText(state.risk && state.risk.level, "unknown") !== selected) return false;
-          continue;
-        }
-        if (key === "data_quality") {
-          if (rawText(state.data_quality && state.data_quality.status, "unknown") !== selected) return false;
-          continue;
-        }
-        if (key === "participant_outcome") {
-          if (rawText(state.participant_outcome && state.participant_outcome.direction, "unknown") !== selected) return false;
-          continue;
-        }
-        if (rawText(state[key], "unknown") !== selected) return false;
+        const selected = rawText(filters[key], "all").toLowerCase();
+        if (selected === "all" || !selected) continue;
+        if (marketStateFilterValue(state, key).toLowerCase() !== selected) return false;
       }
       return true;
     }
@@ -1473,10 +1481,38 @@
         filters.query = queryText;
         const filtered = normalizedStates.filter((state) => marketStateMatchesFilters(state, filters));
         resultNode.textContent = "";
-        fallback.hidden = filtered.length > 0 || normalizedStates.length > 0;
-        if (!normalizedStates.length || !filtered.length) {
+        fallback.hidden = normalizedStates.length > 0 && filtered.length > 0;
+        if (!normalizedStates.length) {
           fallback.hidden = false;
-          resultNode.appendChild(document.createElement("div"));
+          const empty = document.createElement("section");
+          empty.className = "panel building-state";
+          empty.innerHTML = "<strong>Market search is building.</strong><p>RavenOS will show aggregate market-state reads here once the public market-state artifact is available.</p><p>The public dashboard remains available while this feature is coming online.</p>";
+          resultNode.appendChild(empty);
+          return;
+        }
+        if (!filtered.length) {
+          fallback.hidden = false;
+          const empty = document.createElement("section");
+          empty.className = "panel building-state";
+          const title = document.createElement("strong");
+          title.textContent = "No market states match this search.";
+          const copy = document.createElement("p");
+          copy.textContent = "Clear the search text or reset the filters to return to the full public preview.";
+          const reset = document.createElement("button");
+          reset.type = "button";
+          reset.className = "search-action";
+          reset.textContent = "Reset Search";
+          reset.addEventListener("click", () => {
+            input.value = "";
+            for (const key of Object.keys(filters)) {
+              filters[key] = "all";
+            }
+            const sameGroup = Array.from(document.querySelectorAll(".search-chip"));
+            sameGroup.forEach((node) => node.classList.toggle("active", node.dataset.value === "all"));
+            applyFilters();
+          });
+          empty.append(title, copy, reset);
+          resultNode.appendChild(empty);
           return;
         }
         filtered.slice(0, 24).forEach((state) => {
@@ -1541,7 +1577,7 @@
           const value = chip.dataset.value;
           const sameGroup = Array.from(nodeFilters).filter((node) => node.dataset.key === key);
           sameGroup.forEach((node) => node.classList.toggle("active", node === chip));
-          filters[key] = value;
+          filters[key] = value === "all" ? "all" : value;
           applyFilters();
         });
       });
@@ -1606,6 +1642,17 @@
       });
       historicalButton.addEventListener("click", () => {
         togglePanel(historicalPanel, !historicalPanel.hidden);
+      });
+
+      input.addEventListener("search", () => {
+        if (!input.value) {
+          for (const key of Object.keys(filters)) {
+            filters[key] = "all";
+          }
+          const sameGroup = Array.from(document.querySelectorAll(".search-chip"));
+          sameGroup.forEach((node) => node.classList.toggle("active", node.dataset.value === "all"));
+          applyFilters();
+        }
       });
 
       renderSavedPreview();
