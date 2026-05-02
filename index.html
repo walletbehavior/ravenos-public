@@ -303,6 +303,188 @@
       gap: 12px;
     }
 
+    .search-shell {
+      display: grid;
+      gap: 16px;
+    }
+
+    .search-header {
+      display: grid;
+      gap: 10px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(121, 208, 191, 0.06), rgba(21, 25, 27, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .search-title {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .search-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .search-bar {
+      display: grid;
+      gap: 10px;
+    }
+
+    .search-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: var(--text);
+      background: var(--soft);
+      font: inherit;
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: var(--muted);
+    }
+
+    .search-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .search-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .search-chip.active {
+      color: var(--accent);
+      border-color: rgba(121, 208, 191, 0.5);
+    }
+
+    .result-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .result-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .result-title {
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .result-summary {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .result-grid .details {
+      margin-top: 0;
+    }
+
+    .locked-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .locked-card {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .locked-card h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .locked-card p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .building-state {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .search-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .search-action {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: var(--soft);
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .search-action.secondary {
+      color: var(--muted);
+    }
+
+    .search-modal {
+      display: grid;
+      gap: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    .search-modal[hidden] {
+      display: none;
+    }
+
+    .search-template-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .search-template {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px 12px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .search-template strong {
+      color: var(--text);
+      display: block;
+      margin-bottom: 4px;
+    }
+
     @media (max-width: 960px) {
       .pricing-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -326,6 +508,7 @@
       .chain-grid,
       .free-grid,
       .pro-grid,
+      .locked-grid,
       .pricing-grid {
         grid-template-columns: 1fr;
       }
@@ -405,6 +588,56 @@
 
     <h2 class="section-title">condition alerts</h2>
     <section class="panel alert-list" id="conditionAlerts"></section>
+
+    <h2 class="section-title">market search preview</h2>
+    <section class="search-shell" id="marketSearchShell">
+      <div class="search-header">
+        <div>
+          <div class="search-title">Market Search</div>
+          <div class="search-subtitle">Searchable market states are beginning with broad chain reads. Cap-band and historical replay remain locked or building.</div>
+        </div>
+        <div class="search-bar">
+          <input
+            id="marketSearchInput"
+            class="search-input"
+            type="search"
+            placeholder="Ask about chain conditions, cap bands, risk, or market health..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <div class="search-filters" id="marketSearchFilters"></div>
+        </div>
+      </div>
+      <section class="result-grid" id="marketSearchResults"></section>
+      <section class="panel building-state" id="marketSearchFallback" hidden>
+        <strong>Market search is building.</strong>
+        <p>RavenOS will show aggregate market-state reads here once the public market-state artifact is available.</p>
+        <p>The public dashboard remains available while this feature is coming online.</p>
+      </section>
+      <div class="search-toolbar">
+        <button class="search-action" id="saveSearchButton" type="button">Save Search</button>
+        <button class="search-action secondary" id="toggleAlertBuilderButton" type="button">Alert Builder</button>
+        <button class="search-action secondary" id="toggleHistoricalReplayButton" type="button">Historical Replay</button>
+      </div>
+      <section class="search-modal" id="savedSearchPanel" hidden>
+        <div class="section-title" style="margin:0;">saved search</div>
+        <p class="support" id="savedSearchCopy">Save a market-state search locally in the browser if persistence is available.</p>
+        <div class="search-template-list" id="savedSearchPreview"></div>
+      </section>
+      <section class="search-modal" id="alertBuilderPanel" hidden>
+        <div class="section-title" style="margin:0;">alert builder</div>
+        <p class="support">Build alerts for market conditions, not tickers.</p>
+        <div class="search-template-list" id="alertTemplateList"></div>
+      </section>
+      <section class="search-modal" id="historicalReplayPanel" hidden>
+        <div class="section-title" style="margin:0;">historical replay</div>
+        <p class="support">Compare current market conditions to prior aggregate windows.</p>
+        <div class="search-template-list">
+          <div class="search-template"><strong>Building state</strong>Comparable historical windows are not available yet.</div>
+        </div>
+      </section>
+      <section class="locked-grid" id="marketSearchLocked"></section>
+    </section>
 
     <h2 class="section-title">why this read</h2>
     <section class="free-grid" id="whyRead"></section>
@@ -720,7 +953,7 @@
       return reads;
     }
 
-    async function fetchJsonCandidates(urls) {
+    async function fetchJsonPayloads(urls) {
       const results = [];
       for (const url of urls) {
         try {
@@ -729,7 +962,7 @@
           const payload = await response.json();
           if (isObject(payload)) results.push(payload);
         } catch (_) {
-          // ignore and continue to the next candidate
+          // ignore and continue to the next payload source
         }
       }
       return results;
@@ -812,6 +1045,58 @@
       badge.textContent = tier;
       article.insertBefore(badge, article.firstChild);
       return article;
+    }
+
+    function lockedFeatureCard(title, copy, tierLabel) {
+      const article = document.createElement("article");
+      article.className = "locked-card";
+      const badge = document.createElement("span");
+      badge.className = "state";
+      badge.textContent = tierLabel;
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      const p = document.createElement("p");
+      p.textContent = copy;
+      article.append(badge, h3, p);
+      return article;
+    }
+
+    function readFiltersState() {
+      return {
+        query: rawText(document.getElementById("marketSearchInput")?.value || ""),
+      };
+    }
+
+    function normalizeTelemetryQuery(value) {
+      return rawText(value).toLowerCase().replace(/\s+/g, " ").slice(0, 120).replace(/0x[a-f0-9]{16,}/g, "[redacted]").replace(/[1-9A-HJ-NP-Za-km-z]{32,44}/g, "[redacted]");
+    }
+
+    function emitMarketSearchTelemetry(eventType, details = {}) {
+      const endpoint = window.__ravenosSearchTelemetryEndpoint;
+      const payload = {
+        schema_version: "ravenos_search_telemetry_v0",
+        event_type: eventType,
+        timestamp: new Date().toISOString(),
+        query_normalized: normalizeTelemetryQuery(details.query_normalized || ""),
+        selected_filters: isObject(details.selected_filters) ? details.selected_filters : {},
+        requested_chain: rawText(details.requested_chain, ""),
+        requested_cap_band: rawText(details.requested_cap_band, ""),
+        requested_window: rawText(details.requested_window, ""),
+        result_count: Number.isFinite(details.result_count) ? details.result_count : null,
+        clicked_state_id: rawText(details.clicked_state_id, ""),
+        ui_surface: "ravenos_market_search",
+      };
+      if (typeof endpoint !== "string" || !endpoint.trim()) return;
+      try {
+        fetch(endpoint, {
+          method: "POST",
+          headers: {"content-type": "application/json"},
+          body: JSON.stringify(payload),
+          keepalive: true,
+        });
+      } catch (_) {
+        // safe no-op if telemetry is disabled
+      }
     }
 
     function renderMarketContext(context) {
@@ -1060,6 +1345,274 @@
       });
     }
 
+    function marketStateMatchesFilters(state, filters) {
+      if (!isObject(state)) return false;
+      const query = rawText(filters.query).toLowerCase();
+      const haystack = [
+        state.chain,
+        state.cap_band,
+        state.window,
+        state.condition,
+        state.summary,
+        state.participant_outcome && state.participant_outcome.direction,
+        state.breadth && state.breadth.direction,
+        state.breadth && state.breadth.strength,
+        state.risk && state.risk.level,
+        state.data_quality && state.data_quality.status,
+        ...(list(state.warnings) || [])
+      ].map((value) => rawText(value).toLowerCase());
+      if (query && !haystack.some((item) => item.includes(query))) return false;
+      for (const key of ["chain", "cap_band", "window", "condition", "risk", "data_quality", "participant_outcome"]) {
+        const selected = filters[key];
+        if (!selected || selected === "all") continue;
+        if (key === "risk") {
+          if (rawText(state.risk && state.risk.level, "unknown") !== selected) return false;
+          continue;
+        }
+        if (key === "data_quality") {
+          if (rawText(state.data_quality && state.data_quality.status, "unknown") !== selected) return false;
+          continue;
+        }
+        if (key === "participant_outcome") {
+          if (rawText(state.participant_outcome && state.participant_outcome.direction, "unknown") !== selected) return false;
+          continue;
+        }
+        if (rawText(state[key], "unknown") !== selected) return false;
+      }
+      return true;
+    }
+
+    function marketStateSummary(state) {
+      const breadth = state.breadth || {};
+      const participant = state.participant_outcome || {};
+      const risk = state.risk || {};
+      const quality = state.data_quality || {};
+      const breadthText = publicLabel(breadth.direction, "unknown");
+      const outcomeText = publicLabel(participant.direction, "unknown");
+      const qualityText = publicLabel(quality.status, "unknown");
+      const riskText = publicLabel(risk.level, "unknown");
+      const summary = rawText(state.summary, "Public-safe market-state read is building.");
+      return `${breadthText} breadth, ${outcomeText} participant outcome, ${qualityText} data quality, risk ${riskText}. ${summary}`;
+    }
+
+    function renderMarketSearchFilters(states) {
+      const node = document.getElementById("marketSearchFilters");
+      node.textContent = "";
+      const meta = states.reduce((acc, state) => {
+        if (!isObject(state)) return acc;
+        ["chain", "cap_band", "window", "condition"].forEach((key) => {
+          const value = rawText(state[key], "unknown");
+          if (!acc[key]) acc[key] = new Set();
+          acc[key].add(value);
+        });
+        const risk = rawText(state.risk && state.risk.level, "unknown");
+        const quality = rawText(state.data_quality && state.data_quality.status, "unknown");
+        const outcome = rawText(state.participant_outcome && state.participant_outcome.direction, "unknown");
+        acc.risk.add(risk);
+        acc.data_quality.add(quality);
+        acc.participant_outcome.add(outcome);
+        return acc;
+      }, { chain: new Set(), cap_band: new Set(), window: new Set(), condition: new Set(), risk: new Set(), data_quality: new Set(), participant_outcome: new Set() });
+
+      const groups = [
+        ["chain", "chain"],
+        ["cap_band", "cap band"],
+        ["window", "window"],
+        ["condition", "condition"],
+        ["risk", "risk level"],
+        ["data_quality", "data quality"],
+        ["participant_outcome", "participant outcome"],
+      ];
+      groups.forEach(([key, label]) => {
+        const values = Array.from(meta[key] || []).filter(Boolean);
+        if (!values.length) return;
+        const allChip = document.createElement("button");
+        allChip.className = "search-chip active";
+        allChip.type = "button";
+        allChip.textContent = `All ${label}s`;
+        allChip.dataset.key = key;
+        allChip.dataset.value = "all";
+        node.appendChild(allChip);
+        values.sort().slice(0, 6).forEach((value) => {
+          const chip = document.createElement("button");
+          chip.className = "search-chip";
+          chip.type = "button";
+          chip.textContent = publicLabel(value, value);
+          chip.dataset.key = key;
+          chip.dataset.value = value;
+          node.appendChild(chip);
+        });
+      });
+    }
+
+    function renderMarketSearch(states) {
+      const fallback = document.getElementById("marketSearchFallback");
+      const resultNode = document.getElementById("marketSearchResults");
+      const lockedNode = document.getElementById("marketSearchLocked");
+      const input = document.getElementById("marketSearchInput");
+      const normalizedStates = list(states).filter(isObject);
+      const filters = {
+        query: "",
+        chain: "all",
+        cap_band: "all",
+        window: "all",
+        condition: "all",
+        risk: "all",
+        data_quality: "all",
+        participant_outcome: "all",
+      };
+      const lockedCards = [
+        ["Historical Replay", "Compare current market conditions to prior aggregate windows.", "Available on Advanced Desk"],
+        ["Alert Builder", "Build alerts for market conditions, not tickers.", "Available on Pro"],
+        ["Ask RavenOS", "Ask higher-level market-state questions across chains and cap bands.", "Available on Advanced Desk"],
+        ["Advanced Macro Context", "Deeper desk-style macro and regime context.", "Available on Advanced Desk"],
+      ];
+
+      function applyFilters() {
+        const queryText = rawText(input.value).trim().slice(0, 120);
+        filters.query = queryText;
+        const filtered = normalizedStates.filter((state) => marketStateMatchesFilters(state, filters));
+        resultNode.textContent = "";
+        fallback.hidden = filtered.length > 0 || normalizedStates.length > 0;
+        if (!normalizedStates.length || !filtered.length) {
+          fallback.hidden = false;
+          resultNode.appendChild(document.createElement("div"));
+          return;
+        }
+        filtered.slice(0, 24).forEach((state) => {
+          const item = document.createElement("article");
+          item.className = "result-card";
+          item.dataset.stateId = rawText(state.state_id, "");
+          const title = document.createElement("div");
+          title.className = "result-title";
+          title.textContent = `${publicLabel(state.chain, state.chain)} / ${publicLabel(state.cap_band, state.cap_band)} / ${publicLabel(state.window, state.window)} · ${publicLabel(state.condition, "unknown")}`;
+          const summary = document.createElement("div");
+          summary.className = "result-summary";
+          summary.textContent = marketStateSummary(state);
+          const details = document.createElement("div");
+          details.className = "details";
+          [
+            ["condition", publicLabel(state.condition, "unknown")],
+            ["participant outcome", publicLabel(state.participant_outcome && state.participant_outcome.direction, "unknown")],
+            ["breadth", `${publicLabel(state.breadth && state.breadth.direction, "unknown")} · ${publicLabel(state.breadth && state.breadth.strength, "unknown")}`],
+            ["risk level", publicLabel(state.risk && state.risk.level, "unknown")],
+            ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
+            ["warnings", list(state.warnings).length ? list(state.warnings).slice(0, 3).map((item) => rawText(item)).join(" · ") : "none"],
+          ].forEach(([label, value]) => {
+            const row = document.createElement("div");
+            row.className = "detail";
+            const left = document.createElement("span");
+            left.textContent = label;
+            const right = document.createElement("strong");
+            right.textContent = value;
+            row.append(left, right);
+            details.appendChild(row);
+          });
+          item.append(title, summary, details);
+          item.addEventListener("click", () => emitMarketSearchTelemetry("result_clicked", {
+            clicked_state_id: item.dataset.stateId,
+            query_normalized: queryText,
+            selected_filters: filters,
+            requested_chain: state.chain,
+            requested_cap_band: state.cap_band,
+            requested_window: state.window,
+            result_count: filtered.length,
+          }));
+          resultNode.appendChild(item);
+        });
+        emitMarketSearchTelemetry("search_submitted", {
+          query_normalized: queryText,
+          selected_filters: filters,
+          requested_chain: filters.chain,
+          requested_cap_band: filters.cap_band,
+          requested_window: filters.window,
+          result_count: filtered.length,
+        });
+      }
+
+      input.addEventListener("input", applyFilters);
+      lockedNode.textContent = "";
+      lockedCards.forEach(([title, copy, tier]) => lockedNode.appendChild(lockedFeatureCard(title, copy, tier)));
+
+      const nodeFilters = Array.from(document.querySelectorAll(".search-chip"));
+      nodeFilters.forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const key = chip.dataset.key;
+          const value = chip.dataset.value;
+          const sameGroup = Array.from(nodeFilters).filter((node) => node.dataset.key === key);
+          sameGroup.forEach((node) => node.classList.toggle("active", node === chip));
+          filters[key] = value;
+          applyFilters();
+        });
+      });
+
+      if (!normalizedStates.length) {
+        fallback.hidden = false;
+      }
+
+      const savedPanel = document.getElementById("savedSearchPanel");
+      const alertPanel = document.getElementById("alertBuilderPanel");
+      const historicalPanel = document.getElementById("historicalReplayPanel");
+      const saveButton = document.getElementById("saveSearchButton");
+      const alertButton = document.getElementById("toggleAlertBuilderButton");
+      const historicalButton = document.getElementById("toggleHistoricalReplayButton");
+      const savedPreview = document.getElementById("savedSearchPreview");
+      const alertTemplates = document.getElementById("alertTemplateList");
+      const savedCopy = document.getElementById("savedSearchCopy");
+      const currentSearch = () => ({
+        query: rawText(input.value, ""),
+        filters: { ...filters },
+      });
+      const renderSavedPreview = () => {
+        savedPreview.textContent = "";
+        const snapshot = currentSearch();
+        const item = document.createElement("div");
+        item.className = "search-template";
+        item.innerHTML = "<strong>Selected search</strong>";
+        const body = document.createElement("div");
+        body.textContent = `${snapshot.query || "No query yet"} · ${Object.entries(snapshot.filters).filter(([, value]) => value && value !== "all").map(([key, value]) => `${key}: ${value}`).join(" · ") || "All filters"}`;
+        item.appendChild(body);
+        savedPreview.appendChild(item);
+      };
+      const renderAlertTemplates = () => {
+        alertTemplates.textContent = "";
+        [
+          "Notify me when Solana small caps show clean positive participant outcome.",
+          "Notify me when trap risk rises across microcaps.",
+          "Notify me when Base moves from thin sample to clean sample.",
+          "Notify me when macro context conflicts with on-chain strength.",
+          "Notify me when breadth improves but outlier dependency remains high.",
+        ].forEach((text) => {
+          const item = document.createElement("div");
+          item.className = "search-template";
+          item.textContent = text;
+          alertTemplates.appendChild(item);
+        });
+      };
+      const togglePanel = (panel, open) => {
+        panel.hidden = !open;
+      };
+
+      saveButton.addEventListener("click", () => {
+        renderSavedPreview();
+        togglePanel(savedPanel, !savedPanel.hidden);
+        savedCopy.textContent = "Save a market-state search locally in the browser if persistence is available.";
+        emitMarketSearchTelemetry("saved_search_intent", { query_normalized: input.value, selected_filters: filters });
+      });
+      alertButton.addEventListener("click", () => {
+        renderAlertTemplates();
+        togglePanel(alertPanel, !alertPanel.hidden);
+        emitMarketSearchTelemetry("alert_builder_intent", { query_normalized: input.value, selected_filters: filters });
+      });
+      historicalButton.addEventListener("click", () => {
+        togglePanel(historicalPanel, !historicalPanel.hidden);
+      });
+
+      renderSavedPreview();
+      renderAlertTemplates();
+      applyFilters();
+    }
+
     function renderConditionAlerts(conditionAlerts) {
       const node = document.getElementById("conditionAlerts");
       node.textContent = "";
@@ -1077,10 +1630,15 @@
     }
 
     async function boot() {
-      const snapshots = await fetchJsonCandidates(SNAPSHOT_URLS);
-      const latests = await fetchJsonCandidates(LATEST_URLS);
+      const snapshots = await fetchJsonPayloads(SNAPSHOT_URLS);
+      const latests = await fetchJsonPayloads(LATEST_URLS);
+      const marketStates = await fetchJsonPayloads([
+        "/ravenos_market_states.json",
+        "/public/ravenos_market_states.json",
+      ]);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
+      let marketStatePayload = freshestByGeneratedAt(marketStates);
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
@@ -1089,6 +1647,7 @@
       renderChainReads(snapshot, latest);
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
+      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : []);
       renderProModules();
       renderPricing();
       renderConditionAlerts(snapshot.condition_alerts);
