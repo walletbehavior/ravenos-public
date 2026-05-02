@@ -1,0 +1,149 @@
+{
+  "available_cap_bands": [
+    "all"
+  ],
+  "available_chains": [
+    "base",
+    "eth",
+    "solana"
+  ],
+  "available_conditions": [
+    "building",
+    "improving"
+  ],
+  "available_data_quality_statuses": [
+    "clean",
+    "thin"
+  ],
+  "available_risk_levels": [
+    "moderate"
+  ],
+  "available_windows": [
+    "6h"
+  ],
+  "generated_at": "2026-05-02T02:20:56Z",
+  "schema_version": "ravenos_market_states_v0",
+  "states": [
+    {
+      "breadth": {
+        "direction": "improving",
+        "strength": "moderate"
+      },
+      "cap_band": "all",
+      "chain": "solana",
+      "condition": "improving",
+      "data_quality": {
+        "clean_sample": 377,
+        "observed_sample": 1030,
+        "status": "clean"
+      },
+      "macro_context": {
+        "status": "unknown",
+        "summary": null
+      },
+      "participant_outcome": {
+        "confidence": "low",
+        "direction": "positive"
+      },
+      "risk": {
+        "drivers": [
+          "confirmation incomplete",
+          "confirmation still developing",
+          "concentration risk",
+          "fresh pair age unavailable"
+        ],
+        "level": "moderate"
+      },
+      "state_id": "solana_all_current",
+      "summary": "Solana has the strongest current public sample, with improving breadth and a positive participant-outcome read. Risk remains moderate while source freshness and broader confirmation continue to develop.",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "breadth": {
+        "direction": "improving",
+        "strength": "strong"
+      },
+      "cap_band": "all",
+      "chain": "eth",
+      "condition": "building",
+      "data_quality": {
+        "clean_sample": 33,
+        "observed_sample": 76,
+        "status": "thin"
+      },
+      "macro_context": {
+        "status": "unknown",
+        "summary": null
+      },
+      "participant_outcome": {
+        "confidence": "high",
+        "direction": "unknown"
+      },
+      "risk": {
+        "drivers": [
+          "confirmation incomplete",
+          "confirmation still developing",
+          "concentration risk",
+          "thin public sample"
+        ],
+        "level": "moderate"
+      },
+      "state_id": "eth_all_current",
+      "summary": "Ethereum has visible activity, but the read is still building because the clean sample is thin and participant outcome is unknown. Treat this as a developing public market-state read.",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "breadth": {
+        "direction": "improving",
+        "strength": "strong"
+      },
+      "cap_band": "all",
+      "chain": "base",
+      "condition": "building",
+      "data_quality": {
+        "clean_sample": 39,
+        "observed_sample": 75,
+        "status": "thin"
+      },
+      "macro_context": {
+        "status": "unknown",
+        "summary": null
+      },
+      "participant_outcome": {
+        "confidence": "high",
+        "direction": "unknown"
+      },
+      "risk": {
+        "drivers": [
+          "confirmation incomplete",
+          "confirmation still developing",
+          "concentration risk",
+          "thin public sample"
+        ],
+        "level": "moderate"
+      },
+      "state_id": "base_all_current",
+      "summary": "Base has visible activity, but the read is still building because the clean sample is thin and participant outcome is unknown. Treat this as a developing public market-state read.",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    }
+  ]
+}
