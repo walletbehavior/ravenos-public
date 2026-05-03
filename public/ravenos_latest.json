@@ -105,7 +105,7 @@
         "winner_50_pct": null
       }
     ],
-    "generated_at": "2026-05-03T03:45:47Z",
+    "generated_at": "2026-05-03T04:01:18Z",
     "market": {
       "breadth_state": "broad",
       "confidence": "medium",
@@ -130,7 +130,7 @@
   },
   "cap_band_pulse": {
     "coverage_state": "thin",
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:19Z",
     "locked": true,
     "status": "available_on_pro",
     "summary": "Breakdown by market cap, per chain is available on Pro.",
@@ -187,7 +187,7 @@
         ]
       }
     ],
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:18Z",
     "market": {
       "cash_rotation_state": "unknown",
       "confidence": "low",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-03T03:45:50Z",
+  "generated_at": "2026-05-03T04:01:21Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
@@ -881,7 +881,7 @@
         "symbol": "SOL"
       }
     ],
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:19Z",
     "status": "partial",
     "tape": [
       "breadth improving",
@@ -984,7 +984,7 @@
           "winner_50_pct": null
         }
       ],
-      "generated_at": "2026-05-03T03:45:47Z",
+      "generated_at": "2026-05-03T04:01:18Z",
       "market": {
         "breadth_state": "broad",
         "confidence": "medium",
@@ -1211,7 +1211,7 @@
         }
       },
       "module": "cap_band_pulse",
-      "updated_at": "2026-05-03T03:45:48Z",
+      "updated_at": "2026-05-03T04:01:19Z",
       "version": "1.18",
       "warnings": [],
       "window_hours": 6
@@ -1249,7 +1249,7 @@
           ]
         }
       ],
-      "generated_at": "2026-05-03T03:45:48Z",
+      "generated_at": "2026-05-03T04:01:18Z",
       "market": {
         "cash_rotation_state": "unknown",
         "confidence": "low",
@@ -1363,7 +1363,7 @@
           "winner_50_pct": null
         }
       ],
-      "generated_at": "2026-05-03T03:45:47Z",
+      "generated_at": "2026-05-03T04:01:18Z",
       "window": "6h"
     },
     "churn_trap_index": {
@@ -1503,7 +1503,7 @@
           "symbol": "SOL"
         }
       ],
-      "generated_at": "2026-05-03T03:45:48Z",
+      "generated_at": "2026-05-03T04:01:19Z",
       "status": "partial",
       "tape": [
         "breadth improving",
@@ -1677,7 +1677,7 @@
         "participant_outcome": "mixed",
         "summary": "Aggregate participant outcome looks mixed within current coverage."
       },
-      "updated_at": "2026-05-03T03:45:48Z",
+      "updated_at": "2026-05-03T04:01:19Z",
       "version": "1.20",
       "warnings": [
         "eth_participant_outcome_unknown",
@@ -1686,7 +1686,7 @@
       "window_hours": 6
     },
     "perp_pressure": {
-      "generated_at": "2026-05-03T03:45:48Z",
+      "generated_at": "2026-05-03T04:01:18Z",
       "market": {
         "basis_context": "unknown",
         "confidence": "low",
@@ -1839,7 +1839,7 @@
         }
       },
       "module": "token_snapshot_spine",
-      "updated_at": "2026-05-03T03:45:48Z",
+      "updated_at": "2026-05-03T04:01:19Z",
       "warnings": [],
       "window_hours": 6
     },
@@ -1906,14 +1906,14 @@
           "summary": "Moves that fail quickly lower the weather read."
         }
       ],
-      "updated_at": "2026-05-03T03:45:48Z",
+      "updated_at": "2026-05-03T04:01:19Z",
       "version": "1.19",
       "warnings": [],
       "window_hours": 6
     }
   },
   "participant_outcome_pulse": {
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:19Z",
     "locked": true,
     "overall": {
       "confidence": "low",
@@ -1926,7 +1926,7 @@
     "window": "6h"
   },
   "perp_pressure": {
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:18Z",
     "locked": true,
     "market": {
       "basis_context": "unknown",
@@ -2124,12 +2124,12 @@
       }
     },
     "module": "token_snapshot_spine",
-    "updated_at": "2026-05-03T03:45:48Z",
+    "updated_at": "2026-05-03T04:01:19Z",
     "warnings": [],
     "window_hours": 6
   },
   "trade_weather": {
-    "generated_at": "2026-05-03T03:45:48Z",
+    "generated_at": "2026-05-03T04:01:19Z",
     "lanes": {
       "fresh_pairs": {
         "badge": "caution",
