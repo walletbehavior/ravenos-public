@@ -7,38 +7,38 @@
   "breadth_momentum": {
     "chains": [
       {
-        "average_move_pct": 17.23,
+        "average_move_pct": 4.35,
         "breadth_state": "narrow",
         "chain": "solana",
         "clean_coverage_state": "unknown",
-        "clean_econ_sample_size": 20,
+        "clean_econ_sample_size": 22,
         "confidence": "medium",
         "coverage": {
           "label": "thin sample",
           "level": "thin",
           "notes": [],
-          "sample_size": 20,
+          "sample_size": 22,
           "window_hours": 6
         },
-        "eligible_token_count": 20,
+        "eligible_token_count": 22,
         "followthrough_state": "weak",
         "fresh_pair_count": null,
         "fresh_pair_state": "unknown",
-        "green_pct": 40.0,
-        "loser_15_pct": 15.0,
-        "median_move_pct": -0.29,
-        "observed_sample_size": 143,
+        "green_pct": 40.91,
+        "loser_15_pct": 22.73,
+        "median_move_pct": -3.53,
+        "observed_sample_size": 159,
         "raw_coverage_state": "unknown",
-        "raw_sample_size": 143,
-        "red_pct": 60.0,
+        "raw_sample_size": 159,
+        "red_pct": 59.09,
         "risk_read": "hostile",
-        "sample_size": 20,
+        "sample_size": 22,
         "warnings": [
           "fresh_pair_age_unavailable"
         ],
-        "winner_100_pct": 10.0,
-        "winner_15_pct": 25.0,
-        "winner_50_pct": 15.0
+        "winner_100_pct": 4.55,
+        "winner_15_pct": 27.27,
+        "winner_50_pct": 9.09
       },
       {
         "average_move_pct": 2.58,
@@ -51,10 +51,10 @@
           "label": "strong sample",
           "level": "strong",
           "notes": [],
-          "sample_size": 1002,
+          "sample_size": 1004,
           "window_hours": 6
         },
-        "eligible_token_count": 1002,
+        "eligible_token_count": 1004,
         "followthrough_state": "unknown",
         "fresh_pair_count": 0,
         "fresh_pair_state": "unknown",
@@ -83,10 +83,10 @@
           "label": "strong sample",
           "level": "strong",
           "notes": [],
-          "sample_size": 484,
+          "sample_size": 490,
           "window_hours": 6
         },
-        "eligible_token_count": 484,
+        "eligible_token_count": 490,
         "followthrough_state": "unknown",
         "fresh_pair_count": 0,
         "fresh_pair_state": "unknown",
@@ -105,7 +105,7 @@
         "winner_50_pct": null
       }
     ],
-    "generated_at": "2026-05-03T11:46:17Z",
+    "generated_at": "2026-05-03T12:01:48Z",
     "market": {
       "breadth_state": "narrow",
       "confidence": "medium",
@@ -113,7 +113,7 @@
         "label": "strong sample",
         "level": "strong",
         "notes": [],
-        "sample_size": 1506,
+        "sample_size": 1516,
         "window_hours": 6
       },
       "failure_state": "normal",
@@ -124,13 +124,13 @@
         "fresh_pair_age_unavailable",
         "source_sample_insufficient"
       ],
-      "winner_rate_state": "extreme"
+      "winner_rate_state": "elevated"
     },
     "window": "6h"
   },
   "cap_band_pulse": {
     "coverage_state": "thin",
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:48Z",
     "locked": true,
     "status": "available_on_pro",
     "summary": "Breakdown by market cap, per chain is available on Pro.",
@@ -187,7 +187,7 @@
         ]
       }
     ],
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:48Z",
     "market": {
       "cash_rotation_state": "unknown",
       "confidence": "low",
@@ -211,36 +211,36 @@
   },
   "chain_pulse": [
     {
-      "activity_state": "elevated",
-      "average_move_pct": 14.57,
+      "activity_state": "hot",
+      "average_move_pct": 2.08,
       "chain": "solana",
       "clean_coverage_state": "thin",
-      "clean_econ_sample_size": 20,
+      "clean_econ_sample_size": 22,
       "confidence": "low",
       "coverage": {
         "label": "thin sample",
         "level": "thin",
         "notes": [],
-        "sample_size": 20,
+        "sample_size": 22,
         "window_hours": 6
       },
-      "green_pct": 40.0,
-      "loser_15_pct": 15.0,
-      "median_move_pct": -0.29,
-      "observed_sample_size": 143,
+      "green_pct": 40.91,
+      "loser_15_pct": 22.73,
+      "median_move_pct": -3.53,
+      "observed_sample_size": 159,
       "participant_outcome_estimate": "weak",
-      "raw_coverage_state": "usable",
-      "raw_sample_size": 143,
-      "red_pct": 60.0,
+      "raw_coverage_state": "strong",
+      "raw_sample_size": 159,
+      "red_pct": 59.09,
       "risk_read": "unstable",
-      "sample_size": 20,
+      "sample_size": 22,
       "volume_state": "unknown",
       "volume_usd": null,
       "warnings": [
         "source_sample_or_freshness_limited"
       ],
-      "winner_15_pct": 25.0,
-      "winner_50_pct": 15.0
+      "winner_15_pct": 27.27,
+      "winner_50_pct": 9.09
     },
     {
       "activity_state": "normal",
@@ -253,7 +253,7 @@
         "label": "strong sample",
         "level": "strong",
         "notes": [],
-        "sample_size": 1002,
+        "sample_size": 1004,
         "window_hours": 6
       },
       "green_pct": 63.64,
@@ -285,7 +285,7 @@
         "label": "strong sample",
         "level": "strong",
         "notes": [],
-        "sample_size": 484,
+        "sample_size": 490,
         "window_hours": 6
       },
       "green_pct": 71.79,
@@ -352,23 +352,23 @@
     },
     "solana": {
       "activity_state": "hot",
-      "avg_move_pct": 14.57,
+      "avg_move_pct": 2.08,
       "chain": "solana",
       "clean_coverage_state": "thin",
-      "clean_econ_sample_size": 20,
+      "clean_econ_sample_size": 22,
       "confidence": "low",
       "coverage_state": "thin",
       "data_status": "observed",
-      "green_pct": 40.0,
-      "median_move_pct": -0.29,
-      "observed_sample_size": 143,
+      "green_pct": 40.91,
+      "median_move_pct": -3.53,
+      "observed_sample_size": 159,
       "observed_volume_usd": null,
       "participant_outcome": "punishing",
-      "raw_coverage_state": "usable",
-      "raw_sample_size": 143,
+      "raw_coverage_state": "strong",
+      "raw_sample_size": 159,
       "read": "unstable",
-      "red_pct": 60.0,
-      "sample_size": 20
+      "red_pct": 59.09,
+      "sample_size": 22
     }
   },
   "churn_trap_index": {
@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.9661,
-        "classified_total": 484,
-        "econ_present_rate": 0.9661,
-        "econ_present_total": 484,
+        "classification_rate": 0.9646,
+        "classified_total": 490,
+        "econ_present_rate": 0.9646,
+        "econ_present_total": 490,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 141,
-        "observed_total": 501,
+        "observed_total": 508,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -461,7 +461,7 @@
           "econ_present_weak": 130,
           "max_attempts_exhausted_nonterminal": 0,
           "missing_liquidity": 0,
-          "pending_depth": 17,
+          "pending_depth": 18,
           "pending_retry": 0,
           "provider_error": 0,
           "provider_timeout": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 1,
           "thin_liquidity": 10,
           "unknown_unresolved": 0,
-          "usable_signal": 343
+          "usable_signal": 349
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.0339,
-        "unresolved_total": 17,
-        "usable_econ_total": 343,
-        "usable_rate": 0.6846,
-        "usable_signal_rate": 0.6846,
-        "usable_signal_total": 343,
+        "unresolved_rate": 0.0354,
+        "unresolved_total": 18,
+        "usable_econ_total": 349,
+        "usable_rate": 0.687,
+        "usable_signal_rate": 0.687,
+        "usable_signal_total": 349,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1002,
+        "classified_total": 1004,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1002,
+        "econ_present_total": 1004,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 600,
-        "observed_total": 1002,
+        "observed_total": 1004,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 6,
           "thin_liquidity": 3,
           "unknown_unresolved": 0,
-          "usable_signal": 402
+          "usable_signal": 404
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 402,
-        "usable_rate": 0.4012,
-        "usable_signal_rate": 0.4012,
-        "usable_signal_total": 402,
+        "usable_econ_total": 404,
+        "usable_rate": 0.4024,
+        "usable_signal_rate": 0.4024,
+        "usable_signal_total": 404,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -554,24 +554,24 @@
         "window": "6h"
       },
       "solana": {
-        "classification_rate": 0.9524,
-        "classified_total": 33820,
-        "econ_present_rate": 0.9524,
-        "econ_present_total": 33820,
+        "classification_rate": 0.9523,
+        "classified_total": 33834,
+        "econ_present_rate": 0.9523,
+        "econ_present_total": 33834,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
-        "known_thin_total": 8561,
-        "observed_total": 35512,
+        "known_thin_total": 8569,
+        "observed_total": 35528,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
           "duplicate": 0,
-          "econ_present_weak": 5724,
+          "econ_present_weak": 5727,
           "max_attempts_exhausted_nonterminal": 0,
           "missing_liquidity": 107,
-          "pending_depth": 1585,
+          "pending_depth": 1587,
           "pending_retry": 0,
           "provider_error": 0,
           "provider_timeout": 0,
@@ -580,18 +580,18 @@
           "terminal_no_liquidity": 0,
           "terminal_no_market": 0,
           "terminal_no_pair": 0,
-          "thin_depth": 1845,
+          "thin_depth": 1850,
           "thin_liquidity": 992,
           "unknown_unresolved": 0,
-          "usable_signal": 25259
+          "usable_signal": 25265
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.0476,
-        "unresolved_total": 1692,
-        "usable_econ_total": 25259,
-        "usable_rate": 0.7113,
-        "usable_signal_rate": 0.7113,
-        "usable_signal_total": 25259,
+        "unresolved_rate": 0.0477,
+        "unresolved_total": 1694,
+        "usable_econ_total": 25265,
+        "usable_rate": 0.7111,
+        "usable_signal_rate": 0.7111,
+        "usable_signal_total": 25265,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,23 +610,23 @@
       }
     },
     "classification_rate": 0.9538,
-    "classified_total": 35306,
+    "classified_total": 35328,
     "econ_present_rate": 0.9538,
-    "econ_present_total": 35306,
+    "econ_present_total": 35328,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
-    "known_thin_total": 9302,
-    "observed_total": 37015,
+    "known_thin_total": 9310,
+    "observed_total": 37040,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
       "duplicate": 0,
-      "econ_present_weak": 6445,
+      "econ_present_weak": 6448,
       "max_attempts_exhausted_nonterminal": 0,
       "missing_liquidity": 107,
-      "pending_depth": 1602,
+      "pending_depth": 1605,
       "pending_retry": 0,
       "provider_error": 0,
       "provider_timeout": 0,
@@ -635,18 +635,18 @@
       "terminal_no_liquidity": 0,
       "terminal_no_market": 0,
       "terminal_no_pair": 0,
-      "thin_depth": 1852,
+      "thin_depth": 1857,
       "thin_liquidity": 1005,
       "unknown_unresolved": 0,
-      "usable_signal": 26004
+      "usable_signal": 26018
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0462,
-    "unresolved_total": 1709,
-    "usable_econ_total": 26004,
-    "usable_rate": 0.7025,
-    "usable_signal_rate": 0.7025,
-    "usable_signal_total": 26004,
+    "unresolved_total": 1712,
+    "usable_econ_total": 26018,
+    "usable_rate": 0.7024,
+    "usable_signal_rate": 0.7024,
+    "usable_signal_total": 26018,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-03T11:46:20Z",
+  "generated_at": "2026-05-03T12:01:50Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
@@ -881,7 +881,7 @@
         "symbol": "SOL"
       }
     ],
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:49Z",
     "status": "partial",
     "tape": [
       "breadth selective",
@@ -897,56 +897,56 @@
     "breadth_momentum": {
       "chains": [
         {
-          "average_move_pct": 17.23,
+          "average_move_pct": 4.35,
           "breadth_state": "narrow",
           "chain": "solana",
           "clean_coverage_state": "thin",
-          "clean_econ_sample_size": 20,
+          "clean_econ_sample_size": 22,
           "confidence": "medium",
           "coverage_state": "thin",
           "data_status": "insufficient_clean_sample",
-          "eligible_token_count": 20,
+          "eligible_token_count": 22,
           "followthrough_state": "weak",
           "fresh_pair_count": null,
           "fresh_pair_state": "unknown",
-          "green_pct": 40.0,
-          "loser_15_pct": 15.0,
-          "median_move_pct": -0.29,
-          "observed_sample_size": 143,
-          "raw_coverage_state": "usable",
-          "raw_sample_size": 143,
-          "red_pct": 60.0,
+          "green_pct": 40.91,
+          "loser_15_pct": 22.73,
+          "median_move_pct": -3.53,
+          "observed_sample_size": 159,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 159,
+          "red_pct": 59.09,
           "risk_read": "hostile",
-          "sample_size": 20,
+          "sample_size": 22,
           "warnings": [
             "fresh_pair_age_unavailable"
           ],
-          "winner_100_pct": 10.0,
-          "winner_15_pct": 25.0,
-          "winner_50_pct": 15.0
+          "winner_100_pct": 4.55,
+          "winner_15_pct": 27.27,
+          "winner_50_pct": 9.09
         },
         {
           "average_move_pct": null,
           "breadth_state": "unknown",
           "chain": "eth",
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 1002,
+          "clean_econ_sample_size": 1004,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
-          "eligible_token_count": 1002,
+          "eligible_token_count": 1004,
           "followthrough_state": "unknown",
           "fresh_pair_count": 0,
           "fresh_pair_state": "unknown",
           "green_pct": null,
           "loser_15_pct": null,
           "median_move_pct": null,
-          "observed_sample_size": 1002,
+          "observed_sample_size": 1004,
           "raw_coverage_state": "strong",
-          "raw_sample_size": 1002,
+          "raw_sample_size": 1004,
           "red_pct": null,
           "risk_read": "unknown",
-          "sample_size": 1002,
+          "sample_size": 1004,
           "warnings": [
             "source_sample_insufficient"
           ],
@@ -959,23 +959,23 @@
           "breadth_state": "unknown",
           "chain": "base",
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 484,
+          "clean_econ_sample_size": 490,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
-          "eligible_token_count": 484,
+          "eligible_token_count": 490,
           "followthrough_state": "unknown",
           "fresh_pair_count": 0,
           "fresh_pair_state": "unknown",
           "green_pct": null,
           "loser_15_pct": null,
           "median_move_pct": null,
-          "observed_sample_size": 501,
+          "observed_sample_size": 508,
           "raw_coverage_state": "strong",
-          "raw_sample_size": 501,
+          "raw_sample_size": 508,
           "red_pct": null,
           "risk_read": "unknown",
-          "sample_size": 484,
+          "sample_size": 490,
           "warnings": [
             "source_sample_insufficient"
           ],
@@ -984,7 +984,7 @@
           "winner_50_pct": null
         }
       ],
-      "generated_at": "2026-05-03T11:46:17Z",
+      "generated_at": "2026-05-03T12:01:48Z",
       "market": {
         "breadth_state": "narrow",
         "confidence": "medium",
@@ -996,7 +996,7 @@
           "fresh_pair_age_unavailable",
           "source_sample_insufficient"
         ],
-        "winner_rate_state": "extreme"
+        "winner_rate_state": "elevated"
       },
       "window": "6h"
     },
@@ -1013,7 +1013,7 @@
               "median_move_pct": null,
               "read": "unknown",
               "red_pct": null,
-              "sample_size": 484,
+              "sample_size": 490,
               "winner_rate": null
             },
             "high_caps": {
@@ -1082,7 +1082,7 @@
               "median_move_pct": null,
               "read": "unknown",
               "red_pct": null,
-              "sample_size": 1002,
+              "sample_size": 1004,
               "winner_rate": null
             },
             "high_caps": {
@@ -1144,15 +1144,15 @@
           "bands": {
             "fresh_pairs": {
               "activity_state": "hot",
-              "avg_move_pct": 14.57,
+              "avg_move_pct": 2.08,
               "confidence": "low",
-              "failure_rate": 60.0,
-              "green_pct": 40.0,
-              "median_move_pct": -0.29,
+              "failure_rate": 59.09,
+              "green_pct": 40.91,
+              "median_move_pct": -3.53,
               "read": "punishing",
-              "red_pct": 60.0,
-              "sample_size": 20,
-              "winner_rate": 40.0
+              "red_pct": 59.09,
+              "sample_size": 22,
+              "winner_rate": 40.91
             },
             "high_caps": {
               "activity_state": "unknown",
@@ -1211,7 +1211,7 @@
         }
       },
       "module": "cap_band_pulse",
-      "updated_at": "2026-05-03T11:46:18Z",
+      "updated_at": "2026-05-03T12:01:48Z",
       "version": "1.18",
       "warnings": [],
       "window_hours": 6
@@ -1249,7 +1249,7 @@
           ]
         }
       ],
-      "generated_at": "2026-05-03T11:46:18Z",
+      "generated_at": "2026-05-03T12:01:48Z",
       "market": {
         "cash_rotation_state": "unknown",
         "confidence": "low",
@@ -1265,43 +1265,43 @@
     "chain_pulse": {
       "chains": [
         {
-          "activity_state": "elevated",
-          "average_move_pct": 14.57,
+          "activity_state": "hot",
+          "average_move_pct": 2.08,
           "chain": "solana",
           "clean_coverage_state": "thin",
-          "clean_econ_sample_size": 20,
+          "clean_econ_sample_size": 22,
           "confidence": "low",
           "coverage_state": "thin",
           "data_status": "insufficient_clean_sample",
-          "green_pct": 40.0,
-          "loser_15_pct": 15.0,
-          "median_move_pct": -0.29,
+          "green_pct": 40.91,
+          "loser_15_pct": 22.73,
+          "median_move_pct": -3.53,
           "metadata": {
-            "current_row_count": 170,
-            "eligible_token_count": 20,
-            "observed_token_count": 143
+            "current_row_count": 193,
+            "eligible_token_count": 22,
+            "observed_token_count": 159
           },
-          "observed_sample_size": 143,
+          "observed_sample_size": 159,
           "participant_outcome_estimate": "weak",
-          "raw_coverage_state": "usable",
-          "raw_sample_size": 143,
-          "red_pct": 60.0,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 159,
+          "red_pct": 59.09,
           "risk_read": "unstable",
-          "sample_size": 20,
+          "sample_size": 22,
           "volume_state": "unknown",
           "volume_usd": null,
           "warnings": [
             "source_sample_or_freshness_limited"
           ],
-          "winner_15_pct": 25.0,
-          "winner_50_pct": 15.0
+          "winner_15_pct": 27.27,
+          "winner_50_pct": 9.09
         },
         {
           "activity_state": "hot",
           "average_move_pct": null,
           "chain": "eth",
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 1002,
+          "clean_econ_sample_size": 1004,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
@@ -1310,17 +1310,17 @@
           "median_move_pct": null,
           "metadata": {
             "current_row_count": 6420,
-            "eligible_token_count": 1002,
-            "observed_token_count": 1002,
+            "eligible_token_count": 1004,
+            "observed_token_count": 1004,
             "sample_source": "token_layer"
           },
-          "observed_sample_size": 1002,
+          "observed_sample_size": 1004,
           "participant_outcome_estimate": "unknown",
           "raw_coverage_state": "strong",
-          "raw_sample_size": 1002,
+          "raw_sample_size": 1004,
           "red_pct": null,
           "risk_read": "unknown",
-          "sample_size": 1002,
+          "sample_size": 1004,
           "volume_state": "unknown",
           "volume_usd": null,
           "warnings": [
@@ -1334,7 +1334,7 @@
           "average_move_pct": null,
           "chain": "base",
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 484,
+          "clean_econ_sample_size": 490,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
@@ -1343,17 +1343,17 @@
           "median_move_pct": null,
           "metadata": {
             "current_row_count": 1768,
-            "eligible_token_count": 484,
-            "observed_token_count": 501,
+            "eligible_token_count": 490,
+            "observed_token_count": 508,
             "sample_source": "token_layer"
           },
-          "observed_sample_size": 501,
+          "observed_sample_size": 508,
           "participant_outcome_estimate": "unknown",
           "raw_coverage_state": "strong",
-          "raw_sample_size": 501,
+          "raw_sample_size": 508,
           "red_pct": null,
           "risk_read": "unknown",
-          "sample_size": 484,
+          "sample_size": 490,
           "volume_state": "unknown",
           "volume_usd": null,
           "warnings": [
@@ -1363,7 +1363,7 @@
           "winner_50_pct": null
         }
       ],
-      "generated_at": "2026-05-03T11:46:17Z",
+      "generated_at": "2026-05-03T12:01:47Z",
       "window": "6h"
     },
     "churn_trap_index": {
@@ -1503,7 +1503,7 @@
           "symbol": "SOL"
         }
       ],
-      "generated_at": "2026-05-03T11:46:18Z",
+      "generated_at": "2026-05-03T12:01:49Z",
       "status": "partial",
       "tape": [
         "breadth selective",
@@ -1622,8 +1622,8 @@
             "fresh_pairs": {
               "confidence": "low",
               "coverage_state": "thin",
-              "estimated_losing_pct": 60.0,
-              "estimated_profitable_pct": 40.0,
+              "estimated_losing_pct": 59.09,
+              "estimated_profitable_pct": 40.91,
               "participant_outcome": "punishing",
               "summary": "Sampled participants appear to be punished in this bucket."
             },
@@ -1662,8 +1662,8 @@
           },
           "confidence": "low",
           "coverage_state": "thin",
-          "estimated_losing_pct": 60.0,
-          "estimated_profitable_pct": 40.0,
+          "estimated_losing_pct": 59.09,
+          "estimated_profitable_pct": 40.91,
           "participant_outcome": "punishing",
           "summary": "SOLANA participant outcome looks punishing within current coverage."
         }
@@ -1677,7 +1677,7 @@
         "participant_outcome": "punishing",
         "summary": "Aggregate participant outcome looks punishing within current coverage."
       },
-      "updated_at": "2026-05-03T11:46:18Z",
+      "updated_at": "2026-05-03T12:01:48Z",
       "version": "1.20",
       "warnings": [
         "eth_participant_outcome_unknown",
@@ -1686,7 +1686,7 @@
       "window_hours": 6
     },
     "perp_pressure": {
-      "generated_at": "2026-05-03T11:46:18Z",
+      "generated_at": "2026-05-03T12:01:48Z",
       "market": {
         "basis_context": "unknown",
         "confidence": "low",
@@ -1757,17 +1757,17 @@
           "activity_state": "normal",
           "avg_move_pct": null,
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 484,
+          "clean_econ_sample_size": 490,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
           "green_pct": null,
           "median_move_pct": null,
-          "observed_sample_size": 501,
+          "observed_sample_size": 508,
           "observed_volume_usd": null,
           "participant_outcome": "unknown",
           "raw_coverage_state": "strong",
-          "raw_sample_size": 501,
+          "raw_sample_size": 508,
           "read": "unknown",
           "red_pct": null,
           "sample_provenance": {
@@ -1775,27 +1775,27 @@
             "dropped_missing_price": 0,
             "dropped_missing_window": 0,
             "dropped_public_safety": 0,
-            "eligible_observation_count": 484,
+            "eligible_observation_count": 490,
             "primary_source": "token_layer",
             "source_count": 3
           },
-          "sample_size": 484
+          "sample_size": 490
         },
         "eth": {
           "activity_state": "hot",
           "avg_move_pct": null,
           "clean_coverage_state": "strong",
-          "clean_econ_sample_size": 1002,
+          "clean_econ_sample_size": 1004,
           "confidence": "high",
           "coverage_state": "strong",
           "data_status": "observed",
           "green_pct": null,
           "median_move_pct": null,
-          "observed_sample_size": 1002,
+          "observed_sample_size": 1004,
           "observed_volume_usd": null,
           "participant_outcome": "unknown",
           "raw_coverage_state": "strong",
-          "raw_sample_size": 1002,
+          "raw_sample_size": 1004,
           "read": "unknown",
           "red_pct": null,
           "sample_provenance": {
@@ -1803,43 +1803,43 @@
             "dropped_missing_price": 0,
             "dropped_missing_window": 0,
             "dropped_public_safety": 0,
-            "eligible_observation_count": 1002,
+            "eligible_observation_count": 1004,
             "primary_source": "token_layer",
             "source_count": 3
           },
-          "sample_size": 1002
+          "sample_size": 1004
         },
         "solana": {
           "activity_state": "hot",
-          "avg_move_pct": 14.57,
+          "avg_move_pct": 2.08,
           "clean_coverage_state": "thin",
-          "clean_econ_sample_size": 20,
+          "clean_econ_sample_size": 22,
           "confidence": "low",
           "coverage_state": "thin",
           "data_status": "observed",
-          "green_pct": 40.0,
-          "median_move_pct": -0.29,
-          "observed_sample_size": 143,
+          "green_pct": 40.91,
+          "median_move_pct": -3.53,
+          "observed_sample_size": 159,
           "observed_volume_usd": null,
           "participant_outcome": "punishing",
-          "raw_coverage_state": "usable",
-          "raw_sample_size": 143,
+          "raw_coverage_state": "strong",
+          "raw_sample_size": 159,
           "read": "unstable",
-          "red_pct": 60.0,
+          "red_pct": 59.09,
           "sample_provenance": {
             "dropped_missing_chain": 0,
             "dropped_missing_price": 0,
             "dropped_missing_window": 0,
             "dropped_public_safety": 0,
-            "eligible_observation_count": 20,
+            "eligible_observation_count": 22,
             "primary_source": "token_tapes",
             "source_count": 1
           },
-          "sample_size": 20
+          "sample_size": 22
         }
       },
       "module": "token_snapshot_spine",
-      "updated_at": "2026-05-03T11:46:18Z",
+      "updated_at": "2026-05-03T12:01:48Z",
       "warnings": [],
       "window_hours": 6
     },
@@ -1906,14 +1906,14 @@
           "summary": "Moves that fail quickly lower the weather read."
         }
       ],
-      "updated_at": "2026-05-03T11:46:18Z",
+      "updated_at": "2026-05-03T12:01:49Z",
       "version": "1.19",
       "warnings": [],
       "window_hours": 6
     }
   },
   "participant_outcome_pulse": {
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:48Z",
     "locked": true,
     "overall": {
       "confidence": "low",
@@ -1926,7 +1926,7 @@
     "window": "6h"
   },
   "perp_pressure": {
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:48Z",
     "locked": true,
     "market": {
       "basis_context": "unknown",
@@ -2042,17 +2042,17 @@
         "activity_state": "normal",
         "avg_move_pct": null,
         "clean_coverage_state": "strong",
-        "clean_econ_sample_size": 484,
+        "clean_econ_sample_size": 490,
         "confidence": "high",
         "coverage_state": "strong",
         "data_status": "observed",
         "green_pct": null,
         "median_move_pct": null,
-        "observed_sample_size": 501,
+        "observed_sample_size": 508,
         "observed_volume_usd": null,
         "participant_outcome": "unknown",
         "raw_coverage_state": "strong",
-        "raw_sample_size": 501,
+        "raw_sample_size": 508,
         "read": "unknown",
         "red_pct": null,
         "sample_provenance": {
@@ -2060,27 +2060,27 @@
           "dropped_missing_price": 0,
           "dropped_missing_window": 0,
           "dropped_public_safety": 0,
-          "eligible_observation_count": 484,
+          "eligible_observation_count": 490,
           "primary_source": "token_layer",
           "source_count": 3
         },
-        "sample_size": 484
+        "sample_size": 490
       },
       "eth": {
         "activity_state": "hot",
         "avg_move_pct": null,
         "clean_coverage_state": "strong",
-        "clean_econ_sample_size": 1002,
+        "clean_econ_sample_size": 1004,
         "confidence": "high",
         "coverage_state": "strong",
         "data_status": "observed",
         "green_pct": null,
         "median_move_pct": null,
-        "observed_sample_size": 1002,
+        "observed_sample_size": 1004,
         "observed_volume_usd": null,
         "participant_outcome": "unknown",
         "raw_coverage_state": "strong",
-        "raw_sample_size": 1002,
+        "raw_sample_size": 1004,
         "read": "unknown",
         "red_pct": null,
         "sample_provenance": {
@@ -2088,48 +2088,48 @@
           "dropped_missing_price": 0,
           "dropped_missing_window": 0,
           "dropped_public_safety": 0,
-          "eligible_observation_count": 1002,
+          "eligible_observation_count": 1004,
           "primary_source": "token_layer",
           "source_count": 3
         },
-        "sample_size": 1002
+        "sample_size": 1004
       },
       "solana": {
         "activity_state": "hot",
-        "avg_move_pct": 14.57,
+        "avg_move_pct": 2.08,
         "clean_coverage_state": "thin",
-        "clean_econ_sample_size": 20,
+        "clean_econ_sample_size": 22,
         "confidence": "low",
         "coverage_state": "thin",
         "data_status": "observed",
-        "green_pct": 40.0,
-        "median_move_pct": -0.29,
-        "observed_sample_size": 143,
+        "green_pct": 40.91,
+        "median_move_pct": -3.53,
+        "observed_sample_size": 159,
         "observed_volume_usd": null,
         "participant_outcome": "punishing",
-        "raw_coverage_state": "usable",
-        "raw_sample_size": 143,
+        "raw_coverage_state": "strong",
+        "raw_sample_size": 159,
         "read": "unstable",
-        "red_pct": 60.0,
+        "red_pct": 59.09,
         "sample_provenance": {
           "dropped_missing_chain": 0,
           "dropped_missing_price": 0,
           "dropped_missing_window": 0,
           "dropped_public_safety": 0,
-          "eligible_observation_count": 20,
+          "eligible_observation_count": 22,
           "primary_source": "token_tapes",
           "source_count": 1
         },
-        "sample_size": 20
+        "sample_size": 22
       }
     },
     "module": "token_snapshot_spine",
-    "updated_at": "2026-05-03T11:46:18Z",
+    "updated_at": "2026-05-03T12:01:48Z",
     "warnings": [],
     "window_hours": 6
   },
   "trade_weather": {
-    "generated_at": "2026-05-03T11:46:18Z",
+    "generated_at": "2026-05-03T12:01:49Z",
     "lanes": {
       "fresh_pairs": {
         "badge": "avoid",
