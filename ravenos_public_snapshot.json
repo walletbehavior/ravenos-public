@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-03T21:56:08Z",
+  "generated_at": "2026-05-03T21:57:12Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
