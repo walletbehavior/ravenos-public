@@ -223,6 +223,10 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .desk-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .pricing-grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
@@ -538,6 +542,7 @@
       .free-grid,
       .pro-grid,
       .preview-grid,
+      .desk-grid,
       .locked-grid,
       .pricing-grid {
         grid-template-columns: 1fr;
@@ -683,6 +688,8 @@
       <section class="locked-grid" id="marketSearchLocked"></section>
     </section>
 
+    <p class="section-copy">These previews show the surface read. Pro and Desk depth add full lists, saved searches, alerts, historical comparables, exports, and deeper context.</p>
+
     <h2 class="section-title">risk search preview</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.</p>
     <p class="section-copy">Risk Search shows why a market read may not be trustworthy yet: thin samples, unknown participant outcome, incomplete confirmation, concentration, or window disagreement. Confirmation is complete only when clean sample, participant outcome, breadth, and broader windows support the same read.</p>
@@ -702,6 +709,10 @@
     <p class="section-note" id="historicalReplayCount">Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.</p>
     <p class="section-copy">Historical Replay compares current public market-state conditions to prior public aggregate windows once enough history has accumulated.</p>
     <section class="preview-grid" id="historicalReplayPreview"></section>
+
+    <h2 class="section-title">desk context preview</h2>
+    <p class="section-copy">Desk Context shows whether broader market conditions are supporting, conflicting with, or failing to confirm the on-chain read.</p>
+    <section class="preview-grid desk-grid" id="deskContextPreview"></section>
 
     <h2 class="section-title">access levels</h2>
     <section class="pricing-grid" id="pricing"></section>
@@ -867,6 +878,65 @@
 
     function humanWindowLabel(value) {
       return publicLabel(value, "6h");
+    }
+
+    function sentenceLabel(value, fallback = "Developing read") {
+      const clean = rawText(value, "");
+      if (!clean) return fallback;
+      const spaced = clean.replaceAll("_", " ").replaceAll("-", " ");
+      return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+    }
+
+    function chainDisplayLabel(value) {
+      const clean = rawText(value, "").toLowerCase();
+      if (clean === "eth") return "ETH";
+      if (clean === "base") return "Base";
+      if (clean === "solana") return "Solana";
+      return publicLabel(value, "Chain");
+    }
+
+    function marketStateDisplayTitle(state) {
+      if (!isObject(state)) return "Market read";
+      const chain = chainDisplayLabel(state.chain);
+      const capBand = rawText(state.cap_band, "all").toLowerCase();
+      if (capBand === "all") return `${chain} broad read`;
+      if (capBand === "fresh_pairs") return `${chain} fresh pairs`;
+      return `${chain} ${humanCapBandLabel(capBand).toLowerCase()} read`;
+    }
+
+    function riskDisplayTitle(row) {
+      if (!isObject(row)) return "Risk read";
+      return sentenceLabel(row.risk_type, "Risk read");
+    }
+
+    function participantOutcomeDisplayTitle(row) {
+      if (!isObject(row)) return "Participant outcome";
+      const chain = chainDisplayLabel(row.chain);
+      const outcome = publicLabel(row.participant_outcome, "unknown").toLowerCase();
+      const band = humanCapBandLabel(row.cap_band).toLowerCase();
+      return `${chain} ${band} ${outcome} outcome`;
+    }
+
+    function deskContextSearchText(snapshot) {
+      if (!isObject(snapshot)) return "";
+      const macro = isObject(snapshot.macro_regime_context) ? snapshot.macro_regime_context : {};
+      const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
+      const market = isObject(snapshot.market_context) ? snapshot.market_context : {};
+      return searchTextFromParts(
+        snapshot.desk_read,
+        "desk context",
+        "macro context",
+        "perp pressure",
+        "market context",
+        rawText(macro.status, ""),
+        rawText(macro.window, ""),
+        rawText(perp.status, ""),
+        rawText(perp.window, ""),
+        rawText(market.status, ""),
+        rawText(market.updated_label, ""),
+        list(market.tape).join(" "),
+        list(snapshot.warnings).join(" ")
+      );
     }
 
     function marketStateFilterValue(state, key) {
@@ -1069,23 +1139,23 @@
 
     function alertConfirmationDetailsFromRow(row) {
       const status = rawText(row && row.status, "building").toLowerCase();
-      const severity = rawText(row && row.severity, "watch").toLowerCase();
       const matchedCount = list(row && row.matched_state_ids).length;
-      const needs = [];
+      let needs = "";
       if (status === "building") {
-        needs.push("Needs the underlying market states to align with this template.");
-      } else if (status === "active") {
-        needs.push("Needs the matched market states to keep matching this condition.");
+        needs = "This template is still building. It needs matching public states before it can confirm.";
+      } else if (matchedCount >= 3) {
+        needs = "This alert is stronger while 3+ public states keep matching across refreshes.";
+      } else if (matchedCount === 2) {
+        needs = "This alert needs 3+ matched public states or repeated matches across refreshes to feel stronger.";
+      } else if (matchedCount === 1) {
+        needs = "This alert needs more matched public states and repeated confirmation across refreshes.";
       } else {
-        needs.push("Needs the public state to continue matching the template.");
+        needs = "This alert needs matched public states before it can confirm.";
       }
-      if (severity === "warning" || severity === "watch") {
-        needs.push("Needs broad support across the matched states before it feels fully settled.");
-      }
-      const confirmationStatus = status === "active" ? "watching" : "building";
+      const confirmationStatus = status === "building" ? "building" : matchedCount >= 3 ? "stronger" : "watching";
       return [
         ["confirmation status", confirmationStatus],
-        ["what would confirm this alert", needs.slice(0, 2).join(" ")],
+        ["what would confirm this alert", needs],
         ["matched states", String(matchedCount)],
       ];
     }
@@ -1944,8 +2014,8 @@
           tier: "Available on Advanced Desk",
         },
         {
-          title: "Advanced Macro Context",
-          copy: "Deeper desk-style macro and regime context.",
+          title: "Desk Context",
+          copy: "Broader market context that can support, conflict with, or fail to confirm the on-chain read.",
           tier: "Available on Advanced Desk",
         },
       ];
@@ -1970,8 +2040,9 @@
         const riskMatches = renderRiskSearchPreview(previews.riskSearchPayload, queryText);
         const outcomeMatches = renderParticipantOutcomePreview(previews.participantOutcomePayload, queryText);
         const alertMatches = renderAlertPreview(previews.alertPreviewPayload, queryText);
+        const deskMatches = renderDeskContextPreview(previews.deskContextPayload, queryText);
         const replayMatches = renderHistoricalReplayPreview(previews.historicalReplayPayload, queryText);
-        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + replayMatches;
+        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + deskMatches + replayMatches;
         resultNode.textContent = "";
         fallback.hidden = (normalizedStates.length > 0 && filtered.length > 0) || (normalizedStates.length === 0 && !normalizedQuery && lockedMatches > 0);
         if (!normalizedStates.length) {
@@ -2024,14 +2095,14 @@
           item.dataset.searchText = marketStateSearchText(state);
           const title = document.createElement("div");
           title.className = "result-title";
-          title.textContent = `${publicLabel(state.chain, state.chain)} / ${humanCapBandLabel(state.cap_band)} / ${humanWindowLabel(state.window)} · ${publicLabel(state.condition, "unknown")}`;
+          title.textContent = marketStateDisplayTitle(state);
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
           const details = document.createElement("div");
           details.className = "details";
           [
-            ["chain", publicLabel(state.chain, "unknown")],
+            ["chain", chainDisplayLabel(state.chain)],
             ["cap band", humanCapBandLabel(state.cap_band)],
             ["window", humanWindowLabel(state.window)],
             ["condition", publicLabel(state.condition, "unknown")],
@@ -2280,14 +2351,11 @@
         return 0;
       }
       rowsToRender.forEach((row) => {
-        const title = `${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)} · ${publicLabel(row.chain, row.chain)}`;
-        const copy = rawText(row.public_read, "Public-safe risk read is available.");
+        const title = riskDisplayTitle(row);
+        const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe risk read is available.")}`;
         const detailRows = [
-          ["chain", publicLabel(row.chain, row.chain)],
-          ["cap band", humanCapBandLabel(row.cap_band)],
-          ["window", humanWindowLabel(row.window)],
-          ["risk type", publicLabel(row.risk_type, "unknown")],
           ["risk level", publicLabel(row.risk_level, "unknown")],
+          ["affected read", `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`],
           ["data quality", publicLabel(row.data_quality, "unknown")],
           ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
           ...confirmationDetailsFromRow(row, [
@@ -2301,8 +2369,8 @@
             row.public_read,
             row.condition,
             list(row.drivers).join(" "),
-          ], {needsLimit: 1}),
-          ["drivers", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => rawText(item)).join(" · ") : "none"],
+          ], {includeWatchFlags: false, needsLimit: 1}),
+          ["watch flags", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
         node.appendChild(item);
@@ -2347,12 +2415,9 @@
         return 0;
       }
       rowsToRender.forEach((row) => {
-        const title = `${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)} · ${publicLabel(row.chain, row.chain)}`;
-        const copy = rawText(row.public_read, "Public-safe outcome read is available.");
+        const title = participantOutcomeDisplayTitle(row);
+        const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe outcome read is available.")}`;
         const detailRows = [
-          ["chain", publicLabel(row.chain, row.chain)],
-          ["cap band", humanCapBandLabel(row.cap_band)],
-          ["window", humanWindowLabel(row.window)],
           ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
           ["direction", publicLabel(row.direction, "unknown")],
           ["confidence", publicLabel(row.confidence, "unknown")],
@@ -2369,8 +2434,8 @@
             row.data_quality,
             row.public_read,
             list(row.warnings).join(" "),
-          ], {needsLimit: 1}),
-          ["warnings", list(row.warnings).length ? list(row.warnings).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
+          ], {includeWatchFlags: false, needsLimit: 1}),
+          ["watch flags", list(row.warnings).length ? list(row.warnings).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
         node.appendChild(item);
@@ -2429,6 +2494,79 @@
         node.appendChild(item);
       });
       return rowsToRender.length;
+    }
+
+    function renderDeskContextPreview(snapshot, queryText) {
+      const node = document.getElementById("deskContextPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalizedQuery = normalizeSearchText(queryText);
+      if (!isObject(snapshot)) return 0;
+
+      const macro = isObject(snapshot.macro_regime_context) ? snapshot.macro_regime_context : {};
+      const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
+      const market = isObject(snapshot.market_context) ? snapshot.market_context : {};
+      const cards = [
+        {
+          title: "Desk read",
+          badge: "Public",
+          copy: rawText(snapshot.desk_read, "Desk read is building."),
+          rows: [
+            ["status", "public-safe"],
+            ["signal", "surface read"],
+          ],
+          search: searchTextFromParts("desk read", snapshot.desk_read, "public-safe", "surface read", "context"),
+        },
+        {
+          title: "Macro context",
+          badge: "Available on Advanced Desk",
+          copy: rawText(macro.status, "").toLowerCase() === "unavailable" ? "Unavailable in public preview." : rawText(macro.status, "Unavailable in public preview."),
+          rows: [
+            ["status", publicLabel(macro.status, "unavailable")],
+            ["window", humanWindowLabel(macro.window)],
+            ["risk read", publicLabel(macro.market && macro.market.risk_read, "unknown")],
+          ],
+          search: searchTextFromParts("macro context", macro.status, macro.window, macro.market && macro.market.risk_read, list(macro.market && macro.market.warnings).join(" ")),
+        },
+        {
+          title: "Perp pressure",
+          badge: "Available on Advanced Desk",
+          copy: rawText(perp.status, "").toLowerCase() === "unavailable" ? "Unavailable in public preview." : rawText(perp.status, "Unavailable in public preview."),
+          rows: [
+            ["status", publicLabel(perp.status, "unavailable")],
+            ["window", humanWindowLabel(perp.window)],
+            ["risk read", publicLabel(perp.market && perp.market.risk_read, "unknown")],
+          ],
+          search: searchTextFromParts("perp pressure", perp.status, perp.window, perp.market && perp.market.risk_read, list(perp.market && perp.market.warnings).join(" ")),
+        },
+        {
+          title: "Market context",
+          badge: "Public",
+          copy: rawText(market.status, "").toLowerCase() === "partial" ? "Public market context is partial." : rawText(market.updated_label, "Public market context is partial."),
+          rows: [
+            ["status", publicLabel(market.status, "partial")],
+            ["updated", rawText(market.updated_label, "updated recently")],
+            ["tape", list(market.tape).length ? list(market.tape).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
+          ],
+          search: searchTextFromParts("market context", market.status, market.updated_label, list(market.tape).join(" "), list(market.assets).map((asset) => asset && asset.symbol).join(" ")),
+        },
+      ];
+
+      const filtered = cards.filter((cardItem) => !normalizedQuery || cardItem.search.includes(normalizedQuery));
+      if (!filtered.length && normalizedQuery) {
+        node.appendChild(buildPreviewCard(
+          "No desk context rows match this search yet",
+          "Try broader terms like desk, macro, perp, context, partial, or public.",
+          "Available on Advanced Desk",
+          [["status", "building"]],
+          searchTextFromParts("desk context", "macro", "perp", "market context")
+        ));
+        return 0;
+      }
+      filtered.forEach((cardItem) => {
+        node.appendChild(buildPreviewCard(cardItem.title, cardItem.copy, cardItem.badge, cardItem.rows, cardItem.search));
+      });
+      return filtered.length;
     }
 
     function renderHistoricalReplayPreview(payload, queryText) {
@@ -2561,6 +2699,7 @@
       renderWhyRead(snapshot);
       renderSearchStats(stats);
       renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : [], stats, {
+        deskContextPayload: snapshot,
         riskSearchPayload,
         participantOutcomePayload,
         alertPreviewPayload,
