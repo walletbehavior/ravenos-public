@@ -603,10 +603,10 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p>RavenOS reads public crypto market behavior across chains, breadth, liquidity, leverage, and rotation.</p>
-        <p>It shows where conditions are improving, where moves are failing, and where the public sample is still too thin to trust.</p>
-        <p>RavenOS does not tell you what to buy. It helps you see when the market is broad, building, or fragile.</p>
-        <p class="sharp">See where risk is being rewarded - and where participation is being punished.</p>
+        <p>RavenOS reads public crypto market behavior across chains.</p>
+        <p>It shows where participation is broadening, where conditions are still forming, and where moves are stalling or following through.</p>
+        <p>RavenOS does not tell you what to buy. It helps you see whether the market is broad, thin, confirmed, or fragile.</p>
+        <p class="sharp">Know when to slow down. See where risk is being rewarded - and where participation is being punished.</p>
       </div>
       <div class="context-strip" id="marketContext"></div>
     </header>
@@ -617,7 +617,7 @@
         <h2 class="primary-read" id="primaryRead">market read is developing</h2>
         <p class="support" id="secondaryRead">RavenOS is preparing the public read for this window.</p>
         <p class="support">Use this as the broad market read: whether conditions are broad enough to trust, fragile enough to slow down, or too thin to chase.</p>
-        <p class="support">The read combines chain participation, breadth, participant outcome, and risk warnings into one plain-language market state.</p>
+        <p class="support">The broad market read combines participation, confirmation, outcome behavior, and caution flags into one public market state.</p>
         <div class="chips" id="heroChips"></div>
       </article>
 
@@ -642,23 +642,23 @@
     </section>
 
     <h2 class="section-title">live chain reads</h2>
-    <p class="section-copy">Use Live Chain Read to compare where participation is strongest, where the clean sample is thin, and which chains have confirmed participant outcomes.</p>
+    <p class="section-copy">Use Live Chain Read to compare where participation is strongest, where the read is cleanest, and where the sample is still too thin to trust. It shows assets observed, clean sample coverage, thin or weak sample, unresolved coverage, green/red balance, average move, and participant outcome.</p>
     <section class="chain-grid" id="chainReads"></section>
 
     <h2 class="section-title">today's trade weather</h2>
     <section class="panel">
       <p class="eyebrow" id="weatherTitle">today's trade weather: developing</p>
       <p class="support" id="weatherSummary">Coverage is developing, so this read should be treated as early.</p>
-      <p class="support">Use Today's Weather for the trading environment: broadly supportive, uneven, unstable, or hostile.</p>
+      <p class="support">Use Today's Weather for the public market environment: broadly supportive, uneven, unstable, or hostile.</p>
       <div class="weather-grid" id="weatherLanes"></div>
     </section>
 
     <h2 class="section-title">condition alerts</h2>
-    <p class="section-copy">Warnings explain why a move may not be trustworthy yet.</p>
+    <p class="section-copy">Condition alerts explain why a move may not be trustworthy yet.</p>
     <section class="panel alert-list" id="conditionAlerts"></section>
 
     <h2 class="section-title">why this read</h2>
-    <p class="section-copy">Use these supporting reads to see whether strength is broadening, whether participant outcome is confirmed, and which warnings still matter.</p>
+    <p class="section-copy">Use these supporting reads to see whether participation is broadening, whether participant outcome is confirmed, and which warnings still matter.</p>
     <section class="free-grid" id="whyRead"></section>
 
     <h2 class="section-title">available on pro</h2>
@@ -670,14 +670,14 @@
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
-          <div class="search-subtitle">Search starts with broad chain reads. This is a compact public preview; full lists are part of Pro depth.</div>
+          <div class="search-subtitle">Search for market conditions, not tokens. This compact public preview shows the surface read; full lists are part of Pro depth.</div>
         </div>
         <div class="search-bar">
           <input
             id="marketSearchInput"
             class="search-input"
             type="search"
-            placeholder="Try: solana, clean, thin, building, confirmation"
+          placeholder="Try: solana, clean sample, thin sample, building, confirmation"
             autocomplete="off"
             spellcheck="false"
           >
@@ -708,7 +708,7 @@
       </section>
       <section class="search-modal" id="historicalReplayPanel" hidden>
         <div class="section-title" style="margin:0;">historical replay</div>
-        <p class="support">Compare current market conditions to prior aggregate windows.</p>
+        <p class="support">Not predictions. Prior outcomes.</p>
         <div class="search-template-list">
           <div class="search-template"><strong>Building state</strong>Comparable historical windows are not available yet.</div>
         </div>
@@ -720,22 +720,22 @@
 
     <h2 class="section-title">risk search preview</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.</p>
-    <p class="section-copy">Risk Search shows why a market read may not be trustworthy yet: thin samples, unknown participant outcome, incomplete confirmation, concentration, or window disagreement. Confirmation is complete only when clean sample, participant outcome, breadth, and broader windows support the same read.</p>
+    <p class="section-copy">Risk Search shows where a market read may be fragile. Risk types include thin sample, confirmation incomplete, window disagreement, outlier dependency, source freshness limits, and unknown participant outcome.</p>
     <section class="preview-grid" id="riskSearchPreview"></section>
 
     <h2 class="section-title">participant outcome preview</h2>
     <p class="section-note" id="participantOutcomeCount">Participant Outcome is building. RavenOS will show public-safe outcome rows once clean sample coverage is available.</p>
-    <p class="section-copy">Participant Outcome estimates whether the public sample is broadly paying participants, punishing them, or still too thin to confirm.</p>
+    <p class="section-copy">Participant Outcome shows whether the public sample looks favorable, mixed, punishing, or unknown. It stays public-safe and avoids fake precision when the clean sample is thin.</p>
     <section class="preview-grid" id="participantOutcomePreview"></section>
 
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
-    <p class="section-copy">Condition alerts track market states like clean positive reads, thin EVM reads, confirmation risk, and window disagreement. Real user notifications are still building. Alert templates feel confirmed when the underlying public states keep matching the same condition.</p>
+    <p class="section-copy">Condition alerts track market states, not tickers. Each alert shows which condition is active or building, how many public states match it, what would make it stronger, and what still needs confirmation. Real user notifications are still building.</p>
     <section class="preview-grid" id="alertPreview"></section>
 
     <h2 class="section-title">historical replay</h2>
     <p class="section-note" id="historicalReplayCount">Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.</p>
-    <p class="section-copy">Historical Replay compares current public market-state conditions to older public aggregate windows once enough separated history has accumulated.</p>
+    <p class="section-copy">Historical Replay compares current public market states to older public aggregate windows once enough history exists. It is not a prediction engine.</p>
     <section class="preview-grid" id="historicalReplayPreview"></section>
 
     <h2 class="section-title">desk context preview</h2>
@@ -1251,7 +1251,7 @@
         const tail = condition === "improving"
           ? "Coverage is improving, but part of the surface is still shallow."
           : "Coverage is building, and confirmation is still developing.";
-        return `${label}: ${observed} assets observed, ${clean} clean enough for signal, ${thin} thin or weak${unresolvedText}. ${tail}`;
+        return `${label}: ${observed} assets observed, ${clean} clean enough for the read, ${thin} thin or weak${unresolvedText}. ${tail}`;
       }
       const coverage = rawText(row.coverage_state, "unknown").toLowerCase();
       const participant = rawText(row.participant_outcome, "unknown").toLowerCase();
