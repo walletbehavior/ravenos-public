@@ -1,21 +1,22 @@
 {
-  "active_alert_count": 5,
-  "alert_count": 6,
+  "active_alert_count": 10,
+  "alert_count": 10,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-05-04T23:12:46Z",
-    "latest_generated_at": "2026-05-04T23:12:45Z",
-    "records": 61
+    "latest_archived_at": "2026-05-04T23:28:16Z",
+    "latest_generated_at": "2026-05-04T23:28:15Z",
+    "records": 63
   },
-  "archive_record_count": 61,
+  "archive_record_count": 63,
   "condition_search_count": 6,
-  "generated_at": "2026-05-04T23:12:45Z",
+  "condition_transition_count": 0,
+  "generated_at": "2026-05-04T23:28:15Z",
   "historical_comparable_count": 6,
   "historical_replay_status": {
     "comparables": 6,
     "status": "available"
   },
-  "market_search_index_count": 44,
+  "market_search_index_count": 48,
   "market_state_count": 6,
   "no_leak_ok": true,
   "participant_outcome_count": 6,
@@ -30,5 +31,5 @@
     "sub_state": "running",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-05-04T23:12:47.756123+00:00"
+  "updated_at": "2026-05-04T23:28:17.933669+00:00"
 }

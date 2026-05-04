@@ -1,55 +1,77 @@
 {
   "alerts": [
     {
-      "alert_id": "solana_clean_positive",
-      "available_on": "pro",
-      "cap_bands": [
-        "all"
-      ],
-      "chains": [
-        "solana"
-      ],
-      "matched_state_ids": [
-        "solana_all_current"
-      ],
-      "public_read": "Solana clean positive is still building because the public sample is not positive yet.",
-      "severity": "watch",
-      "status": "building",
-      "title": "Solana clean positive read",
-      "window": "6h"
-    },
-    {
-      "alert_id": "evm_building_thin",
-      "available_on": "pro",
-      "cap_bands": [
-        "fresh_pairs"
-      ],
-      "chains": [
-        "base",
-        "eth"
-      ],
-      "matched_state_ids": [
-        "base_fresh_pairs_6h",
-        "eth_fresh_pairs_6h"
-      ],
-      "public_read": "EVM building thin read is active in the public sample.",
-      "severity": "watch",
-      "status": "active",
-      "title": "EVM building thin read",
-      "window": "6h"
-    },
-    {
-      "alert_id": "trap_risk_present",
+      "alert_id": "broad_fragile_participation",
       "available_on": "pro",
       "cap_bands": [
         "all",
         "fresh_pairs"
       ],
+      "chain": "market",
       "chains": [
         "base",
         "eth",
         "solana"
       ],
+      "condition_family": "fragile_participation",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 5,
+      "matched_risk_count": 5,
+      "matched_state_ids": [
+        "base_all_current",
+        "base_fresh_pairs_6h",
+        "eth_all_current",
+        "eth_fresh_pairs_6h",
+        "solana_all_current"
+      ],
+      "plain_language_summary": "Participation is visible across the public sample, but the read is still fragile.",
+      "preview_tier": "pro",
+      "public_read": "Participation is visible across the public sample, but the read is still fragile.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "base",
+        "broad but fragile participation",
+        "broad fragile participation",
+        "caution",
+        "confirmed",
+        "eth",
+        "fragile participation",
+        "fresh_pairs",
+        "solana"
+      ],
+      "segment": "all, fresh_pairs",
+      "severity": "caution",
+      "status": "active",
+      "suggested_user_action": "avoid_chase",
+      "title": "Broad but fragile participation",
+      "what_would_confirm": "The read strengthens if participant outcome improves and risk flags fade.",
+      "what_would_weaken": "It weakens if outlier behavior or window disagreement remains dominant.",
+      "why_it_matters": "This matters because broad activity can still be unstable when confirmation or outcome is weak.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "outlier_driven_behavior",
+      "available_on": "pro",
+      "cap_bands": [
+        "all",
+        "fresh_pairs"
+      ],
+      "chain": "market",
+      "chains": [
+        "base",
+        "eth",
+        "solana"
+      ],
+      "condition_family": "outlier_risk",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 6,
+      "matched_risk_count": 6,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
@@ -58,28 +80,133 @@
         "solana_all_current",
         "solana_fresh_pairs_6h"
       ],
-      "public_read": "Trap risk is present in the current public market-state read.",
-      "severity": "warning",
+      "plain_language_summary": "The public read may be leaning on a small number of strong moves.",
+      "preview_tier": "pro",
+      "public_read": "The public read may be leaning on a small number of strong moves.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "base",
+        "caution",
+        "confirmed",
+        "eth",
+        "fresh_pairs",
+        "move may be outlier-driven",
+        "outlier driven behavior",
+        "outlier risk",
+        "solana"
+      ],
+      "segment": "all, fresh_pairs",
+      "severity": "caution",
       "status": "active",
-      "title": "Trap risk present",
+      "suggested_user_action": "wait_for_confirmation",
+      "title": "Move may be outlier-driven",
+      "what_would_confirm": "The read strengthens when gains broaden beyond outlier moves.",
+      "what_would_weaken": "It weakens if concentration remains high or broader windows disagree.",
+      "why_it_matters": "This matters because narrow leadership can make the market condition fragile.",
       "window": "6h"
     },
     {
-      "alert_id": "clean_sample_available",
+      "alert_id": "thin_unreliable_read",
       "available_on": "pro",
       "cap_bands": [
-        "all"
+        "all",
+        "fresh_pairs"
       ],
+      "chain": "market",
       "chains": [
-        "eth"
+        "base",
+        "eth",
+        "solana"
       ],
+      "condition_family": "thin_sample",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 5,
+      "matched_risk_count": 5,
       "matched_state_ids": [
-        "eth_all_current"
+        "base_all_current",
+        "base_fresh_pairs_6h",
+        "eth_fresh_pairs_6h",
+        "solana_all_current",
+        "solana_fresh_pairs_6h"
       ],
-      "public_read": "A clean sample is available in the current public market-state read.",
-      "severity": "info",
+      "plain_language_summary": "The market condition is visible, but the clean public sample is still thin or building.",
+      "preview_tier": "pro",
+      "public_read": "The market condition is visible, but the clean public sample is still thin or building.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "base",
+        "caution",
+        "confirmed",
+        "eth",
+        "fresh_pairs",
+        "read may be unreliable",
+        "solana",
+        "thin sample",
+        "thin unreliable read"
+      ],
+      "segment": "all, fresh_pairs",
+      "severity": "caution",
       "status": "active",
-      "title": "Clean sample available",
+      "suggested_user_action": "slow_down",
+      "title": "Read may be unreliable",
+      "what_would_confirm": "More clean public sample needs to support the same condition.",
+      "what_would_weaken": "It weakens if source freshness stays limited or unresolved coverage remains high.",
+      "why_it_matters": "This matters because thin reads can shift quickly and should not be treated as fully confirmed.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "cap_band_disagreement",
+      "available_on": "pro",
+      "cap_bands": [
+        "fresh_pairs"
+      ],
+      "chain": "market",
+      "chains": [
+        "base",
+        "eth",
+        "solana"
+      ],
+      "condition_family": "cap_band_rotation",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 3,
+      "matched_risk_count": 3,
+      "matched_state_ids": [
+        "base_fresh_pairs_6h",
+        "eth_fresh_pairs_6h",
+        "solana_fresh_pairs_6h"
+      ],
+      "plain_language_summary": "A cap-band slice is moving differently from the broader chain read.",
+      "preview_tier": "pro",
+      "public_read": "A cap-band slice is moving differently from the broader chain read.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "base",
+        "cap band disagreement",
+        "cap band rotation",
+        "cap-band read needs context",
+        "confirmed",
+        "eth",
+        "fresh_pairs",
+        "solana",
+        "watch"
+      ],
+      "segment": "fresh_pairs",
+      "severity": "watch",
+      "status": "active",
+      "suggested_user_action": "watch",
+      "title": "Cap-band read needs context",
+      "what_would_confirm": "The read strengthens if the cap-band move aligns with broader market windows.",
+      "what_would_weaken": "It weakens if the cap-band remains isolated or the sample stays thin.",
+      "why_it_matters": "This matters because narrow rotation can look strong before broader participation confirms it.",
       "window": "6h"
     },
     {
@@ -89,11 +216,18 @@
         "all",
         "fresh_pairs"
       ],
+      "chain": "market",
       "chains": [
         "base",
         "eth",
         "solana"
       ],
+      "condition_family": "confirmation_incomplete",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 6,
+      "matched_risk_count": 6,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
@@ -102,44 +236,260 @@
         "solana_all_current",
         "solana_fresh_pairs_6h"
       ],
-      "public_read": "Confirmation remains incomplete in the current public market-state read.",
+      "plain_language_summary": "The current market condition is forming, but confirmation is incomplete.",
+      "preview_tier": "pro",
+      "public_read": "The current market condition is forming, but confirmation is incomplete.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "base",
+        "confirmation incomplete",
+        "confirmed",
+        "eth",
+        "fresh_pairs",
+        "move has not confirmed yet",
+        "solana",
+        "watch"
+      ],
+      "segment": "all, fresh_pairs",
       "severity": "watch",
       "status": "active",
-      "title": "Confirmation incomplete",
+      "suggested_user_action": "wait_for_confirmation",
+      "title": "Move has not confirmed yet",
+      "what_would_confirm": "The same read needs to hold across refreshes and broader windows.",
+      "what_would_weaken": "It weakens if the next public refresh disagrees or participation fades.",
+      "why_it_matters": "This matters because an early read can fail if it does not persist across refreshes.",
       "window": "6h"
     },
     {
-      "alert_id": "window_disagreement",
+      "alert_id": "participant_outcome_unclear",
       "available_on": "pro",
       "cap_bands": [
         "all",
         "fresh_pairs"
       ],
+      "chain": "market",
       "chains": [
         "base",
-        "eth",
-        "solana"
+        "eth"
       ],
+      "condition_family": "outcome_unclear",
+      "confirmation_status": "confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 4,
+      "matched_risk_count": 4,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
         "eth_all_current",
-        "eth_fresh_pairs_6h",
+        "eth_fresh_pairs_6h"
+      ],
+      "plain_language_summary": "The market is active, but the public sample does not yet show a clear participant outcome.",
+      "preview_tier": "pro",
+      "public_read": "The market is active, but the public sample does not yet show a clear participant outcome.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "base",
+        "confirmed",
+        "eth",
+        "fresh_pairs",
+        "outcome unclear",
+        "participant outcome unclear",
+        "watch"
+      ],
+      "segment": "all, fresh_pairs",
+      "severity": "watch",
+      "status": "active",
+      "suggested_user_action": "wait_for_confirmation",
+      "title": "Participant outcome unclear",
+      "what_would_confirm": "The read strengthens when outcome resolves from unclear into a stable public read.",
+      "what_would_weaken": "It weakens if outcome remains unclear while risk flags grow.",
+      "why_it_matters": "This matters because active markets can still punish participation when outcome is unclear.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "source_freshness_limited",
+      "available_on": "pro",
+      "cap_bands": [
+        "all",
+        "fresh_pairs"
+      ],
+      "chain": "solana",
+      "chains": [
+        "solana"
+      ],
+      "condition_family": "source_freshness_limited",
+      "confirmation_status": "partially_confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 2,
+      "matched_risk_count": 2,
+      "matched_state_ids": [
         "solana_all_current",
         "solana_fresh_pairs_6h"
       ],
-      "public_read": "Longer windows disagree in the current public market-state read.",
-      "severity": "warning",
+      "plain_language_summary": "The public read is available, but source freshness or data quality is limiting confidence.",
+      "preview_tier": "pro",
+      "public_read": "The public read is available, but source freshness or data quality is limiting confidence.",
+      "scope": "cap_band",
+      "search_terms": [
+        "active",
+        "all",
+        "fresh_pairs",
+        "partially_confirmed",
+        "solana",
+        "source coverage is limited",
+        "source freshness limited",
+        "watch"
+      ],
+      "segment": "all, fresh_pairs",
+      "severity": "watch",
       "status": "active",
-      "title": "Window disagreement",
+      "suggested_user_action": "slow_down",
+      "title": "Source coverage is limited",
+      "what_would_confirm": "The read strengthens when fresher public coverage supports the same condition.",
+      "what_would_weaken": "It weakens if freshness remains limited or sample quality deteriorates.",
+      "why_it_matters": "This matters because stale or thin coverage can make a current read unreliable.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "desk_context_restricted",
+      "available_on": "advanced_desk",
+      "cap_bands": [
+        "all"
+      ],
+      "chain": "solana",
+      "chains": [
+        "solana"
+      ],
+      "condition_family": "macro_context_available",
+      "confirmation_status": "partially_confirmed",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 1,
+      "matched_risk_count": 1,
+      "matched_state_ids": [
+        "solana_all_current"
+      ],
+      "plain_language_summary": "Broader context is previewed publicly, while full macro and advanced context remain gated.",
+      "preview_tier": "desk",
+      "public_read": "Broader context is previewed publicly, while full macro and advanced context remain gated.",
+      "scope": "chain",
+      "search_terms": [
+        "active",
+        "all",
+        "desk context expands this read",
+        "desk context restricted",
+        "info",
+        "macro context available",
+        "partially_confirmed",
+        "solana"
+      ],
+      "segment": "all",
+      "severity": "info",
+      "status": "active",
+      "suggested_user_action": "watch",
+      "title": "Desk context expands this read",
+      "what_would_confirm": "The read strengthens when broader context supports the same public condition.",
+      "what_would_weaken": "It weakens if broader context conflicts with the on-chain read.",
+      "why_it_matters": "This matters because wider conditions can support, conflict with, or fail to confirm the on-chain read.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "clean_sample_improving",
+      "available_on": "pro",
+      "cap_bands": [
+        "all"
+      ],
+      "chain": "solana",
+      "chains": [
+        "solana"
+      ],
+      "condition_family": "broad_participation",
+      "confirmation_status": "building",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 1,
+      "matched_risk_count": 1,
+      "matched_state_ids": [
+        "solana_all_current"
+      ],
+      "plain_language_summary": "A cleaner public sample is improving enough to make the market condition more readable.",
+      "preview_tier": "pro",
+      "public_read": "A cleaner public sample is improving enough to make the market condition more readable.",
+      "scope": "chain",
+      "search_terms": [
+        "all",
+        "broad participation",
+        "building",
+        "clean sample improving",
+        "info",
+        "solana"
+      ],
+      "segment": "all",
+      "severity": "info",
+      "status": "building",
+      "suggested_user_action": "watch",
+      "title": "Clean sample improving",
+      "what_would_confirm": "The condition strengthens if the same read holds across refreshes with clean enough sample coverage.",
+      "what_would_weaken": "It weakens if participation narrows, data quality thins, or broader windows disagree.",
+      "why_it_matters": "This matters because cleaner participation is easier to trust than noisy activity.",
+      "window": "6h"
+    },
+    {
+      "alert_id": "historical_replay_building",
+      "available_on": "advanced_desk",
+      "cap_bands": [
+        "all"
+      ],
+      "chain": "solana",
+      "chains": [
+        "solana"
+      ],
+      "condition_family": "historical_context_building",
+      "confirmation_status": "building",
+      "generated_at": "2026-05-04T23:28:15Z",
+      "is_preview_limited": true,
+      "matched_market_state_count": 1,
+      "matched_risk_count": 1,
+      "matched_state_ids": [
+        "solana_all_current"
+      ],
+      "plain_language_summary": "Historical replay has 1 current public states but still depends on available archive depth.",
+      "preview_tier": "desk",
+      "public_read": "Historical replay has 1 current public states but still depends on available archive depth.",
+      "scope": "chain",
+      "search_terms": [
+        "all",
+        "building",
+        "historical context building",
+        "historical context is building",
+        "historical replay building",
+        "info",
+        "solana"
+      ],
+      "segment": "all",
+      "severity": "info",
+      "status": "building",
+      "suggested_user_action": "watch",
+      "title": "Historical context is building",
+      "what_would_confirm": "The feature strengthens as more public archive records accumulate.",
+      "what_would_weaken": "It remains limited when comparable windows are unavailable or sparse.",
+      "why_it_matters": "This matters because prior comparable windows help separate common conditions from unusual ones.",
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-04T23:12:45Z",
+  "generated_at": "2026-05-04T23:28:15Z",
   "metadata": {
-    "active_count": 5,
-    "building_count": 1,
-    "warning_count": 2
+    "active_count": 8,
+    "building_count": 2,
+    "caution_count": 3,
+    "max_alerts": 16,
+    "preview_limited": true
   },
   "schema_version": "ravenos_alert_conditions_v0"
 }

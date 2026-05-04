@@ -1290,24 +1290,11 @@
     }
 
     function alertConfirmationDetailsFromRow(row) {
-      const status = rawText(row && row.status, "building").toLowerCase();
-      const matchedCount = list(row && row.matched_state_ids).length;
-      let needs = "";
-      if (status === "building") {
-        needs = "This template is still building. It needs matching public states before it can confirm.";
-      } else if (matchedCount >= 3) {
-        needs = "This alert is stronger while 3+ public states keep matching across refreshes.";
-      } else if (matchedCount === 2) {
-        needs = "This alert needs 3+ matched public states or repeated matches across refreshes to feel stronger.";
-      } else if (matchedCount === 1) {
-        needs = "This alert needs more matched public states and repeated confirmation across refreshes.";
-      } else {
-        needs = "This alert needs matched public states before it can confirm.";
-      }
-      const confirmationStatus = status === "building" ? "building" : matchedCount >= 3 ? "stronger" : "watching";
+      const confirmationStatus = rawText(row && row.confirmation_status, rawText(row && row.status, "building")).toLowerCase();
+      const needs = rawText(row && row.what_would_confirm, "This alert needs matching public states before it can confirm.");
       return [
         ["confirmation status", confirmationStatus],
-        ["what would confirm this alert", needs],
+        ["what would confirm this", needs],
       ];
     }
 
@@ -1317,12 +1304,24 @@
         row.title,
         row.status,
         row.severity,
+        row.confirmation_status,
+        row.condition_family,
+        row.chain,
+        row.scope,
+        row.segment,
+        row.plain_language_summary,
         row.public_read,
-        list(row.matched_state_ids).join(" "),
+        row.why_it_matters,
+        row.what_would_confirm,
+        row.what_would_weaken,
+        row.suggested_user_action,
+        list(row.search_terms).join(" "),
         list(row.chains).join(" "),
         list(row.cap_bands).join(" "),
+        row.preview_tier,
         row.available_on,
-        list(row.matched_state_ids).length,
+        row.matched_market_state_count,
+        row.matched_risk_count,
         "alert",
         "condition",
         "available on pro",
@@ -2461,7 +2460,27 @@
         return;
       }
       alerts.forEach((alert) => {
-        const item = card(rawText(alert.title, "Condition alert"), rawText(alert.message, "Market conditions changed."), titleCase(alert.severity));
+        const item = card(
+          rawText(alert.title, "Condition alert"),
+          rawText(alert.plain_language_summary || alert.public_read, "Market conditions changed."),
+          `${titleCase(rawText(alert.severity, "watch"))} · ${titleCase(rawText(alert.confirmation_status, "building"))}`
+        );
+        const details = document.createElement("div");
+        details.className = "details";
+        [
+          ["why it matters", rawText(alert.why_it_matters, "This market condition can change how reliable the read feels.")],
+          ["what would confirm", rawText(alert.what_would_confirm, "The same read needs to hold across refreshes.")],
+        ].forEach(([label, value]) => {
+          const row = document.createElement("div");
+          row.className = "detail";
+          const span = document.createElement("span");
+          span.textContent = label;
+          const strong = document.createElement("strong");
+          strong.textContent = value;
+          row.append(span, strong);
+          details.appendChild(row);
+        });
+        item.appendChild(details);
         node.appendChild(item);
       });
     }
@@ -2698,7 +2717,7 @@
       const normalizedQuery = normalizeSearchText(queryText);
       const filtered = rows.filter((row) => !normalizedQuery || alertSearchText(row).includes(normalizedQuery));
       const active = rows.filter((row) => rawText(row.status, "").toLowerCase() === "active").length;
-      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} condition templates shown, ${active} active` : "Notification delivery is not enabled in this public preview.";
+      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} condition alerts shown, ${active} active · full history, saved alerts, custom conditions, delivery, and exports are paid-tier features` : "Notification delivery is not enabled in this public preview.";
       if (!rows.length) {
         const buildingSearch = searchTextFromParts("alert builder", "building", "available on pro");
         node.appendChild(buildPreviewCard(
@@ -2727,19 +2746,22 @@
       }
       rowsToRender.forEach((row) => {
         const title = rawText(row.title, "Alert template");
-        const copy = rawText(row.public_read, "Public-safe condition alert is available.");
-        const matchedCount = list(row.matched_state_ids).length;
+        const copy = rawText(row.plain_language_summary || row.public_read, "Public-safe condition alert is available.");
+        const matchedCount = Number.isFinite(Number(row.matched_market_state_count)) ? Number(row.matched_market_state_count) : list(row.matched_state_ids).length;
         const detailRows = [
+          ["why it matters", rawText(row.why_it_matters, "This market condition can change how reliable the read feels.")],
           ...alertConfirmationDetailsFromRow(row),
         ];
         const item = buildCompactPreviewCard(
           title,
-          `${matchedCount} matched public ${matchedCount === 1 ? "state" : "states"} · ${humanWindowLabel(row.window)}`,
+          `${publicLabel(row.severity, "watch")} · ${publicLabel(row.confirmation_status, "building")} · ${matchedCount} matching public ${matchedCount === 1 ? "state" : "states"}`,
           copy,
-          "Available on Pro",
+          rawText(row.preview_tier, "pro") === "desk" ? "Available on Advanced Desk" : "Available on Pro",
           [
-            ["status", publicLabel(row.status, "unknown")],
             ["severity", publicLabel(row.severity, "unknown")],
+            ["confirmation", publicLabel(row.confirmation_status, "building")],
+            ["condition", publicLabel(row.condition_family, "condition")],
+            ["action", publicLabel(row.suggested_user_action, "watch")],
           ],
           alertSearchText(row),
           detailRows
@@ -2961,7 +2983,6 @@
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       refreshStatus = normalizePublicPayload(refreshStatus);
-      const conditionAlertsPayload = isObject(snapshot.condition_alerts) ? snapshot.condition_alerts : {};
       const replayMeta = isObject(historicalReplayPayload.metadata) ? historicalReplayPayload.metadata : {};
       const stats = {
         marketStateCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).length,
@@ -2992,7 +3013,7 @@
       });
       renderProModules(stats);
       renderPricing();
-      renderConditionAlerts(snapshot.condition_alerts);
+      renderConditionAlerts(alertPreviewPayload);
     }
 
 
