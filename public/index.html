@@ -706,14 +706,14 @@
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
-          <div class="search-subtitle">Search for market conditions, not tokens. This compact public preview shows the surface read; full lists are part of Pro depth.</div>
+          <div class="search-subtitle">Search market conditions, participation, confirmation, outcome, risk, and clean sample quality. This public preview shows a compact surface read; Pro depth adds deeper filters, saved searches, full history, alerts, and Ask RavenOS later.</div>
         </div>
         <div class="search-bar">
           <input
             id="marketSearchInput"
             class="search-input"
             type="search"
-          placeholder="Try: solana, clean sample, thin sample, building, confirmation"
+          placeholder="Try: fragile participation, clean sample, outcome unclear, alerts, macro context"
             autocomplete="off"
             spellcheck="false"
           >
@@ -1040,14 +1040,53 @@
 
     function marketStateFilterValue(state, key) {
       if (!isObject(state)) return "unknown";
+      if ("condition_family" in state || "condition_label" in state) {
+        if (key === "condition") return rawText(state.condition_family, "unknown");
+        if (key === "risk") return rawText(state.risk_level, "unknown");
+        if (key === "data_quality") return rawText(state.data_quality_status, "unknown");
+        if (key === "participant_outcome") return rawText(state.participant_outcome_label, "unknown");
+        return rawText(state[key], "unknown");
+      }
       if (key === "risk") return rawText(state.risk && state.risk.level, "unknown");
       if (key === "data_quality") return rawText(state.data_quality && state.data_quality.status, "unknown");
       if (key === "participant_outcome") return rawText(state.participant_outcome && state.participant_outcome.direction, "unknown");
       return rawText(state[key], "unknown");
     }
 
+    function marketSearchIndexText(row) {
+      if (!isObject(row)) return "";
+      return searchTextFromParts(
+        "market search",
+        "market condition",
+        "participation",
+        "confirmation",
+        "outcome",
+        row.condition_family,
+        row.condition_label,
+        row.plain_language_summary,
+        row.confirmation_status,
+        row.risk_level,
+        row.data_quality_status,
+        row.participant_outcome_label,
+        row.chain,
+        titleCase(row.chain),
+        row.scope,
+        row.cap_band,
+        humanCapBandLabel(row.cap_band),
+        row.window,
+        titleCase(row.window),
+        row.what_would_confirm,
+        row.what_would_invalidate,
+        row.paid_depth_available ? "available on pro advanced desk paid depth saved searches alerts ask ravenos full history" : "",
+        row.paid_depth_reason,
+        list(row.risk_tags).join(" "),
+        list(row.source_artifacts).join(" ")
+      );
+    }
+
     function marketStateSearchText(state) {
       if (!isObject(state)) return "";
+      if ("condition_family" in state || "condition_label" in state) return marketSearchIndexText(state);
       const breadth = state.breadth || {};
       const participant = state.participant_outcome || {};
       const risk = state.risk || {};
@@ -2010,6 +2049,7 @@
       if (!node) return;
       node.textContent = "";
       const items = [
+        ["market search", `${stats.marketSearchIndexCount || stats.marketStateCount} condition rows`],
         ["market states", `${stats.marketStateCount} live`],
         ["risk rows", `${stats.riskStateCount} live`],
         ["participant outcomes", `${stats.outcomeCount} live`],
@@ -2062,6 +2102,9 @@
     }
 
     function marketStateSummary(state) {
+      if (isObject(state) && ("condition_family" in state || "condition_label" in state)) {
+        return rawText(state.plain_language_summary, "Public-safe market condition is building.");
+      }
       const breadth = state.breadth || {};
       const participant = state.participant_outcome || {};
       const risk = state.risk || {};
@@ -2079,14 +2122,15 @@
       node.textContent = "";
       const meta = states.reduce((acc, state) => {
         if (!isObject(state)) return acc;
-        ["chain", "cap_band", "window", "condition"].forEach((key) => {
+        ["chain", "cap_band", "window"].forEach((key) => {
           const value = rawText(state[key], "unknown");
           if (!acc[key]) acc[key] = new Set();
           acc[key].add(value);
         });
-        const risk = rawText(state.risk && state.risk.level, "unknown");
-        const quality = rawText(state.data_quality && state.data_quality.status, "unknown");
-        const outcome = rawText(state.participant_outcome && state.participant_outcome.direction, "unknown");
+        acc.condition.add(marketStateFilterValue(state, "condition"));
+        const risk = marketStateFilterValue(state, "risk");
+        const quality = marketStateFilterValue(state, "data_quality");
+        const outcome = marketStateFilterValue(state, "participant_outcome");
         acc.risk.add(risk);
         acc.data_quality.add(quality);
         acc.participant_outcome.add(outcome);
@@ -2233,21 +2277,22 @@
           resultNode.appendChild(note);
           return;
         }
-        filtered.slice(0, 4).forEach((state) => {
+        filtered.slice(0, 6).forEach((state) => {
           const item = document.createElement("article");
           item.className = "result-card preview-row-card";
-          item.dataset.stateId = rawText(state.state_id, "");
+          const isIndexRow = "condition_family" in state || "condition_label" in state;
+          item.dataset.stateId = rawText(state.state_id || state.row_id, "");
           item.dataset.searchText = marketStateSearchText(state);
           const title = document.createElement("div");
           title.className = "result-title";
-          title.textContent = marketStateDisplayTitle(state);
+          title.textContent = isIndexRow ? rawText(state.condition_label, "Market condition is building") : marketStateDisplayTitle(state);
           const meta = document.createElement("div");
           meta.className = "result-meta";
-          meta.textContent = `${chainDisplayLabel(state.chain)} · ${humanCapBandLabel(state.cap_band)} · ${humanWindowLabel(state.window)}`;
+          meta.textContent = `${chainDisplayLabel(state.chain)} · ${rawText(state.scope, "market condition")} · ${humanWindowLabel(state.window)} · ${humanCapBandLabel(state.cap_band)}`;
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
-          const confirmRows = confirmationDetailsFromRow(state, [
+          const confirmRows = isIndexRow ? [["what would confirm", rawText(state.what_would_confirm, "More public states need to support the same read.")]] : confirmationDetailsFromRow(state, [
             state.chain,
             state.cap_band,
             state.window,
@@ -2265,13 +2310,20 @@
             state.breadth && state.breadth.strength,
           ], {includeWatchFlags: false, needsLimit: 1});
           const chips = buildCompactChips([
-            ["condition", publicLabel(state.condition, "unknown")],
-            ["participant outcome", publicLabel(state.participant_outcome && state.participant_outcome.direction, "unknown")],
-            ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
-            ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
-            ["confirmation", rawText(confirmRows[0] && confirmRows[0][1], "building")],
+            ["confirmation", publicLabel(isIndexRow ? state.confirmation_status : rawText(confirmRows[0] && confirmRows[0][1], "building"), "building")],
+            ["risk", publicLabel(isIndexRow ? state.risk_level : state.risk && state.risk.level, "unknown")],
+            ["data quality", publicLabel(isIndexRow ? state.data_quality_status : state.data_quality && state.data_quality.status, "unknown")],
           ]);
-          item.append(title, meta, summary, chips);
+          const confirm = document.createElement("div");
+          confirm.className = "result-summary";
+          confirm.textContent = `What would confirm this: ${rawText(confirmRows[0] && confirmRows[0][1], "More public states need to support the same read.")}`;
+          item.append(title, meta, summary, chips, confirm);
+          if (isIndexRow && state.paid_depth_available) {
+            const paid = document.createElement("div");
+            paid.className = "result-meta";
+            paid.textContent = rawText(state.paid_depth_reason, "Pro depth adds deeper filters, saved searches, full history, alerts, and Ask RavenOS later.");
+            item.appendChild(paid);
+          }
           item.addEventListener("click", () => emitMarketSearchTelemetry("result_clicked", {
             clicked_state_id: item.dataset.stateId,
             query_normalized: queryText,
@@ -2892,6 +2944,10 @@
         "/ravenos_historical_replay.json",
         "/public/ravenos_historical_replay.json",
       ]);
+      const marketSearchIndexes = await fetchJsonPayloads([
+        "/ravenos_market_search_index.json",
+        "/public/ravenos_market_search_index.json",
+      ]);
       const alertRowsPayloads = await fetchJsonPayloads(ALERT_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
@@ -2900,6 +2956,7 @@
       const riskSearchPayload = normalizePublicPayload(freshestByGeneratedAt(riskSearches));
       const participantOutcomePayload = normalizePublicPayload(freshestByGeneratedAt(participantOutcomes));
       const historicalReplayPayload = normalizePublicPayload(freshestByGeneratedAt(historicalReplays));
+      const marketSearchIndexPayload = normalizePublicPayload(freshestByGeneratedAt(marketSearchIndexes));
       const alertPreviewPayload = normalizePublicPayload(freshestByGeneratedAt(alertRowsPayloads));
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
@@ -2908,6 +2965,7 @@
       const replayMeta = isObject(historicalReplayPayload.metadata) ? historicalReplayPayload.metadata : {};
       const stats = {
         marketStateCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).length,
+        marketSearchIndexCount: list(marketSearchIndexPayload.rows).length,
         capBandCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).filter((state) => rawText(state.cap_band, "") !== "all").length,
         riskStateCount: list(riskSearchPayload.risk_states).length,
         outcomeCount: list(participantOutcomePayload.outcomes).length,
@@ -2925,7 +2983,7 @@
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
       renderSearchStats(stats);
-      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : [], stats, {
+      renderMarketSearch(list(marketSearchIndexPayload.rows).length ? marketSearchIndexPayload.rows : (isObject(marketStatePayload) ? marketStatePayload.states : []), stats, {
         deskContextPayload: snapshot,
         riskSearchPayload,
         participantOutcomePayload,
