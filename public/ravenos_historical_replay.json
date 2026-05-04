@@ -1,11 +1,108 @@
 {
-  "comparables": [],
-  "generated_at": "2026-05-04T15:21:20Z",
+  "comparables": [
+    {
+      "after_window_summary": null,
+      "current_state_id": "base_all_current",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_all_current",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Base all 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    },
+    {
+      "after_window_summary": null,
+      "current_state_id": "base_fresh_pairs_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_fresh_pairs_6h",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Base fresh pairs 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    },
+    {
+      "after_window_summary": null,
+      "current_state_id": "eth_all_current",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "eth_all_current",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Eth all 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    },
+    {
+      "after_window_summary": null,
+      "current_state_id": "eth_fresh_pairs_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "eth_fresh_pairs_6h",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Eth fresh pairs 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    },
+    {
+      "after_window_summary": null,
+      "current_state_id": "solana_all_current",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "solana_all_current",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Solana all 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    },
+    {
+      "after_window_summary": null,
+      "current_state_id": "solana_fresh_pairs_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "solana_fresh_pairs_6h",
+      "matched_window_start": "2026-05-04T14:37:44Z",
+      "public_read": "Solana fresh pairs 6h most closely matches a prior public snapshot from 2026-05-04T14:37:44Z.",
+      "similarity_score": 1.0
+    }
+  ],
+  "generated_at": "2026-05-04T15:27:45Z",
   "metadata": {
-    "archive_record_count": 19,
+    "archive_record_count": 20,
     "current_state_count": 6,
     "minimum_records_required": 20
   },
   "schema_version": "ravenos_historical_replay_v0",
-  "status": "building"
+  "status": "available"
 }
