@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-04T15:43:15Z",
+  "generated_at": "2026-05-04T15:55:05Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -29,7 +29,7 @@
       "observed_sample": 35960,
       "outcome_id": "solana_all_6h",
       "participant_outcome": "mixed",
-      "public_read": "Solana all 6h is mixed and should be treated as selective.",
+      "public_read": "Solana all 6h is mixed and should be treated as uneven.",
       "state_id": "solana_all_current",
       "warnings": [
         "confirmation_incomplete",
@@ -64,11 +64,11 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "clean_sample": 828,
+      "clean_sample": 829,
       "confidence": "high",
       "data_quality": "clean",
       "direction": "unknown",
-      "observed_sample": 1287,
+      "observed_sample": 1288,
       "outcome_id": "eth_all_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
@@ -104,11 +104,11 @@
     {
       "cap_band": "all",
       "chain": "base",
-      "clean_sample": 887,
+      "clean_sample": 893,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 1174,
+      "observed_sample": 1184,
       "outcome_id": "base_all_6h",
       "participant_outcome": "unknown",
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",

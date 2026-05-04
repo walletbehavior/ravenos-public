@@ -3,16 +3,16 @@
   "alert_count": 6,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-05-04T15:43:16Z",
-    "latest_generated_at": "2026-05-04T15:43:15Z",
-    "records": 23
+    "latest_archived_at": "2026-05-04T15:55:07Z",
+    "latest_generated_at": "2026-05-04T15:55:05Z",
+    "records": 24
   },
-  "archive_record_count": 23,
-  "generated_at": "2026-05-04T15:43:15Z",
-  "historical_comparable_count": 6,
+  "archive_record_count": 24,
+  "generated_at": "2026-05-04T15:55:05Z",
+  "historical_comparable_count": 0,
   "historical_replay_status": {
-    "comparables": 6,
-    "status": "available"
+    "comparables": 0,
+    "status": "building"
   },
   "market_state_count": 6,
   "no_leak_ok": true,
@@ -25,8 +25,8 @@
     "available": true,
     "enabled": true,
     "scope": "user",
-    "sub_state": "running",
+    "sub_state": "waiting",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-05-04T15:43:17.292776+00:00"
+  "updated_at": "2026-05-04T15:55:07.675408+00:00"
 }

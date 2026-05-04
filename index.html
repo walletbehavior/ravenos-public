@@ -286,7 +286,7 @@
     }
 
     .state.favorable { color: var(--good); border-color: rgba(136, 199, 127, 0.42); }
-    .state.selective, .state.fragile, .state.choppy { color: var(--warn); border-color: rgba(217, 184, 106, 0.44); }
+    .state.uneven, .state.fragile, .state.choppy { color: var(--warn); border-color: rgba(217, 184, 106, 0.44); }
     .state.hostile, .state.unstable { color: var(--bad); border-color: rgba(217, 120, 112, 0.44); }
 
     .details {
@@ -448,6 +448,12 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.5;
+    }
+
+    .result-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .result-grid .details {
@@ -643,7 +649,7 @@
     <section class="panel">
       <p class="eyebrow" id="weatherTitle">today's trade weather: developing</p>
       <p class="support" id="weatherSummary">Coverage is developing, so this read should be treated as early.</p>
-      <p class="support">Use Today's Weather for the trading environment: broadly supportive, selective, unstable, or hostile.</p>
+      <p class="support">Use Today's Weather for the trading environment: broadly supportive, uneven, unstable, or hostile.</p>
       <div class="weather-grid" id="weatherLanes"></div>
     </section>
 
@@ -664,7 +670,7 @@
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
-          <div class="search-subtitle">Search starts with broad chain reads. Risk Search, Cap-Band Search, Participant Outcome, alerts, and replay are building from public artifacts.</div>
+          <div class="search-subtitle">Search starts with broad chain reads. This is a compact public preview; full lists are part of Pro depth.</div>
         </div>
         <div class="search-bar">
           <input
@@ -729,7 +735,7 @@
 
     <h2 class="section-title">historical replay</h2>
     <p class="section-note" id="historicalReplayCount">Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.</p>
-    <p class="section-copy">Historical Replay compares current public market-state conditions to prior public aggregate windows once enough history has accumulated.</p>
+    <p class="section-copy">Historical Replay compares current public market-state conditions to older public aggregate windows once enough separated history has accumulated.</p>
     <section class="preview-grid" id="historicalReplayPreview"></section>
 
     <h2 class="section-title">desk context preview</h2>
@@ -1705,17 +1711,18 @@
       if (hasThinCoverage) {
         return "current market read: building";
       }
-      if (breadthState === "broad" && (hasFragileBreadth || riskRead === "selective")) {
+      const unevenRead = riskRead === "uneven";
+      if (breadthState === "broad" && (hasFragileBreadth || unevenRead)) {
         return "current market read: broad but fragile";
       }
-      if (followthrough === "improving" && (hasConfirmationRisk || riskRead === "selective")) {
+      if (followthrough === "improving" && (hasConfirmationRisk || unevenRead)) {
         return "current market read: improving, not confirmed";
       }
       if (riskRead === "fragile" || meaningful(overall.state) === "fragile") {
         return "current market read: fragile";
       }
       if (isMeaningfulState(breadth && breadth.risk_read)) {
-        return `current market read: ${text(breadth.risk_read)}`;
+        return `current market read: ${unevenRead ? "uneven" : text(breadth.risk_read)}`;
       }
       return "current market read is developing";
     }
@@ -1883,7 +1890,7 @@
         cards.push(["Churn / trap risk", `Trap risk is ${text(churn.trap_risk)}, so failed moves matter more than surface activity.`]);
       }
       if (warnings.length) {
-        cards.push(["Warnings", "Warnings explain why a move may not be trustworthy yet. Use them to decide whether a market read is broad, selective, or still fragile."]);
+        cards.push(["Warnings", "Warnings explain why a move may not be trustworthy yet. Use them to decide whether a market read is broad, uneven, or still fragile."]);
       }
       if (!cards.length) cards.push(["Coverage", "Coverage is still developing, so this read should be treated as early."]);
       cards.slice(0, 4).forEach(([title, copy]) => node.appendChild(card(title, copy)));
@@ -2142,7 +2149,7 @@
           resultNode.appendChild(note);
           return;
         }
-        filtered.slice(0, 24).forEach((state) => {
+        filtered.slice(0, 4).forEach((state) => {
           const item = document.createElement("article");
           item.className = "result-card";
           item.dataset.stateId = rawText(state.state_id, "");
@@ -2150,18 +2157,17 @@
           const title = document.createElement("div");
           title.className = "result-title";
           title.textContent = marketStateDisplayTitle(state);
+          const meta = document.createElement("div");
+          meta.className = "result-meta";
+          meta.textContent = `${chainDisplayLabel(state.chain)} · ${humanCapBandLabel(state.cap_band)} · ${humanWindowLabel(state.window)}`;
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
           const details = document.createElement("div");
           details.className = "details";
           [
-            ["chain", chainDisplayLabel(state.chain)],
-            ["cap band", humanCapBandLabel(state.cap_band)],
-            ["window", humanWindowLabel(state.window)],
             ["condition", publicLabel(state.condition, "unknown")],
             ["participant outcome", publicLabel(state.participant_outcome && state.participant_outcome.direction, "unknown")],
-            ["breadth", `${publicLabel(state.breadth && state.breadth.direction, "unknown")} · ${publicLabel(state.breadth && state.breadth.strength, "unknown")}`],
             ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
             ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
             ...confirmationDetailsFromRow(state, [
@@ -2181,7 +2187,6 @@
               state.breadth && state.breadth.direction,
               state.breadth && state.breadth.strength,
             ], {includeWatchFlags: false, needsLimit: 1}),
-            ["summary", rawText(state.summary, "Public-safe market-state read is building.")],
           ].forEach(([label, value]) => {
             const row = document.createElement("div");
             row.className = "detail";
@@ -2192,7 +2197,7 @@
             row.append(left, right);
             details.appendChild(row);
           });
-          item.append(title, summary, details);
+          item.append(title, meta, summary, details);
           item.addEventListener("click", () => emitMarketSearchTelemetry("result_clicked", {
             clicked_state_id: item.dataset.stateId,
             query_normalized: queryText,
@@ -2375,7 +2380,7 @@
       const rows = list(payload && payload.risk_states).filter(isObject);
       const normalizedQuery = normalizeSearchText(queryText);
       const filtered = rows.filter((row) => !normalizedQuery || riskSearchText(row).includes(normalizedQuery));
-      countNode.textContent = rows.length ? `${rows.length} risk rows available` : "Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.";
+      countNode.textContent = rows.length ? `${Math.min(rows.length, 6)} of ${rows.length} risk rows shown · limited public preview` : "Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.";
       if (!rows.length) {
         const buildingSearch = searchTextFromParts("risk search", "building", "available on pro");
         node.appendChild(buildPreviewCard(
@@ -2391,7 +2396,8 @@
         ));
         return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
       }
-      const rowsToRender = filtered.slice(0, 8);
+      const rowsToRender = filtered.slice(0, 6);
+      const limitedRows = rowsToRender;
       if (!rowsToRender.length) {
         node.appendChild(buildPreviewCard(
           "No risk rows match this search yet",
@@ -2404,14 +2410,12 @@
         ));
         return 0;
       }
-      rowsToRender.forEach((row) => {
+      limitedRows.forEach((row) => {
         const title = riskDisplayTitle(row);
         const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe risk read is available.")}`;
         const detailRows = [
           ["risk level", publicLabel(row.risk_level, "unknown")],
           ["affected read", `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`],
-          ["data quality", publicLabel(row.data_quality, "unknown")],
-          ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
           ...confirmationDetailsFromRow(row, [
             row.chain,
             row.cap_band,
@@ -2429,7 +2433,7 @@
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
         node.appendChild(item);
       });
-      return rowsToRender.length;
+      return limitedRows.length;
     }
 
     function renderParticipantOutcomePreview(payload, queryText) {
@@ -2439,7 +2443,7 @@
       const rows = list(payload && payload.outcomes).filter(isObject);
       const normalizedQuery = normalizeSearchText(queryText);
       const filtered = rows.filter((row) => !normalizedQuery || participantOutcomeSearchText(row).includes(normalizedQuery));
-      countNode.textContent = rows.length ? `${rows.length} outcome rows available` : "Participant Outcome is building. RavenOS will show public-safe outcome rows once clean sample coverage is available.";
+      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} outcome rows shown · compact public preview` : "Participant Outcome is building. RavenOS will show public-safe outcome rows once clean sample coverage is available.";
       if (!rows.length) {
         const buildingSearch = searchTextFromParts("participant outcome", "building", "available on pro");
         node.appendChild(buildPreviewCard(
@@ -2455,7 +2459,7 @@
         ));
         return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
       }
-      const rowsToRender = filtered.slice(0, 8);
+      const rowsToRender = filtered.slice(0, 4);
       if (!rowsToRender.length) {
         node.appendChild(buildPreviewCard(
           "No outcome rows match this search yet",
@@ -2473,11 +2477,9 @@
         const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe outcome read is available.")}`;
         const detailRows = [
           ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
-          ["direction", publicLabel(row.direction, "unknown")],
           ["confidence", publicLabel(row.confidence, "unknown")],
           ["data quality", publicLabel(row.data_quality, "unknown")],
-          ["clean sample", Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "unknown"],
-          ["observed sample", Number.isFinite(Number(row.observed_sample)) ? String(row.observed_sample) : "unknown"],
+          ["sample", `${Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "unknown"} / ${Number.isFinite(Number(row.observed_sample)) ? String(row.observed_sample) : "unknown"}`],
           ...confirmationDetailsFromRow(row, [
             row.chain,
             row.cap_band,
@@ -2489,7 +2491,6 @@
             row.public_read,
             list(row.warnings).join(" "),
           ], {includeWatchFlags: false, needsLimit: 1}),
-          ["watch flags", list(row.warnings).length ? list(row.warnings).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
         node.appendChild(item);
@@ -2505,7 +2506,7 @@
       const normalizedQuery = normalizeSearchText(queryText);
       const filtered = rows.filter((row) => !normalizedQuery || alertSearchText(row).includes(normalizedQuery));
       const active = rows.filter((row) => rawText(row.status, "").toLowerCase() === "active").length;
-      countNode.textContent = rows.length ? `${rows.length} condition templates, ${active} active` : "Notification delivery is not enabled in this public preview.";
+      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} condition templates shown, ${active} active` : "Notification delivery is not enabled in this public preview.";
       if (!rows.length) {
         const buildingSearch = searchTextFromParts("alert builder", "building", "available on pro");
         node.appendChild(buildPreviewCard(
@@ -2519,7 +2520,7 @@
         ));
         return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
       }
-      const rowsToRender = filtered.slice(0, 8);
+      const rowsToRender = filtered.slice(0, 4);
       if (!rowsToRender.length) {
         node.appendChild(buildPreviewCard(
           "No alert templates match this search yet",
@@ -2538,10 +2539,7 @@
         const detailRows = [
           ["status", publicLabel(row.status, "unknown")],
           ["severity", publicLabel(row.severity, "unknown")],
-          ["chains", list(row.chains).length ? list(row.chains).map((item) => publicLabel(item, item)).join(" · ") : "none"],
-          ["cap bands", list(row.cap_bands).length ? list(row.cap_bands).map((item) => humanCapBandLabel(item)).join(" · ") : "none"],
-          ["window", humanWindowLabel(row.window)],
-          ["available on", publicLabel(row.available_on, "pro")],
+          ["matched states", String(list(row.matched_state_ids).length)],
           ...alertConfirmationDetailsFromRow(row),
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, alertSearchText(row));
@@ -2633,9 +2631,11 @@
       const meta = isObject(payload && payload.metadata) ? payload.metadata : {};
       const archiveCount = Number.isFinite(Number(meta.archive_record_count)) ? Number(meta.archive_record_count) : 0;
       const minimum = Number.isFinite(Number(meta.minimum_records_required)) ? Number(meta.minimum_records_required) : 20;
+      const eligible = Number.isFinite(Number(meta.eligible_comparable_record_count)) ? Number(meta.eligible_comparable_record_count) : 0;
+      const gapHours = Number.isFinite(Number(meta.minimum_age_gap_hours)) ? Number(meta.minimum_age_gap_hours) : 6;
       countNode.textContent = status === "available"
-        ? `${comparables.length} comparable windows available`
-        : `building, ${archiveCount}/${minimum} archive records`;
+        ? `${comparables.length} comparable older windows available`
+        : `collecting enough separated market-state history before showing comparable windows · ${archiveCount}/${minimum} archive records · ${eligible} eligible older records · ${gapHours}h gap`;
 
       const cardSearch = searchTextFromParts(
         "historical replay",
@@ -2651,12 +2651,12 @@
       if (normalizedQuery && !cardSearch.includes(normalizedQuery)) {
         node.appendChild(buildPreviewCard(
           "Historical Replay",
-          "Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.",
+          "Historical Replay is collecting enough separated market-state history before showing comparable windows.",
           "Available on Advanced Desk",
           [
             ["status", titleCase(status)],
             ["archive records", `${archiveCount}/${minimum}`],
-            ["comparables", String(comparables.length)],
+            ["eligible older", String(eligible)],
           ],
           cardSearch
         ));
@@ -2665,10 +2665,10 @@
 
       const headline = status === "available"
         ? "Historical Replay is available"
-        : "Historical Replay is collecting public market-state history";
+        : "Historical Replay is collecting enough separated market-state history";
       const copy = status === "available"
         ? "Comparable public windows are ready."
-        : "Comparable windows will appear once enough records exist.";
+        : "Comparable windows will appear once older public states exist.";
       node.appendChild(buildPreviewCard(
         headline,
         copy,
@@ -2676,24 +2676,26 @@
         [
           ["status", titleCase(status)],
           ["archive records", `${archiveCount}/${minimum}`],
-          ["comparables", String(comparables.length)],
+          ["eligible older", String(eligible)],
+          ["minimum gap", `${gapHours}h`],
         ],
         cardSearch
       ));
-      comparables.slice(0, 3).forEach((row) => {
+      comparables.slice(0, 2).forEach((row) => {
         const item = buildPreviewCard(
-          `${publicLabel(row.current_state_id, row.current_state_id)} → ${publicLabel(row.matched_state_id, row.matched_state_id)}`,
+          `${chainDisplayLabel(row.chain)} ${humanCapBandLabel(row.cap_band)} · older window`,
           rawText(row.public_read, "Comparable public window."),
           "Available on Advanced Desk",
           [
             ["similarity", Number.isFinite(Number(row.similarity_score)) ? String(row.similarity_score) : "unknown"],
+            ["matched window start", rawText(row.matched_window_start, "unknown")],
             ["reasons", list(row.match_reasons).length ? list(row.match_reasons).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
           ],
           searchTextFromParts(row.current_state_id, row.matched_state_id, row.public_read, row.match_reasons)
         );
         node.appendChild(item);
       });
-      return 1 + Math.min(comparables.length, 3);
+      return 1 + Math.min(comparables.length, 2);
     }
 
     async function boot() {
