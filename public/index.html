@@ -546,6 +546,7 @@
       <div class="topline">
         <h1>RavenOS</h1>
         <p class="stamp" id="generatedAt">updated recently</p>
+        <p class="stamp" id="refreshedAt">refreshing...</p>
       </div>
       <div class="intro">
         <p>RavenOS reads crypto market behavior across chains, breadth, liquidity, leverage, and risk rotation.</p>
@@ -1836,6 +1837,10 @@
     async function boot() {
       const snapshots = await fetchJsonPayloads(SNAPSHOT_URLS);
       const latests = await fetchJsonPayloads(LATEST_URLS);
+      const refreshStatuses = await fetchJsonPayloads([
+        "/ravenos_refresh_status.json",
+        "/public/ravenos_refresh_status.json",
+      ]);
       const marketStates = await fetchJsonPayloads([
         "/ravenos_market_states.json",
         "/public/ravenos_market_states.json",
@@ -1854,12 +1859,14 @@
       ]);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
+      let refreshStatus = freshestByGeneratedAt(refreshStatuses);
       let marketStatePayload = freshestByGeneratedAt(marketStates);
       const riskSearchPayload = normalizePublicPayload(freshestByGeneratedAt(riskSearches));
       const participantOutcomePayload = normalizePublicPayload(freshestByGeneratedAt(participantOutcomes));
       const historicalReplayPayload = normalizePublicPayload(freshestByGeneratedAt(historicalReplays));
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
+      refreshStatus = normalizePublicPayload(refreshStatus);
       const conditionAlertsPayload = isObject(snapshot.condition_alerts) ? snapshot.condition_alerts : {};
       const stats = {
         marketStateCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).length,
@@ -1872,6 +1879,7 @@
         archiveRecordCount: Number.isFinite(Number(historicalReplayPayload.metadata && historicalReplayPayload.metadata.archive_record_count)) ? Number(historicalReplayPayload.metadata.archive_record_count) : 0,
       };
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
+      setText("refreshedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
