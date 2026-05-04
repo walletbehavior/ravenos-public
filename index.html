@@ -769,7 +769,7 @@
         badge: "Public",
         status: "Live now",
         copy: "Broad market read, live chain pulse, public caution flags, and limited previews of paid modules.",
-        features: ["Current Market Read", "Live Chain Read", "Today’s Weather", "Market Search Preview", "public caution flags"],
+        features: ["Current Market Read", "Live Chain Read", "Today’s Weather", "Market Search Preview", "Public caution flags"],
         cta: "Live now",
         live: true
       },
@@ -778,7 +778,7 @@
         badge: "Pro preview",
         status: "Available on Pro",
         copy: "Search public market states, risk rows, cap-band reads, participant outcomes, and condition alerts.",
-        features: ["Market Search", "Risk Search", "Cap-Band Search", "Participant Outcome", "Condition Alerts", "saved searches later"],
+        features: ["Market Search", "Risk Search", "Cap-Band Search", "Participant Outcome", "Condition Alerts", "Saved searches later"],
         cta: "Available on Pro"
       },
       {
@@ -786,7 +786,7 @@
         badge: "Desk intelligence",
         status: "Available on Advanced Desk",
         copy: "Deeper market-regime context, historical condition replay, advanced alerts, and higher-level desk reads.",
-        features: ["everything in Pro", "Historical Replay", "Macro Context", "advanced alerts", "cross-market context", "exportable reports later"],
+        features: ["Everything in Pro", "Historical Replay", "Macro Context", "Advanced alerts", "Cross-market context", "Exportable reports later"],
         cta: "Available on Advanced Desk"
       },
       {
@@ -794,7 +794,7 @@
         badge: "Enterprise",
         status: "Custom access",
         copy: "Custom dashboards, team access, API/export options, dedicated deployments, and research support.",
-        features: ["team access", "custom dashboards", "API / data exports", "dedicated deployment options", "custom reporting"],
+        features: ["Team access", "Custom dashboards", "API / data exports", "Dedicated deployment options", "Custom reporting"],
         cta: "Contact for access"
       }
     ];
@@ -1042,23 +1042,30 @@
       return "more confirmed";
     }
 
-    function confirmationDetailsFromRow(row, parts = []) {
+    function confirmationDetailsFromRow(row, parts = [], options = {}) {
+      const includeWatchFlags = options.includeWatchFlags !== false;
+      const needsLimit = Number.isFinite(Number(options.needsLimit)) ? Math.max(1, Number(options.needsLimit)) : 2;
       const combined = confirmationInsightText(...parts);
-      const needs = confirmationNeedsFromText(combined);
+      const needs = confirmationNeedsFromText(combined).slice(0, needsLimit);
       const status = confirmationStatusFromText(combined);
       const watchFlags = [];
       const pushFlag = (value) => {
         const clean = rawText(value, "");
         if (clean && !watchFlags.includes(clean)) watchFlags.push(clean);
       };
-      list(row && row.warnings).slice(0, 2).forEach(pushFlag);
-      list(row && row.drivers).slice(0, 2).forEach(pushFlag);
-      const flags = watchFlags.length ? watchFlags.map((item) => publicLabel(item, item)).join(" · ") : "none";
-      return [
+      if (includeWatchFlags) {
+        list(row && row.warnings).slice(0, 2).forEach(pushFlag);
+        list(row && row.drivers).slice(0, 2).forEach(pushFlag);
+      }
+      const rows = [
         ["confirmation status", status],
         ["what would confirm this read", needs.join(" ")],
-        ["watch flags", flags],
       ];
+      if (includeWatchFlags) {
+        const flags = watchFlags.length ? watchFlags.map((item) => publicLabel(item, item)).join(" · ") : "none";
+        rows.push(["watch flags", flags]);
+      }
+      return rows;
     }
 
     function alertConfirmationDetailsFromRow(row) {
@@ -2049,7 +2056,7 @@
               state.data_quality && state.data_quality.observed_sample,
               state.breadth && state.breadth.direction,
               state.breadth && state.breadth.strength,
-            ]),
+            ], {includeWatchFlags: false, needsLimit: 1}),
             ["summary", rawText(state.summary, "Public-safe market-state read is building.")],
           ].forEach(([label, value]) => {
             const row = document.createElement("div");
@@ -2295,7 +2302,7 @@
             row.public_read,
             row.condition,
             list(row.drivers).join(" "),
-          ]),
+          ], {needsLimit: 1}),
           ["drivers", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => rawText(item)).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
@@ -2363,7 +2370,7 @@
             row.data_quality,
             row.public_read,
             list(row.warnings).join(" "),
-          ]),
+          ], {needsLimit: 1}),
           ["warnings", list(row.warnings).length ? list(row.warnings).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
