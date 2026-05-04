@@ -460,6 +460,42 @@
       margin-top: 0;
     }
 
+    .compact-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 2px;
+    }
+
+    .compact-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 8px;
+      color: var(--muted);
+      background: var(--soft);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .compact-chip strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .preview-row-card {
+      padding: 12px 14px;
+    }
+
+    .preview-row-card .details {
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .preview-row-card .detail {
+      border-top: 0;
+      padding-top: 0;
+    }
+
     .locked-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1113,6 +1149,18 @@
       return reasons.slice(0, 2);
     }
 
+    function riskConfirmationNeed(row) {
+      const type = rawText(row && row.risk_type, "").toLowerCase();
+      if (type === "thin_sample") return "Needs more clean public sample.";
+      if (type === "confirmation_incomplete") return "Needs the same read to hold across refreshes.";
+      if (type === "outlier_dependency") return "Needs gains to broaden beyond outlier moves.";
+      if (type === "window_disagreement") return "Needs longer windows to align with the current read.";
+      if (type === "source_freshness_limited") return "Needs fresher public source coverage.";
+      if (type === "data_quality") return "Needs data quality to move from building to clean.";
+      if (type === "unknown_outcome") return "Needs participant outcome to resolve from unknown.";
+      return "Needs broader confirmation across public states.";
+    }
+
     function confirmationStatusFromText(text) {
       const clean = normalizeSearchText(text);
       if (
@@ -1184,7 +1232,6 @@
       return [
         ["confirmation status", confirmationStatus],
         ["what would confirm this alert", needs],
-        ["matched states", String(matchedCount)],
       ];
     }
 
@@ -2151,7 +2198,7 @@
         }
         filtered.slice(0, 4).forEach((state) => {
           const item = document.createElement("article");
-          item.className = "result-card";
+          item.className = "result-card preview-row-card";
           item.dataset.stateId = rawText(state.state_id, "");
           item.dataset.searchText = marketStateSearchText(state);
           const title = document.createElement("div");
@@ -2163,41 +2210,31 @@
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
-          const details = document.createElement("div");
-          details.className = "details";
-          [
+          const confirmRows = confirmationDetailsFromRow(state, [
+            state.chain,
+            state.cap_band,
+            state.window,
+            state.condition,
+            state.summary,
+            state.warnings,
+            state.risk && state.risk.level,
+            state.risk && list(state.risk.drivers).join(" "),
+            state.participant_outcome && state.participant_outcome.direction,
+            state.participant_outcome && state.participant_outcome.confidence,
+            state.data_quality && state.data_quality.status,
+            state.data_quality && state.data_quality.clean_sample,
+            state.data_quality && state.data_quality.observed_sample,
+            state.breadth && state.breadth.direction,
+            state.breadth && state.breadth.strength,
+          ], {includeWatchFlags: false, needsLimit: 1});
+          const chips = buildCompactChips([
             ["condition", publicLabel(state.condition, "unknown")],
             ["participant outcome", publicLabel(state.participant_outcome && state.participant_outcome.direction, "unknown")],
-            ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
             ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
-            ...confirmationDetailsFromRow(state, [
-              state.chain,
-              state.cap_band,
-              state.window,
-              state.condition,
-              state.summary,
-              state.warnings,
-              state.risk && state.risk.level,
-              state.risk && list(state.risk.drivers).join(" "),
-              state.participant_outcome && state.participant_outcome.direction,
-              state.participant_outcome && state.participant_outcome.confidence,
-              state.data_quality && state.data_quality.status,
-              state.data_quality && state.data_quality.clean_sample,
-              state.data_quality && state.data_quality.observed_sample,
-              state.breadth && state.breadth.direction,
-              state.breadth && state.breadth.strength,
-            ], {includeWatchFlags: false, needsLimit: 1}),
-          ].forEach(([label, value]) => {
-            const row = document.createElement("div");
-            row.className = "detail";
-            const left = document.createElement("span");
-            left.textContent = label;
-            const right = document.createElement("strong");
-            right.textContent = value;
-            row.append(left, right);
-            details.appendChild(row);
-          });
-          item.append(title, meta, summary, details);
+            ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
+            ["confirmation", rawText(confirmRows[0] && confirmRows[0][1], "building")],
+          ]);
+          item.append(title, meta, summary, chips);
           item.addEventListener("click", () => emitMarketSearchTelemetry("result_clicked", {
             clicked_state_id: item.dataset.stateId,
             query_normalized: queryText,
@@ -2373,6 +2410,66 @@
       return item;
     }
 
+    function buildCompactChips(rows) {
+      const chips = document.createElement("div");
+      chips.className = "compact-chips";
+      rows.filter((row) => Array.isArray(row) && row.length >= 2).forEach(([label, value]) => {
+        const chip = document.createElement("span");
+        chip.className = "compact-chip";
+        const strong = document.createElement("strong");
+        strong.textContent = `${label}: `;
+        chip.appendChild(strong);
+        chip.append(document.createTextNode(rawText(value, "unknown")));
+        chips.appendChild(chip);
+      });
+      return chips;
+    }
+
+    function buildCompactPreviewCard(title, meta, copy, badge, chipRows, searchText, detailRows = []) {
+      const item = document.createElement("article");
+      item.className = "card preview-row-card";
+      if (badge) {
+        const mark = document.createElement("span");
+        mark.className = "badge";
+        mark.textContent = badge;
+        item.appendChild(mark);
+      }
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      item.appendChild(h3);
+      if (meta) {
+        const metaNode = document.createElement("div");
+        metaNode.className = "result-meta";
+        metaNode.textContent = meta;
+        item.appendChild(metaNode);
+      }
+      if (copy) {
+        const p = document.createElement("p");
+        p.textContent = copy;
+        item.appendChild(p);
+      }
+      if (Array.isArray(chipRows) && chipRows.length) {
+        item.appendChild(buildCompactChips(chipRows));
+      }
+      if (Array.isArray(detailRows) && detailRows.length) {
+        const details = document.createElement("div");
+        details.className = "details";
+        detailRows.forEach(([label, value]) => {
+          const row = document.createElement("div");
+          row.className = "detail";
+          const left = document.createElement("span");
+          left.textContent = label;
+          const right = document.createElement("strong");
+          right.textContent = value;
+          row.append(left, right);
+          details.appendChild(row);
+        });
+        item.appendChild(details);
+      }
+      if (searchText) item.dataset.searchText = normalizeSearchText(searchText);
+      return item;
+    }
+
     function renderRiskSearchPreview(payload, queryText) {
       const node = document.getElementById("riskSearchPreview");
       const countNode = document.getElementById("riskSearchCount");
@@ -2412,25 +2509,21 @@
       }
       limitedRows.forEach((row) => {
         const title = riskDisplayTitle(row);
-        const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe risk read is available.")}`;
+        const affectedRead = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`;
+        const copy = rawText(row.public_read, "Public-safe risk read is available.");
         const detailRows = [
-          ["risk level", publicLabel(row.risk_level, "unknown")],
-          ["affected read", `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`],
-          ...confirmationDetailsFromRow(row, [
-            row.chain,
-            row.cap_band,
-            row.window,
-            row.risk_type,
-            row.risk_level,
-            row.data_quality,
-            row.participant_outcome,
-            row.public_read,
-            row.condition,
-            list(row.drivers).join(" "),
-          ], {includeWatchFlags: false, needsLimit: 1}),
+          ["what would confirm this read", riskConfirmationNeed(row)],
           ["watch flags", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
-        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
+        const item = buildCompactPreviewCard(
+          title,
+          affectedRead,
+          copy,
+          "Available on Pro",
+          [["risk", publicLabel(row.risk_level, "unknown")]],
+          riskSearchText(row),
+          detailRows
+        );
         node.appendChild(item);
       });
       return limitedRows.length;
@@ -2473,26 +2566,36 @@
         return 0;
       }
       rowsToRender.forEach((row) => {
-        const title = participantOutcomeDisplayTitle(row);
-        const copy = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}. ${rawText(row.public_read, "Public-safe outcome read is available.")}`;
-        const detailRows = [
+        const meta = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`;
+        const confirmRows = confirmationDetailsFromRow(row, [
+          row.chain,
+          row.cap_band,
+          row.window,
+          row.participant_outcome,
+          row.direction,
+          row.confidence,
+          row.data_quality,
+          row.public_read,
+          list(row.warnings).join(" "),
+        ], {includeWatchFlags: false, needsLimit: 1});
+        const detailRows = [[
+          "confirmation",
+          rawText(confirmRows[0] && confirmRows[0][1], "building"),
+        ]];
+        const item = buildCompactPreviewCard(
+          participantOutcomeDisplayTitle(row),
+          meta,
+          rawText(row.public_read, "Public-safe outcome read is available."),
+          "Available on Pro",
+          [
           ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
           ["confidence", publicLabel(row.confidence, "unknown")],
           ["data quality", publicLabel(row.data_quality, "unknown")],
           ["sample", `${Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "unknown"} / ${Number.isFinite(Number(row.observed_sample)) ? String(row.observed_sample) : "unknown"}`],
-          ...confirmationDetailsFromRow(row, [
-            row.chain,
-            row.cap_band,
-            row.window,
-            row.participant_outcome,
-            row.direction,
-            row.confidence,
-            row.data_quality,
-            row.public_read,
-            list(row.warnings).join(" "),
-          ], {includeWatchFlags: false, needsLimit: 1}),
-        ];
-        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
+          ],
+          participantOutcomeSearchText(row),
+          detailRows
+        );
         node.appendChild(item);
       });
       return rowsToRender.length;
@@ -2536,13 +2639,22 @@
       rowsToRender.forEach((row) => {
         const title = rawText(row.title, "Alert template");
         const copy = rawText(row.public_read, "Public-safe condition alert is available.");
+        const matchedCount = list(row.matched_state_ids).length;
         const detailRows = [
-          ["status", publicLabel(row.status, "unknown")],
-          ["severity", publicLabel(row.severity, "unknown")],
-          ["matched states", String(list(row.matched_state_ids).length)],
           ...alertConfirmationDetailsFromRow(row),
         ];
-        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, alertSearchText(row));
+        const item = buildCompactPreviewCard(
+          title,
+          `${matchedCount} matched public ${matchedCount === 1 ? "state" : "states"} · ${humanWindowLabel(row.window)}`,
+          copy,
+          "Available on Pro",
+          [
+            ["status", publicLabel(row.status, "unknown")],
+            ["severity", publicLabel(row.severity, "unknown")],
+          ],
+          alertSearchText(row),
+          detailRows
+        );
         node.appendChild(item);
       });
       return rowsToRender.length;
@@ -2558,49 +2670,33 @@
       const macro = isObject(snapshot.macro_regime_context) ? snapshot.macro_regime_context : {};
       const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
       const market = isObject(snapshot.market_context) ? snapshot.market_context : {};
+      const marketTape = list(market.tape).slice(0, 3).map((item) => rawText(item)).filter(Boolean);
       const cards = [
         {
-          title: "Desk read",
-          badge: "Public",
+          title: "Desk Context",
+          badge: "Available on Advanced Desk",
           copy: rawText(snapshot.desk_read, "Desk read is building."),
           rows: [
-            ["status", "public-safe"],
-            ["signal", "surface read"],
-          ],
-          search: searchTextFromParts("desk read", snapshot.desk_read, "public-safe", "surface read", "context"),
-        },
-        {
-          title: "Macro context",
-          badge: "Available on Advanced Desk",
-          copy: rawText(macro.status, "").toLowerCase() === "unavailable" ? "Unavailable in public preview." : rawText(macro.status, "Unavailable in public preview."),
-          rows: [
-            ["status", publicLabel(macro.status, "unavailable")],
-            ["window", humanWindowLabel(macro.window)],
-            ["risk read", publicLabel(macro.market && macro.market.risk_read, "unknown")],
-          ],
-          search: searchTextFromParts("macro context", macro.status, macro.window, macro.market && macro.market.risk_read, list(macro.market && macro.market.warnings).join(" ")),
-        },
-        {
-          title: "Perp pressure",
-          badge: "Available on Advanced Desk",
-          copy: rawText(perp.status, "").toLowerCase() === "unavailable" ? "Unavailable in public preview." : rawText(perp.status, "Unavailable in public preview."),
-          rows: [
-            ["status", publicLabel(perp.status, "unavailable")],
-            ["window", humanWindowLabel(perp.window)],
-            ["risk read", publicLabel(perp.market && perp.market.risk_read, "unknown")],
-          ],
-          search: searchTextFromParts("perp pressure", perp.status, perp.window, perp.market && perp.market.risk_read, list(perp.market && perp.market.warnings).join(" ")),
-        },
-        {
-          title: "Market context",
-          badge: "Public",
-          copy: rawText(market.status, "").toLowerCase() === "partial" ? "Public market context is partial." : rawText(market.updated_label, "Public market context is partial."),
-          rows: [
-            ["status", publicLabel(market.status, "partial")],
+            ["desk read", "public surface"],
+            ["market context", publicLabel(market.status, "partial")],
             ["updated", rawText(market.updated_label, "updated recently")],
-            ["tape", list(market.tape).length ? list(market.tape).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
+            ["tape", marketTape.length ? marketTape.join(" · ") : "building"],
+            ["macro context", "Available on Advanced Desk"],
+            ["perp pressure", "Available on Advanced Desk"],
           ],
-          search: searchTextFromParts("market context", market.status, market.updated_label, list(market.tape).join(" "), list(market.assets).map((asset) => asset && asset.symbol).join(" ")),
+          search: searchTextFromParts(
+            "desk context",
+            "macro context",
+            "perp pressure",
+            "market context",
+            "advanced desk",
+            snapshot.desk_read,
+            market.status,
+            market.updated_label,
+            marketTape.join(" "),
+            macro.status,
+            perp.status
+          ),
         },
       ];
 
@@ -2633,14 +2729,15 @@
       const minimum = Number.isFinite(Number(meta.minimum_records_required)) ? Number(meta.minimum_records_required) : 20;
       const eligible = Number.isFinite(Number(meta.eligible_comparable_record_count)) ? Number(meta.eligible_comparable_record_count) : 0;
       const gapHours = Number.isFinite(Number(meta.minimum_age_gap_hours)) ? Number(meta.minimum_age_gap_hours) : 6;
-      countNode.textContent = status === "available"
+      const displayStatus = status === "available" && eligible >= minimum && comparables.length ? "available" : "building";
+      countNode.textContent = displayStatus === "available"
         ? `${comparables.length} comparable older windows available`
         : `collecting enough separated market-state history before showing comparable windows · ${archiveCount}/${minimum} archive records · ${eligible} eligible older records · ${gapHours}h gap`;
 
       const cardSearch = searchTextFromParts(
         "historical replay",
         "advanced desk",
-        status,
+        displayStatus,
         archiveCount,
         minimum,
         comparables.length,
@@ -2654,7 +2751,7 @@
           "Historical Replay is collecting enough separated market-state history before showing comparable windows.",
           "Available on Advanced Desk",
           [
-            ["status", titleCase(status)],
+            ["status", titleCase(displayStatus)],
             ["archive records", `${archiveCount}/${minimum}`],
             ["eligible older", String(eligible)],
           ],
@@ -2663,24 +2760,25 @@
         return 0;
       }
 
-      const headline = status === "available"
+      const headline = displayStatus === "available"
         ? "Historical Replay is available"
         : "Historical Replay is collecting enough separated market-state history";
-      const copy = status === "available"
+      const copy = displayStatus === "available"
         ? "Comparable public windows are ready."
-        : "Comparable windows will appear once older public states exist.";
+        : "Historical Replay is collecting enough separated market-state history before showing comparable windows.";
       node.appendChild(buildPreviewCard(
         headline,
         copy,
         "Available on Advanced Desk",
         [
-          ["status", titleCase(status)],
+          ["status", titleCase(displayStatus)],
           ["archive records", `${archiveCount}/${minimum}`],
           ["eligible older", String(eligible)],
           ["minimum gap", `${gapHours}h`],
         ],
         cardSearch
       ));
+      if (displayStatus !== "available") return 1;
       comparables.slice(0, 2).forEach((row) => {
         const item = buildPreviewCard(
           `${chainDisplayLabel(row.chain)} ${humanCapBandLabel(row.cap_band)} · older window`,
