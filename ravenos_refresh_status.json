@@ -2,21 +2,18 @@
   "alert_count": 6,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-05-04T14:51:21Z",
-    "latest_generated_at": "2026-05-04T14:51:19Z",
-    "records": 9
+    "latest_archived_at": "2026-05-04T14:52:27Z",
+    "latest_generated_at": "2026-05-04T14:52:25Z",
+    "records": 11
   },
-  "commit_hash": null,
-  "generated_at": "2026-05-04T14:51:19Z",
+  "generated_at": "2026-05-04T14:52:25Z",
   "historical_replay_status": {
     "comparables": 0,
     "status": "building"
   },
   "market_state_count": 6,
-  "no_changes": false,
   "no_leak_ok": true,
   "participant_outcome_count": 6,
-  "pushed": false,
   "risk_state_count": 35,
   "schema_version": "ravenos_refresh_status_v0",
   "timer": {
@@ -28,5 +25,5 @@
     "sub_state": "waiting",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-05-04T14:51:21.579214+00:00"
+  "updated_at": "2026-05-04T14:52:27.676867+00:00"
 }
