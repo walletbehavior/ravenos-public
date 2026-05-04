@@ -1,10 +1,10 @@
 {
   "comparables": [],
-  "generated_at": "2026-05-04T20:53:15Z",
+  "generated_at": "2026-05-04T21:08:45Z",
   "metadata": {
-    "archive_record_count": 48,
+    "archive_record_count": 49,
     "current_state_count": 6,
-    "eligible_comparable_record_count": 11,
+    "eligible_comparable_record_count": 13,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },
