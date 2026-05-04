@@ -754,9 +754,9 @@
 
     <p class="section-copy">These previews show the surface read. Pro and Desk depth add full lists, saved searches, alerts, historical comparables, exports, and deeper context.</p>
 
-    <h2 class="section-title">risk search preview</h2>
+    <h2 class="section-title">what could make this read unreliable</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.</p>
-    <p class="section-copy">Risk Search shows where a market read may be fragile. Risk types include thin sample, confirmation incomplete, window disagreement, outlier dependency, source freshness limits, and unknown participant outcome.</p>
+    <p class="section-copy">These cards explain why a market read may still be fragile: not enough clean data, incomplete confirmation, outlier-driven moves, stale source coverage, or disagreement across windows.</p>
     <section class="preview-grid" id="riskSearchPreview"></section>
 
     <h2 class="section-title">participant outcome preview</h2>
@@ -970,7 +970,42 @@
 
     function riskDisplayTitle(row) {
       if (!isObject(row)) return "Risk read";
-      return sentenceLabel(row.risk_type, "Risk read");
+      const type = rawText(row.risk_type, "").toLowerCase();
+      if (type === "thin_sample") return "Not enough clean data yet";
+      if (type === "confirmation_incomplete") return "Move has not confirmed yet";
+      if (type === "outlier_dependency") return "Move may be carried by outliers";
+      if (type === "window_disagreement") return "Short-term and longer-term reads disagree";
+      if (type === "source_freshness_limited") return "Source coverage is not fresh enough";
+      if (type === "data_quality") return "Data quality still building";
+      if (type === "unknown_outcome") return "Participant outcome is not clear yet";
+      return "Read still needs confirmation";
+    }
+
+    function riskDisplayCopy(row) {
+      if (!isObject(row)) return "This market read is forming, but RavenOS does not have enough public confirmation yet.";
+      const type = rawText(row.risk_type, "").toLowerCase();
+      if (type === "thin_sample") {
+        return "The market is visible, but the clean public sample is still too thin to fully trust the read.";
+      }
+      if (type === "confirmation_incomplete") {
+        return "The current read is forming, but it has not held across refreshes or broader windows yet.";
+      }
+      if (type === "outlier_dependency") {
+        return "The read may be leaning on a small number of strong movers instead of broad participation.";
+      }
+      if (type === "window_disagreement") {
+        return "The current window is not aligned with broader market windows yet.";
+      }
+      if (type === "source_freshness_limited") {
+        return "The read is public-safe, but source freshness is limiting confidence.";
+      }
+      if (type === "data_quality") {
+        return "The read exists, but data quality is not clean enough yet.";
+      }
+      if (type === "unknown_outcome") {
+        return "The market is active, but the public sample does not yet show whether participants are being rewarded or punished.";
+      }
+      return "This market read is forming, but RavenOS does not have enough public confirmation yet.";
     }
 
     function participantOutcomeDisplayTitle(row) {
@@ -1058,8 +1093,10 @@
       if (!isObject(row)) return "";
       return searchTextFromParts(
         row.risk_type,
+        riskDisplayTitle(row),
         row.risk_level,
         "risk",
+        "risk search",
         "trap",
         "warning",
         "driver",
@@ -1151,14 +1188,14 @@
 
     function riskConfirmationNeed(row) {
       const type = rawText(row && row.risk_type, "").toLowerCase();
-      if (type === "thin_sample") return "Needs more clean public sample.";
-      if (type === "confirmation_incomplete") return "Needs the same read to hold across refreshes.";
-      if (type === "outlier_dependency") return "Needs gains to broaden beyond outlier moves.";
-      if (type === "window_disagreement") return "Needs longer windows to align with the current read.";
-      if (type === "source_freshness_limited") return "Needs fresher public source coverage.";
-      if (type === "data_quality") return "Needs data quality to move from building to clean.";
-      if (type === "unknown_outcome") return "Needs participant outcome to resolve from unknown.";
-      return "Needs broader confirmation across public states.";
+      if (type === "thin_sample") return "More assets need to move from thin or weak into the clean sample.";
+      if (type === "confirmation_incomplete") return "The same read needs to persist across refreshes and align with broader windows.";
+      if (type === "outlier_dependency") return "Gains need to broaden beyond outlier moves.";
+      if (type === "window_disagreement") return "Longer windows need to align with the current read.";
+      if (type === "source_freshness_limited") return "Fresher public source coverage needs to support the same read.";
+      if (type === "data_quality") return "Data quality needs to move from building or thin to clean.";
+      if (type === "unknown_outcome") return "Participant outcome needs to resolve from unknown.";
+      return "More public states need to support the same read.";
     }
 
     function confirmationStatusFromText(text) {
@@ -2498,7 +2535,7 @@
       if (!rowsToRender.length) {
         node.appendChild(buildPreviewCard(
           "No risk rows match this search yet",
-          "Try a broader term like solana, eth, base, confirmation, thin sample, or window disagreement.",
+          "Try a broader term like risk search, solana, confirmation, clean data, or broader windows.",
           "Available on Pro",
           [
             ["risk rows", `${rows.length} available`],
@@ -2510,7 +2547,7 @@
       limitedRows.forEach((row) => {
         const title = riskDisplayTitle(row);
         const affectedRead = `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)}`;
-        const copy = rawText(row.public_read, "Public-safe risk read is available.");
+        const copy = riskDisplayCopy(row);
         const detailRows = [
           ["what would confirm this read", riskConfirmationNeed(row)],
           ["watch flags", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
@@ -2520,7 +2557,7 @@
           affectedRead,
           copy,
           "Available on Pro",
-          [["risk", publicLabel(row.risk_level, "unknown")]],
+          [["risk level", publicLabel(row.risk_level, "unknown")]],
           riskSearchText(row),
           detailRows
         );
