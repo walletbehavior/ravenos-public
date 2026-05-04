@@ -14,6 +14,7 @@
       --muted: #9aa5a4;
       --line: #283133;
       --accent: #79d0bf;
+      --brand-os: #8f6cff;
       --good: #88c77f;
       --warn: #d9b86a;
       --bad: #d97870;
@@ -52,8 +53,27 @@
     }
 
     h1 {
-      font-size: 25px;
-      font-weight: 700;
+      margin: 0;
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: baseline;
+      font-size: clamp(2.35rem, 7vw, 4.9rem);
+      font-weight: 850;
+      line-height: 0.92;
+      letter-spacing: -0.07em;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .wordmark-raven {
+      color: var(--text);
+    }
+
+    .wordmark-os {
+      color: var(--brand-os);
+      margin-left: 0.03em;
     }
 
     .stamp {
@@ -571,7 +591,7 @@
   <main>
     <header>
       <div class="topline">
-        <h1>RavenOS</h1>
+        <h1 class="wordmark" aria-label="RavenOS"><span class="wordmark-raven">Raven</span><span class="wordmark-os">OS</span></h1>
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
