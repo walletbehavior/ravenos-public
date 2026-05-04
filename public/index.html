@@ -696,7 +696,7 @@
 
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
-    <p class="section-copy">Condition alerts track market states like clean positive reads, thin EVM reads, confirmation risk, and window disagreement. Real user notifications are still building.</p>
+    <p class="section-copy">Condition alerts track market states like clean positive reads, thin EVM reads, confirmation risk, and window disagreement. Real user notifications are still building. Alert templates feel confirmed when the underlying public states keep matching the same condition.</p>
     <section class="preview-grid" id="alertPreview"></section>
 
     <h2 class="section-title">historical replay</h2>
@@ -1058,6 +1058,29 @@
         ["confirmation status", status],
         ["what would confirm this read", needs.join(" ")],
         ["watch flags", flags],
+      ];
+    }
+
+    function alertConfirmationDetailsFromRow(row) {
+      const status = rawText(row && row.status, "building").toLowerCase();
+      const severity = rawText(row && row.severity, "watch").toLowerCase();
+      const matchedCount = list(row && row.matched_state_ids).length;
+      const needs = [];
+      if (status === "building") {
+        needs.push("Needs the underlying market states to align with this template.");
+      } else if (status === "active") {
+        needs.push("Needs the matched market states to keep matching this condition.");
+      } else {
+        needs.push("Needs the public state to continue matching the template.");
+      }
+      if (severity === "warning" || severity === "watch") {
+        needs.push("Needs broad support across the matched states before it feels fully settled.");
+      }
+      const confirmationStatus = status === "active" ? "watching" : "building";
+      return [
+        ["confirmation status", confirmationStatus],
+        ["what would confirm this alert", needs.slice(0, 2).join(" ")],
+        ["matched states", String(matchedCount)],
       ];
     }
 
@@ -2393,8 +2416,8 @@
           ["chains", list(row.chains).length ? list(row.chains).map((item) => publicLabel(item, item)).join(" · ") : "none"],
           ["cap bands", list(row.cap_bands).length ? list(row.cap_bands).map((item) => humanCapBandLabel(item)).join(" · ") : "none"],
           ["window", humanWindowLabel(row.window)],
-          ["matched states", String(list(row.matched_state_ids).length)],
           ["available on", publicLabel(row.available_on, "pro")],
+          ...alertConfirmationDetailsFromRow(row),
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, alertSearchText(row));
         node.appendChild(item);

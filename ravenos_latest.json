@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8723,
+        "classification_rate": 0.8708,
         "classified_total": 1011,
-        "econ_present_rate": 0.8723,
+        "econ_present_rate": 0.8708,
         "econ_present_total": 1011,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 132,
-        "observed_total": 1159,
+        "observed_total": 1161,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -461,7 +461,7 @@
           "econ_present_weak": 92,
           "max_attempts_exhausted_nonterminal": 0,
           "missing_liquidity": 8,
-          "pending_depth": 140,
+          "pending_depth": 142,
           "pending_retry": 0,
           "provider_error": 0,
           "provider_timeout": 0,
@@ -476,11 +476,11 @@
           "usable_signal": 879
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1277,
-        "unresolved_total": 148,
+        "unresolved_rate": 0.1292,
+        "unresolved_total": 150,
         "usable_econ_total": 879,
-        "usable_rate": 0.7584,
-        "usable_signal_rate": 0.7584,
+        "usable_rate": 0.7571,
+        "usable_signal_rate": 0.7571,
         "usable_signal_total": 879,
         "warnings": [
           "data_depth_partial_v0",
@@ -609,16 +609,16 @@
         "window": "6h"
       }
     },
-    "classification_rate": 0.9508,
+    "classification_rate": 0.9507,
     "classified_total": 36512,
-    "econ_present_rate": 0.9508,
+    "econ_present_rate": 0.9507,
     "econ_present_total": 36512,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9448,
-    "observed_total": 38402,
+    "observed_total": 38404,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -626,7 +626,7 @@
       "econ_present_weak": 6364,
       "max_attempts_exhausted_nonterminal": 0,
       "missing_liquidity": 116,
-      "pending_depth": 1774,
+      "pending_depth": 1776,
       "pending_retry": 0,
       "provider_error": 0,
       "provider_timeout": 0,
@@ -641,11 +641,11 @@
       "usable_signal": 27064
     },
     "schema_version": "ravenos_data_depth_v0",
-    "unresolved_rate": 0.0492,
-    "unresolved_total": 1890,
+    "unresolved_rate": 0.0493,
+    "unresolved_total": 1892,
     "usable_econ_total": 27064,
-    "usable_rate": 0.7048,
-    "usable_signal_rate": 0.7048,
+    "usable_rate": 0.7047,
+    "usable_signal_rate": 0.7047,
     "usable_signal_total": 27064,
     "warnings": [
       "data_depth_partial_v0",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-04T15:12:15Z",
+  "generated_at": "2026-05-04T15:14:57Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
