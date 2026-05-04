@@ -1,5 +1,11 @@
 {
   "comparables": [],
-  "generated_at": "2026-05-02T00:00:00Z",
-  "schema_version": "ravenos_historical_replay_v0"
+  "generated_at": "2026-05-04T14:41:15Z",
+  "metadata": {
+    "archive_record_count": 3,
+    "current_state_count": 6,
+    "minimum_records_required": 20
+  },
+  "schema_version": "ravenos_historical_replay_v0",
+  "status": "building"
 }
