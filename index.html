@@ -227,6 +227,12 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
+    .pricing-grid .card {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
     .card h3 {
       font-size: 16px;
       margin-bottom: 8px;
@@ -279,11 +285,13 @@
       overflow-wrap: anywhere;
     }
 
-    .price {
-      display: block;
-      margin: 8px 0;
-      font-size: 28px;
-      font-weight: 700;
+    .access-status {
+      margin: -2px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
     .features {
@@ -294,6 +302,7 @@
       gap: 8px;
       color: var(--muted);
       font-size: 13px;
+      flex: 1;
     }
 
     .features li {
@@ -677,7 +686,7 @@
 
     <h2 class="section-title">risk search preview</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.</p>
-    <p class="section-copy">Risk Search shows why a market read may not be trustworthy yet: thin samples, unknown participant outcome, incomplete confirmation, concentration, or window disagreement.</p>
+    <p class="section-copy">Risk Search shows why a market read may not be trustworthy yet: thin samples, unknown participant outcome, incomplete confirmation, concentration, or window disagreement. Confirmation is complete only when clean sample, participant outcome, breadth, and broader windows support the same read.</p>
     <section class="preview-grid" id="riskSearchPreview"></section>
 
     <h2 class="section-title">participant outcome preview</h2>
@@ -695,7 +704,7 @@
     <p class="section-copy">Historical Replay compares current public market-state conditions to prior public aggregate windows once enough history has accumulated.</p>
     <section class="preview-grid" id="historicalReplayPreview"></section>
 
-    <h2 class="section-title">access</h2>
+    <h2 class="section-title">access levels</h2>
     <section class="pricing-grid" id="pricing"></section>
   </main>
 
@@ -757,35 +766,35 @@
     const PRICING = [
       {
         name: "Public preview",
-        price: "Live now",
-        copy: "Live market read, chain pulse, basic breadth, and public caution flags.",
-        badge: "",
-        features: ["current market read", "chain pulse", "market breadth", "basic caution flags"],
+        badge: "Public",
+        status: "Live now",
+        copy: "Broad market read, live chain pulse, public caution flags, and limited previews of paid modules.",
+        features: ["Current Market Read", "Live Chain Read", "Today’s Weather", "Market Search Preview", "public caution flags"],
         cta: "Live now",
         live: true
       },
       {
         name: "Pro",
-        price: "Available on Pro",
-        copy: "Lane-quality intelligence for traders who want to know where risk is being rewarded and where conditions are punishing participants.",
-        badge: "Early access",
-        features: ["cap-band breakdown", "participant outcome by lane", "followthrough quality", "liquidity quality", "risk ladder", "revival scanner", "condition alerts"],
-        cta: "Available soon"
+        badge: "Pro preview",
+        status: "Available on Pro",
+        copy: "Search public market states, risk rows, cap-band reads, participant outcomes, and condition alerts.",
+        features: ["Market Search", "Risk Search", "Cap-Band Search", "Participant Outcome", "Condition Alerts", "saved searches later"],
+        cta: "Available on Pro"
       },
       {
         name: "Advanced Desk",
-        price: "Available on Advanced Desk",
-        copy: "Deeper market-regime, leverage, and cross-market context for active desks and serious teams.",
         badge: "Desk intelligence",
-        features: ["everything in Pro", "perp pressure", "macro regime context", "advanced context", "higher-frequency intelligence", "historical condition replay"],
-        cta: "Available soon"
+        status: "Available on Advanced Desk",
+        copy: "Deeper market-regime context, historical condition replay, advanced alerts, and higher-level desk reads.",
+        features: ["everything in Pro", "Historical Replay", "Macro Context", "advanced alerts", "cross-market context", "exportable reports later"],
+        cta: "Available on Advanced Desk"
       },
       {
         name: "Enterprise",
-        price: "Custom",
-        copy: "Custom dashboards, team access, API/export options, dedicated deployment options, and research support.",
-        badge: "",
-        features: ["team access", "custom alerts", "API / data exports", "dedicated deployment options", "custom reporting"],
+        badge: "Enterprise",
+        status: "Custom access",
+        copy: "Custom dashboards, team access, API/export options, dedicated deployments, and research support.",
+        features: ["team access", "custom dashboards", "API / data exports", "dedicated deployment options", "custom reporting"],
         cta: "Contact for access"
       }
     ];
@@ -965,6 +974,91 @@
         "punishing",
         "unknown"
       );
+    }
+
+    function confirmationInsightText(...parts) {
+      return normalizeSearchText(searchTextFromParts(...parts));
+    }
+
+    function confirmationNeedsFromText(text) {
+      const clean = normalizeSearchText(text);
+      const reasons = [];
+      const add = (value) => {
+        if (value && !reasons.includes(value)) reasons.push(value);
+      };
+      if (clean.includes("longer windows disagree") || clean.includes("window disagreement")) {
+        add("Needs broader windows to agree with the current read.");
+      }
+      if (clean.includes("positive 24h outlier driven") || clean.includes("outlier dependency") || clean.includes("outlier driven")) {
+        add("Needs gains to broaden beyond a small number of outliers.");
+      }
+      if (clean.includes("source sample insufficient") || clean.includes("thin sample") || clean.includes("observed only") || clean.includes("data quality thin") || clean.includes("data quality observed only") || clean.includes("building")) {
+        add("Needs a stronger clean public sample.");
+      }
+      if (clean.includes("source sample or freshness limited") || clean.includes("freshness limited")) {
+        add("Needs fresher source coverage.");
+      }
+      if (clean.includes("fresh pair age unavailable")) {
+        add("Needs fresh-pair age coverage before this bucket is fully confirmed.");
+      }
+      if (clean.includes("confirmation incomplete")) {
+        add("Needs more confirming evidence before this read is complete.");
+      }
+      if (clean.includes("participant outcome unknown") || clean.includes("participant outcome") && clean.includes("unknown")) {
+        add("Needs participant outcome to resolve from unknown.");
+      }
+      if (clean.includes("risk level high") || clean.includes("concentration")) {
+        add("Needs concentration risk to ease before the read is considered steady.");
+      }
+      if (!reasons.length) {
+        reasons.push("Current read is more confirmed, but still monitored for follow-through.");
+      }
+      return reasons.slice(0, 2);
+    }
+
+    function confirmationStatusFromText(text) {
+      const clean = normalizeSearchText(text);
+      if (
+        clean.includes("source sample insufficient") ||
+        clean.includes("thin sample") ||
+        clean.includes("observed only") ||
+        clean.includes("data quality thin") ||
+        clean.includes("data quality building") ||
+        clean.includes("participant outcome unknown") ||
+        clean.includes("fresh pair age unavailable") ||
+        clean.includes("confirmation incomplete")
+      ) {
+        return "building";
+      }
+      if (
+        clean.includes("longer windows disagree") ||
+        clean.includes("positive 24h outlier driven") ||
+        clean.includes("source sample or freshness limited") ||
+        clean.includes("window disagreement") ||
+        clean.includes("outlier dependency")
+      ) {
+        return "watching";
+      }
+      return "more confirmed";
+    }
+
+    function confirmationDetailsFromRow(row, parts = []) {
+      const combined = confirmationInsightText(...parts);
+      const needs = confirmationNeedsFromText(combined);
+      const status = confirmationStatusFromText(combined);
+      const watchFlags = [];
+      const pushFlag = (value) => {
+        const clean = rawText(value, "");
+        if (clean && !watchFlags.includes(clean)) watchFlags.push(clean);
+      };
+      list(row && row.warnings).slice(0, 2).forEach(pushFlag);
+      list(row && row.drivers).slice(0, 2).forEach(pushFlag);
+      const flags = watchFlags.length ? watchFlags.map((item) => publicLabel(item, item)).join(" · ") : "none";
+      return [
+        ["confirmation status", status],
+        ["what would confirm this read", needs.join(" ")],
+        ["watch flags", flags],
+      ];
     }
 
     function alertSearchText(row) {
@@ -1691,10 +1785,10 @@
       node.textContent = "";
       PRICING.forEach((tier) => {
         const item = card(tier.name, tier.copy, tier.badge);
-        const price = document.createElement("strong");
-        price.className = "price";
-        price.textContent = tier.price;
-        item.insertBefore(price, item.querySelector("p"));
+        const status = document.createElement("div");
+        status.className = "access-status";
+        status.textContent = tier.status;
+        item.insertBefore(status, item.querySelector("p"));
         const ul = document.createElement("ul");
         ul.className = "features";
         tier.features.forEach((feature) => {
@@ -1916,8 +2010,24 @@
             ["breadth", `${publicLabel(state.breadth && state.breadth.direction, "unknown")} · ${publicLabel(state.breadth && state.breadth.strength, "unknown")}`],
             ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
             ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
+            ...confirmationDetailsFromRow(state, [
+              state.chain,
+              state.cap_band,
+              state.window,
+              state.condition,
+              state.summary,
+              state.warnings,
+              state.risk && state.risk.level,
+              state.risk && list(state.risk.drivers).join(" "),
+              state.participant_outcome && state.participant_outcome.direction,
+              state.participant_outcome && state.participant_outcome.confidence,
+              state.data_quality && state.data_quality.status,
+              state.data_quality && state.data_quality.clean_sample,
+              state.data_quality && state.data_quality.observed_sample,
+              state.breadth && state.breadth.direction,
+              state.breadth && state.breadth.strength,
+            ]),
             ["summary", rawText(state.summary, "Public-safe market-state read is building.")],
-            ["warnings", list(state.warnings).length ? list(state.warnings).slice(0, 3).map((item) => rawText(item)).join(" · ") : "none"],
           ].forEach(([label, value]) => {
             const row = document.createElement("div");
             row.className = "detail";
@@ -2151,7 +2261,19 @@
           ["risk level", publicLabel(row.risk_level, "unknown")],
           ["data quality", publicLabel(row.data_quality, "unknown")],
           ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
-          ["drivers", list(row.drivers).length ? list(row.drivers).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
+          ...confirmationDetailsFromRow(row, [
+            row.chain,
+            row.cap_band,
+            row.window,
+            row.risk_type,
+            row.risk_level,
+            row.data_quality,
+            row.participant_outcome,
+            row.public_read,
+            row.condition,
+            list(row.drivers).join(" "),
+          ]),
+          ["drivers", list(row.drivers).length ? list(row.drivers).slice(0, 2).map((item) => rawText(item)).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
         node.appendChild(item);
@@ -2208,7 +2330,18 @@
           ["data quality", publicLabel(row.data_quality, "unknown")],
           ["clean sample", Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "unknown"],
           ["observed sample", Number.isFinite(Number(row.observed_sample)) ? String(row.observed_sample) : "unknown"],
-          ["warnings", list(row.warnings).length ? list(row.warnings).slice(0, 4).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
+          ...confirmationDetailsFromRow(row, [
+            row.chain,
+            row.cap_band,
+            row.window,
+            row.participant_outcome,
+            row.direction,
+            row.confidence,
+            row.data_quality,
+            row.public_read,
+            list(row.warnings).join(" "),
+          ]),
+          ["warnings", list(row.warnings).length ? list(row.warnings).slice(0, 2).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
         ];
         const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
         node.appendChild(item);
