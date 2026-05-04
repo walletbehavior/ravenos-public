@@ -771,6 +771,27 @@
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
     }
 
+    function normalizeSearchText(value) {
+      const textValue = typeof value === "string"
+        ? value
+        : typeof value === "number" || typeof value === "bigint" || typeof value === "boolean"
+          ? String(value)
+          : "";
+      return textValue
+        .toLowerCase()
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function searchTextFromParts(...parts) {
+      return parts
+        .flat(Infinity)
+        .map((part) => normalizeSearchText(part))
+        .filter(Boolean)
+        .join(" ");
+    }
+
     function freshUrl(url) {
       const join = url.includes("?") ? "&" : "?";
       return `${url}${join}v=${Date.now()}`;
@@ -800,23 +821,133 @@
       const participant = state.participant_outcome || {};
       const risk = state.risk || {};
       const quality = state.data_quality || {};
-      return [
+      return searchTextFromParts(
         state.chain,
+        titleCase(state.chain),
         state.cap_band,
+        titleCase(state.cap_band),
         state.window,
+        titleCase(state.window),
+        state.state_id,
         state.condition,
+        "condition",
         quality.status,
+        "data quality",
+        quality.clean_sample,
+        "clean sample",
+        quality.observed_sample,
+        "observed sample",
         participant.direction,
+        "participant outcome",
+        participant.confidence,
         risk.level,
+        "risk",
         list(risk.drivers).join(" "),
+        list(risk.drivers).map((item) => titleCase(item)).join(" "),
         list(state.warnings).join(" "),
+        list(state.warnings).map((item) => titleCase(item)).join(" "),
         state.summary,
+        titleCase(state.summary),
         breadth.direction,
+        "breadth",
         breadth.strength,
-      ]
-        .map((value) => rawText(value, "").toLowerCase())
-        .filter(Boolean)
-        .join(" ");
+        quality.status,
+        quality.clean_sample,
+        quality.observed_sample
+      );
+    }
+
+    function riskSearchText(row) {
+      if (!isObject(row)) return "";
+      return searchTextFromParts(
+        row.risk_type,
+        row.risk_level,
+        "risk",
+        "trap",
+        "warning",
+        "driver",
+        "data quality",
+        "participant outcome",
+        row.chain,
+        titleCase(row.chain),
+        row.cap_band,
+        titleCase(row.cap_band),
+        row.window,
+        titleCase(row.window),
+        row.data_quality,
+        row.participant_outcome,
+        row.public_read,
+        row.summary,
+        row.condition,
+        list(row.drivers).join(" "),
+        list(row.drivers).map((item) => titleCase(item)).join(" ")
+      );
+    }
+
+    function participantOutcomeSearchText(row) {
+      if (!isObject(row)) return "";
+      return searchTextFromParts(
+        row.participant_outcome,
+        row.direction,
+        row.confidence,
+        row.chain,
+        titleCase(row.chain),
+        row.cap_band,
+        titleCase(row.cap_band),
+        row.window,
+        titleCase(row.window),
+        row.clean_sample,
+        "clean sample",
+        row.observed_sample,
+        "observed sample",
+        list(row.warnings).join(" "),
+        row.public_read,
+        "participant outcome",
+        "favorable",
+        "mixed",
+        "punishing",
+        "unknown"
+      );
+    }
+
+    function alertSearchText(row) {
+      if (!isObject(row)) return "";
+      return searchTextFromParts(
+        row.title,
+        row.status,
+        row.severity,
+        row.public_read,
+        list(row.matched_state_ids).join(" "),
+        list(row.chains).join(" "),
+        list(row.cap_bands).join(" "),
+        row.available_on,
+        "alert",
+        "condition",
+        "available on pro",
+        "available on advanced desk"
+      );
+    }
+
+    function visibleCardSearchText(cardLikeObject) {
+      if (!isObject(cardLikeObject)) return "";
+      return searchTextFromParts(
+        cardLikeObject.title,
+        cardLikeObject.copy,
+        cardLikeObject.tier,
+        cardLikeObject.label,
+        cardLikeObject.badge,
+        cardLikeObject.summary
+      );
+    }
+
+    function lockedFeatureSearchText(title, copy, tierLabel) {
+      return searchTextFromParts(
+        title,
+        copy,
+        tierLabel,
+        "available on pro",
+        "available on advanced desk"
+      );
     }
 
     function coverageLabel(value) {
@@ -1524,7 +1655,7 @@
 
     function marketStateMatchesFilters(state, filters) {
       if (!isObject(state)) return false;
-      const query = rawText(filters.query).trim().toLowerCase();
+      const query = normalizeSearchText(filters.query);
       if (query && !marketStateSearchText(state).includes(query)) return false;
       for (const key of ["chain", "cap_band", "window", "condition", "risk", "data_quality", "participant_outcome"]) {
         const selected = rawText(filters[key], "all").toLowerCase();
@@ -1614,36 +1745,68 @@
         participant_outcome: "all",
       };
       const lockedCards = [
-        ["Historical Replay", stats.replayStatus === "building"
-          ? `Collecting public history. ${stats.archiveRecordCount || 0} archive records so far.`
-          : "Compare current market conditions to prior aggregate windows.", "Available on Advanced Desk"],
-        ["Alert Builder", "Build alerts for market conditions, not tickers.", "Available on Pro"],
-        ["Ask RavenOS", "Ask higher-level market-state questions across chains and cap bands.", "Available on Advanced Desk"],
-        ["Advanced Macro Context", "Deeper desk-style macro and regime context.", "Available on Advanced Desk"],
+        {
+          title: "Historical Replay",
+          copy: stats.replayStatus === "building"
+            ? `Collecting public history. ${stats.archiveRecordCount || 0} archive records so far.`
+            : "Compare current market conditions to prior aggregate windows.",
+          tier: "Available on Advanced Desk",
+        },
+        {
+          title: "Alert Builder",
+          copy: "Build alerts for market conditions, not tickers.",
+          tier: "Available on Pro",
+        },
+        {
+          title: "Ask RavenOS",
+          copy: "Ask higher-level market-state questions across chains and cap bands.",
+          tier: "Available on Advanced Desk",
+        },
+        {
+          title: "Advanced Macro Context",
+          copy: "Deeper desk-style macro and regime context.",
+          tier: "Available on Advanced Desk",
+        },
       ];
+
+      function renderLockedCards(queryText) {
+        lockedNode.textContent = "";
+        const normalizedQuery = normalizeSearchText(queryText);
+        const matches = lockedCards.filter((item) => {
+          if (!normalizedQuery) return true;
+          return lockedFeatureSearchText(item.title, item.copy, item.tier).includes(normalizedQuery);
+        });
+        matches.forEach((item) => lockedNode.appendChild(lockedFeatureCard(item.title, item.copy, item.tier)));
+        return matches.length;
+      }
 
       function applyFilters() {
         const queryText = rawText(input.value).trim().slice(0, 120);
         filters.query = queryText;
+        const normalizedQuery = normalizeSearchText(queryText);
         const filtered = normalizedStates.filter((state) => marketStateMatchesFilters(state, filters));
+        const lockedMatches = renderLockedCards(queryText);
         resultNode.textContent = "";
-        fallback.hidden = normalizedStates.length > 0 && filtered.length > 0;
+        fallback.hidden = (normalizedStates.length > 0 && filtered.length > 0) || (normalizedStates.length === 0 && !normalizedQuery && lockedMatches > 0);
         if (!normalizedStates.length) {
-          fallback.hidden = false;
           const empty = document.createElement("section");
           empty.className = "panel building-state";
-          empty.innerHTML = "<strong>Market search is building.</strong><p>RavenOS will show aggregate market-state reads here once the public market-state artifact is available.</p><p>The public dashboard remains available while this feature is coming online.</p>";
+          if (normalizedQuery) {
+            empty.innerHTML = "<strong>No cards match this search yet.</strong><p>Try a broader term like solana, thin, risk, building, or participant outcome.</p>";
+          } else {
+            empty.innerHTML = "<strong>Market search is building.</strong><p>RavenOS will show aggregate market-state reads here once the public market-state artifact is available.</p><p>The public dashboard remains available while this feature is coming online.</p>";
+          }
           resultNode.appendChild(empty);
           return;
         }
-        if (!filtered.length) {
+        if (!filtered.length && !lockedMatches) {
           fallback.hidden = false;
           const empty = document.createElement("section");
           empty.className = "panel building-state";
           const title = document.createElement("strong");
-          title.textContent = "No market states match this search.";
+          title.textContent = "No cards match this search yet.";
           const copy = document.createElement("p");
-          copy.textContent = "Clear the search text or reset the filters to return to the full public preview.";
+          copy.textContent = "Try a broader term like solana, thin, risk, building, or participant outcome.";
           const reset = document.createElement("button");
           reset.type = "button";
           reset.className = "search-action";
@@ -1665,6 +1828,7 @@
           const item = document.createElement("article");
           item.className = "result-card";
           item.dataset.stateId = rawText(state.state_id, "");
+          item.dataset.searchText = marketStateSearchText(state);
           const title = document.createElement("div");
           title.className = "result-title";
           title.textContent = `${publicLabel(state.chain, state.chain)} / ${publicLabel(state.cap_band, state.cap_band)} / ${publicLabel(state.window, state.window)} · ${publicLabel(state.condition, "unknown")}`;
@@ -1713,8 +1877,6 @@
       }
 
       input.addEventListener("input", applyFilters);
-      lockedNode.textContent = "";
-      lockedCards.forEach(([title, copy, tier]) => lockedNode.appendChild(lockedFeatureCard(title, copy, tier)));
 
       const nodeFilters = Array.from(document.querySelectorAll(".search-chip"));
       nodeFilters.forEach((chip) => {
