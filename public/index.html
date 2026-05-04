@@ -614,7 +614,7 @@
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
-          <div class="search-subtitle">Search is starting with broad chain reads. Cap-band search, historical replay, and alerts are still building.</div>
+          <div class="search-subtitle">Search starts with broad chain reads. Risk search, cap-band search, participant outcome, alerts, and replay are building from public artifacts.</div>
         </div>
         <div class="search-bar">
           <input
@@ -627,6 +627,7 @@
           >
           <div class="search-filters" id="marketSearchFilters"></div>
         </div>
+        <div class="chips" id="searchStats"></div>
       </div>
       <section class="result-grid" id="marketSearchResults"></section>
       <section class="panel building-state" id="marketSearchFallback" hidden>
@@ -674,12 +675,43 @@
     ];
 
     const PRO_MODULES = [
-      ["Breakdown by market cap, per chain", "See where conditions are improving or deteriorating across fresh pairs, micro caps, mid caps, high caps, and majors.", "Available on Pro"],
-      ["Participant outcome", "Estimate whether active traders are being rewarded or punished by chain and market-cap band.", "Available on Pro"],
-      ["Risk ladder", "Track whether flow is moving toward cash, majors, micro caps, fresh pairs, or leverage.", "Available on Pro"],
-      ["Revival scanner", "Detect when older or compressed tokens begin reactivating.", "Available on Pro"],
-      ["Perp pressure", "See when leverage is building, confirming, flushing, or becoming unstable.", "Available on Desk"],
-      ["Macro regime", "Cross-market context for liquidity, risk appetite, dollar pressure, rates, and broader alignment.", "Available on Desk"]
+      {
+        title: "Market Search",
+        tier: "Available on Pro",
+        copy: (stats) => `Search the current public market-state rows. ${stats.marketStateCount} states are live now.`,
+      },
+      {
+        title: "Risk Search",
+        tier: "Available on Pro",
+        copy: (stats) => `Surface fragile, thin, and disagreement-heavy reads. ${stats.riskStateCount} risk rows are live now.`,
+      },
+      {
+        title: "Cap-Band Search",
+        tier: "Available on Pro",
+        copy: (stats) => `Compare cap-band behavior across public aggregate lanes. ${stats.capBandCount} cap-band rows are live now.`,
+      },
+      {
+        title: "Participant Outcome",
+        tier: "Available on Pro",
+        copy: (stats) => `${stats.outcomeCount} public outcome rows are available by chain and band.`,
+      },
+      {
+        title: "Alert Builder",
+        tier: "Available on Pro",
+        copy: (stats) => `${stats.alertCount} public alert conditions are available, with ${stats.activeAlertCount} active.`,
+      },
+      {
+        title: "Historical Replay",
+        tier: "Available on Advanced Desk",
+        copy: (stats) => stats.replayStatus === "building"
+          ? `Collecting public history. ${stats.archiveRecordCount} archive records are available so far.`
+          : `Historical replay has comparable public windows ready.`,
+      },
+      {
+        title: "Macro Context",
+        tier: "Available on Advanced Desk",
+        copy: () => "Deeper desk-style macro and regime context.",
+      },
     ];
 
     const PRICING = [
@@ -1436,10 +1468,32 @@
       if (wrap.childNodes.length) node.appendChild(wrap);
     }
 
-    function renderProModules() {
+    function renderProModules(stats) {
       const node = document.getElementById("proModules");
       node.textContent = "";
-      PRO_MODULES.forEach(([title, copy, badge]) => node.appendChild(card(title, copy, badge)));
+      PRO_MODULES.forEach((module) => {
+        const copy = typeof module.copy === "function" ? module.copy(stats) : rawText(module.copy, "");
+        node.appendChild(card(module.title, copy, module.tier));
+      });
+    }
+
+    function renderSearchStats(stats) {
+      const node = document.getElementById("searchStats");
+      if (!node) return;
+      node.textContent = "";
+      const items = [
+        ["market states", `${stats.marketStateCount} live`],
+        ["risk rows", `${stats.riskStateCount} live`],
+        ["participant outcomes", `${stats.outcomeCount} live`],
+        ["alerts", `${stats.alertCount} live · ${stats.activeAlertCount} active`],
+        ["replay", `${titleCase(stats.replayStatus)} · ${stats.archiveRecordCount} archive records`],
+      ];
+      items.forEach(([label, value]) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${titleCase(label)}: ${value}`;
+        node.appendChild(chip);
+      });
     }
 
     function renderPricing() {
@@ -1542,7 +1596,7 @@
       });
     }
 
-    function renderMarketSearch(states) {
+    function renderMarketSearch(states, stats = {}) {
       const fallback = document.getElementById("marketSearchFallback");
       const resultNode = document.getElementById("marketSearchResults");
       const lockedNode = document.getElementById("marketSearchLocked");
@@ -1559,7 +1613,9 @@
         participant_outcome: "all",
       };
       const lockedCards = [
-        ["Historical Replay", "Compare current market conditions to prior aggregate windows.", "Available on Advanced Desk"],
+        ["Historical Replay", stats.replayStatus === "building"
+          ? `Collecting public history. ${stats.archiveRecordCount || 0} archive records so far.`
+          : "Compare current market conditions to prior aggregate windows.", "Available on Advanced Desk"],
         ["Alert Builder", "Build alerts for market conditions, not tickers.", "Available on Pro"],
         ["Ask RavenOS", "Ask higher-level market-state questions across chains and cap bands.", "Available on Advanced Desk"],
         ["Advanced Macro Context", "Deeper desk-style macro and regime context.", "Available on Advanced Desk"],
@@ -1733,6 +1789,18 @@
         togglePanel(historicalPanel, !historicalPanel.hidden);
       });
 
+      if (stats.replayStatus === "building" && stats.archiveRecordCount) {
+        const header = historicalPanel.querySelector(".search-template strong");
+        const body = historicalPanel.querySelector(".search-template");
+        if (header) header.textContent = "Building state";
+        if (body) {
+          body.innerHTML = "<strong>Building state</strong>";
+          const text = document.createElement("div");
+          text.textContent = `Comparable historical windows are not available yet. ${stats.archiveRecordCount} archive records are collecting now.`;
+          body.appendChild(text);
+        }
+      }
+
       input.addEventListener("search", () => {
         if (!input.value) {
           for (const key of Object.keys(filters)) {
@@ -1772,19 +1840,46 @@
         "/ravenos_market_states.json",
         "/public/ravenos_market_states.json",
       ]);
+      const riskSearches = await fetchJsonPayloads([
+        "/ravenos_risk_search.json",
+        "/public/ravenos_risk_search.json",
+      ]);
+      const participantOutcomes = await fetchJsonPayloads([
+        "/ravenos_participant_outcomes.json",
+        "/public/ravenos_participant_outcomes.json",
+      ]);
+      const historicalReplays = await fetchJsonPayloads([
+        "/ravenos_historical_replay.json",
+        "/public/ravenos_historical_replay.json",
+      ]);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let marketStatePayload = freshestByGeneratedAt(marketStates);
+      const riskSearchPayload = normalizePublicPayload(freshestByGeneratedAt(riskSearches));
+      const participantOutcomePayload = normalizePublicPayload(freshestByGeneratedAt(participantOutcomes));
+      const historicalReplayPayload = normalizePublicPayload(freshestByGeneratedAt(historicalReplays));
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
+      const conditionAlertsPayload = isObject(snapshot.condition_alerts) ? snapshot.condition_alerts : {};
+      const stats = {
+        marketStateCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).length,
+        capBandCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).filter((state) => rawText(state.cap_band, "") !== "all").length,
+        riskStateCount: list(riskSearchPayload.risk_states).length,
+        outcomeCount: list(participantOutcomePayload.outcomes).length,
+        alertCount: list(conditionAlertsPayload.alerts).length,
+        activeAlertCount: list(conditionAlertsPayload.alerts).filter((item) => rawText(item.status, "") === "active").length,
+        replayStatus: rawText(historicalReplayPayload.status, "building"),
+        archiveRecordCount: Number.isFinite(Number(historicalReplayPayload.metadata && historicalReplayPayload.metadata.archive_record_count)) ? Number(historicalReplayPayload.metadata.archive_record_count) : 0,
+      };
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
-      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : []);
-      renderProModules();
+      renderSearchStats(stats);
+      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : [], stats);
+      renderProModules(stats);
       renderPricing();
       renderConditionAlerts(snapshot.condition_alerts);
     }

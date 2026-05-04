@@ -1,0 +1,146 @@
+{
+  "generated_at": "2026-05-04T14:46:13Z",
+  "metadata": {
+    "available_cap_bands": [
+      "all",
+      "fresh_pairs"
+    ],
+    "available_chains": [
+      "base",
+      "eth",
+      "solana"
+    ],
+    "available_outcomes": [
+      "mixed",
+      "unknown"
+    ],
+    "available_windows": [
+      "6h"
+    ]
+  },
+  "outcomes": [
+    {
+      "cap_band": "all",
+      "chain": "solana",
+      "clean_sample": 25361,
+      "confidence": "low",
+      "data_quality": "unknown",
+      "direction": "mixed",
+      "observed_sample": 35960,
+      "outcome_id": "solana_all_6h",
+      "participant_outcome": "mixed",
+      "public_read": "Solana all 6h is mixed and should be treated as selective.",
+      "state_id": "solana_all_current",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "solana",
+      "clean_sample": 142,
+      "confidence": "medium",
+      "data_quality": "thin",
+      "direction": "mixed",
+      "observed_sample": 142,
+      "outcome_id": "solana_fresh_pairs_6h",
+      "participant_outcome": "mixed",
+      "public_read": "Solana fresh pairs 6h is mixed, but the public sample is still thin.",
+      "state_id": "solana_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "all",
+      "chain": "eth",
+      "clean_sample": 822,
+      "confidence": "high",
+      "data_quality": "clean",
+      "direction": "unknown",
+      "observed_sample": 1282,
+      "outcome_id": "eth_all_6h",
+      "participant_outcome": "unknown",
+      "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
+      "state_id": "eth_all_current",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "eth",
+      "clean_sample": null,
+      "confidence": "high",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 1091,
+      "outcome_id": "eth_fresh_pairs_6h",
+      "participant_outcome": "unknown",
+      "public_read": "ETH fresh pairs 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "eth_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "all",
+      "chain": "base",
+      "clean_sample": 871,
+      "confidence": "high",
+      "data_quality": "unknown",
+      "direction": "unknown",
+      "observed_sample": 1146,
+      "outcome_id": "base_all_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
+      "state_id": "base_all_current",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "base",
+      "clean_sample": null,
+      "confidence": "high",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 663,
+      "outcome_id": "base_fresh_pairs_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base fresh pairs 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "base_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    }
+  ],
+  "schema_version": "ravenos_participant_outcomes_v0"
+}

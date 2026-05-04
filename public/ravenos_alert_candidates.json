@@ -1,0 +1,145 @@
+{
+  "alerts": [
+    {
+      "alert_id": "solana_clean_positive",
+      "available_on": "pro",
+      "cap_bands": [
+        "all"
+      ],
+      "chains": [
+        "solana"
+      ],
+      "matched_state_ids": [
+        "solana_all_current"
+      ],
+      "public_read": "Solana clean positive is still building because the public sample is not positive yet.",
+      "severity": "watch",
+      "status": "building",
+      "title": "Solana clean positive read",
+      "window": "6h"
+    },
+    {
+      "alert_id": "evm_building_thin",
+      "available_on": "pro",
+      "cap_bands": [
+        "fresh_pairs"
+      ],
+      "chains": [
+        "base",
+        "eth"
+      ],
+      "matched_state_ids": [
+        "base_fresh_pairs_6h",
+        "eth_fresh_pairs_6h"
+      ],
+      "public_read": "EVM building thin read is active in the public sample.",
+      "severity": "watch",
+      "status": "active",
+      "title": "EVM building thin read",
+      "window": "6h"
+    },
+    {
+      "alert_id": "trap_risk_present",
+      "available_on": "pro",
+      "cap_bands": [
+        "all",
+        "fresh_pairs"
+      ],
+      "chains": [
+        "base",
+        "eth",
+        "solana"
+      ],
+      "matched_state_ids": [
+        "base_all_current",
+        "base_fresh_pairs_6h",
+        "eth_all_current",
+        "eth_fresh_pairs_6h",
+        "solana_all_current",
+        "solana_fresh_pairs_6h"
+      ],
+      "public_read": "Trap risk is present in the current public market-state read.",
+      "severity": "warning",
+      "status": "active",
+      "title": "Trap risk present",
+      "window": "6h"
+    },
+    {
+      "alert_id": "clean_sample_available",
+      "available_on": "pro",
+      "cap_bands": [
+        "all"
+      ],
+      "chains": [
+        "eth"
+      ],
+      "matched_state_ids": [
+        "eth_all_current"
+      ],
+      "public_read": "A clean sample is available in the current public market-state read.",
+      "severity": "info",
+      "status": "active",
+      "title": "Clean sample available",
+      "window": "6h"
+    },
+    {
+      "alert_id": "confirmation_incomplete",
+      "available_on": "pro",
+      "cap_bands": [
+        "all",
+        "fresh_pairs"
+      ],
+      "chains": [
+        "base",
+        "eth",
+        "solana"
+      ],
+      "matched_state_ids": [
+        "base_all_current",
+        "base_fresh_pairs_6h",
+        "eth_all_current",
+        "eth_fresh_pairs_6h",
+        "solana_all_current",
+        "solana_fresh_pairs_6h"
+      ],
+      "public_read": "Confirmation remains incomplete in the current public market-state read.",
+      "severity": "watch",
+      "status": "active",
+      "title": "Confirmation incomplete",
+      "window": "6h"
+    },
+    {
+      "alert_id": "window_disagreement",
+      "available_on": "pro",
+      "cap_bands": [
+        "all",
+        "fresh_pairs"
+      ],
+      "chains": [
+        "base",
+        "eth",
+        "solana"
+      ],
+      "matched_state_ids": [
+        "base_all_current",
+        "base_fresh_pairs_6h",
+        "eth_all_current",
+        "eth_fresh_pairs_6h",
+        "solana_all_current",
+        "solana_fresh_pairs_6h"
+      ],
+      "public_read": "Longer windows disagree in the current public market-state read.",
+      "severity": "warning",
+      "status": "active",
+      "title": "Window disagreement",
+      "window": "6h"
+    }
+  ],
+  "generated_at": "2026-05-04T14:46:13Z",
+  "metadata": {
+    "active_count": 5,
+    "building_count": 1,
+    "warning_count": 2
+  },
+  "schema_version": "ravenos_alert_conditions_v0"
+}
