@@ -689,6 +689,14 @@
       <div class="weather-grid" id="weatherLanes"></div>
     </section>
 
+    <h2 class="section-title">what changed</h2>
+    <p class="section-copy">Recent condition changes show whether the public read is appearing, strengthening, weakening, or resolving.</p>
+    <section class="preview-grid" id="conditionTransitionsPreview"></section>
+
+    <h2 class="section-title">recent behavior</h2>
+    <p class="section-copy">Short-term memory tracks whether conditions have been repeating, shifting, or becoming less consistent.</p>
+    <section class="preview-grid" id="recentMemoryPreview"></section>
+
     <h2 class="section-title">condition alerts</h2>
     <p class="section-copy">Condition alerts explain why a move may not be trustworthy yet.</p>
     <section class="panel alert-list" id="conditionAlerts"></section>
@@ -794,8 +802,18 @@
     ];
     const ALERT_PATH = ["ravenos_alert_", "candi", "dates.json"].join("");
     const ALERT_URLS = [
+      "/ravenos_live_alerts.json",
+      "/public/ravenos_live_alerts.json",
       `/${ALERT_PATH}`,
       `/public/${ALERT_PATH}`,
+    ];
+    const CONDITION_TRANSITION_URLS = [
+      "/ravenos_condition_transitions.json",
+      "/public/ravenos_condition_transitions.json",
+    ];
+    const RECENT_MEMORY_URLS = [
+      "/ravenos_recent_memory.json",
+      "/public/ravenos_recent_memory.json",
     ];
     const SAVED_SEARCH_TEMPLATE_URLS = [
       "/ravenos_saved_search_templates.json",
@@ -2259,7 +2277,9 @@
         const alertMatches = renderAlertPreview(previews.alertPreviewPayload, queryText);
         const deskMatches = renderDeskContextPreview(previews.deskContextPayload, queryText);
         const replayMatches = renderHistoricalReplayPreview(previews.historicalReplayPayload, queryText);
-        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + deskMatches + replayMatches;
+        const transitionMatches = renderConditionTransitions(previews.conditionTransitionPayload, queryText);
+        const memoryMatches = renderRecentMemory(previews.recentMemoryPayload, queryText);
+        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + deskMatches + replayMatches + transitionMatches + memoryMatches;
         resultNode.textContent = "";
         const statsNode = document.getElementById("searchStats");
         if (statsNode) {
@@ -2506,7 +2526,124 @@
       applyFilters();
     }
 
-    function renderConditionAlerts(conditionAlerts) {
+    function transitionPhrase(row) {
+      const type = rawText(row && row.transition_type, "new");
+      const family = rawText(row && row.condition_family, "condition").replace(/_/g, " ");
+      if (type === "new") return `${titleCase(family)} is starting to appear`;
+      if (type === "strengthened") return `${titleCase(family)} is strengthening`;
+      if (type === "weakened") return `${titleCase(family)} is weakening`;
+      if (type === "exited") return `${titleCase(family)} has faded`;
+      if (type === "state_change") return `${titleCase(family)} changed state`;
+      return "Market conditions changed";
+    }
+
+    function transitionSearchText(row) {
+      return searchTextFromParts(
+        "what changed",
+        "condition transition",
+        rawText(row && row.transition_type, ""),
+        rawText(row && row.condition_family, ""),
+        rawText(row && row.chain, ""),
+        "new strengthening weakening resolved momentum less reliable"
+      );
+    }
+
+    function renderConditionTransitions(payload, queryText = "") {
+      const node = document.getElementById("conditionTransitionsPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalized = normalizeSearchText(queryText);
+      const rows = list(payload && payload.transitions).filter(isObject);
+      const filtered = rows.filter((row) => !normalized || transitionSearchText(row).includes(normalized)).slice(0, 4);
+      if (!filtered.length) {
+        const cardNode = buildCompactPreviewCard(
+          "No major public changes",
+          "Stable",
+          "No new, strengthening, weakening, or resolved condition changes are showing in the latest public transition file.",
+          "Public preview",
+          [["what to watch", "The next refresh will show whether current conditions start to change."]],
+          searchTextFromParts("what changed transitions stable new weakening strengthening resolved")
+        );
+        node.appendChild(cardNode);
+        return normalized ? 0 : 1;
+      }
+      filtered.forEach((row) => {
+        const changeType = rawText(row.transition_type, "new");
+        node.appendChild(
+          buildCompactPreviewCard(
+            transitionPhrase(row),
+            `${titleCase(changeType === "exited" ? "resolved" : changeType)} · ${titleCase(rawText(row.chain, "all"))}`,
+            rawText(row.plain_language_summary || row.summary, "A public condition changed in the latest refresh."),
+            "Public preview",
+            [
+              ["why it matters", rawText(row.why_it_matters, "Changes help show whether a read is getting stronger, weaker, or less reliable.")],
+              ["what to watch next", rawText(row.what_to_watch_next, "Watch whether the same condition persists across refreshes.")],
+            ],
+            transitionSearchText(row)
+          )
+        );
+      });
+      return filtered.length;
+    }
+
+    function memorySearchText(card, payload) {
+      return searchTextFromParts(
+        "recent behavior",
+        "short memory",
+        "persistent unstable improving degrading shifting",
+        rawText(payload && payload.dominant_condition_family, ""),
+        rawText(payload && payload.condition_stability, ""),
+        rawText(payload && payload.consistency_trend, ""),
+        rawText(card && card.title, ""),
+        rawText(card && card.summary, ""),
+        list(card && card.search_terms).join(" ")
+      );
+    }
+
+    function renderRecentMemory(payload, queryText = "") {
+      const node = document.getElementById("recentMemoryPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalized = normalizeSearchText(queryText);
+      const cards = list(payload && payload.cards).filter(isObject);
+      const filtered = cards.filter((cardRow) => !normalized || memorySearchText(cardRow, payload).includes(normalized)).slice(0, 4);
+      if (!filtered.length) {
+        node.appendChild(
+          buildCompactPreviewCard(
+            "Recent behavior is building",
+            titleCase(rawText(payload && payload.condition_stability, "building")),
+            "RavenOS is collecting public condition memory so repeat behavior and state changes become easier to read.",
+            "Public preview",
+            [["what to watch", "More refreshes will show whether conditions are persistent or unstable."]],
+            searchTextFromParts("recent behavior memory persistent unstable improving building")
+          )
+        );
+        return normalized ? 0 : 1;
+      }
+      filtered.forEach((cardRow) => {
+        node.appendChild(
+          buildCompactPreviewCard(
+            rawText(cardRow.title, "Recent behavior"),
+            `${titleCase(rawText(payload.condition_stability, "building"))} · ${titleCase(rawText(payload.consistency_trend, "mixed"))}`,
+            rawText(cardRow.summary, "Short-term public behavior is still building."),
+            "Public preview",
+            [["what to watch", rawText(cardRow.what_to_watch, "Watch whether the same condition persists.")]],
+            memorySearchText(cardRow, payload)
+          )
+        );
+      });
+      return filtered.length;
+    }
+
+    function recentContextForAlert(alert, memoryPayload) {
+      const family = rawText(alert && alert.condition_family, "");
+      const context = isObject(memoryPayload && memoryPayload.recent_context_by_family) ? memoryPayload.recent_context_by_family[family] : null;
+      if (isObject(context) && context.recent_context) return rawText(context.recent_context);
+      if (rawText(alert && alert.last_transition_type, "") === "new") return "This is the first appearance in the current public alert window.";
+      return "Recent context is still building for this condition.";
+    }
+
+    function renderConditionAlerts(conditionAlerts, recentMemoryPayload = {}) {
       const node = document.getElementById("conditionAlerts");
       node.textContent = "";
       const alerts = isObject(conditionAlerts) ? list(conditionAlerts.alerts).filter(isObject).slice(0, 3) : [];
@@ -2527,6 +2664,7 @@
         [
           ["why it matters", rawText(alert.why_it_matters, "This market condition can change how reliable the read feels.")],
           ["what would confirm", rawText(alert.what_would_confirm, "The same read needs to hold across refreshes.")],
+          ["recent context", recentContextForAlert(alert, recentMemoryPayload)],
         ].forEach(([label, value]) => {
           const row = document.createElement("div");
           row.className = "detail";
@@ -2807,6 +2945,7 @@
         const matchedCount = Number.isFinite(Number(row.matched_market_state_count)) ? Number(row.matched_market_state_count) : list(row.matched_state_ids).length;
         const detailRows = [
           ["why it matters", rawText(row.why_it_matters, "This market condition can change how reliable the read feels.")],
+          ["recent context", recentContextForAlert(row, window.__ravenosRecentMemory || {})],
           ...alertConfirmationDetailsFromRow(row),
         ];
         const item = buildCompactPreviewCard(
@@ -3029,6 +3168,8 @@
       ]);
       const savedSearchTemplatePayloads = await fetchJsonPayloads(SAVED_SEARCH_TEMPLATE_URLS);
       const alertRowsPayloads = await fetchJsonPayloads(ALERT_URLS);
+      const conditionTransitionPayloads = await fetchJsonPayloads(CONDITION_TRANSITION_URLS);
+      const recentMemoryPayloads = await fetchJsonPayloads(RECENT_MEMORY_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -3039,6 +3180,9 @@
       const marketSearchIndexPayload = normalizePublicPayload(freshestByGeneratedAt(marketSearchIndexes));
       const savedSearchTemplatesPayload = normalizePublicPayload(freshestByGeneratedAt(savedSearchTemplatePayloads));
       const alertPreviewPayload = normalizePublicPayload(freshestByGeneratedAt(alertRowsPayloads));
+      const conditionTransitionPayload = normalizePublicPayload(freshestByGeneratedAt(conditionTransitionPayloads));
+      const recentMemoryPayload = normalizePublicPayload(freshestByGeneratedAt(recentMemoryPayloads));
+      window.__ravenosRecentMemory = recentMemoryPayload;
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       refreshStatus = normalizePublicPayload(refreshStatus);
@@ -3071,10 +3215,14 @@
         alertPreviewPayload,
         historicalReplayPayload,
         savedSearchTemplatesPayload,
+        conditionTransitionPayload,
+        recentMemoryPayload,
       });
       renderProModules(stats);
       renderPricing();
-      renderConditionAlerts(alertPreviewPayload);
+      renderConditionTransitions(conditionTransitionPayload);
+      renderRecentMemory(recentMemoryPayload);
+      renderConditionAlerts(alertPreviewPayload, recentMemoryPayload);
     }
 
 

@@ -1,0 +1,107 @@
+{
+  "cards": [
+    {
+      "search_terms": [
+        "building",
+        "memory",
+        "recent behavior"
+      ],
+      "summary": "The public memory layer is tracking whether conditions repeat or change.",
+      "title": "Recent behavior is still building",
+      "what_to_watch": "More refreshes will make persistence easier to judge."
+    },
+    {
+      "search_terms": [
+        "mixed_signal_environment",
+        "persistent",
+        "frequent"
+      ],
+      "summary": "This condition family is the most common recent public read.",
+      "title": "Mixed signal environment keeps appearing",
+      "what_to_watch": "Repeated appearances matter more when confirmation and data quality also improve."
+    }
+  ],
+  "condition_stability": "stable",
+  "consistency_trend": "mixed",
+  "dominant_condition_family": "mixed_signal_environment",
+  "frequent_condition_families": {
+    "broad_but_unconfirmed": 245,
+    "clean_trend_emerging": 1,
+    "confirmation_incomplete": 288,
+    "fragile_expansion": 5,
+    "high_risk_low_clarity": 5,
+    "mixed_signal_environment": 290,
+    "outlier_risk": 288,
+    "thin_but_improving": 2,
+    "thin_sample": 240
+  },
+  "generated_at": "2026-05-04T23:59:17Z",
+  "persistent_conditions": [
+    {
+      "appearance_count": 48,
+      "condition_key": "solana_all_current"
+    },
+    {
+      "appearance_count": 48,
+      "condition_key": "solana_fresh_pairs_6h"
+    },
+    {
+      "appearance_count": 48,
+      "condition_key": "eth_all_current"
+    },
+    {
+      "appearance_count": 48,
+      "condition_key": "eth_fresh_pairs_6h"
+    },
+    {
+      "appearance_count": 48,
+      "condition_key": "base_all_current"
+    },
+    {
+      "appearance_count": 48,
+      "condition_key": "base_fresh_pairs_6h"
+    }
+  ],
+  "recent_context_by_family": {
+    "broad_but_unconfirmed": {
+      "appearance_count": 245,
+      "recent_context": "This condition has appeared 245 times in the recent public window."
+    },
+    "clean_trend_emerging": {
+      "appearance_count": 1,
+      "recent_context": "This condition has appeared 1 times in the recent public window."
+    },
+    "confirmation_incomplete": {
+      "appearance_count": 288,
+      "recent_context": "This condition has appeared 288 times in the recent public window."
+    },
+    "fragile_expansion": {
+      "appearance_count": 5,
+      "recent_context": "This condition has appeared 5 times in the recent public window."
+    },
+    "high_risk_low_clarity": {
+      "appearance_count": 5,
+      "recent_context": "This condition has appeared 5 times in the recent public window."
+    },
+    "mixed_signal_environment": {
+      "appearance_count": 290,
+      "recent_context": "This condition has appeared 290 times in the recent public window."
+    },
+    "outlier_risk": {
+      "appearance_count": 288,
+      "recent_context": "This condition has appeared 288 times in the recent public window."
+    },
+    "thin_but_improving": {
+      "appearance_count": 2,
+      "recent_context": "This condition has appeared 2 times in the recent public window."
+    },
+    "thin_sample": {
+      "appearance_count": 240,
+      "recent_context": "This condition has appeared 240 times in the recent public window."
+    }
+  },
+  "schema_version": "ravenos_recent_memory_v0",
+  "transition_frequency": 0,
+  "transition_type_counts": {},
+  "window_hours": 12
+}
