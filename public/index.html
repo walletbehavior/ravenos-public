@@ -775,7 +775,7 @@
     <section class="preview-grid" id="historicalReplayPreview"></section>
 
     <h2 class="section-title">desk context preview</h2>
-    <p class="section-copy">Desk Context shows whether broader market conditions are supporting, conflicting with, or failing to confirm the on-chain read.</p>
+    <p class="section-copy">Desk Context checks whether broader market conditions are supporting, conflicting with, or failing to confirm the on-chain read.</p>
     <section class="preview-grid desk-grid" id="deskContextPreview"></section>
 
     <h2 class="section-title">access levels</h2>
@@ -2123,7 +2123,7 @@
         },
         {
           title: "Desk Context",
-          copy: "Broader market context that can support, conflict with, or fail to confirm the on-chain read.",
+          copy: "Broader market context showing whether the wider market is helping, conflicting with, or failing to confirm the on-chain read.",
           tier: "Available on Advanced Desk",
         },
       ];
@@ -2671,31 +2671,67 @@
       const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
       const market = isObject(snapshot.market_context) ? snapshot.market_context : {};
       const marketTape = list(market.tape).slice(0, 3).map((item) => rawText(item)).filter(Boolean);
+      const deskRead = rawText(snapshot.desk_read, "Desk read is building.");
+      const macroStatus = rawText(macro.status, "unavailable").toLowerCase();
+      const perpStatus = rawText(perp.status, "unavailable").toLowerCase();
       const cards = [
         {
-          title: "Desk Context",
-          badge: "Available on Advanced Desk",
-          copy: rawText(snapshot.desk_read, "Desk read is building."),
+          title: "Broader Market Context",
+          badge: "Public preview",
+          copy: "Shows whether the wider market is helping or fighting the on-chain read. Public preview shows the surface read.",
           rows: [
-            ["desk read", "public surface"],
+            ["desk read", deskRead],
             ["market context", publicLabel(market.status, "partial")],
             ["updated", rawText(market.updated_label, "updated recently")],
             ["tape", marketTape.length ? marketTape.join(" · ") : "building"],
-            ["macro context", "Available on Advanced Desk"],
-            ["perp pressure", "Available on Advanced Desk"],
           ],
           search: searchTextFromParts(
             "desk context",
+            "broader market context",
             "macro context",
             "perp pressure",
             "market context",
-            "advanced desk",
+            "public preview",
             snapshot.desk_read,
             market.status,
             market.updated_label,
             marketTape.join(" "),
             macro.status,
             perp.status
+          ),
+        },
+        {
+          title: "Macro Context",
+          badge: "Available on Advanced Desk",
+          copy: "Rates, dollar pressure, equities, liquidity, and defensive assets. Used to see whether broader risk conditions support or conflict with crypto strength.",
+          rows: [
+            ["public preview", "Building"],
+            ["detail", "Advanced Desk expands this"],
+          ],
+          search: searchTextFromParts(
+            "macro context",
+            "rates dollar pressure equities liquidity defensive assets",
+            "broader risk conditions support or conflict with crypto strength",
+            "available on advanced desk",
+            "building",
+            macroStatus
+          ),
+        },
+        {
+          title: "Perp Pressure",
+          badge: "Available on Advanced Desk",
+          copy: "Leverage and futures pressure. Used to see whether a move is supported, unstable, or crowded by positioning.",
+          rows: [
+            ["public preview", "Building"],
+            ["detail", "Full perp detail is reserved for Advanced Desk"],
+          ],
+          search: searchTextFromParts(
+            "perp pressure",
+            "leverage futures pressure",
+            "supported unstable crowded positioning",
+            "available on advanced desk",
+            "building",
+            perpStatus
           ),
         },
       ];
