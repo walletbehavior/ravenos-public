@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8582,
-        "classified_total": 1108,
-        "econ_present_rate": 0.8582,
-        "econ_present_total": 1108,
+        "classification_rate": 0.8584,
+        "classified_total": 1109,
+        "econ_present_rate": 0.8584,
+        "econ_present_total": 1109,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 137,
-        "observed_total": 1291,
+        "observed_total": 1292,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 4,
           "thin_liquidity": 45,
           "unknown_unresolved": 0,
-          "usable_signal": 971
+          "usable_signal": 972
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1418,
+        "unresolved_rate": 0.1416,
         "unresolved_total": 183,
-        "usable_econ_total": 971,
-        "usable_rate": 0.7521,
-        "usable_signal_rate": 0.7521,
-        "usable_signal_total": 971,
+        "usable_econ_total": 972,
+        "usable_rate": 0.7523,
+        "usable_signal_rate": 0.7523,
+        "usable_signal_total": 972,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -555,15 +555,15 @@
       },
       "solana": {
         "classification_rate": 0.9514,
-        "classified_total": 34295,
+        "classified_total": 34299,
         "econ_present_rate": 0.9514,
-        "econ_present_total": 34295,
+        "econ_present_total": 34299,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
-        "known_thin_total": 8919,
-        "observed_total": 36047,
+        "known_thin_total": 8923,
+        "observed_total": 36051,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -580,7 +580,7 @@
           "terminal_no_liquidity": 0,
           "terminal_no_market": 0,
           "terminal_no_pair": 0,
-          "thin_depth": 2074,
+          "thin_depth": 2078,
           "thin_liquidity": 997,
           "unknown_unresolved": 0,
           "usable_signal": 25376
@@ -589,8 +589,8 @@
         "unresolved_rate": 0.0486,
         "unresolved_total": 1752,
         "usable_econ_total": 25376,
-        "usable_rate": 0.704,
-        "usable_signal_rate": 0.704,
+        "usable_rate": 0.7039,
+        "usable_signal_rate": 0.7039,
         "usable_signal_total": 25376,
         "warnings": [
           "data_depth_partial_v0",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.95,
-    "classified_total": 36755,
+    "classified_total": 36760,
     "econ_present_rate": 0.95,
-    "econ_present_total": 36755,
+    "econ_present_total": 36760,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
-    "known_thin_total": 9499,
-    "observed_total": 38690,
+    "known_thin_total": 9503,
+    "observed_total": 38695,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -635,18 +635,18 @@
       "terminal_no_liquidity": 0,
       "terminal_no_market": 0,
       "terminal_no_pair": 0,
-      "thin_depth": 2084,
+      "thin_depth": 2088,
       "thin_liquidity": 1064,
       "unknown_unresolved": 0,
-      "usable_signal": 27256
+      "usable_signal": 27257
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.05,
     "unresolved_total": 1935,
-    "usable_econ_total": 27256,
-    "usable_rate": 0.7045,
-    "usable_signal_rate": 0.7045,
-    "usable_signal_total": 27256,
+    "usable_econ_total": 27257,
+    "usable_rate": 0.7044,
+    "usable_signal_rate": 0.7044,
+    "usable_signal_total": 27257,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-04T23:28:15Z",
+  "generated_at": "2026-05-04T23:36:21Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",

@@ -717,6 +717,7 @@
             autocomplete="off"
             spellcheck="false"
           >
+          <button class="search-action secondary" id="toggleMarketFiltersButton" type="button">Filters</button>
           <div class="search-filters" id="marketSearchFilters"></div>
         </div>
         <div class="chips" id="searchStats"></div>
@@ -795,6 +796,10 @@
     const ALERT_URLS = [
       `/${ALERT_PATH}`,
       `/public/${ALERT_PATH}`,
+    ];
+    const SAVED_SEARCH_TEMPLATE_URLS = [
+      "/ravenos_saved_search_templates.json",
+      "/public/ravenos_saved_search_templates.json",
     ];
 
     const PRO_MODULES = [
@@ -1042,6 +1047,12 @@
       if (!isObject(state)) return "unknown";
       if ("condition_family" in state || "condition_label" in state) {
         if (key === "condition") return rawText(state.condition_family, "unknown");
+        if (key === "condition_family") return rawText(state.condition_family, "unknown");
+        if (key === "confirmation_state") return rawText(state.confirmation_state || state.confirmation_status, "unknown");
+        if (key === "participation_quality") return rawText(state.participation_quality, "unknown");
+        if (key === "confidence_bucket") return rawText(state.confidence_bucket, "unknown");
+        if (key === "risk_flags") return list(state.risk_flags || state.risk_tags).join(",");
+        if (key === "time_window") return rawText(state.time_window || state.window, "unknown");
         if (key === "risk") return rawText(state.risk_level, "unknown");
         if (key === "data_quality") return rawText(state.data_quality_status, "unknown");
         if (key === "participant_outcome") return rawText(state.participant_outcome_label, "unknown");
@@ -1062,6 +1073,9 @@
         "confirmation",
         "outcome",
         row.condition_family,
+        row.confidence_bucket,
+        row.participation_quality,
+        row.confirmation_state,
         row.condition_label,
         row.plain_language_summary,
         row.confirmation_status,
@@ -1074,12 +1088,13 @@
         row.cap_band,
         humanCapBandLabel(row.cap_band),
         row.window,
-        titleCase(row.window),
+        row.time_window,
+        titleCase(row.window || row.time_window),
         row.what_would_confirm,
         row.what_would_invalidate,
         row.paid_depth_available ? "available on pro advanced desk paid depth saved searches alerts ask ravenos full history" : "",
         row.paid_depth_reason,
-        list(row.risk_tags).join(" "),
+        list(row.risk_flags || row.risk_tags).join(" "),
         list(row.source_artifacts).join(" ")
       );
     }
@@ -2092,10 +2107,13 @@
       if (!isObject(state)) return false;
       const query = normalizeSearchText(filters.query);
       if (query && !marketStateSearchText(state).includes(query)) return false;
-      for (const key of ["chain", "cap_band", "window", "condition", "risk", "data_quality", "participant_outcome"]) {
+      for (const key of ["chain", "cap_band", "time_window", "condition_family", "confirmation_state", "participation_quality", "confidence_bucket", "risk_flags"]) {
         const selected = rawText(filters[key], "all").toLowerCase();
         if (selected === "all" || !selected) continue;
-        if (marketStateFilterValue(state, key).toLowerCase() !== selected) return false;
+        const actual = marketStateFilterValue(state, key).toLowerCase();
+        if (key === "risk_flags") {
+          if (!actual.split(",").map((item) => item.trim()).includes(selected)) return false;
+        } else if (actual !== selected) return false;
       }
       return true;
     }
@@ -2121,29 +2139,28 @@
       node.textContent = "";
       const meta = states.reduce((acc, state) => {
         if (!isObject(state)) return acc;
-        ["chain", "cap_band", "window"].forEach((key) => {
-          const value = rawText(state[key], "unknown");
+        ["chain", "cap_band", "time_window"].forEach((key) => {
+          const value = marketStateFilterValue(state, key);
           if (!acc[key]) acc[key] = new Set();
           acc[key].add(value);
         });
-        acc.condition.add(marketStateFilterValue(state, "condition"));
-        const risk = marketStateFilterValue(state, "risk");
-        const quality = marketStateFilterValue(state, "data_quality");
-        const outcome = marketStateFilterValue(state, "participant_outcome");
-        acc.risk.add(risk);
-        acc.data_quality.add(quality);
-        acc.participant_outcome.add(outcome);
+        acc.condition_family.add(marketStateFilterValue(state, "condition_family"));
+        acc.confirmation_state.add(marketStateFilterValue(state, "confirmation_state"));
+        acc.participation_quality.add(marketStateFilterValue(state, "participation_quality"));
+        acc.confidence_bucket.add(marketStateFilterValue(state, "confidence_bucket"));
+        list(state.risk_flags || state.risk_tags).forEach((flag) => acc.risk_flags.add(rawText(flag, "")));
         return acc;
-      }, { chain: new Set(), cap_band: new Set(), window: new Set(), condition: new Set(), risk: new Set(), data_quality: new Set(), participant_outcome: new Set() });
+      }, { chain: new Set(), cap_band: new Set(), time_window: new Set(), condition_family: new Set(), confirmation_state: new Set(), participation_quality: new Set(), confidence_bucket: new Set(), risk_flags: new Set() });
 
       const groups = [
         ["chain", "chain"],
         ["cap_band", "public sample"],
-        ["window", "window"],
-        ["condition", "condition"],
-        ["risk", "risk level"],
-        ["data_quality", "data quality"],
-        ["participant_outcome", "participant outcome"],
+        ["time_window", "window"],
+        ["condition_family", "condition"],
+        ["confirmation_state", "confirmation"],
+        ["participation_quality", "participation"],
+        ["confidence_bucket", "confidence"],
+        ["risk_flags", "risk"],
       ];
       groups.forEach(([key, label]) => {
         const values = Array.from(meta[key] || []).filter(Boolean);
@@ -2159,7 +2176,7 @@
           const chip = document.createElement("button");
           chip.className = "search-chip";
           chip.type = "button";
-          chip.textContent = key === "cap_band" ? humanCapBandLabel(value) : key === "window" ? humanWindowLabel(value) : publicLabel(value, value);
+          chip.textContent = key === "cap_band" ? humanCapBandLabel(value) : key === "time_window" ? humanWindowLabel(value) : publicLabel(value, value);
           chip.dataset.key = key;
           chip.dataset.value = value;
           node.appendChild(chip);
@@ -2177,12 +2194,22 @@
         query: "",
         chain: "all",
         cap_band: "all",
-        window: "all",
-        condition: "all",
-        risk: "all",
-        data_quality: "all",
-        participant_outcome: "all",
+        time_window: "all",
+        condition_family: "all",
+        confirmation_state: "all",
+        participation_quality: "all",
+        confidence_bucket: "all",
+        risk_flags: "all",
       };
+      const filterButton = document.getElementById("toggleMarketFiltersButton");
+      const filterNode = document.getElementById("marketSearchFilters");
+      if (filterNode) filterNode.hidden = true;
+      if (filterButton && filterNode) {
+        filterButton.addEventListener("click", () => {
+          filterNode.hidden = !filterNode.hidden;
+          filterButton.textContent = filterNode.hidden ? "Filters" : "Hide Filters";
+        });
+      }
       const lockedCards = [
         {
           title: "Historical Replay",
@@ -2223,7 +2250,9 @@
         const queryText = rawText(input.value).trim().slice(0, 120);
         filters.query = queryText;
         const normalizedQuery = normalizeSearchText(queryText);
-        const filtered = normalizedStates.filter((state) => marketStateMatchesFilters(state, filters));
+        const filtered = normalizedStates
+          .filter((state) => marketStateMatchesFilters(state, filters))
+          .sort((a, b) => Number(b.search_rank_score || 0) - Number(a.search_rank_score || 0));
         const lockedMatches = renderLockedCards(queryText);
         const riskMatches = renderRiskSearchPreview(previews.riskSearchPayload, queryText);
         const outcomeMatches = renderParticipantOutcomePreview(previews.participantOutcomePayload, queryText);
@@ -2232,6 +2261,12 @@
         const replayMatches = renderHistoricalReplayPreview(previews.historicalReplayPayload, queryText);
         const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + deskMatches + replayMatches;
         resultNode.textContent = "";
+        const statsNode = document.getElementById("searchStats");
+        if (statsNode) {
+          statsNode.textContent = "";
+          statsNode.appendChild(chip(`${Math.min(filtered.length, 10)} of ${filtered.length} results`));
+          statsNode.appendChild(chip("Advanced filtering available in Pro"));
+        }
         fallback.hidden = (normalizedStates.length > 0 && filtered.length > 0) || (normalizedStates.length === 0 && !normalizedQuery && lockedMatches > 0);
         if (!normalizedStates.length) {
           const empty = document.createElement("section");
@@ -2276,7 +2311,7 @@
           resultNode.appendChild(note);
           return;
         }
-        filtered.slice(0, 6).forEach((state) => {
+        filtered.slice(0, 10).forEach((state) => {
           const item = document.createElement("article");
           item.className = "result-card preview-row-card";
           const isIndexRow = "condition_family" in state || "condition_label" in state;
@@ -2287,7 +2322,7 @@
           title.textContent = isIndexRow ? rawText(state.condition_label, "Market condition is building") : marketStateDisplayTitle(state);
           const meta = document.createElement("div");
           meta.className = "result-meta";
-          meta.textContent = `${chainDisplayLabel(state.chain)} · ${rawText(state.scope, "market condition")} · ${humanWindowLabel(state.window)} · ${humanCapBandLabel(state.cap_band)}`;
+          meta.textContent = `${chainDisplayLabel(state.chain)} · ${rawText(state.scope, "market condition")} · ${humanWindowLabel(state.time_window || state.window)} · ${humanCapBandLabel(state.cap_band)}`;
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
@@ -2310,6 +2345,8 @@
           ], {includeWatchFlags: false, needsLimit: 1});
           const chips = buildCompactChips([
             ["confirmation", publicLabel(isIndexRow ? state.confirmation_status : rawText(confirmRows[0] && confirmRows[0][1], "building"), "building")],
+            ["participation", publicLabel(state.participation_quality, "mixed")],
+            ["confidence", publicLabel(state.confidence_bucket, "building")],
             ["risk", publicLabel(isIndexRow ? state.risk_level : state.risk && state.risk.level, "unknown")],
             ["data quality", publicLabel(isIndexRow ? state.data_quality_status : state.data_quality && state.data_quality.status, "unknown")],
           ]);
@@ -2386,6 +2423,26 @@
         body.textContent = `${snapshot.query || "No query yet"} · ${Object.entries(snapshot.filters).filter(([, value]) => value && value !== "all").map(([key, value]) => `${key}: ${value}`).join(" · ") || "All filters"}`;
         item.appendChild(body);
         savedPreview.appendChild(item);
+        list(previews.savedSearchTemplatesPayload && previews.savedSearchTemplatesPayload.templates).slice(0, 6).forEach((template) => {
+          if (!isObject(template)) return;
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "search-template";
+          row.innerHTML = `<strong>${rawText(template.title, "Saved filter")}</strong>`;
+          const copy = document.createElement("div");
+          copy.textContent = rawText(template.description, "Advanced filtering available in Pro.");
+          row.appendChild(copy);
+          row.addEventListener("click", () => {
+            const templateFilters = isObject(template.filters) ? template.filters : {};
+            Object.entries(templateFilters).forEach(([key, value]) => {
+              const selected = Array.isArray(value) ? rawText(value[0], "all") : isObject(value) ? rawText(list(value.any || value.all)[0], "all") : rawText(value, "all");
+              if (key in filters && selected) filters[key] = selected;
+            });
+            emitMarketSearchTelemetry("template_clicked", { query_normalized: input.value, selected_filters: filters });
+            applyFilters();
+          });
+          savedPreview.appendChild(row);
+        });
       };
       const renderAlertTemplates = () => {
         alertTemplates.textContent = "";
@@ -2970,6 +3027,7 @@
         "/ravenos_market_search_index.json",
         "/public/ravenos_market_search_index.json",
       ]);
+      const savedSearchTemplatePayloads = await fetchJsonPayloads(SAVED_SEARCH_TEMPLATE_URLS);
       const alertRowsPayloads = await fetchJsonPayloads(ALERT_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
@@ -2979,6 +3037,7 @@
       const participantOutcomePayload = normalizePublicPayload(freshestByGeneratedAt(participantOutcomes));
       const historicalReplayPayload = normalizePublicPayload(freshestByGeneratedAt(historicalReplays));
       const marketSearchIndexPayload = normalizePublicPayload(freshestByGeneratedAt(marketSearchIndexes));
+      const savedSearchTemplatesPayload = normalizePublicPayload(freshestByGeneratedAt(savedSearchTemplatePayloads));
       const alertPreviewPayload = normalizePublicPayload(freshestByGeneratedAt(alertRowsPayloads));
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
@@ -2996,6 +3055,7 @@
         archiveRecordCount: Number.isFinite(Number(replayMeta.archive_record_count)) ? Number(replayMeta.archive_record_count) : 0,
         replayComparableCount: list(historicalReplayPayload.comparables).length,
         replayMinimum: Number.isFinite(Number(replayMeta.minimum_records_required)) ? Number(replayMeta.minimum_records_required) : 20,
+        savedSearchTemplateCount: list(savedSearchTemplatesPayload.templates).length,
       };
       setText("generatedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
@@ -3010,6 +3070,7 @@
         participantOutcomePayload,
         alertPreviewPayload,
         historicalReplayPayload,
+        savedSearchTemplatesPayload,
       });
       renderProModules(stats);
       renderPricing();

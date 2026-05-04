@@ -1,0 +1,118 @@
+{
+  "count": 6,
+  "generated_at": "",
+  "notes": [
+    "aggregate_only",
+    "pro_preview",
+    "no_saved_user_state"
+  ],
+  "public_safe": true,
+  "schema_version": "ravenos_saved_search_templates_v0",
+  "templates": [
+    {
+      "description": "Find expanding conditions that are still building confirmation.",
+      "filters": {
+        "confidence_bucket": [
+          "low",
+          "mid"
+        ],
+        "confirmation_state": [
+          "building"
+        ],
+        "participation_quality": [
+          "strong",
+          "mixed"
+        ]
+      },
+      "preview_tier": "pro",
+      "template_id": "early_strength_low_confirmation",
+      "title": "Early Strength (Low Confirmation)"
+    },
+    {
+      "description": "Find broad or improving conditions with fragility or outlier risk.",
+      "filters": {
+        "confirmation_state": [
+          "building",
+          "unconfirmed"
+        ],
+        "risk_flags": {
+          "any": [
+            "outlier_dependency",
+            "window_disagreement",
+            "thin_sample"
+          ]
+        }
+      },
+      "preview_tier": "pro",
+      "template_id": "fragile_breakouts",
+      "title": "Fragile Breakouts"
+    },
+    {
+      "description": "Find visible participation where data quality or confirmation remains weak.",
+      "filters": {
+        "confidence_bucket": [
+          "low"
+        ],
+        "confirmation_state": [
+          "building",
+          "unconfirmed"
+        ],
+        "participation_quality": [
+          "strong",
+          "mixed"
+        ]
+      },
+      "preview_tier": "pro",
+      "template_id": "high_participation_low_reliability",
+      "title": "High Participation / Low Reliability"
+    },
+    {
+      "description": "Find chain or window disagreement in the public read.",
+      "filters": {
+        "condition_family": [
+          "chain_divergence"
+        ],
+        "risk_flags": {
+          "any": [
+            "window_disagreement",
+            "longer_windows_disagree"
+          ]
+        }
+      },
+      "preview_tier": "desk",
+      "template_id": "cross_chain_divergence",
+      "title": "Cross-Chain Divergence"
+    },
+    {
+      "description": "Find higher-confidence public conditions first.",
+      "filters": {
+        "confidence_bucket": [
+          "high"
+        ],
+        "confirmation_state": [
+          "confirmed",
+          "building"
+        ]
+      },
+      "preview_tier": "pro",
+      "template_id": "clean_conditions",
+      "title": "Clean Conditions"
+    },
+    {
+      "description": "Find early conditions where participation is improving but clean sample remains thin.",
+      "filters": {
+        "condition_family": [
+          "thin_sample",
+          "fragile_participation"
+        ],
+        "participation_quality": [
+          "weak",
+          "mixed"
+        ]
+      },
+      "preview_tier": "pro",
+      "template_id": "thin_but_improving",
+      "title": "Thin but Improving"
+    }
+  ]
+}
