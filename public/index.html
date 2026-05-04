@@ -179,6 +179,13 @@
       font-size: 13px;
     }
 
+    .section-note {
+      margin: -6px 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
     .section-copy {
       margin: -2px 0 14px;
       color: var(--muted);
@@ -191,6 +198,7 @@
     .chain-grid,
     .free-grid,
     .pro-grid,
+    .preview-grid,
     .pricing-grid {
       display: grid;
       gap: 14px;
@@ -208,6 +216,10 @@
 
     .free-grid,
     .pro-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .preview-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -516,6 +528,7 @@
       .chain-grid,
       .free-grid,
       .pro-grid,
+      .preview-grid,
       .locked-grid,
       .pricing-grid {
         grid-template-columns: 1fr;
@@ -611,6 +624,7 @@
     <section class="pro-grid" id="proModules"></section>
 
     <h2 class="section-title">market search preview</h2>
+    <p class="section-note">Cap-band states break the market into public-safe slices such as fresh pairs and broader chain reads.</p>
     <section class="search-shell" id="marketSearchShell">
       <div class="search-header">
         <div>
@@ -661,6 +675,26 @@
       <section class="locked-grid" id="marketSearchLocked"></section>
     </section>
 
+    <h2 class="section-title">risk search preview</h2>
+    <p class="section-note" id="riskSearchCount">Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.</p>
+    <p class="section-copy">Risk Search shows why a market read may not be trustworthy yet: thin samples, unknown participant outcome, incomplete confirmation, concentration, or window disagreement.</p>
+    <section class="preview-grid" id="riskSearchPreview"></section>
+
+    <h2 class="section-title">participant outcome preview</h2>
+    <p class="section-note" id="participantOutcomeCount">Participant Outcome is building. RavenOS will show public-safe outcome rows once clean sample coverage is available.</p>
+    <p class="section-copy">Participant Outcome estimates whether the public sample is broadly paying participants, punishing them, or still too thin to confirm.</p>
+    <section class="preview-grid" id="participantOutcomePreview"></section>
+
+    <h2 class="section-title">condition alerts preview</h2>
+    <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
+    <p class="section-copy">Condition alerts track market states like clean positive reads, thin EVM reads, confirmation risk, and window disagreement. Real user notifications are still building.</p>
+    <section class="preview-grid" id="alertPreview"></section>
+
+    <h2 class="section-title">historical replay</h2>
+    <p class="section-note" id="historicalReplayCount">Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.</p>
+    <p class="section-copy">Historical Replay compares current public market-state conditions to prior public aggregate windows once enough history has accumulated.</p>
+    <section class="preview-grid" id="historicalReplayPreview"></section>
+
     <h2 class="section-title">access</h2>
     <section class="pricing-grid" id="pricing"></section>
   </main>
@@ -674,44 +708,49 @@
       "/ravenos_latest.json",
       "/public/ravenos_latest.json",
     ];
+    const ALERT_PATH = ["ravenos_alert_", "candi", "dates.json"].join("");
+    const ALERT_URLS = [
+      `/${ALERT_PATH}`,
+      `/public/${ALERT_PATH}`,
+    ];
 
     const PRO_MODULES = [
       {
         title: "Market Search",
         tier: "Available on Pro",
-        copy: (stats) => `Search the current public market-state rows. ${stats.marketStateCount} states are live now.`,
+        copy: (stats) => `${stats.marketStateCount} states available · public market-state search.`,
       },
       {
         title: "Risk Search",
         tier: "Available on Pro",
-        copy: (stats) => `Surface fragile, thin, and disagreement-heavy reads. ${stats.riskStateCount} risk rows are live now.`,
+        copy: (stats) => `${stats.riskStateCount} risk rows available · public-safe risk reads.`,
       },
       {
         title: "Cap-Band Search",
         tier: "Available on Pro",
-        copy: (stats) => `Compare cap-band behavior across public aggregate lanes. ${stats.capBandCount} cap-band rows are live now.`,
+        copy: (stats) => `${stats.capBandCount} cap-band rows available · broad sample and fresh pairs.`,
       },
       {
         title: "Participant Outcome",
         tier: "Available on Pro",
-        copy: (stats) => `${stats.outcomeCount} public outcome rows are available by chain and band.`,
+        copy: (stats) => `${stats.outcomeCount} outcome rows available · public sample only.`,
       },
       {
         title: "Alert Builder",
         tier: "Available on Pro",
-        copy: (stats) => `${stats.alertCount} public alert conditions are available, with ${stats.activeAlertCount} active.`,
+        copy: (stats) => `${stats.alertCount} condition templates available, ${stats.activeAlertCount} active.`,
       },
       {
         title: "Historical Replay",
         tier: "Available on Advanced Desk",
         copy: (stats) => stats.replayStatus === "building"
-          ? `Collecting public history. ${stats.archiveRecordCount} archive records are available so far.`
-          : `Historical replay has comparable public windows ready.`,
+          ? `building · ${stats.archiveRecordCount}/${stats.replayMinimum} archive records.`
+          : `${stats.replayComparableCount} comparable windows available.`,
       },
       {
         title: "Macro Context",
         tier: "Available on Advanced Desk",
-        copy: () => "Deeper desk-style macro and regime context.",
+        copy: () => "Available on Advanced Desk · deeper desk-style macro and regime context.",
       },
     ];
 
@@ -807,6 +846,21 @@
       return clean.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
+    function humanCapBandLabel(value) {
+      const clean = rawText(value, "all").toLowerCase();
+      if (clean === "all") return "All public sample";
+      if (clean === "fresh_pairs") return "Fresh pairs";
+      if (clean === "micro_caps") return "Micro caps";
+      if (clean === "mid_caps") return "Mid caps";
+      if (clean === "high_caps") return "High caps";
+      if (clean === "majors") return "Majors";
+      return publicLabel(clean, "All public sample");
+    }
+
+    function humanWindowLabel(value) {
+      return publicLabel(value, "6h");
+    }
+
     function marketStateFilterValue(state, key) {
       if (!isObject(state)) return "unknown";
       if (key === "risk") return rawText(state.risk && state.risk.level, "unknown");
@@ -825,6 +879,7 @@
         state.chain,
         titleCase(state.chain),
         state.cap_band,
+        humanCapBandLabel(state.cap_band),
         titleCase(state.cap_band),
         state.window,
         titleCase(state.window),
@@ -871,6 +926,7 @@
         row.chain,
         titleCase(row.chain),
         row.cap_band,
+        humanCapBandLabel(row.cap_band),
         titleCase(row.cap_band),
         row.window,
         titleCase(row.window),
@@ -893,6 +949,7 @@
         row.chain,
         titleCase(row.chain),
         row.cap_band,
+        humanCapBandLabel(row.cap_band),
         titleCase(row.cap_band),
         row.window,
         titleCase(row.window),
@@ -921,6 +978,7 @@
         list(row.chains).join(" "),
         list(row.cap_bands).join(" "),
         row.available_on,
+        list(row.matched_state_ids).length,
         "alert",
         "condition",
         "available on pro",
@@ -1617,8 +1675,8 @@
         ["market states", `${stats.marketStateCount} live`],
         ["risk rows", `${stats.riskStateCount} live`],
         ["participant outcomes", `${stats.outcomeCount} live`],
-        ["alerts", `${stats.alertCount} live · ${stats.activeAlertCount} active`],
-        ["replay", `${titleCase(stats.replayStatus)} · ${stats.archiveRecordCount} archive records`],
+        ["alert templates", `${stats.alertCount} live · ${stats.activeAlertCount} active`],
+        ["replay", `${titleCase(stats.replayStatus)} · ${stats.archiveRecordCount}/${stats.replayMinimum} archive records · ${stats.replayComparableCount} comparables`],
       ];
       items.forEach(([label, value]) => {
         const chip = document.createElement("span");
@@ -1699,7 +1757,7 @@
 
       const groups = [
         ["chain", "chain"],
-        ["cap_band", "cap band"],
+        ["cap_band", "public sample"],
         ["window", "window"],
         ["condition", "condition"],
         ["risk", "risk level"],
@@ -1720,7 +1778,7 @@
           const chip = document.createElement("button");
           chip.className = "search-chip";
           chip.type = "button";
-          chip.textContent = publicLabel(value, value);
+          chip.textContent = key === "cap_band" ? humanCapBandLabel(value) : key === "window" ? humanWindowLabel(value) : publicLabel(value, value);
           chip.dataset.key = key;
           chip.dataset.value = value;
           node.appendChild(chip);
@@ -1728,7 +1786,7 @@
       });
     }
 
-    function renderMarketSearch(states, stats = {}) {
+    function renderMarketSearch(states, stats = {}, previews = {}) {
       const fallback = document.getElementById("marketSearchFallback");
       const resultNode = document.getElementById("marketSearchResults");
       const lockedNode = document.getElementById("marketSearchLocked");
@@ -1786,6 +1844,11 @@
         const normalizedQuery = normalizeSearchText(queryText);
         const filtered = normalizedStates.filter((state) => marketStateMatchesFilters(state, filters));
         const lockedMatches = renderLockedCards(queryText);
+        const riskMatches = renderRiskSearchPreview(previews.riskSearchPayload, queryText);
+        const outcomeMatches = renderParticipantOutcomePreview(previews.participantOutcomePayload, queryText);
+        const alertMatches = renderAlertPreview(previews.alertPreviewPayload, queryText);
+        const replayMatches = renderHistoricalReplayPreview(previews.historicalReplayPayload, queryText);
+        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + replayMatches;
         resultNode.textContent = "";
         fallback.hidden = (normalizedStates.length > 0 && filtered.length > 0) || (normalizedStates.length === 0 && !normalizedQuery && lockedMatches > 0);
         if (!normalizedStates.length) {
@@ -1799,7 +1862,7 @@
           resultNode.appendChild(empty);
           return;
         }
-        if (!filtered.length && !lockedMatches) {
+        if (!filtered.length && !lockedMatches && !nonMarketMatches) {
           fallback.hidden = false;
           const empty = document.createElement("section");
           empty.className = "panel building-state";
@@ -1824,6 +1887,13 @@
           resultNode.appendChild(empty);
           return;
         }
+        if (!filtered.length && nonMarketMatches) {
+          const note = document.createElement("section");
+          note.className = "panel building-state";
+          note.innerHTML = "<strong>No market states match this search yet.</strong><p>Related preview sections below still match this query.</p>";
+          resultNode.appendChild(note);
+          return;
+        }
         filtered.slice(0, 24).forEach((state) => {
           const item = document.createElement("article");
           item.className = "result-card";
@@ -1831,18 +1901,22 @@
           item.dataset.searchText = marketStateSearchText(state);
           const title = document.createElement("div");
           title.className = "result-title";
-          title.textContent = `${publicLabel(state.chain, state.chain)} / ${publicLabel(state.cap_band, state.cap_band)} / ${publicLabel(state.window, state.window)} · ${publicLabel(state.condition, "unknown")}`;
+          title.textContent = `${publicLabel(state.chain, state.chain)} / ${humanCapBandLabel(state.cap_band)} / ${humanWindowLabel(state.window)} · ${publicLabel(state.condition, "unknown")}`;
           const summary = document.createElement("div");
           summary.className = "result-summary";
           summary.textContent = marketStateSummary(state);
           const details = document.createElement("div");
           details.className = "details";
           [
+            ["chain", publicLabel(state.chain, "unknown")],
+            ["cap band", humanCapBandLabel(state.cap_band)],
+            ["window", humanWindowLabel(state.window)],
             ["condition", publicLabel(state.condition, "unknown")],
             ["participant outcome", publicLabel(state.participant_outcome && state.participant_outcome.direction, "unknown")],
             ["breadth", `${publicLabel(state.breadth && state.breadth.direction, "unknown")} · ${publicLabel(state.breadth && state.breadth.strength, "unknown")}`],
-            ["risk level", publicLabel(state.risk && state.risk.level, "unknown")],
+            ["risk", publicLabel(state.risk && state.risk.level, "unknown")],
             ["data quality", publicLabel(state.data_quality && state.data_quality.status, "unknown")],
+            ["summary", rawText(state.summary, "Public-safe market-state read is building.")],
             ["warnings", list(state.warnings).length ? list(state.warnings).slice(0, 3).map((item) => rawText(item)).join(" · ") : "none"],
           ].forEach(([label, value]) => {
             const row = document.createElement("div");
@@ -1874,6 +1948,7 @@
           requested_window: filters.window,
           result_count: filtered.length,
         });
+
       }
 
       input.addEventListener("input", applyFilters);
@@ -1996,6 +2071,277 @@
       });
     }
 
+    function buildPreviewCard(title, copy, badge, detailRows, searchText) {
+      const item = document.createElement("article");
+      item.className = "card";
+      if (badge) {
+        const mark = document.createElement("span");
+        mark.className = "badge";
+        mark.textContent = badge;
+        item.appendChild(mark);
+      }
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      const p = document.createElement("p");
+      p.textContent = copy;
+      item.append(h3, p);
+      if (searchText) item.dataset.searchText = normalizeSearchText(searchText);
+      if (Array.isArray(detailRows) && detailRows.length) {
+        const details = document.createElement("div");
+        details.className = "details";
+        detailRows.forEach(([label, value]) => {
+          const row = document.createElement("div");
+          row.className = "detail";
+          const left = document.createElement("span");
+          left.textContent = label;
+          const right = document.createElement("strong");
+          right.textContent = value;
+          row.append(left, right);
+          details.appendChild(row);
+        });
+        item.appendChild(details);
+      }
+      return item;
+    }
+
+    function renderRiskSearchPreview(payload, queryText) {
+      const node = document.getElementById("riskSearchPreview");
+      const countNode = document.getElementById("riskSearchCount");
+      node.textContent = "";
+      const rows = list(payload && payload.risk_states).filter(isObject);
+      const normalizedQuery = normalizeSearchText(queryText);
+      const filtered = rows.filter((row) => !normalizedQuery || riskSearchText(row).includes(normalizedQuery));
+      countNode.textContent = rows.length ? `${rows.length} risk rows available` : "Risk Search is building. RavenOS will show public-safe risk rows once market-state risk drivers are available.";
+      if (!rows.length) {
+        const buildingSearch = searchTextFromParts("risk search", "building", "available on pro");
+        node.appendChild(buildPreviewCard(
+          "Risk Search is building",
+          "RavenOS will show public-safe risk rows once market-state risk drivers are available.",
+          "Available on Pro",
+          [
+            ["status", "building"],
+            ["risk", "unknown"],
+            ["data quality", "unknown"],
+          ],
+          buildingSearch
+        ));
+        return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
+      }
+      const rowsToRender = filtered.slice(0, 8);
+      if (!rowsToRender.length) {
+        node.appendChild(buildPreviewCard(
+          "No risk rows match this search yet",
+          "Try a broader term like solana, eth, base, confirmation, thin sample, or window disagreement.",
+          "Available on Pro",
+          [
+            ["risk rows", `${rows.length} available`],
+          ],
+          "risk search no match"
+        ));
+        return 0;
+      }
+      rowsToRender.forEach((row) => {
+        const title = `${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)} · ${publicLabel(row.chain, row.chain)}`;
+        const copy = rawText(row.public_read, "Public-safe risk read is available.");
+        const detailRows = [
+          ["chain", publicLabel(row.chain, row.chain)],
+          ["cap band", humanCapBandLabel(row.cap_band)],
+          ["window", humanWindowLabel(row.window)],
+          ["risk type", publicLabel(row.risk_type, "unknown")],
+          ["risk level", publicLabel(row.risk_level, "unknown")],
+          ["data quality", publicLabel(row.data_quality, "unknown")],
+          ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
+          ["drivers", list(row.drivers).length ? list(row.drivers).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
+        ];
+        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, riskSearchText(row));
+        node.appendChild(item);
+      });
+      return rowsToRender.length;
+    }
+
+    function renderParticipantOutcomePreview(payload, queryText) {
+      const node = document.getElementById("participantOutcomePreview");
+      const countNode = document.getElementById("participantOutcomeCount");
+      node.textContent = "";
+      const rows = list(payload && payload.outcomes).filter(isObject);
+      const normalizedQuery = normalizeSearchText(queryText);
+      const filtered = rows.filter((row) => !normalizedQuery || participantOutcomeSearchText(row).includes(normalizedQuery));
+      countNode.textContent = rows.length ? `${rows.length} outcome rows available` : "Participant Outcome is building. RavenOS will show public-safe outcome rows once clean sample coverage is available.";
+      if (!rows.length) {
+        const buildingSearch = searchTextFromParts("participant outcome", "building", "available on pro");
+        node.appendChild(buildPreviewCard(
+          "Participant Outcome is building",
+          "RavenOS will show public-safe outcome rows once clean sample coverage is available.",
+          "Available on Pro",
+          [
+            ["participant outcome", "building"],
+            ["clean sample", "unknown"],
+            ["observed sample", "unknown"],
+          ],
+          buildingSearch
+        ));
+        return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
+      }
+      const rowsToRender = filtered.slice(0, 8);
+      if (!rowsToRender.length) {
+        node.appendChild(buildPreviewCard(
+          "No outcome rows match this search yet",
+          "Try a broader term like solana, fresh pairs, clean sample, thin, or unknown.",
+          "Available on Pro",
+          [
+            ["outcome rows", `${rows.length} available`],
+          ],
+          "participant outcome no match"
+        ));
+        return 0;
+      }
+      rowsToRender.forEach((row) => {
+        const title = `${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window)} · ${publicLabel(row.chain, row.chain)}`;
+        const copy = rawText(row.public_read, "Public-safe outcome read is available.");
+        const detailRows = [
+          ["chain", publicLabel(row.chain, row.chain)],
+          ["cap band", humanCapBandLabel(row.cap_band)],
+          ["window", humanWindowLabel(row.window)],
+          ["participant outcome", publicLabel(row.participant_outcome, "unknown")],
+          ["direction", publicLabel(row.direction, "unknown")],
+          ["confidence", publicLabel(row.confidence, "unknown")],
+          ["data quality", publicLabel(row.data_quality, "unknown")],
+          ["clean sample", Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "unknown"],
+          ["observed sample", Number.isFinite(Number(row.observed_sample)) ? String(row.observed_sample) : "unknown"],
+          ["warnings", list(row.warnings).length ? list(row.warnings).slice(0, 4).map((item) => publicLabel(item, rawText(item))).join(" · ") : "none"],
+        ];
+        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, participantOutcomeSearchText(row));
+        node.appendChild(item);
+      });
+      return rowsToRender.length;
+    }
+
+    function renderAlertPreview(payload, queryText) {
+      const node = document.getElementById("alertPreview");
+      const countNode = document.getElementById("alertPreviewCount");
+      node.textContent = "";
+      const rows = list(payload && payload.alerts).filter(isObject);
+      const normalizedQuery = normalizeSearchText(queryText);
+      const filtered = rows.filter((row) => !normalizedQuery || alertSearchText(row).includes(normalizedQuery));
+      const active = rows.filter((row) => rawText(row.status, "").toLowerCase() === "active").length;
+      countNode.textContent = rows.length ? `${rows.length} condition templates, ${active} active` : "Notification delivery is not enabled in this public preview.";
+      if (!rows.length) {
+        const buildingSearch = searchTextFromParts("alert builder", "building", "available on pro");
+        node.appendChild(buildPreviewCard(
+          "Alert Builder is building",
+          "Notification delivery is not enabled in this public preview.",
+          "Available on Pro",
+          [
+            ["status", "building"],
+          ],
+          buildingSearch
+        ));
+        return normalizedQuery ? (buildingSearch.includes(normalizedQuery) ? 1 : 0) : 1;
+      }
+      const rowsToRender = filtered.slice(0, 8);
+      if (!rowsToRender.length) {
+        node.appendChild(buildPreviewCard(
+          "No alert templates match this search yet",
+          "Try a broader term like alert, condition, active, building, thin, or confirmation.",
+          "Available on Pro",
+          [
+            ["alert templates", `${rows.length} available`],
+          ],
+          "alert builder no match"
+        ));
+        return 0;
+      }
+      rowsToRender.forEach((row) => {
+        const title = rawText(row.title, "Alert template");
+        const copy = rawText(row.public_read, "Public-safe condition alert is available.");
+        const detailRows = [
+          ["status", publicLabel(row.status, "unknown")],
+          ["severity", publicLabel(row.severity, "unknown")],
+          ["chains", list(row.chains).length ? list(row.chains).map((item) => publicLabel(item, item)).join(" · ") : "none"],
+          ["cap bands", list(row.cap_bands).length ? list(row.cap_bands).map((item) => humanCapBandLabel(item)).join(" · ") : "none"],
+          ["window", humanWindowLabel(row.window)],
+          ["matched states", String(list(row.matched_state_ids).length)],
+          ["available on", publicLabel(row.available_on, "pro")],
+        ];
+        const item = buildPreviewCard(title, copy, "Available on Pro", detailRows, alertSearchText(row));
+        node.appendChild(item);
+      });
+      return rowsToRender.length;
+    }
+
+    function renderHistoricalReplayPreview(payload, queryText) {
+      const node = document.getElementById("historicalReplayPreview");
+      const countNode = document.getElementById("historicalReplayCount");
+      node.textContent = "";
+      const normalizedQuery = normalizeSearchText(queryText);
+      const status = rawText(payload && payload.status, "building");
+      const comparables = Array.isArray(payload && payload.comparables) ? payload.comparables : [];
+      const meta = isObject(payload && payload.metadata) ? payload.metadata : {};
+      const archiveCount = Number.isFinite(Number(meta.archive_record_count)) ? Number(meta.archive_record_count) : 0;
+      const minimum = Number.isFinite(Number(meta.minimum_records_required)) ? Number(meta.minimum_records_required) : 20;
+      countNode.textContent = status === "available"
+        ? `${comparables.length} comparable windows available`
+        : `building, ${archiveCount}/${minimum} archive records`;
+
+      const cardSearch = searchTextFromParts(
+        "historical replay",
+        "advanced desk",
+        status,
+        archiveCount,
+        minimum,
+        comparables.length,
+        "building",
+        "comparables",
+        "archive"
+      );
+      if (normalizedQuery && !cardSearch.includes(normalizedQuery)) {
+        node.appendChild(buildPreviewCard(
+          "Historical Replay",
+          "Historical Replay is collecting public market-state history. Comparable windows will appear once enough records exist.",
+          "Available on Advanced Desk",
+          [
+            ["status", titleCase(status)],
+            ["archive records", `${archiveCount}/${minimum}`],
+            ["comparables", String(comparables.length)],
+          ],
+          cardSearch
+        ));
+        return 0;
+      }
+
+      const headline = status === "available"
+        ? "Historical Replay is available"
+        : "Historical Replay is collecting public market-state history";
+      const copy = status === "available"
+        ? "Comparable public windows are ready."
+        : "Comparable windows will appear once enough records exist.";
+      node.appendChild(buildPreviewCard(
+        headline,
+        copy,
+        "Available on Advanced Desk",
+        [
+          ["status", titleCase(status)],
+          ["archive records", `${archiveCount}/${minimum}`],
+          ["comparables", String(comparables.length)],
+        ],
+        cardSearch
+      ));
+      comparables.slice(0, 3).forEach((row) => {
+        const item = buildPreviewCard(
+          `${publicLabel(row.current_state_id, row.current_state_id)} → ${publicLabel(row.matched_state_id, row.matched_state_id)}`,
+          rawText(row.public_read, "Comparable public window."),
+          "Available on Advanced Desk",
+          [
+            ["similarity", Number.isFinite(Number(row.similarity_score)) ? String(row.similarity_score) : "unknown"],
+            ["reasons", list(row.match_reasons).length ? list(row.match_reasons).slice(0, 4).map((item) => rawText(item)).join(" · ") : "none"],
+          ],
+          searchTextFromParts(row.current_state_id, row.matched_state_id, row.public_read, row.match_reasons)
+        );
+        node.appendChild(item);
+      });
+      return 1 + Math.min(comparables.length, 3);
+    }
+
     async function boot() {
       const snapshots = await fetchJsonPayloads(SNAPSHOT_URLS);
       const latests = await fetchJsonPayloads(LATEST_URLS);
@@ -2019,6 +2365,7 @@
         "/ravenos_historical_replay.json",
         "/public/ravenos_historical_replay.json",
       ]);
+      const alertRowsPayloads = await fetchJsonPayloads(ALERT_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -2026,19 +2373,23 @@
       const riskSearchPayload = normalizePublicPayload(freshestByGeneratedAt(riskSearches));
       const participantOutcomePayload = normalizePublicPayload(freshestByGeneratedAt(participantOutcomes));
       const historicalReplayPayload = normalizePublicPayload(freshestByGeneratedAt(historicalReplays));
+      const alertPreviewPayload = normalizePublicPayload(freshestByGeneratedAt(alertRowsPayloads));
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       refreshStatus = normalizePublicPayload(refreshStatus);
       const conditionAlertsPayload = isObject(snapshot.condition_alerts) ? snapshot.condition_alerts : {};
+      const replayMeta = isObject(historicalReplayPayload.metadata) ? historicalReplayPayload.metadata : {};
       const stats = {
         marketStateCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).length,
         capBandCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).filter((state) => rawText(state.cap_band, "") !== "all").length,
         riskStateCount: list(riskSearchPayload.risk_states).length,
         outcomeCount: list(participantOutcomePayload.outcomes).length,
-        alertCount: list(conditionAlertsPayload.alerts).length,
-        activeAlertCount: list(conditionAlertsPayload.alerts).filter((item) => rawText(item.status, "") === "active").length,
+        alertCount: list(alertPreviewPayload.alerts).length,
+        activeAlertCount: list(alertPreviewPayload.alerts).filter((item) => rawText(item.status, "") === "active").length,
         replayStatus: rawText(historicalReplayPayload.status, "building"),
-        archiveRecordCount: Number.isFinite(Number(historicalReplayPayload.metadata && historicalReplayPayload.metadata.archive_record_count)) ? Number(historicalReplayPayload.metadata.archive_record_count) : 0,
+        archiveRecordCount: Number.isFinite(Number(replayMeta.archive_record_count)) ? Number(replayMeta.archive_record_count) : 0,
+        replayComparableCount: list(historicalReplayPayload.comparables).length,
+        replayMinimum: Number.isFinite(Number(replayMeta.minimum_records_required)) ? Number(replayMeta.minimum_records_required) : 20,
       };
       setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
       setText("refreshedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || latest.updated_at));
@@ -2048,7 +2399,12 @@
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
       renderSearchStats(stats);
-      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : [], stats);
+      renderMarketSearch(isObject(marketStatePayload) ? marketStatePayload.states : [], stats, {
+        riskSearchPayload,
+        participantOutcomePayload,
+        alertPreviewPayload,
+        historicalReplayPayload,
+      });
       renderProModules(stats);
       renderPricing();
       renderConditionAlerts(snapshot.condition_alerts);
