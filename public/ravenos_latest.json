@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8598,
-        "classified_total": 1073,
-        "econ_present_rate": 0.8598,
-        "econ_present_total": 1073,
+        "classification_rate": 0.8601,
+        "classified_total": 1076,
+        "econ_present_rate": 0.8601,
+        "econ_present_total": 1076,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 134,
-        "observed_total": 1248,
+        "observed_total": 1251,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 5,
           "thin_liquidity": 40,
           "unknown_unresolved": 0,
-          "usable_signal": 939
+          "usable_signal": 942
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1402,
+        "unresolved_rate": 0.1399,
         "unresolved_total": 175,
-        "usable_econ_total": 939,
-        "usable_rate": 0.7524,
-        "usable_signal_rate": 0.7524,
-        "usable_signal_total": 939,
+        "usable_econ_total": 942,
+        "usable_rate": 0.753,
+        "usable_signal_rate": 0.753,
+        "usable_signal_total": 942,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1315,
+        "classified_total": 1316,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1315,
+        "econ_present_total": 1316,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 448,
-        "observed_total": 1315,
+        "observed_total": 1316,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 6,
           "thin_liquidity": 21,
           "unknown_unresolved": 0,
-          "usable_signal": 867
+          "usable_signal": 868
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 867,
-        "usable_rate": 0.6593,
-        "usable_signal_rate": 0.6593,
-        "usable_signal_total": 867,
+        "usable_econ_total": 868,
+        "usable_rate": 0.6596,
+        "usable_signal_rate": 0.6596,
+        "usable_signal_total": 868,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9501,
-    "classified_total": 36669,
+    "classified_total": 36673,
     "econ_present_rate": 0.9501,
-    "econ_present_total": 36669,
+    "econ_present_total": 36673,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9492,
-    "observed_total": 38595,
+    "observed_total": 38599,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2076,
       "thin_liquidity": 1058,
       "unknown_unresolved": 0,
-      "usable_signal": 27177
+      "usable_signal": 27181
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0499,
     "unresolved_total": 1926,
-    "usable_econ_total": 27177,
+    "usable_econ_total": 27181,
     "usable_rate": 0.7042,
     "usable_signal_rate": 0.7042,
-    "usable_signal_total": 27177,
+    "usable_signal_total": 27181,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-04T20:37:45Z",
+  "generated_at": "2026-05-04T20:53:15Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
