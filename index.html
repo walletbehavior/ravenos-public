@@ -568,7 +568,6 @@
       <div class="topline">
         <h1>RavenOS</h1>
         <p class="stamp" id="generatedAt">updated recently</p>
-        <p class="stamp" id="refreshedAt">refreshing...</p>
       </div>
       <div class="intro">
         <p>RavenOS reads public crypto market behavior across chains, breadth, liquidity, leverage, and rotation.</p>
@@ -2554,8 +2553,7 @@
         replayComparableCount: list(historicalReplayPayload.comparables).length,
         replayMinimum: Number.isFinite(Number(replayMeta.minimum_records_required)) ? Number(replayMeta.minimum_records_required) : 20,
       };
-      setText("generatedAt", formatUpdated(snapshot.generated_at || latest.generated_at || latest.updated_at));
-      setText("refreshedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || latest.updated_at));
+      setText("generatedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
