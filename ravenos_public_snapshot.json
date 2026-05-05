@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.825,
-        "classified_total": 1216,
-        "econ_present_rate": 0.825,
-        "econ_present_total": 1216,
+        "classification_rate": 0.8254,
+        "classified_total": 1220,
+        "econ_present_rate": 0.8254,
+        "econ_present_total": 1220,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 143,
-        "observed_total": 1474,
+        "observed_total": 1478,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 3,
           "thin_liquidity": 53,
           "unknown_unresolved": 0,
-          "usable_signal": 1073
+          "usable_signal": 1077
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.175,
+        "unresolved_rate": 0.1746,
         "unresolved_total": 258,
-        "usable_econ_total": 1073,
-        "usable_rate": 0.728,
-        "usable_signal_rate": 0.728,
-        "usable_signal_total": 1073,
+        "usable_econ_total": 1077,
+        "usable_rate": 0.7287,
+        "usable_signal_rate": 0.7287,
+        "usable_signal_total": 1077,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1445,
+        "classified_total": 1448,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1445,
+        "econ_present_total": 1448,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 439,
-        "observed_total": 1445,
+        "observed_total": 1448,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 6,
           "thin_liquidity": 33,
           "unknown_unresolved": 0,
-          "usable_signal": 1006
+          "usable_signal": 1009
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 1006,
-        "usable_rate": 0.6962,
-        "usable_signal_rate": 0.6962,
-        "usable_signal_total": 1006,
+        "usable_econ_total": 1009,
+        "usable_rate": 0.6968,
+        "usable_signal_rate": 0.6968,
+        "usable_signal_total": 1009,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -609,16 +609,16 @@
         "window": "6h"
       }
     },
-    "classification_rate": 0.9484,
-    "classified_total": 36981,
-    "econ_present_rate": 0.9484,
-    "econ_present_total": 36981,
+    "classification_rate": 0.9485,
+    "classified_total": 36988,
+    "econ_present_rate": 0.9485,
+    "econ_present_total": 36988,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9523,
-    "observed_total": 38991,
+    "observed_total": 38998,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2104,
       "thin_liquidity": 1083,
       "unknown_unresolved": 0,
-      "usable_signal": 27458
+      "usable_signal": 27465
     },
     "schema_version": "ravenos_data_depth_v0",
-    "unresolved_rate": 0.0516,
+    "unresolved_rate": 0.0515,
     "unresolved_total": 2010,
-    "usable_econ_total": 27458,
-    "usable_rate": 0.7042,
-    "usable_signal_rate": 0.7042,
-    "usable_signal_total": 27458,
+    "usable_econ_total": 27465,
+    "usable_rate": 0.7043,
+    "usable_signal_rate": 0.7043,
+    "usable_signal_total": 27465,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-05T11:05:45Z",
+  "generated_at": "2026-05-05T11:21:15Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
