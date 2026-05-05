@@ -1256,7 +1256,13 @@
         row.cap_band,
         humanCapBandLabel(row.cap_band),
         row.timeframe,
+        row.window,
         row.derived_state,
+        row.profitability_label,
+        row.trend,
+        row.confidence,
+        row.win_rate_band,
+        row.score_strength,
         row.avg_outcome,
         row.outcome_strength,
         row.plain_language_summary,
@@ -3118,13 +3124,14 @@
       filtered.forEach((row) => {
         node.appendChild(
           buildCompactPreviewCard(
-            titleCase(rawText(row.derived_state, "outcomes unclear")),
-            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.timeframe)}`,
+            titleCase(rawText(row.profitability_label, row.derived_state || "outcomes unclear")),
+            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window || row.timeframe)}`,
             rawText(row.plain_language_summary, "Participant outcome is still unclear."),
             "Public preview",
             [
-              ["outcome", titleCase(rawText(row.avg_outcome, "mixed"))],
-              ["strength", titleCase(rawText(row.outcome_strength, "building"))],
+              ["trend", titleCase(rawText(row.trend, "stable"))],
+              ["confidence", titleCase(rawText(row.confidence, "low"))],
+              ["strength", titleCase(rawText(row.score_strength || row.outcome_strength, "building"))],
               ["sample", Number(row.sample_size) > 0 ? `${Number(row.sample_size)} public rows` : "building"],
             ],
             participantHeatmapSearchText(row)
