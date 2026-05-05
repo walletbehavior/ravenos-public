@@ -884,7 +884,7 @@
       },
     ];
 
-    const PRICING = [
+    const FALLBACK_ACCESS_LEVELS = [
       {
         name: "Public preview",
         badge: "Public",
@@ -919,6 +919,7 @@
         cta: "Contact for access"
       }
     ];
+    const PRICING = Array.isArray(FALLBACK_ACCESS_LEVELS) && FALLBACK_ACCESS_LEVELS.length ? FALLBACK_ACCESS_LEVELS : [];
 
     function isObject(value) {
       return value && typeof value === "object" && !Array.isArray(value);
@@ -2145,24 +2146,33 @@
 
     function renderPricing() {
       const node = document.getElementById("pricing");
+      if (!node) return;
       node.textContent = "";
-      PRICING.forEach((tier) => {
-        const item = card(tier.name, tier.copy, tier.badge);
+      const tiers = list(PRICING).length ? list(PRICING) : list(FALLBACK_ACCESS_LEVELS);
+      tiers.forEach((tierLike) => {
+        const tier = isObject(tierLike) ? tierLike : {};
+        const item = card(
+          rawText(tier.name, "Access level"),
+          rawText(tier.copy, "RavenOS access details are building."),
+          rawText(tier.badge, "Preview")
+        );
         const status = document.createElement("div");
         status.className = "access-status";
-        status.textContent = tier.status;
-        item.insertBefore(status, item.querySelector("p"));
+        status.textContent = rawText(tier.status, "Preview");
+        item.insertBefore(status, item.querySelector("p") || null);
         const ul = document.createElement("ul");
         ul.className = "features";
-        tier.features.forEach((feature) => {
+        const features = list(tier.features).length ? list(tier.features) : ["Access details building"];
+        features.forEach((feature) => {
           const li = document.createElement("li");
           li.textContent = feature;
           ul.appendChild(li);
         });
-        const cta = document.createElement(tier.live ? "a" : "span");
-        cta.className = tier.live ? "cta" : "cta disabled";
-        cta.textContent = tier.cta;
-        if (tier.live) cta.href = "#liveRead";
+        const isLive = tier.live === true;
+        const cta = document.createElement(isLive ? "a" : "span");
+        cta.className = isLive ? "cta" : "cta disabled";
+        cta.textContent = rawText(tier.cta, isLive ? "Live now" : "Preview");
+        if (isLive) cta.href = "#liveRead";
         item.append(ul, cta);
         node.appendChild(item);
       });
@@ -3464,7 +3474,11 @@
     }
 
 
-    boot();
+    renderPricing();
+    boot().catch((error) => {
+      console.error("RavenOS boot failed", error);
+      renderPricing();
+    });
   </script>
 </body>
 </html>
