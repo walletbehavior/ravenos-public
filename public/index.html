@@ -697,6 +697,14 @@
     <p class="section-copy">Short-term memory tracks whether conditions have been repeating, shifting, or becoming less consistent.</p>
     <section class="preview-grid" id="recentMemoryPreview"></section>
 
+    <h2 class="section-title">how this usually plays out</h2>
+    <p class="section-copy">Condition replay compares resolved public condition types so the preview can show whether similar reads often confirm, fade, or stay unclear.</p>
+    <section class="preview-grid" id="conditionReplayPreview"></section>
+
+    <h2 class="section-title">when to be careful</h2>
+    <p class="section-copy">Risk advisory cards show where public conditions are less reliable, why that matters, and what would improve the read.</p>
+    <section class="preview-grid" id="riskAdvisoryPreview"></section>
+
     <h2 class="section-title">condition alerts</h2>
     <p class="section-copy">Condition alerts explain why a move may not be trustworthy yet.</p>
     <section class="panel alert-list" id="conditionAlerts"></section>
@@ -773,6 +781,10 @@
     <p class="section-copy">Participant Outcome shows whether the public sample looks favorable, mixed, punishing, or unknown. It stays public-safe and avoids fake precision when the clean sample is thin.</p>
     <section class="preview-grid" id="participantOutcomePreview"></section>
 
+    <h2 class="section-title">who is winning right now</h2>
+    <p class="section-copy">Participant heatmap rows summarize where public participation is working, struggling, or still unclear by chain and cap band.</p>
+    <section class="preview-grid" id="participantHeatmapPreview"></section>
+
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
     <p class="section-copy">Condition alerts track market states, not tickers. Each alert shows which condition is active or building, how many public states match it, what would make it stronger, and what still needs confirmation. Real user notifications are still building.</p>
@@ -811,9 +823,21 @@
       "/ravenos_condition_transitions.json",
       "/public/ravenos_condition_transitions.json",
     ];
+    const CONDITION_REPLAY_URLS = [
+      "/ravenos_condition_replay.json",
+      "/public/ravenos_condition_replay.json",
+    ];
     const RECENT_MEMORY_URLS = [
       "/ravenos_recent_memory.json",
       "/public/ravenos_recent_memory.json",
+    ];
+    const RISK_ADVISORY_URLS = [
+      "/ravenos_risk_advisory.json",
+      "/public/ravenos_risk_advisory.json",
+    ];
+    const PARTICIPANT_HEATMAP_URLS = [
+      "/ravenos_participant_heatmap.json",
+      "/public/ravenos_participant_heatmap.json",
     ];
     const SAVED_SEARCH_TEMPLATE_URLS = [
       "/ravenos_saved_search_templates.json",
@@ -1218,6 +1242,28 @@
       );
     }
 
+    function participantHeatmapSearchText(row) {
+      if (!isObject(row)) return "";
+      return searchTextFromParts(
+        "who is winning",
+        "participant heatmap",
+        "participants",
+        "losing",
+        "profitable",
+        row.chain,
+        titleCase(row.chain),
+        row.cap_band,
+        humanCapBandLabel(row.cap_band),
+        row.timeframe,
+        row.derived_state,
+        row.avg_outcome,
+        row.outcome_strength,
+        row.plain_language_summary,
+        row.participant_outcome_context,
+        list(row.search_terms).join(" ")
+      );
+    }
+
     function confirmationInsightText(...parts) {
       return normalizeSearchText(searchTextFromParts(...parts));
     }
@@ -1347,6 +1393,7 @@
         row.why_it_matters,
         row.what_would_confirm,
         row.what_would_weaken,
+        row.risk_overlay,
         row.suggested_user_action,
         list(row.search_terms).join(" "),
         list(row.chains).join(" "),
@@ -2274,12 +2321,15 @@
         const lockedMatches = renderLockedCards(queryText);
         const riskMatches = renderRiskSearchPreview(previews.riskSearchPayload, queryText);
         const outcomeMatches = renderParticipantOutcomePreview(previews.participantOutcomePayload, queryText);
+        const heatmapMatches = renderParticipantHeatmap(previews.participantHeatmapPayload, queryText);
         const alertMatches = renderAlertPreview(previews.alertPreviewPayload, queryText);
         const deskMatches = renderDeskContextPreview(previews.deskContextPayload, queryText);
         const replayMatches = renderHistoricalReplayPreview(previews.historicalReplayPayload, queryText);
         const transitionMatches = renderConditionTransitions(previews.conditionTransitionPayload, queryText);
         const memoryMatches = renderRecentMemory(previews.recentMemoryPayload, queryText);
-        const nonMarketMatches = riskMatches + outcomeMatches + alertMatches + deskMatches + replayMatches + transitionMatches + memoryMatches;
+        const conditionReplayMatches = renderConditionReplay(previews.conditionReplayPayload, queryText);
+        const advisoryMatches = renderRiskAdvisory(previews.riskAdvisoryPayload, queryText);
+        const nonMarketMatches = riskMatches + outcomeMatches + heatmapMatches + alertMatches + deskMatches + replayMatches + transitionMatches + memoryMatches + conditionReplayMatches + advisoryMatches;
         resultNode.textContent = "";
         const statsNode = document.getElementById("searchStats");
         if (statsNode) {
@@ -2635,6 +2685,59 @@
       return filtered.length;
     }
 
+    function conditionReplaySearchText(row) {
+      return searchTextFromParts(
+        "how this usually plays out",
+        "condition replay",
+        "history before does this usually work",
+        rawText(row && row.condition_family, ""),
+        rawText(row && row.plain_language_summary, ""),
+        rawText(row && row.typical_duration_label, ""),
+        rawText(row && row.historical_context, ""),
+        list(row && row.search_terms).join(" ")
+      );
+    }
+
+    function renderConditionReplay(payload, queryText = "") {
+      const node = document.getElementById("conditionReplayPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalized = normalizeSearchText(queryText);
+      const rows = list(payload && payload.rows).filter(isObject);
+      const filtered = rows.filter((row) => !normalized || conditionReplaySearchText(row).includes(normalized)).slice(0, 4);
+      if (!filtered.length) {
+        node.appendChild(
+          buildCompactPreviewCard(
+            "Condition replay is building",
+            "Public preview",
+            "RavenOS is collecting resolved public conditions so future reads can show whether similar cases often confirm, fade, or stay mixed.",
+            "Public preview",
+            [["what to watch", "More refreshes need to resolve before history becomes useful."]],
+            searchTextFromParts("how this usually plays out condition replay history before does this usually work")
+          )
+        );
+        return normalized ? 0 : 1;
+      }
+      filtered.forEach((row) => {
+        const failedRate = Number(row.failed_rate || 0);
+        const tone = failedRate >= 0.55 ? "Often fades" : Number(row.confirmed_rate || 0) >= 0.55 ? "Often confirms" : "Mixed history";
+        node.appendChild(
+          buildCompactPreviewCard(
+            rawText(row.condition_family, "condition").replace(/_/g, " "),
+            tone,
+            rawText(row.plain_language_summary, "Public history is still mixed."),
+            "Public preview",
+            [
+              ["history", Number(row.occurrences || 0) > 0 ? `${Number(row.occurrences)} public cases` : "building"],
+              ["duration", rawText(row.typical_duration_label, "duration is still building")],
+            ],
+            conditionReplaySearchText(row)
+          )
+        );
+      });
+      return filtered.length;
+    }
+
     function recentContextForAlert(alert, memoryPayload) {
       const family = rawText(alert && alert.condition_family, "");
       const context = isObject(memoryPayload && memoryPayload.recent_context_by_family) ? memoryPayload.recent_context_by_family[family] : null;
@@ -2643,7 +2746,82 @@
       return "Recent context is still building for this condition.";
     }
 
-    function renderConditionAlerts(conditionAlerts, recentMemoryPayload = {}) {
+    function riskOverlayForAlert(alert, riskPayload) {
+      const chain = rawText(alert && alert.chain, "");
+      const rows = list(riskPayload && riskPayload.advisories).filter(isObject);
+      const match = rows.find((row) => rawText(row.chain, "") === chain) || rows[0];
+      if (!match) return "Risk context is still building for this condition.";
+      return `This signal is present, but overall conditions are ${rawText(match.risk_level, "moderate")} because ${rawText(match.plain_warning, "confirmation is limited").toLowerCase()}.`;
+    }
+
+    function participantContextForAlert(alert, heatmapPayload) {
+      const chain = rawText(alert && alert.chain, "");
+      const rows = list(heatmapPayload && heatmapPayload.rows).filter(isObject);
+      const match = rows.find((row) => rawText(row.chain, "") === chain) || rows[0];
+      if (!match) return "Participant outcome context is still building.";
+      return rawText(match.participant_outcome_context, "Participant outcome context is still building.");
+    }
+
+    function historicalContextForAlert(alert, replayPayload) {
+      const family = rawText(alert && alert.condition_family, "");
+      const rows = list(replayPayload && replayPayload.rows).filter(isObject);
+      const match = rows.find((row) => rawText(row.condition_family, "") === family) || rows[0];
+      if (!match) return "Comparable public history is still building.";
+      return rawText(match.historical_context, "Comparable public history is still building.");
+    }
+
+    function riskAdvisorySearchText(row) {
+      return searchTextFromParts(
+        "when to be careful",
+        "risk advisory",
+        "risky unstable low confidence thin less reliable",
+        row.plain_warning,
+        row.why_it_matters,
+        row.what_would_improve,
+        row.risk_level,
+        row.chain,
+        row.scope,
+        list(row.risk_flags).join(" "),
+        list(row.search_terms).join(" ")
+      );
+    }
+
+    function renderRiskAdvisory(payload, queryText = "") {
+      const node = document.getElementById("riskAdvisoryPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalized = normalizeSearchText(queryText);
+      const rows = list(payload && payload.advisories).filter(isObject);
+      const filtered = rows.filter((row) => !normalized || riskAdvisorySearchText(row).includes(normalized)).slice(0, 4);
+      if (!filtered.length) {
+        node.appendChild(
+          buildCompactPreviewCard(
+            "Risk advisory is building",
+            "Public preview",
+            "RavenOS is checking whether confirmation, sample quality, timeframes, and source freshness make the read less reliable.",
+            "Public preview",
+            [["what would improve", "More public states need to confirm the same read."]],
+            searchTextFromParts("when to be careful risk advisory unstable thin low confidence")
+          )
+        );
+        return normalized ? 0 : 1;
+      }
+      filtered.forEach((row) => {
+        node.appendChild(
+          buildCompactPreviewCard(
+            rawText(row.plain_warning, "Conditions are less reliable"),
+            `${titleCase(rawText(row.risk_level, "moderate"))} · ${titleCase(rawText(row.chain, "all"))}`,
+            rawText(row.why_it_matters, "The public read still needs confirmation."),
+            "Public preview",
+            [["what would improve", rawText(row.what_would_improve, "More public states need to support the same read.")]],
+            riskAdvisorySearchText(row)
+          )
+        );
+      });
+      return filtered.length;
+    }
+
+    function renderConditionAlerts(conditionAlerts, recentMemoryPayload = {}, riskPayload = {}, participantHeatmapPayload = {}, conditionReplayPayload = {}) {
       const node = document.getElementById("conditionAlerts");
       node.textContent = "";
       const alerts = isObject(conditionAlerts) ? list(conditionAlerts.alerts).filter(isObject).slice(0, 3) : [];
@@ -2665,6 +2843,9 @@
           ["why it matters", rawText(alert.why_it_matters, "This market condition can change how reliable the read feels.")],
           ["what would confirm", rawText(alert.what_would_confirm, "The same read needs to hold across refreshes.")],
           ["recent context", recentContextForAlert(alert, recentMemoryPayload)],
+          ["participant context", participantContextForAlert(alert, participantHeatmapPayload)],
+          ["historical context", historicalContextForAlert(alert, conditionReplayPayload)],
+          ["risk overlay", riskOverlayForAlert(alert, riskPayload)],
         ].forEach(([label, value]) => {
           const row = document.createElement("div");
           row.className = "detail";
@@ -2904,6 +3085,45 @@
       return rowsToRender.length;
     }
 
+    function renderParticipantHeatmap(payload, queryText = "") {
+      const node = document.getElementById("participantHeatmapPreview");
+      if (!node) return 0;
+      node.textContent = "";
+      const normalizedQuery = normalizeSearchText(queryText);
+      const rows = list(payload && payload.rows).filter(isObject);
+      const filtered = rows.filter((row) => !normalizedQuery || participantHeatmapSearchText(row).includes(normalizedQuery)).slice(0, 6);
+      if (!filtered.length) {
+        node.appendChild(
+          buildCompactPreviewCard(
+            "Participant heatmap is building",
+            "Public preview",
+            "RavenOS is grouping public outcome rows by chain and cap band so visitors can see where participation is working or struggling.",
+            "Public preview",
+            [["what to watch", "Cleaner public samples need to show whether outcomes are working, struggling, or mixed."]],
+            searchTextFromParts("who is winning participants losing profitable heatmap")
+          )
+        );
+        return normalizedQuery ? 0 : 1;
+      }
+      filtered.forEach((row) => {
+        node.appendChild(
+          buildCompactPreviewCard(
+            titleCase(rawText(row.derived_state, "outcomes unclear")),
+            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.timeframe)}`,
+            rawText(row.plain_language_summary, "Participant outcome is still unclear."),
+            "Public preview",
+            [
+              ["outcome", titleCase(rawText(row.avg_outcome, "mixed"))],
+              ["strength", titleCase(rawText(row.outcome_strength, "building"))],
+              ["sample", Number(row.sample_size) > 0 ? `${Number(row.sample_size)} public rows` : "building"],
+            ],
+            participantHeatmapSearchText(row)
+          )
+        );
+      });
+      return filtered.length;
+    }
+
     function renderAlertPreview(payload, queryText) {
       const node = document.getElementById("alertPreview");
       const countNode = document.getElementById("alertPreviewCount");
@@ -2943,11 +3163,14 @@
         const title = rawText(row.title, "Alert template");
         const copy = rawText(row.plain_language_summary || row.public_read, "Public-safe condition alert is available.");
         const matchedCount = Number.isFinite(Number(row.matched_market_state_count)) ? Number(row.matched_market_state_count) : list(row.matched_state_ids).length;
-        const detailRows = [
-          ["why it matters", rawText(row.why_it_matters, "This market condition can change how reliable the read feels.")],
-          ["recent context", recentContextForAlert(row, window.__ravenosRecentMemory || {})],
-          ...alertConfirmationDetailsFromRow(row),
-        ];
+      const detailRows = [
+        ["why it matters", rawText(row.why_it_matters, "This market condition can change how reliable the read feels.")],
+        ["recent context", recentContextForAlert(row, window.__ravenosRecentMemory || {})],
+        ["participant context", participantContextForAlert(row, window.__ravenosParticipantHeatmap || {})],
+        ["historical context", historicalContextForAlert(row, window.__ravenosConditionReplay || {})],
+        ["risk overlay", riskOverlayForAlert(row, window.__ravenosRiskAdvisory || {})],
+        ...alertConfirmationDetailsFromRow(row),
+      ];
         const item = buildCompactPreviewCard(
           title,
           `${publicLabel(row.severity, "watch")} · ${publicLabel(row.confirmation_status, "building")} · ${matchedCount} matching public ${matchedCount === 1 ? "state" : "states"}`,
@@ -3169,7 +3392,10 @@
       const savedSearchTemplatePayloads = await fetchJsonPayloads(SAVED_SEARCH_TEMPLATE_URLS);
       const alertRowsPayloads = await fetchJsonPayloads(ALERT_URLS);
       const conditionTransitionPayloads = await fetchJsonPayloads(CONDITION_TRANSITION_URLS);
+      const conditionReplayPayloads = await fetchJsonPayloads(CONDITION_REPLAY_URLS);
       const recentMemoryPayloads = await fetchJsonPayloads(RECENT_MEMORY_URLS);
+      const riskAdvisoryPayloads = await fetchJsonPayloads(RISK_ADVISORY_URLS);
+      const participantHeatmapPayloads = await fetchJsonPayloads(PARTICIPANT_HEATMAP_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -3181,8 +3407,14 @@
       const savedSearchTemplatesPayload = normalizePublicPayload(freshestByGeneratedAt(savedSearchTemplatePayloads));
       const alertPreviewPayload = normalizePublicPayload(freshestByGeneratedAt(alertRowsPayloads));
       const conditionTransitionPayload = normalizePublicPayload(freshestByGeneratedAt(conditionTransitionPayloads));
+      const conditionReplayPayload = normalizePublicPayload(freshestByGeneratedAt(conditionReplayPayloads));
       const recentMemoryPayload = normalizePublicPayload(freshestByGeneratedAt(recentMemoryPayloads));
+      const riskAdvisoryPayload = normalizePublicPayload(freshestByGeneratedAt(riskAdvisoryPayloads));
+      const participantHeatmapPayload = normalizePublicPayload(freshestByGeneratedAt(participantHeatmapPayloads));
       window.__ravenosRecentMemory = recentMemoryPayload;
+      window.__ravenosConditionReplay = conditionReplayPayload;
+      window.__ravenosRiskAdvisory = riskAdvisoryPayload;
+      window.__ravenosParticipantHeatmap = participantHeatmapPayload;
       snapshot = normalizePublicPayload(snapshot);
       latest = normalizePublicPayload(latest);
       refreshStatus = normalizePublicPayload(refreshStatus);
@@ -3193,6 +3425,7 @@
         capBandCount: list(isObject(marketStatePayload) ? marketStatePayload.states : []).filter((state) => rawText(state.cap_band, "") !== "all").length,
         riskStateCount: list(riskSearchPayload.risk_states).length,
         outcomeCount: list(participantOutcomePayload.outcomes).length,
+        participantHeatmapCount: list(participantHeatmapPayload.rows).length,
         alertCount: list(alertPreviewPayload.alerts).length,
         activeAlertCount: list(alertPreviewPayload.alerts).filter((item) => rawText(item.status, "") === "active").length,
         replayStatus: rawText(historicalReplayPayload.status, "building"),
@@ -3216,13 +3449,18 @@
         historicalReplayPayload,
         savedSearchTemplatesPayload,
         conditionTransitionPayload,
+        conditionReplayPayload,
         recentMemoryPayload,
+        riskAdvisoryPayload,
+        participantHeatmapPayload,
       });
       renderProModules(stats);
       renderPricing();
       renderConditionTransitions(conditionTransitionPayload);
       renderRecentMemory(recentMemoryPayload);
-      renderConditionAlerts(alertPreviewPayload, recentMemoryPayload);
+      renderConditionReplay(conditionReplayPayload);
+      renderRiskAdvisory(riskAdvisoryPayload);
+      renderConditionAlerts(alertPreviewPayload, recentMemoryPayload, riskAdvisoryPayload, participantHeatmapPayload, conditionReplayPayload);
     }
 
 
