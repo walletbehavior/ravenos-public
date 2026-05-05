@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8182,
-        "classified_total": 1247,
-        "econ_present_rate": 0.8182,
-        "econ_present_total": 1247,
+        "classification_rate": 0.8184,
+        "classified_total": 1248,
+        "econ_present_rate": 0.8184,
+        "econ_present_total": 1248,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 144,
-        "observed_total": 1524,
+        "observed_total": 1525,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 3,
           "thin_liquidity": 54,
           "unknown_unresolved": 0,
-          "usable_signal": 1103
+          "usable_signal": 1104
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1818,
+        "unresolved_rate": 0.1816,
         "unresolved_total": 277,
-        "usable_econ_total": 1103,
-        "usable_rate": 0.7238,
-        "usable_signal_rate": 0.7238,
-        "usable_signal_total": 1103,
+        "usable_econ_total": 1104,
+        "usable_rate": 0.7239,
+        "usable_signal_rate": 0.7239,
+        "usable_signal_total": 1104,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1476,
+        "classified_total": 1477,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1476,
+        "econ_present_total": 1477,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 440,
-        "observed_total": 1476,
+        "observed_total": 1477,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 6,
           "thin_liquidity": 35,
           "unknown_unresolved": 0,
-          "usable_signal": 1036
+          "usable_signal": 1037
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 1036,
-        "usable_rate": 0.7019,
-        "usable_signal_rate": 0.7019,
-        "usable_signal_total": 1036,
+        "usable_econ_total": 1037,
+        "usable_rate": 0.7021,
+        "usable_signal_rate": 0.7021,
+        "usable_signal_total": 1037,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9481,
-    "classified_total": 37051,
+    "classified_total": 37053,
     "econ_present_rate": 0.9481,
-    "econ_present_total": 37051,
+    "econ_present_total": 37053,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9532,
-    "observed_total": 39080,
+    "observed_total": 39082,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2111,
       "thin_liquidity": 1086,
       "unknown_unresolved": 0,
-      "usable_signal": 27519
+      "usable_signal": 27521
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0519,
     "unresolved_total": 2029,
-    "usable_econ_total": 27519,
+    "usable_econ_total": 27521,
     "usable_rate": 0.7042,
     "usable_signal_rate": 0.7042,
-    "usable_signal_total": 27519,
+    "usable_signal_total": 27521,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-05T13:49:04Z",
+  "generated_at": "2026-05-05T13:54:42Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
