@@ -697,8 +697,8 @@
     <p class="section-copy">Short-term memory tracks whether conditions have been repeating, shifting, or becoming less consistent.</p>
     <section class="preview-grid" id="recentMemoryPreview"></section>
 
-    <h2 class="section-title">how this usually plays out</h2>
-    <p class="section-copy">Condition replay compares resolved public condition types so the preview can show whether similar reads often confirm, fade, or stay unclear.</p>
+    <h2 class="section-title">condition replay</h2>
+    <p class="section-copy">When this condition has appeared before, RavenOS tracks whether it usually strengthened, faded, or resolved.</p>
     <section class="preview-grid" id="conditionReplayPreview"></section>
 
     <h2 class="section-title">when to be careful</h2>
@@ -2707,6 +2707,12 @@
         "condition replay",
         "history before does this usually work",
         rawText(row && row.condition_family, ""),
+        rawText(row && row.chain, ""),
+        rawText(row && row.segment, ""),
+        rawText(row && row.typical_next_state, ""),
+        rawText(row && row.historical_confidence, ""),
+        rawText(row && row.public_summary, ""),
+        rawText(row && row.what_usually_happens, ""),
         rawText(row && row.plain_language_summary, ""),
         rawText(row && row.typical_duration_label, ""),
         rawText(row && row.historical_context, ""),
@@ -2735,17 +2741,21 @@
         return normalized ? 0 : 1;
       }
       filtered.forEach((row) => {
+        const nextState = rawText(row.typical_next_state, "");
         const failedRate = Number(row.failed_rate || 0);
-        const tone = failedRate >= 0.55 ? "Often fades" : Number(row.confirmed_rate || 0) >= 0.55 ? "Often confirms" : "Mixed history";
+        const tone = nextState
+          ? `Usually ${nextState.replace(/_/g, " ")}`
+          : failedRate >= 0.55 ? "Often fades" : Number(row.confirmed_rate || 0) >= 0.55 ? "Often confirms" : "Mixed history";
         node.appendChild(
           buildCompactPreviewCard(
             rawText(row.condition_family, "condition").replace(/_/g, " "),
-            tone,
-            rawText(row.plain_language_summary, "Public history is still mixed."),
-            "Public preview",
+            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.segment)} · ${tone}`,
+            rawText(row.public_summary || row.plain_language_summary, "Public history is still mixed."),
+            titleCase(rawText(row.preview_tier, "public")) + " preview",
             [
-              ["history", Number(row.occurrences || 0) > 0 ? `${Number(row.occurrences)} public cases` : "building"],
-              ["duration", rawText(row.typical_duration_label, "duration is still building")],
+              ["history", Number(row.sample_size || row.occurrences || 0) > 0 ? `${Number(row.sample_size || row.occurrences)} public cases` : "building"],
+              ["confidence", titleCase(rawText(row.historical_confidence, "low"))],
+              ["next", titleCase(rawText(row.typical_next_state, "insufficient history"))],
             ],
             conditionReplaySearchText(row)
           )
