@@ -732,6 +732,10 @@
     <p class="section-copy">Use Live Chain Read to compare where participation is strongest, where the read is cleanest, and where the sample is still too thin to trust. It shows assets observed, clean sample coverage, thin or weak sample, unresolved coverage, green/red balance, average move, and participant outcome.</p>
     <section class="chain-grid" id="chainReads"></section>
 
+    <h2 class="section-title">cross-chain confirmation</h2>
+    <p class="section-copy">This shows whether Solana, ETH, and Base are confirming the same tape or splitting apart. It also shows whether clean participation is improving or still thin.</p>
+    <section class="preview-grid" id="confirmationLadder"></section>
+
     <h2 class="section-title">today's trade weather</h2>
     <section class="panel">
       <p class="eyebrow" id="weatherTitle">today's trade weather: developing</p>
@@ -897,6 +901,10 @@
     const PARTICIPANT_HEATMAP_URLS = [
       "/ravenos_participant_heatmap.json",
       "/public/ravenos_participant_heatmap.json",
+    ];
+    const CONFIRMATION_LADDER_URLS = [
+      "/ravenos_confirmation_ladder.json",
+      "/public/ravenos_confirmation_ladder.json",
     ];
     const SAVED_SEARCH_TEMPLATE_URLS = [
       "/ravenos_saved_search_templates.json",
@@ -2174,6 +2182,47 @@
       }
       if (!cards.length) cards.push(["Coverage", "Coverage is still developing, so this read should be treated as early."]);
       cards.slice(0, 4).forEach(([title, copy]) => node.appendChild(card(title, copy)));
+    }
+
+    function renderConfirmationLadder(payload) {
+      const node = document.getElementById("confirmationLadder");
+      if (!node) return;
+      node.textContent = "";
+      const chains = list(payload && payload.chains).filter(isObject);
+      const alignment = rawText(payload && payload.alignment_state, "building");
+      const leader = rawText(payload && payload.leading_chain, "building");
+      const laggard = rawText(payload && payload.lagging_chain, "building");
+      const cleanState = rawText(payload && payload.clean_participation_state, "building");
+      const summary = rawText(payload && payload.summary, "Cross-chain confirmation is still building.");
+      const top = buildPreviewCard(
+        alignment === "aligned" ? "Chains are confirming together" : alignment === "divergent" ? "Tape is not aligned across chains" : "Confirmation is building",
+        summary,
+        `${publicLabel(alignment, "building")} · clean participation ${publicLabel(cleanState, "building")}`,
+        [
+          ["leading chain", chainDisplayLabel(leader)],
+          ["lagging chain", chainDisplayLabel(laggard)],
+          ["what confirms", list(payload && payload.what_would_confirm).slice(0, 2).join(" ") || "More clean sample across chains."],
+          ["what invalidates", list(payload && payload.what_would_invalidate).slice(0, 2).join(" ") || "Clean participation rolls over."],
+        ],
+        searchTextFromParts("cross chain confirmation", alignment, cleanState, leader, laggard, summary)
+      );
+      node.appendChild(top);
+      chains.slice(0, 3).forEach((row) => {
+        const delta = Number.isFinite(Number(row.clean_delta)) ? Number(row.clean_delta) : null;
+        const meta = `${chainDisplayLabel(row.chain)} · ${publicLabel(row.trust_label, "building")}`;
+        node.appendChild(buildCompactPreviewCard(
+          chainDisplayLabel(row.chain),
+          meta,
+          rawText(row.public_read, "This chain read is still building."),
+          publicLabel(row.clean_delta_state, "building"),
+          [
+            ["clean sample", Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "building"],
+            ["thin sample", Number.isFinite(Number(row.thin_sample)) ? String(row.thin_sample) : "building"],
+            ["clean delta", delta === null ? "building" : (delta >= 0 ? `+${delta}` : String(delta))],
+          ],
+          searchTextFromParts(row.chain, row.trust_label, row.quality, row.clean_delta_state, row.public_read)
+        ));
+      });
     }
 
     function appendDetails(node, rows, showAll = false) {
@@ -3500,6 +3549,7 @@
       const recentMemoryPayloads = await fetchJsonPayloads(RECENT_MEMORY_URLS);
       const riskAdvisoryPayloads = await fetchJsonPayloads(RISK_ADVISORY_URLS);
       const participantHeatmapPayloads = await fetchJsonPayloads(PARTICIPANT_HEATMAP_URLS);
+      const confirmationLadderPayloads = await fetchJsonPayloads(CONFIRMATION_LADDER_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -3515,6 +3565,7 @@
       const recentMemoryPayload = normalizePublicPayload(freshestByGeneratedAt(recentMemoryPayloads));
       const riskAdvisoryPayload = normalizePublicPayload(freshestByGeneratedAt(riskAdvisoryPayloads));
       const participantHeatmapPayload = normalizePublicPayload(freshestByGeneratedAt(participantHeatmapPayloads));
+      const confirmationLadderPayload = normalizePublicPayload(freshestByGeneratedAt(confirmationLadderPayloads));
       window.__ravenosRecentMemory = recentMemoryPayload;
       window.__ravenosConditionReplay = conditionReplayPayload;
       window.__ravenosRiskAdvisory = riskAdvisoryPayload;
@@ -3542,6 +3593,7 @@
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
+      renderConfirmationLadder(confirmationLadderPayload);
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
       renderSearchStats(stats);
