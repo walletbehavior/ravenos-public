@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8545,
-        "classified_total": 1116,
-        "econ_present_rate": 0.8545,
-        "econ_present_total": 1116,
+        "classification_rate": 0.8549,
+        "classified_total": 1119,
+        "econ_present_rate": 0.8549,
+        "econ_present_total": 1119,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 137,
-        "observed_total": 1306,
+        "observed_total": 1309,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 4,
           "thin_liquidity": 46,
           "unknown_unresolved": 0,
-          "usable_signal": 979
+          "usable_signal": 982
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1455,
+        "unresolved_rate": 0.1451,
         "unresolved_total": 190,
-        "usable_econ_total": 979,
-        "usable_rate": 0.7496,
-        "usable_signal_rate": 0.7496,
-        "usable_signal_total": 979,
+        "usable_econ_total": 982,
+        "usable_rate": 0.7502,
+        "usable_signal_rate": 0.7502,
+        "usable_signal_total": 982,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1364,
+        "classified_total": 1365,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1364,
+        "econ_present_total": 1365,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 444,
-        "observed_total": 1364,
+        "observed_total": 1365,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 6,
           "thin_liquidity": 24,
           "unknown_unresolved": 0,
-          "usable_signal": 920
+          "usable_signal": 921
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 920,
-        "usable_rate": 0.6745,
-        "usable_signal_rate": 0.6745,
-        "usable_signal_total": 920,
+        "usable_econ_total": 921,
+        "usable_rate": 0.6747,
+        "usable_signal_rate": 0.6747,
+        "usable_signal_total": 921,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -609,16 +609,16 @@
         "window": "6h"
       }
     },
-    "classification_rate": 0.9498,
-    "classified_total": 36779,
-    "econ_present_rate": 0.9498,
-    "econ_present_total": 36779,
+    "classification_rate": 0.9499,
+    "classified_total": 36783,
+    "econ_present_rate": 0.9499,
+    "econ_present_total": 36783,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9504,
-    "observed_total": 38721,
+    "observed_total": 38725,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2088,
       "thin_liquidity": 1067,
       "unknown_unresolved": 0,
-      "usable_signal": 27275
+      "usable_signal": 27279
     },
     "schema_version": "ravenos_data_depth_v0",
-    "unresolved_rate": 0.0502,
+    "unresolved_rate": 0.0501,
     "unresolved_total": 1942,
-    "usable_econ_total": 27275,
+    "usable_econ_total": 27279,
     "usable_rate": 0.7044,
     "usable_signal_rate": 0.7044,
-    "usable_signal_total": 27275,
+    "usable_signal_total": 27279,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-05T00:33:33Z",
+  "generated_at": "2026-05-05T00:45:45Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
