@@ -336,6 +336,14 @@
       padding-top: 8px;
     }
 
+    .section-action {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
     .cta {
       display: inline-flex;
       margin-top: 16px;
@@ -348,9 +356,40 @@
       background: var(--soft);
     }
 
+    .section-action .cta,
+    .cta-block .cta {
+      margin-top: 0;
+      border-color: rgba(121, 208, 191, 0.5);
+    }
+
     .cta.disabled {
       color: var(--muted);
       cursor: default;
+    }
+
+    .cta-block {
+      display: grid;
+      gap: 12px;
+      margin-top: 30px;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .public-data-files {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .public-data-files summary {
+      cursor: pointer;
+      width: fit-content;
+    }
+
+    .public-data-files .chips {
+      margin-top: 10px;
     }
 
     .alert-list {
@@ -647,7 +686,7 @@
       <div class="context-strip" id="marketContext"></div>
     </header>
 
-    <section class="hero" aria-label="current market read">
+    <section class="hero" id="liveRead" aria-label="current market read">
       <article class="panel">
         <p class="eyebrow">current market read</p>
         <h2 class="primary-read" id="primaryRead">market read is developing</h2>
@@ -677,6 +716,18 @@
       </aside>
     </section>
 
+    <h2 class="section-title">access levels</h2>
+    <section class="pricing-grid" id="pricing"></section>
+    <div class="section-action" aria-label="request access">
+      <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20Pro%20Access">Request Pro Access</a>
+      <span class="section-note" style="margin:0;">Public preview stays live. Pro, Desk, and Enterprise access are request-based.</span>
+    </div>
+
+    <h2 class="section-title">how to read this</h2>
+    <section class="panel">
+      <p class="support">RavenOS reads public market behavior. It shows whether conditions are broad, fragile, confirmed, or unresolved - not what to buy.</p>
+    </section>
+
     <h2 class="section-title">live chain reads</h2>
     <p class="section-copy">Use Live Chain Read to compare where participation is strongest, where the read is cleanest, and where the sample is still too thin to trust. It shows assets observed, clean sample coverage, thin or weak sample, unresolved coverage, green/red balance, average move, and participant outcome.</p>
     <section class="chain-grid" id="chainReads"></section>
@@ -698,8 +749,9 @@
     <section class="preview-grid" id="recentMemoryPreview"></section>
 
     <h2 class="section-title">condition replay</h2>
-    <p class="section-copy">When this condition has appeared before, RavenOS tracks whether it usually strengthened, faded, or resolved.</p>
+    <p class="section-copy">When this condition appeared before, what usually happened next.</p>
     <section class="preview-grid" id="conditionReplayPreview"></section>
+    <p class="section-note">Full replay + historical comparisons -> Pro/Desk</p>
 
     <h2 class="section-title">when to be careful</h2>
     <p class="section-copy">Risk advisory cards show where public conditions are less reliable, why that matters, and what would improve the read.</p>
@@ -784,6 +836,7 @@
     <h2 class="section-title">who is winning right now</h2>
     <p class="section-copy">Participant heatmap rows summarize where public participation is working, struggling, or still unclear by chain and cap band.</p>
     <section class="preview-grid" id="participantHeatmapPreview"></section>
+    <p class="section-note">Full heatmap filters and history -> Pro</p>
 
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
@@ -799,8 +852,23 @@
     <p class="section-copy">Desk Context checks whether broader market conditions are supporting, conflicting with, or failing to confirm the on-chain read.</p>
     <section class="preview-grid desk-grid" id="deskContextPreview"></section>
 
-    <h2 class="section-title">access levels</h2>
-    <section class="pricing-grid" id="pricing"></section>
+    <section class="cta-block" aria-label="request deeper access">
+      <h2>Want deeper RavenOS access?</h2>
+      <p class="support">Request Pro access for deeper filters, saved searches, alert previews, replay depth, and exportable market intelligence.</p>
+      <div class="section-action">
+        <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20RavenOS%20Access">Request Access</a>
+      </div>
+    </section>
+
+    <details class="public-data-files">
+      <summary>Public data files</summary>
+      <div class="chips">
+        <a class="chip" href="/ravenos_public_snapshot.json">Public snapshot</a>
+        <a class="chip" href="/ravenos_market_search_index.json">Market search index</a>
+        <a class="chip" href="/ravenos_participant_heatmap.json">Participant heatmap</a>
+        <a class="chip" href="/ravenos_condition_replay.json">Condition replay</a>
+      </div>
+    </details>
   </main>
 
   <script>
@@ -886,37 +954,41 @@
 
     const FALLBACK_ACCESS_LEVELS = [
       {
-        name: "Public preview",
-        badge: "Public",
+        name: "Public Preview",
+        badge: "Public preview",
         status: "Live now",
-        copy: "Broad market read, live chain pulse, public caution flags, and limited previews of paid modules.",
-        features: ["Current Market Read", "Live Chain Read", "Today’s Weather", "Market Search Preview", "Public caution flags"],
-        cta: "Live now",
+        copy: "Live market read, condition previews, limited replay.",
+        features: ["Current market read", "Condition previews", "Limited replay"],
+        cta: "Explore live read",
+        href: "#liveRead",
         live: true
       },
       {
         name: "Pro",
-        badge: "Pro preview",
+        badge: "Pro",
         status: "Available on Pro",
-        copy: "Search public market states, risk rows, cap-band reads, participant outcomes, and condition alerts.",
-        features: ["Market Search", "Risk Search", "Cap-Band Search", "Participant Outcome", "Condition Alerts", "Saved searches later"],
-        cta: "Available on Pro"
+        copy: "Full search, saved searches, alerts, deeper filters, heatmaps.",
+        features: ["Full search", "Saved searches", "Alerts", "Deeper filters", "Heatmaps"],
+        cta: "Request Pro Access",
+        href: "mailto:hello@ravenos.xyz?subject=Request%20Pro%20Access"
       },
       {
-        name: "Advanced Desk",
+        name: "Desk",
         badge: "Desk intelligence",
-        status: "Available on Advanced Desk",
-        copy: "Deeper market-regime context, historical condition replay, advanced alerts, and higher-level desk reads.",
-        features: ["Everything in Pro", "Historical Replay", "Macro Context", "Advanced alerts", "Cross-market context", "Exportable reports later"],
-        cta: "Available on Advanced Desk"
+        status: "Available on Desk",
+        copy: "Replay depth, condition memory, historical comparisons, exports.",
+        features: ["Replay depth", "Condition memory", "Historical comparisons", "Exports"],
+        cta: "Request Desk Access",
+        href: "mailto:hello@ravenos.xyz?subject=Request%20Desk%20Access"
       },
       {
         name: "Enterprise",
         badge: "Enterprise",
         status: "Custom access",
-        copy: "Custom dashboards, team access, API/export options, dedicated deployments, and research support.",
-        features: ["Team access", "Custom dashboards", "API / data exports", "Dedicated deployment options", "Custom reporting"],
-        cta: "Contact for access"
+        copy: "Custom intelligence surfaces and integrations.",
+        features: ["Custom surfaces", "Team workflows", "Integrations", "Exports"],
+        cta: "Contact for access",
+        href: "mailto:hello@ravenos.xyz?subject=RavenOS%20Enterprise%20Access"
       }
     ];
     const PRICING = Array.isArray(FALLBACK_ACCESS_LEVELS) && FALLBACK_ACCESS_LEVELS.length ? FALLBACK_ACCESS_LEVELS : [];
@@ -1269,6 +1341,14 @@
         row.participant_outcome_context,
         list(row.search_terms).join(" ")
       );
+    }
+
+    function profitabilityDisplayLabel(value) {
+      const clean = rawText(value, "").toLowerCase();
+      if (clean.includes("winning")) return "participants winning";
+      if (clean.includes("mixed") || clean.includes("unclear")) return "mixed outcomes";
+      if (clean.includes("losing") || clean.includes("struggling")) return "participants losing";
+      return "not enough clean data";
     }
 
     function confirmationInsightText(...parts) {
@@ -2174,11 +2254,11 @@
           li.textContent = feature;
           ul.appendChild(li);
         });
-        const isLive = tier.live === true;
-        const cta = document.createElement(isLive ? "a" : "span");
-        cta.className = isLive ? "cta" : "cta disabled";
-        cta.textContent = rawText(tier.cta, isLive ? "Live now" : "Preview");
-        if (isLive) cta.href = "#liveRead";
+        const href = rawText(tier.href, "");
+        const cta = document.createElement(href ? "a" : "span");
+        cta.className = href ? "cta" : "cta disabled";
+        cta.textContent = rawText(tier.cta, href ? "Request Access" : "Preview");
+        if (href) cta.href = href;
         item.append(ul, cta);
         node.appendChild(item);
       });
@@ -2746,16 +2826,19 @@
         const tone = nextState
           ? `Usually ${nextState.replace(/_/g, " ")}`
           : failedRate >= 0.55 ? "Often fades" : Number(row.confirmed_rate || 0) >= 0.55 ? "Often confirms" : "Mixed history";
+        const condition = titleCase(rawText(row.condition_family, "condition").replace(/_/g, " "));
+        const segment = humanCapBandLabel(row.segment);
         node.appendChild(
           buildCompactPreviewCard(
-            rawText(row.condition_family, "condition").replace(/_/g, " "),
-            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.segment)} · ${tone}`,
+            condition,
+            `${chainDisplayLabel(row.chain)} · ${segment} · ${tone}`,
             rawText(row.public_summary || row.plain_language_summary, "Public history is still mixed."),
             titleCase(rawText(row.preview_tier, "public")) + " preview",
             [
-              ["history", Number(row.sample_size || row.occurrences || 0) > 0 ? `${Number(row.sample_size || row.occurrences)} public cases` : "building"],
+              ["condition", condition],
+              ["segment", segment],
+              ["typical next state", titleCase(rawText(row.typical_next_state, "insufficient history"))],
               ["confidence", titleCase(rawText(row.historical_confidence, "low"))],
-              ["next", titleCase(rawText(row.typical_next_state, "insufficient history"))],
             ],
             conditionReplaySearchText(row)
           )
@@ -3132,17 +3215,20 @@
         return normalizedQuery ? 0 : 1;
       }
       filtered.forEach((row) => {
+        const segment = humanCapBandLabel(row.cap_band || row.segment);
+        const label = profitabilityDisplayLabel(row.profitability_label || row.derived_state);
         node.appendChild(
           buildCompactPreviewCard(
-            titleCase(rawText(row.profitability_label, row.derived_state || "outcomes unclear")),
-            `${chainDisplayLabel(row.chain)} · ${humanCapBandLabel(row.cap_band)} · ${humanWindowLabel(row.window || row.timeframe)}`,
+            `${chainDisplayLabel(row.chain)} ${segment.toLowerCase()}`,
+            `${label} · ${humanWindowLabel(row.window || row.timeframe)}`,
             rawText(row.plain_language_summary, "Participant outcome is still unclear."),
             "Public preview",
             [
+              ["profitability", label],
+              ["win rate band", titleCase(rawText(row.win_rate_band, "unknown"))],
               ["trend", titleCase(rawText(row.trend, "stable"))],
               ["confidence", titleCase(rawText(row.confidence, "low"))],
-              ["strength", titleCase(rawText(row.score_strength || row.outcome_strength, "building"))],
-              ["sample", Number(row.sample_size) > 0 ? `${Number(row.sample_size)} public rows` : "building"],
+              ["segment", segment],
             ],
             participantHeatmapSearchText(row)
           )
