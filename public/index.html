@@ -126,6 +126,31 @@
       overflow-wrap: anywhere;
     }
 
+    .signal-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .signal-chip {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 9px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .signal-chip strong {
+      color: var(--text);
+      font-weight: 650;
+    }
+
     .badge {
       color: var(--accent);
       border-color: rgba(121, 208, 191, 0.42);
@@ -243,6 +268,14 @@
 
     .preview-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .priority-grid {
+      gap: 10px;
+    }
+
+    .priority-grid .card {
+      background: linear-gradient(180deg, rgba(121, 208, 191, 0.055), rgba(21, 25, 27, 0.98));
     }
 
     .desk-grid {
@@ -695,7 +728,7 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p>RavenOS reads public crypto market structure across chains.</p>
+        <p>Public crypto market structure across chains.</p>
         <p>Participation, persistence, replay similarity, and fragility - without tickers, targets, or private wallet detail.</p>
         <p class="sharp">Where risk is being rewarded. Where the read is thin. Where moves are failing.</p>
       </div>
@@ -707,7 +740,12 @@
         <p class="eyebrow">current market read</p>
         <h2 class="primary-read" id="primaryRead">market read is low-confidence</h2>
         <p class="support" id="secondaryRead">Public confirmation is still thin for this window.</p>
-        <p class="support">Broad enough to trust, fragile enough to slow down, or too thin to chase.</p>
+        <p class="support">What is strongest, what is forming, and what is too fragile to trust.</p>
+        <div class="signal-strip" aria-label="signal hierarchy">
+          <span class="signal-chip"><strong>strongest</strong> confirmed breadth</span>
+          <span class="signal-chip"><strong>forming</strong> uneven followthrough</span>
+          <span class="signal-chip"><strong>fragile</strong> thin confirmation</span>
+        </div>
         <div class="chips" id="heroChips"></div>
       </article>
 
@@ -748,12 +786,12 @@
     <section class="chain-grid" id="chainReads"></section>
 
     <h2 class="section-title">participation structure</h2>
-    <p class="section-copy">Breadth, survival, chain agreement, and outlier dependence.</p>
+    <p class="section-copy">Breadth. Survival. Chain agreement. Outlier dependence.</p>
     <section class="free-grid" id="participationStructure"></section>
 
     <h2 class="section-title">what tends to happen next</h2>
-    <p class="section-copy">How similar structures usually resolve: continuation, failed expansion, uneven followthrough, or broad risk expansion.</p>
-    <section class="free-grid" id="predictiveStructure"></section>
+    <p class="section-copy">Continuation, failed expansion, uneven followthrough, or broad risk expansion.</p>
+    <section class="free-grid priority-grid" id="predictiveStructure"></section>
     <section class="panel example-read" aria-label="public-safe example">
       <p class="eyebrow">example read</p>
       <p><strong>When participation broadens across Solana microcaps while ETH weakens, similar public structures have tended to resolve into:</strong></p>
@@ -780,20 +818,20 @@
     </section>
 
     <h2 class="section-title">what changed</h2>
-    <p class="section-copy">Recent condition changes show whether the public read is appearing, strengthening, weakening, or resolving.</p>
+    <p class="section-copy">Appearing, strengthening, weakening, or resolving.</p>
     <section class="preview-grid" id="conditionTransitionsPreview"></section>
 
     <h2 class="section-title">recent behavior</h2>
-    <p class="section-copy">Short-term memory tracks whether conditions have been repeating, shifting, or becoming less consistent.</p>
+    <p class="section-copy">Repeating, shifting, or becoming less consistent.</p>
     <section class="preview-grid" id="recentMemoryPreview"></section>
 
     <h2 class="section-title">condition replay</h2>
-    <p class="section-copy">When this structure appeared before, what resolved, failed, or stayed mixed.</p>
+    <p class="section-copy">Prior structures. Similarity. Resolution. Failure tendency.</p>
     <section class="preview-grid" id="conditionReplayPreview"></section>
     <p class="section-note">Full replay + historical comparisons -> Pro/Desk</p>
 
     <h2 class="section-title">when to be careful</h2>
-    <p class="section-copy">Thin samples, stale confirmation, window disagreement, and outlier-driven strength.</p>
+    <p class="section-copy">Thin samples. Stale confirmation. Window disagreement. Outlier-led strength.</p>
     <section class="preview-grid" id="riskAdvisoryPreview"></section>
 
     <h2 class="section-title">condition alerts</h2>
@@ -801,14 +839,14 @@
     <section class="panel alert-list" id="conditionAlerts"></section>
 
     <h2 class="section-title">why this read</h2>
-    <p class="section-copy">Breadth, participant outcome, followthrough, and warnings behind the public read.</p>
+    <p class="section-copy">Breadth, participant outcome, followthrough, and warnings.</p>
     <section class="free-grid" id="whyRead"></section>
 
     <h2 class="section-title">available on pro</h2>
     <section class="pro-grid" id="proModules"></section>
 
     <h2 class="section-title">market search preview</h2>
-    <p class="section-note">Cap-band states break the market into public-safe slices such as fresh pairs and broader chain reads.</p>
+    <p class="section-note">Public-safe slices by cap band, chain, and condition.</p>
     <section class="search-shell" id="marketSearchShell">
       <div class="search-header">
         <div>
@@ -863,22 +901,22 @@
 
     <h2 class="section-title">what could make this read unreliable</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is thin. Public-safe risk rows appear when market-state drivers are available.</p>
-    <p class="section-copy">Not enough clean data. Incomplete confirmation. Outlier-driven moves. Stale coverage. Window disagreement.</p>
+    <p class="section-copy">Not enough clean data. Incomplete confirmation. Outlier-led moves. Stale coverage. Window disagreement.</p>
     <section class="preview-grid" id="riskSearchPreview"></section>
 
     <h2 class="section-title">participant outcome preview</h2>
     <p class="section-note" id="participantOutcomeCount">Participant Outcome is thin. Public-safe outcome rows appear when clean sample coverage is available.</p>
-    <p class="section-copy">Whether the public sample looks favorable, mixed, punishing, or too thin to trust.</p>
+    <p class="section-copy">Favorable, mixed, punishing, or too thin to trust.</p>
     <section class="preview-grid" id="participantOutcomePreview"></section>
 
     <h2 class="section-title">who is winning right now</h2>
-    <p class="section-copy">Where participation is working, struggling, or still unclear by chain and cap band.</p>
+    <p class="section-copy">Where participation is working, struggling, or still unclear.</p>
     <section class="preview-grid" id="participantHeatmapPreview"></section>
     <p class="section-note">Full heatmap filters and history -> Pro</p>
 
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
-    <p class="section-copy">Market-state alerts, not ticker alerts. Active condition, matching public states, confirmation gaps, and what would strengthen the read.</p>
+    <p class="section-copy">Market-state alerts, not ticker alerts. Active conditions, confirmation gaps, and what would strengthen the read.</p>
     <section class="preview-grid" id="alertPreview"></section>
 
     <h2 class="section-title">historical replay</h2>
