@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1581,
+        "classified_total": 1582,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1581,
+        "econ_present_total": 1582,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 436,
-        "observed_total": 1581,
+        "observed_total": 1582,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 7,
           "thin_liquidity": 41,
           "unknown_unresolved": 0,
-          "usable_signal": 1145
+          "usable_signal": 1146
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 1145,
-        "usable_rate": 0.7242,
-        "usable_signal_rate": 0.7242,
-        "usable_signal_total": 1145,
+        "usable_econ_total": 1146,
+        "usable_rate": 0.7244,
+        "usable_signal_rate": 0.7244,
+        "usable_signal_total": 1146,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9469,
-    "classified_total": 37302,
+    "classified_total": 37303,
     "econ_present_rate": 0.9469,
-    "econ_present_total": 37302,
+    "econ_present_total": 37303,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9545,
-    "observed_total": 39394,
+    "observed_total": 39395,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2118,
       "thin_liquidity": 1103,
       "unknown_unresolved": 0,
-      "usable_signal": 27757
+      "usable_signal": 27758
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0531,
     "unresolved_total": 2092,
-    "usable_econ_total": 27757,
+    "usable_econ_total": 27758,
     "usable_rate": 0.7046,
     "usable_signal_rate": 0.7046,
-    "usable_signal_total": 27757,
+    "usable_signal_total": 27758,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T02:04:15Z",
+  "generated_at": "2026-05-06T02:19:45Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
@@ -1668,7 +1668,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-06T01:48:48Z",
+      "generated_at": "2026-05-06T02:04:18Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
