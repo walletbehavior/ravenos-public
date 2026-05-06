@@ -1,0 +1,25 @@
+{
+  "concentration": "medium",
+  "confidence": "high",
+  "expected_broadening": "improving",
+  "fragility": "low",
+  "generated_at": "2026-05-06T02:35:20Z",
+  "persistence": "high",
+  "plain_language_summary": "Followthrough improving across chains.",
+  "public_safe": true,
+  "public_summary": "Followthrough improving across chains.",
+  "schema_version": "ravenos_market_weather_v1",
+  "states": [
+    "strengthening",
+    "broadening",
+    "persistent",
+    "survival_improving"
+  ],
+  "status": "available",
+  "summary": {
+    "participation": "Participation broadening.",
+    "persistence": "Persistence improving.",
+    "weather": "Followthrough improving across chains."
+  },
+  "weather_score": 0.7375
+}

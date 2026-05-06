@@ -1,0 +1,29 @@
+{
+  "broadening_half_life": 0.0,
+  "broadening_survival_rate": 0.0,
+  "concentration_failure_rate": 0.0,
+  "confidence": "high",
+  "early_failure_rate": 0.1982,
+  "generated_at": "2026-05-06T02:35:19Z",
+  "persistence_decay_rate": 0.8204,
+  "plain_language_summary": "moves are surviving longer",
+  "public_safe": true,
+  "public_summary": "moves are surviving longer",
+  "sample_size": 4031,
+  "schema_version": "ravenos_survival_curves_v1",
+  "status": "available",
+  "strongest_area": "Market-wide",
+  "summary": {
+    "concentration": "concentration decay is mixed",
+    "persistence": "persistence is mixed",
+    "survival": "moves are surviving longer"
+  },
+  "survival_half_life": 60.0,
+  "survival_probability": {
+    "15m": 0.7911,
+    "1m": 0.8204,
+    "30m": 0.7834,
+    "5m": 0.8018,
+    "60m": 0.0
+  }
+}

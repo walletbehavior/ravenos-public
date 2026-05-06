@@ -740,6 +740,9 @@
     <p class="section-copy">This preview tracks structure transitions, persistence, broadening, fragility, and followthrough without price targets or token recommendations.</p>
     <section class="free-grid" id="predictiveStructure"></section>
 
+    <h2 class="section-title">market weather</h2>
+    <section class="free-grid" id="marketWeather"></section>
+
     <h2 class="section-title">cross-chain confirmation</h2>
     <p class="section-copy">This shows whether Solana, ETH, and Base are confirming the same tape or splitting apart. It also shows whether clean participation is improving or still thin.</p>
     <section class="preview-grid" id="confirmationLadder"></section>
@@ -921,6 +924,10 @@
     const PREDICTIVE_STRUCTURE_URLS = [
       "/ravenos_predictive_structure.json",
       "/public/ravenos_predictive_structure.json",
+    ];
+    const MARKET_WEATHER_URLS = [
+      "/ravenos_market_weather.json",
+      "/public/ravenos_market_weather.json",
     ];
     const SAVED_SEARCH_TEMPLATE_URLS = [
       "/ravenos_saved_search_templates.json",
@@ -2225,6 +2232,29 @@
           ["transition strength", Number.isFinite(Number(source.transition_strength)) ? Number(source.transition_strength).toFixed(2) : "developing"],
           ["persistence band", rawText(source.persistence_probability_band, "low")],
           ["chain alignment", rawText(drivers.chain_alignment, "low")],
+        ], true);
+        node.appendChild(item);
+      });
+    }
+
+    function renderMarketWeather(payload, snapshot) {
+      const node = document.getElementById("marketWeather");
+      if (!node) return;
+      node.textContent = "";
+      const source = isObject(payload) && Object.keys(payload).length ? payload : (isObject(snapshot.market_weather) ? snapshot.market_weather : {});
+      const states = list(source.states).slice(0, 4).map((item) => rawText(item, ""));
+      const rows = [
+        ["Weather", rawText(source.public_summary || source.plain_language_summary, "Market structure is mixed."), rawText(source.confidence, "low")],
+        ["State", states.length ? states.join(", ") : "mixed", Number.isFinite(Number(source.weather_score)) ? Number(source.weather_score).toFixed(2) : "developing"],
+        ["Persistence", rawText(source.persistence, "medium"), rawText(source.expected_broadening, "mixed")],
+        ["Fragility", rawText(source.fragility, "medium"), rawText(source.concentration, "medium")]
+      ];
+      rows.forEach(([title, copy, badge]) => {
+        const item = card(title, copy, badge);
+        appendDetails(item, [
+          ["weather score", Number.isFinite(Number(source.weather_score)) ? Number(source.weather_score).toFixed(2) : "developing"],
+          ["expected broadening", rawText(source.expected_broadening, "mixed")],
+          ["concentration", rawText(source.concentration, "medium")],
         ], true);
         node.appendChild(item);
       });
@@ -3628,6 +3658,7 @@
       const confirmationLadderPayloads = await fetchJsonPayloads(CONFIRMATION_LADDER_URLS);
       const participationStructurePayloads = await fetchJsonPayloads(PARTICIPATION_STRUCTURE_URLS);
       const predictiveStructurePayloads = await fetchJsonPayloads(PREDICTIVE_STRUCTURE_URLS);
+      const marketWeatherPayloads = await fetchJsonPayloads(MARKET_WEATHER_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -3646,6 +3677,7 @@
       const confirmationLadderPayload = normalizePublicPayload(freshestByGeneratedAt(confirmationLadderPayloads));
       const participationStructurePayload = normalizePublicPayload(freshestByGeneratedAt(participationStructurePayloads));
       const predictiveStructurePayload = normalizePublicPayload(freshestByGeneratedAt(predictiveStructurePayloads));
+      const marketWeatherPayload = normalizePublicPayload(freshestByGeneratedAt(marketWeatherPayloads));
       window.__ravenosRecentMemory = recentMemoryPayload;
       window.__ravenosConditionReplay = conditionReplayPayload;
       window.__ravenosRiskAdvisory = riskAdvisoryPayload;
@@ -3675,6 +3707,7 @@
       renderChainReads(snapshot, latest);
       renderParticipationStructure(participationStructurePayload, snapshot);
       renderPredictiveStructure(predictiveStructurePayload);
+      renderMarketWeather(marketWeatherPayload, snapshot);
       renderConfirmationLadder(confirmationLadderPayload);
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
