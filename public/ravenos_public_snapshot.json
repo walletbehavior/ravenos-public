@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8031,
+        "classification_rate": 0.8027,
         "classified_total": 1379,
-        "econ_present_rate": 0.8031,
+        "econ_present_rate": 0.8027,
         "econ_present_total": 1379,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 152,
-        "observed_total": 1717,
+        "observed_total": 1718,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -461,7 +461,7 @@
           "econ_present_weak": 86,
           "max_attempts_exhausted_nonterminal": 0,
           "missing_liquidity": 28,
-          "pending_depth": 310,
+          "pending_depth": 311,
           "pending_retry": 0,
           "provider_error": 0,
           "provider_timeout": 0,
@@ -476,11 +476,11 @@
           "usable_signal": 1227
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1969,
-        "unresolved_total": 338,
+        "unresolved_rate": 0.1973,
+        "unresolved_total": 339,
         "usable_econ_total": 1227,
-        "usable_rate": 0.7146,
-        "usable_signal_rate": 0.7146,
+        "usable_rate": 0.7142,
+        "usable_signal_rate": 0.7142,
         "usable_signal_total": 1227,
         "warnings": [
           "data_depth_partial_v0",
@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1572,
+        "classified_total": 1577,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1572,
+        "econ_present_total": 1577,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 436,
-        "observed_total": 1572,
+        "observed_total": 1577,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 7,
           "thin_liquidity": 41,
           "unknown_unresolved": 0,
-          "usable_signal": 1136
+          "usable_signal": 1141
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 1136,
-        "usable_rate": 0.7226,
-        "usable_signal_rate": 0.7226,
-        "usable_signal_total": 1136,
+        "usable_econ_total": 1141,
+        "usable_rate": 0.7235,
+        "usable_signal_rate": 0.7235,
+        "usable_signal_total": 1141,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9469,
-    "classified_total": 37288,
+    "classified_total": 37293,
     "econ_present_rate": 0.9469,
-    "econ_present_total": 37288,
+    "econ_present_total": 37293,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9544,
-    "observed_total": 39378,
+    "observed_total": 39384,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -626,7 +626,7 @@
       "econ_present_weak": 6324,
       "max_attempts_exhausted_nonterminal": 0,
       "missing_liquidity": 138,
-      "pending_depth": 1952,
+      "pending_depth": 1953,
       "pending_retry": 0,
       "provider_error": 0,
       "provider_timeout": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2117,
       "thin_liquidity": 1103,
       "unknown_unresolved": 0,
-      "usable_signal": 27744
+      "usable_signal": 27749
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0531,
-    "unresolved_total": 2090,
-    "usable_econ_total": 27744,
+    "unresolved_total": 2091,
+    "usable_econ_total": 27749,
     "usable_rate": 0.7046,
     "usable_signal_rate": 0.7046,
-    "usable_signal_total": 27744,
+    "usable_signal_total": 27749,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T00:15:45Z",
+  "generated_at": "2026-05-06T00:31:15Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
