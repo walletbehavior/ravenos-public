@@ -500,15 +500,15 @@
       },
       "eth": {
         "classification_rate": 1.0,
-        "classified_total": 1582,
+        "classified_total": 1583,
         "econ_present_rate": 1.0,
-        "econ_present_total": 1582,
+        "econ_present_total": 1583,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 436,
-        "observed_total": 1582,
+        "observed_total": 1583,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -528,15 +528,15 @@
           "thin_depth": 7,
           "thin_liquidity": 41,
           "unknown_unresolved": 0,
-          "usable_signal": 1146
+          "usable_signal": 1147
         },
         "schema_version": "ravenos_data_depth_v0",
         "unresolved_rate": 0.0,
         "unresolved_total": 0,
-        "usable_econ_total": 1146,
-        "usable_rate": 0.7244,
-        "usable_signal_rate": 0.7244,
-        "usable_signal_total": 1146,
+        "usable_econ_total": 1147,
+        "usable_rate": 0.7246,
+        "usable_signal_rate": 0.7246,
+        "usable_signal_total": 1147,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9469,
-    "classified_total": 37304,
+    "classified_total": 37305,
     "econ_present_rate": 0.9469,
-    "econ_present_total": 37304,
+    "econ_present_total": 37305,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9545,
-    "observed_total": 39396,
+    "observed_total": 39397,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2118,
       "thin_liquidity": 1103,
       "unknown_unresolved": 0,
-      "usable_signal": 27759
+      "usable_signal": 27760
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0531,
     "unresolved_total": 2092,
-    "usable_econ_total": 27759,
+    "usable_econ_total": 27760,
     "usable_rate": 0.7046,
     "usable_signal_rate": 0.7046,
-    "usable_signal_total": 27759,
+    "usable_signal_total": 27760,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,10 +712,29 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T04:23:45Z",
+  "generated_at": "2026-05-06T04:39:15Z",
   "lane_quality": [
     {
-      "behavior_stage": "preceding",
+      "behavior_stage": "emergent",
+      "chain": "evm",
+      "concentration": "not flagged",
+      "desk_risks": [
+        "false confidence from outlier"
+      ],
+      "flow_direction": "positive",
+      "followthrough_quality": "partial",
+      "lane": "evm / emergence",
+      "lane_strength": "forming",
+      "sample_size": 10,
+      "trust_level": "low",
+      "trust_reasons": [
+        "followthrough_mixed",
+        "positive_read_under_global_outlier_dependency",
+        "sample size_10_to_29"
+      ]
+    },
+    {
+      "behavior_stage": "confirming",
       "chain": "evm",
       "concentration": "not flagged",
       "desk_risks": [
@@ -723,50 +742,14 @@
       ],
       "flow_direction": "positive",
       "followthrough_quality": "developing",
-      "lane": "evm / canary",
+      "lane": "evm / confirmation",
       "lane_strength": "forming",
-      "sample_size": 38,
+      "sample_size": 32,
       "trust_level": "low",
       "trust_reasons": [
         "followthrough_strong",
         "positive_read_under_global_outlier_dependency",
         "sample size_30_plus"
-      ]
-    },
-    {
-      "behavior_stage": "degrading",
-      "chain": "evm",
-      "concentration": "not flagged",
-      "desk_risks": [
-        "do not overread"
-      ],
-      "flow_direction": "negative",
-      "followthrough_quality": "partial",
-      "lane": "evm / emergence",
-      "lane_strength": "degrading",
-      "sample_size": 24,
-      "trust_level": "medium",
-      "trust_reasons": [
-        "followthrough_mixed",
-        "sample size_10_to_29"
-      ]
-    },
-    {
-      "behavior_stage": "degrading",
-      "chain": "evm",
-      "concentration": "not flagged",
-      "desk_risks": [
-        "do not overread"
-      ],
-      "flow_direction": "negative",
-      "followthrough_quality": "partial",
-      "lane": "evm / confirmation",
-      "lane_strength": "degrading",
-      "sample_size": 14,
-      "trust_level": "medium",
-      "trust_reasons": [
-        "followthrough_mixed",
-        "sample size_10_to_29"
       ]
     }
   ],
@@ -878,7 +861,7 @@
     "confidence": "high",
     "expected_broadening": "improving",
     "fragility": "low",
-    "generated_at": "2026-05-06T04:08:20Z",
+    "generated_at": "2026-05-06T04:23:50Z",
     "persistence": "high",
     "plain_language_summary": "Followthrough improving across chains.",
     "public_safe": true,
@@ -903,7 +886,7 @@
       "usually_leads_to": "broadening participation",
       "weather": "Followthrough improving across chains."
     },
-    "weather_score": 0.7375,
+    "weather_score": 0.7603,
     "what_this_environment_usually_leads_to": "broadening participation"
   },
   "modules": {
@@ -1533,7 +1516,7 @@
       "confidence": "high",
       "expected_broadening": "improving",
       "fragility": "low",
-      "generated_at": "2026-05-06T04:08:20Z",
+      "generated_at": "2026-05-06T04:23:50Z",
       "persistence": "high",
       "plain_language_summary": "Followthrough improving across chains.",
       "public_safe": true,
@@ -1558,7 +1541,7 @@
         "usually_leads_to": "broadening participation",
         "weather": "Followthrough improving across chains."
       },
-      "weather_score": 0.7375,
+      "weather_score": 0.7603,
       "what_this_environment_usually_leads_to": "broadening participation"
     },
     "participant_outcome_pulse": {
@@ -1734,7 +1717,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-06T04:08:18Z",
+      "generated_at": "2026-05-06T04:23:48Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
@@ -1780,14 +1763,14 @@
       "broadening_tendency": 0.0,
       "confidence": "high",
       "failure_tendency": 0.0,
-      "generated_at": "2026-05-06T04:08:20Z",
+      "generated_at": "2026-05-06T04:23:50Z",
       "historical_outcome": "mixed_followthrough",
       "persistence_tendency": 0.0,
       "plain_language_summary": "similar structures often failed to broaden",
       "public_safe": true,
       "public_summary": "similar structures often failed to broaden",
       "schema_version": "ravenos_regime_replay_v1",
-      "similarity": 1.0,
+      "similarity": 0.9875,
       "status": "available",
       "summary": {
         "broadening": "similar structures often failed to broaden",
@@ -1843,7 +1826,7 @@
       "concentration_failure_rate": 0.0,
       "confidence": "high",
       "early_failure_rate": 0.1982,
-      "generated_at": "2026-05-06T04:08:19Z",
+      "generated_at": "2026-05-06T04:23:49Z",
       "persistence_decay_rate": 0.8204,
       "plain_language_summary": "moves are surviving longer",
       "public_safe": true,
@@ -2039,13 +2022,13 @@
       "expected_state": "improving",
       "forecast_confidence": "high",
       "fragility_outlook": "stable",
-      "generated_at": "2026-05-06T04:08:18Z",
+      "generated_at": "2026-05-06T04:23:48Z",
       "likely_shift": "mixed participation",
       "persistence_outlook": "mixed",
       "plain_language_summary": "structure historically tends to improve from here",
       "public_safe": true,
       "public_summary": "structure historically tends to improve from here",
-      "sample_size": 11,
+      "sample_size": 12,
       "schema_version": "ravenos_transition_forecast_v1",
       "status": "available",
       "summary": {
@@ -2053,7 +2036,7 @@
         "participation": "participation is mixed",
         "structure": "structure historically tends to improve from here"
       },
-      "transition_similarity_score": 1.0
+      "transition_similarity_score": 0.8778
     }
   },
   "participant_outcome_pulse": {
