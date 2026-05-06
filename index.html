@@ -732,6 +732,10 @@
     <p class="section-copy">Use Live Chain Read to compare where participation is strongest, where the read is cleanest, and where the sample is still too thin to trust. It shows assets observed, clean sample coverage, thin or weak sample, unresolved coverage, green/red balance, average move, and participant outcome.</p>
     <section class="chain-grid" id="chainReads"></section>
 
+    <h2 class="section-title">participation structure</h2>
+    <p class="section-copy">This shows whether activity is broadening or narrowing, whether moves survive the first impulse, whether chains agree, and whether the move is clean or outlier-driven.</p>
+    <section class="free-grid" id="participationStructure"></section>
+
     <h2 class="section-title">cross-chain confirmation</h2>
     <p class="section-copy">This shows whether Solana, ETH, and Base are confirming the same tape or splitting apart. It also shows whether clean participation is improving or still thin.</p>
     <section class="preview-grid" id="confirmationLadder"></section>
@@ -905,6 +909,10 @@
     const CONFIRMATION_LADDER_URLS = [
       "/ravenos_confirmation_ladder.json",
       "/public/ravenos_confirmation_ladder.json",
+    ];
+    const PARTICIPATION_STRUCTURE_URLS = [
+      "/ravenos_participation_structure.json",
+      "/public/ravenos_participation_structure.json",
     ];
     const SAVED_SEARCH_TEMPLATE_URLS = [
       "/ravenos_saved_search_templates.json",
@@ -1604,6 +1612,7 @@
         "condition_alerts",
         "market_context",
         "trade_weather",
+        "participation_structure",
         "token_snapshot_spine"
       ].forEach((key) => {
         if (!isObject(out[key]) && isObject(modules[key])) out[key] = modules[key];
@@ -2149,6 +2158,41 @@
           ["read", publicLabel(row.read)],
           ["confidence", publicLabel(row.confidence, "Low")],
           ["coverage", `${coverageLabel(row.coverage_state)}${typeof row.clean_econ_sample_size === "number" ? ` · clean ${row.clean_econ_sample_size}` : (typeof row.sample_size === "number" ? ` · clean ${row.sample_size}` : "")}`]
+        ], true);
+        node.appendChild(item);
+      });
+    }
+
+    function metricTone(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "developing";
+      if (number >= 0.65) return "strong";
+      if (number >= 0.35) return "mixed";
+      if (number > 0) return "forming";
+      if (number < 0) return "weak";
+      return "developing";
+    }
+
+    function renderParticipationStructure(payload, snapshot) {
+      const node = document.getElementById("participationStructure");
+      if (!node) return;
+      node.textContent = "";
+      const source = isObject(payload) && Object.keys(payload).length ? payload : (isObject(snapshot.participation_structure) ? snapshot.participation_structure : {});
+      const summary = isObject(source.summary) ? source.summary : {};
+      const metrics = isObject(source.metrics) ? source.metrics : {};
+      const rows = [
+        ["Breadth", rawText(summary.breadth, "Participation is still developing."), metricTone(metrics.participation_breadth_delta)],
+        ["Followthrough", rawText(summary.followthrough, "Followthrough is mixed."), metricTone(metrics.followthrough_quality)],
+        ["Activity", rawText(summary.isolation, "Activity is uneven."), metricTone(1 - Number(metrics.outlier_dependency_score || 0))],
+        ["Chains", rawText(summary.chain_alignment, "Chain agreement is still developing."), metricTone(metrics.cross_chain_alignment_score)],
+        ["Move Quality", rawText(summary.cleanliness, "Move quality is still forming."), metricTone(metrics.thin_to_clean_transition_rate)]
+      ];
+      rows.forEach(([title, copy, badge]) => {
+        const item = card(title, copy, badge);
+        appendDetails(item, [
+          ["clean participation", Number.isFinite(Number(metrics.clean_participation_delta)) ? Number(metrics.clean_participation_delta).toFixed(2) : "developing"],
+          ["breadth change", Number.isFinite(Number(metrics.participation_breadth_delta)) ? Number(metrics.participation_breadth_delta).toFixed(2) : "developing"],
+          ["outlier dependency", Number.isFinite(Number(metrics.outlier_dependency_score)) ? Number(metrics.outlier_dependency_score).toFixed(2) : "developing"],
         ], true);
         node.appendChild(item);
       });
@@ -3550,6 +3594,7 @@
       const riskAdvisoryPayloads = await fetchJsonPayloads(RISK_ADVISORY_URLS);
       const participantHeatmapPayloads = await fetchJsonPayloads(PARTICIPANT_HEATMAP_URLS);
       const confirmationLadderPayloads = await fetchJsonPayloads(CONFIRMATION_LADDER_URLS);
+      const participationStructurePayloads = await fetchJsonPayloads(PARTICIPATION_STRUCTURE_URLS);
       let snapshot = freshestByGeneratedAt(snapshots);
       let latest = freshestByGeneratedAt(latests);
       let refreshStatus = freshestByGeneratedAt(refreshStatuses);
@@ -3566,6 +3611,7 @@
       const riskAdvisoryPayload = normalizePublicPayload(freshestByGeneratedAt(riskAdvisoryPayloads));
       const participantHeatmapPayload = normalizePublicPayload(freshestByGeneratedAt(participantHeatmapPayloads));
       const confirmationLadderPayload = normalizePublicPayload(freshestByGeneratedAt(confirmationLadderPayloads));
+      const participationStructurePayload = normalizePublicPayload(freshestByGeneratedAt(participationStructurePayloads));
       window.__ravenosRecentMemory = recentMemoryPayload;
       window.__ravenosConditionReplay = conditionReplayPayload;
       window.__ravenosRiskAdvisory = riskAdvisoryPayload;
@@ -3593,6 +3639,7 @@
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
       renderChainReads(snapshot, latest);
+      renderParticipationStructure(participationStructurePayload, snapshot);
       renderConfirmationLadder(confirmationLadderPayload);
       renderTradeWeather(snapshot.trade_weather);
       renderWhyRead(snapshot);
