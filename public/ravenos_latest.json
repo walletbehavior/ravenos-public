@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T01:17:45Z",
+  "generated_at": "2026-05-06T01:33:15Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
@@ -1668,7 +1668,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-06T01:02:18Z",
+      "generated_at": "2026-05-06T01:17:48Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
