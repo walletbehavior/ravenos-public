@@ -609,6 +609,29 @@
       line-height: 1.45;
     }
 
+    .trust-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .trust-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--soft);
+      padding: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .trust-item strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+
     .building-state {
       display: grid;
       gap: 8px;
@@ -697,6 +720,7 @@
       .preview-grid,
       .desk-grid,
       .locked-grid,
+      .trust-grid,
       .pricing-grid {
         grid-template-columns: 1fr;
       }
@@ -728,9 +752,9 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p>Public crypto market structure across chains.</p>
-        <p>Participation, persistence, replay similarity, and fragility - without tickers, targets, or private wallet detail.</p>
-        <p class="sharp">Where risk is being rewarded. Where the read is thin. Where moves are failing.</p>
+        <p>Market-structure intelligence across chains.</p>
+        <p>Participation, survival, replay similarity, and crowd pressure in one public read.</p>
+        <p class="sharp">Where risk is being rewarded. Where positioning is crowded. Where continuation is failing.</p>
       </div>
       <div class="context-strip" id="marketContext"></div>
     </header>
@@ -740,11 +764,11 @@
         <p class="eyebrow">current market read</p>
         <h2 class="primary-read" id="primaryRead">market read is low-confidence</h2>
         <p class="support" id="secondaryRead">Public confirmation is still thin for this window.</p>
-        <p class="support">What is strongest, what is forming, and what is too fragile to trust.</p>
+        <p class="support">Current structure, continuation pressure, and the places where failure is being punished first.</p>
         <div class="signal-strip" aria-label="signal hierarchy">
-          <span class="signal-chip"><strong>strongest</strong> confirmed breadth</span>
-          <span class="signal-chip"><strong>forming</strong> uneven followthrough</span>
-          <span class="signal-chip"><strong>fragile</strong> thin confirmation</span>
+          <span class="signal-chip"><strong>structure</strong> breadth and concentration</span>
+          <span class="signal-chip"><strong>survival</strong> continuation vs fade</span>
+          <span class="signal-chip"><strong>pressure</strong> rewarded vs punished risk</span>
         </div>
         <div class="chips" id="heroChips"></div>
       </article>
@@ -771,7 +795,7 @@
 
     <section class="panel" aria-label="why this matters">
       <p class="eyebrow">why this matters</p>
-      <p class="support">The useful question is not just what is moving now. It is whether participation is broadening, whether similar structures usually persist, and where confirmation is still too thin to trust.</p>
+      <p class="support">The useful read is not what moved. It is whether participation is broadening, whether similar structures usually survive, and where the crowd is already paying for weak confirmation.</p>
     </section>
 
     <h2 class="section-title">access levels</h2>
@@ -781,13 +805,8 @@
       <span class="section-note" style="margin:0;">Public preview stays live. Pro, Desk, and Enterprise access are request-based.</span>
     </div>
 
-    <h2 class="section-title">public framing</h2>
-    <section class="panel">
-      <p class="support">Market-structure read only. No tokens to buy, no price targets, no private wallet exposure.</p>
-    </section>
-
     <h2 class="section-title">live chain reads</h2>
-    <p class="section-copy">Where participation is strongest. Where the read is thin. Where moves are failing.</p>
+    <p class="section-copy">Current structure first: chain participation, confirmation quality, and where pressure is breaking.</p>
     <section class="chain-grid" id="chainReads"></section>
 
     <h2 class="section-title">participation structure</h2>
@@ -805,10 +824,10 @@
         <span class="compact-chip"><strong>failed expansion: </strong>common</span>
         <span class="compact-chip"><strong>followthrough: </strong>uneven</span>
       </div>
-      <p class="section-note">Illustrative structure read only. Not financial advice.</p>
+      <p class="section-note">Illustrative structure read, not a trade instruction.</p>
     </section>
 
-    <h2 class="section-title">market weather</h2>
+    <h2 class="section-title">alerts / instability</h2>
     <section class="free-grid" id="marketWeather"></section>
 
     <h2 class="section-title">cross-chain confirmation</h2>
@@ -830,10 +849,10 @@
     <p class="section-copy">Repeating, shifting, or becoming less consistent.</p>
     <section class="preview-grid" id="recentMemoryPreview"></section>
 
-    <h2 class="section-title">condition replay</h2>
+    <h2 class="section-title">historical analogs</h2>
     <p class="section-copy">Prior structures. Similarity. Resolution. Failure tendency.</p>
     <section class="preview-grid" id="conditionReplayPreview"></section>
-    <p class="section-note">Full replay + historical comparisons -> Pro/Desk</p>
+    <p class="section-note">Full replay depth and historical comparisons sit on Pro/Desk.</p>
 
     <h2 class="section-title">when to be careful</h2>
     <p class="section-copy">Thin samples. Stale confirmation. Window disagreement. Outlier-led strength.</p>
@@ -847,7 +866,7 @@
     <p class="section-copy">Breadth, participant outcome, followthrough, and warnings.</p>
     <section class="free-grid" id="whyRead"></section>
 
-    <h2 class="section-title">available on pro</h2>
+    <h2 class="section-title">advanced desk previews</h2>
     <section class="pro-grid" id="proModules"></section>
 
     <h2 class="section-title">market search preview</h2>
@@ -856,7 +875,7 @@
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
-          <div class="search-subtitle">Public market-state slices by participation, confirmation, risk, outcome, and sample quality. Deeper filters, saved searches, history, and alerts sit on paid tiers.</div>
+          <div class="search-subtitle">Search market states by participation, confirmation, pressure, outcome, and sample quality. Pro adds saved filters, replay depth, and alert workflows.</div>
         </div>
         <div class="search-bar">
           <input
@@ -902,7 +921,7 @@
       <section class="locked-grid" id="marketSearchLocked"></section>
     </section>
 
-    <p class="section-copy">Surface read here. Full lists, alerts, comparables, exports, and desk context require deeper access.</p>
+    <p class="section-copy">Surface read here. Full lists, alerts, comparables, exports, and desk context sit behind deeper access.</p>
 
     <h2 class="section-title">what could make this read unreliable</h2>
     <p class="section-note" id="riskSearchCount">Risk Search is thin. Public-safe risk rows appear when market-state drivers are available.</p>
@@ -917,7 +936,7 @@
     <h2 class="section-title">who is winning right now</h2>
     <p class="section-copy">Where participation is working, struggling, or still unclear.</p>
     <section class="preview-grid" id="participantHeatmapPreview"></section>
-    <p class="section-note">Full heatmap filters and history -> Pro</p>
+    <p class="section-note">Full heatmap filters and history sit on Pro.</p>
 
     <h2 class="section-title">condition alerts preview</h2>
     <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
@@ -926,12 +945,38 @@
 
     <h2 class="section-title">historical replay</h2>
     <p class="section-note" id="historicalReplayCount">Insufficient historical comparables. Comparable windows appear once enough separated records exist.</p>
-    <p class="section-copy">Older aggregate windows. Similarity, resolution, and failure tendencies - not trade predictions.</p>
+    <p class="section-copy">Older aggregate windows. Similarity, resolution, and failure tendencies.</p>
     <section class="preview-grid" id="historicalReplayPreview"></section>
 
     <h2 class="section-title">desk context preview</h2>
     <p class="section-copy">Whether broader market conditions support, conflict with, or fail to confirm the on-chain read.</p>
     <section class="preview-grid desk-grid" id="deskContextPreview"></section>
+
+    <h2 class="section-title">trust & safety</h2>
+    <section class="panel" aria-label="trust and safety">
+      <p class="support">RavenOS publishes market structure, not instructions.</p>
+      <div class="trust-grid">
+        <div class="trust-item"><strong>No tickers to chase</strong>Public pages do not tell you what to buy.</div>
+        <div class="trust-item"><strong>No price targets</strong>Reads focus on structure, survival, and confirmation quality.</div>
+        <div class="trust-item"><strong>No private exposure</strong>Public artifacts avoid private wallet detail and internal mechanics.</div>
+      </div>
+    </section>
+
+    <h2 class="section-title">FAQ</h2>
+    <section class="free-grid" aria-label="faq">
+      <article class="card">
+        <p class="eyebrow">what is RavenOS reading?</p>
+        <p class="support">Participation, breadth, survival, replay similarity, concentration, and failure structure.</p>
+      </article>
+      <article class="card">
+        <p class="eyebrow">is this a scanner?</p>
+        <p class="support">No. It is a structure layer for understanding continuation, instability, and where confirmation is thin.</p>
+      </article>
+      <article class="card">
+        <p class="eyebrow">what is paid depth?</p>
+        <p class="support">More replay, survival curves, alert workflows, participant pressure, and desk-grade context.</p>
+      </article>
+    </section>
 
     <section class="cta-block" aria-label="request deeper access">
       <h2>Want deeper RavenOS access?</h2>
@@ -1004,12 +1049,12 @@
       {
         title: "Market Search",
         tier: "Available on Pro",
-        copy: (stats) => `${stats.marketStateCount} states available · Public market-state search.`,
+        copy: (stats) => `${stats.marketStateCount} states · Search continuation, instability, and participation quality.`,
       },
       {
         title: "Risk Search",
         tier: "Available on Pro",
-        copy: (stats) => `${stats.riskStateCount} risk rows available · Public-safe risk reads.`,
+        copy: (stats) => `${stats.riskStateCount} risk rows · Find where confirmation is being punished.`,
       },
       {
         title: "Cap-Band Search",
@@ -1019,7 +1064,7 @@
       {
         title: "Participant Outcome",
         tier: "Available on Pro",
-        copy: (stats) => `${stats.outcomeCount} outcome rows available · Public sample only.`,
+        copy: (stats) => `${stats.outcomeCount} outcome rows · See which participation pockets are working or fading.`,
       },
       {
         title: "Alert Builder",
@@ -1030,13 +1075,13 @@
         title: "Historical Replay",
         tier: "Available on Advanced Desk",
         copy: (stats) => stats.replayStatus === "building"
-          ? `Insufficient comparables · ${stats.archiveRecordCount}/${stats.replayMinimum} archive records.`
-          : `${stats.replayComparableCount} comparable windows available.`,
+          ? `Replay base forming · ${stats.archiveRecordCount}/${stats.replayMinimum} archive records.`
+          : `${stats.replayComparableCount} comparable windows · continuation and failure context.`,
       },
       {
         title: "Macro Context",
         tier: "Available on Advanced Desk",
-        copy: () => "Deeper desk-style macro and regime context.",
+        copy: () => "Regime compatibility, pressure context, and structure survival under broader conditions.",
       },
     ];
 
@@ -2605,25 +2650,25 @@
       }
       const lockedCards = [
         {
-          title: "Historical Replay",
+          title: "Structure Replay",
           copy: stats.replayStatus === "building"
-            ? `Insufficient comparables. ${stats.archiveRecordCount || 0} archive records so far.`
-            : "Compare current market conditions to prior aggregate windows.",
+            ? `Replay base forming. ${stats.archiveRecordCount || 0} archive records so far.`
+            : "Compare the current structure to prior survival and failure windows.",
           tier: "Available on Advanced Desk",
         },
         {
-          title: "Alert Builder",
-          copy: "Build alerts for market conditions, not tickers.",
+          title: "Instability Alerts",
+          copy: "Alert on confirmation gaps, survival breaks, and crowd-pressure shifts.",
           tier: "Available on Pro",
         },
         {
-          title: "Ask RavenOS",
-          copy: "Ask higher-level market-state questions across chains and cap bands.",
+          title: "Continuation Odds",
+          copy: "Read whether similar structures usually broaden, stall, or fail.",
           tier: "Available on Advanced Desk",
         },
         {
-          title: "Desk Context",
-          copy: "Broader market context showing whether the wider market is helping, conflicting with, or failing to confirm the on-chain read.",
+          title: "Participant Pressure",
+          copy: "See where crowded participation is being rewarded, punished, or losing persistence.",
           tier: "Available on Advanced Desk",
         },
       ];
@@ -3475,12 +3520,12 @@
       const normalizedQuery = normalizeSearchText(queryText);
       const filtered = rows.filter((row) => !normalizedQuery || alertSearchText(row).includes(normalizedQuery));
       const active = rows.filter((row) => rawText(row.status, "").toLowerCase() === "active").length;
-      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} condition alerts shown, ${active} active · full history, saved alerts, custom conditions, delivery, and exports are paid-tier features` : "Notification delivery is not enabled in this public preview.";
+      countNode.textContent = rows.length ? `${Math.min(rows.length, 4)} of ${rows.length} instability alerts shown, ${active} active · Pro adds saved conditions, delivery, history, and exports` : "Delivery is not enabled in this public preview.";
       if (!rows.length) {
         const buildingSearch = searchTextFromParts("alert builder", "limited", "available on pro");
         node.appendChild(buildPreviewCard(
-          "Alert Builder is limited",
-          "Notification delivery is not enabled in this public preview.",
+          "Instability alerts are in preview",
+          "Delivery is not enabled in this public preview.",
           "Available on Pro",
           [
             ["status", "limited"],
