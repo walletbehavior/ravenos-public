@@ -712,29 +712,30 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T16:31:45Z",
+  "generated_at": "2026-05-06T16:47:15Z",
   "lane_quality": [
     {
       "behavior_stage": "emergent",
       "chain": "evm",
       "concentration": "not flagged",
       "desk_risks": [
-        "false confidence from outlier"
+        "false confidence from outlier",
+        "small sample overread"
       ],
       "flow_direction": "positive",
       "followthrough_quality": "partial",
       "lane": "evm / emergence",
       "lane_strength": "forming",
-      "sample_size": 10,
+      "sample_size": 7,
       "trust_level": "low",
       "trust_reasons": [
         "followthrough_mixed",
         "positive_read_under_global_outlier_dependency",
-        "sample size_10_to_29"
+        "sample size_below_10"
       ]
     },
     {
-      "behavior_stage": "confirming",
+      "behavior_stage": "emergent",
       "chain": "evm",
       "concentration": "not flagged",
       "desk_risks": [
@@ -744,12 +745,12 @@
       "followthrough_quality": "developing",
       "lane": "evm / confirmation",
       "lane_strength": "forming",
-      "sample_size": 32,
+      "sample_size": 12,
       "trust_level": "low",
       "trust_reasons": [
         "followthrough_strong",
         "positive_read_under_global_outlier_dependency",
-        "sample size_30_plus"
+        "sample size_10_to_29"
       ]
     }
   ],
@@ -861,7 +862,7 @@
     "confidence": "high",
     "expected_broadening": "improving",
     "fragility": "low",
-    "generated_at": "2026-05-06T16:16:20Z",
+    "generated_at": "2026-05-06T16:31:50Z",
     "persistence": "high",
     "plain_language_summary": "Followthrough improving across chains.",
     "public_safe": true,
@@ -1516,7 +1517,7 @@
       "confidence": "high",
       "expected_broadening": "improving",
       "fragility": "low",
-      "generated_at": "2026-05-06T16:16:20Z",
+      "generated_at": "2026-05-06T16:31:50Z",
       "persistence": "high",
       "plain_language_summary": "Followthrough improving across chains.",
       "public_safe": true,
@@ -1717,7 +1718,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-06T16:16:19Z",
+      "generated_at": "2026-05-06T16:31:49Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
@@ -1763,7 +1764,7 @@
       "broadening_tendency": 0.0,
       "confidence": "high",
       "failure_tendency": 0.0,
-      "generated_at": "2026-05-06T16:16:20Z",
+      "generated_at": "2026-05-06T16:31:50Z",
       "historical_outcome": "mixed_followthrough",
       "persistence_tendency": 0.0,
       "plain_language_summary": "similar structures often failed to broaden",
@@ -1826,7 +1827,7 @@
       "concentration_failure_rate": 0.0,
       "confidence": "high",
       "early_failure_rate": 0.1982,
-      "generated_at": "2026-05-06T16:16:20Z",
+      "generated_at": "2026-05-06T16:31:50Z",
       "persistence_decay_rate": 0.8204,
       "plain_language_summary": "moves are surviving longer",
       "public_safe": true,
@@ -2022,7 +2023,7 @@
       "expected_state": "improving",
       "forecast_confidence": "high",
       "fragility_outlook": "stable",
-      "generated_at": "2026-05-06T16:16:19Z",
+      "generated_at": "2026-05-06T16:31:49Z",
       "likely_shift": "mixed participation",
       "persistence_outlook": "mixed",
       "plain_language_summary": "structure historically tends to improve from here",
