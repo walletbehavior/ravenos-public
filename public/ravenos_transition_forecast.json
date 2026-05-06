@@ -6,13 +6,13 @@
   "expected_state": "improving",
   "forecast_confidence": "high",
   "fragility_outlook": "stable",
-  "generated_at": "2026-05-06T04:39:19Z",
+  "generated_at": "2026-05-06T04:54:48Z",
   "likely_shift": "mixed participation",
   "persistence_outlook": "mixed",
   "plain_language_summary": "structure historically tends to improve from here",
   "public_safe": true,
   "public_summary": "structure historically tends to improve from here",
-  "sample_size": 14,
+  "sample_size": 16,
   "schema_version": "ravenos_transition_forecast_v1",
   "status": "available",
   "summary": {
@@ -20,5 +20,5 @@
     "participation": "participation is mixed",
     "structure": "structure historically tends to improve from here"
   },
-  "transition_similarity_score": 0.8865
+  "transition_similarity_score": 0.9007
 }
