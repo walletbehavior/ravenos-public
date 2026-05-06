@@ -2188,6 +2188,29 @@
       return "developing";
     }
 
+    function marketPhrase(value) {
+      const raw = rawText(value, "");
+      const key = raw.toLowerCase().replace(/_/g, " ");
+      const map = {
+        "survival improving": "moves sustaining longer",
+        "survival failing": "followthrough failing quickly",
+        "persistence band low": "persistence still weak",
+        "persistence probability band low": "persistence still weak",
+        "transition strength developing": "structure still developing",
+        "chain alignment low": "chains not yet aligned",
+        "low": "still developing",
+        "medium": "mixed",
+        "high": "strong"
+      };
+      return map[key] || raw.replace(/_/g, " ");
+    }
+
+    function summaryCard(title, copy, outcome) {
+      const item = card(title, copy, outcome || "public read");
+      item.classList.add("wide-card");
+      return item;
+    }
+
     function renderParticipationStructure(payload, snapshot) {
       const node = document.getElementById("participationStructure");
       if (!node) return;
@@ -2220,19 +2243,17 @@
       const source = isObject(payload) ? payload : {};
       const forecasts = isObject(source.forecasts) ? source.forecasts : {};
       const drivers = isObject(source.drivers) ? source.drivers : {};
+      const summary = rawText(source.plain_language_summary, "Market structure is still developing.");
+      const usually = marketPhrase(source.what_tends_to_happen_next || forecasts.usually_leads_to || "mixed continuation");
+      node.appendChild(summaryCard("What tends to happen next", summary, usually));
       const rows = [
-        ["Followthrough", rawText(forecasts.followthrough, "followthrough mixed"), rawText(source.confidence, "low")],
-        ["Structure", rawText(forecasts.structure, "structure transitioning"), rawText(source.weakening_trend, "mixed")],
-        ["Breadth", rawText(forecasts.breadth, "breadth stabilizing"), rawText(source.broadening_trend, "mixed")],
-        ["Fragility", rawText(forecasts.fragility, "fragility contained"), rawText(drivers.outlier_dependency, "low")]
+        ["Followthrough", marketPhrase(forecasts.followthrough || "followthrough mixed"), marketPhrase(source.persistence_read || source.persistence_probability_band || "persistence mixed")],
+        ["Market Structure", marketPhrase(forecasts.structure || source.structure_change_read || "market structure changing"), marketPhrase(source.structure_change_read || "structure still developing")],
+        ["Participation", marketPhrase(forecasts.breadth || "breadth stabilizing"), marketPhrase(forecasts.participation_quality || "participation quality mixed")]
       ];
       rows.forEach(([title, copy, badge]) => {
         const item = card(title, copy, badge);
-        appendDetails(item, [
-          ["transition strength", Number.isFinite(Number(source.transition_strength)) ? Number(source.transition_strength).toFixed(2) : "developing"],
-          ["persistence band", rawText(source.persistence_probability_band, "low")],
-          ["chain alignment", rawText(drivers.chain_alignment, "low")],
-        ], true);
+        appendDetails(item, [["usually leads to", usually], ["chain read", marketPhrase(drivers.chain_alignment || "chains not yet aligned")]], false);
         node.appendChild(item);
       });
     }
@@ -2242,20 +2263,17 @@
       if (!node) return;
       node.textContent = "";
       const source = isObject(payload) && Object.keys(payload).length ? payload : (isObject(snapshot.market_weather) ? snapshot.market_weather : {});
-      const states = list(source.states).slice(0, 4).map((item) => rawText(item, ""));
+      const states = list(source.state_labels || source.states).slice(0, 4).map((item) => marketPhrase(item)).filter(Boolean);
+      const summary = rawText(source.public_summary || source.plain_language_summary, "Market structure is mixed.");
+      const usually = marketPhrase(source.what_this_environment_usually_leads_to || (isObject(source.summary) ? source.summary.usually_leads_to : "") || "mixed continuation");
+      node.appendChild(summaryCard("Market Read", summary, usually));
       const rows = [
-        ["Weather", rawText(source.public_summary || source.plain_language_summary, "Market structure is mixed."), rawText(source.confidence, "low")],
-        ["State", states.length ? states.join(", ") : "mixed", Number.isFinite(Number(source.weather_score)) ? Number(source.weather_score).toFixed(2) : "developing"],
-        ["Persistence", rawText(source.persistence, "medium"), rawText(source.expected_broadening, "mixed")],
-        ["Fragility", rawText(source.fragility, "medium"), rawText(source.concentration, "medium")]
+        ["Environment", states.length ? states.join(", ") : "conditions mixed", usually],
+        ["Persistence", marketPhrase(source.persistence || "persistence mixed"), marketPhrase(source.expected_broadening === "improving" ? "participation broadening" : source.expected_broadening === "weakening" ? "participation narrowing" : "participation mixed")],
+        ["Fragility", marketPhrase(source.fragility === "high" ? "fragility elevated" : source.fragility === "low" ? "fragility contained" : "fragility mixed"), marketPhrase(source.concentration === "high" ? "concentrated strength" : source.concentration === "low" ? "not heavily concentrated" : "some concentration")]
       ];
       rows.forEach(([title, copy, badge]) => {
         const item = card(title, copy, badge);
-        appendDetails(item, [
-          ["weather score", Number.isFinite(Number(source.weather_score)) ? Number(source.weather_score).toFixed(2) : "developing"],
-          ["expected broadening", rawText(source.expected_broadening, "mixed")],
-          ["concentration", rawText(source.concentration, "medium")],
-        ], true);
         node.appendChild(item);
       });
     }
@@ -2300,15 +2318,17 @@
       const laggard = rawText(payload && payload.lagging_chain, "building");
       const cleanState = rawText(payload && payload.clean_participation_state, "building");
       const summary = rawText(payload && payload.summary, "Cross-chain confirmation is still building.");
+      const usually = marketPhrase(payload && payload.what_this_environment_usually_leads_to || "confirmation still developing");
+      node.appendChild(summaryCard("Cross-Chain Read", summary, usually));
       const top = buildPreviewCard(
         alignment === "aligned" ? "Chains are confirming together" : alignment === "divergent" ? "Tape is not aligned across chains" : "Confirmation is building",
-        summary,
+        alignment === "aligned" ? "Participation is improving across more than one chain." : alignment === "divergent" ? "Confirmation remains uneven across chains." : "The cross-chain read needs more clean participation.",
         `${publicLabel(alignment, "building")} · clean participation ${publicLabel(cleanState, "building")}`,
         [
           ["leading chain", chainDisplayLabel(leader)],
           ["lagging chain", chainDisplayLabel(laggard)],
-          ["what confirms", list(payload && payload.what_would_confirm).slice(0, 2).join(" ") || "More clean sample across chains."],
-          ["what invalidates", list(payload && payload.what_would_invalidate).slice(0, 2).join(" ") || "Clean participation rolls over."],
+          ["usually leads to", usually],
+          ["what confirms it", list(payload && payload.what_would_confirm).slice(0, 1).join(" ") || "More clean sample across chains."],
         ],
         searchTextFromParts("cross chain confirmation", alignment, cleanState, leader, laggard, summary)
       );
@@ -2320,11 +2340,10 @@
           chainDisplayLabel(row.chain),
           meta,
           rawText(row.public_read, "This chain read is still building."),
-          publicLabel(row.clean_delta_state, "building"),
+          row.clean_delta_state === "improving" ? "cleaner participation" : row.clean_delta_state === "thinning" ? "participation thinning" : "unchanged",
           [
-            ["clean sample", Number.isFinite(Number(row.clean_sample)) ? String(row.clean_sample) : "building"],
-            ["thin sample", Number.isFinite(Number(row.thin_sample)) ? String(row.thin_sample) : "building"],
-            ["clean delta", delta === null ? "building" : (delta >= 0 ? `+${delta}` : String(delta))],
+            ["participation", publicLabel(row.trust_label, "building")],
+            ["change", delta === null ? "still building" : (delta > 0 ? "cleaner" : delta < 0 ? "thinner" : "unchanged")],
           ],
           searchTextFromParts(row.chain, row.trust_label, row.quality, row.clean_delta_state, row.public_read)
         ));

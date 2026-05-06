@@ -444,16 +444,16 @@
   "data_depth": {
     "by_chain": {
       "base": {
-        "classification_rate": 0.8027,
-        "classified_total": 1383,
-        "econ_present_rate": 0.8027,
-        "econ_present_total": 1383,
+        "classification_rate": 0.8028,
+        "classified_total": 1384,
+        "econ_present_rate": 0.8028,
+        "econ_present_total": 1384,
         "known_artifact_total": 0,
         "known_dead_total": 0,
         "known_duplicate_total": 0,
         "known_quote_major_total": 0,
         "known_thin_total": 152,
-        "observed_total": 1723,
+        "observed_total": 1724,
         "reason_counts": {
           "artifact": 0,
           "budget_pause": 0,
@@ -473,15 +473,15 @@
           "thin_depth": 1,
           "thin_liquidity": 65,
           "unknown_unresolved": 0,
-          "usable_signal": 1231
+          "usable_signal": 1232
         },
         "schema_version": "ravenos_data_depth_v0",
-        "unresolved_rate": 0.1973,
+        "unresolved_rate": 0.1972,
         "unresolved_total": 340,
-        "usable_econ_total": 1231,
-        "usable_rate": 0.7145,
-        "usable_signal_rate": 0.7145,
-        "usable_signal_total": 1231,
+        "usable_econ_total": 1232,
+        "usable_rate": 0.7146,
+        "usable_signal_rate": 0.7146,
+        "usable_signal_total": 1232,
         "warnings": [
           "data_depth_partial_v0",
           "unresolved_contains_not_yet_enriched",
@@ -610,15 +610,15 @@
       }
     },
     "classification_rate": 0.9469,
-    "classified_total": 37303,
+    "classified_total": 37304,
     "econ_present_rate": 0.9469,
-    "econ_present_total": 37303,
+    "econ_present_total": 37304,
     "known_artifact_total": 0,
     "known_dead_total": 0,
     "known_duplicate_total": 0,
     "known_quote_major_total": 0,
     "known_thin_total": 9545,
-    "observed_total": 39395,
+    "observed_total": 39396,
     "reason_counts": {
       "artifact": 0,
       "budget_pause": 0,
@@ -638,15 +638,15 @@
       "thin_depth": 2118,
       "thin_liquidity": 1103,
       "unknown_unresolved": 0,
-      "usable_signal": 27758
+      "usable_signal": 27759
     },
     "schema_version": "ravenos_data_depth_v0",
     "unresolved_rate": 0.0531,
     "unresolved_total": 2092,
-    "usable_econ_total": 27758,
+    "usable_econ_total": 27759,
     "usable_rate": 0.7046,
     "usable_signal_rate": 0.7046,
-    "usable_signal_total": 27758,
+    "usable_signal_total": 27759,
     "warnings": [
       "data_depth_partial_v0",
       "unresolved_contains_not_yet_enriched",
@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-06T02:35:15Z",
+  "generated_at": "2026-05-06T02:50:45Z",
   "lane_quality": [
     {
       "behavior_stage": "preceding",
@@ -878,25 +878,33 @@
     "confidence": "high",
     "expected_broadening": "improving",
     "fragility": "low",
-    "generated_at": "2026-05-06T02:31:01Z",
+    "generated_at": "2026-05-06T02:45:58Z",
     "persistence": "high",
     "plain_language_summary": "Followthrough improving across chains.",
     "public_safe": true,
     "public_summary": "Followthrough improving across chains.",
     "schema_version": "ravenos_market_weather_v1",
+    "state_labels": [
+      "structure strengthening",
+      "participation broadening",
+      "persistence holding",
+      "moves sustaining longer"
+    ],
     "states": [
-      "strengthening",
-      "broadening",
-      "persistent",
-      "survival_improving"
+      "structure strengthening",
+      "participation broadening",
+      "persistence holding",
+      "moves sustaining longer"
     ],
     "status": "available",
     "summary": {
       "participation": "Participation broadening.",
       "persistence": "Persistence improving.",
+      "usually_leads_to": "broadening participation",
       "weather": "Followthrough improving across chains."
     },
-    "weather_score": 0.7375
+    "weather_score": 0.7375,
+    "what_this_environment_usually_leads_to": "broadening participation"
   },
   "modules": {
     "breadth_momentum": {
@@ -1525,25 +1533,33 @@
       "confidence": "high",
       "expected_broadening": "improving",
       "fragility": "low",
-      "generated_at": "2026-05-06T02:31:01Z",
+      "generated_at": "2026-05-06T02:45:58Z",
       "persistence": "high",
       "plain_language_summary": "Followthrough improving across chains.",
       "public_safe": true,
       "public_summary": "Followthrough improving across chains.",
       "schema_version": "ravenos_market_weather_v1",
+      "state_labels": [
+        "structure strengthening",
+        "participation broadening",
+        "persistence holding",
+        "moves sustaining longer"
+      ],
       "states": [
-        "strengthening",
-        "broadening",
-        "persistent",
-        "survival_improving"
+        "structure strengthening",
+        "participation broadening",
+        "persistence holding",
+        "moves sustaining longer"
       ],
       "status": "available",
       "summary": {
         "participation": "Participation broadening.",
         "persistence": "Persistence improving.",
+        "usually_leads_to": "broadening participation",
         "weather": "Followthrough improving across chains."
       },
-      "weather_score": 0.7375
+      "weather_score": 0.7375,
+      "what_this_environment_usually_leads_to": "broadening participation"
     },
     "participant_outcome_pulse": {
       "chains": {
@@ -1718,7 +1734,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-06T02:19:48Z",
+      "generated_at": "2026-05-06T02:36:37Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
@@ -1764,7 +1780,7 @@
       "broadening_tendency": 0.0,
       "confidence": "low",
       "failure_tendency": 0.0,
-      "generated_at": "2026-05-06T02:29:59Z",
+      "generated_at": "2026-05-06T02:36:38Z",
       "historical_outcome": "insufficient_history",
       "persistence_tendency": 0.0,
       "plain_language_summary": "similar structures often failed to broaden",
@@ -1827,7 +1843,7 @@
       "concentration_failure_rate": 0.0,
       "confidence": "high",
       "early_failure_rate": 0.1982,
-      "generated_at": "2026-05-06T02:31:02Z",
+      "generated_at": "2026-05-06T02:36:38Z",
       "persistence_decay_rate": 0.8204,
       "plain_language_summary": "moves are surviving longer",
       "public_safe": true,
@@ -2023,7 +2039,7 @@
       "expected_state": "mixed",
       "forecast_confidence": "low",
       "fragility_outlook": "stable",
-      "generated_at": "2026-05-06T02:29:58Z",
+      "generated_at": "2026-05-06T02:36:37Z",
       "likely_shift": "mixed participation",
       "persistence_outlook": "mixed",
       "plain_language_summary": "historical structure read is mixed",
