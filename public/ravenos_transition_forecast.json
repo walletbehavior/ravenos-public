@@ -6,7 +6,7 @@
   "expected_state": "improving",
   "forecast_confidence": "high",
   "fragility_outlook": "stable",
-  "generated_at": "2026-05-07T17:56:20Z",
+  "generated_at": "2026-05-07T18:11:49Z",
   "likely_shift": "mixed participation",
   "persistence_outlook": "mixed",
   "plain_language_summary": "structure historically tends to improve from here",
@@ -20,5 +20,5 @@
     "participation": "participation is mixed",
     "structure": "structure historically tends to improve from here"
   },
-  "transition_similarity_score": 0.9966
+  "transition_similarity_score": 0.9995
 }
