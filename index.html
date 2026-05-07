@@ -810,7 +810,7 @@
     <section class="chain-grid" id="chainReads"></section>
 
     <h2 class="section-title">participation structure</h2>
-    <p class="section-copy">Breadth. Survival. Chain agreement. Outlier dependence.</p>
+    <p class="section-copy">Where new participation is showing up, whether it repeats, and what would confirm it.</p>
     <section class="free-grid" id="participationStructure"></section>
 
     <h2 class="section-title">what tends to happen next</h2>
@@ -2333,6 +2333,25 @@
       const source = isObject(payload) && Object.keys(payload).length ? payload : (isObject(snapshot.participation_structure) ? snapshot.participation_structure : {});
       const summary = isObject(source.summary) ? source.summary : {};
       const metrics = isObject(source.metrics) ? source.metrics : {};
+      const chains = list(source.chains).slice(0, 3);
+      if (chains.length) {
+        chains.forEach((row) => {
+          const title = `${publicLabel(row.chain_label || row.chain, "Chain")} Participation`;
+          const copy = rawText(row.plain_read, "Participation is appearing, but confirmation is still building.");
+          const badge = publicLabel(row.participant_recurrence || row.discovery_sample_status, "building");
+          const item = card(title, copy, badge);
+          appendDetails(item, [
+            ["sample status", publicLabel(row.sample_status || row.discovery_sample_status, "building")],
+            ["repeatability", rawText(row.repeatability_read, publicLabel(row.participant_recurrence, "unknown"))],
+            ["surface quality", rawText(row.surface_yield_read, publicLabel(row.surface_quality, "thin"))],
+            ["cohort state", rawText(row.cohort_state_read, publicLabel(row.cohort_persistence, "unknown"))],
+            ["confirmation", publicLabel(row.confirmation_status, "building")],
+            ["confirmation", rawText(row.what_would_confirm, "Repeated participation across future checks would strengthen the read.")],
+            ["would weaken", rawText(row.what_would_weaken, "No repeat activity would keep the sample thin.")]
+          ], false);
+          node.appendChild(item);
+        });
+      }
       const rows = [
         ["Breadth", rawText(summary.breadth, "Participation is still thin."), metricTone(metrics.participation_breadth_delta)],
         ["Followthrough", rawText(summary.followthrough, "Followthrough is mixed."), metricTone(metrics.followthrough_quality)],

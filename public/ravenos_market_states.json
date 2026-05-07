@@ -25,7 +25,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-07T14:34:45Z",
+  "generated_at": "2026-05-07T14:50:15Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -35,22 +35,22 @@
       },
       "cap_band": "all",
       "chain": "solana",
-      "clean_sample_size": 25442,
+      "clean_sample_size": 25446,
       "condition": "improving",
       "data_quality": {
-        "clean_sample": 25442,
-        "observed_sample": 36295,
+        "clean_sample": 25446,
+        "observed_sample": 36307,
         "status": "building",
-        "thin_sample": 9082,
-        "unresolved_sample": 1771,
-        "usable_signal_rate": 0.701
+        "thin_sample": 9089,
+        "unresolved_sample": 1772,
+        "usable_signal_rate": 0.7009
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 36295,
+      "observed_sample_size": 36307,
       "participant_outcome": {
         "confidence": "low",
         "direction": "mixed"
@@ -65,12 +65,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 25442,
+      "sample_size": 25446,
       "state_id": "solana_all_current",
-      "summary": "Solana: 36295 assets observed, 25442 clean enough for signal, 9082 thin or weak, 1771 still resolving. Coverage is improving, but part of the surface is still shallow.",
-      "thin_sample_size": 9082,
-      "unresolved_sample_size": 1771,
-      "usable_signal_rate": 0.701,
+      "summary": "Solana: 36307 assets observed, 25446 clean enough for signal, 9089 thin or weak, 1772 still resolving. Coverage is improving, but part of the surface is still shallow.",
+      "thin_sample_size": 9089,
+      "unresolved_sample_size": 1772,
+      "usable_signal_rate": 0.7009,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -83,15 +83,15 @@
     {
       "breadth": {
         "direction": "flat",
-        "strength": "moderate"
+        "strength": "weak"
       },
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample_size": 142,
+      "clean_sample_size": 17,
       "condition": "mixed",
       "data_quality": {
-        "clean_sample": 142,
-        "observed_sample": 142,
+        "clean_sample": 17,
+        "observed_sample": 17,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -102,9 +102,9 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 142,
+      "observed_sample_size": 17,
       "participant_outcome": {
-        "confidence": "medium",
+        "confidence": "low",
         "direction": "mixed"
       },
       "risk": {
@@ -117,7 +117,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 142,
+      "sample_size": 17,
       "state_id": "solana_fresh_pairs_6h",
       "summary": "Solana fresh pairs show unstable cap-band behavior in the current public read. Risk remains moderate while confirmation continues to develop.",
       "thin_sample_size": null,
@@ -194,7 +194,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 1091,
+        "observed_sample": 1602,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -205,7 +205,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 1091,
+      "observed_sample_size": 1602,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -220,7 +220,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1091,
+      "sample_size": 1602,
       "state_id": "eth_fresh_pairs_6h",
       "summary": "Ethereum fresh pairs are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
@@ -241,22 +241,22 @@
       },
       "cap_band": "all",
       "chain": "base",
-      "clean_sample_size": 1252,
+      "clean_sample_size": 1254,
       "condition": "building",
       "data_quality": {
-        "clean_sample": 1252,
-        "observed_sample": 1748,
+        "clean_sample": 1254,
+        "observed_sample": 1750,
         "status": "building",
         "thin_sample": 152,
         "unresolved_sample": 344,
-        "usable_signal_rate": 0.7162
+        "usable_signal_rate": 0.7166
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 1748,
+      "observed_sample_size": 1750,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -271,12 +271,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1252,
+      "sample_size": 1254,
       "state_id": "base_all_current",
-      "summary": "Base: 1748 assets observed, 1252 clean enough for signal, 152 thin or weak, 344 still resolving. Coverage is building, and confirmation is still developing.",
+      "summary": "Base: 1750 assets observed, 1254 clean enough for signal, 152 thin or weak, 344 still resolving. Coverage is building, and confirmation is still developing.",
       "thin_sample_size": 152,
       "unresolved_sample_size": 344,
-      "usable_signal_rate": 0.7162,
+      "usable_signal_rate": 0.7166,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -296,7 +296,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 663,
+        "observed_sample": 1406,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -307,7 +307,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 663,
+      "observed_sample_size": 1406,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -322,7 +322,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 663,
+      "sample_size": 1406,
       "state_id": "base_fresh_pairs_6h",
       "summary": "Base fresh pairs are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,

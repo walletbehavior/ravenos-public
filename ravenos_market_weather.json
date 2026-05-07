@@ -3,7 +3,7 @@
   "confidence": "high",
   "expected_broadening": "improving",
   "fragility": "low",
-  "generated_at": "2026-05-07T14:34:51Z",
+  "generated_at": "2026-05-07T14:50:21Z",
   "persistence": "high",
   "plain_language_summary": "Followthrough improving across chains.",
   "public_safe": true,
@@ -13,12 +13,14 @@
     "structure strengthening",
     "participation broadening",
     "persistence holding",
+    "rotation active",
     "moves sustaining longer"
   ],
   "states": [
     "structure strengthening",
     "participation broadening",
     "persistence holding",
+    "rotation active",
     "moves sustaining longer"
   ],
   "status": "available",
@@ -28,6 +30,6 @@
     "usually_leads_to": "broadening participation",
     "weather": "Followthrough improving across chains."
   },
-  "weather_score": 0.7603,
+  "weather_score": 0.6623,
   "what_this_environment_usually_leads_to": "broadening participation"
 }
