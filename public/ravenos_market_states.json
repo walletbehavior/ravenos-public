@@ -25,7 +25,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-07T15:36:45Z",
+  "generated_at": "2026-05-07T15:52:15Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -35,22 +35,22 @@
       },
       "cap_band": "all",
       "chain": "solana",
-      "clean_sample_size": 25459,
+      "clean_sample_size": 25463,
       "condition": "improving",
       "data_quality": {
-        "clean_sample": 25459,
-        "observed_sample": 36343,
+        "clean_sample": 25463,
+        "observed_sample": 36359,
         "status": "building",
-        "thin_sample": 9107,
-        "unresolved_sample": 1777,
-        "usable_signal_rate": 0.7005
+        "thin_sample": 9117,
+        "unresolved_sample": 1779,
+        "usable_signal_rate": 0.7003
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 36343,
+      "observed_sample_size": 36359,
       "participant_outcome": {
         "confidence": "low",
         "direction": "mixed"
@@ -65,12 +65,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 25459,
+      "sample_size": 25463,
       "state_id": "solana_all_current",
-      "summary": "Solana: 36343 assets observed, 25459 clean enough for signal, 9107 thin or weak, 1777 still resolving. Coverage is improving, but part of the surface is still shallow.",
-      "thin_sample_size": 9107,
-      "unresolved_sample_size": 1777,
-      "usable_signal_rate": 0.7005,
+      "summary": "Solana: 36359 assets observed, 25463 clean enough for signal, 9117 thin or weak, 1779 still resolving. Coverage is improving, but part of the surface is still shallow.",
+      "thin_sample_size": 9117,
+      "unresolved_sample_size": 1779,
+      "usable_signal_rate": 0.7003,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
