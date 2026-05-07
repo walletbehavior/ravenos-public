@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-07T23:06:15Z",
+  "generated_at": "2026-05-07T23:21:45Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -68,7 +68,7 @@
       "confidence": "high",
       "data_quality": "clean",
       "direction": "unknown",
-      "observed_sample": 1627,
+      "observed_sample": 1631,
       "outcome_id": "eth_all_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
@@ -108,7 +108,7 @@
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 1815,
+      "observed_sample": 1821,
       "outcome_id": "base_all_6h",
       "participant_outcome": "unknown",
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
