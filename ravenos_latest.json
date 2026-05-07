@@ -712,7 +712,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-07T04:30:15Z",
+  "generated_at": "2026-05-07T04:45:45Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
@@ -860,7 +860,7 @@
     "confidence": "high",
     "expected_broadening": "improving",
     "fragility": "low",
-    "generated_at": "2026-05-07T04:14:50Z",
+    "generated_at": "2026-05-07T04:30:21Z",
     "persistence": "high",
     "plain_language_summary": "Followthrough improving across chains.",
     "public_safe": true,
@@ -1515,7 +1515,7 @@
       "confidence": "high",
       "expected_broadening": "improving",
       "fragility": "low",
-      "generated_at": "2026-05-07T04:14:50Z",
+      "generated_at": "2026-05-07T04:30:21Z",
       "persistence": "high",
       "plain_language_summary": "Followthrough improving across chains.",
       "public_safe": true,
@@ -1716,7 +1716,7 @@
     "participation_structure": {
       "chain_count": 3,
       "desk_read": "Participation is broadening. Moves are surviving beyond first impulse. Activity is market-wide. Chains agree. Move is clean.",
-      "generated_at": "2026-05-07T04:14:48Z",
+      "generated_at": "2026-05-07T04:30:19Z",
       "metrics": {
         "clean_participation_delta": 0.7024,
         "cross_chain_alignment_score": 1.0,
@@ -1762,7 +1762,7 @@
       "broadening_tendency": 0.0,
       "confidence": "high",
       "failure_tendency": 0.0,
-      "generated_at": "2026-05-07T04:14:50Z",
+      "generated_at": "2026-05-07T04:30:21Z",
       "historical_outcome": "mixed_followthrough",
       "persistence_tendency": 0.0,
       "plain_language_summary": "similar structures often failed to broaden",
@@ -1825,7 +1825,7 @@
       "concentration_failure_rate": 0.0,
       "confidence": "high",
       "early_failure_rate": 0.1982,
-      "generated_at": "2026-05-07T04:14:50Z",
+      "generated_at": "2026-05-07T04:30:21Z",
       "persistence_decay_rate": 0.8204,
       "plain_language_summary": "moves are surviving longer",
       "public_safe": true,
@@ -2021,7 +2021,7 @@
       "expected_state": "improving",
       "forecast_confidence": "high",
       "fragility_outlook": "stable",
-      "generated_at": "2026-05-07T04:14:49Z",
+      "generated_at": "2026-05-07T04:30:19Z",
       "likely_shift": "mixed participation",
       "persistence_outlook": "mixed",
       "plain_language_summary": "structure historically tends to improve from here",
