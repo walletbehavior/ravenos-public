@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-07T00:47:45Z",
+  "generated_at": "2026-05-07T01:03:15Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -64,11 +64,11 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "clean_sample": 1160,
+      "clean_sample": 1161,
       "confidence": "high",
       "data_quality": "clean",
       "direction": "unknown",
-      "observed_sample": 1598,
+      "observed_sample": 1599,
       "outcome_id": "eth_all_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
