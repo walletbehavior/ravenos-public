@@ -221,30 +221,9 @@
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
       "window": "6h"
-    },
-    {
-      "advisory_id": "all_recent_6h_unstable_conditions",
-      "chain": "all",
-      "plain_warning": "Conditions are changing quickly",
-      "risk_flags": [
-        "unstable_conditions"
-      ],
-      "risk_level": "moderate",
-      "scope": "recent",
-      "search_terms": [
-        "risky",
-        "unstable",
-        "low confidence",
-        "thin",
-        "unstable_conditions",
-        "moderate"
-      ],
-      "what_would_improve": "Conditions need to stabilize across refreshes.",
-      "why_it_matters": "Frequent changes make the current read harder to rely on.",
-      "window": "6h"
     }
   ],
-  "generated_at": "2026-05-08T01:10:19Z",
+  "generated_at": "2026-05-08T01:25:49Z",
   "risk_level": "high",
   "schema_version": "ravenos_risk_advisory_v0",
   "top_flags": {
@@ -253,6 +232,6 @@
     "low_confirmation": 9,
     "stale_data": 3,
     "thin_sample": 9,
-    "unstable_conditions": 4
+    "unstable_conditions": 3
   }
 }
