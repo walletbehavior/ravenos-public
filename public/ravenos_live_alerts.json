@@ -1,5 +1,5 @@
 {
-  "active_alert_count": 10,
+  "active_alert_count": 9,
   "alerts": [
     {
       "alert_id": "alert_broad_but_unconfirmed_eth",
@@ -12,18 +12,6 @@
       "trigger_count": 1,
       "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
       "why_it_matters": "A broad read matters more when it persists and aligns with broader windows."
-    },
-    {
-      "alert_id": "alert_clean_trend_emerging_eth",
-      "chain": "eth",
-      "condition_family": "clean_trend_emerging",
-      "confidence_label": "high",
-      "last_transition_type": "new",
-      "preview_tier": "public",
-      "summary": "A cleaner trend is emerging",
-      "trigger_count": 1,
-      "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
-      "why_it_matters": "Cleaner participation can make the public read easier to trust."
     },
     {
       "alert_id": "alert_fragile_expansion_eth",
@@ -122,6 +110,6 @@
       "why_it_matters": "Low clarity can make a public market read less reliable."
     }
   ],
-  "generated_at": "2026-05-08T00:54:45Z",
+  "generated_at": "2026-05-08T01:10:15Z",
   "schema_version": "ravenos_live_alerts_v0"
 }

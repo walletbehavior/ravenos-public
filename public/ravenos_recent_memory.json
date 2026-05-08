@@ -21,21 +21,20 @@
       "what_to_watch": "Repeated appearances matter more when confirmation and data quality also improve."
     }
   ],
-  "condition_stability": "stable",
-  "consistency_trend": "mixed",
+  "condition_stability": "shifting",
+  "consistency_trend": "degrading",
   "dominant_condition_family": "mixed_signal_environment",
   "frequent_condition_families": {
     "broad_but_unconfirmed": 245,
-    "clean_trend_emerging": 1,
     "confirmation_incomplete": 288,
     "fragile_expansion": 5,
-    "high_risk_low_clarity": 5,
+    "high_risk_low_clarity": 6,
     "mixed_signal_environment": 290,
     "outlier_risk": 288,
     "thin_but_improving": 2,
-    "thin_sample": 240
+    "thin_sample": 241
   },
-  "generated_at": "2026-05-08T00:54:49Z",
+  "generated_at": "2026-05-08T01:10:19Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -67,10 +66,6 @@
       "appearance_count": 245,
       "recent_context": "This condition has appeared 245 times in the recent public window."
     },
-    "clean_trend_emerging": {
-      "appearance_count": 1,
-      "recent_context": "This condition has appeared 1 times in the recent public window."
-    },
     "confirmation_incomplete": {
       "appearance_count": 288,
       "recent_context": "This condition has appeared 288 times in the recent public window."
@@ -80,8 +75,8 @@
       "recent_context": "This condition has appeared 5 times in the recent public window."
     },
     "high_risk_low_clarity": {
-      "appearance_count": 5,
-      "recent_context": "This condition has appeared 5 times in the recent public window."
+      "appearance_count": 6,
+      "recent_context": "This condition has appeared 6 times in the recent public window."
     },
     "mixed_signal_environment": {
       "appearance_count": 290,
@@ -96,12 +91,16 @@
       "recent_context": "This condition has appeared 2 times in the recent public window."
     },
     "thin_sample": {
-      "appearance_count": 240,
-      "recent_context": "This condition has appeared 240 times in the recent public window."
+      "appearance_count": 241,
+      "recent_context": "This condition has appeared 241 times in the recent public window."
     }
   },
   "schema_version": "ravenos_recent_memory_v0",
-  "transition_frequency": 0,
-  "transition_type_counts": {},
+  "transition_frequency": 4,
+  "transition_type_counts": {
+    "exited": 1,
+    "strengthened": 1,
+    "weakened": 2
+  },
   "window_hours": 12
 }

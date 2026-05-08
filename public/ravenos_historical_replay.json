@@ -48,8 +48,8 @@
         "cap band matches",
         "window matches",
         "condition matches",
-        "data quality matches",
-        "participant outcome matches"
+        "participant outcome matches",
+        "risk level matches"
       ],
       "matched_state_id": "eth_all_current",
       "matched_window_start": "2026-05-04T14:37:44Z",
@@ -115,11 +115,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-08T00:54:45Z",
+  "generated_at": "2026-05-08T01:10:15Z",
   "metadata": {
-    "archive_record_count": 373,
+    "archive_record_count": 374,
     "current_state_count": 6,
-    "eligible_comparable_record_count": 349,
+    "eligible_comparable_record_count": 350,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },

@@ -74,13 +74,15 @@
       "breadth_state": "broad",
       "chain": "eth",
       "confirmation_state": "building",
-      "data_quality": "clean",
+      "data_quality": "building",
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
         "confirmation_incomplete",
         "confirmation_is_incomplete",
         "current_read_leans_on_an_outlier-prone_24h_signal",
+        "data_quality",
+        "data_quality_is_building",
         "longer_windows_disagree",
         "outlier_dependency",
         "participant_outcome_is_unknown",
@@ -97,7 +99,7 @@
       "tags": [
         "fragile_expansion",
         "broad_but_unconfirmed",
-        "clean_trend_emerging"
+        "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
       "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
@@ -212,6 +214,6 @@
     }
   ],
   "count": 6,
-  "generated_at": "2026-05-08T00:54:45Z",
+  "generated_at": "2026-05-08T01:10:15Z",
   "schema_version": "condition_search_v0"
 }

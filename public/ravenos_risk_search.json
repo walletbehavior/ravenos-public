@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T00:54:45Z",
+  "generated_at": "2026-05-08T01:10:15Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -243,7 +243,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "data_quality": "clean",
+      "data_quality": "building",
       "drivers": [
         "public sample is still building",
         "participant outcome remains unknown",
@@ -261,7 +261,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "data_quality": "clean",
+      "data_quality": "building",
       "drivers": [
         "participant outcome is unknown",
         "participant outcome remains unknown",
@@ -279,7 +279,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "data_quality": "clean",
+      "data_quality": "building",
       "drivers": [
         "confirmation is incomplete",
         "participant outcome remains unknown",
@@ -297,7 +297,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "data_quality": "clean",
+      "data_quality": "building",
       "drivers": [
         "current read leans on an outlier-prone 24h signal",
         "participant outcome remains unknown",
@@ -315,7 +315,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "data_quality": "clean",
+      "data_quality": "building",
       "drivers": [
         "longer windows disagree",
         "participant outcome remains unknown",
@@ -327,6 +327,24 @@
       "risk_id": "eth_all_current_window_disagreement",
       "risk_level": "moderate",
       "risk_type": "window_disagreement",
+      "state_id": "eth_all_current",
+      "window": "6h"
+    },
+    {
+      "cap_band": "all",
+      "chain": "eth",
+      "data_quality": "building",
+      "drivers": [
+        "data quality is building",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "ETH all 6h has building data quality, so the read remains cautious.",
+      "risk_id": "eth_all_current_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
       "state_id": "eth_all_current",
       "window": "6h"
     },
