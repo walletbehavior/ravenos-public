@@ -1,5 +1,5 @@
 
-# private Raven / operator files
+# local operator files
 .env
 *.env
 *.sqlite
@@ -10,7 +10,6 @@ data/
 state/
 wallet_memory*
 precursor*
-shadow_trades*
 raven_live*
 atlas_permission.json
 atlas_research_permission.json
