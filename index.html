@@ -3710,10 +3710,12 @@
         {
           title: "Perp Pressure",
           badge: "Available on Advanced Desk",
-          copy: "Leverage and futures pressure: supported, unstable, or crowded.",
+          copy: rawText(perp.summary, "Leverage and futures pressure: supported, unstable, or crowded."),
           rows: [
-            ["public preview", "Limited"],
-            ["detail", "Full perp detail is reserved for Advanced Desk"],
+            ["public preview", publicLabel(perpStatus, "limited")],
+            ["market read", publicLabel(isObject(perp.market) ? perp.market.risk_read : "", "unknown")],
+            ["pressure", publicLabel(isObject(perp.market) ? perp.market.pressure_state : "", "unknown")],
+            ["detail", "Full symbol flow remains on Advanced Desk"],
           ],
           search: searchTextFromParts(
             "perp pressure",
