@@ -1,6 +1,6 @@
 {
   "count": 6,
-  "generated_at": "2026-05-05T02:34:15Z",
+  "generated_at": "2026-05-12T13:09:15Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -21,7 +21,7 @@
       "plain_language_summary": "Broad Market participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 1339,
+      "sample_size": 3743,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
@@ -54,7 +54,7 @@
       "plain_language_summary": "Fresh Pairs participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 663,
+      "sample_size": 1406,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",
@@ -87,7 +87,7 @@
       "plain_language_summary": "Broad Market participation on Ethereum is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 1376,
+      "sample_size": 2092,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
@@ -120,7 +120,7 @@
       "plain_language_summary": "Fresh Pairs participation on Ethereum is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 1091,
+      "sample_size": 1602,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",
@@ -153,7 +153,7 @@
       "plain_language_summary": "Broad Market participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 36059,
+      "sample_size": 36497,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",
@@ -176,17 +176,17 @@
       "avg_outcome": "mixed",
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "confidence": "medium",
+      "confidence": "low",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_fresh_pairs_6h",
-      "outcome_score": 0.2,
+      "outcome_score": 0.18,
       "outcome_strength": "building",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
       "participant_success_rate": 0.5,
       "plain_language_summary": "Fresh Pairs participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 142,
+      "sample_size": 17,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",

@@ -1,0 +1,106 @@
+{
+  "alignment_state": "divergent",
+  "chains": [
+    {
+      "activity": "hot",
+      "chain": "solana",
+      "clean_delta": 0,
+      "clean_delta_state": "flat",
+      "clean_ratio": 0.138,
+      "clean_sample": 17,
+      "direction": "mixed",
+      "display": "Solana",
+      "observed_sample": 123,
+      "participant_outcome": "mixed",
+      "public_read": "Solana is active but fragile.",
+      "quality": "fragile",
+      "read": "unstable",
+      "thin_sample": 106,
+      "trust_label": "fragile"
+    },
+    {
+      "activity": "normal",
+      "chain": "eth",
+      "clean_delta": 0,
+      "clean_delta_state": "flat",
+      "clean_ratio": 0.434,
+      "clean_sample": 33,
+      "direction": "positive",
+      "display": "ETH",
+      "observed_sample": 76,
+      "participant_outcome": "favorable",
+      "public_read": "ETH participation is usable but not fully confirmed.",
+      "quality": "building",
+      "read": "improving",
+      "thin_sample": 43,
+      "trust_label": "building"
+    },
+    {
+      "activity": "normal",
+      "chain": "base",
+      "clean_delta": 0,
+      "clean_delta_state": "flat",
+      "clean_ratio": 0.52,
+      "clean_sample": 39,
+      "direction": "positive",
+      "display": "Base",
+      "observed_sample": 75,
+      "participant_outcome": "favorable",
+      "public_read": "Base participation is usable but not fully confirmed.",
+      "quality": "building",
+      "read": "improving",
+      "thin_sample": 36,
+      "trust_label": "building"
+    }
+  ],
+  "change": {
+    "changes": [],
+    "state": "flat",
+    "summary": "Clean participation is broadly unchanged from the prior public snapshot."
+  },
+  "clean_participation_state": "thin",
+  "generated_at": "2026-05-12T13:09:22Z",
+  "lagging_chain": "solana",
+  "leading_chain": "base",
+  "market": {
+    "clean_participation": "not broad enough yet",
+    "confirmation_state": "divergent",
+    "headline": "Tape is not aligned across chains.",
+    "lagging_chain": "solana",
+    "leading_chain": "base",
+    "outlier_dependency": "a few tokens are doing most of the work",
+    "plain_language_summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
+    "thinness_delta": "Clean participation is broadly unchanged from the prior public snapshot.",
+    "warnings": [
+      "not aligned across chains",
+      "clean participation is thin",
+      "some chain reads are still unresolved"
+    ],
+    "what_this_environment_usually_leads_to": "unstable followthrough",
+    "what_would_confirm": [
+      "Clean participation broadens across more than one chain.",
+      "The same direction holds across the next public window.",
+      "Fewer gains depend on a small part of the sample."
+    ],
+    "what_would_invalidate": [
+      "Clean participation thins.",
+      "Chains diverge further.",
+      "Followthrough stalls early."
+    ]
+  },
+  "plain_language_summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
+  "schema_version": "ravenos_confirmation_ladder_v0",
+  "status": "available",
+  "summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
+  "what_this_environment_usually_leads_to": "unstable followthrough",
+  "what_would_confirm": [
+    "Clean participation broadens across more than one chain.",
+    "The same direction holds across the next public window.",
+    "Fewer gains depend on a small part of the sample."
+  ],
+  "what_would_invalidate": [
+    "Clean participation thins.",
+    "Chains diverge further.",
+    "Followthrough stalls early."
+  ]
+}

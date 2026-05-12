@@ -1,0 +1,31 @@
+{
+  "broadening_trend": "participation broadening",
+  "confidence": "high",
+  "drivers": {
+    "chain_alignment": "chains aligned",
+    "clean_participation": "participation quality mixed",
+    "outlier_dependency": "some concentration",
+    "persistence": "persistence holding",
+    "transition_sample": "recent history observed"
+  },
+  "forecasts": {
+    "breadth": "participation broadening",
+    "expansion_persistence": "moves sustaining longer",
+    "followthrough": "moves sustaining longer",
+    "fragility": "fragility contained",
+    "participation_quality": "participation quality mixed",
+    "speculation": "speculation contained",
+    "structure": "structure improving",
+    "usually_leads_to": "cleaner participation"
+  },
+  "generated_at": "2026-05-12T13:09:21Z",
+  "persistence_probability_band": "high",
+  "persistence_read": "persistence holding",
+  "plain_language_summary": "participation broadening; fragility contained; moves sustaining longer",
+  "public_safe": true,
+  "schema_version": "ravenos_predictive_structure_v0",
+  "status": "available",
+  "structure_change_read": "structure still developing",
+  "weakening_trend": "weakening risk low",
+  "what_tends_to_happen_next": "cleaner participation"
+}
