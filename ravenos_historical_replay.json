@@ -115,11 +115,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-11T23:58:45Z",
+  "generated_at": "2026-05-12T00:14:15Z",
   "metadata": {
-    "archive_record_count": 742,
+    "archive_record_count": 743,
     "current_state_count": 6,
-    "eligible_comparable_record_count": 717,
+    "eligible_comparable_record_count": 718,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },
