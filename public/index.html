@@ -7,13 +7,15 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0c0f10;
-      --panel: #15191b;
-      --soft: #101314;
-      --text: #eef3f2;
-      --muted: #9aa5a4;
-      --line: #283133;
-      --accent: #79d0bf;
+      --bg: #090b0e;
+      --panel: #14181d;
+      --panel-strong: #191f26;
+      --soft: #0f1318;
+      --text: #f3f0e8;
+      --muted: #a5adb5;
+      --line: #27303a;
+      --line-soft: rgba(243, 240, 232, 0.08);
+      --accent: #77d7c2;
       --brand-os: #8f6cff;
       --good: #88c77f;
       --warn: #d9b86a;
@@ -24,25 +26,28 @@
 
     body {
       margin: 0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
+      font-family: "IBM Plex Sans", "Aptos", "Neue Haas Grotesk Text", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(143, 108, 255, 0.14), transparent 30rem),
+        radial-gradient(circle at 84% 12%, rgba(119, 215, 194, 0.08), transparent 28rem),
+        linear-gradient(180deg, #0a0c10 0%, var(--bg) 42%, #07090b 100%);
       color: var(--text);
       letter-spacing: 0;
     }
 
     main {
-      width: min(1120px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 28px 0 42px;
+      padding: 30px 0 52px;
     }
 
     h1, h2, h3, p { margin: 0; }
 
     header {
       display: grid;
-      gap: 14px;
-      padding-bottom: 22px;
-      border-bottom: 1px solid var(--line);
+      gap: 16px;
+      padding: 6px 0 26px;
+      border-bottom: 1px solid var(--line-soft);
     }
 
     .topline {
@@ -82,13 +87,17 @@
       color: var(--muted);
       font-size: 13px;
       white-space: nowrap;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(15, 19, 24, 0.68);
     }
 
     .intro {
-      max-width: 820px;
+      max-width: 880px;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.55;
+      font-size: clamp(16px, 2vw, 20px);
+      line-height: 1.45;
     }
 
     .sharp {
@@ -119,11 +128,12 @@
     .badge {
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 5px 9px;
+      padding: 6px 10px;
       color: var(--muted);
       font-size: 12px;
       line-height: 1.25;
       overflow-wrap: anywhere;
+      background: rgba(15, 19, 24, 0.64);
     }
 
     .signal-strip {
@@ -162,23 +172,23 @@
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
-      gap: 18px;
-      margin-top: 20px;
+      gap: 16px;
+      margin-top: 24px;
     }
 
     .panel,
     .card {
-      background: var(--panel);
+      background: linear-gradient(180deg, rgba(25, 31, 38, 0.98), rgba(16, 20, 25, 0.98));
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 14px;
     }
 
     .panel {
-      padding: 18px;
+      padding: 22px;
     }
 
     .card {
-      padding: 16px;
+      padding: 18px;
     }
 
     .eyebrow,
@@ -189,17 +199,18 @@
     }
 
     .primary-read {
-      margin-top: 8px;
-      font-size: 28px;
-      line-height: 1.18;
+      margin-top: 10px;
+      font-size: clamp(2.25rem, 5vw, 4rem);
+      line-height: 1.02;
       font-weight: 700;
+      letter-spacing: -0.045em;
     }
 
     .support {
       margin-top: 12px;
       color: var(--muted);
-      line-height: 1.5;
-      font-size: 14px;
+      line-height: 1.58;
+      font-size: 15px;
     }
 
     .metrics {
@@ -208,10 +219,10 @@
     }
 
     .metric {
-      background: var(--soft);
+      background: rgba(15, 19, 24, 0.82);
       border: 1px solid var(--line);
-      border-radius: 7px;
-      padding: 11px;
+      border-radius: 11px;
+      padding: 13px;
     }
 
     .metric strong {
@@ -233,46 +244,34 @@
       line-height: 1.45;
     }
 
-    body.demo-mode {
-      background: radial-gradient(circle at top, rgba(121, 208, 191, 0.08), transparent 34%), var(--bg);
-    }
-
-    body.demo-mode .section-title {
+    body.public-polish .section-title {
       color: var(--text);
       text-transform: none;
       letter-spacing: -0.02em;
-      font-size: 17px;
-      margin-top: 24px;
+      font-size: 20px;
+      margin-top: 30px;
     }
 
-    body.demo-mode .intro,
-    body.demo-mode .support,
-    body.demo-mode .section-copy,
-    body.demo-mode .section-note {
+    body.public-polish .intro,
+    body.public-polish .support,
+    body.public-polish .section-copy,
+    body.public-polish .section-note {
       font-size: 15px;
       line-height: 1.62;
     }
 
-    body.demo-mode .primary-read {
-      font-size: clamp(2rem, 4.5vw, 3.35rem);
-    }
-
-    body.demo-mode .metric strong {
+    body.public-polish .metric strong {
       font-size: 17px;
     }
 
-    body.demo-mode .card,
-    body.demo-mode .panel {
+    body.public-polish .card,
+    body.public-polish .panel {
       padding: 18px;
     }
 
-    body.demo-mode .demo-hidden {
-      display: none !important;
-    }
-
-    body.demo-mode .preview-grid,
-    body.demo-mode .pro-grid,
-    body.demo-mode .pricing-grid {
+    body.public-polish .preview-grid,
+    body.public-polish .pro-grid,
+    body.public-polish .pricing-grid {
       gap: 12px;
     }
 
@@ -281,7 +280,7 @@
       color: var(--muted);
       font-size: 14px;
       line-height: 1.5;
-      max-width: 840px;
+      max-width: 880px;
     }
 
     .weather-grid,
@@ -319,6 +318,19 @@
 
     .priority-grid .card {
       background: linear-gradient(180deg, rgba(121, 208, 191, 0.055), rgba(21, 25, 27, 0.98));
+    }
+
+    .product-band {
+      margin-top: 18px;
+    }
+
+    .preview-band {
+      padding-top: 4px;
+    }
+
+    .locked-card,
+    .metric,
+    .preview-row-card {
     }
 
     .desk-grid {
@@ -787,8 +799,8 @@
     }
   </style>
 </head>
-<!-- DEMO MODE: temporary presentation pass for tonight's video. Remove tomorrow. -->
-<body class="demo-mode">
+<!-- RavenOS public polish pass: static UI only; aggregate public fields only. -->
+<body class="public-polish">
   <main>
     <header>
       <div class="topline">
@@ -796,19 +808,19 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p>RavenOS tracks how wallets, capital, and participation move through crypto markets in real time.</p>
-        <p>See whether market strength is broad, weakening, concentrated, or misleading before it becomes obvious in price.</p>
-        <p class="sharp">Concrete market questions, not ticker noise.</p>
+        <p><strong>Public market-structure read.</strong> RavenOS shows where participation is improving, failing, thin, or unconfirmed.</p>
+        <p>Use it to know when to slow down, when strength is broad enough to respect, and where risk is actually being rewarded.</p>
+        <p class="sharp">Aggregate market context, not token calls or private wallet exposure.</p>
       </div>
       <div class="context-strip" id="marketContext"></div>
     </header>
 
     <section class="hero" id="liveRead" aria-label="current market read">
       <article class="panel">
-        <p class="eyebrow">live market conditions</p>
+        <p class="eyebrow">current market read</p>
         <h2 class="primary-read" id="primaryRead">market read is low-confidence</h2>
         <p class="support" id="secondaryRead">Public confirmation is still thin for this window.</p>
-        <p class="support">Watch whether strength is broad, concentrated, or already fading while price still looks busy.</p>
+        <p class="support">Read the tape by participation quality: what is broadening, what is concentrated, and what still needs confirmation.</p>
         <div class="signal-strip" aria-label="signal hierarchy">
           <span class="signal-chip"><strong>structure</strong> broad or narrow participation</span>
           <span class="signal-chip"><strong>survival</strong> moves holding or fading</span>
@@ -819,19 +831,19 @@
 
       <aside class="panel metrics" aria-label="read summary">
         <div class="metric">
-          <span class="eyebrow">market coverage</span>
+          <span class="eyebrow">clean public sample</span>
           <strong id="coverageLabel">thin read</strong>
         </div>
         <div class="metric">
-          <span class="eyebrow">broad or narrow?</span>
+          <span class="eyebrow">participation</span>
           <strong id="breadthLabel">forming</strong>
         </div>
         <div class="metric">
-          <span class="eyebrow">what holds</span>
+          <span class="eyebrow">followthrough</span>
           <strong id="followLabel">mixed</strong>
         </div>
         <div class="metric">
-          <span class="eyebrow">what may mislead</span>
+          <span class="eyebrow">reliability risk</span>
           <strong id="cautionLabel">watchful</strong>
         </div>
       </aside>
@@ -839,25 +851,26 @@
 
     <section class="panel" aria-label="why this matters">
       <p class="eyebrow">why this matters</p>
-      <p class="support">The useful read is not what moved. It is whether participation is broadening, whether the move is still healthy, and where the crowd is already paying for weak confirmation.</p>
+      <p class="support">The useful read is not simply what moved. It is whether participation is broadening, whether the move is surviving beyond first impulse, and whether traders are being rewarded or punished for taking risk.</p>
     </section>
 
-    <h2 class="section-title demo-hidden">access levels</h2>
-    <section class="pricing-grid demo-hidden" id="pricing"></section>
-    <div class="section-action demo-hidden" aria-label="request access">
+    <h2 class="section-title">Public Preview / Pro / Desk / Enterprise</h2>
+    <p class="section-copy">Public stays aggregate. Paid tiers unlock deeper filters, replay, alerts, and desk context without exposing private engine internals.</p>
+    <section class="pricing-grid product-band" id="pricing"></section>
+    <div class="section-action" aria-label="request access">
       <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20Pro%20Access">Request Pro Access</a>
       <span class="section-note" style="margin:0;">Public preview stays live. Pro, Desk, and Enterprise access are request-based.</span>
     </div>
 
-    <h2 class="section-title">live market conditions</h2>
-    <p class="section-copy">See whether Solana, ETH, and Base are broad, narrow, or already starting to fade.</p>
+    <h2 class="section-title">Live Market Conditions</h2>
+    <p class="section-copy">Chain-level reads for Solana, ETH, and Base: status, clean sample, observed sample, confirmation, and caution.</p>
     <section class="chain-grid" id="chainReads"></section>
 
-    <h2 class="section-title">is the move broad or narrow?</h2>
+    <h2 class="section-title">Is The Move Broad Or Narrow?</h2>
     <p class="section-copy">Where new participation is showing up, whether it repeats, and whether the move is being carried by a few winners.</p>
     <section class="free-grid" id="participationStructure"></section>
 
-    <h2 class="section-title">what may happen next?</h2>
+    <h2 class="section-title">Historical Replay / What Usually Happens Next</h2>
     <p class="section-copy">How similar structures usually resolve: continuation, failed expansion, uneven followthrough, or broader risk expansion.</p>
     <section class="free-grid priority-grid" id="predictiveStructure"></section>
     <section class="panel example-read" aria-label="public-safe example">
@@ -871,52 +884,53 @@
       <p class="section-note">Illustrative structure read, not a trade instruction.</p>
     </section>
 
-    <h2 class="section-title">what may make this move unreliable?</h2>
+    <h2 class="section-title">Risk / Reliability Preview</h2>
     <p class="section-copy">Signs that the move may be failing even if price still looks busy.</p>
     <section class="free-grid" id="marketWeather"></section>
 
-    <h2 class="section-title demo-hidden">cross-chain confirmation</h2>
-    <p class="section-copy demo-hidden">Whether Solana, ETH, and Base confirm together or split apart.</p>
-    <section class="preview-grid demo-hidden" id="confirmationLadder"></section>
+    <h2 class="section-title">Cross-Chain Confirmation</h2>
+    <p class="section-copy">Whether Solana, ETH, and Base confirm together or split apart. Divergence means the read needs more patience.</p>
+    <section class="preview-grid preview-band" id="confirmationLadder"></section>
 
-    <h2 class="section-title">what traders are actually experiencing</h2>
+    <h2 class="section-title">What Traders Are Actually Experiencing</h2>
     <section class="panel">
       <p class="eyebrow" id="weatherTitle">today's trade weather: low-confidence</p>
       <p class="support" id="weatherSummary">Coverage is thin; treat the read as early.</p>
       <div class="weather-grid" id="weatherLanes"></div>
     </section>
 
-    <h2 class="section-title demo-hidden">what changed</h2>
-    <p class="section-copy demo-hidden">Appearing, strengthening, weakening, or resolving.</p>
-    <section class="preview-grid demo-hidden" id="conditionTransitionsPreview"></section>
+    <h2 class="section-title">Condition Alerts Preview</h2>
+    <p class="section-copy">Appearing, strengthening, weakening, or resolving market conditions.</p>
+    <section class="preview-grid preview-band" id="conditionTransitionsPreview"></section>
 
-    <h2 class="section-title demo-hidden">recent behavior</h2>
-    <p class="section-copy demo-hidden">Repeating, shifting, or becoming less consistent.</p>
-    <section class="preview-grid demo-hidden" id="recentMemoryPreview"></section>
+    <h2 class="section-title">Recent Behavior Memory</h2>
+    <p class="section-copy">Whether the current structure is repeating, shifting, or becoming less consistent.</p>
+    <section class="preview-grid preview-band" id="recentMemoryPreview"></section>
 
-    <h2 class="section-title demo-hidden">historical analogs</h2>
-    <p class="section-copy demo-hidden">Prior structures. Similarity. Resolution. Failure tendency.</p>
-    <section class="preview-grid demo-hidden" id="conditionReplayPreview"></section>
-    <p class="section-note demo-hidden">Full replay depth and historical comparisons sit on Pro/Desk.</p>
+    <h2 class="section-title">Historical Analogs</h2>
+    <p class="section-copy">Prior aggregate structures, similarity, resolution, and failure tendency.</p>
+    <section class="preview-grid preview-band" id="conditionReplayPreview"></section>
+    <p class="section-note">Full replay depth and historical comparisons sit on Pro/Desk.</p>
 
-    <h2 class="section-title demo-hidden">when to be careful</h2>
-    <p class="section-copy demo-hidden">Thin samples. Stale confirmation. Window disagreement. Outlier-led strength.</p>
-    <section class="preview-grid demo-hidden" id="riskAdvisoryPreview"></section>
+    <h2 class="section-title">What May Make This Move Unreliable?</h2>
+    <p class="section-copy">Thin samples, stale confirmation, window disagreement, and outlier-led strength.</p>
+    <section class="preview-grid preview-band" id="riskAdvisoryPreview"></section>
 
-    <h2 class="section-title demo-hidden">condition alerts</h2>
-    <p class="section-copy demo-hidden">Market states that need confirmation before the read can be trusted.</p>
-    <section class="panel alert-list demo-hidden" id="conditionAlerts"></section>
+    <h2 class="section-title">Active Condition Alerts</h2>
+    <p class="section-copy">Market states that need confirmation before the read can be trusted.</p>
+    <section class="panel alert-list" id="conditionAlerts"></section>
 
-    <h2 class="section-title">why this read</h2>
+    <h2 class="section-title">Why This Read</h2>
     <p class="section-copy">Breadth, participant outcome, followthrough, and warnings.</p>
     <section class="free-grid" id="whyRead"></section>
 
-    <h2 class="section-title demo-hidden">advanced desk previews</h2>
-    <section class="pro-grid demo-hidden" id="proModules"></section>
+    <h2 class="section-title">Product Preview Modules</h2>
+    <p class="section-copy">Compact previews of what deeper access unlocks. Public fields remain aggregate and structural.</p>
+    <section class="pro-grid preview-band" id="proModules"></section>
 
-    <h2 class="section-title demo-hidden">market search preview</h2>
-    <p class="section-note demo-hidden">Public-safe slices by cap band, chain, and condition.</p>
-    <section class="search-shell demo-hidden" id="marketSearchShell">
+    <h2 class="section-title">Market Search Preview</h2>
+    <p class="section-note">Public-safe slices by cap band, chain, condition, confirmation, and sample quality.</p>
+    <section class="search-shell" id="marketSearchShell">
       <div class="search-header">
         <div>
           <div class="search-title">Market Search Preview</div>
@@ -966,39 +980,39 @@
       <section class="locked-grid" id="marketSearchLocked"></section>
     </section>
 
-    <p class="section-copy demo-hidden">Surface read here. Full lists, alerts, comparables, exports, and desk context sit behind deeper access.</p>
+    <p class="section-copy">Surface read here. Full lists, alerts, comparables, exports, and desk context sit behind deeper access.</p>
 
-    <h2 class="section-title demo-hidden">what could make this read unreliable</h2>
-    <p class="section-note demo-hidden" id="riskSearchCount">Risk Search is thin. Public-safe risk rows appear when market-state drivers are available.</p>
-    <p class="section-copy demo-hidden">Not enough clean data. Incomplete confirmation. Outlier-led moves. Stale coverage. Window disagreement.</p>
-    <section class="preview-grid demo-hidden" id="riskSearchPreview"></section>
+    <h2 class="section-title">Risk / Reliability Preview</h2>
+    <p class="section-note" id="riskSearchCount">Risk Search is thin. Public-safe risk rows appear when market-state drivers are available.</p>
+    <p class="section-copy">Not enough clean data. Incomplete confirmation. Outlier-led moves. Stale coverage. Window disagreement.</p>
+    <section class="preview-grid preview-band" id="riskSearchPreview"></section>
 
-    <h2 class="section-title demo-hidden">participant outcome preview</h2>
-    <p class="section-note demo-hidden" id="participantOutcomeCount">Participant Outcome is thin. Public-safe outcome rows appear when clean sample coverage is available.</p>
-    <p class="section-copy demo-hidden">Favorable, mixed, punishing, or too thin to trust.</p>
-    <section class="preview-grid demo-hidden" id="participantOutcomePreview"></section>
+    <h2 class="section-title">Participant Outcome Preview</h2>
+    <p class="section-note" id="participantOutcomeCount">Participant Outcome is thin. Public-safe outcome rows appear when clean sample coverage is available.</p>
+    <p class="section-copy">Favorable, mixed, punishing, or too thin to trust.</p>
+    <section class="preview-grid preview-band" id="participantOutcomePreview"></section>
 
-    <h2 class="section-title demo-hidden">who is winning right now</h2>
-    <p class="section-copy demo-hidden">Where participation is working, struggling, or still unclear.</p>
-    <section class="preview-grid demo-hidden" id="participantHeatmapPreview"></section>
-    <p class="section-note demo-hidden">Full heatmap filters and history sit on Pro.</p>
+    <h2 class="section-title">Who Is Winning Right Now?</h2>
+    <p class="section-copy">Where participation is working, struggling, or still unclear.</p>
+    <section class="preview-grid preview-band" id="participantHeatmapPreview"></section>
+    <p class="section-note">Full heatmap filters and history sit on Pro.</p>
 
-    <h2 class="section-title demo-hidden">condition alerts preview</h2>
-    <p class="section-note demo-hidden" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
-    <p class="section-copy demo-hidden">Market-state alerts, not ticker alerts. Active conditions, confirmation gaps, and what would strengthen the read.</p>
-    <section class="preview-grid demo-hidden" id="alertPreview"></section>
+    <h2 class="section-title">Condition Alerts Preview</h2>
+    <p class="section-note" id="alertPreviewCount">Notification delivery is not enabled in this public preview.</p>
+    <p class="section-copy">Market-state alerts, not ticker alerts. Active conditions, confirmation gaps, and what would strengthen the read.</p>
+    <section class="preview-grid preview-band" id="alertPreview"></section>
 
-    <h2 class="section-title demo-hidden">historical replay</h2>
-    <p class="section-note demo-hidden" id="historicalReplayCount">Insufficient historical comparables. Comparable windows appear once enough separated records exist.</p>
-    <p class="section-copy demo-hidden">Older aggregate windows. Similarity, resolution, and failure tendencies.</p>
-    <section class="preview-grid demo-hidden" id="historicalReplayPreview"></section>
+    <h2 class="section-title">Historical Replay / What Usually Happens Next</h2>
+    <p class="section-note" id="historicalReplayCount">Insufficient historical comparables. Comparable windows appear once enough separated records exist.</p>
+    <p class="section-copy">Older aggregate windows. Similarity, resolution, and failure tendencies.</p>
+    <section class="preview-grid preview-band" id="historicalReplayPreview"></section>
 
-    <h2 class="section-title demo-hidden">desk context preview</h2>
-    <p class="section-copy demo-hidden">Whether broader market conditions support, conflict with, or fail to confirm the on-chain read.</p>
-    <section class="preview-grid desk-grid demo-hidden" id="deskContextPreview"></section>
+    <h2 class="section-title">Desk Context / Macro + Perp Pressure</h2>
+    <p class="section-copy">Whether broader market conditions support, conflict with, or fail to confirm the on-chain read.</p>
+    <section class="preview-grid desk-grid preview-band" id="deskContextPreview"></section>
 
-    <h2 class="section-title demo-hidden">trust & safety</h2>
-    <section class="panel demo-hidden" aria-label="trust and safety">
+    <h2 class="section-title">Trust & Safety</h2>
+    <section class="panel" aria-label="trust and safety">
       <p class="support">RavenOS keeps the public read focused on aggregate market structure, survival, and confirmation quality.</p>
       <div class="trust-grid">
         <div class="trust-item"><strong>Structure first</strong>Reads explain participation, pressure, and continuation risk.</div>
@@ -1007,8 +1021,8 @@
       </div>
     </section>
 
-    <h2 class="section-title demo-hidden">FAQ</h2>
-    <section class="free-grid demo-hidden" aria-label="faq">
+    <h2 class="section-title">FAQ</h2>
+    <section class="free-grid" aria-label="faq">
       <article class="card">
         <p class="eyebrow">what is RavenOS reading?</p>
         <p class="support">Participation, breadth, survival, replay similarity, concentration, and failure structure.</p>
@@ -1027,7 +1041,7 @@
       </article>
     </section>
 
-    <section class="cta-block demo-hidden" aria-label="request deeper access">
+    <section class="cta-block" aria-label="request deeper access">
       <h2>Want deeper RavenOS access?</h2>
       <p class="support">Request Pro access for deeper filters, saved searches, alert previews, replay depth, and exportable market intelligence.</p>
       <div class="section-action">
@@ -1716,18 +1730,20 @@
       const participant = rawText(row.participant_outcome, "unknown").toLowerCase();
       const read = rawText(row.read, "unknown").toLowerCase();
       const activity = rawText(row.activity_state, "unknown").toLowerCase();
+      const clean = typeof row.clean_econ_sample_size === "number" ? row.clean_econ_sample_size : (typeof row.clean_sample_size === "number" ? row.clean_sample_size : 0);
+      const observed = typeof row.observed_sample_size === "number" ? row.observed_sample_size : (typeof row.raw_sample_size === "number" ? row.raw_sample_size : 0);
       if (coverage === "strong" || coverage === "usable") {
         if (participant === "favorable" && read === "improving") {
           if (activity === "hot" || activity === "elevated") {
-            return `${label}: participation is broadening and the read is improving, but confirmation is still low-confidence.`;
+            return `${label}: participation is broadening and the read is improving, but it still needs repeated clean confirmation.`;
           }
-          return `${label}: participation is broadening and the read is improving.`;
+          return `${label}: participation is broadening and the public sample is clean enough to respect.`;
         }
-        return `${label}: visible activity, but the clean sample is still shallow and confirmation is not fully settled.`;
+        return `${label}: activity is visible and the read is forming, but confirmation is not fully settled.`;
       }
       const unresolved = typeof row.unresolved_sample_size === "number" ? row.unresolved_sample_size : 0;
       if (coverage === "thin" || participant === "unknown") {
-        return `${label}: visible activity, but the clean sample is still thin${unresolved > 0 ? ` and ${unresolved} areas are still resolving` : ""}.`;
+        return `${label}: visible activity, but only ${clean || "a thin"} clean sample${observed ? ` out of ${observed} observed` : ""} is usable${unresolved > 0 ? `; ${unresolved} areas are still resolving` : ""}.`;
       }
       if (participant === "favorable") {
         return `${label}: participation is improving, but the read is still waiting on broader confirmation.`;
@@ -2119,18 +2135,20 @@
       node.textContent = "";
       const assets = isObject(context) ? list(context.assets).filter(isObject) : [];
       const tape = isObject(context) ? list(context.tape).map((item) => rawText(item)).filter(Boolean).slice(0, 6) : [];
-      const priced = assets
+      const assetStates = assets
         .map((asset) => {
-          const price = formatUsd(asset.price_usd);
           const pct = formatPct(asset.change_24h_pct);
-          return price ? `${rawText(asset.symbol)} ${price}${pct ? ` ${pct}` : ""}` : "";
+          const symbol = rawText(asset.symbol, "").toUpperCase();
+          if (!symbol) return "";
+          if (!pct) return `${symbol} context visible`;
+          return `${symbol} ${pct.startsWith("+") ? "firming" : pct.startsWith("-") ? "softening" : "flat"}`;
         })
         .filter(Boolean);
 
-      if (priced.length) {
+      if (assetStates.length) {
         const row = document.createElement("div");
         row.className = "asset-row";
-        priced.forEach((item) => {
+        assetStates.forEach((item) => {
           const chip = document.createElement("span");
           chip.className = "chip";
           chip.textContent = item;
@@ -2309,16 +2327,18 @@
         const item = card(labels[chain], chainInterpretation(row));
         const move = typeof row.avg_move_pct === "number" ? row.avg_move_pct : row.median_move_pct;
         const unresolvedLabel = typeof row.unresolved_sample_size === "number" && row.unresolved_sample_size > 0 ? String(row.unresolved_sample_size) : "";
+        const cleanSample = typeof row.clean_econ_sample_size === "number" ? row.clean_econ_sample_size : (typeof row.clean_sample_size === "number" ? row.clean_sample_size : null);
+        const observedSample = typeof row.observed_sample_size === "number" ? row.observed_sample_size : (typeof row.raw_sample_size === "number" ? row.raw_sample_size : null);
         appendDetails(item, [
-          ["what is visible", publicLabel(row.activity_state, "thin")],
-          ["how clear it is", chainReadStatusLabel(row)],
+          ["status", chainReadStatusLabel(row)],
+          ["clean sample", cleanSample !== null ? String(cleanSample) : "not enough clean data yet"],
+          ["observed sample", observedSample !== null ? String(observedSample) : "not enough clean data yet"],
           ...(unresolvedLabel ? [["still resolving", unresolvedLabel]] : []),
-          ["what is winning", typeof row.green_pct === "number" && typeof row.red_pct === "number" ? `${formatPct(row.green_pct)} / ${formatPct(row.red_pct)}` : "not enough clean data yet"],
-          ["move size", typeof move === "number" ? formatPct(move) : "not enough clean data yet"],
-          ["participant outcome", publicLabel(row.participant_outcome)],
-          ["current read", publicLabel(row.read)],
+          ["interpretation", publicLabel(row.read, "forming")],
+          ["participant outcome", publicLabel(row.participant_outcome, "unconfirmed")],
           ["confidence", publicLabel(row.confidence, "Low")],
-          ["coverage", coverageLabel(row.coverage_state)]
+          ["confirmation", coverageLabel(row.coverage_state)],
+          ["caution", row.outlier_warning ? "possible outlier-led read" : (typeof move === "number" ? `aggregate move ${formatPct(move)}` : "sample still building")]
         ], true);
         node.appendChild(item);
       });
