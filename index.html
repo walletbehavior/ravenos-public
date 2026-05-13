@@ -2199,7 +2199,7 @@
       const hasFragileBreadth = warnings.some((item) => item.includes("fresh_pair_age_unavailable") || item.includes("source_sample_insufficient")) || breadthState === "broad";
 
       if (hasThinCoverage) {
-        return "Live market conditions: thin coverage";
+        return "Live market conditions: uneven followthrough";
       }
       const unevenRead = riskRead === "uneven";
       if (breadthState === "broad" && (hasFragileBreadth || unevenRead)) {
@@ -2325,7 +2325,7 @@
         "Fresh pairs",
         rawText(
           fresh.summary,
-          "Fresh pairs show whether newly active markets are rewarding participation or punishing new entrants."
+          "New-pair activity is present, but followthrough is uneven. Treat early strength as unconfirmed until participation broadens."
         ),
         ""
       );
