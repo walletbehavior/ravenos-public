@@ -284,6 +284,7 @@
     }
 
     .weather-grid,
+    .top-sample-grid,
     .chain-grid,
     .free-grid,
     .pro-grid,
@@ -295,6 +296,11 @@
 
     .weather-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .top-sample-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 14px;
     }
 
     .chain-grid,
@@ -375,7 +381,7 @@
 
     .state.favorable { color: var(--good); border-color: rgba(136, 199, 127, 0.42); }
     .state.uneven, .state.fragile, .state.choppy { color: var(--warn); border-color: rgba(217, 184, 106, 0.44); }
-    .state.hostile, .state.unstable { color: var(--bad); border-color: rgba(217, 120, 112, 0.44); }
+    .state.hostile, .state.unstable, .state.punishing, .state.avoid { color: var(--bad); border-color: rgba(217, 120, 112, 0.44); }
 
     .details {
       display: grid;
@@ -848,6 +854,8 @@
         </div>
       </aside>
     </section>
+
+    <section class="top-sample-grid" id="topSampleCards" aria-label="public sample onboarding"></section>
 
     <section class="panel" aria-label="why this matters">
       <p class="eyebrow">why this matters</p>
@@ -2260,6 +2268,78 @@
         chip.textContent = item;
         node.appendChild(chip);
       });
+    }
+
+    function findFreshPairsLane(snapshot) {
+      const weather = isObject(snapshot.trade_weather) ? snapshot.trade_weather : {};
+      const lanes = isObject(weather.lanes) ? weather.lanes : {};
+      if (isObject(lanes.fresh_pairs)) return { lane: "fresh_pairs", ...lanes.fresh_pairs };
+      const laneList = Array.isArray(weather.lanes) ? weather.lanes.filter(isObject) : [];
+      return laneList.find((row) => rawText(row.lane) === "fresh_pairs") || {};
+    }
+
+    function bestCleanSampleRead(snapshot) {
+      const reads = mergeChainReadSource(snapshot, snapshot);
+      const labels = { sol: "Solana", eth: "ETH", base: "Base" };
+      let best = null;
+      Object.entries(reads).forEach(([chain, row]) => {
+        if (!isObject(row)) return;
+        const clean = firstFinite(row.clean_econ_sample_size, row.sample_size, 0) || 0;
+        const observed = firstFinite(row.observed_sample_size, row.raw_sample_size, clean, 0) || 0;
+        const score = clean * 2 + observed;
+        if (!best || score > best.score) best = { chain, row, clean, observed, score };
+      });
+      if (!best) return { label: "Public sample", clean: 0, observed: 0, row: {} };
+      return {
+        label: labels[best.chain] || titleCase(best.chain),
+        clean: best.clean,
+        observed: best.observed,
+        row: best.row,
+      };
+    }
+
+    function renderTopSampleCards(snapshot) {
+      const node = document.getElementById("topSampleCards");
+      if (!node) return;
+      node.textContent = "";
+
+      const clean = bestCleanSampleRead(snapshot);
+      const cleanCard = card(
+        "Clean public sample",
+        clean.clean > 0
+          ? `${clean.label} has ${clean.clean} clean signal assets from ${clean.observed || clean.clean} observed. Use this first to know whether the broad public read is trustworthy.`
+          : "The clean public sample is still building. Treat early reads cautiously until more assets are clean enough for signal.",
+        ""
+      );
+      appendDetails(cleanCard, [
+        ["best chain", clean.label],
+        ["clean signal sample", clean.clean > 0 ? String(clean.clean) : "building"],
+        ["observed assets", clean.observed > 0 ? String(clean.observed) : "building"],
+        ["coverage", coverageLabel(clean.row.coverage_state)],
+      ], true);
+      node.appendChild(cleanCard);
+
+      const fresh = findFreshPairsLane(snapshot);
+      const freshWeather = text(rawText(fresh.weather, rawText(fresh.state)), "thin");
+      const freshCard = card(
+        "Fresh pairs",
+        rawText(
+          fresh.summary,
+          "Fresh pairs show whether newly active markets are rewarding participation or punishing new entrants."
+        ),
+        ""
+      );
+      const badge = document.createElement("span");
+      badge.className = `state ${freshWeather}`;
+      badge.textContent = freshWeather;
+      freshCard.insertBefore(badge, freshCard.firstChild);
+      appendDetails(freshCard, [
+        ["lane", "fresh pairs"],
+        ["weather", freshWeather],
+        ["sample", coverageLabel(fresh.coverage_level || fresh.sample_state)],
+        ["access", rawText(fresh.tier, "free") === "free" ? "free public page" : titleCase(rawText(fresh.tier, "public"))],
+      ], true);
+      node.appendChild(freshCard);
     }
 
     function renderTradeWeather(weather) {
@@ -3907,6 +3987,7 @@
       setText("generatedAt", formatUpdated(refreshStatus.updated_at || refreshStatus.generated_at || snapshot.generated_at || latest.generated_at || latest.updated_at));
       renderMarketContext(snapshot.market_context);
       renderHero(snapshot);
+      renderTopSampleCards(snapshot);
       renderChainReads(snapshot, latest);
       renderParticipationStructure(participationStructurePayload, snapshot);
       renderPredictiveStructure(predictiveStructurePayload);
