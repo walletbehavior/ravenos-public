@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T00:17:15Z",
+  "generated_at": "2026-05-14T00:32:45Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -64,7 +64,7 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "clean_sample": 1212,
+      "clean_sample": 1213,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
@@ -104,11 +104,11 @@
     {
       "cap_band": "all",
       "chain": "base",
-      "clean_sample": 1311,
+      "clean_sample": 1312,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 4194,
+      "observed_sample": 4196,
       "outcome_id": "base_all_6h",
       "participant_outcome": "unknown",
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
