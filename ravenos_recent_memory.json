@@ -25,16 +25,16 @@
   "consistency_trend": "mixed",
   "dominant_condition_family": "confirmation_incomplete",
   "frequent_condition_families": {
-    "broad_but_unconfirmed": 287,
-    "confirmation_incomplete": 390,
+    "broad_but_unconfirmed": 290,
+    "confirmation_incomplete": 398,
     "fragile_expansion": 8,
     "high_risk_low_clarity": 14,
-    "mixed_signal_environment": 390,
-    "outlier_risk": 390,
+    "mixed_signal_environment": 398,
+    "outlier_risk": 398,
     "thin_but_improving": 6,
-    "thin_sample": 390
+    "thin_sample": 398
   },
-  "generated_at": "2026-05-14T23:16:52Z",
+  "generated_at": "2026-05-14T23:32:22Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -63,12 +63,12 @@
   ],
   "recent_context_by_family": {
     "broad_but_unconfirmed": {
-      "appearance_count": 287,
-      "recent_context": "This condition has appeared 287 times in the recent public window."
+      "appearance_count": 290,
+      "recent_context": "This condition has appeared 290 times in the recent public window."
     },
     "confirmation_incomplete": {
-      "appearance_count": 390,
-      "recent_context": "This condition has appeared 390 times in the recent public window."
+      "appearance_count": 398,
+      "recent_context": "This condition has appeared 398 times in the recent public window."
     },
     "fragile_expansion": {
       "appearance_count": 8,
@@ -79,20 +79,20 @@
       "recent_context": "This condition has appeared 14 times in the recent public window."
     },
     "mixed_signal_environment": {
-      "appearance_count": 390,
-      "recent_context": "This condition has appeared 390 times in the recent public window."
+      "appearance_count": 398,
+      "recent_context": "This condition has appeared 398 times in the recent public window."
     },
     "outlier_risk": {
-      "appearance_count": 390,
-      "recent_context": "This condition has appeared 390 times in the recent public window."
+      "appearance_count": 398,
+      "recent_context": "This condition has appeared 398 times in the recent public window."
     },
     "thin_but_improving": {
       "appearance_count": 6,
       "recent_context": "This condition has appeared 6 times in the recent public window."
     },
     "thin_sample": {
-      "appearance_count": 390,
-      "recent_context": "This condition has appeared 390 times in the recent public window."
+      "appearance_count": 398,
+      "recent_context": "This condition has appeared 398 times in the recent public window."
     }
   },
   "schema_version": "ravenos_recent_memory_v0",
