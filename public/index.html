@@ -363,6 +363,8 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.45;
+      overflow-wrap: normal;
+      word-break: normal;
     }
 
     .state {
@@ -775,6 +777,7 @@
       .topline,
       .hero,
       .weather-grid,
+      .top-sample-grid,
       .chain-grid,
       .free-grid,
       .pro-grid,
@@ -801,6 +804,25 @@
       .panel,
       .card {
         padding: 14px;
+      }
+
+      .top-sample-grid {
+        gap: 12px;
+      }
+
+      .top-sample-grid .card {
+        min-width: 0;
+      }
+
+      .top-sample-grid .detail {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+      }
+
+      .top-sample-grid .detail strong {
+        text-align: left;
+        overflow-wrap: break-word;
       }
     }
   </style>
