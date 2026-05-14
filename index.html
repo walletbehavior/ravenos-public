@@ -836,9 +836,9 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p><strong>Public market-structure read.</strong> RavenOS shows where participation is improving, failing, thin, or unconfirmed.</p>
-        <p>Use it to know when to slow down, when strength is broad enough to respect, and where risk is actually being rewarded.</p>
-        <p class="sharp">Aggregate market context, not token calls or private wallet exposure.</p>
+        <p><strong>Live public market structure.</strong> RavenOS summarizes participation, followthrough, and sample quality across chains.</p>
+        <p>Use it to see when conditions are broadening, fading, concentrated, or still too thin to trust.</p>
+        <p class="sharp">Aggregate context only. No token calls, private wallet data, or execution guidance.</p>
       </div>
       <div class="context-strip" id="marketContext"></div>
     </header>
@@ -881,15 +881,14 @@
 
     <section class="panel" aria-label="why this matters">
       <p class="eyebrow">why this matters</p>
-      <p class="support">The useful read is not simply what moved. It is whether participation is broadening, whether the move is surviving beyond first impulse, and whether traders are being rewarded or punished for taking risk.</p>
+      <p class="support">The useful signal is not simply what moved. It is whether participation is broadening, whether strength survives beyond the first impulse, and whether outcomes are improving or deteriorating.</p>
     </section>
 
     <h2 class="section-title">Public Preview / Pro / Desk / Enterprise</h2>
-    <p class="section-copy">Public stays aggregate. Paid tiers unlock deeper filters, replay, alerts, and desk context without exposing private engine internals.</p>
+    <p class="section-copy">The free view stays aggregate. Paid tiers add deeper filters, replay, alerts, and desk context while keeping restricted data off the public page.</p>
     <section class="pricing-grid product-band" id="pricing"></section>
     <div class="section-action" aria-label="request access">
       <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20Pro%20Access">Request Pro Access</a>
-      <span class="section-note" style="margin:0;">Public preview stays live. Pro, Desk, and Enterprise access are request-based.</span>
     </div>
 
     <h2 class="section-title">Live Market Conditions</h2>
@@ -903,7 +902,7 @@
     <h2 class="section-title">Historical Replay / What Usually Happens Next</h2>
     <p class="section-copy">How similar structures usually resolve: continuation, failed expansion, uneven followthrough, or broader risk expansion.</p>
     <section class="free-grid priority-grid" id="predictiveStructure"></section>
-    <section class="panel example-read" aria-label="public-safe example">
+    <section class="panel example-read" aria-label="public example">
       <p class="eyebrow">example read</p>
       <p><strong>When participation broadens across Solana microcaps while ETH weakens, similar public structures have tended to resolve into:</strong></p>
       <div class="compact-chips">
@@ -911,7 +910,7 @@
         <span class="compact-chip"><strong>failed expansion: </strong>common</span>
         <span class="compact-chip"><strong>followthrough: </strong>uneven</span>
       </div>
-      <p class="section-note">Illustrative structure read, not a trade instruction.</p>
+      <p class="section-note">Example only. Not investment advice or execution guidance.</p>
     </section>
 
     <h2 class="section-title">Risk / Reliability Preview</h2>
@@ -924,7 +923,7 @@
 
     <h2 class="section-title">What Traders Are Actually Experiencing</h2>
     <section class="panel">
-      <p class="eyebrow" id="weatherTitle">today's trade weather: low-confidence</p>
+      <p class="eyebrow" id="weatherTitle">market weather: low-confidence</p>
       <p class="support" id="weatherSummary">Coverage is thin; treat the read as early.</p>
       <div class="weather-grid" id="weatherLanes"></div>
     </section>
@@ -1037,24 +1036,24 @@
     <p class="section-copy">Older aggregate windows. Similarity, resolution, and failure tendencies.</p>
     <section class="preview-grid preview-band" id="historicalReplayPreview"></section>
 
-    <h2 class="section-title">Desk Context / Macro + Perp Pressure</h2>
+    <h2 class="section-title">Macro + Perp Context</h2>
     <p class="section-copy">Whether broader market conditions support, conflict with, or fail to confirm the on-chain read.</p>
     <section class="preview-grid desk-grid preview-band" id="deskContextPreview"></section>
 
     <h2 class="section-title">Trust & Safety</h2>
     <section class="panel" aria-label="trust and safety">
-      <p class="support">RavenOS keeps the public read focused on aggregate market structure, survival, and confirmation quality.</p>
+      <p class="support">RavenOS keeps the public view focused on aggregate market structure, survival, and confirmation quality.</p>
       <div class="trust-grid">
         <div class="trust-item"><strong>Structure first</strong>Reads explain participation, pressure, and continuation risk.</div>
         <div class="trust-item"><strong>Aggregate only</strong>Public artifacts stay at market-state level.</div>
-        <div class="trust-item"><strong>Operator language</strong>Concise context for what is improving, weakening, or thin.</div>
+        <div class="trust-item"><strong>Clear context</strong>Concise labels for what is improving, weakening, or thin.</div>
       </div>
     </section>
 
     <h2 class="section-title">FAQ</h2>
     <section class="free-grid" aria-label="faq">
       <article class="card">
-        <p class="eyebrow">what is RavenOS reading?</p>
+        <p class="eyebrow">what this measures</p>
         <p class="support">Participation, breadth, survival, replay similarity, concentration, and failure structure.</p>
       </article>
       <article class="card">
@@ -1062,7 +1061,7 @@
         <p class="support">No. It is a structure layer for understanding continuation, instability, and where confirmation is thin.</p>
       </article>
       <article class="card">
-        <p class="eyebrow">what does public-safe mean?</p>
+        <p class="eyebrow">what stays private</p>
         <p class="support">No token picks, no price targets, and no private wallet exposure. Public reads stay aggregate and structural.</p>
       </article>
       <article class="card">
@@ -1072,7 +1071,7 @@
     </section>
 
     <section class="cta-block" aria-label="request deeper access">
-      <h2>Want deeper RavenOS access?</h2>
+      <h2>Request Deeper Access</h2>
       <p class="support">Request Pro access for deeper filters, saved searches, alert previews, replay depth, and exportable market intelligence.</p>
       <div class="section-action">
         <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20RavenOS%20Access">Request Access</a>
@@ -1328,10 +1327,10 @@
     }
 
     function riskDisplayCopy(row) {
-      if (!isObject(row)) return "This market read is forming, but RavenOS does not have enough public confirmation yet.";
+      if (!isObject(row)) return "Public confirmation is still forming.";
       const type = rawText(row.risk_type, "").toLowerCase();
       if (type === "thin_sample") {
-        return "The market is visible, but the clean public sample is still too thin to fully trust the read.";
+        return "The market is visible, but the clean public sample is still too thin. Treat the read as provisional.";
       }
       if (type === "confirmation_incomplete") {
         return "The current read is forming, but it has not held across refreshes or broader windows yet.";
@@ -1343,15 +1342,15 @@
         return "The current window is not aligned with broader market windows yet.";
       }
       if (type === "source_freshness_limited") {
-        return "The read is public-safe, but source freshness is limiting confidence.";
+        return "The aggregate read is available, but source freshness is limiting confidence.";
       }
       if (type === "data_quality") {
         return "The read exists, but data quality is not clean enough yet.";
       }
       if (type === "unknown_outcome") {
-        return "The market is active, but the public sample does not yet show whether participants are being rewarded or punished.";
+        return "The market is active, but the public sample does not yet show whether outcomes are improving, mixed, or deteriorating.";
       }
-      return "This market read is forming, but RavenOS does not have enough public confirmation yet.";
+      return "Public confirmation is still forming.";
     }
 
     function participantOutcomeDisplayTitle(row) {
@@ -2192,7 +2191,7 @@
         row.className = "tape-row";
         const label = document.createElement("span");
         label.className = "eyebrow";
-        label.textContent = "RavenOS tape";
+        label.textContent = "Market tape";
         row.appendChild(label);
         tape.forEach((item) => {
           const chip = document.createElement("span");
@@ -2329,7 +2328,7 @@
       const cleanCard = card(
         "Clean public sample",
         clean.clean > 0
-          ? `${clean.label} has ${clean.clean} clean signal assets from ${clean.observed || clean.clean} observed. Use this first to know whether the broad public read is trustworthy.`
+          ? `${clean.label} has ${clean.clean} clean signal assets from ${clean.observed || clean.clean} observed. This indicates whether the broad aggregate read has enough coverage.`
           : "The clean public sample is still building. Treat early reads cautiously until more assets are clean enough for signal.",
         ""
       );
@@ -2359,7 +2358,7 @@
         ["lane", "fresh pairs"],
         ["weather", freshWeather],
         ["sample", coverageLabel(fresh.coverage_level || fresh.sample_state)],
-        ["access", rawText(fresh.tier, "free") === "free" ? "free public page" : titleCase(rawText(fresh.tier, "public"))],
+        ["access", rawText(fresh.tier, "free") === "free" ? "free view" : titleCase(rawText(fresh.tier, "public"))],
       ], true);
       node.appendChild(freshCard);
 
@@ -2393,7 +2392,7 @@
     function renderTradeWeather(weather) {
       const overall = isObject(weather) && isObject(weather.overall) ? weather.overall : {};
       const weatherText = rawText(overall.weather, rawText(overall.state, "thin"));
-      setText("weatherTitle", rawText(overall.headline, `today's trade weather: ${text(weatherText, "thin")}`));
+      setText("weatherTitle", rawText(overall.headline, `market weather: ${text(weatherText, "thin")}`));
       setText("weatherSummary", rawText(overall.summary, "Coverage is thin; treat this read as early."));
 
       const node = document.getElementById("weatherLanes");
@@ -2429,7 +2428,7 @@
       ));
       node.appendChild(availabilityCard(
         "Participant outcome",
-        "Estimate whether active traders are being rewarded or punished by chain and market-cap band.",
+        "Estimate whether participant outcomes are improving, mixed, or deteriorating by chain and market-cap band.",
         "Available on Pro"
       ));
       node.appendChild(availabilityCard(
@@ -2577,9 +2576,9 @@
       const states = list(source.state_labels || source.states).slice(0, 4).map((item) => marketPhrase(item)).filter(Boolean);
       const summary = rawText(source.public_summary || source.plain_language_summary, "Market structure is mixed.");
       const usually = marketPhrase(source.what_this_environment_usually_leads_to || (isObject(source.summary) ? source.summary.usually_leads_to : "") || "mixed continuation");
-      node.appendChild(summaryCard("What traders are actually experiencing", summary, usually));
+      node.appendChild(summaryCard("Participant outcomes", summary, usually));
       const rows = [
-        ["What people feel", states.length ? states.join(", ") : "conditions mixed", usually],
+        ["Current conditions", states.length ? states.join(", ") : "conditions mixed", usually],
         ["Will it keep going?", marketPhrase(source.persistence || "persistence mixed"), marketPhrase(source.expected_broadening === "improving" ? "participation broadening" : source.expected_broadening === "weakening" ? "participation narrowing" : "participation mixed")],
         ["What makes it fragile?", marketPhrase(source.fragility === "high" ? "fragility elevated" : source.fragility === "low" ? "fragility contained" : "fragility mixed"), marketPhrase(source.concentration === "high" ? "concentrated strength" : source.concentration === "low" ? "not heavily concentrated" : "some concentration")]
       ];
@@ -2604,7 +2603,7 @@
       }
       if (isObject(participant) && (isMeaningfulState(participant.participant_outcome) || isMeaningfulState(participant.summary))) {
         const outcome = text(participant.participant_outcome || participant.summary, "thin");
-        cards.push(["Participant outcome", `What traders are actually experiencing is ${outcome}.`]);
+        cards.push(["Participant outcome", `Participant outcomes are ${outcome}.`]);
       }
       if (isObject(follow) && isMeaningfulState(follow.followthrough_state)) {
         cards.push(["Followthrough", `Momentum is improving, but participation is still uneven.`]);
@@ -3000,7 +2999,7 @@
           if (isIndexRow && state.paid_depth_available) {
             const paid = document.createElement("div");
             paid.className = "result-meta";
-            paid.textContent = rawText(state.paid_depth_reason, "Pro depth adds deeper filters, saved searches, full history, alerts, and Ask RavenOS later.");
+            paid.textContent = rawText(state.paid_depth_reason, "Pro depth adds deeper filters, saved searches, full history, alerts, and natural-language queries later.");
             item.appendChild(paid);
           }
           item.addEventListener("click", () => emitMarketSearchTelemetry("result_clicked", {
@@ -3382,7 +3381,7 @@
           buildCompactPreviewCard(
             "Risk advisory is thin",
             "Public preview",
-            "Confirmation, sample quality, timeframes, and source freshness are not broad enough yet.",
+            "Confirmation, sample quality, timeframes, and source freshness are still limited.",
             "Public preview",
             [["what would improve", "More public states need to confirm the same read."]],
             searchTextFromParts("when to be careful risk advisory unstable thin low confidence")
@@ -3860,7 +3859,7 @@
       if (!filtered.length && normalizedQuery) {
         node.appendChild(buildPreviewCard(
           "No desk context rows match this search yet",
-          "Try broader terms like desk, macro, perp, context, partial, or public.",
+          "Try broader terms like macro, leverage, context, partial, or public.",
           "Available on Advanced Desk",
           [["status", "limited"]],
           searchTextFromParts("desk context", "macro", "perp", "market context")
