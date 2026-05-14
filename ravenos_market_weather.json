@@ -3,7 +3,7 @@
   "confidence": "high",
   "expected_broadening": "improving",
   "fragility": "low",
-  "generated_at": "2026-05-14T20:41:54Z",
+  "generated_at": "2026-05-14T20:50:52Z",
   "persistence": "high",
   "plain_language_summary": "Followthrough improving across chains.",
   "public_safe": true,
@@ -28,6 +28,6 @@
     "usually_leads_to": "broadening participation",
     "weather": "Followthrough improving across chains."
   },
-  "weather_score": 0.6929,
+  "weather_score": 0.6726,
   "what_this_environment_usually_leads_to": "broadening participation"
 }

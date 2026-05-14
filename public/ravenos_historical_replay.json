@@ -85,14 +85,14 @@
         "chain matches",
         "cap band matches",
         "window matches",
-        "condition matches",
         "data quality matches",
-        "participant outcome matches"
+        "risk level matches",
+        "warning overlap: concentration_risk, confirmation_incomplete, confirmation_still_developing"
       ],
       "matched_state_id": "solana_all_current",
       "matched_window_start": "2026-05-04T14:37:44Z",
       "public_read": "Older public snapshot from 2026-05-04T14:37:44Z remains the closest comparable for Solana all 6h.",
-      "similarity_score": 1.0,
+      "similarity_score": 0.85,
       "window": "6h"
     },
     {
@@ -104,22 +104,21 @@
         "chain matches",
         "cap band matches",
         "window matches",
-        "condition matches",
         "data quality matches",
-        "participant outcome matches"
+        "warning overlap: concentration_risk, confirmation_incomplete, confirmation_still_developing"
       ],
       "matched_state_id": "solana_fresh_pairs_6h",
       "matched_window_start": "2026-05-04T14:37:44Z",
       "public_read": "Older public snapshot from 2026-05-04T14:37:44Z remains the closest comparable for Solana fresh pairs 6h.",
-      "similarity_score": 1.0,
+      "similarity_score": 0.8,
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-14T20:41:45Z",
+  "generated_at": "2026-05-14T20:50:42Z",
   "metadata": {
-    "archive_record_count": 1010,
-    "current_state_count": 6,
-    "eligible_comparable_record_count": 985,
+    "archive_record_count": 1012,
+    "current_state_count": 16,
+    "eligible_comparable_record_count": 986,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },

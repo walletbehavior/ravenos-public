@@ -2504,6 +2504,41 @@
       return item;
     }
 
+    function renderPublicCapBandParticipation(node, capPulse) {
+      if (!isObject(capPulse) || !isObject(capPulse.chains)) return;
+      const bandOrder = ["micro_caps", "mid_caps", "high_caps", "majors"];
+      const bandLabels = {
+        micro_caps: "Micro caps",
+        mid_caps: "Mid caps",
+        high_caps: "High caps",
+        majors: "Majors"
+      };
+      const stateRank = { punishing: 4, mixed: 3, favorable: 2, unknown: 1 };
+      bandOrder.forEach((band) => {
+        const rows = Object.entries(capPulse.chains)
+          .map(([chain, row]) => ({ chain, row: isObject(row) && isObject(row.bands) ? row.bands[band] : null }))
+          .filter((item) => isObject(item.row) && rawText(item.row.sample_state, "thin") !== "thin");
+        if (!rows.length) return;
+        const strongest = rows
+          .map((item) => rawText(item.row.participant_outcome || item.row.read, "unknown").toLowerCase())
+          .sort((a, b) => (stateRank[b] || 0) - (stateRank[a] || 0))[0] || "unknown";
+        const chainNames = rows.map((item) => chainDisplayLabel(item.chain)).slice(0, 3).join(", ");
+        const title = `${bandLabels[band]} participation`;
+        const copy = strongest === "punishing"
+          ? `${bandLabels[band]} activity is visible, but aggregate outcomes look fragile across ${chainNames}.`
+          : strongest === "favorable"
+            ? `${bandLabels[band]} activity is visible and aggregate outcomes are improving across ${chainNames}.`
+            : `${bandLabels[band]} activity is visible, but aggregate outcomes are still mixed across ${chainNames}.`;
+        const item = card(title, copy, strongest === "unknown" ? "forming" : strongest);
+        appendDetails(item, [
+          ["public view", "aggregate band only"],
+          ["included chains", chainNames || "forming"],
+          ["deeper access", "custom cap levels, filters, history, and alerts"]
+        ], true);
+        node.appendChild(item);
+      });
+    }
+
     function renderParticipationStructure(payload, snapshot) {
       const node = document.getElementById("participationStructure");
       if (!node) return;
@@ -2528,6 +2563,7 @@
           node.appendChild(item);
         });
       }
+      renderPublicCapBandParticipation(node, snapshot.cap_band_public_preview || snapshot.cap_band_pulse);
       const rows = [
         ["Breadth", rawText(summary.breadth, "Participation is still thin."), metricTone(metrics.participation_breadth_delta)],
         ["Followthrough", rawText(summary.followthrough, "Followthrough is mixed."), metricTone(metrics.followthrough_quality)],

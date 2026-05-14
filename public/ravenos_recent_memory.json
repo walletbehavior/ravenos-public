@@ -12,29 +12,29 @@
     },
     {
       "search_terms": [
-        "mixed_signal_environment",
+        "confirmation_incomplete",
         "persistent",
         "frequent"
       ],
       "summary": "This condition family is the most common recent public read.",
-      "title": "Mixed signal environment keeps appearing",
+      "title": "Confirmation incomplete keeps appearing",
       "what_to_watch": "Repeated appearances matter more when confirmation and data quality also improve."
     }
   ],
   "condition_stability": "stable",
   "consistency_trend": "mixed",
-  "dominant_condition_family": "mixed_signal_environment",
+  "dominant_condition_family": "confirmation_incomplete",
   "frequent_condition_families": {
-    "broad_but_unconfirmed": 245,
-    "confirmation_incomplete": 288,
-    "fragile_expansion": 5,
-    "high_risk_low_clarity": 6,
-    "mixed_signal_environment": 290,
-    "outlier_risk": 288,
-    "thin_but_improving": 2,
-    "thin_sample": 288
+    "broad_but_unconfirmed": 256,
+    "confirmation_incomplete": 308,
+    "fragile_expansion": 8,
+    "high_risk_low_clarity": 16,
+    "mixed_signal_environment": 308,
+    "outlier_risk": 308,
+    "thin_but_improving": 6,
+    "thin_sample": 308
   },
-  "generated_at": "2026-05-14T20:41:52Z",
+  "generated_at": "2026-05-14T20:50:50Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -63,36 +63,36 @@
   ],
   "recent_context_by_family": {
     "broad_but_unconfirmed": {
-      "appearance_count": 245,
-      "recent_context": "This condition has appeared 245 times in the recent public window."
+      "appearance_count": 256,
+      "recent_context": "This condition has appeared 256 times in the recent public window."
     },
     "confirmation_incomplete": {
-      "appearance_count": 288,
-      "recent_context": "This condition has appeared 288 times in the recent public window."
+      "appearance_count": 308,
+      "recent_context": "This condition has appeared 308 times in the recent public window."
     },
     "fragile_expansion": {
-      "appearance_count": 5,
-      "recent_context": "This condition has appeared 5 times in the recent public window."
+      "appearance_count": 8,
+      "recent_context": "This condition has appeared 8 times in the recent public window."
     },
     "high_risk_low_clarity": {
+      "appearance_count": 16,
+      "recent_context": "This condition has appeared 16 times in the recent public window."
+    },
+    "mixed_signal_environment": {
+      "appearance_count": 308,
+      "recent_context": "This condition has appeared 308 times in the recent public window."
+    },
+    "outlier_risk": {
+      "appearance_count": 308,
+      "recent_context": "This condition has appeared 308 times in the recent public window."
+    },
+    "thin_but_improving": {
       "appearance_count": 6,
       "recent_context": "This condition has appeared 6 times in the recent public window."
     },
-    "mixed_signal_environment": {
-      "appearance_count": 290,
-      "recent_context": "This condition has appeared 290 times in the recent public window."
-    },
-    "outlier_risk": {
-      "appearance_count": 288,
-      "recent_context": "This condition has appeared 288 times in the recent public window."
-    },
-    "thin_but_improving": {
-      "appearance_count": 2,
-      "recent_context": "This condition has appeared 2 times in the recent public window."
-    },
     "thin_sample": {
-      "appearance_count": 288,
-      "recent_context": "This condition has appeared 288 times in the recent public window."
+      "appearance_count": 308,
+      "recent_context": "This condition has appeared 308 times in the recent public window."
     }
   },
   "schema_version": "ravenos_recent_memory_v0",

@@ -1,9 +1,13 @@
 {
-  "generated_at": "2026-05-14T20:41:45Z",
+  "generated_at": "2026-05-14T20:50:42Z",
   "metadata": {
     "available_cap_bands": [
       "all",
-      "fresh_pairs"
+      "fresh_pairs",
+      "high_caps",
+      "majors",
+      "micro_caps",
+      "mid_caps"
     ],
     "available_chains": [
       "base",
@@ -11,7 +15,7 @@
       "solana"
     ],
     "available_outcomes": [
-      "mixed",
+      "punishing",
       "unknown"
     ],
     "available_windows": [
@@ -25,11 +29,11 @@
       "clean_sample": 25502,
       "confidence": "low",
       "data_quality": "unknown",
-      "direction": "mixed",
+      "direction": "negative",
       "observed_sample": 36497,
       "outcome_id": "solana_all_6h",
-      "participant_outcome": "mixed",
-      "public_read": "Solana all 6h is mixed and should be treated as uneven.",
+      "participant_outcome": "punishing",
+      "public_read": "Solana all 6h is punishing in the current public sample.",
       "state_id": "solana_all_current",
       "warnings": [
         "confirmation_incomplete",
@@ -43,15 +47,57 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample": 17,
+      "clean_sample": 40,
       "confidence": "low",
       "data_quality": "thin",
-      "direction": "mixed",
-      "observed_sample": 17,
+      "direction": "negative",
+      "observed_sample": 40,
       "outcome_id": "solana_fresh_pairs_6h",
-      "participant_outcome": "mixed",
-      "public_read": "Solana fresh pairs 6h is mixed, but the public sample is still thin.",
+      "participant_outcome": "punishing",
+      "public_read": "Solana fresh pairs 6h is punishing in the current public sample.",
       "state_id": "solana_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "clean_sample": 7,
+      "confidence": "low",
+      "data_quality": "thin",
+      "direction": "negative",
+      "observed_sample": 7,
+      "outcome_id": "solana_micro_caps_6h",
+      "participant_outcome": "punishing",
+      "public_read": "Solana micro caps 6h is punishing in the current public sample.",
+      "state_id": "solana_micro_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 1,
+      "outcome_id": "solana_majors_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "solana_majors_6h",
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -64,11 +110,11 @@
     {
       "cap_band": "all",
       "chain": "eth",
-      "clean_sample": 1234,
+      "clean_sample": 1235,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 2246,
+      "observed_sample": 2247,
       "outcome_id": "eth_all_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
@@ -88,11 +134,91 @@
       "confidence": "high",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 1602,
+      "observed_sample": 1768,
       "outcome_id": "eth_fresh_pairs_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH fresh pairs 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "eth_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "clean_sample": 24,
+      "confidence": "low",
+      "data_quality": "thin",
+      "direction": "negative",
+      "observed_sample": 24,
+      "outcome_id": "eth_micro_caps_6h",
+      "participant_outcome": "punishing",
+      "public_read": "ETH micro caps 6h is punishing in the current public sample.",
+      "state_id": "eth_micro_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "clean_sample": 4,
+      "confidence": "low",
+      "data_quality": "thin",
+      "direction": "negative",
+      "observed_sample": 4,
+      "outcome_id": "eth_mid_caps_6h",
+      "participant_outcome": "punishing",
+      "public_read": "ETH mid caps 6h is punishing in the current public sample.",
+      "state_id": "eth_mid_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "clean_sample": 2,
+      "confidence": "low",
+      "data_quality": "thin",
+      "direction": "negative",
+      "observed_sample": 2,
+      "outcome_id": "eth_high_caps_6h",
+      "participant_outcome": "punishing",
+      "public_read": "ETH high caps 6h is punishing in the current public sample.",
+      "state_id": "eth_high_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "clean_sample": 3,
+      "confidence": "low",
+      "data_quality": "thin",
+      "direction": "negative",
+      "observed_sample": 3,
+      "outcome_id": "eth_majors_6h",
+      "participant_outcome": "punishing",
+      "public_read": "ETH majors 6h is punishing in the current public sample.",
+      "state_id": "eth_majors_6h",
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -128,11 +254,91 @@
       "confidence": "high",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 1406,
+      "observed_sample": 1576,
       "outcome_id": "base_fresh_pairs_6h",
       "participant_outcome": "unknown",
       "public_read": "Base fresh pairs 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_fresh_pairs_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 8,
+      "outcome_id": "base_micro_caps_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "base_micro_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 3,
+      "outcome_id": "base_mid_caps_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "base_mid_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 1,
+      "outcome_id": "base_high_caps_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "base_high_caps_6h",
+      "warnings": [
+        "confirmation_incomplete",
+        "longer_windows_disagree",
+        "positive_24h_outlier_driven",
+        "source_sample_insufficient"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 3,
+      "outcome_id": "base_majors_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "base_majors_6h",
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",

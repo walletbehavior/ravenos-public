@@ -1,9 +1,13 @@
 {
-  "generated_at": "2026-05-14T20:41:45Z",
+  "generated_at": "2026-05-14T20:50:42Z",
   "metadata": {
     "available_cap_bands": [
       "all",
-      "fresh_pairs"
+      "fresh_pairs",
+      "high_caps",
+      "majors",
+      "micro_caps",
+      "mid_caps"
     ],
     "available_chains": [
       "base",
@@ -34,8 +38,8 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
-      "public_read": "Solana all 6h is still building because the clean sample is thin and participant outcome is mixed.",
+      "participant_outcome": "negative",
+      "public_read": "Solana all 6h is still building because the clean sample is thin and participant outcome is negative.",
       "risk_id": "solana_all_current_thin_sample",
       "risk_level": "moderate",
       "risk_type": "thin_sample",
@@ -52,7 +56,7 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana all 6h is visible, but confirmation is incomplete.",
       "risk_id": "solana_all_current_confirmation_incomplete",
       "risk_level": "moderate",
@@ -70,7 +74,7 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana all 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
       "risk_id": "solana_all_current_outlier_dependency",
       "risk_level": "moderate",
@@ -88,7 +92,7 @@
         "positive 24h outlier driven",
         "fresh pair age unavailable"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Longer windows disagree on Solana all 6h, so treat the current read as not fully confirmed.",
       "risk_id": "solana_all_current_window_disagreement",
       "risk_level": "moderate",
@@ -106,7 +110,7 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana all 6h is public-safe, but source freshness is limited.",
       "risk_id": "solana_all_current_source_freshness_limited",
       "risk_level": "moderate",
@@ -124,7 +128,7 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana all 6h has building data quality, so the read remains cautious.",
       "risk_id": "solana_all_current_data_quality",
       "risk_level": "moderate",
@@ -142,10 +146,10 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
-      "public_read": "Solana fresh pairs 6h is still building because the clean sample is thin and participant outcome is mixed.",
+      "participant_outcome": "negative",
+      "public_read": "Solana fresh pairs 6h is still building because the clean sample is thin and participant outcome is negative.",
       "risk_id": "solana_fresh_pairs_6h_thin_sample",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "thin_sample",
       "state_id": "solana_fresh_pairs_6h",
       "window": "6h"
@@ -160,10 +164,10 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana fresh pairs 6h is visible, but confirmation is incomplete.",
       "risk_id": "solana_fresh_pairs_6h_confirmation_incomplete",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "confirmation_incomplete",
       "state_id": "solana_fresh_pairs_6h",
       "window": "6h"
@@ -178,10 +182,10 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana fresh pairs 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
       "risk_id": "solana_fresh_pairs_6h_outlier_dependency",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "outlier_dependency",
       "state_id": "solana_fresh_pairs_6h",
       "window": "6h"
@@ -196,10 +200,10 @@
         "positive 24h outlier driven",
         "fresh pair age unavailable"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Longer windows disagree on Solana fresh pairs 6h, so treat the current read as not fully confirmed.",
       "risk_id": "solana_fresh_pairs_6h_window_disagreement",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "window_disagreement",
       "state_id": "solana_fresh_pairs_6h",
       "window": "6h"
@@ -214,10 +218,10 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana fresh pairs 6h is public-safe, but source freshness is limited.",
       "risk_id": "solana_fresh_pairs_6h_source_freshness_limited",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "source_freshness_limited",
       "state_id": "solana_fresh_pairs_6h",
       "window": "6h"
@@ -232,12 +236,246 @@
         "longer windows disagree",
         "positive 24h outlier driven"
       ],
-      "participant_outcome": "mixed",
+      "participant_outcome": "negative",
       "public_read": "Solana fresh pairs 6h has thin data quality, so the read remains cautious.",
       "risk_id": "solana_fresh_pairs_6h_data_quality",
-      "risk_level": "moderate",
+      "risk_level": "high",
       "risk_type": "data_quality",
       "state_id": "solana_fresh_pairs_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "clean sample is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Solana micro caps 6h is still building because the clean sample is thin and participant outcome is negative.",
+      "risk_id": "solana_micro_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "confirmation is incomplete",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Solana micro caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "solana_micro_caps_6h_confirmation_incomplete",
+      "risk_level": "high",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Solana micro caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "solana_micro_caps_6h_outlier_dependency",
+      "risk_level": "high",
+      "risk_type": "outlier_dependency",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "longer windows disagree",
+        "confirmation incomplete",
+        "positive 24h outlier driven",
+        "fresh pair age unavailable"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Longer windows disagree on Solana micro caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "solana_micro_caps_6h_window_disagreement",
+      "risk_level": "high",
+      "risk_type": "window_disagreement",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "source freshness is limited",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Solana micro caps 6h is public-safe, but source freshness is limited.",
+      "risk_id": "solana_micro_caps_6h_source_freshness_limited",
+      "risk_level": "high",
+      "risk_type": "source_freshness_limited",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "data_quality": "thin",
+      "drivers": [
+        "data quality is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Solana micro caps 6h has thin data quality, so the read remains cautious.",
+      "risk_id": "solana_micro_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "solana_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "solana_majors_6h_thin_sample",
+      "risk_level": "moderate",
+      "risk_type": "thin_sample",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is still building because participant outcome is unknown.",
+      "risk_id": "solana_majors_6h_unknown_outcome",
+      "risk_level": "moderate",
+      "risk_type": "unknown_outcome",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "confirmation is incomplete",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is visible, but confirmation is incomplete.",
+      "risk_id": "solana_majors_6h_confirmation_incomplete",
+      "risk_level": "moderate",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "solana_majors_6h_outlier_dependency",
+      "risk_level": "moderate",
+      "risk_type": "outlier_dependency",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "longer windows disagree",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Longer windows disagree on Solana majors 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "solana_majors_6h_window_disagreement",
+      "risk_level": "moderate",
+      "risk_type": "window_disagreement",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "source freshness is limited",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is public-safe, but source freshness is limited.",
+      "risk_id": "solana_majors_6h_source_freshness_limited",
+      "risk_level": "moderate",
+      "risk_type": "source_freshness_limited",
+      "state_id": "solana_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "solana_majors_6h_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
+      "state_id": "solana_majors_6h",
       "window": "6h"
     },
     {
@@ -457,6 +695,366 @@
       "window": "6h"
     },
     {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "clean sample is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH micro caps 6h is still building because the clean sample is thin and participant outcome is negative.",
+      "risk_id": "eth_micro_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "eth_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "confirmation is incomplete",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH micro caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "eth_micro_caps_6h_confirmation_incomplete",
+      "risk_level": "high",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "eth_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH micro caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "eth_micro_caps_6h_outlier_dependency",
+      "risk_level": "high",
+      "risk_type": "outlier_dependency",
+      "state_id": "eth_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "longer windows disagree",
+        "confirmation incomplete",
+        "positive 24h outlier driven",
+        "source sample insufficient"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Longer windows disagree on ETH micro caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "eth_micro_caps_6h_window_disagreement",
+      "risk_level": "high",
+      "risk_type": "window_disagreement",
+      "state_id": "eth_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "data quality is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH micro caps 6h has thin data quality, so the read remains cautious.",
+      "risk_id": "eth_micro_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "eth_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "clean sample is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH mid caps 6h is still building because the clean sample is thin and participant outcome is negative.",
+      "risk_id": "eth_mid_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "eth_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "confirmation is incomplete",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH mid caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "eth_mid_caps_6h_confirmation_incomplete",
+      "risk_level": "high",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "eth_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH mid caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "eth_mid_caps_6h_outlier_dependency",
+      "risk_level": "high",
+      "risk_type": "outlier_dependency",
+      "state_id": "eth_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "longer windows disagree",
+        "confirmation incomplete",
+        "positive 24h outlier driven",
+        "source sample insufficient"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Longer windows disagree on ETH mid caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "eth_mid_caps_6h_window_disagreement",
+      "risk_level": "high",
+      "risk_type": "window_disagreement",
+      "state_id": "eth_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "data quality is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH mid caps 6h has thin data quality, so the read remains cautious.",
+      "risk_id": "eth_mid_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "eth_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "clean sample is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH high caps 6h is still building because the clean sample is thin and participant outcome is negative.",
+      "risk_id": "eth_high_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "eth_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "confirmation is incomplete",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH high caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "eth_high_caps_6h_confirmation_incomplete",
+      "risk_level": "high",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "eth_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH high caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "eth_high_caps_6h_outlier_dependency",
+      "risk_level": "high",
+      "risk_type": "outlier_dependency",
+      "state_id": "eth_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "longer windows disagree",
+        "confirmation incomplete",
+        "positive 24h outlier driven",
+        "source sample insufficient"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Longer windows disagree on ETH high caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "eth_high_caps_6h_window_disagreement",
+      "risk_level": "high",
+      "risk_type": "window_disagreement",
+      "state_id": "eth_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "data quality is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH high caps 6h has thin data quality, so the read remains cautious.",
+      "risk_id": "eth_high_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "eth_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "clean sample is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH majors 6h is still building because the clean sample is thin and participant outcome is negative.",
+      "risk_id": "eth_majors_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "eth_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "confirmation is incomplete",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH majors 6h is visible, but confirmation is incomplete.",
+      "risk_id": "eth_majors_6h_confirmation_incomplete",
+      "risk_level": "high",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "eth_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH majors 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "eth_majors_6h_outlier_dependency",
+      "risk_level": "high",
+      "risk_type": "outlier_dependency",
+      "state_id": "eth_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "longer windows disagree",
+        "confirmation incomplete",
+        "positive 24h outlier driven",
+        "source sample insufficient"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "Longer windows disagree on ETH majors 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "eth_majors_6h_window_disagreement",
+      "risk_level": "high",
+      "risk_type": "window_disagreement",
+      "state_id": "eth_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "eth",
+      "data_quality": "thin",
+      "drivers": [
+        "data quality is thin",
+        "confirmation incomplete",
+        "longer windows disagree",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "negative",
+      "public_read": "ETH majors 6h has thin data quality, so the read remains cautious.",
+      "risk_id": "eth_majors_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "eth_majors_6h",
+      "window": "6h"
+    },
+    {
       "cap_band": "all",
       "chain": "base",
       "data_quality": "building",
@@ -670,6 +1268,438 @@
       "risk_level": "moderate",
       "risk_type": "data_quality",
       "state_id": "base_fresh_pairs_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "base_micro_caps_6h_thin_sample",
+      "risk_level": "moderate",
+      "risk_type": "thin_sample",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h is still building because participant outcome is unknown.",
+      "risk_id": "base_micro_caps_6h_unknown_outcome",
+      "risk_level": "moderate",
+      "risk_type": "unknown_outcome",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "confirmation is incomplete",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "base_micro_caps_6h_confirmation_incomplete",
+      "risk_level": "moderate",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "base_micro_caps_6h_outlier_dependency",
+      "risk_level": "moderate",
+      "risk_type": "outlier_dependency",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "longer windows disagree",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Longer windows disagree on Base micro caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "base_micro_caps_6h_window_disagreement",
+      "risk_level": "moderate",
+      "risk_type": "window_disagreement",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base micro caps 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "base_micro_caps_6h_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
+      "state_id": "base_micro_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "base_mid_caps_6h_thin_sample",
+      "risk_level": "moderate",
+      "risk_type": "thin_sample",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h is still building because participant outcome is unknown.",
+      "risk_id": "base_mid_caps_6h_unknown_outcome",
+      "risk_level": "moderate",
+      "risk_type": "unknown_outcome",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "confirmation is incomplete",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "base_mid_caps_6h_confirmation_incomplete",
+      "risk_level": "moderate",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "base_mid_caps_6h_outlier_dependency",
+      "risk_level": "moderate",
+      "risk_type": "outlier_dependency",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "longer windows disagree",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Longer windows disagree on Base mid caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "base_mid_caps_6h_window_disagreement",
+      "risk_level": "moderate",
+      "risk_type": "window_disagreement",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base mid caps 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "base_mid_caps_6h_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
+      "state_id": "base_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "base_high_caps_6h_thin_sample",
+      "risk_level": "moderate",
+      "risk_type": "thin_sample",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h is still building because participant outcome is unknown.",
+      "risk_id": "base_high_caps_6h_unknown_outcome",
+      "risk_level": "moderate",
+      "risk_type": "unknown_outcome",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "confirmation is incomplete",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h is visible, but confirmation is incomplete.",
+      "risk_id": "base_high_caps_6h_confirmation_incomplete",
+      "risk_level": "moderate",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "base_high_caps_6h_outlier_dependency",
+      "risk_level": "moderate",
+      "risk_type": "outlier_dependency",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "longer windows disagree",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Longer windows disagree on Base high caps 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "base_high_caps_6h_window_disagreement",
+      "risk_level": "moderate",
+      "risk_type": "window_disagreement",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base high caps 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "base_high_caps_6h_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
+      "state_id": "base_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "base_majors_6h_thin_sample",
+      "risk_level": "moderate",
+      "risk_type": "thin_sample",
+      "state_id": "base_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h is still building because participant outcome is unknown.",
+      "risk_id": "base_majors_6h_unknown_outcome",
+      "risk_level": "moderate",
+      "risk_type": "unknown_outcome",
+      "state_id": "base_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "confirmation is incomplete",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h is visible, but confirmation is incomplete.",
+      "risk_id": "base_majors_6h_confirmation_incomplete",
+      "risk_level": "moderate",
+      "risk_type": "confirmation_incomplete",
+      "state_id": "base_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "current read leans on an outlier-prone 24h signal",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h may be leaning on an outlier-prone signal, so the read is not fully confirmed.",
+      "risk_id": "base_majors_6h_outlier_dependency",
+      "risk_level": "moderate",
+      "risk_type": "outlier_dependency",
+      "state_id": "base_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "longer windows disagree",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "positive 24h outlier driven"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Longer windows disagree on Base majors 6h, so treat the current read as not fully confirmed.",
+      "risk_id": "base_majors_6h_window_disagreement",
+      "risk_level": "moderate",
+      "risk_type": "window_disagreement",
+      "state_id": "base_majors_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "base",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "confirmation incomplete",
+        "longer windows disagree"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Base majors 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "base_majors_6h_data_quality",
+      "risk_level": "moderate",
+      "risk_type": "data_quality",
+      "state_id": "base_majors_6h",
       "window": "6h"
     }
   ],
