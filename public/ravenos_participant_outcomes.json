@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T06:44:45Z",
+  "generated_at": "2026-05-14T07:00:15Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -104,7 +104,7 @@
     {
       "cap_band": "all",
       "chain": "base",
-      "clean_sample": 1321,
+      "clean_sample": 1322,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
