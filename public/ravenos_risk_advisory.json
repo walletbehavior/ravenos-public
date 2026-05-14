@@ -243,30 +243,6 @@
       "window": "6h"
     },
     {
-      "advisory_id": "eth_high_caps_6h_thin_sample",
-      "chain": "eth",
-      "plain_warning": "Not enough clean data yet",
-      "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
-        "thin_sample"
-      ],
-      "risk_level": "high",
-      "scope": "high_caps",
-      "search_terms": [
-        "risky",
-        "unstable",
-        "low confidence",
-        "thin",
-        "thin_sample",
-        "high"
-      ],
-      "what_would_improve": "More public states need to move into the clean sample.",
-      "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
-      "window": "6h"
-    },
-    {
       "advisory_id": "eth_majors_6h_thin_sample",
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
@@ -415,31 +391,6 @@
       "window": "6h"
     },
     {
-      "advisory_id": "solana_majors_6h_thin_sample",
-      "chain": "solana",
-      "plain_warning": "Not enough clean data yet",
-      "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
-        "stale_data",
-        "thin_sample"
-      ],
-      "risk_level": "high",
-      "scope": "majors",
-      "search_terms": [
-        "risky",
-        "unstable",
-        "low confidence",
-        "thin",
-        "thin_sample",
-        "high"
-      ],
-      "what_would_improve": "More public states need to move into the clean sample.",
-      "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
-      "window": "6h"
-    },
-    {
       "advisory_id": "solana_micro_caps_6h_thin_sample",
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
@@ -465,15 +416,15 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-14T20:57:21Z",
+  "generated_at": "2026-05-14T21:12:52Z",
   "risk_level": "high",
   "schema_version": "ravenos_risk_advisory_v0",
   "top_flags": {
-    "conflicting_timeframes": 19,
-    "high_outlier_dependency": 19,
-    "low_confirmation": 19,
-    "stale_data": 5,
-    "thin_sample": 19,
+    "conflicting_timeframes": 17,
+    "high_outlier_dependency": 17,
+    "low_confirmation": 17,
+    "stale_data": 4,
+    "thin_sample": 17,
     "unstable_conditions": 3
   }
 }

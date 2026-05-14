@@ -2368,6 +2368,9 @@
       const pressureState = publicLabel(perpMarket.pressure_state, "building");
       const riskRead = publicLabel(perpMarket.risk_read, "forming");
       const leverageBias = publicLabel(perpMarket.leverage_bias, "balanced");
+      const crowdingState = publicLabel(perpMarket.crowding_state, "unknown");
+      const confirmationState = publicLabel(perpMarket.confirmation_state, "unknown");
+      const tacticalRisk = publicLabel(perpMarket.tactical_risk, "no clean edge");
       const perpSummary = rawText(
         perp.summary,
         "Perp pressure context is building. Treat leverage confirmation as unavailable until market data broadens."
@@ -2383,7 +2386,10 @@
         ["lane", "perp pressure"],
         ["market read", riskRead],
         ["pressure", pressureState],
-        ["positioning", leverageBias],
+        ["leverage bias", leverageBias],
+        ["crowding", crowdingState],
+        ["confirmation", confirmationState],
+        ["risk focus", tacticalRisk],
         ["access", "public taster"],
       ], true);
       node.appendChild(perpCard);
@@ -3878,6 +3884,9 @@
             ["public preview", publicLabel(perpStatus, "limited")],
             ["market read", publicLabel(isObject(perp.market) ? perp.market.risk_read : "", "unknown")],
             ["pressure", publicLabel(isObject(perp.market) ? perp.market.pressure_state : "", "unknown")],
+            ["crowding", publicLabel(isObject(perp.market) ? perp.market.crowding_state : "", "unknown")],
+            ["confirmation", publicLabel(isObject(perp.market) ? perp.market.confirmation_state : "", "unknown")],
+            ["risk focus", publicLabel(isObject(perp.market) ? perp.market.tactical_risk : "", "unknown")],
             ["detail", "Full symbol flow remains on Advanced Desk"],
           ],
           search: searchTextFromParts(

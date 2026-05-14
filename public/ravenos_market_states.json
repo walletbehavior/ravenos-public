@@ -28,7 +28,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-14T20:57:15Z",
+  "generated_at": "2026-05-14T21:12:45Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -142,11 +142,11 @@
       },
       "cap_band": "micro_caps",
       "chain": "solana",
-      "clean_sample_size": 7,
+      "clean_sample_size": 6,
       "condition": "contracting",
       "data_quality": {
-        "clean_sample": 7,
-        "observed_sample": 7,
+        "clean_sample": 6,
+        "observed_sample": 6,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -157,7 +157,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 7,
+      "observed_sample_size": 6,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -172,61 +172,9 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 7,
+      "sample_size": 6,
       "state_id": "solana_micro_caps_6h",
       "summary": "Solana micro caps are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
-      "thin_sample_size": null,
-      "unresolved_sample_size": null,
-      "usable_signal_rate": null,
-      "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
-        "fresh_pair_age_unavailable",
-        "source_sample_or_freshness_limited"
-      ],
-      "window": "6h"
-    },
-    {
-      "breadth": {
-        "direction": "contracting",
-        "strength": "weak"
-      },
-      "cap_band": "majors",
-      "chain": "solana",
-      "clean_sample_size": null,
-      "condition": "building",
-      "data_quality": {
-        "clean_sample": null,
-        "observed_sample": 1,
-        "status": "observed_only",
-        "thin_sample": null,
-        "unresolved_sample": null,
-        "usable_signal_rate": null
-      },
-      "data_quality_status": "observed_only",
-      "macro_context": {
-        "status": "unknown",
-        "summary": null
-      },
-      "observed_sample_size": 1,
-      "participant_outcome": {
-        "confidence": "low",
-        "direction": "unknown"
-      },
-      "risk": {
-        "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
-          "fresh pair age unavailable"
-        ],
-        "level": "moderate"
-      },
-      "risk_level": "moderate",
-      "sample_size": 1,
-      "state_id": "solana_majors_6h",
-      "summary": "Solana majors are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
@@ -246,22 +194,22 @@
       },
       "cap_band": "all",
       "chain": "eth",
-      "clean_sample_size": 1235,
+      "clean_sample_size": 1236,
       "condition": "building",
       "data_quality": {
-        "clean_sample": 1235,
-        "observed_sample": 2247,
+        "clean_sample": 1236,
+        "observed_sample": 2248,
         "status": "building",
-        "thin_sample": 533,
-        "unresolved_sample": 479,
-        "usable_signal_rate": 0.5496
+        "thin_sample": 534,
+        "unresolved_sample": 478,
+        "usable_signal_rate": 0.5498
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 2247,
+      "observed_sample_size": 2248,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -276,12 +224,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1235,
+      "sample_size": 1236,
       "state_id": "eth_all_current",
-      "summary": "ETH: 2247 assets observed, 1235 clean enough for signal, 533 thin or weak, 479 still resolving. Coverage is building, and confirmation is still developing.",
-      "thin_sample_size": 533,
-      "unresolved_sample_size": 479,
-      "usable_signal_rate": 0.5496,
+      "summary": "ETH: 2248 assets observed, 1236 clean enough for signal, 534 thin or weak, 478 still resolving. Coverage is building, and confirmation is still developing.",
+      "thin_sample_size": 534,
+      "unresolved_sample_size": 478,
+      "usable_signal_rate": 0.5498,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -301,7 +249,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 1768,
+        "observed_sample": 1769,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -312,7 +260,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 1768,
+      "observed_sample_size": 1769,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -327,7 +275,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1768,
+      "sample_size": 1769,
       "state_id": "eth_fresh_pairs_6h",
       "summary": "Ethereum fresh pairs are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
@@ -348,11 +296,11 @@
       },
       "cap_band": "micro_caps",
       "chain": "eth",
-      "clean_sample_size": 24,
+      "clean_sample_size": 23,
       "condition": "contracting",
       "data_quality": {
-        "clean_sample": 24,
-        "observed_sample": 24,
+        "clean_sample": 23,
+        "observed_sample": 23,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -363,7 +311,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 24,
+      "observed_sample_size": 23,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -378,7 +326,7 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 24,
+      "sample_size": 23,
       "state_id": "eth_micro_caps_6h",
       "summary": "Ethereum micro caps are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
       "thin_sample_size": null,
@@ -399,11 +347,11 @@
       },
       "cap_band": "mid_caps",
       "chain": "eth",
-      "clean_sample_size": 4,
+      "clean_sample_size": 5,
       "condition": "contracting",
       "data_quality": {
-        "clean_sample": 4,
-        "observed_sample": 4,
+        "clean_sample": 5,
+        "observed_sample": 5,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -414,7 +362,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 4,
+      "observed_sample_size": 5,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -429,7 +377,7 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 4,
+      "sample_size": 5,
       "state_id": "eth_mid_caps_6h",
       "summary": "Ethereum mid caps are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
       "thin_sample_size": null,
@@ -448,64 +396,13 @@
         "direction": "contracting",
         "strength": "weak"
       },
-      "cap_band": "high_caps",
-      "chain": "eth",
-      "clean_sample_size": 2,
-      "condition": "contracting",
-      "data_quality": {
-        "clean_sample": 2,
-        "observed_sample": 2,
-        "status": "thin",
-        "thin_sample": null,
-        "unresolved_sample": null,
-        "usable_signal_rate": null
-      },
-      "data_quality_status": "thin",
-      "macro_context": {
-        "status": "unknown",
-        "summary": null
-      },
-      "observed_sample_size": 2,
-      "participant_outcome": {
-        "confidence": "low",
-        "direction": "negative"
-      },
-      "risk": {
-        "drivers": [
-          "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
-        ],
-        "level": "high"
-      },
-      "risk_level": "high",
-      "sample_size": 2,
-      "state_id": "eth_high_caps_6h",
-      "summary": "Ethereum high caps are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
-      "thin_sample_size": null,
-      "unresolved_sample_size": null,
-      "usable_signal_rate": null,
-      "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
-        "source_sample_insufficient"
-      ],
-      "window": "6h"
-    },
-    {
-      "breadth": {
-        "direction": "contracting",
-        "strength": "weak"
-      },
       "cap_band": "majors",
       "chain": "eth",
-      "clean_sample_size": 3,
+      "clean_sample_size": 1,
       "condition": "contracting",
       "data_quality": {
-        "clean_sample": 3,
-        "observed_sample": 3,
+        "clean_sample": 1,
+        "observed_sample": 1,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -516,7 +413,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 3,
+      "observed_sample_size": 1,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -531,7 +428,7 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 3,
+      "sample_size": 1,
       "state_id": "eth_majors_6h",
       "summary": "Ethereum majors are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
       "thin_sample_size": null,
@@ -552,22 +449,22 @@
       },
       "cap_band": "all",
       "chain": "base",
-      "clean_sample_size": 1338,
+      "clean_sample_size": 1340,
       "condition": "building",
       "data_quality": {
-        "clean_sample": 1338,
-        "observed_sample": 4229,
+        "clean_sample": 1340,
+        "observed_sample": 4230,
         "status": "building",
         "thin_sample": 238,
-        "unresolved_sample": 2653,
-        "usable_signal_rate": 0.3164
+        "unresolved_sample": 2652,
+        "usable_signal_rate": 0.3168
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 4229,
+      "observed_sample_size": 4230,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -582,12 +479,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1338,
+      "sample_size": 1340,
       "state_id": "base_all_current",
-      "summary": "Base: 4229 assets observed, 1338 clean enough for signal, 238 thin or weak, 2653 still resolving. Coverage is building, and confirmation is still developing.",
+      "summary": "Base: 4230 assets observed, 1340 clean enough for signal, 238 thin or weak, 2652 still resolving. Coverage is building, and confirmation is still developing.",
       "thin_sample_size": 238,
-      "unresolved_sample_size": 2653,
-      "usable_signal_rate": 0.3164,
+      "unresolved_sample_size": 2652,
+      "usable_signal_rate": 0.3168,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -607,7 +504,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 1576,
+        "observed_sample": 1578,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -618,7 +515,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 1576,
+      "observed_sample_size": 1578,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -633,7 +530,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1576,
+      "sample_size": 1578,
       "state_id": "base_fresh_pairs_6h",
       "summary": "Base fresh pairs are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
@@ -658,7 +555,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 8,
+        "observed_sample": 9,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -669,7 +566,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 8,
+      "observed_sample_size": 9,
       "participant_outcome": {
         "confidence": "low",
         "direction": "unknown"
@@ -684,7 +581,7 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 8,
+      "sample_size": 9,
       "state_id": "base_micro_caps_6h",
       "summary": "Base micro caps are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
