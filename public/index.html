@@ -299,7 +299,7 @@
     }
 
     .top-sample-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-top: 14px;
     }
 
@@ -2340,6 +2340,32 @@
         ["access", rawText(fresh.tier, "free") === "free" ? "free public page" : titleCase(rawText(fresh.tier, "public"))],
       ], true);
       node.appendChild(freshCard);
+
+      const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
+      const perpMarket = isObject(perp.market) ? perp.market : {};
+      const perpStatus = rawText(perp.status, "building").toLowerCase();
+      const pressureState = publicLabel(perpMarket.pressure_state, "building");
+      const riskRead = publicLabel(perpMarket.risk_read, "forming");
+      const leverageBias = publicLabel(perpMarket.leverage_bias, "balanced");
+      const perpSummary = rawText(
+        perp.summary,
+        "Perp pressure context is building. Treat leverage confirmation as unavailable until market data broadens."
+      );
+      const perpCard = card(
+        "Perp pressure",
+        perpStatus === "unavailable"
+          ? "Perp pressure context is building. This lane previews leverage pressure, crowding, and squeeze/fade risk without trade calls."
+          : perpSummary,
+        ""
+      );
+      appendDetails(perpCard, [
+        ["lane", "perp pressure"],
+        ["market read", riskRead],
+        ["pressure", pressureState],
+        ["positioning", leverageBias],
+        ["access", "public taster"],
+      ], true);
+      node.appendChild(perpCard);
     }
 
     function renderTradeWeather(weather) {
