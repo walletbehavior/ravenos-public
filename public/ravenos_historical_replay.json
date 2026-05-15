@@ -40,6 +40,82 @@
     },
     {
       "after_window_summary": null,
+      "cap_band": "high_caps",
+      "chain": "base",
+      "current_state_id": "base_high_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_high_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base high caps 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "majors",
+      "chain": "base",
+      "current_state_id": "base_majors_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_majors_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base majors 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "micro_caps",
+      "chain": "base",
+      "current_state_id": "base_micro_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_micro_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base micro caps 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "mid_caps",
+      "chain": "base",
+      "current_state_id": "base_mid_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "base_mid_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base mid caps 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
       "cap_band": "all",
       "chain": "eth",
       "current_state_id": "eth_all_current",
@@ -78,6 +154,63 @@
     },
     {
       "after_window_summary": null,
+      "cap_band": "majors",
+      "chain": "eth",
+      "current_state_id": "eth_majors_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "eth_majors_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth majors 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "micro_caps",
+      "chain": "eth",
+      "current_state_id": "eth_micro_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "eth_micro_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth micro caps 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "mid_caps",
+      "chain": "eth",
+      "current_state_id": "eth_mid_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "eth_mid_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth mid caps 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
       "cap_band": "all",
       "chain": "solana",
       "current_state_id": "solana_all_current",
@@ -85,14 +218,14 @@
         "chain matches",
         "cap band matches",
         "window matches",
+        "condition matches",
         "data quality matches",
-        "risk level matches",
-        "warning overlap: concentration_risk, confirmation_incomplete, confirmation_still_developing"
+        "participant outcome matches"
       ],
       "matched_state_id": "solana_all_current",
-      "matched_window_start": "2026-05-04T14:37:44Z",
-      "public_read": "Older public snapshot from 2026-05-04T14:37:44Z remains the closest comparable for Solana all 6h.",
-      "similarity_score": 0.85,
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Solana all 6h.",
+      "similarity_score": 1.0,
       "window": "6h"
     },
     {
@@ -104,21 +237,41 @@
         "chain matches",
         "cap band matches",
         "window matches",
+        "condition matches",
         "data quality matches",
-        "warning overlap: concentration_risk, confirmation_incomplete, confirmation_still_developing"
+        "participant outcome matches"
       ],
       "matched_state_id": "solana_fresh_pairs_6h",
-      "matched_window_start": "2026-05-04T14:37:44Z",
-      "public_read": "Older public snapshot from 2026-05-04T14:37:44Z remains the closest comparable for Solana fresh pairs 6h.",
-      "similarity_score": 0.8,
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Solana fresh pairs 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
+      "cap_band": "micro_caps",
+      "chain": "solana",
+      "current_state_id": "solana_micro_caps_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "solana_micro_caps_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Solana micro caps 6h.",
+      "similarity_score": 1.0,
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-15T02:38:15Z",
+  "generated_at": "2026-05-15T02:53:45Z",
   "metadata": {
-    "archive_record_count": 1035,
+    "archive_record_count": 1036,
     "current_state_count": 14,
-    "eligible_comparable_record_count": 1009,
+    "eligible_comparable_record_count": 1012,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },
