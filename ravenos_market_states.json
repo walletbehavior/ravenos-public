@@ -28,7 +28,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-16T21:29:45Z",
+  "generated_at": "2026-05-16T21:45:15Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -198,18 +198,18 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": 1346,
-        "observed_sample": 2373,
+        "observed_sample": 2376,
         "status": "building",
-        "thin_sample": 569,
+        "thin_sample": 572,
         "unresolved_sample": 458,
-        "usable_signal_rate": 0.5672
+        "usable_signal_rate": 0.5665
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 2373,
+      "observed_sample_size": 2376,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -226,10 +226,10 @@
       "risk_level": "moderate",
       "sample_size": 1346,
       "state_id": "eth_all_current",
-      "summary": "ETH: 2373 assets observed, 1346 clean enough for signal, 569 thin or weak, 458 still resolving. Coverage is building, and confirmation is still developing.",
-      "thin_sample_size": 569,
+      "summary": "ETH: 2376 assets observed, 1346 clean enough for signal, 572 thin or weak, 458 still resolving. Coverage is building, and confirmation is still developing.",
+      "thin_sample_size": 572,
       "unresolved_sample_size": 458,
-      "usable_signal_rate": 0.5672,
+      "usable_signal_rate": 0.5665,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
@@ -449,15 +449,15 @@
       },
       "cap_band": "all",
       "chain": "base",
-      "clean_sample_size": 1691,
+      "clean_sample_size": 1694,
       "condition": "building",
       "data_quality": {
-        "clean_sample": 1691,
+        "clean_sample": 1694,
         "observed_sample": 4546,
         "status": "building",
         "thin_sample": 338,
-        "unresolved_sample": 2517,
-        "usable_signal_rate": 0.372
+        "unresolved_sample": 2514,
+        "usable_signal_rate": 0.3726
       },
       "data_quality_status": "building",
       "macro_context": {
@@ -479,12 +479,12 @@
         "level": "moderate"
       },
       "risk_level": "moderate",
-      "sample_size": 1691,
+      "sample_size": 1694,
       "state_id": "base_all_current",
-      "summary": "Base: 4546 assets observed, 1691 clean enough for signal, 338 thin or weak, 2517 still resolving. Coverage is building, and confirmation is still developing.",
+      "summary": "Base: 4546 assets observed, 1694 clean enough for signal, 338 thin or weak, 2514 still resolving. Coverage is building, and confirmation is still developing.",
       "thin_sample_size": 338,
-      "unresolved_sample_size": 2517,
-      "usable_signal_rate": 0.372,
+      "unresolved_sample_size": 2514,
+      "usable_signal_rate": 0.3726,
       "warnings": [
         "confirmation_incomplete",
         "longer_windows_disagree",
