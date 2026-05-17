@@ -836,9 +836,9 @@
         <p class="stamp" id="generatedAt">updated recently</p>
       </div>
       <div class="intro">
-        <p><strong>Live public market structure.</strong> RavenOS summarizes participation, followthrough, and sample quality across chains.</p>
-        <p>Use it to see when conditions are broadening, fading, concentrated, or still too thin to trust.</p>
-        <p class="sharp">Aggregate context only. No token calls, private wallet data, or execution guidance.</p>
+        <p><strong>RavenOS is a live market intelligence layer.</strong> It reads participation, followthrough, pressure, and reliability across chains.</p>
+        <p>Use it to see where activity is broadening, where fresh launches are surviving, and where pressure is building before the tape becomes obvious.</p>
+        <p class="sharp">Public signals for market conditions, participation quality, and risk context.</p>
       </div>
       <div class="context-strip" id="marketContext"></div>
     </header>
@@ -881,11 +881,11 @@
 
     <section class="panel" aria-label="why this matters">
       <p class="eyebrow">why this matters</p>
-      <p class="support">The useful signal is not simply what moved. It is whether participation is broadening, whether strength survives beyond the first impulse, and whether outcomes are improving or deteriorating.</p>
+      <p class="support">The useful signal is not simply what moved. It is whether participation is broadening, whether fresh activity survives beyond the first impulse, and whether outcomes are improving or deteriorating.</p>
     </section>
 
-    <h2 class="section-title">Public Preview / Pro / Desk / Enterprise</h2>
-    <p class="section-copy">The free view stays aggregate. Paid tiers add deeper filters, replay, alerts, and desk context while keeping restricted data off the public page.</p>
+    <h2 class="section-title">Market Intelligence Preview</h2>
+    <p class="section-copy">Free market context highlights broad participation, fresh-pair conditions, velocity, reliability, and pressure. Deeper access adds filters, replay, alerts, and desk context.</p>
     <section class="pricing-grid product-band" id="pricing"></section>
     <div class="section-action" aria-label="request access">
       <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20Pro%20Access">Request Pro Access</a>
@@ -1036,8 +1036,8 @@
     <p class="section-copy">Older aggregate windows. Similarity, resolution, and failure tendencies.</p>
     <section class="preview-grid preview-band" id="historicalReplayPreview"></section>
 
-    <h2 class="section-title">Macro + Perp Context</h2>
-    <p class="section-copy">Whether broader market conditions support, conflict with, or fail to confirm the on-chain read.</p>
+    <h2 class="section-title">Macro + Perp Pressure</h2>
+    <p class="section-copy">Whether broader market conditions and leverage pressure are supporting, weakening, or failing to confirm the on-chain read.</p>
     <section class="preview-grid desk-grid preview-band" id="deskContextPreview"></section>
 
     <h2 class="section-title">Trust & Safety</h2>
@@ -1047,6 +1047,7 @@
         <div class="trust-item"><strong>Structure first</strong>Reads explain participation, pressure, and continuation risk.</div>
         <div class="trust-item"><strong>Aggregate only</strong>Public artifacts stay at market-state level.</div>
         <div class="trust-item"><strong>Clear context</strong>Concise labels for what is improving, weakening, or thin.</div>
+        <div class="trust-item"><strong>Public boundary</strong>No token calls, private wallet exposure, or execution guidance.</div>
       </div>
     </section>
 
@@ -2373,12 +2374,12 @@
       const tacticalRisk = publicLabel(perpMarket.tactical_risk, "no clean edge");
       const perpSummary = rawText(
         perp.summary,
-        "Perp pressure context is building. Treat leverage confirmation as unavailable until market data broadens."
+        "Perp pressure context is building. This lane reads crowding, squeeze risk, fade risk, and leverage confirmation."
       );
       const perpCard = card(
         "Perp pressure",
         perpStatus === "unavailable"
-          ? "Perp pressure context is building. This lane previews leverage pressure, crowding, and squeeze/fade risk without trade calls."
+          ? "Perp pressure context is building. This lane previews leverage pressure, crowding, and squeeze/fade risk."
           : perpSummary,
         ""
       );
