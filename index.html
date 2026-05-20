@@ -19,7 +19,7 @@
       --warn: #d7b462;
       --bad: #e08373;
       --blue: #7ec7d6;
-      --accent: #69d3b7;
+      --accent: #8f6cff;
     }
 
     body {
@@ -94,10 +94,11 @@
 
     .hero-line {
       max-width: 880px;
-      font-size: clamp(2.45rem, 7.3vw, 6.8rem);
-      line-height: 0.93;
-      letter-spacing: -0.071em;
-      font-weight: 790;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2.45vw, 1.65rem);
+      line-height: 1.35;
+      letter-spacing: -0.018em;
+      font-weight: 560;
     }
 
     .hero-sub {
@@ -409,7 +410,7 @@
         <h1 class="mark" aria-label="RavenOS"><span>Raven</span><span>OS</span></h1>
         <p class="stamp" id="generatedAt">refreshing public read</p>
       </div>
-      <p class="hero-line">RavenOS reads whether crypto participation is being paid or punished.</p>
+      <p class="hero-line">RavenOS reads whether crypto participation is paying or punishing.</p>
       <p class="hero-sub" id="deskLine">Latest read is refreshing. Last stable read watched broad participation, uneven followthrough, and confirmation developing.</p>
     </header>
 
@@ -442,7 +443,7 @@
     <section class="section">
       <div class="section-head">
         <h2>Paying vs Punishing</h2>
-        <p>Three rows, same question: is participation getting paid, punished, or still not clean enough?</p>
+        <p>Three rows, same question: is participation paying, punishing, or still not clean enough?</p>
       </div>
       <div class="panel" id="chainRows"></div>
     </section>
@@ -602,8 +603,8 @@
 
     function chainPayoff(row) {
       const outcome = cleanText(row.participant_outcome, "unknown").toLowerCase();
-      if (outcome === "favorable") return "paid";
-      if (outcome === "punishing") return "punished";
+      if (outcome === "favorable") return "paying";
+      if (outcome === "punishing") return "punishing";
       return "forming";
     }
 
@@ -617,9 +618,9 @@
       const weatherText = cleanText(weather.public_summary || weather.plain_language_summary, "Last stable read watched broad participation, uneven followthrough, and confirmation developing.");
 
       let primary = "Activity is visible, but the payoff is uneven.";
-      if (favorable >= 2 && punished === 0) primary = "Participation is being paid across most clean samples.";
+      if (favorable >= 2 && punished === 0) primary = "Participation is paying across most clean samples.";
       if (punished > 0 && favorable > 0) primary = "Activity is spreading, but the payoff is uneven.";
-      if (punished >= 2) primary = "The tape is active, but participation is being punished.";
+      if (punished >= 2) primary = "The tape is active, but participation is punishing.";
       if (stale(snapshot)) primary = "The latest sample is stale. Treat the read as provisional.";
 
       let secondary = weatherText;
@@ -635,7 +636,7 @@
       setText("primaryRead", primary);
       setText("secondaryRead", secondary);
       setText("conditionRead", weatherText);
-      setText("splitRead", `${favorable} paid · ${punished} punished · ${Math.max(0, 3 - favorable - punished)} forming`);
+      setText("splitRead", `${favorable} paying · ${punished} punishing · ${Math.max(0, 3 - favorable - punished)} forming`);
       setText("confirmRead", hot.length ? `${hot.join(", ")} holds while payoff broadens` : "payoff improves across chains");
       setText("weakenRead", weak.length ? `${weak.join(", ")} stays unreliable` : "sample turns stale or chains split");
     }
@@ -683,7 +684,7 @@
       setText("freshSummary", summary);
       lines.innerHTML = [
         ["What is happening", hot.length ? `${hot.join(", ")} showing active fresh-pair flow.` : "New-launch flow is present but not broad enough to call clean."],
-        ["Is it being paid", favorable ? `${favorable} chain read shows fresh-pair payoff improving.` : punished ? `${punished} chain read still looks punishing.` : "Outcome support is still forming."],
+        ["Is it paying", favorable ? `${favorable} chain read shows fresh-pair payoff improving.` : punished ? `${punished} chain read still looks punishing.` : "Outcome support is still forming."],
         ["What confirms it", "Fresh launches keep surviving beyond the first impulse across more than one refresh."],
         ["What weakens it", "Activity stays hot but payoff remains unknown, uneven, or fading."],
       ].map(([k, v]) => `<div class="line-item"><strong>${k}</strong>${v}</div>`).join("");
