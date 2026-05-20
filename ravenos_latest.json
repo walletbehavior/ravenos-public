@@ -851,7 +851,7 @@
     ],
     "window": "6h"
   },
-  "desk_read": "crypto is attempting to stabilize, but the move is still fragile.",
+  "desk_read": "crypto structure is mixed and unresolved.",
   "followthrough_quality": {
     "chains": [
       {
@@ -900,7 +900,7 @@
     "status": "partial",
     "window": "6h"
   },
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "lane_quality": [
     {
       "behavior_stage": "degrading",
@@ -968,7 +968,7 @@
     "window": "6h"
   },
   "macro_regime_context": {
-    "generated_at": "2026-04-28T22:23:52Z",
+    "generated_at": "2026-05-20T03:26:42Z",
     "locked": true,
     "market": {
       "confidence": "low",
@@ -1030,7 +1030,7 @@
     "confidence": "high",
     "expected_broadening": "improving",
     "fragility": "low",
-    "generated_at": "2026-05-20T03:09:30Z",
+    "generated_at": "2026-05-20T03:24:59Z",
     "persistence": "high",
     "plain_language_summary": "Followthrough improving across chains.",
     "public_safe": true,
@@ -1688,7 +1688,7 @@
       "window": "6h"
     },
     "macro_regime_context": {
-      "generated_at": "2026-04-28T22:23:52Z",
+      "generated_at": "2026-05-20T03:26:42Z",
       "locked": true,
       "market": {
         "confidence": "low",
@@ -1741,7 +1741,7 @@
       "confidence": "high",
       "expected_broadening": "improving",
       "fragility": "low",
-      "generated_at": "2026-05-20T03:09:30Z",
+      "generated_at": "2026-05-20T03:24:59Z",
       "persistence": "high",
       "plain_language_summary": "Followthrough improving across chains.",
       "public_safe": true,
@@ -1971,7 +1971,7 @@
           "structural_attention_read": "activity is returning to the same structures",
           "surface_quality": "strong",
           "surface_yield_read": "surface quality is improving",
-          "updated_at": "2026-05-20T03:09:28Z",
+          "updated_at": "2026-05-20T03:24:57Z",
           "what_is_fading": "no broad fading pattern in the public read",
           "what_is_forming": "repeat activity visible",
           "what_is_repeating": "participation is holding across repeated checks",
@@ -2008,7 +2008,7 @@
           "structural_attention_read": "activity is returning to the same structures",
           "surface_quality": "improving",
           "surface_yield_read": "surface quality is improving, but the sample is still young",
-          "updated_at": "2026-05-20T03:09:28Z",
+          "updated_at": "2026-05-20T03:24:57Z",
           "what_is_fading": "no broad fading pattern in the public read",
           "what_is_forming": "repeat activity visible",
           "what_is_repeating": "participation is holding across repeated checks",
@@ -2045,7 +2045,7 @@
           "structural_attention_read": "activity is returning to the same structures",
           "surface_quality": "improving",
           "surface_yield_read": "surface quality is improving, but the sample is still young",
-          "updated_at": "2026-05-20T03:09:28Z",
+          "updated_at": "2026-05-20T03:24:57Z",
           "what_is_fading": "no broad fading pattern in the public read",
           "what_is_forming": "repeat activity visible",
           "what_is_repeating": "participation is holding across repeated checks",
@@ -2054,7 +2054,7 @@
         }
       ],
       "desk_read": "Participation is narrowing. Moves are surviving beyond first impulse. Activity is uneven. Chains agree. Move is clean.",
-      "generated_at": "2026-05-20T03:09:28Z",
+      "generated_at": "2026-05-20T03:24:57Z",
       "metrics": {
         "clean_participation_delta": 0.556,
         "cross_chain_alignment_score": 1.0,
@@ -2266,7 +2266,7 @@
       "broadening_tendency": 0.0,
       "confidence": "high",
       "failure_tendency": 0.0,
-      "generated_at": "2026-05-20T03:09:30Z",
+      "generated_at": "2026-05-20T03:24:59Z",
       "historical_outcome": "mixed_followthrough",
       "persistence_tendency": 0.0,
       "plain_language_summary": "similar structures often failed to broaden",
@@ -2329,7 +2329,7 @@
       "concentration_failure_rate": 0.0,
       "confidence": "high",
       "early_failure_rate": 0.1982,
-      "generated_at": "2026-05-20T03:09:30Z",
+      "generated_at": "2026-05-20T03:24:59Z",
       "persistence_decay_rate": 0.8204,
       "plain_language_summary": "moves are surviving longer",
       "public_safe": true,
@@ -2840,7 +2840,7 @@
       "expected_state": "improving",
       "forecast_confidence": "high",
       "fragility_outlook": "stable",
-      "generated_at": "2026-05-20T03:09:29Z",
+      "generated_at": "2026-05-20T03:24:58Z",
       "likely_shift": "mixed participation",
       "persistence_outlook": "mixed",
       "plain_language_summary": "structure historically tends to improve from here",
@@ -3204,10 +3204,10 @@
     "window": "6h"
   },
   "regime_quality": {
-    "consistency": "low",
-    "latest_window_direction": "positive",
-    "longer_window_confirmation": "conflicting",
-    "outlier_dependency": "high"
+    "consistency": "unknown",
+    "latest_window_direction": "flat",
+    "longer_window_confirmation": "confirming",
+    "outlier_dependency": "unknown"
   },
   "revival_pressure": {
     "chains": [
@@ -3279,7 +3279,7 @@
   },
   "source_quality": {
     "lane_data_status": "available",
-    "status": "stale"
+    "status": "degraded"
   },
   "token_snapshot_spine": {
     "cap_band_rollup": {
@@ -3767,9 +3767,7 @@
     "window": "6h"
   },
   "warnings": [
-    "confirmation_incomplete",
-    "longer_windows_disagree",
-    "positive_24h_outlier_driven",
-    "source_sample_insufficient"
+    "source_sample_insufficient",
+    "source_sample_or_freshness_limited"
   ]
 }

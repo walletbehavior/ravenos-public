@@ -1,16 +1,34 @@
 {
   "advisories": [
     {
+      "advisory_id": "all_recent_6h_unstable_conditions",
+      "chain": "all",
+      "plain_warning": "Conditions are changing quickly",
+      "risk_flags": [
+        "unstable_conditions"
+      ],
+      "risk_level": "moderate",
+      "scope": "recent",
+      "search_terms": [
+        "risky",
+        "unstable",
+        "low confidence",
+        "thin",
+        "unstable_conditions",
+        "moderate"
+      ],
+      "what_would_improve": "Conditions need to stabilize across refreshes.",
+      "why_it_matters": "Frequent changes make the current read harder to rely on.",
+      "window": "6h"
+    },
+    {
       "advisory_id": "base_all_6h_thin_sample",
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "all",
       "search_terms": [
         "risky",
@@ -18,7 +36,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -29,13 +47,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
-        "thin_sample",
-        "unstable_conditions"
+        "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "condition",
       "search_terms": [
         "risky",
@@ -43,7 +57,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -54,12 +68,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "fresh_pairs",
       "search_terms": [
         "risky",
@@ -67,7 +78,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -78,12 +89,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "high_caps",
       "search_terms": [
         "risky",
@@ -91,7 +99,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -102,12 +110,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "majors",
       "search_terms": [
         "risky",
@@ -115,7 +120,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -126,12 +131,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "micro_caps",
       "search_terms": [
         "risky",
@@ -139,7 +141,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -150,12 +152,9 @@
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "mid_caps",
       "search_terms": [
         "risky",
@@ -163,7 +162,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -174,12 +173,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "all",
       "search_terms": [
         "risky",
@@ -187,7 +183,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -198,13 +194,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
-        "thin_sample",
-        "unstable_conditions"
+        "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "condition",
       "search_terms": [
         "risky",
@@ -212,7 +204,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -223,12 +215,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "fresh_pairs",
       "search_terms": [
         "risky",
@@ -236,7 +225,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -247,12 +236,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "majors",
       "search_terms": [
         "risky",
@@ -260,7 +246,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -271,12 +257,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "micro_caps",
       "search_terms": [
         "risky",
@@ -284,7 +267,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -295,12 +278,9 @@
       "chain": "eth",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "mid_caps",
       "search_terms": [
         "risky",
@@ -308,7 +288,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -319,13 +299,10 @@
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "stale_data",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "all",
       "search_terms": [
         "risky",
@@ -333,7 +310,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -344,14 +321,10 @@
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "stale_data",
-        "thin_sample",
-        "unstable_conditions"
+        "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "condition",
       "search_terms": [
         "risky",
@@ -359,7 +332,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -370,13 +343,10 @@
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "stale_data",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "fresh_pairs",
       "search_terms": [
         "risky",
@@ -384,7 +354,7 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
@@ -395,13 +365,10 @@
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
       "risk_flags": [
-        "conflicting_timeframes",
-        "high_outlier_dependency",
-        "low_confirmation",
         "stale_data",
         "thin_sample"
       ],
-      "risk_level": "high",
+      "risk_level": "moderate",
       "scope": "micro_caps",
       "search_terms": [
         "risky",
@@ -409,22 +376,19 @@
         "low confidence",
         "thin",
         "thin_sample",
-        "high"
+        "moderate"
       ],
       "what_would_improve": "More public states need to move into the clean sample.",
       "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-20T03:24:57Z",
-  "risk_level": "high",
+  "generated_at": "2026-05-20T03:39:57Z",
+  "risk_level": "moderate",
   "schema_version": "ravenos_risk_advisory_v0",
   "top_flags": {
-    "conflicting_timeframes": 17,
-    "high_outlier_dependency": 17,
-    "low_confirmation": 17,
     "stale_data": 4,
     "thin_sample": 17,
-    "unstable_conditions": 3
+    "unstable_conditions": 1
   }
 }

@@ -8,25 +8,20 @@
       "outcome_state": "negative",
       "participation_state": "fading",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_building",
         "fresh_pair_age_unavailable",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "public_sample_is_still_building",
         "source_freshness_is_limited",
         "source_freshness_limited",
-        "thin_sample",
-        "window_disagreement"
+        "source_sample_or_freshness_limited",
+        "thin_sample"
       ],
       "source_freshness": "stale",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "Solana market condition is fading with building data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "Stale source coverage would keep the condition unreliable.",
@@ -42,24 +37,19 @@
       "participation_state": "fading",
       "risk_flags": [
         "clean_sample_is_thin",
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_thin",
         "fresh_pair_age_unavailable",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "source_freshness_is_limited",
         "source_freshness_limited",
-        "thin_sample",
-        "window_disagreement"
+        "source_sample_or_freshness_limited",
+        "thin_sample"
       ],
       "source_freshness": "stale",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "Solana market condition is fading with thin data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "Stale source coverage would keep the condition unreliable.",
@@ -75,24 +65,19 @@
       "participation_state": "fading",
       "risk_flags": [
         "clean_sample_is_thin",
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_thin",
         "fresh_pair_age_unavailable",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "source_freshness_is_limited",
         "source_freshness_limited",
-        "thin_sample",
-        "window_disagreement"
+        "source_sample_or_freshness_limited",
+        "thin_sample"
       ],
       "source_freshness": "stale",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "Solana market condition is fading with thin data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "Stale source coverage would keep the condition unreliable.",
@@ -107,27 +92,21 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_building",
-        "longer_windows_disagree",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
         "public_sample_is_still_building",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "ETH is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "ETH is active, but participant outcome is not clear yet.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -142,28 +121,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "ETH is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "ETH participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -179,22 +152,16 @@
       "participation_state": "fading",
       "risk_flags": [
         "clean_sample_is_thin",
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_thin",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient",
-        "thin_sample",
-        "window_disagreement"
+        "thin_sample"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "ETH market condition is fading with thin data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -210,22 +177,16 @@
       "participation_state": "fading",
       "risk_flags": [
         "clean_sample_is_thin",
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_thin",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient",
-        "thin_sample",
-        "window_disagreement"
+        "thin_sample"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "ETH market condition is fading with thin data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -241,22 +202,16 @@
       "participation_state": "fading",
       "risk_flags": [
         "clean_sample_is_thin",
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_thin",
-        "longer_windows_disagree",
-        "outlier_dependency",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient",
-        "thin_sample",
-        "window_disagreement"
+        "thin_sample"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
+      "stability_state": "unstable",
       "summary": "ETH market condition is fading with thin data quality.",
       "tags": [
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -271,27 +226,21 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_building",
-        "longer_windows_disagree",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
         "public_sample_is_still_building",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base is active, but participant outcome is not clear yet.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -306,28 +255,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -342,28 +285,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -378,28 +315,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -414,28 +345,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -450,28 +375,22 @@
       "outcome_state": "unclear",
       "participation_state": "expanding",
       "risk_flags": [
-        "confirmation_incomplete",
-        "confirmation_is_incomplete",
-        "current_read_leans_on_an_outlier-prone_24h_signal",
         "data_quality",
         "data_quality_is_observed_only",
-        "longer_windows_disagree",
         "observed_public_sample_only",
-        "outlier_dependency",
         "participant_outcome_is_unknown",
         "participant_outcome_remains_unknown",
-        "positive_24h_outlier_driven",
+        "source_sample_insufficient",
         "thin_sample",
-        "unknown_outcome",
-        "window_disagreement"
+        "unknown_outcome"
       ],
       "source_freshness": "fresh",
-      "stability_state": "fragile",
-      "summary": "Base is expanding, but confirmation is still fragile.",
+      "stability_state": "unstable",
+      "summary": "Base participation is improving, but the clean public sample is still thin.",
       "tags": [
-        "fragile_expansion",
         "broad_but_unconfirmed",
         "thin_but_improving",
+        "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
@@ -480,6 +399,6 @@
     }
   ],
   "count": 14,
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "schema_version": "condition_search_v0"
 }

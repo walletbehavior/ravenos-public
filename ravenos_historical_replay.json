@@ -124,12 +124,12 @@
         "cap band matches",
         "window matches",
         "condition matches",
-        "participant outcome matches",
-        "risk level matches"
+        "data quality matches",
+        "participant outcome matches"
       ],
       "matched_state_id": "eth_all_current",
-      "matched_window_start": "2026-05-04T14:37:44Z",
-      "public_read": "Older public snapshot from 2026-05-04T14:37:44Z remains the closest comparable for Eth all 6h.",
+      "matched_window_start": "2026-05-08T01:10:15Z",
+      "public_read": "Older public snapshot from 2026-05-08T01:10:15Z remains the closest comparable for Eth all 6h.",
       "similarity_score": 1.0,
       "window": "6h"
     },
@@ -267,11 +267,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "metadata": {
-    "archive_record_count": 1505,
+    "archive_record_count": 1506,
     "current_state_count": 14,
-    "eligible_comparable_record_count": 1481,
+    "eligible_comparable_record_count": 1482,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },

@@ -28,7 +28,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -60,10 +60,8 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
-          "fresh pair age unavailable"
+          "fresh pair age unavailable",
+          "source sample or freshness limited"
         ],
         "level": "moderate"
       },
@@ -75,9 +73,6 @@
       "unresolved_sample_size": 1803,
       "usable_signal_rate": 0.6987,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -113,9 +108,8 @@
       "risk": {
         "drivers": [
           "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
+          "fresh pair age unavailable",
+          "source sample or freshness limited"
         ],
         "level": "high"
       },
@@ -127,9 +121,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -165,9 +156,8 @@
       "risk": {
         "drivers": [
           "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
+          "fresh pair age unavailable",
+          "source sample or freshness limited"
         ],
         "level": "high"
       },
@@ -179,9 +169,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -216,9 +203,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -231,9 +215,6 @@
       "unresolved_sample_size": 476,
       "usable_signal_rate": 0.5585,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -267,9 +248,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -282,9 +260,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -319,9 +294,7 @@
       "risk": {
         "drivers": [
           "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
+          "thin public sample"
         ],
         "level": "high"
       },
@@ -333,9 +306,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -370,9 +340,7 @@
       "risk": {
         "drivers": [
           "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
+          "thin public sample"
         ],
         "level": "high"
       },
@@ -384,9 +352,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -421,9 +386,7 @@
       "risk": {
         "drivers": [
           "punishing participant outcome",
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk"
+          "thin public sample"
         ],
         "level": "high"
       },
@@ -435,9 +398,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -471,9 +431,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -486,9 +443,6 @@
       "unresolved_sample_size": 2466,
       "usable_signal_rate": 0.3971,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -522,9 +476,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -537,9 +488,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -573,9 +521,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -588,9 +533,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -624,9 +566,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -639,9 +578,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -675,9 +611,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -690,9 +623,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -726,9 +656,6 @@
       },
       "risk": {
         "drivers": [
-          "confirmation incomplete",
-          "confirmation still developing",
-          "concentration risk",
           "thin public sample"
         ],
         "level": "moderate"
@@ -741,9 +668,6 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"

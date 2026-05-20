@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -36,9 +36,6 @@
       "public_read": "Solana all 6h is punishing in the current public sample.",
       "state_id": "solana_all_current",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -57,9 +54,6 @@
       "public_read": "Solana fresh pairs 6h is punishing in the current public sample.",
       "state_id": "solana_fresh_pairs_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -78,9 +72,6 @@
       "public_read": "Solana micro caps 6h is punishing in the current public sample.",
       "state_id": "solana_micro_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"
       ],
@@ -99,9 +90,6 @@
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
       "state_id": "eth_all_current",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -119,9 +107,6 @@
       "public_read": "ETH fresh pairs 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "eth_fresh_pairs_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -139,9 +124,6 @@
       "public_read": "ETH micro caps 6h is punishing in the current public sample.",
       "state_id": "eth_micro_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -159,9 +141,6 @@
       "public_read": "ETH mid caps 6h is punishing in the current public sample.",
       "state_id": "eth_mid_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -179,9 +158,6 @@
       "public_read": "ETH majors 6h is punishing in the current public sample.",
       "state_id": "eth_majors_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -199,9 +175,6 @@
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
       "state_id": "base_all_current",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -219,9 +192,6 @@
       "public_read": "Base fresh pairs 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_fresh_pairs_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -239,9 +209,6 @@
       "public_read": "Base micro caps 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_micro_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -259,9 +226,6 @@
       "public_read": "Base mid caps 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_mid_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -279,9 +243,6 @@
       "public_read": "Base high caps 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_high_caps_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"
@@ -299,9 +260,6 @@
       "public_read": "Base majors 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "base_majors_6h",
       "warnings": [
-        "confirmation_incomplete",
-        "longer_windows_disagree",
-        "positive_24h_outlier_driven",
         "source_sample_insufficient"
       ],
       "window": "6h"

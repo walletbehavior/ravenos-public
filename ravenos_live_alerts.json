@@ -1,5 +1,5 @@
 {
-  "active_alert_count": 6,
+  "active_alert_count": 7,
   "alerts": [
     {
       "alert_id": "alert_broad_but_unconfirmed_eth",
@@ -14,16 +14,28 @@
       "why_it_matters": "A broad read matters more when it persists and aligns with broader windows."
     },
     {
-      "alert_id": "alert_fragile_expansion_eth",
-      "chain": "eth",
-      "condition_family": "fragile_expansion",
-      "confidence_label": "high",
+      "alert_id": "alert_mixed_signal_environment_solana",
+      "chain": "solana",
+      "condition_family": "mixed_signal_environment",
+      "confidence_label": "medium",
       "last_transition_type": "new",
       "preview_tier": "public",
-      "summary": "Participation is becoming fragile",
+      "summary": "Market signals are mixed",
       "trigger_count": 1,
       "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
-      "why_it_matters": "Participation can look constructive while still failing to hold across refreshes."
+      "why_it_matters": "Mixed signals reduce confidence in any single market interpretation."
+    },
+    {
+      "alert_id": "alert_mixed_signal_environment_eth",
+      "chain": "eth",
+      "condition_family": "mixed_signal_environment",
+      "confidence_label": "medium",
+      "last_transition_type": "new",
+      "preview_tier": "public",
+      "summary": "Market signals are mixed",
+      "trigger_count": 1,
+      "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
+      "why_it_matters": "Mixed signals reduce confidence in any single market interpretation."
     },
     {
       "alert_id": "alert_high_risk_low_clarity_solana",
@@ -38,6 +50,18 @@
       "why_it_matters": "Low clarity can make a public market read less reliable."
     },
     {
+      "alert_id": "alert_mixed_signal_environment_base",
+      "chain": "base",
+      "condition_family": "mixed_signal_environment",
+      "confidence_label": "medium",
+      "last_transition_type": "new",
+      "preview_tier": "public",
+      "summary": "Market signals are mixed",
+      "trigger_count": 1,
+      "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
+      "why_it_matters": "Mixed signals reduce confidence in any single market interpretation."
+    },
+    {
       "alert_id": "alert_broad_but_unconfirmed_base",
       "chain": "base",
       "condition_family": "broad_but_unconfirmed",
@@ -48,18 +72,6 @@
       "trigger_count": 1,
       "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
       "why_it_matters": "A broad read matters more when it persists and aligns with broader windows."
-    },
-    {
-      "alert_id": "alert_fragile_expansion_base",
-      "chain": "base",
-      "condition_family": "fragile_expansion",
-      "confidence_label": "medium",
-      "last_transition_type": "new",
-      "preview_tier": "public",
-      "summary": "Participation is becoming fragile",
-      "trigger_count": 1,
-      "what_to_watch": "The same read needs to persist across refreshes and align with broader windows.",
-      "why_it_matters": "Participation can look constructive while still failing to hold across refreshes."
     },
     {
       "alert_id": "alert_high_risk_low_clarity_base",
@@ -74,6 +86,6 @@
       "why_it_matters": "Low clarity can make a public market read less reliable."
     }
   ],
-  "generated_at": "2026-05-20T03:24:45Z",
+  "generated_at": "2026-05-20T03:39:45Z",
   "schema_version": "ravenos_live_alerts_v0"
 }
