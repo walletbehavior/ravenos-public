@@ -1,27 +1,6 @@
 {
   "advisories": [
     {
-      "advisory_id": "all_recent_6h_unstable_conditions",
-      "chain": "all",
-      "plain_warning": "Conditions are changing quickly",
-      "risk_flags": [
-        "unstable_conditions"
-      ],
-      "risk_level": "moderate",
-      "scope": "recent",
-      "search_terms": [
-        "risky",
-        "unstable",
-        "low confidence",
-        "thin",
-        "unstable_conditions",
-        "moderate"
-      ],
-      "what_would_improve": "Conditions need to stabilize across refreshes.",
-      "why_it_matters": "Frequent changes make the current read harder to rely on.",
-      "window": "6h"
-    },
-    {
       "advisory_id": "base_all_6h_thin_sample",
       "chain": "base",
       "plain_warning": "Not enough clean data yet",
@@ -383,12 +362,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-20T03:39:57Z",
+  "generated_at": "2026-05-20T03:55:28Z",
   "risk_level": "moderate",
   "schema_version": "ravenos_risk_advisory_v0",
   "top_flags": {
     "stale_data": 4,
-    "thin_sample": 17,
-    "unstable_conditions": 1
+    "thin_sample": 17
   }
 }
