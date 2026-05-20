@@ -26,14 +26,14 @@
   "dominant_condition_family": "thin_sample",
   "frequent_condition_families": {
     "broad_but_unconfirmed": 392,
-    "confirmation_incomplete": 350,
+    "confirmation_incomplete": 336,
     "high_risk_low_clarity": 14,
-    "mixed_signal_environment": 364,
-    "outlier_risk": 350,
+    "mixed_signal_environment": 350,
+    "outlier_risk": 336,
     "thin_but_improving": 6,
     "thin_sample": 672
   },
-  "generated_at": "2026-05-20T09:18:57Z",
+  "generated_at": "2026-05-20T09:33:56Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -66,20 +66,20 @@
       "recent_context": "This condition has appeared 392 times in the recent public window."
     },
     "confirmation_incomplete": {
-      "appearance_count": 350,
-      "recent_context": "This condition has appeared 350 times in the recent public window."
+      "appearance_count": 336,
+      "recent_context": "This condition has appeared 336 times in the recent public window."
     },
     "high_risk_low_clarity": {
       "appearance_count": 14,
       "recent_context": "This condition has appeared 14 times in the recent public window."
     },
     "mixed_signal_environment": {
-      "appearance_count": 364,
-      "recent_context": "This condition has appeared 364 times in the recent public window."
-    },
-    "outlier_risk": {
       "appearance_count": 350,
       "recent_context": "This condition has appeared 350 times in the recent public window."
+    },
+    "outlier_risk": {
+      "appearance_count": 336,
+      "recent_context": "This condition has appeared 336 times in the recent public window."
     },
     "thin_but_improving": {
       "appearance_count": 6,
