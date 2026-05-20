@@ -8,351 +8,396 @@
     :root {
       color-scheme: dark;
       --bg: #080b0d;
-      --panel: #12171b;
-      --panel-2: #171d22;
-      --text: #f3f0e8;
-      --muted: #a8b0b6;
-      --line: rgba(243, 240, 232, 0.12);
-      --good: #89c77f;
-      --warn: #d8b45f;
-      --bad: #df7d72;
-      --accent: #74d6bf;
+      --ink: #f4efe6;
+      --muted: #aab1b4;
+      --soft: #737d83;
+      --line: rgba(244, 239, 230, 0.13);
+      --line-strong: rgba(244, 239, 230, 0.22);
+      --panel: rgba(17, 22, 24, 0.9);
+      --panel-2: rgba(23, 29, 31, 0.86);
+      --good: #91c979;
+      --warn: #d7b462;
+      --bad: #e08373;
+      --blue: #7ec7d6;
+      --accent: #69d3b7;
     }
-
-    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       font-family: "IBM Plex Sans", "Aptos", "Neue Haas Grotesk Text", ui-sans-serif, system-ui, sans-serif;
+      color: var(--ink);
       background:
-        radial-gradient(circle at 14% 0%, rgba(116, 214, 191, 0.14), transparent 28rem),
-        radial-gradient(circle at 82% 10%, rgba(216, 180, 95, 0.08), transparent 26rem),
-        linear-gradient(180deg, #0a0d10 0%, var(--bg) 48%, #060809 100%);
-      color: var(--text);
+        radial-gradient(circle at 16% -6%, rgba(105, 211, 183, 0.18), transparent 28rem),
+        radial-gradient(circle at 86% 6%, rgba(215, 180, 98, 0.11), transparent 24rem),
+        linear-gradient(180deg, #0a0d0e 0%, var(--bg) 58%, #060808 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(244, 239, 230, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244, 239, 230, 0.026) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 72%);
     }
 
     main {
-      width: min(1120px, calc(100% - 32px));
+      width: min(1040px, calc(100% - 34px));
       margin: 0 auto;
-      padding: 30px 0 54px;
+      padding: 28px 0 56px;
     }
 
     h1, h2, h3, p { margin: 0; }
 
     header {
       display: grid;
-      gap: 16px;
-      padding-bottom: 24px;
+      gap: 22px;
+      padding: 0 0 28px;
       border-bottom: 1px solid var(--line);
     }
 
-    .topline {
+    .topbar {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: 16px;
     }
 
-    .wordmark {
+    .mark {
       display: inline-flex;
       align-items: baseline;
-      font-size: clamp(2.55rem, 7vw, 5rem);
-      line-height: 0.92;
-      font-weight: 760;
-      letter-spacing: -0.06em;
+      font-size: clamp(2.35rem, 8vw, 5rem);
+      font-weight: 790;
+      letter-spacing: -0.07em;
+      line-height: 0.9;
       white-space: nowrap;
     }
 
-    .wordmark span:last-child {
-      color: #8f6cff;
+    .mark span:last-child {
+      color: var(--accent);
       margin-left: 0.035em;
-      font-weight: 690;
+      font-weight: 720;
     }
 
     .stamp {
-      color: var(--muted);
       border: 1px solid var(--line);
       border-radius: 999px;
       padding: 7px 10px;
+      color: var(--muted);
       font-size: 12px;
       white-space: nowrap;
-      background: rgba(18, 23, 27, 0.72);
+      background: rgba(8, 11, 13, 0.58);
     }
 
-    .intro {
-      max-width: 860px;
+    .hero-line {
+      max-width: 880px;
+      font-size: clamp(2.45rem, 7.3vw, 6.8rem);
+      line-height: 0.93;
+      letter-spacing: -0.071em;
+      font-weight: 790;
+    }
+
+    .hero-sub {
+      max-width: 760px;
       color: var(--muted);
-      font-size: clamp(16px, 2vw, 20px);
-      line-height: 1.48;
+      font-size: clamp(16px, 2.1vw, 21px);
+      line-height: 1.5;
     }
 
-    .intro strong {
-      color: var(--text);
-      font-weight: 680;
-    }
-
-    .grid {
+    .layout {
       display: grid;
-      gap: 14px;
+      gap: 18px;
+      margin-top: 22px;
     }
 
-    .hero {
-      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
-      margin-top: 24px;
-    }
-
-    .section-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .two-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .panel,
-    .card {
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(23, 29, 34, 0.98), rgba(13, 17, 20, 0.98));
-      border-radius: 16px;
-      padding: 18px;
-    }
-
-    .panel.hero-read {
-      padding: 24px;
+    .note {
+      border: 1px solid var(--line-strong);
+      border-radius: 22px;
+      background:
+        linear-gradient(135deg, rgba(105, 211, 183, 0.075), transparent 42%),
+        linear-gradient(180deg, rgba(23, 29, 31, 0.96), rgba(11, 14, 15, 0.96));
+      padding: clamp(18px, 3.5vw, 30px);
     }
 
     .eyebrow {
-      color: var(--muted);
-      font-size: 12px;
+      color: var(--soft);
+      font-size: 11px;
       line-height: 1.2;
+      letter-spacing: 0.115em;
+      text-transform: uppercase;
+    }
+
+    .read-title {
+      margin-top: 10px;
+      max-width: 820px;
+      font-size: clamp(1.85rem, 5vw, 4.3rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+      font-weight: 770;
+    }
+
+    .read-copy {
+      max-width: 760px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.62;
+    }
+
+    .read-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .read-cell {
+      min-height: 104px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 13px;
+      background: rgba(8, 11, 13, 0.52);
+    }
+
+    .read-cell strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 16px;
+      line-height: 1.28;
+      color: var(--ink);
+    }
+
+    .section {
+      padding-top: 20px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 10px;
+    }
+
+    .section-head h2 {
+      font-size: clamp(1.35rem, 3vw, 2.05rem);
+      line-height: 1;
+      letter-spacing: -0.043em;
+    }
+
+    .section-head p {
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.48;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .chain-row,
+    .plain-row {
+      display: grid;
+      grid-template-columns: 0.62fr 0.85fr 0.85fr 0.9fr 1.35fr;
+      gap: 14px;
+      align-items: center;
+      padding: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .chain-row:first-child,
+    .plain-row:first-child {
+      border-top: 0;
+    }
+
+    .chain-name {
+      font-size: 18px;
+      font-weight: 730;
+      letter-spacing: -0.02em;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--soft);
+      font-size: 11px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    .primary-read {
-      margin-top: 10px;
-      font-size: clamp(2.2rem, 5.6vw, 4.7rem);
-      line-height: 0.98;
-      letter-spacing: -0.055em;
-      font-weight: 760;
-    }
-
-    .support {
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.58;
-    }
-
-    .metrics {
-      align-content: stretch;
-    }
-
-    .metric {
-      border: 1px solid var(--line);
-      border-radius: 13px;
-      background: rgba(8, 11, 13, 0.62);
-      padding: 14px;
-    }
-
-    .metric strong {
-      display: block;
-      margin-top: 6px;
-      font-size: 18px;
-      line-height: 1.25;
-    }
-
-    .section-head {
-      margin: 30px 0 12px;
-      display: grid;
-      gap: 6px;
-      max-width: 820px;
-    }
-
-    .section-head h2 {
-      font-size: clamp(1.55rem, 3vw, 2.15rem);
-      letter-spacing: -0.035em;
-      line-height: 1.05;
-    }
-
-    .section-head p {
-      color: var(--muted);
+    .value {
+      color: var(--ink);
       font-size: 14px;
-      line-height: 1.52;
+      line-height: 1.35;
     }
 
-    .card h3 {
-      font-size: 18px;
-      line-height: 1.2;
-      letter-spacing: -0.02em;
-      margin-top: 8px;
-    }
-
-    .card p {
+    .reason {
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-      margin-top: 9px;
+      font-size: 13px;
+      line-height: 1.45;
     }
 
-    .state {
+    .pill {
       display: inline-flex;
       width: fit-content;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 5px 9px;
-      color: var(--muted);
+      padding: 5px 8px;
+      color: var(--warn);
       font-size: 12px;
       line-height: 1.2;
+      background: rgba(8, 11, 13, 0.4);
     }
 
-    .state.good { color: var(--good); border-color: rgba(137, 199, 127, 0.46); }
-    .state.warn { color: var(--warn); border-color: rgba(216, 180, 95, 0.48); }
-    .state.bad { color: var(--bad); border-color: rgba(223, 125, 114, 0.5); }
+    .pill.good { color: var(--good); border-color: rgba(145, 201, 121, 0.45); }
+    .pill.bad { color: var(--bad); border-color: rgba(224, 131, 115, 0.46); }
+    .pill.blue { color: var(--blue); border-color: rgba(126, 199, 214, 0.42); }
 
-    .details {
+    .split {
       display: grid;
-      gap: 8px;
-      margin-top: 14px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
     }
 
-    .detail {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      border-top: 1px solid var(--line);
-      padding-top: 8px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    .detail strong {
-      color: var(--text);
-      text-align: right;
-      overflow-wrap: anywhere;
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .chip {
+    .block {
       border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 7px 10px;
+      border-radius: 18px;
+      background: var(--panel-2);
+      padding: 17px;
+    }
+
+    .block h3 {
+      margin-top: 8px;
+      font-size: 22px;
+      line-height: 1.08;
+      letter-spacing: -0.038em;
+    }
+
+    .block p {
+      margin-top: 9px;
       color: var(--muted);
-      background: rgba(8, 11, 13, 0.58);
-      font-size: 12px;
-      line-height: 1.2;
+      font-size: 14px;
+      line-height: 1.54;
     }
 
-    .chip strong { color: var(--text); }
-
-    .why-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .compact-list {
+    .line-list {
       display: grid;
       gap: 9px;
       margin-top: 14px;
     }
 
-    .compact-row {
-      display: grid;
-      grid-template-columns: 0.62fr 1fr;
-      gap: 10px;
-      align-items: start;
+    .line-item {
       border-top: 1px solid var(--line);
       padding-top: 9px;
       color: var(--muted);
       font-size: 13px;
-      line-height: 1.42;
+      line-height: 1.45;
     }
 
-    .compact-row strong {
-      color: var(--text);
-      font-weight: 650;
-    }
-
-    .why-row {
-      border-top: 1px solid var(--line);
-      padding-top: 10px;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .why-row strong {
-      color: var(--text);
+    .line-item strong {
       display: block;
       margin-bottom: 3px;
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .caveat-grid,
+    .pro-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .pro-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(17, 22, 24, 0.72);
+      padding: 14px;
+      min-height: 132px;
+    }
+
+    .mini h3 {
+      margin-top: 9px;
+      font-size: 17px;
+      line-height: 1.12;
+      letter-spacing: -0.025em;
+    }
+
+    .mini p {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.46;
     }
 
     .cta {
-      color: var(--text);
-      text-decoration: none;
-      border: 1px solid rgba(116, 214, 191, 0.48);
-      border-radius: 8px;
-      padding: 9px 11px;
-      width: fit-content;
       display: inline-flex;
-      margin-top: 14px;
+      width: fit-content;
+      margin-top: 13px;
+      border: 1px solid rgba(105, 211, 183, 0.5);
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: var(--ink);
+      background: rgba(105, 211, 183, 0.08);
+      text-decoration: none;
       font-size: 13px;
-      background: rgba(116, 214, 191, 0.08);
     }
 
     footer {
-      margin-top: 32px;
+      margin-top: 28px;
       padding-top: 18px;
       border-top: 1px solid var(--line);
-      color: var(--muted);
+      color: var(--soft);
       font-size: 12px;
       line-height: 1.5;
     }
 
-    @media (max-width: 820px) {
+    @media (max-width: 900px) {
       main {
-        width: min(100% - 24px, 700px);
+        width: min(100% - 24px, 720px);
         padding-top: 22px;
       }
 
-      .topline {
+      .topbar,
+      .section-head {
         display: grid;
+        align-items: start;
       }
 
       .stamp {
         white-space: normal;
       }
 
-      .hero,
-      .section-grid,
-      .two-grid {
+      .hero-line {
+        font-size: clamp(2.35rem, 12vw, 4.7rem);
+      }
+
+      .read-grid,
+      .split,
+      .caveat-grid,
+      .pro-grid {
         grid-template-columns: 1fr;
       }
 
-      .primary-read {
-        font-size: 2.25rem;
-      }
-
-      .detail {
-        display: grid;
-        gap: 4px;
-      }
-
-      .detail strong {
-        text-align: left;
-      }
-
-      .compact-row {
+      .chain-row,
+      .plain-row {
         grid-template-columns: 1fr;
-        gap: 3px;
+        gap: 10px;
+      }
+
+      .read-cell {
+        min-height: auto;
       }
     }
   </style>
@@ -360,92 +405,99 @@
 <body>
   <main>
     <header>
-      <div class="topline">
-        <h1 class="wordmark" aria-label="RavenOS"><span>Raven</span><span>OS</span></h1>
-        <p class="stamp" id="generatedAt">updating market read</p>
+      <div class="topbar">
+        <h1 class="mark" aria-label="RavenOS"><span>Raven</span><span>OS</span></h1>
+        <p class="stamp" id="generatedAt">refreshing public read</p>
       </div>
-      <div class="intro">
-        <p><strong>RavenOS shows whether crypto participation is being paid, punished, or still too unreliable to trust.</strong></p>
-      </div>
+      <p class="hero-line">RavenOS reads whether crypto participation is being paid or punished.</p>
+      <p class="hero-sub" id="deskLine">Latest read is refreshing. Last stable read watched broad participation, uneven followthrough, and confirmation developing.</p>
     </header>
 
-    <section class="grid hero" aria-label="current market read">
-      <article class="panel hero-read">
-        <p class="eyebrow">current market read</p>
-        <h2 class="primary-read" id="primaryRead">Latest read is refreshing.</h2>
-        <p class="support" id="secondaryRead">Last stable read watched broad participation, uneven followthrough, and confirmation still developing.</p>
-        <div class="chips" id="heroChips"></div>
+    <section class="layout" aria-label="current public read">
+      <article class="note">
+        <p class="eyebrow">current read</p>
+        <h2 class="read-title" id="primaryRead">Latest read is refreshing.</h2>
+        <p class="read-copy" id="secondaryRead">RavenOS watches payoff, chain split, fresh-pair survival, pressure, and reliability across the public aggregate sample.</p>
+        <div class="read-grid" aria-label="current read details">
+          <div class="read-cell">
+            <span class="label">market condition</span>
+            <strong id="conditionRead">refreshing</strong>
+          </div>
+          <div class="read-cell">
+            <span class="label">chain split</span>
+            <strong id="splitRead">Solana / ETH / Base</strong>
+          </div>
+          <div class="read-cell">
+            <span class="label">confirms if</span>
+            <strong id="confirmRead">the same read holds next refresh</strong>
+          </div>
+          <div class="read-cell">
+            <span class="label">weakens if</span>
+            <strong id="weakenRead">activity fades or chains disagree</strong>
+          </div>
+        </div>
       </article>
-      <aside class="grid metrics" aria-label="market summary">
-        <div class="metric">
-          <p class="eyebrow">where</p>
-          <strong id="whereRead">Cross-chain</strong>
-        </div>
-        <div class="metric">
-          <p class="eyebrow">payoff</p>
-          <strong id="payoffRead">Still forming</strong>
-        </div>
-        <div class="metric">
-          <p class="eyebrow">confirmation</p>
-          <strong id="confirmRead">Needs another clean refresh</strong>
-        </div>
-      </aside>
     </section>
 
-    <section>
+    <section class="section">
       <div class="section-head">
         <h2>Paying vs Punishing</h2>
-        <p>Solana, ETH, and Base summarized by condition, payoff, confirmation, and the plain-language reason.</p>
+        <p>Three rows, same question: is participation getting paid, punished, or still not clean enough?</p>
       </div>
-      <div class="grid section-grid" id="chainCards"></div>
+      <div class="panel" id="chainRows"></div>
     </section>
 
-    <section>
-      <div class="section-head">
-        <h2>Fresh Pair Survival</h2>
-        <p>Whether new-launch activity is active, fading, surviving, or still too early to confirm.</p>
+    <section class="section">
+      <div class="split">
+        <article class="block" id="freshBlock">
+          <p class="eyebrow">fresh pair survival</p>
+          <h3>Are fresh launches surviving past first impulse?</h3>
+          <p id="freshSummary">Fresh-pair activity is refreshing. The public read waits for survival beyond the first move.</p>
+          <div class="line-list" id="freshLines"></div>
+        </article>
+
+        <article class="block" id="perpBlock">
+          <p class="eyebrow">perp pressure</p>
+          <h3>Is pressure directional, crowded, or just chop?</h3>
+          <p id="perpSummary">Perp pressure is refreshing. The public read focuses on crowding, chop, and directional reliability.</p>
+          <div class="line-list" id="perpLines"></div>
+        </article>
       </div>
-      <div class="grid section-grid" id="freshCards"></div>
     </section>
 
-    <section>
-      <div class="section-head">
-        <h2>Perp Pressure</h2>
-        <p>Public read on crowding, chop, confirmation, and directional reliability. No levels or single-market calls.</p>
-      </div>
-      <div class="grid two-grid" id="perpCards"></div>
-    </section>
-
-    <section>
+    <section class="section">
       <div class="section-head">
         <h2>Why This Read Might Be Wrong</h2>
-        <p>Specific caveats that can break the current market read.</p>
+        <p>The read is useful only if these failure points stay contained.</p>
       </div>
-      <article class="panel">
-        <div class="why-list" id="caveats"></div>
-      </article>
+      <div class="caveat-grid" id="caveats"></div>
     </section>
 
-    <section>
+    <section class="section">
       <div class="section-head">
-        <h2>Pro / Desk Preview</h2>
-        <p>Public shows the headline condition. Deeper workflows add search, alerts, replay, segment depth, and desk context.</p>
+        <h2>Pro / Desk</h2>
+        <p>The free page gives the public tape read. Deeper workflows are built for searching, alerting, replay, and segment depth.</p>
       </div>
-      <div class="grid section-grid">
-        <article class="card">
-          <span class="state">Pro</span>
+      <div class="pro-grid">
+        <article class="mini">
+          <span class="pill blue">Pro</span>
           <h3>Search conditions</h3>
-          <p>Find where participation is improving, failing, or not yet confirmed across chain and segment views.</p>
+          <p>Find where participation is improving, failing, rotating, or not yet confirmed.</p>
         </article>
-        <article class="card">
-          <span class="state">Pro</span>
+        <article class="mini">
+          <span class="pill blue">Pro</span>
           <h3>Saved alerts</h3>
-          <p>Track when a condition strengthens, weakens, resolves, or becomes too noisy to rely on.</p>
+          <p>Track when a market condition strengthens, weakens, resolves, or turns too noisy.</p>
         </article>
-        <article class="card">
-          <span class="state">Desk</span>
-          <h3>Replay and desk context</h3>
-          <p>Compare current structure against prior windows and inspect deeper segment participation.</p>
+        <article class="mini">
+          <span class="pill blue">Desk</span>
+          <h3>Replay</h3>
+          <p>Compare the current tape with prior windows instead of reading one refresh in isolation.</p>
+        </article>
+        <article class="mini">
+          <span class="pill blue">Desk</span>
+          <h3>Segment depth</h3>
+          <p>Go deeper than the free headline read when chain or segment behavior splits.</p>
         </article>
       </div>
       <a class="cta" href="mailto:hello@ravenos.xyz?subject=Request%20RavenOS%20Access">Request Access</a>
@@ -464,7 +516,7 @@
       "/public/ravenos_latest.json",
     ];
 
-    const CHAINS = ["solana", "base", "eth"];
+    const CHAINS = ["solana", "eth", "base"];
 
     function isObject(value) {
       return value && typeof value === "object" && !Array.isArray(value);
@@ -495,7 +547,7 @@
       return `${n.toFixed(n >= 10 ? 0 : 1)}%`;
     }
 
-    function sampleAgeMinutes(snapshot) {
+    function ageMinutes(snapshot) {
       const generated = cleanText(snapshot.generated_at, "");
       if (!generated) return null;
       const ts = Date.parse(generated);
@@ -503,16 +555,17 @@
       return Math.max(0, Math.round((Date.now() - ts) / 60000));
     }
 
-    function isStale(snapshot) {
-      const mins = sampleAgeMinutes(snapshot);
+    function stale(snapshot) {
+      const mins = ageMinutes(snapshot);
       return mins !== null && mins > 45;
     }
 
-    function stateClass(value) {
+    function badgeClass(value) {
       const clean = cleanText(value, "").toLowerCase();
       if (["favorable", "improving", "strong", "healthy", "hot"].includes(clean)) return "good";
       if (["punishing", "hostile", "unstable", "weakening", "failing"].includes(clean)) return "bad";
-      return "warn";
+      if (["mixed", "balanced_choppy", "chop_risk"].includes(clean)) return "blue";
+      return "";
     }
 
     function setText(id, value) {
@@ -520,34 +573,12 @@
       if (el) el.textContent = value;
     }
 
-    function card({ badge, badgeClass = "", heading, copy, details = [] }) {
-      const article = document.createElement("article");
-      article.className = "card";
-      article.innerHTML = `
-        <span class="state ${badgeClass}">${badge}</span>
-        <h3>${heading}</h3>
-        <p>${copy}</p>
-        <div class="details">
-          ${details.map(([k, v]) => `<div class="detail"><span>${k}</span><strong>${v}</strong></div>`).join("")}
-        </div>
-      `;
-      return article;
-    }
-
-    function compactRows(rows) {
-      return `
-        <div class="compact-list">
-          ${rows.map(([k, v]) => `<div class="compact-row"><strong>${k}</strong><span>${v}</span></div>`).join("")}
-        </div>
-      `;
-    }
-
-    function readSnapshotChain(snapshot, chain) {
+    function chainData(snapshot, chain) {
       const reads = isObject(snapshot.chain_reads) ? snapshot.chain_reads : {};
       return isObject(reads[chain]) ? reads[chain] : {};
     }
 
-    function freshPairFor(snapshot, chain) {
+    function freshData(snapshot, chain) {
       const preview = isObject(snapshot.cap_band_public_preview) ? snapshot.cap_band_public_preview : {};
       const chains = isObject(preview.chains) ? preview.chains : {};
       const row = isObject(chains[chain]) ? chains[chain] : {};
@@ -555,160 +586,153 @@
       return isObject(bands.fresh_pairs) ? bands.fresh_pairs : {};
     }
 
-    function buildCurrentRead(snapshot) {
-      const weather = isObject(snapshot.market_weather) ? snapshot.market_weather : {};
-      const weatherText = cleanText(weather.public_summary || weather.plain_language_summary, "Last stable read watched broad participation, uneven followthrough, and confirmation still developing.");
-      const chainRows = CHAINS.map((chain) => readSnapshotChain(snapshot, chain));
-      const favorable = chainRows.filter((row) => cleanText(row.participant_outcome, "").toLowerCase() === "favorable").length;
-      const punishing = chainRows.filter((row) => cleanText(row.participant_outcome, "").toLowerCase() === "punishing").length;
-      const hot = chainRows.filter((row) => cleanText(row.activity_state, "").toLowerCase() === "hot").map((row) => chainLabel(row.chain));
-      const unstable = chainRows.filter((row) => ["unstable", "weakening"].includes(cleanText(row.read, "").toLowerCase())).map((row) => chainLabel(row.chain));
-
-      let primary = "Activity is visible, but the payoff is uneven.";
-      if (favorable >= 2 && punishing === 0) primary = "Participation is being paid across most clean samples.";
-      if (punishing > 0 && favorable > 0) primary = "Activity is spreading, but the payoff is uneven.";
-      if (punishing >= 2) primary = "The tape is active, but participation is being punished.";
-      if (isStale(snapshot)) primary = "Latest read is stale, but the prior tape was still usable.";
-
-      let secondary = weatherText;
-      if (isStale(snapshot)) {
-        secondary = "The public sample needs a fresh refresh. RavenOS is still watching payoff, followthrough, fresh-pair survival, and pressure alignment.";
-      } else
-      if (punishing > 0 && favorable > 0) {
-        secondary = "Some chains are rewarding participation while others are still punishing it. This is not a clean broad-risk-on tape.";
-      } else if (favorable >= 2) {
-        secondary = "The clean public sample is improving, but the read still needs to hold across refreshes.";
+    function chainReason(chain, row) {
+      const outcome = cleanText(row.participant_outcome, "unknown").toLowerCase();
+      const green = pct(row.green_pct);
+      const red = pct(row.red_pct);
+      const sample = row.clean_econ_sample_size ?? row.sample_size ?? "n/a";
+      if (outcome === "favorable") {
+        return `${green} green vs ${red} red in ${sample} clean rows. Paid, but persistence still matters.`;
       }
-
-      setText("primaryRead", primary);
-      setText("secondaryRead", secondary);
-      setText("whereRead", hot.length ? `${hot.join(", ")} most active` : "Cross-chain sample");
-      setText("payoffRead", `${favorable} favorable · ${punishing} punishing`);
-      setText("confirmRead", isStale(snapshot) ? "Needs fresh sample" : unstable.length ? `${unstable.join(", ")} still unreliable` : "Needs persistence");
-
-      const chips = document.getElementById("heroChips");
-      if (chips) {
-        chips.innerHTML = "";
-        [
-          ["Fact 1", weatherText],
-          ["Fact 2", hot.length ? `${hot.join(", ")} showing the most activity` : "activity is visible across chains"],
-          ["Confirm / invalidate", unstable.length ? `${unstable.join(", ")} weakens the broad read` : "needs another clean refresh to confirm"],
-        ].forEach(([k, v]) => {
-          const span = document.createElement("span");
-          span.className = "chip";
-          span.innerHTML = `<strong>${k}:</strong> ${v}`;
-          chips.appendChild(span);
-        });
+      if (outcome === "punishing") {
+        return `${green} green vs ${red} red in ${sample} clean rows. Active tape, uneven payoff.`;
       }
+      return `${sample} clean rows. Activity is visible, but payoff support is not clean yet.`;
     }
 
-    function buildChainCards(snapshot) {
-      const root = document.getElementById("chainCards");
+    function chainPayoff(row) {
+      const outcome = cleanText(row.participant_outcome, "unknown").toLowerCase();
+      if (outcome === "favorable") return "paid";
+      if (outcome === "punishing") return "punished";
+      return "forming";
+    }
+
+    function renderCurrent(snapshot) {
+      const rows = CHAINS.map((chain) => ({ chain, row: chainData(snapshot, chain) }));
+      const favorable = rows.filter(({ row }) => cleanText(row.participant_outcome, "").toLowerCase() === "favorable").length;
+      const punished = rows.filter(({ row }) => cleanText(row.participant_outcome, "").toLowerCase() === "punishing").length;
+      const hot = rows.filter(({ row }) => cleanText(row.activity_state, "").toLowerCase() === "hot").map(({ chain }) => chainLabel(chain));
+      const weak = rows.filter(({ row }) => ["unstable", "weakening", "punishing"].includes(cleanText(row.read, "").toLowerCase())).map(({ chain }) => chainLabel(chain));
+      const weather = isObject(snapshot.market_weather) ? snapshot.market_weather : {};
+      const weatherText = cleanText(weather.public_summary || weather.plain_language_summary, "Last stable read watched broad participation, uneven followthrough, and confirmation developing.");
+
+      let primary = "Activity is visible, but the payoff is uneven.";
+      if (favorable >= 2 && punished === 0) primary = "Participation is being paid across most clean samples.";
+      if (punished > 0 && favorable > 0) primary = "Activity is spreading, but the payoff is uneven.";
+      if (punished >= 2) primary = "The tape is active, but participation is being punished.";
+      if (stale(snapshot)) primary = "The latest sample is stale. Treat the read as provisional.";
+
+      let secondary = weatherText;
+      if (stale(snapshot)) {
+        secondary = "Latest read is refreshing. Last stable read watched broad participation, uneven followthrough, and confirmation developing.";
+      } else if (punished > 0 && favorable > 0) {
+        secondary = "Some chains are paying activity while others are still punishing it. That makes this useful, but not clean broad risk-on.";
+      } else if (favorable >= 2) {
+        secondary = "Clean public samples are improving. The important test is whether this holds after the next refresh.";
+      }
+
+      setText("deskLine", secondary);
+      setText("primaryRead", primary);
+      setText("secondaryRead", secondary);
+      setText("conditionRead", weatherText);
+      setText("splitRead", `${favorable} paid · ${punished} punished · ${Math.max(0, 3 - favorable - punished)} forming`);
+      setText("confirmRead", hot.length ? `${hot.join(", ")} holds while payoff broadens` : "payoff improves across chains");
+      setText("weakenRead", weak.length ? `${weak.join(", ")} stays unreliable` : "sample turns stale or chains split");
+    }
+
+    function renderChains(snapshot) {
+      const root = document.getElementById("chainRows");
       if (!root) return;
-      root.innerHTML = "";
-      CHAINS.forEach((chain) => {
-        const row = readSnapshotChain(snapshot, chain);
+      root.innerHTML = CHAINS.map((chain) => {
+        const row = chainData(snapshot, chain);
         const outcome = cleanText(row.participant_outcome, "unknown");
         const read = cleanText(row.read, "developing");
         const activity = cleanText(row.activity_state, "developing");
         const confidence = cleanText(row.confidence, "low");
-        const copy = outcome === "favorable"
-          ? `${chainLabel(chain)} participation is being paid in the clean public sample; the next test is persistence.`
-          : outcome === "punishing"
-            ? `${chainLabel(chain)} is active, but the clean public sample says participation is being punished.`
-            : `${chainLabel(chain)} activity is visible, but payoff is still forming.`;
-        root.appendChild(card({
-          badge: title(outcome),
-          badgeClass: stateClass(outcome),
-          heading: `${chainLabel(chain)}: ${title(read)}`,
-          copy,
-          details: [
-            ["Condition", `${title(activity)} activity · ${title(read)}`],
-            ["Payoff", title(outcome, "forming")],
-            ["Confirmation", `${title(confidence)} confidence · ${row.clean_econ_sample_size ?? row.sample_size ?? "n/a"} clean rows`],
-            ["Reason", `${pct(row.green_pct)} green vs ${pct(row.red_pct)} red`],
-          ],
-        }));
-      });
+        return `
+          <div class="chain-row">
+            <div class="chain-name">${chainLabel(chain)}</div>
+            <div>
+              <span class="label">condition</span>
+              <span class="value">${title(activity)} · ${title(read)}</span>
+            </div>
+            <div>
+              <span class="label">payoff</span>
+              <span class="pill ${badgeClass(outcome)}">${chainPayoff(row)}</span>
+            </div>
+            <div>
+              <span class="label">confirmation</span>
+              <span class="value">${title(confidence)} · ${row.clean_econ_sample_size ?? row.sample_size ?? "n/a"} clean rows</span>
+            </div>
+            <div class="reason">${chainReason(chain, row)}</div>
+          </div>
+        `;
+      }).join("");
     }
 
-    function buildFreshCards(snapshot) {
-      const root = document.getElementById("freshCards");
-      if (!root) return;
-      root.innerHTML = "";
-      CHAINS.forEach((chain) => {
-        const row = freshPairFor(snapshot, chain);
-        const activity = cleanText(row.activity_state, "developing");
-        const outcome = cleanText(row.participant_outcome, "unknown");
-        let copy = "Fresh-pair activity is live, but survival is still forming. This is not a clean broad-risk-on tape yet.";
-        if (outcome === "favorable") copy = "Fresh-pair activity is surviving better than the first impulse; another refresh needs to confirm it.";
-        if (outcome === "punishing") copy = "Fresh pairs are active, but early participation is not being paid cleanly.";
-        root.appendChild(card({
-          badge: title(activity),
-          badgeClass: stateClass(activity === "hot" ? "favorable" : outcome),
-          heading: `${chainLabel(chain)} fresh pairs`,
-          copy,
-          details: [
-            ["Happening now", `${title(activity)} · ${title(row.sample_state, "sample forming")}`],
-            ["Survival read", outcome === "unknown" ? "active but not confirmed" : title(outcome)],
-            ["What confirms", "survival beyond first impulse"],
-            ["What weakens it", "fading or uneven followthrough"],
-          ],
-        }));
-      });
+    function renderFresh(snapshot) {
+      const lines = document.getElementById("freshLines");
+      if (!lines) return;
+      const rows = CHAINS.map((chain) => ({ chain, row: freshData(snapshot, chain) }));
+      const hot = rows.filter(({ row }) => cleanText(row.activity_state, "").toLowerCase() === "hot").map(({ chain }) => chainLabel(chain));
+      const favorable = rows.filter(({ row }) => cleanText(row.participant_outcome, "").toLowerCase() === "favorable").length;
+      const punished = rows.filter(({ row }) => cleanText(row.participant_outcome, "").toLowerCase() === "punishing").length;
+      const summary = hot.length
+        ? `Fresh activity is live on ${hot.join(", ")}. Survival still needs proof beyond first impulse.`
+        : "Fresh-pair activity is visible, but the survival read is still forming.";
+      setText("freshSummary", summary);
+      lines.innerHTML = [
+        ["What is happening", hot.length ? `${hot.join(", ")} showing active fresh-pair flow.` : "New-launch flow is present but not broad enough to call clean."],
+        ["Is it being paid", favorable ? `${favorable} chain read shows fresh-pair payoff improving.` : punished ? `${punished} chain read still looks punishing.` : "Outcome support is still forming."],
+        ["What confirms it", "Fresh launches keep surviving beyond the first impulse across more than one refresh."],
+        ["What weakens it", "Activity stays hot but payoff remains unknown, uneven, or fading."],
+      ].map(([k, v]) => `<div class="line-item"><strong>${k}</strong>${v}</div>`).join("");
     }
 
-    function buildPerpCards(snapshot) {
-      const root = document.getElementById("perpCards");
-      if (!root) return;
-      root.innerHTML = "";
+    function renderPerps(snapshot) {
       const perp = isObject(snapshot.perp_pressure) ? snapshot.perp_pressure : {};
       const market = isObject(perp.market) ? perp.market : {};
       const crowding = cleanText(market.crowding_state, "developing");
+      const pressure = cleanText(market.pressure_state || market.risk_read, "developing");
       const tactical = cleanText(market.tactical_risk, "developing");
+      const confirmation = cleanText(market.confirmation_state, "needs confirmation");
       const summary = cleanText(perp.summary, "Perp pressure is still forming.");
-      root.appendChild(card({
-        badge: title(crowding),
-        badgeClass: stateClass(market.pressure_state || market.risk_read),
-        heading: "Market pressure",
-        copy: summary.includes("not confirming")
-          ? "Perp pressure is choppy and not confirming a clean direction. Crowding matters more than the first move."
-          : summary,
-        details: [
-          ["Crowding", title(crowding)],
-          ["Pressure", title(market.pressure_state, "developing")],
-          ["Directional reliability", title(market.confirmation_state, "needs confirmation")],
-        ],
-      }));
-      root.appendChild(card({
-        badge: title(tactical),
-        badgeClass: stateClass(tactical),
-        heading: "What would make it useful",
-        copy: "Directional pressure needs cleaner confirmation. If crowding rises while spot participation weakens, the public read remains unreliable.",
-        details: [
-          ["What confirms", "crowding and followthrough align"],
-          ["What weakens it", "balanced chop or mixed confirmation"],
-          ["Coverage", title(market.coverage && market.coverage.label, "developing")],
-        ],
-      }));
+      const publicSummary = summary.includes("not confirming")
+        ? "Perp pressure is choppy and not confirming a clean direction. Crowding matters more than the first move."
+        : summary;
+      setText("perpSummary", publicSummary);
+      const lines = document.getElementById("perpLines");
+      if (!lines) return;
+      lines.innerHTML = [
+        ["Crowding", title(crowding)],
+        ["Pressure", title(pressure)],
+        ["Directional reliability", title(confirmation)],
+        ["What weakens it", tactical === "chop_risk" ? "Balanced chop with no clean followthrough." : "Crowding rises without payoff confirmation."],
+      ].map(([k, v]) => `<div class="line-item"><strong>${k}</strong>${v}</div>`).join("");
     }
 
-    function buildCaveats(snapshot) {
+    function renderCaveats(snapshot) {
       const root = document.getElementById("caveats");
       if (!root) return;
-      const chainRows = CHAINS.map((chain) => readSnapshotChain(snapshot, chain));
-      const outcomes = chainRows.map((row) => cleanText(row.participant_outcome, "unknown").toLowerCase());
-      const hasDisagreement = new Set(outcomes.filter(Boolean)).size > 1;
+      const rows = CHAINS.map((chain) => chainData(snapshot, chain));
+      const outcomes = rows.map((row) => cleanText(row.participant_outcome, "unknown").toLowerCase());
+      const split = new Set(outcomes.filter(Boolean)).size > 1;
       const weather = isObject(snapshot.market_weather) ? snapshot.market_weather : {};
-      const concentration = cleanText(weather.concentration, "developing");
-      const rows = [
-        ["Sample freshness", isStale(snapshot) ? "The latest public sample is stale; wait for a fresh refresh before trusting the read." : "Sample is recent enough, but it still needs to persist."],
-        ["Confirmation", "One clean refresh is not enough; the same read needs to survive across later windows."],
-        ["Outlier dependency", concentration === "high" ? "The move may be carried by a narrow set of observations." : "If a few observations carry the move, the read weakens."],
-        ["Chain disagreement", hasDisagreement ? "Chains disagree on payoff, so the broad read is not clean." : "If chain outcomes split, the read becomes less reliable."],
-        ["Perp pressure", "Crowding without clean followthrough can make the tape look stronger than it is."],
+      const concentration = cleanText(weather.concentration, "developing").toLowerCase();
+      const caveats = [
+        ["sample stale", stale(snapshot) ? "The public sample is stale. Treat the read as provisional." : "Fresh enough now, but the next refresh still matters."],
+        ["confirmation thin", "One clean refresh can fade. Persistence matters more than first impulse."],
+        ["outlier driven", concentration === "high" ? "A narrow set may be carrying the move." : "If a narrow set starts carrying the move, reliability drops."],
+        ["chain disagreement", split ? "Chain outcomes disagree, so broad participation is not clean." : "If Solana, ETH, and Base split, the read weakens."],
+        ["perp chop", "Crowding without clean followthrough can make the tape look stronger than it is."],
       ];
-      root.innerHTML = rows.map(([k, v]) => `<div class="why-row"><strong>${k}</strong>${v}</div>`).join("");
+      root.innerHTML = caveats.map(([heading, body]) => `
+        <article class="mini">
+          <span class="pill">${heading}</span>
+          <h3>${title(heading)}</h3>
+          <p>${body}</p>
+        </article>
+      `).join("");
     }
 
     async function fetchFirst(urls) {
@@ -726,11 +750,11 @@
     function render(snapshot) {
       const generated = cleanText(snapshot.generated_at, "");
       setText("generatedAt", generated ? `updated ${generated}` : "updated recently");
-      buildCurrentRead(snapshot);
-      buildChainCards(snapshot);
-      buildFreshCards(snapshot);
-      buildPerpCards(snapshot);
-      buildCaveats(snapshot);
+      renderCurrent(snapshot);
+      renderChains(snapshot);
+      renderFresh(snapshot);
+      renderPerps(snapshot);
+      renderCaveats(snapshot);
     }
 
     fetchFirst(SNAPSHOT_URLS).then(render);
