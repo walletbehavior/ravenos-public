@@ -26,14 +26,12 @@
   "dominant_condition_family": "thin_sample",
   "frequent_condition_families": {
     "broad_but_unconfirmed": 392,
-    "confirmation_incomplete": 14,
     "high_risk_low_clarity": 14,
-    "mixed_signal_environment": 28,
-    "outlier_risk": 14,
+    "mixed_signal_environment": 14,
     "thin_but_improving": 6,
     "thin_sample": 672
   },
-  "generated_at": "2026-05-20T15:24:58Z",
+  "generated_at": "2026-05-20T15:39:58Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -65,19 +63,11 @@
       "appearance_count": 392,
       "recent_context": "This condition has appeared 392 times in the recent public window."
     },
-    "confirmation_incomplete": {
-      "appearance_count": 14,
-      "recent_context": "This condition has appeared 14 times in the recent public window."
-    },
     "high_risk_low_clarity": {
       "appearance_count": 14,
       "recent_context": "This condition has appeared 14 times in the recent public window."
     },
     "mixed_signal_environment": {
-      "appearance_count": 28,
-      "recent_context": "This condition has appeared 28 times in the recent public window."
-    },
-    "outlier_risk": {
       "appearance_count": 14,
       "recent_context": "This condition has appeared 14 times in the recent public window."
     },
