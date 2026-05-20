@@ -579,6 +579,34 @@
       return isObject(reads[chain]) ? reads[chain] : {};
     }
 
+    function broadChainData(snapshot, chain) {
+      const modules = isObject(snapshot.modules) ? snapshot.modules : {};
+      const breadth = isObject(modules.breadth_momentum) ? modules.breadth_momentum : {};
+      const rows = Array.isArray(breadth.chains) ? breadth.chains : [];
+      return rows.find((row) => isObject(row) && cleanText(row.chain, "").toLowerCase() === chain) || {};
+    }
+
+    function integer(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? Math.round(n) : null;
+    }
+
+    function countLabel(value) {
+      const n = integer(value);
+      return n === null ? "n/a" : n.toLocaleString("en-US");
+    }
+
+    function coverageLine(row, broad) {
+      const clean = integer(row.clean_econ_sample_size ?? row.sample_size);
+      const observed = integer(row.observed_sample_size ?? row.raw_sample_size);
+      const broadSample = integer(broad.clean_econ_sample_size ?? broad.sample_size);
+      const broadObserved = integer(broad.observed_sample_size ?? broad.raw_sample_size);
+      const parts = [`${countLabel(clean)} clean outcome rows`];
+      const wider = Math.max(observed || 0, broadSample || 0, broadObserved || 0);
+      if (wider > (clean || 0)) parts.push(`${countLabel(wider)} broader observations`);
+      return parts.join(" · ");
+    }
+
     function freshData(snapshot, chain) {
       const preview = isObject(snapshot.cap_band_public_preview) ? snapshot.cap_band_public_preview : {};
       const chains = isObject(preview.chains) ? preview.chains : {};
@@ -591,14 +619,14 @@
       const outcome = cleanText(row.participant_outcome, "unknown").toLowerCase();
       const green = pct(row.green_pct);
       const red = pct(row.red_pct);
-      const sample = row.clean_econ_sample_size ?? row.sample_size ?? "n/a";
+      const sample = countLabel(row.clean_econ_sample_size ?? row.sample_size);
       if (outcome === "favorable") {
-        return `${green} green vs ${red} red in ${sample} clean rows. Paid, but persistence still matters.`;
+        return `${green} green vs ${red} red in ${sample} clean outcome rows. Paying, but persistence still matters.`;
       }
       if (outcome === "punishing") {
-        return `${green} green vs ${red} red in ${sample} clean rows. Active tape, uneven payoff.`;
+        return `${green} green vs ${red} red in ${sample} clean outcome rows. Active tape, uneven payoff.`;
       }
-      return `${sample} clean rows. Activity is visible, but payoff support is not clean yet.`;
+      return `${sample} clean outcome rows. Activity is visible, but payoff support is not clean yet.`;
     }
 
     function chainPayoff(row) {
@@ -650,6 +678,7 @@
         const read = cleanText(row.read, "developing");
         const activity = cleanText(row.activity_state, "developing");
         const confidence = cleanText(row.confidence, "low");
+        const broad = broadChainData(snapshot, chain);
         return `
           <div class="chain-row">
             <div class="chain-name">${chainLabel(chain)}</div>
@@ -663,7 +692,7 @@
             </div>
             <div>
               <span class="label">confirmation</span>
-              <span class="value">${title(confidence)} · ${row.clean_econ_sample_size ?? row.sample_size ?? "n/a"} clean rows</span>
+              <span class="value">${title(confidence)} · ${coverageLine(row, broad)}</span>
             </div>
             <div class="reason">${chainReason(chain, row)}</div>
           </div>
