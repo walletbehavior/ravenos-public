@@ -4,7 +4,7 @@
   "concentration_failure_rate": 0.0,
   "confidence": "high",
   "early_failure_rate": 0.1982,
-  "generated_at": "2026-05-22T06:30:00Z",
+  "generated_at": "2026-05-22T06:45:30Z",
   "persistence_decay_rate": 0.8204,
   "plain_language_summary": "moves are surviving longer",
   "public_safe": true,
