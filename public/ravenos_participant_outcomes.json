@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-24T20:29:15Z",
+  "generated_at": "2026-05-24T20:44:45Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -165,11 +165,11 @@
     {
       "cap_band": "all",
       "chain": "base",
-      "clean_sample": 2047,
+      "clean_sample": 2049,
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 5158,
+      "observed_sample": 5160,
       "outcome_id": "base_all_6h",
       "participant_outcome": "unknown",
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
