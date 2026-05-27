@@ -3,7 +3,7 @@
   "confidence": "high",
   "drivers": {
     "chain_alignment": "chains aligned",
-    "clean_participation": "participation quality mixed",
+    "clean_participation": "participation still thin",
     "outlier_dependency": "some concentration",
     "persistence": "persistence holding",
     "transition_sample": "recent history observed"
@@ -11,14 +11,14 @@
   "forecasts": {
     "breadth": "participation broadening",
     "expansion_persistence": "moves sustaining longer",
-    "followthrough": "moves sustaining longer",
+    "followthrough": "followthrough mixed",
     "fragility": "fragility contained",
     "participation_quality": "participation quality mixed",
     "speculation": "speculation contained",
     "structure": "structure improving",
     "usually_leads_to": "cleaner participation"
   },
-  "generated_at": "2026-05-12T13:09:21Z",
+  "generated_at": "2026-05-27T03:51:33Z",
   "persistence_probability_band": "high",
   "persistence_read": "persistence holding",
   "plain_language_summary": "participation broadening; fragility contained; moves sustaining longer",

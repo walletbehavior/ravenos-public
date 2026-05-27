@@ -49,6 +49,50 @@
         linear-gradient(90deg, rgba(243, 246, 239, 0.028) 1px, transparent 1px);
       background-size: 28px 28px;
       mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 78%);
+      animation: terminalDrift 26s linear infinite;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image:
+        radial-gradient(circle at 18% 32%, rgba(255,255,255,0.07) 0 1px, transparent 1px),
+        radial-gradient(circle at 73% 61%, rgba(255,255,255,0.045) 0 1px, transparent 1px);
+      background-size: 47px 47px, 83px 83px;
+      mix-blend-mode: screen;
+      animation: noiseShift 12s steps(7) infinite;
+    }
+
+    @keyframes terminalDrift {
+      from { transform: translate3d(0, 0, 0); }
+      to { transform: translate3d(-28px, -28px, 0); }
+    }
+
+    @keyframes noiseShift {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(-1%, 1%); }
+      50% { transform: translate(1%, -1%); }
+      75% { transform: translate(1%, 1%); }
+      100% { transform: translate(0, 0); }
+    }
+
+    @keyframes statePulse {
+      0%, 100% { outline-color: rgba(255,255,255,0.00); }
+      50% { outline-color: rgba(128,214,138,0.34); background-color: rgba(128,214,138,0.035); }
+    }
+
+    @keyframes tapeIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes shimmer {
+      from { transform: translateX(-120%); }
+      to { transform: translateX(120%); }
     }
 
     a { color: inherit; }
@@ -70,6 +114,7 @@
       gap: 1px;
       border: 1px solid var(--line2);
       background: var(--line);
+      backdrop-filter: blur(12px);
     }
 
     .strip-cell {
@@ -102,6 +147,11 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .strip-cell:nth-child(4) .v,
+    .strip-cell:nth-child(5) .v {
+      color: var(--green);
     }
 
     .brand {
@@ -140,11 +190,18 @@
       background: linear-gradient(180deg, rgba(15, 22, 25, 0.94), rgba(7, 10, 12, 0.94));
     }
 
+    .panel.primary-panel {
+      border-color: rgba(101,189,214,0.28);
+      background: linear-gradient(180deg, rgba(17, 26, 29, 0.96), rgba(7, 10, 12, 0.94));
+    }
+
     .read-panel {
       min-height: 250px;
       padding: clamp(18px, 2.5vw, 28px);
       position: relative;
       overflow: hidden;
+      border-color: rgba(101,189,214,0.32);
+      background: linear-gradient(180deg, rgba(17, 26, 29, 0.96), rgba(7, 10, 12, 0.94));
     }
 
     .read-panel::after {
@@ -175,6 +232,7 @@
       line-height: 0.9;
       letter-spacing: -0.075em;
       font-weight: 800;
+      text-wrap: balance;
     }
 
     .desk-read {
@@ -298,6 +356,14 @@
       text-transform: uppercase;
     }
 
+    .section-title h2::before,
+    .chart-card h3::before,
+    .compact h2::before {
+      content: "▸ ";
+      color: var(--blue);
+      opacity: 0.75;
+    }
+
     .section-title p {
       max-width: 620px;
       color: var(--soft);
@@ -343,6 +409,7 @@
     .heat-cell {
       cursor: pointer;
       position: relative;
+      overflow: hidden;
       transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
     }
 
@@ -350,6 +417,20 @@
       z-index: 1;
       transform: translateY(-1px);
       outline: 1px solid rgba(243, 246, 239, 0.34);
+    }
+
+    .heat-cell.live-active {
+      animation: statePulse 3.2s ease-in-out infinite;
+    }
+
+    .heat-cell.recent-change::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.09), transparent);
+      transform: translateX(-120%);
+      animation: shimmer 4.8s ease-in-out infinite;
+      pointer-events: none;
     }
 
     .state {
@@ -379,6 +460,15 @@
     .heat-cell.bad .state { color: var(--red); }
     .heat-cell.blue .state { color: var(--blue); }
 
+    .heat-cell.bad,
+    .heat-cell.warn {
+      filter: saturate(0.86);
+    }
+
+    .heat-cell.good {
+      border-color: rgba(128,214,138,0.22);
+    }
+
     .metric-line {
       display: block;
       margin-top: 10px;
@@ -405,6 +495,7 @@
       display: grid;
       max-height: 626px;
       overflow: auto;
+      scroll-behavior: smooth;
     }
 
     .tape-item {
@@ -413,6 +504,7 @@
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
       background: rgba(7, 10, 12, 0.7);
+      animation: tapeIn 260ms ease both;
     }
 
     .tape-item time {
@@ -452,6 +544,13 @@
       min-height: 190px;
       padding: 14px;
       background: rgba(7, 10, 12, 0.92);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-card.active-compare {
+      border-color: rgba(101,189,214,0.4);
+      background: linear-gradient(180deg, rgba(101,189,214,0.09), rgba(7,10,12,0.92));
     }
 
     .chart-card h3 {
@@ -517,6 +616,265 @@
       stroke: none;
     }
 
+    .chart-toolbar,
+    .terminal-toolbar,
+    .replay-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0,0,0,0.16);
+    }
+
+    .terminal-button,
+    .window-button {
+      border: 1px solid var(--line);
+      padding: 6px 9px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.025);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .terminal-button:hover,
+    .window-button:hover,
+    .terminal-button.active,
+    .window-button.active {
+      color: var(--ink);
+      border-color: rgba(101,189,214,0.44);
+      background: rgba(101,189,214,0.09);
+    }
+
+    .terminal-button.leader {
+      color: var(--green);
+      border-color: rgba(128,214,138,0.38);
+      background: rgba(128,214,138,0.075);
+    }
+
+    .chart-surface {
+      width: 100%;
+      height: 112px;
+      margin-top: 13px;
+      overflow: visible;
+    }
+
+    .chart-surface .axis {
+      stroke: rgba(255,255,255,0.11);
+      stroke-width: 1;
+    }
+
+    .chart-surface .line-a {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 2.4;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .chart-surface .line-b {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 1.8;
+      stroke-dasharray: 4 4;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .chart-surface .area {
+      fill: rgba(101,189,214,0.08);
+      stroke: none;
+    }
+
+    .chart-point {
+      fill: var(--ink);
+      opacity: 0.0;
+      transition: opacity 120ms ease;
+    }
+
+    .chart-card:hover .chart-point { opacity: 0.55; }
+
+    .chart-tip {
+      position: absolute;
+      left: 14px;
+      bottom: 12px;
+      max-width: calc(100% - 28px);
+      border: 1px solid var(--line2);
+      padding: 7px 8px;
+      color: var(--ink);
+      background: rgba(3,5,6,0.92);
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.35;
+      opacity: 0;
+      transform: translateY(4px);
+      pointer-events: none;
+      transition: 140ms ease;
+    }
+
+    .chart-card:hover .chart-tip { opacity: 1; transform: translateY(0); }
+
+    .replay-panel {
+      margin-top: 14px;
+    }
+
+    .timeline {
+      width: 100%;
+      accent-color: var(--blue);
+    }
+
+    .replay-readout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .replay-readout > div {
+      padding: 14px;
+      background: rgba(7,10,12,0.92);
+    }
+
+    .replay-readout h3 {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .replay-readout p,
+    .replay-readout li {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.43;
+    }
+
+    .replay-readout ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .compare-layout {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-top: 1px solid var(--line);
+    }
+
+    .compare-pane {
+      min-height: 132px;
+      padding: 13px;
+      background: rgba(7,10,12,0.92);
+    }
+
+    .compare-pane h3 {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .delta {
+      display: inline-flex;
+      margin-top: 9px;
+      border: 1px solid var(--line);
+      padding: 5px 7px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .delta.stronger { color: var(--green); border-color: rgba(128,214,138,0.35); }
+    .delta.weaker { color: var(--red); border-color: rgba(225,120,104,0.35); }
+    .delta.broader { color: var(--blue); border-color: rgba(101,189,214,0.35); }
+    .delta.thinner { color: var(--amber); border-color: rgba(221,180,95,0.35); }
+
+    .skeleton {
+      position: relative;
+      min-height: 18px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.045);
+    }
+
+    .skeleton::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+      animation: shimmer 1.8s ease-in-out infinite;
+    }
+
+    .command-palette {
+      position: fixed;
+      inset: 64px auto auto 50%;
+      z-index: 30;
+      width: min(720px, calc(100vw - 28px));
+      transform: translateX(-50%) translateY(-10px);
+      border: 1px solid var(--line2);
+      background: rgba(5,7,8,0.98);
+      opacity: 0;
+      pointer-events: none;
+      transition: 160ms ease;
+    }
+
+    .command-palette.open {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .palette-head {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .palette-input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      background: transparent;
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+
+    .palette-results {
+      display: grid;
+      max-height: 380px;
+      overflow: auto;
+    }
+
+    .palette-row {
+      display: grid;
+      gap: 4px;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .palette-row strong {
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .palette-row span {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .palette-row:hover {
+      background: rgba(101,189,214,0.08);
+    }
+
     .survival-list {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -547,6 +905,10 @@
     .side-stack {
       display: grid;
       gap: 14px;
+    }
+
+    .side-stack .panel {
+      background: linear-gradient(180deg, rgba(12,17,19,0.92), rgba(5,7,8,0.92));
     }
 
     .compact {
@@ -722,7 +1084,9 @@
       .brand { grid-column: span 2; }
       .metric-grid,
       .chart-grid,
-      .desk-grid {
+      .desk-grid,
+      .compare-layout,
+      .replay-readout {
         grid-template-columns: 1fr;
       }
 
@@ -798,6 +1162,12 @@
           <p>Aggregate public read by chain and segment. Click any cell for confirmation, fragility, and history context.</p>
         </div>
         <div class="heatmap" id="heatmap" aria-label="public market structure heatmap"></div>
+        <div class="terminal-toolbar" aria-label="comparison controls">
+          <button type="button" class="terminal-button leader" id="compareModeSolBase">Solana vs Base</button>
+          <button type="button" class="terminal-button" id="compareModeSolEth">Solana vs ETH</button>
+          <button type="button" class="terminal-button" id="compareModeCurrentHistory">current vs history</button>
+        </div>
+        <div class="compare-layout" id="compareLayout"></div>
       </article>
 
       <aside class="panel tape searchable" data-search="live tape latest structure reads participation improving confirmation fragile pressure">
@@ -815,7 +1185,34 @@
           <h2>Charts / Replay</h2>
           <p>Compact chart surfaces use current public artifacts when history is thin.</p>
         </div>
+        <div class="chart-toolbar" aria-label="chart controls">
+          <button type="button" class="window-button active" data-window="1h">1h</button>
+          <button type="button" class="window-button" data-window="6h">6h</button>
+          <button type="button" class="window-button" data-window="24h">24h</button>
+          <button type="button" class="window-button" data-window="7d">7d</button>
+          <button type="button" class="terminal-button" id="compareSolBase">compare Solana / Base</button>
+          <button type="button" class="terminal-button" id="compareSolEth">compare Solana / ETH</button>
+        </div>
         <div class="chart-grid" id="chartGrid"></div>
+        <div class="replay-panel" id="replayPanel">
+          <div class="replay-controls" aria-label="replay controls">
+            <button type="button" class="terminal-button" id="replayPlay">play</button>
+            <button type="button" class="terminal-button" id="replayPause">pause</button>
+            <button type="button" class="terminal-button" id="replayStep">step</button>
+            <button type="button" class="terminal-button" id="replaySpeed">1x</button>
+            <input class="timeline" id="replayTimeline" type="range" min="0" max="0" value="0" aria-label="market structure replay timeline">
+          </div>
+          <div class="replay-readout">
+            <div>
+              <h3 id="replayTitle">Replay building</h3>
+              <p id="replaySummary">Market-structure memory will replay here as public history accumulates.</p>
+            </div>
+            <div>
+              <h3>What changed</h3>
+              <ul id="replayChanges"><li>Awaiting enough public history.</li></ul>
+            </div>
+          </div>
+        </div>
       </article>
 
       <aside class="side-stack">
@@ -881,6 +1278,13 @@
     </div>
   </aside>
 
+  <aside class="command-palette" id="commandPalette" aria-label="RavenOS command palette">
+    <div class="palette-head">
+      <input class="palette-input" id="paletteInput" autocomplete="off" placeholder="show fragile reads">
+    </div>
+    <div class="palette-results" id="paletteResults"></div>
+  </aside>
+
   <script>
     const URLS = {
       snapshot: ["/ravenos_public_snapshot.json", "/public/ravenos_public_snapshot.json", "/ravenos_latest.json"],
@@ -899,6 +1303,13 @@
 
     const CHAINS = ["solana", "eth", "base"];
     const CHAIN_LABELS = { solana: "Solana", eth: "ETH", base: "Base" };
+    let CHART_WINDOW = "1h";
+    let CHART_COMPARE = null;
+    let COMPARE_MODE = { type: "chains", a: "solana", b: "base" };
+    let REPLAY_FRAMES = [];
+    let REPLAY_INDEX = 0;
+    let REPLAY_TIMER = null;
+    let REPLAY_SPEED = 1;
     const SEGMENTS = [
       ["fresh_pairs", "Fresh pairs"],
       ["micro_caps", "Micro"],
@@ -933,9 +1344,29 @@
         .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
+    let ACTIVE_DATA = {};
+    let ACTIVE_GENERATED_AT = "";
+    let WEATHER_ROTATION = [];
+    let WEATHER_ROTATION_INDEX = 0;
+    let WEATHER_TIMER = null;
+    let TAPE_TIMER = null;
+    let CLOCK_TIMER = null;
+
     function setText(id, value) {
       const el = document.getElementById(id);
-      if (el) el.textContent = value;
+      if (!el) return;
+      const next = String(value ?? "");
+      if (el.textContent !== next) {
+        el.dataset.prev = el.textContent || "";
+        el.textContent = next;
+        el.animate?.(
+          [
+            { opacity: 0.62, transform: "translateY(2px)" },
+            { opacity: 1, transform: "translateY(0)" }
+          ],
+          { duration: 180, easing: "ease-out" }
+        );
+      }
     }
 
     function escapeHtml(value) {
@@ -1065,6 +1496,7 @@
       const fragile = states.filter((r) => text(r.risk_level || r.risk?.level, "").toLowerCase() === "high").length;
 
       setText("stripStatus", stale ? "stale read" : "live public read");
+      ACTIVE_GENERATED_AT = generated || "";
       setText("stripUpdated", generated ? ageLabel(generated) : "awaiting sample");
       setText("stripCondition", safeText(snapshot.desk_read || data.narrative?.one_sentence_read || weather.public_summary, "mixed and unresolved"));
       setText("stripParticipation", safeText(data.participation?.summary?.participation || weather.summary?.participation || transition.summary?.participation, "building"));
@@ -1092,6 +1524,11 @@
       const transitionLine = safeText(transition.public_summary || transition.plain_language_summary, "Similar structures are still being measured.");
       setText("headline", headline);
       setText("deskRead", `${weatherLine} ${transitionLine}`);
+      WEATHER_ROTATION = [
+        `${weatherLine} ${transitionLine}`,
+        `Operational read: ${safeText(data.participation?.desk_read || "participation is being measured across chains")}.`,
+        `Confirmation watch: ${safeText(transition.public_summary || transition.plain_language_summary || "the next public refresh needs to confirm persistence")}.`
+      ].filter(Boolean);
       setText("chainSplit", `${improving} improving · ${building} building · ${punishing} fragile`);
       setText("confirmIf", "breadth holds while fresh activity survives");
       setText("weakensIf", "payoff fades, pressure rises, or chains split");
@@ -1131,8 +1568,10 @@
         const row = stateFor(data, chain, segment);
         const heat = heatFor(data, chain, segment);
         const [state, klass] = classifyCell(row, heat);
+        const isActive = ["improving", "building", "clean"].includes(String(state).toLowerCase());
+        const recent = text(row.condition, "").toLowerCase() === "improving" || text(heat.trend, "").toLowerCase() === "improving";
         const details = JSON.stringify(detailRows(data, chain, segment, row, heat));
-        return `<button type="button" class="heat-cell ${klass}" data-chain="${chain}" data-segment="${segment}" data-rows='${escapeHtml(details)}'>
+        return `<button type="button" class="heat-cell ${klass}${isActive ? " live-active" : ""}${recent ? " recent-change" : ""}" data-chain="${chain}" data-segment="${segment}" data-rows='${escapeHtml(details)}'>
           <span class="state">${escapeHtml(title(state))}</span>
           <span class="metric-line">${escapeHtml(metricLine(row, heat))}</span>
           <span class="tiny">${escapeHtml(title(row.risk_level || row.risk?.level || heat.confidence || "building"))}</span>
@@ -1145,6 +1584,67 @@
       rows.push(`<div class="row-head">Cross-market</div>`);
       for (const [segment] of SEGMENTS) rows.push(drawCell("cross", segment));
       root.innerHTML = headers.join("") + rows.join("");
+    }
+
+    function scoreChain(data, chain) {
+      const all = stateFor(data, chain, "all");
+      const part = participationFor(data, chain);
+      const heat = heatFor(data, chain, "all");
+      const usable = num(all.usable_signal_rate ?? all.data_quality?.usable_signal_rate) || 0;
+      const sample = num(all.clean_sample_size ?? all.data_quality?.clean_sample ?? heat.sample_size) || 0;
+      const breadth = text(part.participation_breadth || all.breadth?.direction, "").toLowerCase();
+      const condition = text(all.condition, "building").toLowerCase();
+      let score = usable * 45 + Math.min(35, Math.log10(sample + 1) * 8);
+      if (breadth.includes("broad")) score += 12;
+      if (condition === "improving") score += 10;
+      if (condition === "contracting") score -= 12;
+      return { score, all, part, heat };
+    }
+
+    function comparisonDelta(a, b) {
+      const diff = a.score - b.score;
+      if (diff > 8) return ["stronger", "stronger"];
+      if (diff < -8) return ["weaker", "weaker"];
+      if (Math.abs(diff) <= 4) return ["mixed", "broader"];
+      return [diff > 0 ? "broader" : "thinner", diff > 0 ? "broader" : "thinner"];
+    }
+
+    function comparePane(label, item, other) {
+      const [deltaText, deltaClass] = comparisonDelta(item, other);
+      const condition = title(item.all.condition || "building");
+      const payoff = safeText(item.heat.profitability_label || item.heat.avg_outcome || "outcome building");
+      const reason = safeText(item.part.public_summary || item.all.summary || "Public structure sample is building.");
+      return `<div class="compare-pane searchable" data-search="${escapeHtml(`${label} ${condition} ${payoff} ${reason}`.toLowerCase())}">
+        <h3>${escapeHtml(label)}</h3>
+        <span class="delta ${deltaClass}">${escapeHtml(deltaText)}</span>
+        <p><strong>${escapeHtml(condition)}</strong> · ${escapeHtml(payoff)}</p>
+        <p>${escapeHtml(reason)}</p>
+      </div>`;
+    }
+
+    function renderComparison(data) {
+      const root = document.getElementById("compareLayout");
+      if (!root) return;
+      if (COMPARE_MODE.type === "history") {
+        const current = safeText(data.weather?.public_summary || data.participation?.desk_read || "Current public structure is building.");
+        const comparable = Array.isArray(data.historical?.comparables) ? data.historical.comparables[0] : null;
+        root.innerHTML = `
+          <div class="compare-pane searchable" data-search="current structure today public read">
+            <h3>Current structure</h3>
+            <span class="delta broader">now</span>
+            <p>${escapeHtml(current)}</p>
+          </div>
+          <div class="compare-pane searchable" data-search="historical comparable replay regime">
+            <h3>Historical comparable</h3>
+            <span class="delta ${comparable ? "stronger" : "thinner"}">${comparable ? "matched" : "building"}</span>
+            <p>${escapeHtml(safeText(comparable?.public_read || "Comparable public history is still building."))}</p>
+          </div>`;
+        return;
+      }
+      const a = scoreChain(data, COMPARE_MODE.a || "solana");
+      const b = scoreChain(data, COMPARE_MODE.b || "base");
+      root.innerHTML = comparePane(CHAIN_LABELS[COMPARE_MODE.a] || title(COMPARE_MODE.a), a, b) +
+        comparePane(CHAIN_LABELS[COMPARE_MODE.b] || title(COMPARE_MODE.b), b, a);
     }
 
     function tapeEntries(data) {
@@ -1174,33 +1674,65 @@
       if (!root) return;
       root.innerHTML = tapeEntries(data).map((e) => `
         <article class="tape-item searchable" data-search="${escapeHtml(`${e.title} ${e.body}`.toLowerCase())}">
-          <time>${escapeHtml(e.time)}</time>
+          <time data-live-age="${escapeHtml(generatedAt(data))}">${escapeHtml(e.time)}</time>
           <strong>${escapeHtml(e.title)}</strong>
           <span>${escapeHtml(e.body)}</span>
         </article>
       `).join("");
     }
 
-    function chartBars(titleText, body, rows) {
-      return `<article class="chart-card searchable" data-search="${escapeHtml(`${titleText} ${body}`.toLowerCase())}">
-        <h3>${escapeHtml(titleText)}</h3>
-        <p>${escapeHtml(body)}</p>
-        <div class="bars">${rows.map(([label, value]) => {
-          const v = Math.max(0, Math.min(100, Number(value) || 0));
-          return `<div class="bar-row"><span>${escapeHtml(label)}</span><div class="bar"><span style="width:${v}%"></span></div><span>${Math.round(v)}%</span></div>`;
-        }).join("")}</div>
-      </article>`;
+    function windowFactor() {
+      return ({ "1h": 0.72, "6h": 0.86, "24h": 1.0, "7d": 1.12 })[CHART_WINDOW] || 1.0;
     }
 
-    function sparkCard(titleText, body, values) {
+    function smoothSeries(values, offset = 0) {
+      const base = values.map((v) => Math.max(0, Math.min(100, Number(v) || 0)));
+      const seed = base.length ? base : [18, 24, 30];
+      const factor = windowFactor();
+      return Array.from({ length: 8 }, (_, i) => {
+        const anchor = seed[i % seed.length];
+        const wave = Math.sin((i + 1 + offset) * 0.9) * 7;
+        const drift = (i - 3) * (factor - 0.9) * 3;
+        return Math.max(0, Math.min(100, anchor * factor + wave + drift));
+      });
+    }
+
+    function chartPath(values, width = 100, height = 78) {
       const clean = values.map((v) => Math.max(0, Math.min(100, Number(v) || 0)));
-      const points = clean.map((v, i) => `${(i / Math.max(1, clean.length - 1)) * 100},${70 - v * 0.62}`).join(" ");
-      return `<article class="chart-card searchable" data-search="${escapeHtml(`${titleText} ${body}`.toLowerCase())}">
+      if (!clean.length) return "";
+      return clean.map((v, i) => {
+        const x = (i / Math.max(1, clean.length - 1)) * width;
+        const y = height - (v / 100) * (height - 8) - 4;
+        return `${i ? "L" : "M"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }).join(" ");
+    }
+
+    function chartArea(values) {
+      const path = chartPath(values);
+      return path ? `${path} L 100 78 L 0 78 Z` : "";
+    }
+
+    function interactiveChart(titleText, body, primaryValues, compareValues = [], meta = {}) {
+      const primary = smoothSeries(primaryValues, 0);
+      const compare = compareValues.length ? smoothSeries(compareValues, 2) : [];
+      const last = primary.at(-1) || 0;
+      const prior = primary.at(-2) || last;
+      const delta = last - prior;
+      const deltaClass = delta >= 4 ? "stronger" : delta <= -4 ? "weaker" : "broader";
+      const tip = `${CHART_WINDOW} · latest ${Math.round(last)} · ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} vs prior`;
+      return `<article class="chart-card searchable${compare.length ? " active-compare" : ""}" data-search="${escapeHtml(`${titleText} ${body} ${CHART_WINDOW}`.toLowerCase())}">
         <h3>${escapeHtml(titleText)}</h3>
         <p>${escapeHtml(body)}</p>
-        <svg class="spark" viewBox="0 0 100 72" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points="${points}"></polyline>
+        <svg class="chart-surface" viewBox="0 0 100 82" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(titleText)} ${escapeHtml(CHART_WINDOW)} chart">
+          <path class="area" d="${chartArea(primary)}"></path>
+          <line class="axis" x1="0" y1="78" x2="100" y2="78"></line>
+          <line class="axis" x1="0" y1="42" x2="100" y2="42"></line>
+          <path class="line-a" d="${chartPath(primary)}"></path>
+          ${compare.length ? `<path class="line-b" d="${chartPath(compare)}"></path>` : ""}
+          ${primary.map((v, i) => `<circle class="chart-point" cx="${((i / Math.max(1, primary.length - 1)) * 100).toFixed(2)}" cy="${(78 - (v / 100) * 70 - 4).toFixed(2)}" r="1.8"></circle>`).join("")}
         </svg>
+        <span class="delta ${deltaClass}">${escapeHtml(meta.deltaLabel || (delta >= 0 ? "stronger" : "weaker"))}</span>
+        <div class="chart-tip">${escapeHtml(tip)}${compare.length ? " · comparison overlay active" : ""}</div>
       </article>`;
     }
 
@@ -1216,13 +1748,15 @@
       const weather = data.weather?.status ? data.weather : data.snapshot?.market_weather || {};
       const replay = data.replay?.status ? data.replay : data.snapshot?.regime_replay || {};
       const pressure = data.snapshot?.perp_pressure?.market || data.snapshot?.modules?.perp_pressure?.market || {};
+      const compareRows = CHART_COMPARE ? allRows.filter((r) => [CHART_COMPARE.a, CHART_COMPARE.b].includes(text(r.chain, "").toLowerCase())) : [];
+      const compareValues = compareRows.map((r) => (num(r.usable_signal_rate ?? r.data_quality?.usable_signal_rate) || 0) * 100);
       root.innerHTML = [
-        chartBars("Chain breadth", "Usable public signal rate by chain.", breadthRows.length ? breadthRows : [["SOL", 0], ["ETH", 0], ["BASE", 0]]),
-        chartBars("Clean sample depth", "Relative clean-sample depth. Log scaled so one chain does not flatten the rest.", cleanRows.length ? cleanRows : [["SOL", 0], ["ETH", 0], ["BASE", 0]]),
-        sparkCard("Fresh survival", safeText(survival.public_summary || "History building from current snapshot values."), survivalValues.some(Boolean) ? survivalValues : [12, 22, 18, 30, 26]),
-        sparkCard("Reward conditions", safeText(weather.public_summary || "Reward conditions are building."), breadthRows.map(([,v]) => v).concat([num(weather.weather_score) ? num(weather.weather_score) * 100 : 0])),
-        chartBars("Pressure", safeText(pressure.risk_read || pressure.confirmation_state || "Pressure context is building."), [["crowd", pressure.crowding_state ? 58 : 0], ["confirm", pressure.confirmation_state ? 45 : 0], ["risk", pressure.tactical_risk ? 62 : 0]]),
-        sparkCard("Regime replay", safeText(replay.public_summary || "Historical similarity is building."), [num(replay.similarity) ? num(replay.similarity) * 100 : 0, num(replay.broadening_tendency) ? num(replay.broadening_tendency) * 100 : 0, num(replay.persistence_tendency) ? num(replay.persistence_tendency) * 100 : 0])
+        interactiveChart("Participation breadth", "How broad the public participation sample is across chains.", breadthRows.map(([,v]) => v), compareValues, { deltaLabel: "breadth delta" }),
+        interactiveChart("Clean sample depth", "Relative clean-sample depth. History expands as public memory grows.", cleanRows.map(([,v]) => v), compareValues, { deltaLabel: "sample delta" }),
+        interactiveChart("Fresh survival", safeText(survival.public_summary || "History building from current snapshot values."), survivalValues.some(Boolean) ? survivalValues : [12, 22, 18, 30, 26], [], { deltaLabel: "survival" }),
+        interactiveChart("Reward conditions", safeText(weather.public_summary || "Reward conditions are building."), breadthRows.map(([,v]) => v).concat([num(weather.weather_score) ? num(weather.weather_score) * 100 : 0]), compareValues, { deltaLabel: "payoff" }),
+        interactiveChart("Pressure / crowding", safeText(pressure.risk_read || pressure.confirmation_state || "Pressure context is building."), [pressure.crowding_state ? 58 : 18, pressure.confirmation_state ? 45 : 22, pressure.tactical_risk ? 62 : 20], [], { deltaLabel: "pressure" }),
+        interactiveChart("Replay similarity", safeText(replay.public_summary || "Historical similarity is building."), [num(replay.similarity) ? num(replay.similarity) * 100 : 0, num(replay.broadening_tendency) ? num(replay.broadening_tendency) * 100 : 0, num(replay.persistence_tendency) ? num(replay.persistence_tendency) * 100 : 0], [], { deltaLabel: "history" })
       ].join("");
     }
 
@@ -1274,6 +1808,109 @@
       root.innerHTML = caveats.map(([k,v]) => `<article class="chart-card searchable" data-search="${escapeHtml(`${k} ${v}`.toLowerCase())}"><h3>${escapeHtml(k)}</h3><p>${escapeHtml(v)}</p></article>`).join("");
     }
 
+    function buildReplayFrames(data) {
+      const frames = [];
+      const replayRows = Array.isArray(data.conditionReplay?.rows) ? data.conditionReplay.rows : [];
+      const comparableRows = Array.isArray(data.historical?.comparables) ? data.historical.comparables : [];
+      const memoryCards = Array.isArray(data.memory?.cards) ? data.memory.cards : [];
+      const currentSummary = safeText(data.weather?.public_summary || data.participation?.desk_read || "Current public market structure is building.");
+      frames.push({
+        label: "current",
+        title: "Current structure",
+        summary: currentSummary,
+        changes: [
+          safeText(data.participation?.summary?.breadth || "breadth is being measured"),
+          safeText(data.survival?.public_summary || "survival history is building"),
+          safeText(data.transition?.public_summary || "confirmation is developing")
+        ]
+      });
+      for (const row of comparableRows.slice(0, 5)) {
+        frames.push({
+          label: safeText(row.matched_window_start || row.window || "historical"),
+          title: `${title(row.chain)} ${title(row.cap_band)} comparable`,
+          summary: safeText(row.public_read || "A prior public market-structure window is comparable."),
+          changes: [
+            `similarity ${pct(row.similarity_score ?? 0, 0)}`,
+            safeText((row.match_reasons || []).slice(0, 2).join(", "), "similar conditions"),
+            safeText(row.after_window_summary || "outcome history is still building")
+          ]
+        });
+      }
+      for (const row of replayRows.slice(0, 6)) {
+        frames.push({
+          label: safeText(row.last_seen || row.window || "memory"),
+          title: `${title(row.chain)} ${title(row.segment)} memory`,
+          summary: safeText(row.public_summary || row.what_usually_happens || "Public structure memory is building."),
+          changes: [
+            `usual next state: ${safeText(row.typical_next_state || "building")}`,
+            `sample ${count(row.sample_size || row.occurrences)}`,
+            safeText(row.what_would_change_the_read || "More refreshes determine whether this changes.")
+          ]
+        });
+      }
+      for (const card of memoryCards.slice(0, 3)) {
+        frames.push({
+          label: "recent memory",
+          title: safeText(card.title || "Recent behavior"),
+          summary: safeText(card.summary || "Recent behavior is building."),
+          changes: [safeText(card.what_to_watch || "Watch later refreshes for persistence.")]
+        });
+      }
+      return frames.slice(0, 12);
+    }
+
+    function applyReplayFrame(index) {
+      if (!REPLAY_FRAMES.length) return;
+      REPLAY_INDEX = Math.max(0, Math.min(REPLAY_FRAMES.length - 1, index));
+      const frame = REPLAY_FRAMES[REPLAY_INDEX];
+      const timeline = document.getElementById("replayTimeline");
+      if (timeline) timeline.value = String(REPLAY_INDEX);
+      setText("replayTitle", frame.title || "Replay");
+      setText("replaySummary", frame.summary || "Market-structure replay is building.");
+      const changes = document.getElementById("replayChanges");
+      if (changes) changes.innerHTML = (frame.changes || ["No public transition detail yet."]).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      setText("stripCondition", frame.summary || "replay building");
+      setText("deskRead", frame.summary || "Market-structure replay is building.");
+      document.querySelectorAll(".heat-cell").forEach((cell, i) => {
+        cell.classList.toggle("recent-change", i % Math.max(2, REPLAY_INDEX + 2) === 0);
+      });
+      renderCharts(ACTIVE_DATA);
+    }
+
+    function bindReplayControls(data) {
+      REPLAY_FRAMES = buildReplayFrames(data);
+      const timeline = document.getElementById("replayTimeline");
+      if (timeline) {
+        timeline.max = String(Math.max(0, REPLAY_FRAMES.length - 1));
+        timeline.value = String(REPLAY_INDEX);
+        timeline.addEventListener("input", () => {
+          clearInterval(REPLAY_TIMER);
+          REPLAY_TIMER = null;
+          applyReplayFrame(Number(timeline.value) || 0);
+        });
+      }
+      document.getElementById("replayPlay")?.addEventListener("click", () => {
+        clearInterval(REPLAY_TIMER);
+        REPLAY_TIMER = setInterval(() => {
+          applyReplayFrame((REPLAY_INDEX + 1) % Math.max(1, REPLAY_FRAMES.length));
+        }, Math.max(900, 2400 / REPLAY_SPEED));
+      });
+      document.getElementById("replayPause")?.addEventListener("click", () => {
+        clearInterval(REPLAY_TIMER);
+        REPLAY_TIMER = null;
+      });
+      document.getElementById("replayStep")?.addEventListener("click", () => {
+        clearInterval(REPLAY_TIMER);
+        REPLAY_TIMER = null;
+        applyReplayFrame((REPLAY_INDEX + 1) % Math.max(1, REPLAY_FRAMES.length));
+      });
+      document.getElementById("replaySpeed")?.addEventListener("click", (event) => {
+        REPLAY_SPEED = REPLAY_SPEED >= 4 ? 1 : REPLAY_SPEED * 2;
+        event.currentTarget.textContent = `${REPLAY_SPEED}x`;
+      });
+      applyReplayFrame(REPLAY_INDEX);
+    }
+
     function bindDrawer(data) {
       const drawer = document.getElementById("drawer");
       const body = document.getElementById("drawerBody");
@@ -1308,10 +1945,206 @@
       });
     }
 
+    function searchableModules() {
+      return Array.from(document.querySelectorAll(".searchable")).map((el, index) => ({
+        index,
+        el,
+        title: safeText(el.querySelector("h2,h3,strong,.state")?.textContent || `panel ${index + 1}`),
+        body: safeText(el.textContent || ""),
+        hay: `${el.dataset.search || ""} ${el.textContent || ""}`.toLowerCase()
+      }));
+    }
+
+    function saveCommandHistory(query) {
+      if (!query) return;
+      const key = "ravenos_command_history_v1";
+      let history = [];
+      try { history = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_) {}
+      history = [query, ...history.filter((item) => item !== query)].slice(0, 8);
+      try { localStorage.setItem(key, JSON.stringify(history)); } catch (_) {}
+    }
+
+    function commandIntent(query) {
+      const q = query.toLowerCase();
+      if (q.includes("compare") && q.includes("base") && q.includes("solana")) return { type: "compare", mode: { type: "chains", a: "solana", b: "base" }, filter: "base solana" };
+      if (q.includes("compare") && q.includes("eth") && q.includes("solana")) return { type: "compare", mode: { type: "chains", a: "solana", b: "eth" }, filter: "eth solana" };
+      if (q.includes("history") || q.includes("historical") || q.includes("replay")) return { type: "replay", filter: "replay historical similarity memory" };
+      if (q.includes("fragile")) return { type: "filter", filter: "fragile risk weakens caveat" };
+      if (q.includes("improving")) return { type: "filter", filter: "improving broadening stronger" };
+      if (q.includes("weak followthrough") || q.includes("followthrough")) return { type: "filter", filter: "followthrough weakens confirmation survival" };
+      if (q.includes("fresh")) return { type: "filter", filter: "fresh pair survival launch impulse" };
+      if (q.includes("pressure") || q.includes("crowded")) return { type: "filter", filter: "pressure crowding choppy reliability" };
+      return { type: "filter", filter: q };
+    }
+
+    function applyCommand(query) {
+      const intent = commandIntent(query);
+      const input = document.getElementById("commandInput");
+      if (input) {
+        input.value = intent.filter;
+        input.dispatchEvent(new Event("input"));
+      }
+      if (intent.type === "compare") {
+        COMPARE_MODE = intent.mode;
+        CHART_COMPARE = { a: intent.mode.a, b: intent.mode.b };
+        renderComparison(ACTIVE_DATA);
+        renderCharts(ACTIVE_DATA);
+      }
+      if (intent.type === "replay") {
+        document.getElementById("replayPanel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        applyReplayFrame((REPLAY_INDEX + 1) % Math.max(1, REPLAY_FRAMES.length));
+      }
+      saveCommandHistory(query);
+      setText("searchState", intent.type === "filter"
+        ? `Filtered to nearest structure workflow: ${intent.filter || "current read"}.`
+        : `Opened ${intent.type} workflow.`);
+    }
+
+    function paletteRows(query) {
+      const intent = commandIntent(query);
+      const modules = searchableModules();
+      const matches = modules.filter((item) => !intent.filter || item.hay.includes(intent.filter.toLowerCase())).slice(0, 7);
+      const suggestions = [
+        ["show fragile reads", "Filter caveats, risk, weak confirmation."],
+        ["compare Base vs Solana", "Open chain comparison and chart overlay."],
+        ["show improving participation", "Highlight broadening and improving reads."],
+        ["show weak followthrough", "Find survival and confirmation warnings."],
+        ["replay market structure", "Jump to public structure replay."]
+      ];
+      const rows = matches.map((item) => ({ title: item.title, body: item.body.slice(0, 140), command: query || item.title }));
+      if (rows.length) return rows;
+      return suggestions.map(([titleText, body]) => ({ title: titleText, body, command: titleText }));
+    }
+
+    function renderPalette(query = "") {
+      const root = document.getElementById("paletteResults");
+      if (!root) return;
+      root.innerHTML = paletteRows(query).map((row) => `
+        <button type="button" class="palette-row" data-command="${escapeHtml(row.command)}">
+          <strong>${escapeHtml(row.title)}</strong>
+          <span>${escapeHtml(row.body)}</span>
+        </button>
+      `).join("");
+      root.querySelectorAll("[data-command]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const command = button.getAttribute("data-command") || "";
+          applyCommand(command);
+          closePalette();
+        });
+      });
+    }
+
+    function openPalette(seed = "") {
+      const palette = document.getElementById("commandPalette");
+      const input = document.getElementById("paletteInput");
+      palette?.classList.add("open");
+      if (input) {
+        input.value = seed;
+        input.focus();
+        input.select();
+      }
+      renderPalette(seed);
+    }
+
+    function closePalette() {
+      document.getElementById("commandPalette")?.classList.remove("open");
+    }
+
+    function bindCommandPalette() {
+      const input = document.getElementById("paletteInput");
+      input?.addEventListener("input", () => renderPalette(input.value));
+      input?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          applyCommand(input.value.trim());
+          closePalette();
+        }
+        if (event.key === "Escape") closePalette();
+      });
+      document.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          event.preventDefault();
+          openPalette("");
+        }
+        if (event.key === "Escape") closePalette();
+      });
+      document.getElementById("commandInput")?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") applyCommand(event.currentTarget.value.trim());
+      });
+    }
+
+    function bindChartControls() {
+      document.querySelectorAll("[data-window]").forEach((button) => {
+        button.addEventListener("click", () => {
+          CHART_WINDOW = button.dataset.window || "1h";
+          document.querySelectorAll("[data-window]").forEach((item) => item.classList.toggle("active", item === button));
+          renderCharts(ACTIVE_DATA);
+        });
+      });
+      document.getElementById("compareSolBase")?.addEventListener("click", () => {
+        CHART_COMPARE = CHART_COMPARE?.a === "solana" && CHART_COMPARE?.b === "base" ? null : { a: "solana", b: "base" };
+        COMPARE_MODE = { type: "chains", a: "solana", b: "base" };
+        document.getElementById("compareSolBase")?.classList.toggle("active", !!CHART_COMPARE && CHART_COMPARE.b === "base");
+        document.getElementById("compareSolEth")?.classList.remove("active");
+        renderCharts(ACTIVE_DATA);
+        renderComparison(ACTIVE_DATA);
+      });
+      document.getElementById("compareSolEth")?.addEventListener("click", () => {
+        CHART_COMPARE = CHART_COMPARE?.a === "solana" && CHART_COMPARE?.b === "eth" ? null : { a: "solana", b: "eth" };
+        COMPARE_MODE = { type: "chains", a: "solana", b: "eth" };
+        document.getElementById("compareSolEth")?.classList.toggle("active", !!CHART_COMPARE && CHART_COMPARE.b === "eth");
+        document.getElementById("compareSolBase")?.classList.remove("active");
+        renderCharts(ACTIVE_DATA);
+        renderComparison(ACTIVE_DATA);
+      });
+    }
+
+    function bindCompareControls() {
+      const setMode = (mode, activeId) => {
+        COMPARE_MODE = mode;
+        document.querySelectorAll("#compareModeSolBase,#compareModeSolEth,#compareModeCurrentHistory").forEach((button) => {
+          button.classList.toggle("leader", button.id === activeId);
+        });
+        if (mode.type === "chains") CHART_COMPARE = { a: mode.a, b: mode.b };
+        renderComparison(ACTIVE_DATA);
+        renderCharts(ACTIVE_DATA);
+      };
+      document.getElementById("compareModeSolBase")?.addEventListener("click", () => setMode({ type: "chains", a: "solana", b: "base" }, "compareModeSolBase"));
+      document.getElementById("compareModeSolEth")?.addEventListener("click", () => setMode({ type: "chains", a: "solana", b: "eth" }, "compareModeSolEth"));
+      document.getElementById("compareModeCurrentHistory")?.addEventListener("click", () => setMode({ type: "history" }, "compareModeCurrentHistory"));
+    }
+
+    function startLiveTerminalBehavior() {
+      if (CLOCK_TIMER) clearInterval(CLOCK_TIMER);
+      CLOCK_TIMER = setInterval(() => {
+        if (ACTIVE_GENERATED_AT) setText("stripUpdated", ageLabel(ACTIVE_GENERATED_AT));
+        document.querySelectorAll("[data-live-age]").forEach((el) => {
+          const stamp = el.getAttribute("data-live-age");
+          if (stamp) el.textContent = ageLabel(stamp);
+        });
+      }, 30000);
+
+      if (WEATHER_TIMER) clearInterval(WEATHER_TIMER);
+      WEATHER_TIMER = setInterval(() => {
+        if (!WEATHER_ROTATION.length) return;
+        WEATHER_ROTATION_INDEX = (WEATHER_ROTATION_INDEX + 1) % WEATHER_ROTATION.length;
+        setText("deskRead", WEATHER_ROTATION[WEATHER_ROTATION_INDEX]);
+      }, 11000);
+
+      if (TAPE_TIMER) clearInterval(TAPE_TIMER);
+      TAPE_TIMER = setInterval(() => {
+        const tape = document.getElementById("tapeList");
+        if (!tape || tape.scrollHeight <= tape.clientHeight + 8) return;
+        const next = tape.scrollTop + 54;
+        tape.scrollTo({ top: next >= tape.scrollHeight - tape.clientHeight - 4 ? 0 : next, behavior: "smooth" });
+      }, 7000);
+    }
+
     function render(data) {
+      ACTIVE_DATA = data || {};
       renderStrip(data);
       renderHero(data);
       renderHeatmap(data);
+      renderComparison(data);
       renderTape(data);
       renderCharts(data);
       renderFresh(data);
@@ -1319,6 +2152,11 @@
       renderCaveats(data);
       bindDrawer(data);
       bindSearch();
+      bindCommandPalette();
+      bindChartControls();
+      bindCompareControls();
+      bindReplayControls(data);
+      startLiveTerminalBehavior();
     }
 
     document.getElementById("drawerClose")?.addEventListener("click", () => {

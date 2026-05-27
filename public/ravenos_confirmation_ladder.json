@@ -6,16 +6,16 @@
       "chain": "solana",
       "clean_delta": 0,
       "clean_delta_state": "flat",
-      "clean_ratio": 0.138,
-      "clean_sample": 17,
-      "direction": "mixed",
+      "clean_ratio": 0.17,
+      "clean_sample": 40,
+      "direction": "negative",
       "display": "Solana",
-      "observed_sample": 123,
-      "participant_outcome": "mixed",
+      "observed_sample": 235,
+      "participant_outcome": "punishing",
       "public_read": "Solana is active but fragile.",
       "quality": "fragile",
       "read": "unstable",
-      "thin_sample": 106,
+      "thin_sample": 195,
       "trust_label": "fragile"
     },
     {
@@ -59,7 +59,7 @@
     "summary": "Clean participation is broadly unchanged from the prior public snapshot."
   },
   "clean_participation_state": "thin",
-  "generated_at": "2026-05-12T13:09:22Z",
+  "generated_at": "2026-05-27T03:51:36Z",
   "lagging_chain": "solana",
   "leading_chain": "base",
   "market": {
