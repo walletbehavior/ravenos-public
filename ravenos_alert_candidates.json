@@ -7,7 +7,6 @@
         "all",
         "fresh_pairs",
         "high_caps",
-        "majors",
         "micro_caps",
         "mid_caps"
       ],
@@ -19,25 +18,21 @@
       ],
       "condition_family": "thin_sample",
       "confirmation_status": "confirmed",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
-      "matched_market_state_count": 14,
-      "matched_risk_count": 14,
+      "matched_market_state_count": 10,
+      "matched_risk_count": 10,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
-        "base_high_caps_6h",
-        "base_majors_6h",
-        "base_micro_caps_6h",
-        "base_mid_caps_6h",
         "eth_all_current",
         "eth_fresh_pairs_6h",
-        "eth_majors_6h",
         "eth_micro_caps_6h",
-        "eth_mid_caps_6h",
         "solana_all_current",
         "solana_fresh_pairs_6h",
-        "solana_micro_caps_6h"
+        "solana_high_caps_6h",
+        "solana_micro_caps_6h",
+        "solana_mid_caps_6h"
       ],
       "plain_language_summary": "The market condition is visible, but the clean public sample is still thin or building.",
       "preview_tier": "pro",
@@ -52,7 +47,6 @@
         "eth",
         "fresh_pairs",
         "high_caps",
-        "majors",
         "micro_caps",
         "mid_caps",
         "read may be unreliable",
@@ -60,7 +54,7 @@
         "thin sample",
         "thin unreliable read"
       ],
-      "segment": "all, fresh_pairs, high_caps, majors, micro_caps, mid_caps",
+      "segment": "all, fresh_pairs, high_caps, micro_caps, mid_caps",
       "severity": "caution",
       "status": "active",
       "suggested_user_action": "slow_down",
@@ -75,11 +69,7 @@
       "available_on": "pro",
       "cap_bands": [
         "all",
-        "fresh_pairs",
-        "high_caps",
-        "majors",
-        "micro_caps",
-        "mid_caps"
+        "fresh_pairs"
       ],
       "chain": "market",
       "chains": [
@@ -88,17 +78,13 @@
       ],
       "condition_family": "fragile_participation",
       "confirmation_status": "building",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
-      "matched_market_state_count": 8,
-      "matched_risk_count": 8,
+      "matched_market_state_count": 4,
+      "matched_risk_count": 4,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
-        "base_high_caps_6h",
-        "base_majors_6h",
-        "base_micro_caps_6h",
-        "base_mid_caps_6h",
         "eth_all_current",
         "eth_fresh_pairs_6h"
       ],
@@ -115,13 +101,9 @@
         "caution",
         "eth",
         "fragile participation",
-        "fresh_pairs",
-        "high_caps",
-        "majors",
-        "micro_caps",
-        "mid_caps"
+        "fresh_pairs"
       ],
-      "segment": "all, fresh_pairs, high_caps, majors, micro_caps, mid_caps",
+      "segment": "all, fresh_pairs",
       "severity": "caution",
       "status": "building",
       "suggested_user_action": "avoid_chase",
@@ -137,28 +119,25 @@
       "cap_bands": [
         "fresh_pairs",
         "high_caps",
-        "majors",
-        "micro_caps",
         "mid_caps"
       ],
       "chain": "market",
       "chains": [
         "base",
-        "eth"
+        "eth",
+        "solana"
       ],
       "condition_family": "cap_band_rotation",
       "confirmation_status": "confirmed",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
-      "matched_market_state_count": 6,
-      "matched_risk_count": 6,
+      "matched_market_state_count": 4,
+      "matched_risk_count": 4,
       "matched_state_ids": [
         "base_fresh_pairs_6h",
-        "base_high_caps_6h",
-        "base_majors_6h",
-        "base_micro_caps_6h",
-        "base_mid_caps_6h",
-        "eth_fresh_pairs_6h"
+        "eth_fresh_pairs_6h",
+        "solana_high_caps_6h",
+        "solana_mid_caps_6h"
       ],
       "plain_language_summary": "A cap-band slice is moving differently from the broader chain read.",
       "preview_tier": "pro",
@@ -174,12 +153,11 @@
         "eth",
         "fresh_pairs",
         "high_caps",
-        "majors",
-        "micro_caps",
         "mid_caps",
+        "solana",
         "watch"
       ],
-      "segment": "fresh_pairs, high_caps, majors, micro_caps, mid_caps",
+      "segment": "fresh_pairs, high_caps, mid_caps",
       "severity": "watch",
       "status": "active",
       "suggested_user_action": "watch",
@@ -196,30 +174,27 @@
         "all",
         "fresh_pairs",
         "high_caps",
-        "majors",
-        "micro_caps",
         "mid_caps"
       ],
       "chain": "market",
       "chains": [
         "base",
-        "eth"
+        "eth",
+        "solana"
       ],
       "condition_family": "outcome_unclear",
       "confirmation_status": "confirmed",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
-      "matched_market_state_count": 8,
-      "matched_risk_count": 8,
+      "matched_market_state_count": 6,
+      "matched_risk_count": 6,
       "matched_state_ids": [
         "base_all_current",
         "base_fresh_pairs_6h",
-        "base_high_caps_6h",
-        "base_majors_6h",
-        "base_micro_caps_6h",
-        "base_mid_caps_6h",
         "eth_all_current",
-        "eth_fresh_pairs_6h"
+        "eth_fresh_pairs_6h",
+        "solana_high_caps_6h",
+        "solana_mid_caps_6h"
       ],
       "plain_language_summary": "The market is active, but the public sample does not yet show a clear participant outcome.",
       "preview_tier": "pro",
@@ -233,14 +208,13 @@
         "eth",
         "fresh_pairs",
         "high_caps",
-        "majors",
-        "micro_caps",
         "mid_caps",
         "outcome unclear",
         "participant outcome unclear",
+        "solana",
         "watch"
       ],
-      "segment": "all, fresh_pairs, high_caps, majors, micro_caps, mid_caps",
+      "segment": "all, fresh_pairs, high_caps, mid_caps",
       "severity": "watch",
       "status": "active",
       "suggested_user_action": "wait_for_confirmation",
@@ -256,7 +230,9 @@
       "cap_bands": [
         "all",
         "fresh_pairs",
-        "micro_caps"
+        "high_caps",
+        "micro_caps",
+        "mid_caps"
       ],
       "chain": "solana",
       "chains": [
@@ -264,14 +240,16 @@
       ],
       "condition_family": "source_freshness_limited",
       "confirmation_status": "confirmed",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
-      "matched_market_state_count": 3,
-      "matched_risk_count": 3,
+      "matched_market_state_count": 5,
+      "matched_risk_count": 5,
       "matched_state_ids": [
         "solana_all_current",
         "solana_fresh_pairs_6h",
-        "solana_micro_caps_6h"
+        "solana_high_caps_6h",
+        "solana_micro_caps_6h",
+        "solana_mid_caps_6h"
       ],
       "plain_language_summary": "The public read is available, but source freshness or data quality is limiting confidence.",
       "preview_tier": "pro",
@@ -282,13 +260,15 @@
         "all",
         "confirmed",
         "fresh_pairs",
+        "high_caps",
         "micro_caps",
+        "mid_caps",
         "solana",
         "source coverage is limited",
         "source freshness limited",
         "watch"
       ],
-      "segment": "all, fresh_pairs, micro_caps",
+      "segment": "all, fresh_pairs, high_caps, micro_caps, mid_caps",
       "severity": "watch",
       "status": "active",
       "suggested_user_action": "slow_down",
@@ -310,7 +290,7 @@
       ],
       "condition_family": "macro_context_available",
       "confirmation_status": "partially_confirmed",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
       "matched_market_state_count": 1,
       "matched_risk_count": 1,
@@ -353,7 +333,7 @@
       ],
       "condition_family": "historical_context_building",
       "confirmation_status": "building",
-      "generated_at": "2026-05-29T12:16:45Z",
+      "generated_at": "2026-05-29T12:21:44Z",
       "is_preview_limited": true,
       "matched_market_state_count": 1,
       "matched_risk_count": 1,
@@ -384,7 +364,7 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-29T12:16:45Z",
+  "generated_at": "2026-05-29T12:21:44Z",
   "metadata": {
     "active_count": 5,
     "building_count": 2,

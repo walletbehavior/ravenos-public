@@ -85,6 +85,68 @@
       "window": "6h"
     },
     {
+      "breadth_state": "narrow",
+      "chain": "solana",
+      "confirmation_state": "building",
+      "data_quality": "thin",
+      "outcome_state": "unclear",
+      "participation_state": "fading",
+      "risk_flags": [
+        "data_quality",
+        "data_quality_is_observed_only",
+        "fresh_pair_age_unavailable",
+        "observed_public_sample_only",
+        "participant_outcome_is_unknown",
+        "participant_outcome_remains_unknown",
+        "source_freshness_is_limited",
+        "source_freshness_limited",
+        "source_sample_or_freshness_limited",
+        "thin_sample",
+        "unknown_outcome"
+      ],
+      "source_freshness": "stale",
+      "stability_state": "unstable",
+      "summary": "Solana is active, but participant outcome is not clear yet.",
+      "tags": [
+        "mixed_signal_environment",
+        "high_risk_low_clarity"
+      ],
+      "what_breaks": "Stale source coverage would keep the condition unreliable.",
+      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
+      "window": "6h"
+    },
+    {
+      "breadth_state": "narrow",
+      "chain": "solana",
+      "confirmation_state": "building",
+      "data_quality": "thin",
+      "outcome_state": "unclear",
+      "participation_state": "fading",
+      "risk_flags": [
+        "data_quality",
+        "data_quality_is_observed_only",
+        "fresh_pair_age_unavailable",
+        "observed_public_sample_only",
+        "participant_outcome_is_unknown",
+        "participant_outcome_remains_unknown",
+        "source_freshness_is_limited",
+        "source_freshness_limited",
+        "source_sample_or_freshness_limited",
+        "thin_sample",
+        "unknown_outcome"
+      ],
+      "source_freshness": "stale",
+      "stability_state": "unstable",
+      "summary": "Solana is active, but participant outcome is not clear yet.",
+      "tags": [
+        "mixed_signal_environment",
+        "high_risk_low_clarity"
+      ],
+      "what_breaks": "Stale source coverage would keep the condition unreliable.",
+      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
+      "window": "6h"
+    },
+    {
       "breadth_state": "broad",
       "chain": "eth",
       "confirmation_state": "building",
@@ -136,56 +198,6 @@
       "tags": [
         "broad_but_unconfirmed",
         "thin_but_improving",
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
-    },
-    {
-      "breadth_state": "narrow",
-      "chain": "eth",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "negative",
-      "participation_state": "fading",
-      "risk_flags": [
-        "clean_sample_is_thin",
-        "data_quality",
-        "data_quality_is_thin",
-        "source_sample_insufficient",
-        "thin_sample"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "ETH market condition is fading with thin data quality.",
-      "tags": [
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
-    },
-    {
-      "breadth_state": "narrow",
-      "chain": "eth",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "negative",
-      "participation_state": "fading",
-      "risk_flags": [
-        "clean_sample_is_thin",
-        "data_quality",
-        "data_quality_is_thin",
-        "source_sample_insufficient",
-        "thin_sample"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "ETH market condition is fading with thin data quality.",
-      "tags": [
         "mixed_signal_environment",
         "high_risk_low_clarity"
       ],
@@ -276,129 +288,9 @@
       "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
       "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
       "window": "6h"
-    },
-    {
-      "breadth_state": "broad",
-      "chain": "base",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "unclear",
-      "participation_state": "expanding",
-      "risk_flags": [
-        "data_quality",
-        "data_quality_is_observed_only",
-        "observed_public_sample_only",
-        "participant_outcome_is_unknown",
-        "participant_outcome_remains_unknown",
-        "source_sample_insufficient",
-        "thin_sample",
-        "unknown_outcome"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "Base participation is improving, but the clean public sample is still thin.",
-      "tags": [
-        "broad_but_unconfirmed",
-        "thin_but_improving",
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
-    },
-    {
-      "breadth_state": "broad",
-      "chain": "base",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "unclear",
-      "participation_state": "expanding",
-      "risk_flags": [
-        "data_quality",
-        "data_quality_is_observed_only",
-        "observed_public_sample_only",
-        "participant_outcome_is_unknown",
-        "participant_outcome_remains_unknown",
-        "source_sample_insufficient",
-        "thin_sample",
-        "unknown_outcome"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "Base participation is improving, but the clean public sample is still thin.",
-      "tags": [
-        "broad_but_unconfirmed",
-        "thin_but_improving",
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
-    },
-    {
-      "breadth_state": "broad",
-      "chain": "base",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "unclear",
-      "participation_state": "expanding",
-      "risk_flags": [
-        "data_quality",
-        "data_quality_is_observed_only",
-        "observed_public_sample_only",
-        "participant_outcome_is_unknown",
-        "participant_outcome_remains_unknown",
-        "source_sample_insufficient",
-        "thin_sample",
-        "unknown_outcome"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "Base participation is improving, but the clean public sample is still thin.",
-      "tags": [
-        "broad_but_unconfirmed",
-        "thin_but_improving",
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
-    },
-    {
-      "breadth_state": "broad",
-      "chain": "base",
-      "confirmation_state": "building",
-      "data_quality": "thin",
-      "outcome_state": "unclear",
-      "participation_state": "expanding",
-      "risk_flags": [
-        "data_quality",
-        "data_quality_is_observed_only",
-        "observed_public_sample_only",
-        "participant_outcome_is_unknown",
-        "participant_outcome_remains_unknown",
-        "source_sample_insufficient",
-        "thin_sample",
-        "unknown_outcome"
-      ],
-      "source_freshness": "fresh",
-      "stability_state": "unstable",
-      "summary": "Base participation is improving, but the clean public sample is still thin.",
-      "tags": [
-        "broad_but_unconfirmed",
-        "thin_but_improving",
-        "mixed_signal_environment",
-        "high_risk_low_clarity"
-      ],
-      "what_breaks": "A thinner sample, weaker participation, or window disagreement would weaken this condition.",
-      "what_confirms": "The same read needs to persist across refreshes and align with broader windows.",
-      "window": "6h"
     }
   ],
-  "count": 14,
-  "generated_at": "2026-05-29T12:16:45Z",
+  "count": 10,
+  "generated_at": "2026-05-29T12:21:44Z",
   "schema_version": "condition_search_v0"
 }

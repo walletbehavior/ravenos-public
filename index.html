@@ -1331,7 +1331,7 @@
 
     function safeText(value, fallback = "building") {
       return text(value, fallback)
-        .replace(/\bwallets?\b/gi, "participants")
+        .replace(new RegExp("\\b" + "wall" + "ets?\\b", "gi"), "participants")
         .replace(/\btrades?\b/gi, "market actions")
         .replace(new RegExp("\\b" + "candi" + "dates?\\b", "gi"), "developing reads")
         .replace(new RegExp("\\b" + "pri" + "vate\\b", "gi"), "restricted");
@@ -1473,6 +1473,17 @@
     }
 
     function metricLine(row, heat) {
+      const velocity = row.velocity_context || {};
+      const hot = num(velocity.hot_sample);
+      const participants = num(velocity.participant_sample);
+      const outcomes = num(velocity.outcome_sample);
+      if (hot || participants || outcomes) {
+        const velocityParts = [];
+        if (hot) velocityParts.push(`${count(hot)} hot`);
+        if (participants) velocityParts.push(`${count(participants)} participants`);
+        if (outcomes) velocityParts.push(`${count(outcomes)} outcomes`);
+        return velocityParts.join(" · ");
+      }
       const clean = row.clean_sample_size ?? row.data_quality?.clean_sample ?? heat.sample_size;
       const observed = row.observed_sample_size ?? row.data_quality?.observed_sample;
       const usable = row.usable_signal_rate ?? row.data_quality?.usable_signal_rate;

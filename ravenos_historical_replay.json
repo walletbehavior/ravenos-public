@@ -40,82 +40,6 @@
     },
     {
       "after_window_summary": null,
-      "cap_band": "high_caps",
-      "chain": "base",
-      "current_state_id": "base_high_caps_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "base_high_caps_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base high caps 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
-      "cap_band": "majors",
-      "chain": "base",
-      "current_state_id": "base_majors_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "base_majors_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base majors 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
-      "cap_band": "micro_caps",
-      "chain": "base",
-      "current_state_id": "base_micro_caps_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "base_micro_caps_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base micro caps 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
-      "cap_band": "mid_caps",
-      "chain": "base",
-      "current_state_id": "base_mid_caps_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "base_mid_caps_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Base mid caps 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
       "cap_band": "all",
       "chain": "eth",
       "current_state_id": "eth_all_current",
@@ -154,25 +78,6 @@
     },
     {
       "after_window_summary": null,
-      "cap_band": "majors",
-      "chain": "eth",
-      "current_state_id": "eth_majors_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "eth_majors_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth majors 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
       "cap_band": "micro_caps",
       "chain": "eth",
       "current_state_id": "eth_micro_caps_6h",
@@ -187,25 +92,6 @@
       "matched_state_id": "eth_micro_caps_6h",
       "matched_window_start": "2026-05-14T20:47:56Z",
       "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth micro caps 6h.",
-      "similarity_score": 1.0,
-      "window": "6h"
-    },
-    {
-      "after_window_summary": null,
-      "cap_band": "mid_caps",
-      "chain": "eth",
-      "current_state_id": "eth_mid_caps_6h",
-      "match_reasons": [
-        "chain matches",
-        "cap band matches",
-        "window matches",
-        "condition matches",
-        "data quality matches",
-        "participant outcome matches"
-      ],
-      "matched_state_id": "eth_mid_caps_6h",
-      "matched_window_start": "2026-05-14T20:47:56Z",
-      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Eth mid caps 6h.",
       "similarity_score": 1.0,
       "window": "6h"
     },
@@ -267,10 +153,10 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-29T12:16:45Z",
+  "generated_at": "2026-05-29T12:21:44Z",
   "metadata": {
-    "archive_record_count": 2393,
-    "current_state_count": 14,
+    "archive_record_count": 2394,
+    "current_state_count": 10,
     "eligible_comparable_record_count": 2367,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20

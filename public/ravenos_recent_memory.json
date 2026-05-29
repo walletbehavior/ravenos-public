@@ -25,13 +25,13 @@
   "consistency_trend": "mixed",
   "dominant_condition_family": "thin_sample",
   "frequent_condition_families": {
-    "broad_but_unconfirmed": 392,
-    "high_risk_low_clarity": 14,
-    "mixed_signal_environment": 14,
-    "thin_but_improving": 6,
-    "thin_sample": 672
+    "broad_but_unconfirmed": 386,
+    "high_risk_low_clarity": 10,
+    "mixed_signal_environment": 10,
+    "thin_but_improving": 2,
+    "thin_sample": 668
   },
-  "generated_at": "2026-05-29T12:17:05Z",
+  "generated_at": "2026-05-29T12:22:04Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -60,24 +60,24 @@
   ],
   "recent_context_by_family": {
     "broad_but_unconfirmed": {
-      "appearance_count": 392,
-      "recent_context": "This condition has appeared 392 times in the recent public window."
+      "appearance_count": 386,
+      "recent_context": "This condition has appeared 386 times in the recent public window."
     },
     "high_risk_low_clarity": {
-      "appearance_count": 14,
-      "recent_context": "This condition has appeared 14 times in the recent public window."
+      "appearance_count": 10,
+      "recent_context": "This condition has appeared 10 times in the recent public window."
     },
     "mixed_signal_environment": {
-      "appearance_count": 14,
-      "recent_context": "This condition has appeared 14 times in the recent public window."
+      "appearance_count": 10,
+      "recent_context": "This condition has appeared 10 times in the recent public window."
     },
     "thin_but_improving": {
-      "appearance_count": 6,
-      "recent_context": "This condition has appeared 6 times in the recent public window."
+      "appearance_count": 2,
+      "recent_context": "This condition has appeared 2 times in the recent public window."
     },
     "thin_sample": {
-      "appearance_count": 672,
-      "recent_context": "This condition has appeared 672 times in the recent public window."
+      "appearance_count": 668,
+      "recent_context": "This condition has appeared 668 times in the recent public window."
     }
   },
   "schema_version": "ravenos_recent_memory_v0",

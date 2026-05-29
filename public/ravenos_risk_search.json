@@ -1,11 +1,10 @@
 {
-  "generated_at": "2026-05-29T12:16:45Z",
+  "generated_at": "2026-05-29T12:21:44Z",
   "metadata": {
     "available_cap_bands": [
       "all",
       "fresh_pairs",
       "high_caps",
-      "majors",
       "micro_caps",
       "mid_caps"
     ],
@@ -179,6 +178,150 @@
       "window": "6h"
     },
     {
+      "cap_band": "mid_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana mid caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "solana_mid_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "solana_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana mid caps 6h is still building because participant outcome is unknown.",
+      "risk_id": "solana_mid_caps_6h_unknown_outcome",
+      "risk_level": "high",
+      "risk_type": "unknown_outcome",
+      "state_id": "solana_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "source freshness is limited",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana mid caps 6h is public-safe, but source freshness is limited.",
+      "risk_id": "solana_mid_caps_6h_source_freshness_limited",
+      "risk_level": "high",
+      "risk_type": "source_freshness_limited",
+      "state_id": "solana_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "mid_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana mid caps 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "solana_mid_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "solana_mid_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "observed public sample only",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana high caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
+      "risk_id": "solana_high_caps_6h_thin_sample",
+      "risk_level": "high",
+      "risk_type": "thin_sample",
+      "state_id": "solana_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "participant outcome is unknown",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana high caps 6h is still building because participant outcome is unknown.",
+      "risk_id": "solana_high_caps_6h_unknown_outcome",
+      "risk_level": "high",
+      "risk_type": "unknown_outcome",
+      "state_id": "solana_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "source freshness is limited",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana high caps 6h is public-safe, but source freshness is limited.",
+      "risk_id": "solana_high_caps_6h_source_freshness_limited",
+      "risk_level": "high",
+      "risk_type": "source_freshness_limited",
+      "state_id": "solana_high_caps_6h",
+      "window": "6h"
+    },
+    {
+      "cap_band": "high_caps",
+      "chain": "solana",
+      "data_quality": "observed_only",
+      "drivers": [
+        "data quality is observed_only",
+        "participant outcome remains unknown",
+        "fresh pair age unavailable",
+        "source sample or freshness limited"
+      ],
+      "participant_outcome": "unknown",
+      "public_read": "Solana high caps 6h has observed_only data quality, so the read remains cautious.",
+      "risk_id": "solana_high_caps_6h_data_quality",
+      "risk_level": "high",
+      "risk_type": "data_quality",
+      "state_id": "solana_high_caps_6h",
+      "window": "6h"
+    },
+    {
       "cap_band": "all",
       "chain": "eth",
       "data_quality": "building",
@@ -313,70 +456,6 @@
       "window": "6h"
     },
     {
-      "cap_band": "mid_caps",
-      "chain": "eth",
-      "data_quality": "thin",
-      "drivers": [
-        "clean sample is thin",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "negative",
-      "public_read": "ETH mid caps 6h is still building because the clean sample is thin and participant outcome is negative.",
-      "risk_id": "eth_mid_caps_6h_thin_sample",
-      "risk_level": "high",
-      "risk_type": "thin_sample",
-      "state_id": "eth_mid_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "mid_caps",
-      "chain": "eth",
-      "data_quality": "thin",
-      "drivers": [
-        "data quality is thin",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "negative",
-      "public_read": "ETH mid caps 6h has thin data quality, so the read remains cautious.",
-      "risk_id": "eth_mid_caps_6h_data_quality",
-      "risk_level": "high",
-      "risk_type": "data_quality",
-      "state_id": "eth_mid_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "majors",
-      "chain": "eth",
-      "data_quality": "thin",
-      "drivers": [
-        "clean sample is thin",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "negative",
-      "public_read": "ETH majors 6h is still building because the clean sample is thin and participant outcome is negative.",
-      "risk_id": "eth_majors_6h_thin_sample",
-      "risk_level": "high",
-      "risk_type": "thin_sample",
-      "state_id": "eth_majors_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "majors",
-      "chain": "eth",
-      "data_quality": "thin",
-      "drivers": [
-        "data quality is thin",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "negative",
-      "public_read": "ETH majors 6h has thin data quality, so the read remains cautious.",
-      "risk_id": "eth_majors_6h_data_quality",
-      "risk_level": "high",
-      "risk_type": "data_quality",
-      "state_id": "eth_majors_6h",
-      "window": "6h"
-    },
-    {
       "cap_band": "all",
       "chain": "base",
       "data_quality": "building",
@@ -476,210 +555,6 @@
       "risk_level": "moderate",
       "risk_type": "data_quality",
       "state_id": "base_fresh_pairs_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "micro_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "observed public sample only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base micro caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
-      "risk_id": "base_micro_caps_6h_thin_sample",
-      "risk_level": "moderate",
-      "risk_type": "thin_sample",
-      "state_id": "base_micro_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "micro_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "participant outcome is unknown",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base micro caps 6h is still building because participant outcome is unknown.",
-      "risk_id": "base_micro_caps_6h_unknown_outcome",
-      "risk_level": "moderate",
-      "risk_type": "unknown_outcome",
-      "state_id": "base_micro_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "micro_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "data quality is observed_only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base micro caps 6h has observed_only data quality, so the read remains cautious.",
-      "risk_id": "base_micro_caps_6h_data_quality",
-      "risk_level": "moderate",
-      "risk_type": "data_quality",
-      "state_id": "base_micro_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "mid_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "observed public sample only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base mid caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
-      "risk_id": "base_mid_caps_6h_thin_sample",
-      "risk_level": "moderate",
-      "risk_type": "thin_sample",
-      "state_id": "base_mid_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "mid_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "participant outcome is unknown",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base mid caps 6h is still building because participant outcome is unknown.",
-      "risk_id": "base_mid_caps_6h_unknown_outcome",
-      "risk_level": "moderate",
-      "risk_type": "unknown_outcome",
-      "state_id": "base_mid_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "mid_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "data quality is observed_only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base mid caps 6h has observed_only data quality, so the read remains cautious.",
-      "risk_id": "base_mid_caps_6h_data_quality",
-      "risk_level": "moderate",
-      "risk_type": "data_quality",
-      "state_id": "base_mid_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "high_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "observed public sample only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base high caps 6h is still building because the clean sample is thin and participant outcome is unknown.",
-      "risk_id": "base_high_caps_6h_thin_sample",
-      "risk_level": "moderate",
-      "risk_type": "thin_sample",
-      "state_id": "base_high_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "high_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "participant outcome is unknown",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base high caps 6h is still building because participant outcome is unknown.",
-      "risk_id": "base_high_caps_6h_unknown_outcome",
-      "risk_level": "moderate",
-      "risk_type": "unknown_outcome",
-      "state_id": "base_high_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "high_caps",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "data quality is observed_only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base high caps 6h has observed_only data quality, so the read remains cautious.",
-      "risk_id": "base_high_caps_6h_data_quality",
-      "risk_level": "moderate",
-      "risk_type": "data_quality",
-      "state_id": "base_high_caps_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "majors",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "observed public sample only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base majors 6h is still building because the clean sample is thin and participant outcome is unknown.",
-      "risk_id": "base_majors_6h_thin_sample",
-      "risk_level": "moderate",
-      "risk_type": "thin_sample",
-      "state_id": "base_majors_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "majors",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "participant outcome is unknown",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base majors 6h is still building because participant outcome is unknown.",
-      "risk_id": "base_majors_6h_unknown_outcome",
-      "risk_level": "moderate",
-      "risk_type": "unknown_outcome",
-      "state_id": "base_majors_6h",
-      "window": "6h"
-    },
-    {
-      "cap_band": "majors",
-      "chain": "base",
-      "data_quality": "observed_only",
-      "drivers": [
-        "data quality is observed_only",
-        "participant outcome remains unknown",
-        "source sample insufficient"
-      ],
-      "participant_outcome": "unknown",
-      "public_read": "Base majors 6h has observed_only data quality, so the read remains cautious.",
-      "risk_id": "base_majors_6h_data_quality",
-      "risk_level": "moderate",
-      "risk_type": "data_quality",
-      "state_id": "base_majors_6h",
       "window": "6h"
     }
   ],
