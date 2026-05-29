@@ -236,6 +236,28 @@
       "window": "6h"
     },
     {
+      "advisory_id": "solana_majors_6h_thin_sample",
+      "chain": "solana",
+      "plain_warning": "Not enough clean data yet",
+      "risk_flags": [
+        "stale_data",
+        "thin_sample"
+      ],
+      "risk_level": "moderate",
+      "scope": "majors",
+      "search_terms": [
+        "risky",
+        "unstable",
+        "low confidence",
+        "thin",
+        "thin_sample",
+        "moderate"
+      ],
+      "what_would_improve": "More public states need to move into the clean sample.",
+      "why_it_matters": "The public sample is still thin or building, so the read is less reliable.",
+      "window": "6h"
+    },
+    {
       "advisory_id": "solana_micro_caps_6h_thin_sample",
       "chain": "solana",
       "plain_warning": "Not enough clean data yet",
@@ -280,11 +302,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-29T12:22:04Z",
+  "generated_at": "2026-05-29T12:24:00Z",
   "risk_level": "moderate",
   "schema_version": "ravenos_risk_advisory_v0",
   "top_flags": {
-    "stale_data": 6,
-    "thin_sample": 13
+    "stale_data": 7,
+    "thin_sample": 14
   }
 }

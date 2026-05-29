@@ -3,6 +3,7 @@
     "all",
     "fresh_pairs",
     "high_caps",
+    "majors",
     "micro_caps",
     "mid_caps"
   ],
@@ -27,7 +28,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-05-29T12:21:44Z",
+  "generated_at": "2026-05-29T12:23:40Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -88,7 +89,7 @@
       "condition": "contracting",
       "data_quality": {
         "clean_sample": 10,
-        "observed_sample": 90,
+        "observed_sample": 89,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -99,7 +100,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 90,
+      "observed_sample_size": 89,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -120,11 +121,11 @@
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "velocity_context": {
-        "hot_sample": 9,
+        "hot_sample": 8,
         "outcome_sample": 0,
-        "participant_sample": 0,
+        "participant_sample": 153,
         "readiness": "needs_mfe_truth",
-        "top_velocity_pct": 3654.2078
+        "top_velocity_pct": 982.7967
       },
       "warnings": [
         "fresh_pair_age_unavailable",
@@ -135,15 +136,15 @@
     {
       "breadth": {
         "direction": "contracting",
-        "strength": "weak"
+        "strength": "moderate"
       },
       "cap_band": "micro_caps",
       "chain": "solana",
-      "clean_sample_size": 46,
+      "clean_sample_size": 50,
       "condition": "contracting",
       "data_quality": {
-        "clean_sample": 46,
-        "observed_sample": 46,
+        "clean_sample": 50,
+        "observed_sample": 50,
         "status": "thin",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -154,7 +155,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 46,
+      "observed_sample_size": 50,
       "participant_outcome": {
         "confidence": "low",
         "direction": "negative"
@@ -168,16 +169,16 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 46,
+      "sample_size": 50,
       "state_id": "solana_micro_caps_6h",
       "summary": "Solana micro caps are showing a weaker public read, with participant outcome turning negative or fragile. Risk is high in the current window.",
       "thin_sample_size": null,
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "velocity_context": {
-        "hot_sample": 46,
-        "outcome_sample": 26,
-        "participant_sample": 0,
+        "hot_sample": 50,
+        "outcome_sample": 27,
+        "participant_sample": 132,
         "readiness": "outcome_supported",
         "top_velocity_pct": 1189.8434
       },
@@ -198,7 +199,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 4,
+        "observed_sample": 5,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -209,7 +210,7 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 4,
+      "observed_sample_size": 5,
       "participant_outcome": {
         "confidence": "low",
         "direction": "unknown"
@@ -223,18 +224,18 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 4,
+      "sample_size": 5,
       "state_id": "solana_mid_caps_6h",
       "summary": "Solana mid caps are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "velocity_context": {
-        "hot_sample": 4,
-        "outcome_sample": 6,
-        "participant_sample": 0,
+        "hot_sample": 5,
+        "outcome_sample": 4,
+        "participant_sample": 39,
         "readiness": "outcome_supported",
-        "top_velocity_pct": 47.5482
+        "top_velocity_pct": 33.9495
       },
       "warnings": [
         "fresh_pair_age_unavailable",
@@ -253,7 +254,7 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": null,
-        "observed_sample": 3,
+        "observed_sample": 1,
         "status": "observed_only",
         "thin_sample": null,
         "unresolved_sample": null,
@@ -264,7 +265,61 @@
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 3,
+      "observed_sample_size": 1,
+      "participant_outcome": {
+        "confidence": "low",
+        "direction": "unknown"
+      },
+      "risk": {
+        "drivers": [
+          "fresh pair age unavailable",
+          "source sample or freshness limited"
+        ],
+        "level": "moderate"
+      },
+      "risk_level": "moderate",
+      "sample_size": 1,
+      "state_id": "solana_high_caps_6h",
+      "summary": "Solana high caps are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
+      "thin_sample_size": null,
+      "unresolved_sample_size": null,
+      "usable_signal_rate": null,
+      "velocity_context": {
+        "hot_sample": 1,
+        "outcome_sample": 2,
+        "participant_sample": 24,
+        "readiness": "needs_mfe_truth",
+        "top_velocity_pct": 10.9128
+      },
+      "warnings": [
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "breadth": {
+        "direction": "contracting",
+        "strength": "weak"
+      },
+      "cap_band": "majors",
+      "chain": "solana",
+      "clean_sample_size": null,
+      "condition": "building",
+      "data_quality": {
+        "clean_sample": null,
+        "observed_sample": 1,
+        "status": "observed_only",
+        "thin_sample": null,
+        "unresolved_sample": null,
+        "usable_signal_rate": null
+      },
+      "data_quality_status": "observed_only",
+      "macro_context": {
+        "status": "unknown",
+        "summary": null
+      },
+      "observed_sample_size": 1,
       "participant_outcome": {
         "confidence": "low",
         "direction": "unknown"
@@ -278,18 +333,18 @@
         "level": "high"
       },
       "risk_level": "high",
-      "sample_size": 3,
-      "state_id": "solana_high_caps_6h",
-      "summary": "Solana high caps are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
+      "sample_size": 1,
+      "state_id": "solana_majors_6h",
+      "summary": "Solana majors are visible but still building because the current public sample is incomplete and participant outcome is unknown.",
       "thin_sample_size": null,
       "unresolved_sample_size": null,
       "usable_signal_rate": null,
       "velocity_context": {
-        "hot_sample": 3,
+        "hot_sample": 1,
         "outcome_sample": 3,
-        "participant_sample": 0,
+        "participant_sample": 20,
         "readiness": "outcome_supported",
-        "top_velocity_pct": 20.0865
+        "top_velocity_pct": 20.8023
       },
       "warnings": [
         "fresh_pair_age_unavailable",
@@ -438,7 +493,7 @@
       "velocity_context": {
         "hot_sample": 1,
         "outcome_sample": 256,
-        "participant_sample": 0,
+        "participant_sample": 263,
         "readiness": "outcome_supported",
         "top_velocity_pct": 15.9624
       },

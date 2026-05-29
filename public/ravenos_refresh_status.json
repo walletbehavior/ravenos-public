@@ -3,24 +3,24 @@
   "alert_count": 7,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-05-29T12:21:46Z",
-    "latest_generated_at": "2026-05-29T12:21:44Z",
-    "records": 2394
+    "latest_archived_at": "2026-05-29T12:23:42Z",
+    "latest_generated_at": "2026-05-29T12:23:40Z",
+    "records": 2395
   },
-  "archive_record_count": 2394,
-  "condition_search_count": 10,
+  "archive_record_count": 2395,
+  "condition_search_count": 11,
   "condition_transition_count": 0,
-  "generated_at": "2026-05-29T12:21:44Z",
-  "historical_comparable_count": 8,
+  "generated_at": "2026-05-29T12:23:40Z",
+  "historical_comparable_count": 9,
   "historical_replay_status": {
-    "comparables": 8,
+    "comparables": 9,
     "status": "available"
   },
-  "market_search_index_count": 45,
-  "market_state_count": 10,
+  "market_search_index_count": 49,
+  "market_state_count": 11,
   "no_leak_ok": true,
-  "participant_outcome_count": 10,
-  "risk_state_count": 31,
+  "participant_outcome_count": 11,
+  "risk_state_count": 35,
   "saved_search_template_count": 6,
   "schema_version": "ravenos_refresh_status_v0",
   "timer": {
@@ -32,5 +32,5 @@
     "sub_state": "waiting",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-05-29T12:22:20.574447+00:00"
+  "updated_at": "2026-05-29T12:24:15.668538+00:00"
 }

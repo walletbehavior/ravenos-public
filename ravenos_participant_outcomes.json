@@ -1,10 +1,11 @@
 {
-  "generated_at": "2026-05-29T12:21:44Z",
+  "generated_at": "2026-05-29T12:23:40Z",
   "metadata": {
     "available_cap_bands": [
       "all",
       "fresh_pairs",
       "high_caps",
+      "majors",
       "micro_caps",
       "mid_caps"
     ],
@@ -48,7 +49,7 @@
       "confidence": "low",
       "data_quality": "thin",
       "direction": "negative",
-      "observed_sample": 90,
+      "observed_sample": 89,
       "outcome_id": "solana_fresh_pairs_6h",
       "participant_outcome": "punishing",
       "public_read": "Solana fresh pairs 6h is punishing in the current public sample.",
@@ -62,11 +63,11 @@
     {
       "cap_band": "micro_caps",
       "chain": "solana",
-      "clean_sample": 46,
+      "clean_sample": 50,
       "confidence": "low",
       "data_quality": "thin",
       "direction": "negative",
-      "observed_sample": 46,
+      "observed_sample": 50,
       "outcome_id": "solana_micro_caps_6h",
       "participant_outcome": "punishing",
       "public_read": "Solana micro caps 6h is punishing in the current public sample.",
@@ -84,7 +85,7 @@
       "confidence": "low",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 4,
+      "observed_sample": 5,
       "outcome_id": "solana_mid_caps_6h",
       "participant_outcome": "unknown",
       "public_read": "Solana mid caps 6h is not confirmed yet because the clean sample is thin.",
@@ -102,11 +103,29 @@
       "confidence": "low",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 3,
+      "observed_sample": 1,
       "outcome_id": "solana_high_caps_6h",
       "participant_outcome": "unknown",
       "public_read": "Solana high caps 6h is not confirmed yet because the clean sample is thin.",
       "state_id": "solana_high_caps_6h",
+      "warnings": [
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited"
+      ],
+      "window": "6h"
+    },
+    {
+      "cap_band": "majors",
+      "chain": "solana",
+      "clean_sample": null,
+      "confidence": "low",
+      "data_quality": "observed_only",
+      "direction": "unknown",
+      "observed_sample": 1,
+      "outcome_id": "solana_majors_6h",
+      "participant_outcome": "unknown",
+      "public_read": "Solana majors 6h is not confirmed yet because the clean sample is thin.",
+      "state_id": "solana_majors_6h",
       "warnings": [
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited"

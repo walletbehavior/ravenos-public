@@ -135,6 +135,25 @@
     },
     {
       "after_window_summary": null,
+      "cap_band": "majors",
+      "chain": "solana",
+      "current_state_id": "solana_majors_6h",
+      "match_reasons": [
+        "chain matches",
+        "cap band matches",
+        "window matches",
+        "condition matches",
+        "data quality matches",
+        "participant outcome matches"
+      ],
+      "matched_state_id": "solana_majors_6h",
+      "matched_window_start": "2026-05-14T20:47:56Z",
+      "public_read": "Older public snapshot from 2026-05-14T20:47:56Z remains the closest comparable for Solana majors 6h.",
+      "similarity_score": 1.0,
+      "window": "6h"
+    },
+    {
+      "after_window_summary": null,
       "cap_band": "micro_caps",
       "chain": "solana",
       "current_state_id": "solana_micro_caps_6h",
@@ -153,11 +172,11 @@
       "window": "6h"
     }
   ],
-  "generated_at": "2026-05-29T12:21:44Z",
+  "generated_at": "2026-05-29T12:23:40Z",
   "metadata": {
-    "archive_record_count": 2394,
-    "current_state_count": 10,
-    "eligible_comparable_record_count": 2367,
+    "archive_record_count": 2395,
+    "current_state_count": 11,
+    "eligible_comparable_record_count": 2368,
     "minimum_age_gap_hours": 6.0,
     "minimum_records_required": 20
   },

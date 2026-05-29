@@ -1,6 +1,6 @@
 {
-  "count": 10,
-  "generated_at": "2026-05-29T12:21:44Z",
+  "count": 11,
+  "generated_at": "2026-05-29T12:23:40Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -219,7 +219,7 @@
       "plain_language_summary": "Fresh Pairs participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 90,
+      "sample_size": 89,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
@@ -252,7 +252,7 @@
       "plain_language_summary": "High Caps participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 3,
+      "sample_size": 1,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",
@@ -264,6 +264,39 @@
         "stable",
         "solana",
         "high_caps",
+        "6h"
+      ],
+      "timeframe": "6h",
+      "trend": "stable",
+      "win_rate_band": "medium",
+      "window": "6h"
+    },
+    {
+      "avg_outcome": "mixed",
+      "cap_band": "majors",
+      "chain": "solana",
+      "confidence": "low",
+      "derived_state": "outcomes unclear",
+      "heatmap_id": "solana_majors_6h",
+      "outcome_score": 0.228,
+      "outcome_strength": "building",
+      "participant_outcome_context": "This condition appears while mixed outcomes.",
+      "participant_success_rate": 0.46,
+      "plain_language_summary": "Major-Cap participation on Solana is mixed or still unclear.",
+      "profitability_label": "mixed outcomes",
+      "public_safe": true,
+      "sample_size": 1,
+      "score_strength": "weak",
+      "search_terms": [
+        "who is winning",
+        "losing",
+        "profitable",
+        "participants",
+        "outcomes unclear",
+        "mixed outcomes",
+        "stable",
+        "solana",
+        "majors",
         "6h"
       ],
       "timeframe": "6h",
@@ -285,7 +318,7 @@
       "plain_language_summary": "Micro Caps participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 46,
+      "sample_size": 50,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
@@ -318,7 +351,7 @@
       "plain_language_summary": "Mid Caps participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 4,
+      "sample_size": 5,
       "score_strength": "weak",
       "search_terms": [
         "who is winning",
