@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T11:32:15Z",
+  "generated_at": "2026-05-29T11:46:22Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -31,7 +31,7 @@
       "historical_context_building": 1,
       "macro_context_available": 1,
       "outcome_unclear": 8,
-      "outcome_weak": 6,
+      "outcome_weak": 5,
       "thin_sample": 14
     },
     "notes": [
@@ -41,7 +41,7 @@
       "missing_fields_marked_building_or_unknown"
     ],
     "public_safe": true,
-    "row_count": 62,
+    "row_count": 61,
     "source_artifacts": [
       "alert_conditions",
       "historical_replay",
@@ -65,7 +65,7 @@
       "observed_sample_size": 36497,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "negative",
+      "participant_outcome_label": "mixed",
       "participation_quality": "weak",
       "plain_language_summary": "Solana broad market 6h is still building because the clean public sample is thin.",
       "risk_flags": [
@@ -88,7 +88,7 @@
       "thin_sample_size": 9192,
       "time_window": "6h",
       "unresolved_sample_size": 1803,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": 0.6987,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -107,7 +107,7 @@
       "observed_sample_size": 36497,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "negative",
+      "participant_outcome_label": "mixed",
       "participation_quality": "weak",
       "plain_language_summary": "Solana broad market 6h is visible, but the read is still fragile or uneven.",
       "risk_flags": [
@@ -130,65 +130,23 @@
       "thin_sample_size": 9192,
       "time_window": "6h",
       "unresolved_sample_size": 1803,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": 0.6987,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
       "window": "6h"
     },
     {
-      "cap_band": "all",
-      "chain": "solana",
-      "clean_sample_size": 25502,
-      "condition_family": "outcome_weak",
-      "condition_label": "Participant outcome looks weak",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "building",
-      "observed_sample_size": 36497,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "negative",
-      "participation_quality": "weak",
-      "plain_language_summary": "Solana broad market 6h shows weak or punishing participant outcome in the public sample.",
-      "risk_flags": [
-        "fresh_pair_age_unavailable",
-        "source_sample_or_freshness_limited"
-      ],
-      "risk_level": "moderate",
-      "risk_tags": [
-        "fresh_pair_age_unavailable",
-        "source_sample_or_freshness_limited"
-      ],
-      "row_id": "search_0003",
-      "scope": "chain",
-      "search_rank_score": 1.4,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": 9192,
-      "time_window": "6h",
-      "unresolved_sample_size": 1803,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.6987,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
-      "window": "6h"
-    },
-    {
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample_size": 40,
+      "clean_sample_size": 10,
       "condition_family": "thin_sample",
       "condition_label": "Clean sample is still thin",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "thin",
-      "observed_sample_size": 40,
+      "observed_sample_size": 81,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "negative",
@@ -205,7 +163,7 @@
         "source_sample_or_freshness_limited",
         "punishing_participant_outcome"
       ],
-      "row_id": "search_0004",
+      "row_id": "search_0003",
       "scope": "cap_band",
       "search_rank_score": 0.5,
       "source_artifacts": [
@@ -216,7 +174,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -225,19 +183,63 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample_size": 40,
+      "clean_sample_size": 10,
       "condition_family": "fragile_participation",
       "condition_label": "Participation looks fragile",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "thin",
-      "observed_sample_size": 40,
+      "observed_sample_size": 81,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "negative",
       "participation_quality": "weak",
       "plain_language_summary": "Solana fresh pairs 6h is visible, but the read is still fragile or uneven.",
+      "risk_flags": [
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited",
+        "punishing_participant_outcome"
+      ],
+      "risk_level": "high",
+      "risk_tags": [
+        "fresh_pair_age_unavailable",
+        "source_sample_or_freshness_limited",
+        "punishing_participant_outcome"
+      ],
+      "row_id": "search_0004",
+      "scope": "cap_band",
+      "search_rank_score": 0.9,
+      "source_artifacts": [
+        "market_states",
+        "risk_search",
+        "participant_outcomes"
+      ],
+      "thin_sample_size": null,
+      "time_window": "6h",
+      "unresolved_sample_size": null,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": null,
+      "what_would_confirm": "More clean public sample needs to support the same read.",
+      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "solana",
+      "clean_sample_size": 10,
+      "condition_family": "outcome_weak",
+      "condition_label": "Participant outcome looks weak",
+      "confidence_bucket": "low",
+      "confirmation_state": "building",
+      "confirmation_status": "building",
+      "data_quality_status": "thin",
+      "observed_sample_size": 81,
+      "paid_depth_available": true,
+      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
+      "participant_outcome_label": "negative",
+      "participation_quality": "weak",
+      "plain_language_summary": "Solana fresh pairs 6h shows weak or punishing participant outcome in the public sample.",
       "risk_flags": [
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited",
@@ -260,28 +262,28 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
       "window": "6h"
     },
     {
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample_size": 40,
-      "condition_family": "outcome_weak",
-      "condition_label": "Participant outcome looks weak",
+      "clean_sample_size": 10,
+      "condition_family": "cap_band_rotation",
+      "condition_label": "Cap-band rotation is forming",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "thin",
-      "observed_sample_size": 40,
+      "observed_sample_size": 81,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "negative",
       "participation_quality": "weak",
-      "plain_language_summary": "Solana fresh pairs 6h shows weak or punishing participant outcome in the public sample.",
+      "plain_language_summary": "Solana fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
       "risk_flags": [
         "fresh_pair_age_unavailable",
         "source_sample_or_freshness_limited",
@@ -304,51 +306,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": null,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
-      "window": "6h"
-    },
-    {
-      "cap_band": "fresh_pairs",
-      "chain": "solana",
-      "clean_sample_size": 40,
-      "condition_family": "cap_band_rotation",
-      "condition_label": "Cap-band rotation is forming",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "thin",
-      "observed_sample_size": 40,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "negative",
-      "participation_quality": "weak",
-      "plain_language_summary": "Solana fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
-      "risk_flags": [
-        "fresh_pair_age_unavailable",
-        "source_sample_or_freshness_limited",
-        "punishing_participant_outcome"
-      ],
-      "risk_level": "high",
-      "risk_tags": [
-        "fresh_pair_age_unavailable",
-        "source_sample_or_freshness_limited",
-        "punishing_participant_outcome"
-      ],
-      "row_id": "search_0007",
-      "scope": "cap_band",
-      "search_rank_score": 0.9,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": null,
-      "time_window": "6h",
-      "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -381,7 +339,7 @@
         "source_sample_or_freshness_limited",
         "punishing_participant_outcome"
       ],
-      "row_id": "search_0008",
+      "row_id": "search_0007",
       "scope": "cap_band",
       "search_rank_score": 0.5,
       "source_artifacts": [
@@ -392,7 +350,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -425,7 +383,7 @@
         "source_sample_or_freshness_limited",
         "punishing_participant_outcome"
       ],
-      "row_id": "search_0009",
+      "row_id": "search_0008",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -436,7 +394,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -469,7 +427,7 @@
         "source_sample_or_freshness_limited",
         "punishing_participant_outcome"
       ],
-      "row_id": "search_0010",
+      "row_id": "search_0009",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -480,7 +438,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -513,7 +471,7 @@
         "source_sample_or_freshness_limited",
         "punishing_participant_outcome"
       ],
-      "row_id": "search_0011",
+      "row_id": "search_0010",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -524,7 +482,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -540,7 +498,7 @@
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "building",
-      "observed_sample_size": 2720,
+      "observed_sample_size": 2721,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
@@ -555,7 +513,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0012",
+      "row_id": "search_0011",
       "scope": "chain",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -563,11 +521,11 @@
         "risk_search",
         "participant_outcomes"
       ],
-      "thin_sample_size": 724,
+      "thin_sample_size": 725,
       "time_window": "6h",
       "unresolved_sample_size": 522,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.5419,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.5417,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
       "window": "6h"
@@ -582,12 +540,54 @@
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "building",
-      "observed_sample_size": 2720,
+      "observed_sample_size": 2721,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
       "plain_language_summary": "ETH broad market 6h is visible, but the read is still fragile or uneven.",
+      "risk_flags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "risk_level": "moderate",
+      "risk_tags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "row_id": "search_0012",
+      "scope": "chain",
+      "search_rank_score": 1.4,
+      "source_artifacts": [
+        "market_states",
+        "risk_search",
+        "participant_outcomes"
+      ],
+      "thin_sample_size": 725,
+      "time_window": "6h",
+      "unresolved_sample_size": 522,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.5417,
+      "what_would_confirm": "More clean public sample needs to support the same read.",
+      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "window": "6h"
+    },
+    {
+      "cap_band": "all",
+      "chain": "eth",
+      "clean_sample_size": 1474,
+      "condition_family": "outcome_unclear",
+      "condition_label": "Participant outcome is not clear yet",
+      "confidence_bucket": "low",
+      "confirmation_state": "building",
+      "confirmation_status": "building",
+      "data_quality_status": "building",
+      "observed_sample_size": 2721,
+      "paid_depth_available": true,
+      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
+      "participant_outcome_label": "unknown",
+      "participation_quality": "weak",
+      "plain_language_summary": "ETH broad market 6h is active, but participant outcome is not clear yet.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -605,53 +605,11 @@
         "risk_search",
         "participant_outcomes"
       ],
-      "thin_sample_size": 724,
+      "thin_sample_size": 725,
       "time_window": "6h",
       "unresolved_sample_size": 522,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.5419,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
-      "window": "6h"
-    },
-    {
-      "cap_band": "all",
-      "chain": "eth",
-      "clean_sample_size": 1474,
-      "condition_family": "outcome_unclear",
-      "condition_label": "Participant outcome is not clear yet",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "building",
-      "observed_sample_size": 2720,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "unknown",
-      "participation_quality": "weak",
-      "plain_language_summary": "ETH broad market 6h is active, but participant outcome is not clear yet.",
-      "risk_flags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "risk_level": "moderate",
-      "risk_tags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "row_id": "search_0014",
-      "scope": "chain",
-      "search_rank_score": 1.4,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": 724,
-      "time_window": "6h",
-      "unresolved_sample_size": 522,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.5419,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.5417,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
       "window": "6h"
@@ -659,14 +617,14 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "eth",
-      "clean_sample_size": 1769,
+      "clean_sample_size": 2199,
       "condition_family": "thin_sample",
       "condition_label": "Clean sample is still thin",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1769,
+      "observed_sample_size": 2721,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
@@ -681,7 +639,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0015",
+      "row_id": "search_0014",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -692,7 +650,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -701,19 +659,61 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "eth",
-      "clean_sample_size": 1769,
+      "clean_sample_size": 2199,
       "condition_family": "fragile_participation",
       "condition_label": "Participation looks fragile",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1769,
+      "observed_sample_size": 2721,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
       "plain_language_summary": "ETH fresh pairs 6h is visible, but the read is still fragile or uneven.",
+      "risk_flags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "risk_level": "moderate",
+      "risk_tags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "row_id": "search_0015",
+      "scope": "cap_band",
+      "search_rank_score": 1.4,
+      "source_artifacts": [
+        "market_states",
+        "risk_search",
+        "participant_outcomes"
+      ],
+      "thin_sample_size": null,
+      "time_window": "6h",
+      "unresolved_sample_size": null,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": null,
+      "what_would_confirm": "More clean public sample needs to support the same read.",
+      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "eth",
+      "clean_sample_size": 2199,
+      "condition_family": "outcome_unclear",
+      "condition_label": "Participant outcome is not clear yet",
+      "confidence_bucket": "low",
+      "confirmation_state": "building",
+      "confirmation_status": "building",
+      "data_quality_status": "observed_only",
+      "observed_sample_size": 2721,
+      "paid_depth_available": true,
+      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
+      "participant_outcome_label": "unknown",
+      "participation_quality": "weak",
+      "plain_language_summary": "ETH fresh pairs 6h is active, but participant outcome is not clear yet.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -734,28 +734,28 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
       "window": "6h"
     },
     {
       "cap_band": "fresh_pairs",
       "chain": "eth",
-      "clean_sample_size": 1769,
-      "condition_family": "outcome_unclear",
-      "condition_label": "Participant outcome is not clear yet",
+      "clean_sample_size": 2199,
+      "condition_family": "cap_band_rotation",
+      "condition_label": "Cap-band rotation is forming",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1769,
+      "observed_sample_size": 2721,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
-      "plain_language_summary": "ETH fresh pairs 6h is active, but participant outcome is not clear yet.",
+      "plain_language_summary": "ETH fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -776,49 +776,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": null,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
-      "window": "6h"
-    },
-    {
-      "cap_band": "fresh_pairs",
-      "chain": "eth",
-      "clean_sample_size": 1769,
-      "condition_family": "cap_band_rotation",
-      "condition_label": "Cap-band rotation is forming",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "observed_only",
-      "observed_sample_size": 1769,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "unknown",
-      "participation_quality": "weak",
-      "plain_language_summary": "ETH fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
-      "risk_flags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "risk_level": "moderate",
-      "risk_tags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "row_id": "search_0018",
-      "scope": "cap_band",
-      "search_rank_score": 1.4,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": null,
-      "time_window": "6h",
-      "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -851,7 +809,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0019",
+      "row_id": "search_0018",
       "scope": "cap_band",
       "search_rank_score": 0.5,
       "source_artifacts": [
@@ -862,7 +820,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -895,7 +853,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0020",
+      "row_id": "search_0019",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -906,7 +864,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -939,7 +897,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0021",
+      "row_id": "search_0020",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -950,7 +908,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -983,7 +941,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0022",
+      "row_id": "search_0021",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -994,7 +952,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1027,7 +985,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0023",
+      "row_id": "search_0022",
       "scope": "cap_band",
       "search_rank_score": 0.5,
       "source_artifacts": [
@@ -1038,7 +996,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1071,7 +1029,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0024",
+      "row_id": "search_0023",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1082,7 +1040,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1115,7 +1073,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0025",
+      "row_id": "search_0024",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1126,7 +1084,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1159,7 +1117,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0026",
+      "row_id": "search_0025",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1170,7 +1128,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1203,7 +1161,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0027",
+      "row_id": "search_0026",
       "scope": "cap_band",
       "search_rank_score": 0.5,
       "source_artifacts": [
@@ -1214,7 +1172,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1247,7 +1205,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0028",
+      "row_id": "search_0027",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1258,7 +1216,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1291,7 +1249,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0029",
+      "row_id": "search_0028",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1302,7 +1260,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1335,7 +1293,7 @@
         "punishing_participant_outcome",
         "thin_public_sample"
       ],
-      "row_id": "search_0030",
+      "row_id": "search_0029",
       "scope": "cap_band",
       "search_rank_score": 0.9,
       "source_artifacts": [
@@ -1346,7 +1304,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1362,7 +1320,7 @@
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "building",
-      "observed_sample_size": 5273,
+      "observed_sample_size": 5274,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
@@ -1377,7 +1335,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0031",
+      "row_id": "search_0030",
       "scope": "chain",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -1385,11 +1343,11 @@
         "risk_search",
         "participant_outcomes"
       ],
-      "thin_sample_size": 693,
+      "thin_sample_size": 694,
       "time_window": "6h",
       "unresolved_sample_size": 2495,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.3954,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.3953,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
       "window": "6h"
@@ -1404,12 +1362,54 @@
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "building",
-      "observed_sample_size": 5273,
+      "observed_sample_size": 5274,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
       "plain_language_summary": "Base broad market 6h is visible, but the read is still fragile or uneven.",
+      "risk_flags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "risk_level": "moderate",
+      "risk_tags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "row_id": "search_0031",
+      "scope": "chain",
+      "search_rank_score": 1.4,
+      "source_artifacts": [
+        "market_states",
+        "risk_search",
+        "participant_outcomes"
+      ],
+      "thin_sample_size": 694,
+      "time_window": "6h",
+      "unresolved_sample_size": 2495,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.3953,
+      "what_would_confirm": "More clean public sample needs to support the same read.",
+      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "window": "6h"
+    },
+    {
+      "cap_band": "all",
+      "chain": "base",
+      "clean_sample_size": 2085,
+      "condition_family": "outcome_unclear",
+      "condition_label": "Participant outcome is not clear yet",
+      "confidence_bucket": "low",
+      "confirmation_state": "building",
+      "confirmation_status": "building",
+      "data_quality_status": "building",
+      "observed_sample_size": 5274,
+      "paid_depth_available": true,
+      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
+      "participant_outcome_label": "unknown",
+      "participation_quality": "weak",
+      "plain_language_summary": "Base broad market 6h is active, but participant outcome is not clear yet.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -1427,53 +1427,11 @@
         "risk_search",
         "participant_outcomes"
       ],
-      "thin_sample_size": 693,
+      "thin_sample_size": 694,
       "time_window": "6h",
       "unresolved_sample_size": 2495,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.3954,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
-      "window": "6h"
-    },
-    {
-      "cap_band": "all",
-      "chain": "base",
-      "clean_sample_size": 2085,
-      "condition_family": "outcome_unclear",
-      "condition_label": "Participant outcome is not clear yet",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "building",
-      "observed_sample_size": 5273,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "unknown",
-      "participation_quality": "weak",
-      "plain_language_summary": "Base broad market 6h is active, but participant outcome is not clear yet.",
-      "risk_flags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "risk_level": "moderate",
-      "risk_tags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "row_id": "search_0033",
-      "scope": "chain",
-      "search_rank_score": 1.4,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": 693,
-      "time_window": "6h",
-      "unresolved_sample_size": 2495,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": 0.3954,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": 0.3953,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
       "window": "6h"
@@ -1481,14 +1439,14 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "base",
-      "clean_sample_size": 1578,
+      "clean_sample_size": 2779,
       "condition_family": "thin_sample",
       "condition_label": "Clean sample is still thin",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1578,
+      "observed_sample_size": 5274,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
@@ -1503,7 +1461,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0034",
+      "row_id": "search_0033",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -1514,7 +1472,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1523,19 +1481,61 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "base",
-      "clean_sample_size": 1578,
+      "clean_sample_size": 2779,
       "condition_family": "fragile_participation",
       "condition_label": "Participation looks fragile",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1578,
+      "observed_sample_size": 5274,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
       "plain_language_summary": "Base fresh pairs 6h is visible, but the read is still fragile or uneven.",
+      "risk_flags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "risk_level": "moderate",
+      "risk_tags": [
+        "source_sample_insufficient",
+        "thin_public_sample"
+      ],
+      "row_id": "search_0034",
+      "scope": "cap_band",
+      "search_rank_score": 1.4,
+      "source_artifacts": [
+        "market_states",
+        "risk_search",
+        "participant_outcomes"
+      ],
+      "thin_sample_size": null,
+      "time_window": "6h",
+      "unresolved_sample_size": null,
+      "updated_at": "2026-05-29T11:46:22Z",
+      "usable_signal_rate": null,
+      "what_would_confirm": "More clean public sample needs to support the same read.",
+      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "window": "6h"
+    },
+    {
+      "cap_band": "fresh_pairs",
+      "chain": "base",
+      "clean_sample_size": 2779,
+      "condition_family": "outcome_unclear",
+      "condition_label": "Participant outcome is not clear yet",
+      "confidence_bucket": "low",
+      "confirmation_state": "building",
+      "confirmation_status": "building",
+      "data_quality_status": "observed_only",
+      "observed_sample_size": 5274,
+      "paid_depth_available": true,
+      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
+      "participant_outcome_label": "unknown",
+      "participation_quality": "weak",
+      "plain_language_summary": "Base fresh pairs 6h is active, but participant outcome is not clear yet.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -1556,28 +1556,28 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
+      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
       "window": "6h"
     },
     {
       "cap_band": "fresh_pairs",
       "chain": "base",
-      "clean_sample_size": 1578,
-      "condition_family": "outcome_unclear",
-      "condition_label": "Participant outcome is not clear yet",
+      "clean_sample_size": 2779,
+      "condition_family": "cap_band_rotation",
+      "condition_label": "Cap-band rotation is forming",
       "confidence_bucket": "low",
       "confirmation_state": "building",
       "confirmation_status": "building",
       "data_quality_status": "observed_only",
-      "observed_sample_size": 1578,
+      "observed_sample_size": 5274,
       "paid_depth_available": true,
       "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
-      "plain_language_summary": "Base fresh pairs 6h is active, but participant outcome is not clear yet.",
+      "plain_language_summary": "Base fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
       "risk_flags": [
         "source_sample_insufficient",
         "thin_public_sample"
@@ -1598,49 +1598,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
-      "usable_signal_rate": null,
-      "what_would_confirm": "More clean public sample needs to support the same read.",
-      "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
-      "window": "6h"
-    },
-    {
-      "cap_band": "fresh_pairs",
-      "chain": "base",
-      "clean_sample_size": 1578,
-      "condition_family": "cap_band_rotation",
-      "condition_label": "Cap-band rotation is forming",
-      "confidence_bucket": "low",
-      "confirmation_state": "building",
-      "confirmation_status": "building",
-      "data_quality_status": "observed_only",
-      "observed_sample_size": 1578,
-      "paid_depth_available": true,
-      "paid_depth_reason": "Pro expands this with deeper filters, saved searches, full history, alerts, and Ask RavenOS later.",
-      "participant_outcome_label": "unknown",
-      "participation_quality": "weak",
-      "plain_language_summary": "Base fresh pairs 6h shows a cap-band condition worth watching, but depth remains gated.",
-      "risk_flags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "risk_level": "moderate",
-      "risk_tags": [
-        "source_sample_insufficient",
-        "thin_public_sample"
-      ],
-      "row_id": "search_0037",
-      "scope": "cap_band",
-      "search_rank_score": 1.4,
-      "source_artifacts": [
-        "market_states",
-        "risk_search",
-        "participant_outcomes"
-      ],
-      "thin_sample_size": null,
-      "time_window": "6h",
-      "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1671,7 +1629,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0038",
+      "row_id": "search_0037",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -1682,7 +1640,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1713,7 +1671,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0039",
+      "row_id": "search_0038",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1724,7 +1682,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1755,7 +1713,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0040",
+      "row_id": "search_0039",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1766,7 +1724,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1797,7 +1755,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0041",
+      "row_id": "search_0040",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1808,7 +1766,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1839,7 +1797,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0042",
+      "row_id": "search_0041",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -1850,7 +1808,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1881,7 +1839,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0043",
+      "row_id": "search_0042",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1892,7 +1850,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -1923,7 +1881,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0044",
+      "row_id": "search_0043",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1934,7 +1892,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -1965,7 +1923,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0045",
+      "row_id": "search_0044",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -1976,7 +1934,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -2007,7 +1965,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0046",
+      "row_id": "search_0045",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -2018,7 +1976,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -2049,7 +2007,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0047",
+      "row_id": "search_0046",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2060,7 +2018,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -2091,7 +2049,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0048",
+      "row_id": "search_0047",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2102,7 +2060,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -2133,7 +2091,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0049",
+      "row_id": "search_0048",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2144,7 +2102,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -2175,7 +2133,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0050",
+      "row_id": "search_0049",
       "scope": "cap_band",
       "search_rank_score": 1.0,
       "source_artifacts": [
@@ -2186,7 +2144,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -2217,7 +2175,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0051",
+      "row_id": "search_0050",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2228,7 +2186,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Fresh clean participation and repeated confirmation would reduce this concern.",
@@ -2259,7 +2217,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0052",
+      "row_id": "search_0051",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2270,7 +2228,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -2301,7 +2259,7 @@
         "source_sample_insufficient",
         "thin_public_sample"
       ],
-      "row_id": "search_0053",
+      "row_id": "search_0052",
       "scope": "cap_band",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2312,7 +2270,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",
@@ -2343,7 +2301,7 @@
         "active",
         "caution"
       ],
-      "row_id": "search_0054",
+      "row_id": "search_0053",
       "scope": "market",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2352,7 +2310,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2383,7 +2341,7 @@
         "building",
         "caution"
       ],
-      "row_id": "search_0055",
+      "row_id": "search_0054",
       "scope": "market",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2392,7 +2350,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2423,7 +2381,7 @@
         "active",
         "watch"
       ],
-      "row_id": "search_0056",
+      "row_id": "search_0055",
       "scope": "market",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2432,7 +2390,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2463,7 +2421,7 @@
         "active",
         "watch"
       ],
-      "row_id": "search_0057",
+      "row_id": "search_0056",
       "scope": "market",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2472,7 +2430,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2503,7 +2461,7 @@
         "active",
         "watch"
       ],
-      "row_id": "search_0058",
+      "row_id": "search_0057",
       "scope": "chain",
       "search_rank_score": 1.4,
       "source_artifacts": [
@@ -2512,7 +2470,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2543,7 +2501,7 @@
         "active",
         "info"
       ],
-      "row_id": "search_0059",
+      "row_id": "search_0058",
       "scope": "chain",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2552,7 +2510,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2583,7 +2541,7 @@
         "building",
         "info"
       ],
-      "row_id": "search_0060",
+      "row_id": "search_0059",
       "scope": "chain",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2592,7 +2550,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "The condition stops matching if the public state no longer supports it.",
@@ -2608,12 +2566,12 @@
       "confirmation_state": "building",
       "confirmation_status": "available",
       "data_quality_status": "building",
-      "observed_sample_size": 2388,
+      "observed_sample_size": 2389,
       "paid_depth_available": true,
       "paid_depth_reason": "Advanced Desk expands this with full comparable windows and longer history.",
       "participant_outcome_label": "unknown",
       "participation_quality": "weak",
-      "plain_language_summary": "Historical context is available; 2388 of 20 public archive records are available.",
+      "plain_language_summary": "Historical context is available; 2389 of 20 public archive records are available.",
       "risk_flags": [
         "history_building"
       ],
@@ -2621,7 +2579,7 @@
       "risk_tags": [
         "history_building"
       ],
-      "row_id": "search_0061",
+      "row_id": "search_0060",
       "scope": "market",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2630,7 +2588,7 @@
       "thin_sample_size": null,
       "time_window": "historical",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "Historical replay remains limited until enough public archive exists.",
@@ -2659,7 +2617,7 @@
       "risk_tags": [
         "paid_depth_available"
       ],
-      "row_id": "search_0062",
+      "row_id": "search_0061",
       "scope": "market",
       "search_rank_score": 1.7,
       "source_artifacts": [
@@ -2668,7 +2626,7 @@
       "thin_sample_size": null,
       "time_window": "6h",
       "unresolved_sample_size": null,
-      "updated_at": "2026-05-29T11:32:15Z",
+      "updated_at": "2026-05-29T11:46:22Z",
       "usable_signal_rate": null,
       "what_would_confirm": "More clean public sample needs to support the same read.",
       "what_would_invalidate": "A conflicting public refresh or stale coverage would weaken this condition.",

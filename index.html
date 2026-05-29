@@ -110,7 +110,7 @@
       top: 0;
       z-index: 10;
       display: grid;
-      grid-template-columns: 1.15fr repeat(7, minmax(108px, 1fr));
+      grid-template-columns: 1.15fr repeat(8, minmax(96px, 1fr));
       gap: 1px;
       border: 1px solid var(--line2);
       background: var(--line);
@@ -1126,6 +1126,7 @@
       <div class="strip-cell"><span class="k">breadth</span><span class="v" id="stripBreadth">building</span></div>
       <div class="strip-cell"><span class="k">followthrough</span><span class="v" id="stripFollow">building</span></div>
       <div class="strip-cell"><span class="k">pressure</span><span class="v" id="stripPressure">awaiting sample</span></div>
+      <div class="strip-cell"><span class="k">reward</span><span class="v" id="stripReward">building</span></div>
     </section>
 
     <section class="hero" aria-label="current market read">
@@ -1487,6 +1488,10 @@
       const weather = data.weather?.status ? data.weather : snapshot.market_weather || {};
       const transition = data.transition?.status ? data.transition : snapshot.transition_forecast || {};
       const pressure = snapshot.perp_pressure?.market || snapshot.modules?.perp_pressure?.market || {};
+      const outcome =
+        snapshot.participant_outcome_pulse?.overall ||
+        snapshot.modules?.participant_outcome_pulse?.overall ||
+        {};
       const states = stateRows(data);
       const generated = generatedAt(data);
       const stale = generated && Date.now() - Date.parse(generated) > 60 * 60 * 1000;
@@ -1503,6 +1508,7 @@
       setText("stripBreadth", improving ? `${improving} chains improving` : building ? `${building} chains building` : "not enough clean data");
       setText("stripFollow", safeText(weather.summary?.persistence || weather.public_summary, "confirmation developing"));
       setText("stripPressure", safeText(pressure.crowding_state || pressure.pressure_state || "awaiting sample"));
+      setText("stripReward", safeText(outcome.participant_outcome || outcome.summary || "building"));
       setText("dataState", stale ? "sample stale" : fragile ? `${fragile} fragile segments` : "sample active");
     }
 
@@ -2165,6 +2171,7 @@
 
     loadAll().then(render).catch(() => {
       setText("stripStatus", "fallback");
+      setText("stripReward", "building");
       setText("headline", "Latest read is refreshing.");
       setText("deskRead", "RavenOS watches participation, breadth, followthrough, reward conditions, survival, pressure, and historical similarity.");
     });

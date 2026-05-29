@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T11:32:15Z",
+  "generated_at": "2026-05-29T11:46:22Z",
   "metadata": {
     "available_cap_bands": [
       "all",
@@ -15,6 +15,7 @@
       "solana"
     ],
     "available_outcomes": [
+      "mixed",
       "punishing",
       "unknown"
     ],
@@ -29,11 +30,11 @@
       "clean_sample": 25502,
       "confidence": "low",
       "data_quality": "unknown",
-      "direction": "negative",
+      "direction": "mixed",
       "observed_sample": 36497,
       "outcome_id": "solana_all_6h",
-      "participant_outcome": "punishing",
-      "public_read": "Solana all 6h is punishing in the current public sample.",
+      "participant_outcome": "mixed",
+      "public_read": "Solana all 6h is mixed and should be treated as uneven.",
       "state_id": "solana_all_current",
       "warnings": [
         "fresh_pair_age_unavailable",
@@ -44,11 +45,11 @@
     {
       "cap_band": "fresh_pairs",
       "chain": "solana",
-      "clean_sample": 40,
+      "clean_sample": 10,
       "confidence": "low",
       "data_quality": "thin",
       "direction": "negative",
-      "observed_sample": 40,
+      "observed_sample": 81,
       "outcome_id": "solana_fresh_pairs_6h",
       "participant_outcome": "punishing",
       "public_read": "Solana fresh pairs 6h is punishing in the current public sample.",
@@ -84,7 +85,7 @@
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 2720,
+      "observed_sample": 2721,
       "outcome_id": "eth_all_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH all 6h has a public sample, but participant outcome remains unknown.",
@@ -101,7 +102,7 @@
       "confidence": "high",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 1769,
+      "observed_sample": 2721,
       "outcome_id": "eth_fresh_pairs_6h",
       "participant_outcome": "unknown",
       "public_read": "ETH fresh pairs 6h is not confirmed yet because the clean sample is thin.",
@@ -169,7 +170,7 @@
       "confidence": "high",
       "data_quality": "unknown",
       "direction": "unknown",
-      "observed_sample": 5273,
+      "observed_sample": 5274,
       "outcome_id": "base_all_6h",
       "participant_outcome": "unknown",
       "public_read": "Base all 6h has a public sample, but participant outcome remains unknown.",
@@ -186,7 +187,7 @@
       "confidence": "high",
       "data_quality": "observed_only",
       "direction": "unknown",
-      "observed_sample": 1578,
+      "observed_sample": 5274,
       "outcome_id": "base_fresh_pairs_6h",
       "participant_outcome": "unknown",
       "public_read": "Base fresh pairs 6h is not confirmed yet because the clean sample is thin.",

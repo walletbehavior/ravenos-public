@@ -5,7 +5,7 @@
       "chain": "solana",
       "confirmation_state": "building",
       "data_quality": "building",
-      "outcome_state": "negative",
+      "outcome_state": "neutral",
       "participation_state": "fading",
       "risk_flags": [
         "data_quality",
@@ -29,7 +29,7 @@
       "window": "6h"
     },
     {
-      "breadth_state": "narrow",
+      "breadth_state": "uneven",
       "chain": "solana",
       "confirmation_state": "building",
       "data_quality": "thin",
@@ -399,6 +399,6 @@
     }
   ],
   "count": 14,
-  "generated_at": "2026-05-29T11:32:15Z",
+  "generated_at": "2026-05-29T11:46:22Z",
   "schema_version": "condition_search_v0"
 }
