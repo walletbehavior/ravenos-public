@@ -1,21 +1,21 @@
 {
-  "alignment_state": "divergent",
+  "alignment_state": "aligned",
   "chains": [
     {
       "activity": "hot",
       "chain": "solana",
-      "clean_delta": 0,
-      "clean_delta_state": "flat",
-      "clean_ratio": 0.17,
-      "clean_sample": 40,
-      "direction": "negative",
+      "clean_delta": -30,
+      "clean_delta_state": "thinning",
+      "clean_ratio": 0.123,
+      "clean_sample": 10,
+      "direction": "positive",
       "display": "Solana",
-      "observed_sample": 235,
-      "participant_outcome": "punishing",
+      "observed_sample": 81,
+      "participant_outcome": "mixed",
       "public_read": "Solana is active but fragile.",
       "quality": "fragile",
       "read": "unstable",
-      "thin_sample": 195,
+      "thin_sample": 71,
       "trust_label": "fragile"
     },
     {
@@ -54,29 +54,30 @@
     }
   ],
   "change": {
-    "changes": [],
-    "state": "flat",
-    "summary": "Clean participation is broadly unchanged from the prior public snapshot."
+    "changes": [
+      "Solana clean participation thinned."
+    ],
+    "state": "changed",
+    "summary": "Solana clean participation thinned."
   },
   "clean_participation_state": "thin",
-  "generated_at": "2026-05-27T03:51:36Z",
+  "generated_at": "2026-05-29T11:46:45Z",
   "lagging_chain": "solana",
   "leading_chain": "base",
   "market": {
     "clean_participation": "not broad enough yet",
-    "confirmation_state": "divergent",
-    "headline": "Tape is not aligned across chains.",
+    "confirmation_state": "aligned",
+    "headline": "Tape is aligned across chains.",
     "lagging_chain": "solana",
     "leading_chain": "base",
     "outlier_dependency": "a few tokens are doing most of the work",
-    "plain_language_summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
-    "thinness_delta": "Clean participation is broadly unchanged from the prior public snapshot.",
+    "plain_language_summary": "Tape is aligned across chains. Solana clean participation thinned.",
+    "thinness_delta": "Solana clean participation thinned.",
     "warnings": [
-      "not aligned across chains",
       "clean participation is thin",
       "some chain reads are still unresolved"
     ],
-    "what_this_environment_usually_leads_to": "unstable followthrough",
+    "what_this_environment_usually_leads_to": "confirmation still developing",
     "what_would_confirm": [
       "Clean participation broadens across more than one chain.",
       "The same direction holds across the next public window.",
@@ -88,11 +89,11 @@
       "Followthrough stalls early."
     ]
   },
-  "plain_language_summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
+  "plain_language_summary": "Tape is aligned across chains. Solana clean participation thinned.",
   "schema_version": "ravenos_confirmation_ladder_v0",
   "status": "available",
-  "summary": "Tape is not aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
-  "what_this_environment_usually_leads_to": "unstable followthrough",
+  "summary": "Tape is aligned across chains. Solana clean participation thinned.",
+  "what_this_environment_usually_leads_to": "confirmation still developing",
   "what_would_confirm": [
     "Clean participation broadens across more than one chain.",
     "The same direction holds across the next public window.",
