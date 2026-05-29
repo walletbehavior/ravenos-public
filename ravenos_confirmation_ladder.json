@@ -4,8 +4,8 @@
     {
       "activity": "hot",
       "chain": "solana",
-      "clean_delta": -30,
-      "clean_delta_state": "thinning",
+      "clean_delta": 0,
+      "clean_delta_state": "flat",
       "clean_ratio": 0.123,
       "clean_sample": 10,
       "direction": "positive",
@@ -54,14 +54,12 @@
     }
   ],
   "change": {
-    "changes": [
-      "Solana clean participation thinned."
-    ],
-    "state": "changed",
-    "summary": "Solana clean participation thinned."
+    "changes": [],
+    "state": "flat",
+    "summary": "Clean participation is broadly unchanged from the prior public snapshot."
   },
   "clean_participation_state": "thin",
-  "generated_at": "2026-05-29T11:46:45Z",
+  "generated_at": "2026-05-29T12:12:46Z",
   "lagging_chain": "solana",
   "leading_chain": "base",
   "market": {
@@ -71,8 +69,8 @@
     "lagging_chain": "solana",
     "leading_chain": "base",
     "outlier_dependency": "a few tokens are doing most of the work",
-    "plain_language_summary": "Tape is aligned across chains. Solana clean participation thinned.",
-    "thinness_delta": "Solana clean participation thinned.",
+    "plain_language_summary": "Tape is aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
+    "thinness_delta": "Clean participation is broadly unchanged from the prior public snapshot.",
     "warnings": [
       "clean participation is thin",
       "some chain reads are still unresolved"
@@ -89,10 +87,10 @@
       "Followthrough stalls early."
     ]
   },
-  "plain_language_summary": "Tape is aligned across chains. Solana clean participation thinned.",
+  "plain_language_summary": "Tape is aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
   "schema_version": "ravenos_confirmation_ladder_v0",
   "status": "available",
-  "summary": "Tape is aligned across chains. Solana clean participation thinned.",
+  "summary": "Tape is aligned across chains. Clean participation is broadly unchanged from the prior public snapshot.",
   "what_this_environment_usually_leads_to": "confirmation still developing",
   "what_would_confirm": [
     "Clean participation broadens across more than one chain.",
