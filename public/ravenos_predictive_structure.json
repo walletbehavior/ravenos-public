@@ -3,7 +3,7 @@
   "confidence": "high",
   "drivers": {
     "chain_alignment": "chains aligned",
-    "clean_participation": "participation still thin",
+    "clean_participation": "participation quality mixed",
     "outlier_dependency": "some concentration",
     "persistence": "persistence holding",
     "transition_sample": "recent history observed"
@@ -18,7 +18,7 @@
     "structure": "structure improving",
     "usually_leads_to": "cleaner participation"
   },
-  "generated_at": "2026-05-29T13:18:35Z",
+  "generated_at": "2026-05-29T13:33:36Z",
   "persistence_probability_band": "high",
   "persistence_read": "persistence holding",
   "plain_language_summary": "participation broadening; fragility contained; moves sustaining longer",
