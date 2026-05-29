@@ -25,13 +25,13 @@
   "consistency_trend": "mixed",
   "dominant_condition_family": "thin_sample",
   "frequent_condition_families": {
-    "broad_but_unconfirmed": 345,
+    "broad_but_unconfirmed": 344,
     "high_risk_low_clarity": 11,
     "mixed_signal_environment": 11,
     "thin_but_improving": 2,
-    "thin_sample": 545
+    "thin_sample": 542
   },
-  "generated_at": "2026-05-29T22:32:20Z",
+  "generated_at": "2026-05-29T22:47:44Z",
   "persistent_conditions": [
     {
       "appearance_count": 48,
@@ -60,8 +60,8 @@
   ],
   "recent_context_by_family": {
     "broad_but_unconfirmed": {
-      "appearance_count": 345,
-      "recent_context": "This condition has appeared 345 times in the recent public window."
+      "appearance_count": 344,
+      "recent_context": "This condition has appeared 344 times in the recent public window."
     },
     "high_risk_low_clarity": {
       "appearance_count": 11,
@@ -76,8 +76,8 @@
       "recent_context": "This condition has appeared 2 times in the recent public window."
     },
     "thin_sample": {
-      "appearance_count": 545,
-      "recent_context": "This condition has appeared 545 times in the recent public window."
+      "appearance_count": 542,
+      "recent_context": "This condition has appeared 542 times in the recent public window."
     }
   },
   "schema_version": "ravenos_recent_memory_v0",
