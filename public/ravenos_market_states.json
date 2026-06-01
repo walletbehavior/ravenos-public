@@ -28,7 +28,7 @@
   "available_windows": [
     "6h"
   ],
-  "generated_at": "2026-06-01T20:33:45Z",
+  "generated_at": "2026-06-01T20:49:15Z",
   "schema_version": "ravenos_market_states_v0",
   "states": [
     {
@@ -513,18 +513,18 @@
       "condition": "building",
       "data_quality": {
         "clean_sample": 2090,
-        "observed_sample": 5296,
+        "observed_sample": 5299,
         "status": "building",
-        "thin_sample": 712,
+        "thin_sample": 715,
         "unresolved_sample": 2494,
-        "usable_signal_rate": 0.3946
+        "usable_signal_rate": 0.3944
       },
       "data_quality_status": "building",
       "macro_context": {
         "status": "unknown",
         "summary": null
       },
-      "observed_sample_size": 5296,
+      "observed_sample_size": 5299,
       "participant_outcome": {
         "confidence": "high",
         "direction": "unknown"
@@ -538,10 +538,10 @@
       "risk_level": "moderate",
       "sample_size": 2090,
       "state_id": "base_all_current",
-      "summary": "Base: 5296 assets observed, 2090 clean enough for signal, 712 thin or weak, 2494 still resolving. Coverage is building, and confirmation is still developing.",
-      "thin_sample_size": 712,
+      "summary": "Base: 5299 assets observed, 2090 clean enough for signal, 715 thin or weak, 2494 still resolving. Coverage is building, and confirmation is still developing.",
+      "thin_sample_size": 715,
       "unresolved_sample_size": 2494,
-      "usable_signal_rate": 0.3946,
+      "usable_signal_rate": 0.3944,
       "warnings": [
         "source_sample_insufficient"
       ],
