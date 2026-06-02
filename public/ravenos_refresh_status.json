@@ -3,14 +3,14 @@
   "alert_count": 7,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-06-02T12:40:50Z",
-    "latest_generated_at": "2026-06-02T12:40:45Z",
-    "records": 2772
+    "latest_archived_at": "2026-06-02T12:56:17Z",
+    "latest_generated_at": "2026-06-02T12:56:15Z",
+    "records": 2773
   },
-  "archive_record_count": 2772,
+  "archive_record_count": 2773,
   "condition_search_count": 11,
   "condition_transition_count": 0,
-  "generated_at": "2026-06-02T12:40:45Z",
+  "generated_at": "2026-06-02T12:56:15Z",
   "historical_comparable_count": 11,
   "historical_replay_status": {
     "comparables": 11,
@@ -32,5 +32,5 @@
     "sub_state": "running",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-06-02T12:41:43.417690+00:00"
+  "updated_at": "2026-06-02T12:57:11.315903+00:00"
 }
