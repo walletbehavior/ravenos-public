@@ -1,6 +1,6 @@
 {
   "count": 11,
-  "generated_at": "2026-06-03T16:50:15Z",
+  "generated_at": "2026-06-03T17:05:15Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -21,7 +21,7 @@
       "plain_language_summary": "Broad Market participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 5305,
+      "sample_size": 5307,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
