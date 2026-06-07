@@ -3,14 +3,14 @@
   "alert_count": 7,
   "archive": {
     "exists": true,
-    "latest_archived_at": "2026-06-05T13:36:47Z",
-    "latest_generated_at": "2026-06-05T13:36:45Z",
-    "records": 3057
+    "latest_archived_at": "2026-06-07T20:14:28Z",
+    "latest_generated_at": "2026-06-07T20:14:26Z",
+    "records": 3058
   },
-  "archive_record_count": 3057,
+  "archive_record_count": 3058,
   "condition_search_count": 11,
   "condition_transition_count": 0,
-  "generated_at": "2026-06-05T13:36:45Z",
+  "generated_at": "2026-06-07T20:14:26Z",
   "historical_comparable_count": 11,
   "historical_replay_status": {
     "comparables": 11,
@@ -24,13 +24,13 @@
   "saved_search_template_count": 6,
   "schema_version": "ravenos_refresh_status_v0",
   "timer": {
-    "active": true,
-    "active_state": "active",
+    "active": false,
+    "active_state": "inactive",
     "available": true,
     "enabled": true,
     "scope": "user",
-    "sub_state": "running",
+    "sub_state": "dead",
     "unit_file_state": "enabled"
   },
-  "updated_at": "2026-06-05T13:37:59.989741+00:00"
+  "updated_at": "2026-06-07T20:15:07.389596+00:00"
 }
