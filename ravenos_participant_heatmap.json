@@ -1,6 +1,6 @@
 {
   "count": 11,
-  "generated_at": "2026-06-07T20:14:26Z",
+  "generated_at": "2026-06-15T14:46:28Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -21,7 +21,7 @@
       "plain_language_summary": "Broad Market participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 5317,
+      "sample_size": 5325,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
@@ -87,7 +87,7 @@
       "plain_language_summary": "Broad Market participation on Ethereum is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 2731,
+      "sample_size": 2737,
       "score_strength": "moderate",
       "search_terms": [
         "who is winning",
