@@ -16,3 +16,9 @@ atlas_research_permission.json
 telegram*
 *.key
 *.pem
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
