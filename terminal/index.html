@@ -459,6 +459,7 @@
   <script src="/raven-price-chart.js"></script>
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
   <script>
     window.__RAVEN_TERMINAL_BUILD__ = "contract-lookup-panel-v2";
     const candlePattern = [
@@ -1207,6 +1208,11 @@
     }
 
     function renderExplanation(row) {
+      if (window.RavenOSExplanations?.explanationForRow) {
+        const type = isPerpsMode() && row.category === "perpetuals" ? "pressure_score" : "flow_score";
+        window.RavenOSExplanations.render("#explanationPanel", window.RavenOSExplanations.explanationForRow(row, type));
+        return;
+      }
       const explanation = explanationFor(row);
       const breakdown = explanation.breakdown.map(([label, value]) => `
         <div class="breakdown-row"><span>${label}</span><b class="${value >= 0 ? "positive" : "negative"}">${value >= 0 ? "+" : ""}${value}</b></div>

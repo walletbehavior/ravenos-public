@@ -83,7 +83,7 @@
             <button class="button" type="submit">Create Alert</button>
             <button class="button secondary" type="button" data-wallet-connect="Phantom">Connect Wallet</button>
           </div>
-          <p class="muted" id="formStatus" style="margin-top:10px;">Free users can preview alert types. Pro access is required to create active alerts.</p>
+          <div class="muted" id="formStatus" style="margin-top:10px;">Free users can preview alert types. Pro access is required to create active alerts.</div>
         </form>
       </article>
 
@@ -117,6 +117,7 @@
 
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
   <script>
     const ALERT_TYPES = {
       flow_score_crosses_threshold: "Flow score crosses threshold",
@@ -173,6 +174,22 @@
       `).join("");
     }
 
+    function renderAlertPreview() {
+      const target = document.getElementById("formStatus");
+      const type = document.getElementById("alertType")?.value || "structure_state_changes";
+      if (!target || !window.RavenOSExplanations?.ExplanationPanel) return;
+      const metric = type.includes("pressure") ? "pressure_score" : type.includes("replay") ? "replay_similarity" : "flow_score";
+      const explanation = window.RavenOSExplanations.explanationForRow({
+        flowScore: 68,
+        pressureScore: 72,
+        replaySimilarity: 61,
+        risk: "Watch",
+        coverage: "Preview",
+        lastUpdated: "sample",
+      }, metric);
+      target.innerHTML = window.RavenOSExplanations.ExplanationPanel(explanation);
+    }
+
       async function loadAlerts() {
       if (!wallet()) {
         document.getElementById("formStatus").textContent = "Connect a wallet to check alert access. Free users can preview alert types.";
@@ -201,6 +218,8 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       renderTypes();
+      renderAlertPreview();
+      document.getElementById("alertType").addEventListener("change", renderAlertPreview);
       document.getElementById("refreshAlerts").addEventListener("click", loadAlerts);
       document.getElementById("alertForm").addEventListener("submit", async (event) => {
         event.preventDefault();

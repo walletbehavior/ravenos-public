@@ -103,6 +103,7 @@
 
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
   <script>
     const state = { watchlists: [], activeId: "" };
 
@@ -142,6 +143,14 @@
           <td>${item.risk || "Unrated"}</td><td>${item.coverage || "Preview"}</td>
           <td><button class="button secondary" type="button" data-delete-item="${item.id}">Remove</button></td>
         </tr>
+        <tr><td colspan="9">${window.RavenOSExplanations?.ExplanationPanel?.(window.RavenOSExplanations.explanationForRow({
+          flowScore: item.flow_score,
+          pressureScore: item.pressure_score,
+          replaySimilarity: item.replay_similarity,
+          risk: item.risk,
+          coverage: item.coverage,
+          lastUpdated: item.updated_at ? new Date(item.updated_at * 1000).toLocaleString() : "saved",
+        }, item.pressure_score ? "pressure_score" : "flow_score")) || ""}</td></tr>
       `).join("");
       document.querySelectorAll("[data-delete-item]").forEach((button) => button.addEventListener("click", () => deleteItem(button.dataset.deleteItem)));
     }

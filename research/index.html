@@ -206,6 +206,7 @@
 
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
   <script>
     const state = {
       view: "setup_families",
@@ -417,6 +418,16 @@
         ["Worst Conditions", (top.worstConditions || []).join(", ") || "No failure condition data available."],
         ["Research Boundary", "No live rules, no automatic promotion, and no trade recommendations."],
       ].map(([k, v]) => `<div class="detail-card"><span class="eyebrow">${k}</span><p class="muted" style="margin-top:8px;">${v}</p></div>`).join("");
+      if (window.RavenOSExplanations?.ExplanationPanel) {
+        const explanation = window.RavenOSExplanations.explanationForRow({
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          replaySimilarity: top.replayBand,
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
+          coverage: "Research",
+          lastUpdated: "research",
+        }, "replay_similarity");
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;">${window.RavenOSExplanations.ExplanationPanel(explanation)}</div>`;
+      }
     }
 
     async function readJson(url) {

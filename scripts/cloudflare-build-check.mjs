@@ -9,6 +9,7 @@ const required = [
   "watchlists/index.html",
   "terminal/index.html",
   "ravenos-access.js",
+  "ravenos-explanations.js",
   "functions/api/access.js",
 ];
 
