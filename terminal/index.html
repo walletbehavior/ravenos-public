@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RavenOS is a market intelligence platform for flow, participant behavior, liquidity posture, and risk context across active and future market categories." />
   <title>RavenOS Flow Terminal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23030605'/%3E%3Cpath d='M14 46V14h16c9 0 15 5 15 13 0 5-3 10-8 12l10 7H34l-8-6h-3v6H14Zm9-14h7c4 0 7-2 7-5s-3-5-7-5h-7v10Z' fill='%237dd3fc'/%3E%3C/svg%3E" />
   <style>
     :root {
       color-scheme: dark;
@@ -50,6 +52,8 @@
     .ticker span { display: block; color: var(--soft); font-size: 9px; text-transform: uppercase; }
     .ticker strong { display: block; margin-top: 3px; font-size: 12px; color: var(--text); }
     .wallet-box { display: flex; gap: 7px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+    .main-nav { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+    .main-nav a { border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--muted); padding: 7px 9px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
     .wallet-state { min-width: 112px; border: 1px solid var(--line); background: #050b09; padding: 7px 9px; font-family: var(--mono); font-size: 10px; color: var(--cyan); text-transform: uppercase; }
     .button {
       min-height: 32px;
@@ -65,7 +69,7 @@
     .layout {
       display: grid;
       grid-template-columns: 230px minmax(0, 1fr) 330px;
-      grid-template-rows: minmax(480px, 1fr) minmax(260px, 34vh);
+      grid-template-rows: minmax(480px, 1fr) minmax(260px, 34vh) auto;
       gap: 10px;
       min-height: 0;
       padding: 10px;
@@ -79,6 +83,14 @@
     h2 { font-size: 15px; line-height: 1.15; }
     .muted { color: var(--muted); font-size: 12px; line-height: 1.4; }
     .nav-list { overflow: auto; padding: 8px; }
+    .nav-group {
+      margin: 10px 0 6px;
+      color: var(--soft);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
     .nav-item {
       width: 100%;
       display: grid;
@@ -97,7 +109,7 @@
     .nav-item em { color: var(--cyan); font-style: normal; font-family: var(--mono); font-size: 10px; }
     .nav-foot { padding: 10px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.45; }
     .chart-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-    .selectors { display: grid; grid-template-columns: minmax(120px, 1fr) 130px; gap: 8px; align-items: end; }
+    .selectors { display: grid; grid-template-columns: minmax(120px, 1fr) 150px 120px; gap: 8px; align-items: end; }
     select, input { min-height: 34px; border: 1px solid var(--line); background: #050b09; color: var(--text); padding: 7px 9px; outline: none; }
     select:focus, input:focus { border-color: var(--cyan); }
     .chart-host { min-height: 0; height: 100%; }
@@ -108,11 +120,23 @@
     .intel-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .intel-row strong { color: var(--text); text-align: right; }
     .brief { padding: 14px; color: #b9c9c2; font-size: 12px; line-height: 1.5; overflow: auto; }
+    .cta-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .api-note { padding: 0 14px 12px; color: var(--yellow); font-size: 11px; line-height: 1.4; }
     .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .mode-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      border-bottom: 1px solid var(--line);
+      background: var(--line);
+    }
+    .summary-cell { min-height: 58px; padding: 10px 12px; background: #050b09; }
+    .summary-cell span { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; font-weight: 850; }
+    .summary-cell strong { display: block; margin-top: 5px; font-size: 14px; color: var(--text); }
     .table-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .table-tools input { width: min(300px, 100%); }
     .table-wrap { overflow: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 980px; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1120px; font-size: 12px; }
     th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     th { position: sticky; top: 0; z-index: 2; background: var(--panel-2); color: var(--cyan); font-size: 10px; text-transform: uppercase; cursor: pointer; }
     td { color: #bfd0c8; }
@@ -121,6 +145,12 @@
     .risk-stable { color: var(--green); font-weight: 850; }
     .risk-watch { color: var(--yellow); font-weight: 850; }
     .risk-elevated { color: var(--red); font-weight: 850; }
+    .outcome-paying { color: var(--green); font-weight: 850; }
+    .outcome-punishing { color: var(--red); font-weight: 850; }
+    .outcome-mixed { color: var(--yellow); font-weight: 850; }
+    .locked-row td { opacity: 0.54; }
+    .lock-pill { color: var(--yellow); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .footer { grid-column: 2 / -1; color: var(--soft); font-size: 11px; line-height: 1.45; padding: 8px 2px 4px; }
     @media (max-width: 1180px) {
       .topbar { grid-template-columns: 1fr; align-items: stretch; }
       .ticker-strip { min-width: 0; width: 100%; }
@@ -135,7 +165,9 @@
       .nav-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
       .nav-item { margin: 0; }
       .intel, .table-panel { grid-column: auto; }
+      .footer { grid-column: auto; }
       .selectors { grid-template-columns: 1fr; width: 100%; }
+      .mode-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel-head { align-items: flex-start; flex-direction: column; }
       .ticker-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -146,8 +178,14 @@
     <header class="topbar">
       <div class="brand">
         <strong>RavenOS</strong>
-        <span>Market Intelligence Flow Terminal</span>
+        <span>Market intelligence platform</span>
       </div>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a href="/terminal/">Terminal</a>
+        <a href="/pricing/">Pricing</a>
+        <a href="/account/">Account</a>
+        <a href="/docs/">Docs</a>
+      </nav>
       <section class="ticker-strip" aria-label="Current instrument summary">
         <div class="ticker"><span>Instrument</span><strong id="tickerInstrument">SOL-PERP</strong></div>
         <div class="ticker"><span>Last</span><strong id="tickerPrice">$196.40</strong></div>
@@ -158,6 +196,7 @@
         <div class="wallet-state" id="walletState">disconnected</div>
         <button class="button" data-wallet-connect="Phantom">Phantom</button>
         <button class="button secondary" data-wallet-connect="Solflare">Solflare</button>
+        <a class="button" href="/upgrade/">Upgrade</a>
         <a class="button secondary" href="/pricing/">Pricing</a>
       </section>
     </header>
@@ -183,6 +222,13 @@
           </div>
           <div class="selectors">
             <select id="assetSelect" aria-label="Instrument selector"></select>
+            <select id="modeSelect" aria-label="Terminal mode selector">
+              <option value="flow">Flow Terminal</option>
+              <option value="crypto_heatmaps">Crypto Heatmaps</option>
+              <option value="perps_pressure">Perps Pressure</option>
+              <option value="participant">Participant Intelligence</option>
+              <option value="breadth">Market Breadth</option>
+            </select>
             <select id="timeframeSelect" aria-label="Timeframe selector">
               <option>15m</option>
               <option selected>1h</option>
@@ -205,6 +251,12 @@
         <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
         <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
         <div class="intel-row"><span>Access</span><strong id="resolvedTier">disconnected</strong></div>
+        <div class="intel-row"><span>Token Access</span><strong id="tokenAccessStatus">not active</strong></div>
+        <div class="cta-row">
+          <button class="button" type="button" data-wallet-connect="Phantom">Connect wallet</button>
+          <a class="button secondary" href="/upgrade/">Upgrade to Pro</a>
+        </div>
+        <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
         <div class="brief" id="terminalBrief"></div>
       </aside>
 
@@ -224,10 +276,11 @@
             </select>
           </div>
         </div>
+        <div class="mode-summary" id="modeSummary"></div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
+              <tr id="tableHeadRow">
                 <th data-sort="asset">Instrument</th>
                 <th data-sort="market">Market</th>
                 <th data-sort="lastPrice">Price</th>
@@ -243,6 +296,7 @@
           </table>
         </div>
       </article>
+      <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services.</footer>
     </section>
   </main>
 
@@ -272,13 +326,40 @@
       { time: "2026-07-02", type: "toxicity-risk", label: "Risk posture elevated", price: 190.6, severity: "danger" },
       { time: "2026-07-04", type: "exit-zone", label: "Flow exhaustion zone", price: 196.1, severity: "info" },
     ];
-    const marketCategories = [
-      { id: "crypto_spot", label: "Crypto Spot", status: "active" },
-      { id: "perpetuals", label: "Perpetual Futures", status: "active" },
-      { id: "equities", label: "Equities", status: "preview" },
-      { id: "etfs", label: "ETFs", status: "preview" },
-      { id: "options", label: "Options", status: "preview" },
-      { id: "macro", label: "Macro", status: "preview" },
+    const navGroups = [
+      {
+        label: "Crypto Spot",
+        items: [
+          ["crypto_overview", "Overview", "active"],
+          ["market_cap_heatmap", "Market Cap Heatmap", "active"],
+          ["small_caps", "Small Caps", "active"],
+          ["mid_caps", "Mid Caps", "active"],
+          ["large_caps", "Large Caps", "active"],
+          ["memes", "Memes", "active"],
+          ["solana", "Solana", "active"],
+          ["base", "Base", "active"],
+          ["ethereum", "Ethereum", "active"],
+        ],
+      },
+      {
+        label: "Perpetual Futures",
+        items: [
+          ["perps_overview", "Overview", "active"],
+          ["perps_heatmap", "Perps Heatmap", "active"],
+          ["funding_oi", "Funding/OI Pressure", "active"],
+          ["compression", "Compression", "active"],
+          ["liquidation_zones", "Liquidation Zones", "active"],
+        ],
+      },
+      {
+        label: "Future Markets",
+        items: [
+          ["equities", "Equities preview", "preview"],
+          ["etfs", "ETFs preview", "preview"],
+          ["options", "Options preview", "preview"],
+          ["macro", "Macro preview", "preview"],
+        ],
+      },
     ];
     const rows = [
       { asset: "SOL-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 196.4, flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "2m ago" },
@@ -292,7 +373,35 @@
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
     ];
-    let activeCategory = "perpetuals";
+    const cryptoRows = [
+      ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "2m ago", "solana"],
+      ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "5m ago", "solana"],
+      ["BONK", "Solana", "memecoin", 74, 33, "Thin above", "High", "Elevated", "Mixed", "4m ago", "memes"],
+      ["WIF", "Solana", "memecoin", 69, 28, "Choppy", "Medium", "Watch", "Punishing", "7m ago", "memes"],
+      ["AERO", "Base", "mid cap", 76, 16, "Balanced", "Medium", "Stable", "Paying", "6m ago", "base"],
+      ["DEGEN", "Base", "small cap", 67, 19, "Thin", "High", "Elevated", "Mixed", "9m ago", "base"],
+      ["ETH", "Ethereum", "large cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "3m ago", "ethereum"],
+      ["ARB", "Ethereum", "mid cap", 78, 14, "Thin above", "High", "Watch", "Paying", "6m ago", "ethereum"],
+      ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "10m ago", "memes"],
+      ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "12m ago", "large_caps"],
+      ["PYTH", "Solana", "mid cap", 73, 12, "Improving", "Medium", "Watch", "Paying", "8m ago", "mid_caps"],
+      ["MICRO-1", "Solana", "small cap", 58, 41, "Very thin", "High", "Elevated", "Punishing", "delayed", "small_caps"],
+    ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem]) => ({
+      asset, chainVenue, marketCapBand, flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
+    }));
+    const perpsRows = [
+      ["SOL-PERP", "Hyperliquid", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "2m ago", "pressure"],
+      ["BTC-PERP", "Hyperliquid", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "1m ago", "pressure"],
+      ["ETH-PERP", "Hyperliquid", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "3m ago", "pressure"],
+      ["OP-PERP", "Hyperliquid", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "8m ago", "pressure"],
+      ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "6m ago", "pressure"],
+      ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
+    ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem]) => ({
+      asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
+    }));
+    let activeCategory = "perps_overview";
+    let activeMode = "flow";
+    let accessTier = "free";
     let chartHandle;
     let sortKey = "flowScore";
     let sortDir = -1;
@@ -303,25 +412,30 @@
     }
 
     function rowsForCategory(category = activeCategory) {
-      return rows.filter((row) => row.category === category);
+      if (category === "crypto_overview") return rows.filter((row) => row.category === "crypto_spot");
+      if (category === "perps_overview") return rows.filter((row) => row.category === "perpetuals");
+      if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
+      return rows.filter((row) => row.category === "perpetuals");
     }
 
     function selectedRow() {
       const asset = document.getElementById("assetSelect").value;
-      return rows.find((row) => row.asset === asset) || rowsForCategory()[0] || rows[0];
+      return rows.find((row) => row.asset === asset) || displayRows().find((row) => row.asset === asset) || rowsForCategory()[0] || rows[0];
     }
 
     function renderNav() {
-      document.getElementById("marketNav").innerHTML = marketCategories.map((category) => {
-        const count = rowsForCategory(category.id).length;
-        return `<button class="nav-item ${category.id === activeCategory ? "active" : ""}" data-category="${category.id}">
-          <span>${category.label}<small>${count || "Future"} instruments</small></span>
-          <em>${category.status}</em>
-        </button>`;
-      }).join("");
+      document.getElementById("marketNav").innerHTML = navGroups.map((group) => `
+        <div class="nav-group">${group.label}</div>
+        ${group.items.map(([id, label, status]) => `<button class="nav-item ${id === activeCategory ? "active" : ""}" data-category="${id}">
+          <span>${label}<small>${navCount(id)} rows</small></span>
+          <em>${status}</em>
+        </button>`).join("")}
+      `).join("");
       document.querySelectorAll("[data-category]").forEach((button) => {
         button.addEventListener("click", () => {
           activeCategory = button.getAttribute("data-category");
+          activeMode = modeForCategory(activeCategory);
+          document.getElementById("modeSelect").value = activeMode;
           renderNav();
           renderAssetOptions();
           renderChart();
@@ -330,8 +444,21 @@
       });
     }
 
+    function navCount(id) {
+      if (id.includes("perps") || ["funding_oi", "compression", "liquidation_zones"].includes(id)) return filteredCryptoRows(perpsRows, id).length;
+      if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(id)) return filteredCryptoRows(cryptoRows, id).length;
+      return rowsForCategory(id).length || "preview";
+    }
+
+    function modeForCategory(category) {
+      if (category === "funding_oi" || category === "compression" || category === "liquidation_zones") return "perps_pressure";
+      if (category.includes("perps")) return category === "perps_overview" ? "flow" : "perps_pressure";
+      if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category)) return "crypto_heatmaps";
+      return "flow";
+    }
+
     function renderAssetOptions() {
-      const options = rowsForCategory();
+      const options = activeMode === "flow" ? rowsForCategory() : displayRows().map((row) => ({ asset: row.asset }));
       document.getElementById("assetSelect").innerHTML = options.map((row) => `<option>${row.asset}</option>`).join("");
     }
 
@@ -362,8 +489,8 @@
         candles: candleData,
         tier: "pro",
       }) || [];
-      document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
-      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
+      document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
+      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
       document.getElementById("flowScore").textContent = row.flowScore;
       document.getElementById("lastPrice").textContent = money(row.lastPrice);
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
@@ -374,7 +501,9 @@
       document.getElementById("tickerPrice").textContent = money(row.lastPrice);
       document.getElementById("tickerFlow").textContent = row.flowScore;
       document.getElementById("tickerUpdated").textContent = row.lastUpdated;
-      document.getElementById("terminalBrief").textContent = `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${row.participantActivity.toLowerCase()}, liquidity posture is ${row.liquidityPosture.toLowerCase()}, and risk is ${row.risk.toLowerCase()}.`;
+      document.getElementById("terminalBrief").textContent = row.participationOutcome
+        ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
+        : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       if (chartHandle) chartHandle.destroy();
       chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
         candles: candleData,
@@ -383,6 +512,16 @@
         showVolume: true,
         height: document.getElementById("flowChart").clientHeight || 520,
       });
+    }
+
+    function modeLabel(mode) {
+      return ({
+        flow: "Flow Chart",
+        crypto_heatmaps: "Crypto Heatmap",
+        perps_pressure: "Perps Pressure",
+        participant: "Participant Intelligence",
+        breadth: "Market Breadth",
+      })[mode] || "Flow Chart";
     }
 
     function riskClass(risk) {
@@ -394,10 +533,10 @@
     function visibleRows() {
       const q = document.getElementById("searchInput").value.trim().toLowerCase();
       const risk = document.getElementById("riskFilter").value;
-      return rows
-        .filter((row) => row.category === activeCategory || q)
+      return displayRows()
+        .filter((row) => activeMode !== "flow" || row.category === activeCategory || q)
         .filter((row) => {
-          const hay = `${row.asset} ${row.market} ${row.participantActivity} ${row.liquidityPosture} ${row.risk}`.toLowerCase();
+          const hay = `${row.asset} ${row.market || ""} ${row.chainVenue || ""} ${row.marketCapBand || ""} ${row.participantActivity} ${row.liquidityPosture} ${row.risk} ${row.participationOutcome || ""}`.toLowerCase();
           return (!q || hay.includes(q)) && (!risk || row.risk === risk);
         })
         .sort((a, b) => {
@@ -408,30 +547,113 @@
         });
     }
 
+    function filteredCryptoRows(source, category) {
+      if (category === "small_caps") return source.filter((row) => row.marketCapBand === "small cap");
+      if (category === "mid_caps") return source.filter((row) => row.marketCapBand === "mid cap");
+      if (category === "large_caps") return source.filter((row) => row.marketCapBand === "large cap");
+      if (category === "memes") return source.filter((row) => row.marketCapBand === "memecoin" || row.ecosystem === "memes");
+      if (category === "solana") return source.filter((row) => row.chainVenue === "Solana");
+      if (category === "base") return source.filter((row) => row.chainVenue === "Base");
+      if (category === "ethereum") return source.filter((row) => row.chainVenue === "Ethereum");
+      if (category === "funding_oi") return source.filter((row) => String(row.pressureContext || "").toLowerCase().includes("funding") || String(row.participantActivity || "").toLowerCase().includes("oi"));
+      if (category === "compression") return source.filter((row) => ["Choppy", "Thin", "Thin above"].includes(row.liquidityPosture));
+      if (category === "liquidation_zones") return source.filter((row) => row.ecosystem === "liquidation" || row.risk === "Elevated");
+      return source;
+    }
+
+    function displayRows() {
+      let source = rowsForCategory();
+      if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(cryptoRows, activeCategory);
+      if (activeMode === "perps_pressure") source = filteredCryptoRows(perpsRows, activeCategory);
+      if (activeMode === "participant") source = source.filter((row) => row.participantActivity === "High" || row.participationOutcome !== "Mixed");
+      if (activeMode === "breadth") source = source.map((row) => ({ ...row, marketCapBand: `${row.marketCapBand} breadth`, liquidityPosture: row.liquidityPosture }));
+      return source.map((row, index) => ({
+        ...row,
+        market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
+        lastPrice: row.lastPrice || 0,
+        locked: accessTier === "free" && index >= 5,
+      }));
+    }
+
+    function outcomeClass(outcome) {
+      if (outcome === "Paying") return "outcome-paying";
+      if (outcome === "Punishing") return "outcome-punishing";
+      return "outcome-mixed";
+    }
+
+    function columnsForMode() {
+      if (activeMode === "flow") {
+        return [
+          ["asset", "Instrument"], ["market", "Market"], ["lastPrice", "Price"], ["flowScore", "Flow Score"],
+          ["attentionVelocity", "Attention Velocity"], ["participantActivity", "Participant Activity"],
+          ["liquidityPosture", "Liquidity Posture"], ["risk", "Risk"], ["lastUpdated", "Last Updated"],
+        ];
+      }
+      const pressure = activeMode === "perps_pressure";
+      return [
+        ["asset", "Asset"], ["chainVenue", pressure ? "Venue" : "Chain/Venue"], ["marketCapBand", "Cap Band"],
+        ["flowScore", "Flow Score"], ["attentionVelocity", "Attention Velocity"],
+        [pressure ? "pressureContext" : "participantActivity", pressure ? "Funding/OI Pressure" : "Participant Activity"],
+        ["liquidityPosture", "Liquidity Posture"], ["participationOutcome", "Participation Outcome"],
+        ["risk", "Risk"], ["lastUpdated", "Last Updated"],
+      ];
+    }
+
+    function cellValue(row, key) {
+      if (row.locked && key !== "asset" && key !== "chainVenue") return `<span class="lock-pill">Pro</span>`;
+      if (key === "lastPrice") return money(row.lastPrice || 0);
+      if (key === "attentionVelocity") return `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
+      if (key === "risk") return `<span class="${riskClass(row.risk)}">${row.risk}</span>`;
+      if (key === "participationOutcome") return `<span class="${outcomeClass(row.participationOutcome)}">${row.participationOutcome || "Mixed"}</span>`;
+      if (key === "asset") return `<strong>${row.asset}</strong>`;
+      return row[key] ?? "";
+    }
+
+    function renderModeSummary(rowsNow) {
+      const avgFlow = Math.round(rowsNow.reduce((sum, row) => sum + Number(row.flowScore || 0), 0) / Math.max(1, rowsNow.length));
+      const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
+      const punishing = rowsNow.filter((row) => row.participationOutcome === "Punishing").length;
+      const elevated = rowsNow.filter((row) => row.risk === "Elevated").length;
+      document.getElementById("modeSummary").innerHTML = [
+        ["Mode", modeLabel(activeMode)],
+        ["Avg Flow", avgFlow || "n/a"],
+        ["Participation", `${paying} paying / ${punishing} punishing`],
+        ["Risk Flags", `${elevated} elevated`],
+      ].map(([k, v]) => `<div class="summary-cell"><span>${k}</span><strong>${v}</strong></div>`).join("");
+    }
+
     function renderTable() {
-      document.getElementById("flowRows").innerHTML = visibleRows().map((row) => `
-        <tr data-asset="${row.asset}">
-          <td><strong>${row.asset}</strong></td>
-          <td>${row.market}</td>
-          <td>${money(row.lastPrice)}</td>
-          <td>${row.flowScore}</td>
-          <td>${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}</td>
-          <td>${row.participantActivity}</td>
-          <td>${row.liquidityPosture}</td>
-          <td class="${riskClass(row.risk)}">${row.risk}</td>
-          <td>${row.lastUpdated}</td>
+      const columns = columnsForMode();
+      const rowsNow = visibleRows();
+      renderModeSummary(rowsNow);
+      document.getElementById("tableHeadRow").innerHTML = columns.map(([key, label]) => `<th data-sort="${key}">${label}</th>`).join("");
+      document.getElementById("flowRows").innerHTML = rowsNow.map((row) => `
+        <tr data-asset="${row.asset}" class="${row.locked ? "locked-row" : ""}">
+          ${columns.map(([key]) => `<td>${cellValue(row, key)}</td>`).join("")}
         </tr>
       `).join("");
       document.querySelectorAll("#flowRows tr").forEach((tr) => {
         tr.addEventListener("click", () => {
           const asset = tr.getAttribute("data-asset");
-          const row = rows.find((item) => item.asset === asset);
+          const row = rows.find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
           if (!row) return;
-          activeCategory = row.category;
+          if (row.category) activeCategory = row.category;
           renderNav();
           renderAssetOptions();
           document.getElementById("assetSelect").value = row.asset;
           renderChart();
+          renderTable();
+        });
+      });
+      bindSortHeaders();
+    }
+
+    function bindSortHeaders() {
+      document.querySelectorAll("th[data-sort]").forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-sort");
+          sortDir = sortKey === key ? sortDir * -1 : -1;
+          sortKey = key;
           renderTable();
         });
       });
@@ -460,6 +682,15 @@
       renderChart();
       renderTable();
       document.getElementById("assetSelect").addEventListener("change", renderChart);
+      document.getElementById("modeSelect").addEventListener("change", () => {
+        activeMode = document.getElementById("modeSelect").value;
+        if (activeMode === "crypto_heatmaps" && !["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(activeCategory)) activeCategory = "market_cap_heatmap";
+        if (activeMode === "perps_pressure" && !["perps_heatmap", "funding_oi", "compression", "liquidation_zones"].includes(activeCategory)) activeCategory = "perps_heatmap";
+        renderNav();
+        renderAssetOptions();
+        renderChart();
+        renderTable();
+      });
       document.getElementById("timeframeSelect").addEventListener("change", renderChart);
       document.getElementById("searchInput").addEventListener("input", renderTable);
       document.getElementById("riskFilter").addEventListener("change", renderTable);
@@ -473,8 +704,12 @@
       });
       window.RavenOSAccess?.subscribe?.((state) => {
         const tier = state.status === "connected" ? state.tier : "disconnected";
+        accessTier = state.status === "connected" ? state.tier : "free";
         const el = document.getElementById("resolvedTier");
         if (el) el.textContent = tier;
+        const note = document.getElementById("walletAccessDetail");
+        if (note && state.error) note.textContent = state.error;
+        renderTable();
       });
     });
   </script>

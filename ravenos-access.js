@@ -9,7 +9,9 @@
     reason: "Free",
     balance: 0,
     subscription: null,
-    thresholds: { pro: 1000000, founder: 10000000 },
+    thresholds: { pro: 1000000, founder: 10000000, stage: "early" },
+    tokenAccessConfigured: false,
+    tokenAccessStatus: "not_configured",
     checking: false,
     error: "",
   };
@@ -166,6 +168,8 @@
       state.balance = Number(payload.balance || 0);
       state.subscription = payload.subscription || null;
       state.thresholds = payload.thresholds || state.thresholds;
+      state.tokenAccessConfigured = Boolean(payload.tokenAccessConfigured);
+      state.tokenAccessStatus = String(payload.tokenAccessStatus || (state.tokenAccessConfigured ? "configured" : "not_configured"));
       state.checking = false;
       state.error = "";
       save();
@@ -176,7 +180,7 @@
       state.balance = 0;
       state.subscription = null;
       state.checking = false;
-      state.error = "Access check unavailable";
+      state.error = "API unavailable. Subscription and future token access checks are temporarily unavailable.";
     }
     emit();
     return { ...state };
@@ -201,11 +205,16 @@
     const subscriptionEl = document.getElementById("subscriptionStatus");
     const planEl = document.getElementById("planType");
     const renewalEl = document.getElementById("renewalDate");
+    const tokenStatusEl = document.getElementById("tokenAccessStatus");
+    const stageEl = document.getElementById("marketCapStage");
     if (stateEl) stateEl.textContent = state.checking ? "checking access" : label;
     if (keyEl) keyEl.textContent = state.publicKey ? `${shortKey(state.publicKey)} · ${state.provider || "wallet"}` : "";
     if (detailEl) {
-      if (state.status === "disconnected") detailEl.textContent = "Connect a Solana wallet to resolve product access.";
+      if (state.status === "disconnected") detailEl.textContent = state.tokenAccessConfigured
+        ? "Connect a Solana wallet to resolve product access."
+        : "Token-holder access is not active yet. Stripe Pro access is available.";
       else if (state.error) detailEl.textContent = state.error;
+      else if (!state.tokenAccessConfigured) detailEl.textContent = "Token-holder access is not active yet. No RavenOS token exists at this time.";
       else detailEl.textContent = `${tokenCount(state.balance)} access tokens detected.`;
     }
     if (proEl) proEl.textContent = tokenCount(state.thresholds.pro);
@@ -215,6 +224,8 @@
     if (reasonEl) reasonEl.textContent = state.status === "connected" ? state.reason : "not connected";
     if (subscriptionEl) subscriptionEl.textContent = state.subscription?.status || "not active";
     if (planEl) planEl.textContent = state.subscription?.plan_type || "none";
+    if (tokenStatusEl) tokenStatusEl.textContent = state.tokenAccessConfigured ? state.tokenAccessStatus : "not active";
+    if (stageEl) stageEl.textContent = state.thresholds.stage || "early";
     if (renewalEl) {
       const ts = Number(state.subscription?.current_period_end || 0);
       renewalEl.textContent = ts ? new Date(ts * 1000).toLocaleDateString() : "none";
@@ -263,7 +274,7 @@
       }
       note.textContent = unlocked
         ? (state.tier === "founder" ? "Founder access active." : "Pro access active.")
-        : `${required.toUpperCase()} access required. Connect wallet or check access.`;
+        : `${required.toUpperCase()} access required. Connect wallet or upgrade to Pro.`;
     });
   }
 
@@ -271,6 +282,9 @@
     document.getElementById("connectPhantom")?.addEventListener("click", () => connect("Phantom"));
     document.getElementById("connectSolflare")?.addEventListener("click", () => connect("Solflare"));
     document.getElementById("connectBackpack")?.addEventListener("click", () => connect("Backpack"));
+    document.querySelectorAll("[data-wallet-connect]").forEach((button) => {
+      button.addEventListener("click", () => connect(button.getAttribute("data-wallet-connect") || "Phantom"));
+    });
     document.getElementById("disconnectWallet")?.addEventListener("click", () => disconnect());
     document.querySelectorAll("[data-access-check]").forEach((button) => {
       button.addEventListener("click", () => state.publicKey ? checkAccess() : connect("Phantom"));

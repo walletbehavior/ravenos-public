@@ -1,0 +1,15 @@
+.git
+.wrangler
+node_modules
+docs
+tests
+lib
+functions
+migrations
+scripts
+package.json
+package-lock.json
+wrangler.jsonc
+worker.mjs
+*.md
+.env*

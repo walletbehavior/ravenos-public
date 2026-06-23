@@ -24,10 +24,27 @@ function publicError(code, status = 400) {
   );
 }
 
+function disconnected(env = {}) {
+  const config = accessConfig(env);
+  return json({
+    ok: true,
+    status: "disconnected",
+    tier: "free",
+    reason: "Free",
+    balance: 0,
+    mintConfigured: Boolean(config.mint),
+    tokenAccessConfigured: config.tokenAccessConfigured,
+    tokenAccessStatus: config.tokenAccessConfigured ? "configured" : "not_configured",
+    thresholds: config.thresholds,
+    subscription: null,
+    stripeSubscriptionActive: false,
+  });
+}
+
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const wallet = String(url.searchParams.get("wallet") || "").trim();
-  if (!wallet) return publicError("missing_wallet", 400);
+  if (!wallet) return disconnected(context.env || {});
 
   try {
     const env = context.env || {};
@@ -35,15 +52,17 @@ export async function onRequestGet(context) {
     const subscription = await findSubscriptionStatus(env, { wallet });
     let balance = 0;
     let tokenError = "";
-    try {
-      balance = await fetchSplTokenBalance({
-        owner: wallet,
-        mint: config.mint,
-        rpcUrl: config.rpcUrl,
-        fetchImpl: fetch,
-      });
-    } catch (error) {
-      tokenError = error instanceof Error ? error.message : "token_balance_unavailable";
+    if (config.tokenAccessConfigured) {
+      try {
+        balance = await fetchSplTokenBalance({
+          owner: wallet,
+          mint: config.mint,
+          rpcUrl: config.rpcUrl,
+          fetchImpl: fetch,
+        });
+      } catch (error) {
+        tokenError = error instanceof Error ? error.message : "token_balance_unavailable";
+      }
     }
     const access = resolveAccessFromSignals({
       tokenBalance: balance,
@@ -59,6 +78,8 @@ export async function onRequestGet(context) {
       ok: true,
       wallet,
       mintConfigured: Boolean(config.mint),
+      tokenAccessConfigured: config.tokenAccessConfigured,
+      tokenAccessStatus: config.tokenAccessConfigured ? (tokenError ? "unavailable" : "configured") : "not_configured",
       subscription: subscription
         ? {
             status: subscription.status,
@@ -74,4 +95,11 @@ export async function onRequestGet(context) {
     const status = message === "missing_mint" || message === "missing_rpc_url" ? 503 : 502;
     return publicError(message, status);
   }
+}
+
+export async function onRequestPost(context) {
+  const body = await context.request.json().catch(() => ({}));
+  const url = new URL(context.request.url);
+  if (body.wallet) url.searchParams.set("wallet", String(body.wallet));
+  return onRequestGet({ ...context, request: new Request(url.toString(), { method: "GET", headers: context.request.headers }) });
 }

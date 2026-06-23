@@ -136,7 +136,7 @@
       <div>
         <span class="eyebrow">RavenOS Account</span>
         <h1>Access Management</h1>
-        <p class="muted">Manage RavenOS Pro access through a subscription or a qualifying Solana SPL token balance.</p>
+        <p class="muted">Manage RavenOS Pro access through subscription today. Token-holder access is not active yet and will only apply after a RavenOS mint and balance checks are configured.</p>
       </div>
       <a class="button" href="/pro/">Pro Modules</a>
     </header>
@@ -176,7 +176,7 @@
             <button class="button primary" type="button" data-stripe-checkout="annual">Start Annual Pro</button>
             <button class="button" type="button" data-stripe-portal>Manage Subscription</button>
           </div>
-          <div class="note">Subscription access resolves to Pro. Founder access is reserved for wallets holding the configured Founder SPL token balance.</div>
+          <div class="note">Subscription access resolves to Pro. Future Founder access is reserved for wallets holding the configured Founder SPL token balance after token-holder access is enabled.</div>
         </article>
       </div>
 
@@ -186,6 +186,8 @@
           <div class="status-line"><span>Status</span><strong id="walletState">disconnected</strong></div>
           <div class="status-line"><span>Pro token balance</span><strong><span id="proRequiredBalance">1,000,000</span> tokens</strong></div>
           <div class="status-line"><span>Founder token balance</span><strong><span id="founderRequiredBalance">10,000,000</span> tokens</strong></div>
+          <div class="status-line"><span>Token access status</span><strong id="tokenAccessStatus">not active</strong></div>
+          <div class="status-line"><span>Market cap stage</span><strong id="marketCapStage">early</strong></div>
           <div class="status-line"><span>Subscription reason</span><strong>Subscription</strong></div>
           <div class="status-line"><span>Token reason</span><strong>Token Holder</strong></div>
           <div class="status-line"><span>Founder reason</span><strong>Founder</strong></div>
