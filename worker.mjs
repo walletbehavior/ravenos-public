@@ -771,7 +771,7 @@ async function routeApi(request, env) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-      return json({ ok: true, results: await marketPrices(symbols, { market: url.searchParams.get("market") || "mixed" }) });
+      return json({ ok: true, resolverVersion: "canonical-price-v3", results: await marketPrices(symbols, { market: url.searchParams.get("market") || "mixed" }) });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "market_prices_failed", results: [] }, { status: 502 });
     }
