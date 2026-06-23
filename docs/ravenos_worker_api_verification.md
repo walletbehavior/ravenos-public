@@ -9,6 +9,11 @@ The Cloudflare Worker serves static RavenOS assets and API endpoints from the sa
 - `POST /api/stripe/checkout`
 - `POST /api/stripe/portal`
 - `POST /api/stripe/webhook`
+- `GET /api/alerts`
+- `POST /api/alerts`
+- `PATCH /api/alerts/:id`
+- `DELETE /api/alerts/:id`
+- `GET /api/alerts/events`
 
 ## Manual Checks
 
@@ -37,11 +42,22 @@ curl -sS -X POST https://ravenos.xyz/api/stripe/checkout \
   -H 'content-type: application/json' \
   -d '{"wallet":"ExampleWallet","plan":"atlas_annual"}' | jq
 ```
-```
 
 Portal creation requires a signed wallet payload and an existing subscription row.
 
 Webhook verification requires the raw Stripe payload and `stripe-signature` header. Duplicate events are idempotent through `stripe_webhook_events`.
+
+Alerts use the same unified access resolver. Free wallets can preview alert types but cannot create active alerts:
+
+```bash
+curl -sS "https://ravenos.xyz/api/alerts?wallet=ExampleWallet" | jq
+curl -sS -X POST https://ravenos.xyz/api/alerts \
+  -H 'content-type: application/json' \
+  -d '{"wallet":"ExampleWallet","instrument":"SOL-PERP","market":"Perpetual Futures","alert_type":"pressure_score_crosses_threshold","condition":"crosses_above","threshold":75}' | jq
+curl -sS "https://ravenos.xyz/api/alerts/events?wallet=ExampleWallet" | jq
+```
+
+If `RAVENOS_DB` or the alert tables are unavailable, alert endpoints return a structured unavailable response instead of breaking the terminal.
 
 ## Bindings
 

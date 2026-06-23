@@ -5,6 +5,7 @@ const required = [
   "pricing/index.html",
   "upgrade/index.html",
   "account/index.html",
+  "alerts/index.html",
   "terminal/index.html",
   "ravenos-access.js",
   "functions/api/access.js",

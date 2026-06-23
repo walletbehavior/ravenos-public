@@ -8,6 +8,8 @@
 logs/
 data/
 state/
+node_modules/
+.wrangler/
 wallet_memory*
 precursor*
 raven_live*

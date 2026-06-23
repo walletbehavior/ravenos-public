@@ -7,6 +7,14 @@ import {
 import { processStripeWebhookEvent } from "./lib/ravenos_stripe_webhooks.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "./lib/solana_wallet_auth.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
+import {
+  ALERT_TYPES,
+  createAlert,
+  deleteAlert,
+  listAlertEvents,
+  listAlerts,
+  updateAlert,
+} from "./lib/ravenos_alerts.mjs";
 
 const dexCache = new Map();
 const hyperliquidCache = new Map();
@@ -241,6 +249,28 @@ async function handleAccess(request, env) {
   });
 }
 
+async function resolveAccessForWallet(wallet, env) {
+  if (!wallet) return freeAccess(env);
+  const config = accessConfig(env);
+  let subscription = null;
+  try {
+    subscription = await findSubscriptionStatus(env, { wallet });
+  } catch (_) {}
+  let balance = 0;
+  if (config.tokenAccessConfigured) {
+    try {
+      balance = await fetchSplTokenBalance({ owner: wallet, mint: config.mint, rpcUrl: config.rpcUrl, fetchImpl: fetch });
+    } catch (_) {}
+  }
+  return resolveAccessFromSignals({
+    tokenBalance: balance,
+    stripeActive: subscriptionActiveFromRow(subscription),
+    stripeStatus: subscription?.status || "",
+    stripePlanType: subscription?.plan_type || "",
+    env,
+  });
+}
+
 async function stripeRequest(env, path, params) {
   const config = subscriptionConfig(env);
   if (!config.secretKey) throw new Error("missing_stripe_secret_key");
@@ -404,6 +434,44 @@ async function handleWebhook(request, env) {
   }
 }
 
+function alertIdFromPath(pathname) {
+  const match = pathname.match(/^\/api\/alerts\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function handleAlerts(request, env) {
+  const url = new URL(request.url);
+  const body = request.method === "GET" ? {} : await readJson(request);
+  const wallet = String(url.searchParams.get("wallet") || body.wallet || body.user_id || body.userId || "").trim();
+  const access = await resolveAccessForWallet(wallet, env);
+  const entitlements = access.entitlements || ["free"];
+  if (!wallet) return json({ ok: false, error: "missing_wallet", alertTypes: ALERT_TYPES, preview: true }, { status: 400 });
+  const id = alertIdFromPath(url.pathname);
+  try {
+    if (url.pathname === "/api/alerts/events" && request.method === "GET") {
+      return json({ ok: true, events: await listAlertEvents(env, wallet), access });
+    }
+    if (request.method === "GET") return json({ ok: true, alerts: await listAlerts(env, wallet), alertTypes: ALERT_TYPES, access });
+    if (request.method === "POST" && url.pathname === "/api/alerts") {
+      return json({ ok: true, alert: await createAlert(env, { ...body, user_id: wallet }, entitlements), access }, { status: 201 });
+    }
+    if (request.method === "PATCH" && id) {
+      return json({ ok: true, alert: await updateAlert(env, wallet, id, body, entitlements), access });
+    }
+    if (request.method === "DELETE" && id) {
+      return json({ ok: true, ...(await deleteAlert(env, wallet, id)), access });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "alerts_request_failed";
+    const status = message === "pro_required" || error?.errors?.includes?.("pro_required") ? 403
+      : message === "alerts_db_unavailable" ? 503
+        : message === "alert_not_found" ? 404
+          : 400;
+    return json({ ok: false, error: message, errors: error?.errors || [], alertTypes: ALERT_TYPES, access }, { status });
+  }
+  return json({ ok: false, error: "not_found" }, { status: 404 });
+}
+
 function handleHealth(env = {}) {
   const stripeConfigured = Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
   const tokenConfigured = Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
@@ -435,6 +503,8 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
   if (url.pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
   if (url.pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
+  if ((url.pathname === "/api/alerts" || url.pathname === "/api/alerts/events" || url.pathname.startsWith("/api/alerts/"))
+      && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) return handleAlerts(request, env);
   if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {
       return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });
