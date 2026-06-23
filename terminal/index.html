@@ -481,21 +481,50 @@
       { open: 192.9, high: 198.7, low: 190.6, close: 196.4, volume: 3520000 },
     ];
 
-    function recentIsoDay(index, total) {
-      const day = new Date();
-      day.setUTCHours(0, 0, 0, 0);
-      day.setUTCDate(day.getUTCDate() - (total - 1 - index));
-      return day.toISOString().slice(0, 10);
+    const timeframeConfig = {
+      "15m": { stepMinutes: 15, points: 48, volatility: 0.42, volumeScale: 0.34 },
+      "1h": { stepMinutes: 60, points: 36, volatility: 0.72, volumeScale: 0.78 },
+      "4h": { stepMinutes: 240, points: 30, volatility: 1.08, volumeScale: 1.45 },
+      "1d": { stepMinutes: 1440, points: 24, volatility: 1.58, volumeScale: 2.55 },
+    };
+
+    function selectedTimeframe() {
+      return document.getElementById("timeframeSelect")?.value || "1h";
     }
 
-    function makeRecentCandles(pattern = candlePattern) {
-      return pattern.map((candle, index) => ({
-        ...candle,
-        time: recentIsoDay(index, pattern.length),
-      }));
+    function recentIsoAt(index, total, stepMinutes) {
+      const date = new Date();
+      date.setUTCSeconds(0, 0);
+      const roundedMinute = Math.floor(date.getUTCMinutes() / 15) * 15;
+      date.setUTCMinutes(roundedMinute);
+      date.setTime(date.getTime() - (total - 1 - index) * stepMinutes * 60 * 1000);
+      if (stepMinutes >= 1440) return date.toISOString().slice(0, 10);
+      return Math.floor(date.getTime() / 1000);
     }
 
-    const baseCandles = makeRecentCandles();
+    function makeRecentCandles(pattern = candlePattern, timeframe = "1h") {
+      const config = timeframeConfig[timeframe] || timeframeConfig["1h"];
+      const points = config.points;
+      const expanded = Array.from({ length: points }, (_, index) => {
+        const base = pattern[index % pattern.length];
+        const previous = pattern[(index + pattern.length - 1) % pattern.length];
+        const wave = Math.sin((index + timeframe.length) / 2.7) * config.volatility;
+        const drift = (index - points / 2) * config.volatility * 0.06;
+        const open = base.open + wave + drift;
+        const close = base.close + Math.cos((index + 1) / 2.3) * config.volatility + drift;
+        const high = Math.max(open, close, base.high + wave * 0.6) + Math.abs(base.high - previous.close) * 0.08 * config.volatility;
+        const low = Math.min(open, close, base.low + wave * 0.4) - Math.abs(previous.close - base.low) * 0.07 * config.volatility;
+        return {
+          open,
+          high,
+          low,
+          close,
+          volume: Math.round(base.volume * config.volumeScale * (0.78 + (index % 7) * 0.055)),
+          time: recentIsoAt(index, points, config.stepMinutes),
+        };
+      });
+      return expanded;
+    }
 
     function chartEventsFor(candles) {
       const at = (index) => candles[Math.min(index, candles.length - 1)]?.time;
@@ -822,8 +851,10 @@
 
     function scaledCandles(row) {
       const anchor = row.lastPrice || samplePriceFor(row.asset) || 1;
-      const base = baseCandles[baseCandles.length - 1].close;
-      return baseCandles.map((candle) => ({
+      const timeframe = selectedTimeframe();
+      const candles = makeRecentCandles(candlePattern, timeframe);
+      const base = candles[candles.length - 1].close;
+      return candles.map((candle) => ({
         ...candle,
         open: Number((candle.open / base * anchor).toFixed(6)),
         high: Number((candle.high / base * anchor).toFixed(6)),
