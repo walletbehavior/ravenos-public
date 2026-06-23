@@ -138,7 +138,10 @@
         <h1>Access Management</h1>
         <p class="muted">Manage RavenOS Pro access through subscription today. Token-holder access is not active yet and will only apply after a RavenOS mint and balance checks are configured.</p>
       </div>
-      <a class="button" href="/pro/">Pro Modules</a>
+      <div class="actions">
+        <a class="button" href="/pro/">Pro Modules</a>
+        <a class="button" href="/atlas/">Atlas</a>
+      </div>
     </header>
 
     <section class="grid">
@@ -170,13 +173,15 @@
 
         <article class="panel">
           <h2>Subscription</h2>
-          <p class="muted">Use Stripe to activate RavenOS Pro access, or manage an existing subscription.</p>
+          <p class="muted">Use Stripe to activate RavenOS Pro or Atlas access, or manage an existing subscription. Atlas is a separate high-tier desk layer for macro, breadth, regime, and cross-market context.</p>
           <div class="actions" style="justify-content:flex-start; margin-top:12px;">
             <button class="button primary" type="button" data-stripe-checkout="monthly">Start Monthly Pro</button>
             <button class="button primary" type="button" data-stripe-checkout="annual">Start Annual Pro</button>
+            <button class="button primary" type="button" data-stripe-checkout="atlas_monthly">Start Atlas Monthly</button>
+            <button class="button" type="button" data-stripe-checkout="atlas_annual">Start Atlas Annual</button>
             <button class="button" type="button" data-stripe-portal>Manage Subscription</button>
           </div>
-          <div class="note">Subscription access resolves to Pro. Future Founder access is reserved for wallets holding the configured Founder SPL token balance after token-holder access is enabled.</div>
+          <div class="note">Pro subscriptions resolve to Pro. Atlas subscriptions resolve to Atlas. Future Founder access is reserved for wallets holding the configured Founder SPL token balance after token-holder access is enabled.</div>
         </article>
       </div>
 
@@ -189,14 +194,15 @@
           <div class="status-line"><span>Token access status</span><strong id="tokenAccessStatus">not active</strong></div>
           <div class="status-line"><span>Market cap stage</span><strong id="marketCapStage">early</strong></div>
           <div class="status-line"><span>Subscription reason</span><strong>Subscription</strong></div>
+          <div class="status-line"><span>Atlas reason</span><strong>Atlas Subscription</strong></div>
           <div class="status-line"><span>Token reason</span><strong>Token Holder</strong></div>
           <div class="status-line"><span>Founder reason</span><strong>Founder</strong></div>
         </article>
 
         <article class="panel">
           <h2>Unified Permissions</h2>
-          <p class="muted">RavenOS modules read one resolved tier: Free, Pro, or Founder. Wallet and subscription checks feed the same resolver.</p>
-          <div style="margin-top:10px;"><span class="pill">Solana SPL</span> <span class="pill">Stripe</span> <span class="pill">One tier system</span></div>
+          <p class="muted">RavenOS modules read one resolved tier: Free, Pro, Founder, or Atlas. Wallet and subscription checks feed the same resolver.</p>
+          <div style="margin-top:10px;"><span class="pill">Solana SPL</span> <span class="pill">Stripe</span> <span class="pill">Atlas Desk</span> <span class="pill">One tier system</span></div>
         </article>
       </aside>
     </section>

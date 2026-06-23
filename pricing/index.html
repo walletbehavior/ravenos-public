@@ -109,7 +109,7 @@
     .metric strong { display: block; margin-top: 8px; font-size: 17px; overflow-wrap: anywhere; }
     .plans {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
       margin-top: 20px;
     }
@@ -125,6 +125,10 @@
     .plan.primary-plan {
       background: linear-gradient(180deg, rgba(52, 211, 153, 0.1), var(--panel) 48%);
       border-color: rgba(52, 211, 153, 0.42);
+    }
+    .plan.atlas-plan {
+      background: linear-gradient(180deg, rgba(125, 211, 252, 0.13), var(--panel) 52%);
+      border-color: rgba(125, 211, 252, 0.5);
     }
     .price { font-size: 42px; line-height: 1; font-weight: 900; }
     .price small { color: var(--muted); font-size: 13px; font-weight: 750; }
@@ -196,6 +200,7 @@
       </div>
       <nav class="nav">
         <a class="button" href="/terminal/">Flow Terminal</a>
+        <a class="button" href="/atlas/">Atlas</a>
         <a class="button" href="/account/">Account</a>
       </nav>
     </header>
@@ -267,6 +272,24 @@
           <button class="button" type="button" id="connectBackpack">Backpack</button>
         </div>
       </article>
+
+      <article class="plan atlas-plan">
+        <span class="eyebrow">Atlas Desk</span>
+        <h2>High-level market context</h2>
+        <div class="price">Atlas <small>premium</small></div>
+        <p class="muted">Atlas is a separate high-tier subscription for regime, macro, breadth, liquidity, and cross-market context. Tradier is temporarily unavailable, so macro coverage is labeled with fallback quality until live feeds return.</p>
+        <ul class="feature-list">
+          <li>Cross-asset regime posture and macro context</li>
+          <li>Liquidity, volatility, breadth, and risk-context synthesis</li>
+          <li>High-level desk read built for senior operators</li>
+          <li>Fallback-aware coverage labels while providers are degraded</li>
+        </ul>
+        <div class="plan-actions">
+          <button class="button primary" type="button" data-stripe-checkout="atlas_monthly">Start Atlas Monthly</button>
+          <button class="button" type="button" data-stripe-checkout="atlas_annual">Start Atlas Annual</button>
+          <a class="button" href="/atlas/">View Atlas</a>
+        </div>
+      </article>
     </section>
 
     <section class="section">
@@ -309,6 +332,7 @@
           <tr><td>Historical Research</td><td>Limited samples</td><td>Signal archive and replay context</td></tr>
           <tr><td>Alerts & Monitoring</td><td>Unavailable</td><td>Pro monitoring modules and watchlists</td></tr>
           <tr><td>Experimental overlays</td><td>Unavailable</td><td>Founder access</td></tr>
+          <tr><td>Atlas Desk</td><td>Unavailable</td><td>Separate Atlas subscription for high-level cross-market context</td></tr>
         </tbody>
       </table>
     </section>

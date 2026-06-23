@@ -1,5 +1,5 @@
 (function () {
-  const RANK = { disconnected: -1, free: 0, pro: 1, founder: 2 };
+  const RANK = { disconnected: -1, free: 0, pro: 1, founder: 2, atlas: 3 };
   const STORAGE_KEY = "ravenos_wallet_access_v1";
   const state = {
     status: "disconnected",
@@ -164,7 +164,7 @@
       state.publicKey = String(payload.wallet || publicKey);
       state.status = "connected";
       state.tier = String(payload.tier || "free");
-      state.reason = String(payload.reason || (state.tier === "founder" ? "Founder" : state.tier === "pro" ? "Token Holder" : "Free"));
+      state.reason = String(payload.reason || (state.tier === "atlas" ? "Atlas Subscription" : state.tier === "founder" ? "Founder" : state.tier === "pro" ? "Token Holder" : "Free"));
       state.balance = Number(payload.balance || 0);
       state.subscription = payload.subscription || null;
       state.thresholds = payload.thresholds || state.thresholds;
@@ -273,8 +273,8 @@
         el.appendChild(note);
       }
       note.textContent = unlocked
-        ? (state.tier === "founder" ? "Founder access active." : "Pro access active.")
-        : `${required.toUpperCase()} access required. Connect wallet or upgrade to Pro.`;
+        ? (state.tier === "atlas" ? "Atlas access active." : state.tier === "founder" ? "Founder access active." : "Pro access active.")
+        : `${required.toUpperCase()} access required. Connect wallet or upgrade.`;
     });
   }
 

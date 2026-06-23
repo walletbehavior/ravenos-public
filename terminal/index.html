@@ -302,6 +302,7 @@
       <nav class="main-nav" aria-label="Primary navigation">
         <a href="/terminal/">Terminal</a>
         <a href="/pricing/">Pricing</a>
+        <a href="/atlas/">Atlas</a>
         <a href="/account/">Account</a>
         <a href="/docs/">Docs</a>
       </nav>
@@ -530,6 +531,7 @@
           ["etfs", "ETFs preview", "preview"],
           ["options", "Options preview", "preview"],
           ["macro", "Macro preview", "preview"],
+          ["atlas", "Atlas Desk", "premium"],
         ],
       },
       {
@@ -554,6 +556,7 @@
       { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: 548.3, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
+      { asset: "Atlas Macro Posture", market: "Atlas Desk", category: "atlas", lastPrice: 100.0, flowScore: 58, attentionVelocity: -4, participantActivity: "Cross-market", liquidityPosture: "Fallback macro context", risk: "Watch", lastUpdated: "preview", provider: "Atlas fallback", coverage: "Preview", warning: "Tradier unavailable; Atlas is using fallback macro context" },
     ];
     let dexRows = [];
     const samplePrices = {
@@ -762,7 +765,7 @@
     function rowsForCategory(category = activeCategory) {
       if (category === "crypto_overview") return uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]);
       if (category === "perps_overview") return uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
-      if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
+      if (["equities", "etfs", "options", "macro", "atlas"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
 
@@ -854,6 +857,9 @@
           lastUpdated: row.lastUpdated || "public",
           warning: row.warning || "",
         };
+      }
+      if (row.category === "atlas") {
+        return { provider: row.provider || "Atlas fallback", coverage: row.coverage || "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: row.lastUpdated || "preview", warning: row.warning || "Tradier unavailable; Atlas is using fallback macro context" };
       }
       if (["equities", "etfs", "options", "macro"].includes(row.category)) {
         return { provider: "Preview model", coverage: "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Tradier preview data until provider is available" };

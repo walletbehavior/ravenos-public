@@ -217,6 +217,7 @@ async function handleAccess(request, env) {
     tokenBalance: balance,
     stripeActive: subscriptionActiveFromRow(subscription),
     stripeStatus: subscription?.status || "",
+    stripePlanType: subscription?.plan_type || "",
     env,
   });
 
@@ -272,10 +273,20 @@ async function stripeGet(env, path, params = {}) {
 }
 
 function planPriceId(config, plan) {
+  if (plan === "atlas_annual" && config.atlasYearlyPriceId) return config.atlasYearlyPriceId;
+  if (plan === "atlas_monthly" && config.atlasMonthlyPriceId) return config.atlasMonthlyPriceId;
   if (plan === "annual" && config.yearlyPriceId) return config.yearlyPriceId;
   if (config.monthlyPriceId) return config.monthlyPriceId;
   if (config.proPriceId) return config.proPriceId;
   return "";
+}
+
+function normalizeCheckoutPlan(value = "") {
+  const plan = String(value || "monthly").toLowerCase();
+  if (plan === "atlas_annual" || plan === "atlas-yearly" || plan === "atlas_yearly") return "atlas_annual";
+  if (plan === "atlas" || plan === "atlas_monthly" || plan === "atlas-monthly") return "atlas_monthly";
+  if (plan === "annual" || plan === "yearly") return "annual";
+  return "monthly";
 }
 
 async function handleCheckout(request, env) {
@@ -284,7 +295,7 @@ async function handleCheckout(request, env) {
   const body = await readJson(request);
   const wallet = String(body.wallet || "").trim();
   const email = String(body.email || "").trim();
-  const plan = String(body.plan || "monthly").toLowerCase() === "annual" ? "annual" : "monthly";
+  const plan = normalizeCheckoutPlan(body.plan || "monthly");
   const priceId = planPriceId(config, plan);
   if (!wallet) return json({ ok: false, error: "missing_wallet" }, { status: 400 });
   if (!priceId) return json({ ok: false, error: "missing_stripe_price_id" }, { status: 503 });

@@ -1,6 +1,7 @@
 # RavenOS Token Access Thresholds
 
 RavenOS Pro is available through Stripe at `$149/month` or `$999/year`.
+RavenOS Atlas is a separate high-tier Stripe subscription for macro, regime, breadth, liquidity, and cross-market context.
 Future token-holder access is a product-access policy that can grant Pro or Founder access when a configured Solana SPL mint exists and wallet balance checks are enabled.
 
 There is no live RavenOS token at this time. Live market-cap automation is intentionally deferred.
@@ -33,9 +34,19 @@ Token access is inactive unless a mint and RPC endpoint are configured.
 
 ## Resolver Order
 
-1. Token balance at or above Founder threshold grants Founder.
-2. Active or trialing Stripe subscription grants Pro.
-3. Token balance at or above the active Pro threshold grants Pro.
-4. Otherwise access resolves to Free.
+1. Active or trialing Atlas subscription grants Atlas.
+2. Token balance at or above Founder threshold grants Founder.
+3. Active or trialing Pro subscription grants Pro.
+4. Token balance at or above the active Pro threshold grants Pro.
+5. Otherwise access resolves to Free.
 
 The token policy is product access only. RavenOS does not use token language to describe price, yield, appreciation, or returns.
+
+## Atlas Configuration
+
+Atlas uses the same subscription resolver and checkout endpoint as Pro, with separate price IDs:
+
+- `STRIPE_ATLAS_MONTHLY_PRICE_ID`
+- `STRIPE_ATLAS_YEARLY_PRICE_ID`
+
+Atlas is not granted by Founder or token-holder access. It is intentionally a separate high-level desk product.

@@ -24,6 +24,31 @@ assert.equal(walletPayload.tier, "free");
 assert.equal(walletPayload.wallet, "abc");
 assert.equal(walletPayload.tokenAccessStatus, "not_configured");
 
+const atlasEnv = {
+  ...env,
+  RAVENOS_DB: {
+    prepare() {
+      return {
+        bind() {
+          return {
+            first: async () => ({
+              status: "active",
+              plan_type: "atlas_monthly",
+              current_period_end: 1_800_000_000,
+            }),
+          };
+        },
+      };
+    },
+  },
+};
+const atlasWallet = await worker.fetch(new Request("https://ravenos.xyz/api/access?wallet=atlas-wallet"), atlasEnv);
+assert.equal(atlasWallet.status, 200);
+const atlasPayload = await atlasWallet.json();
+assert.equal(atlasPayload.tier, "atlas");
+assert.equal(atlasPayload.reason, "Atlas Subscription");
+assert.equal(atlasPayload.subscription.plan_type, "atlas_monthly");
+
 const dotPath = await worker.fetch(new Request("https://ravenos.xyz/.git/HEAD"), env);
 assert.equal(dotPath.status, 404);
 
