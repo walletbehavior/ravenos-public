@@ -7,6 +7,13 @@ import {
 import { processStripeWebhookEvent } from "./lib/ravenos_stripe_webhooks.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "./lib/solana_wallet_auth.mjs";
 
+const dexCache = new Map();
+const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
+const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const EVM_CHAINS = ["base", "ethereum", "arbitrum", "optimism", "bsc", "polygon"];
+const QUOTE_RANK = { USDC: 90, USDT: 85, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
+
 function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
     status: init.status || 200,
@@ -16,6 +23,106 @@ function json(payload, init = {}) {
       ...(init.headers || {}),
     },
   });
+}
+
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function cachedDex(path) {
+  const now = Date.now();
+  const hit = dexCache.get(path);
+  if (hit && hit.expires > now) return hit.payload;
+  const response = await fetch(`${DEXSCREENER_BASE_URL}${path}`, {
+    headers: { accept: "application/json" },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`dexscreener_http_${response.status}`);
+  dexCache.set(path, { payload, expires: now + 30_000 });
+  if (dexCache.size > 200) dexCache.delete(dexCache.keys().next().value);
+  return payload;
+}
+
+function normalizeDexPair(pair = {}) {
+  const base = pair.baseToken || {};
+  const quote = pair.quoteToken || {};
+  return {
+    id: `${pair.chainId || "unknown"}:${pair.pairAddress || base.address || ""}`,
+    chainId: pair.chainId || "unknown",
+    dexId: pair.dexId || "unknown",
+    pairAddress: pair.pairAddress || "",
+    tokenAddress: base.address || "",
+    symbol: base.symbol || "UNKNOWN",
+    name: base.name || base.symbol || "Unknown token",
+    quoteSymbol: quote.symbol || "",
+    priceUsd: num(pair.priceUsd),
+    liquidityUsd: num(pair.liquidity?.usd),
+    volume24h: num(pair.volume?.h24),
+    txns24h: num(pair.txns?.h24?.buys) + num(pair.txns?.h24?.sells),
+    marketCap: num(pair.marketCap),
+    fdv: num(pair.fdv),
+    priceChange24h: num(pair.priceChange?.h24),
+    pairAgeMs: pair.pairCreatedAt ? Date.now() - Number(pair.pairCreatedAt) : null,
+    provider: "Dexscreener",
+    coverage: "Public fallback",
+    isLive: false,
+    isCached: false,
+    isSample: false,
+    lastUpdated: new Date().toISOString(),
+    warning: "Limited public coverage",
+  };
+}
+
+function rankDexPair(pair = {}) {
+  const quote = String(pair.quoteToken?.symbol || "").toUpperCase();
+  const age = pair.pairCreatedAt ? Math.min(20, Math.max(0, (Date.now() - Number(pair.pairCreatedAt)) / 86_400_000)) : 0;
+  return num(pair.liquidity?.usd) / 10_000
+    + num(pair.volume?.h24) / 25_000
+    + (num(pair.txns?.h24?.buys) + num(pair.txns?.h24?.sells)) / 20
+    + (QUOTE_RANK[quote] || 0)
+    + age;
+}
+
+function sortedDexResults(pairs = []) {
+  return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
+}
+
+async function searchDex(query) {
+  if (!query) return [];
+  const payload = await cachedDex(`/latest/dex/search?q=${encodeURIComponent(query)}`);
+  return sortedDexResults(Array.isArray(payload.pairs) ? payload.pairs : []);
+}
+
+async function tokenDex(chainId, tokenAddress) {
+  if (!chainId || !tokenAddress) return [];
+  const payload = await cachedDex(`/token-pairs/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddress)}`);
+  return sortedDexResults(Array.isArray(payload) ? payload : []);
+}
+
+async function pairDex(chainId, pairAddress) {
+  if (!chainId || !pairAddress) return [];
+  const payload = await cachedDex(`/latest/dex/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`);
+  return sortedDexResults(Array.isArray(payload.pairs) ? payload.pairs : []);
+}
+
+async function tokensDex(chainId, tokenAddresses) {
+  if (!chainId || !tokenAddresses) return [];
+  const payload = await cachedDex(`/tokens/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddresses)}`);
+  return sortedDexResults(Array.isArray(payload) ? payload : []);
+}
+
+async function resolveDexInput(input) {
+  const q = String(input || "").trim();
+  if (!q) return [];
+  if (SOLANA_ADDRESS_RE.test(q)) return tokenDex("solana", q);
+  if (EVM_ADDRESS_RE.test(q)) {
+    const settled = await Promise.allSettled(EVM_CHAINS.map((chain) => tokensDex(chain, q)));
+    return settled.flatMap((item) => item.status === "fulfilled" ? item.value : []).sort((a, b) => b.liquidityUsd - a.liquidityUsd);
+  }
+  const pair = q.match(/^([a-z0-9_-]+):([A-Za-z0-9x]+)$/i);
+  if (pair) return pairDex(pair[1], pair[2]);
+  return searchDex(q);
 }
 
 async function readJson(request) {
@@ -262,6 +369,27 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
   if (url.pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
   if (url.pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
+  if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
+    try {
+      return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_search_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/dexscreener/token" && request.method === "GET") {
+    try {
+      return json({ ok: true, results: await tokenDex(url.searchParams.get("chainId") || "", url.searchParams.get("tokenAddress") || "") });
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_token_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/dexscreener/pair" && request.method === "GET") {
+    try {
+      return json({ ok: true, results: await pairDex(url.searchParams.get("chainId") || "", url.searchParams.get("pairAddress") || "") });
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
+    }
+  }
   return json({ ok: false, error: "not_found" }, { status: 404 });
 }
 

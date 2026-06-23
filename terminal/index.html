@@ -34,7 +34,7 @@
     .terminal { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, rgba(125, 211, 252, 0.05), transparent 330px), var(--bg); }
     .topbar {
       display: grid;
-      grid-template-columns: minmax(220px, 1fr) auto auto;
+      grid-template-columns: minmax(180px, 0.8fr) auto minmax(260px, 1fr) auto;
       gap: 12px;
       align-items: center;
       padding: 10px 12px;
@@ -54,6 +54,23 @@
     .wallet-box { display: flex; gap: 7px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
     .main-nav { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
     .main-nav a { border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--muted); padding: 7px 9px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
+    .global-search { position: relative; min-width: 0; }
+    .global-search input { width: 100%; min-height: 34px; }
+    .search-results {
+      position: absolute;
+      z-index: 20;
+      inset: calc(100% + 6px) 0 auto 0;
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--line-strong);
+      background: #050b09;
+      border-bottom-color: rgba(0,0,0,0.42);
+      display: none;
+    }
+    .search-results.active { display: block; }
+    .search-result { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); padding: 9px 10px; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    .search-result span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .search-result em { color: var(--cyan); font-style: normal; font-size: 11px; text-align: right; }
     .wallet-state { min-width: 112px; border: 1px solid var(--line); background: #050b09; padding: 7px 9px; font-family: var(--mono); font-size: 10px; color: var(--cyan); text-transform: uppercase; }
     .button {
       min-height: 32px;
@@ -79,6 +96,7 @@
     .panel-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
     .title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
     .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .coverage-badge { display: inline-flex; width: fit-content; border: 1px solid var(--line); color: var(--cyan); background: rgba(125,211,252,0.07); padding: 3px 7px; font-size: 10px; font-weight: 850; text-transform: uppercase; }
     h1, h2, p { margin: 0; }
     h2 { font-size: 15px; line-height: 1.15; }
     .muted { color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -113,7 +131,7 @@
     select, input { min-height: 34px; border: 1px solid var(--line); background: #050b09; color: var(--text); padding: 7px 9px; outline: none; }
     select:focus, input:focus { border-color: var(--cyan); }
     .chart-host { min-height: 0; height: 100%; }
-    .intel { display: grid; grid-template-rows: auto repeat(6, auto) minmax(0, 1fr); }
+    .intel { display: grid; align-content: start; overflow: auto; }
     .score { padding: 14px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(52, 211, 153, 0.09), transparent); }
     .score span { color: var(--muted); font-size: 12px; }
     .score strong { display: block; margin-top: 8px; font-size: 58px; line-height: 0.9; }
@@ -122,7 +140,26 @@
     .brief { padding: 14px; color: #b9c9c2; font-size: 12px; line-height: 1.5; overflow: auto; }
     .cta-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
     .api-note { padding: 0 14px 12px; color: var(--yellow); font-size: 11px; line-height: 1.4; }
+    .explanation-panel { border-top: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 12px; }
+    .explanation-panel h3 { margin: 0; font-size: 13px; line-height: 1.2; }
+    .explanation-panel p { color: #b9c9c2; font-size: 12px; line-height: 1.45; }
+    .confidence-track { height: 7px; background: rgba(255,255,255,0.06); border: 1px solid var(--line); }
+    .confidence-fill { height: 100%; background: linear-gradient(90deg, var(--yellow), var(--green)); }
+    .breakdown { display: grid; gap: 5px; }
+    .breakdown-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-size: 11px; color: var(--muted); }
+    .breakdown-row b { font-family: var(--mono); }
+    .breakdown-row .positive { color: var(--green); }
+    .breakdown-row .negative { color: var(--red); }
+    .why-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+    .why-list li { color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .why-list li::before { content: "• "; color: var(--cyan); }
     .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .tape-panel { grid-column: 2 / -1; }
+    .structure-tape { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+    .tape-item { background: #050b09; padding: 11px 12px; min-height: 92px; border: 0; color: var(--text); text-align: left; }
+    .tape-item time { display: block; color: var(--cyan); font-family: var(--mono); font-size: 10px; }
+    .tape-item strong { display: block; margin-top: 6px; font-size: 12px; line-height: 1.25; }
+    .tape-item span { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.35; }
     .mode-summary {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -158,16 +195,18 @@
       .layout { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: 520px auto auto; }
       .intel { grid-column: 2; }
       .table-panel { grid-column: 1 / -1; }
+      .tape-panel { grid-column: 1 / -1; }
     }
     @media (max-width: 780px) {
       .layout { grid-template-columns: 1fr; grid-template-rows: auto 480px auto auto; padding: 8px; }
       .nav { grid-row: auto; }
       .nav-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
       .nav-item { margin: 0; }
-      .intel, .table-panel { grid-column: auto; }
+      .intel, .table-panel, .tape-panel { grid-column: auto; }
       .footer { grid-column: auto; }
       .selectors { grid-template-columns: 1fr; width: 100%; }
       .mode-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .structure-tape { grid-template-columns: 1fr; }
       .panel-head { align-items: flex-start; flex-direction: column; }
       .ticker-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -186,6 +225,10 @@
         <a href="/account/">Account</a>
         <a href="/docs/">Docs</a>
       </nav>
+      <section class="global-search" aria-label="Universal token lookup">
+        <input id="dexSearchInput" type="search" placeholder="Search token, symbol, pair, or contract..." autocomplete="off" />
+        <div class="search-results" id="dexSearchResults"></div>
+      </section>
       <section class="ticker-strip" aria-label="Current instrument summary">
         <div class="ticker"><span>Instrument</span><strong id="tickerInstrument">SOL-PERP</strong></div>
         <div class="ticker"><span>Last</span><strong id="tickerPrice">$196.40</strong></div>
@@ -218,6 +261,7 @@
           <div class="title">
             <span class="eyebrow">Chart</span>
             <h2 id="chartTitle">SOL-PERP Flow Chart</h2>
+            <span class="coverage-badge" id="coverageBadge">Sample</span>
             <p class="muted" id="chartSubtitle">OHLCV with RavenOS overlays.</p>
           </div>
           <div class="selectors">
@@ -252,12 +296,15 @@
         <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
         <div class="intel-row"><span>Access</span><strong id="resolvedTier">disconnected</strong></div>
         <div class="intel-row"><span>Token Access</span><strong id="tokenAccessStatus">not active</strong></div>
+        <div class="intel-row"><span>Provider</span><strong id="providerSource">Sample model</strong></div>
+        <div class="intel-row"><span>Data Age</span><strong id="staleTimestamp">sample</strong></div>
         <div class="cta-row">
           <button class="button" type="button" data-wallet-connect="Phantom">Connect wallet</button>
           <a class="button secondary" href="/upgrade/">Upgrade to Pro</a>
         </div>
         <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
         <div class="brief" id="terminalBrief"></div>
+        <section class="explanation-panel" id="explanationPanel" aria-label="Explanation panel"></section>
       </aside>
 
       <article class="panel table-panel">
@@ -296,6 +343,16 @@
           </table>
         </div>
       </article>
+      <article class="panel tape-panel">
+        <div class="panel-head">
+          <div class="title">
+            <span class="eyebrow">Structure Tape v2</span>
+            <h2>Behavioral Observations</h2>
+            <p class="muted">Short, evidence-backed observations tied to current metrics and explanations.</p>
+          </div>
+        </div>
+        <div class="structure-tape" id="structureTape"></div>
+      </article>
       <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services.</footer>
     </section>
   </main>
@@ -305,27 +362,48 @@
   <script src="/raven-price-chart.js"></script>
   <script src="/ravenos-access.js"></script>
   <script>
-    const baseCandles = [
-      { time: "2026-06-23", open: 162.1, high: 166.4, low: 159.8, close: 165.2, volume: 1420000 },
-      { time: "2026-06-24", open: 165.2, high: 168.3, low: 163.6, close: 164.1, volume: 1180000 },
-      { time: "2026-06-25", open: 164.1, high: 171.2, low: 162.4, close: 170.6, volume: 1910000 },
-      { time: "2026-06-26", open: 170.6, high: 174.9, low: 168.8, close: 173.4, volume: 2260000 },
-      { time: "2026-06-27", open: 173.4, high: 174.1, low: 167.6, close: 169.2, volume: 1680000 },
-      { time: "2026-06-28", open: 169.2, high: 176.7, low: 168.9, close: 176.2, volume: 2440000 },
-      { time: "2026-06-29", open: 176.2, high: 183.1, low: 175.5, close: 181.8, volume: 2840000 },
-      { time: "2026-06-30", open: 181.8, high: 184.6, low: 178.2, close: 180.4, volume: 2380000 },
-      { time: "2026-07-01", open: 180.4, high: 189.5, low: 179.8, close: 188.6, volume: 3160000 },
-      { time: "2026-07-02", open: 188.6, high: 191.3, low: 183.4, close: 185.8, volume: 2910000 },
-      { time: "2026-07-03", open: 185.8, high: 194.2, low: 184.7, close: 192.9, volume: 3370000 },
-      { time: "2026-07-04", open: 192.9, high: 198.7, low: 190.6, close: 196.4, volume: 3520000 },
+    const candlePattern = [
+      { open: 162.1, high: 166.4, low: 159.8, close: 165.2, volume: 1420000 },
+      { open: 165.2, high: 168.3, low: 163.6, close: 164.1, volume: 1180000 },
+      { open: 164.1, high: 171.2, low: 162.4, close: 170.6, volume: 1910000 },
+      { open: 170.6, high: 174.9, low: 168.8, close: 173.4, volume: 2260000 },
+      { open: 173.4, high: 174.1, low: 167.6, close: 169.2, volume: 1680000 },
+      { open: 169.2, high: 176.7, low: 168.9, close: 176.2, volume: 2440000 },
+      { open: 176.2, high: 183.1, low: 175.5, close: 181.8, volume: 2840000 },
+      { open: 181.8, high: 184.6, low: 178.2, close: 180.4, volume: 2380000 },
+      { open: 180.4, high: 189.5, low: 179.8, close: 188.6, volume: 3160000 },
+      { open: 188.6, high: 191.3, low: 183.4, close: 185.8, volume: 2910000 },
+      { open: 185.8, high: 194.2, low: 184.7, close: 192.9, volume: 3370000 },
+      { open: 192.9, high: 198.7, low: 190.6, close: 196.4, volume: 3520000 },
     ];
-    const chartEvents = [
-      { time: "2026-06-25", type: "entry-zone", label: "Flow expansion zone", price: 165.7, severity: "info" },
-      { time: "2026-06-27", type: "liquidity-warning", label: "Liquidity posture watch", price: 169.8, severity: "warning" },
-      { time: "2026-06-29", type: "smart-wallet-accumulation", label: "Participant accumulation cluster", severity: "success" },
-      { time: "2026-07-02", type: "toxicity-risk", label: "Risk posture elevated", price: 190.6, severity: "danger" },
-      { time: "2026-07-04", type: "exit-zone", label: "Flow exhaustion zone", price: 196.1, severity: "info" },
-    ];
+
+    function recentIsoDay(index, total) {
+      const day = new Date();
+      day.setUTCHours(0, 0, 0, 0);
+      day.setUTCDate(day.getUTCDate() - (total - 1 - index));
+      return day.toISOString().slice(0, 10);
+    }
+
+    function makeRecentCandles(pattern = candlePattern) {
+      return pattern.map((candle, index) => ({
+        ...candle,
+        time: recentIsoDay(index, pattern.length),
+      }));
+    }
+
+    const baseCandles = makeRecentCandles();
+
+    function chartEventsFor(candles) {
+      const at = (index) => candles[Math.min(index, candles.length - 1)]?.time;
+      const priceAt = (index, fallback) => candles[Math.min(index, candles.length - 1)]?.close || fallback;
+      return [
+        { time: at(2), type: "entry-zone", label: "Flow expansion zone", price: priceAt(2, 165.7), severity: "info" },
+        { time: at(4), type: "liquidity-warning", label: "Liquidity posture watch", price: priceAt(4, 169.8), severity: "warning" },
+        { time: at(6), type: "smart-wallet-accumulation", label: "Participant accumulation cluster", severity: "success" },
+        { time: at(9), type: "toxicity-risk", label: "Risk posture elevated", price: priceAt(9, 190.6), severity: "danger" },
+        { time: at(11), type: "exit-zone", label: "Flow exhaustion zone", price: priceAt(11, 196.1), severity: "info" },
+      ].filter((event) => event.time);
+    }
     const navGroups = [
       {
         label: "Crypto Spot",
@@ -373,6 +451,7 @@
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
     ];
+    let dexRows = [];
     const cryptoRows = [
       ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "2m ago", "solana"],
       ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "5m ago", "solana"],
@@ -380,7 +459,15 @@
       ["WIF", "Solana", "memecoin", 69, 28, "Choppy", "Medium", "Watch", "Punishing", "7m ago", "memes"],
       ["AERO", "Base", "mid cap", 76, 16, "Balanced", "Medium", "Stable", "Paying", "6m ago", "base"],
       ["DEGEN", "Base", "small cap", 67, 19, "Thin", "High", "Elevated", "Mixed", "9m ago", "base"],
+      ["VIRTUAL", "Base", "mid cap", 82, 24, "Improving", "High", "Watch", "Paying", "3m ago", "base"],
+      ["BRETT", "Base", "memecoin", 75, 29, "Public liquidity visible", "High", "Watch", "Mixed", "5m ago", "base"],
+      ["TOSHI", "Base", "small cap", 63, 34, "Thin public liquidity", "High", "Elevated", "Punishing", "11m ago", "base"],
+      ["MORPHO", "Base", "mid cap", 70, 10, "Balanced", "Medium", "Stable", "Mixed", "14m ago", "base"],
+      ["AIXBT", "Base", "mid cap", 79, 27, "Choppy", "High", "Watch", "Paying", "6m ago", "base"],
       ["ETH", "Ethereum", "large cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "3m ago", "ethereum"],
+      ["BTC", "Crypto Spot", "large cap", 68, 3, "Deep", "Medium", "Stable", "Mixed", "2m ago", "large_caps"],
+      ["LINK", "Ethereum", "large cap", 73, 9, "Deep", "Medium", "Stable", "Mixed", "7m ago", "ethereum"],
+      ["AAVE", "Ethereum", "large cap", 71, 8, "Deep", "Medium", "Stable", "Mixed", "8m ago", "ethereum"],
       ["ARB", "Ethereum", "mid cap", 78, 14, "Thin above", "High", "Watch", "Paying", "6m ago", "ethereum"],
       ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "10m ago", "memes"],
       ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "12m ago", "large_caps"],
@@ -395,6 +482,11 @@
       ["ETH-PERP", "Hyperliquid", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "3m ago", "pressure"],
       ["OP-PERP", "Hyperliquid", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "8m ago", "pressure"],
       ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "6m ago", "pressure"],
+      ["AVAX-PERP", "Hyperliquid", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "5m ago", "pressure"],
+      ["LINK-PERP", "Hyperliquid", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "7m ago", "pressure"],
+      ["AAVE-PERP", "Hyperliquid", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "9m ago", "pressure"],
+      ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "8m ago", "pressure"],
+      ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "10m ago", "pressure"],
       ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem]) => ({
       asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
@@ -411,8 +503,20 @@
       return `$${Number(value).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
 
+    function compactUsd(value) {
+      const n = Number(value || 0);
+      if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+      if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+      if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+      return `$${Math.round(n).toLocaleString("en-US")}`;
+    }
+
+    function allRows() {
+      return [...dexRows, ...rows];
+    }
+
     function rowsForCategory(category = activeCategory) {
-      if (category === "crypto_overview") return rows.filter((row) => row.category === "crypto_spot");
+      if (category === "crypto_overview") return allRows().filter((row) => row.category === "crypto_spot");
       if (category === "perps_overview") return rows.filter((row) => row.category === "perpetuals");
       if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return rows.filter((row) => row.category === "perpetuals");
@@ -420,7 +524,7 @@
 
     function selectedRow() {
       const asset = document.getElementById("assetSelect").value;
-      return rows.find((row) => row.asset === asset) || displayRows().find((row) => row.asset === asset) || rowsForCategory()[0] || rows[0];
+      return allRows().find((row) => row.asset === asset) || displayRows().find((row) => row.asset === asset) || rowsForCategory()[0] || rows[0];
     }
 
     function renderNav() {
@@ -475,9 +579,29 @@
     }
 
     function marketKind(row) {
+      if (row.provider === "Dexscreener") return row.chainVenue || "spot";
       if (row.category === "perpetuals") return "perp";
       if (row.category === "crypto_spot") return "spot";
       return row.category;
+    }
+
+    function coverageMeta(row) {
+      if (row.coverage) {
+        return {
+          provider: row.provider || "Unknown",
+          coverage: row.coverage,
+          isLive: row.isLive === true,
+          isCached: row.isCached === true,
+          isSample: row.isSample === true,
+          lastUpdated: row.lastUpdated || "public",
+          warning: row.warning || "",
+        };
+      }
+      if (["equities", "etfs", "options", "macro"].includes(row.category)) {
+        return { provider: "Preview model", coverage: "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Tradier preview data until provider is available" };
+      }
+      if (row.lastUpdated === "live") return { provider: "Raven indexed", coverage: "Live", isLive: true, isCached: false, isSample: false, lastUpdated: "live", warning: "" };
+      return { provider: "Sample model", coverage: "Sample", isLive: false, isCached: false, isSample: true, lastUpdated: row.lastUpdated || "sample", warning: "Sample coverage" };
     }
 
     function renderChart() {
@@ -501,13 +625,20 @@
       document.getElementById("tickerPrice").textContent = money(row.lastPrice);
       document.getElementById("tickerFlow").textContent = row.flowScore;
       document.getElementById("tickerUpdated").textContent = row.lastUpdated;
+      const coverage = coverageMeta(row);
+      document.getElementById("coverageBadge").textContent = coverage.coverage;
+      document.getElementById("providerSource").textContent = coverage.provider;
+      document.getElementById("staleTimestamp").textContent = coverage.lastUpdated || "sample";
+      const apiNote = document.getElementById("walletAccessDetail");
+      if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
       document.getElementById("terminalBrief").textContent = row.participationOutcome
         ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
         : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
+      renderExplanation(row);
       if (chartHandle) chartHandle.destroy();
       chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
         candles: candleData,
-        events: chartEvents,
+        events: chartEventsFor(candleData),
         overlays,
         showVolume: true,
         height: document.getElementById("flowChart").clientHeight || 520,
@@ -528,6 +659,86 @@
       if (risk === "Elevated") return "risk-elevated";
       if (risk === "Watch") return "risk-watch";
       return "risk-stable";
+    }
+
+    function clamp(value, min = 0, max = 100) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return min;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function scoreBreakdown(row) {
+      const flow = Number(row.flowScore || 0);
+      const attention = Number(row.attentionVelocity || 0);
+      const participant = row.participantActivity === "High" || String(row.participantActivity || "").includes("OI expansion") ? 18 : row.participantActivity === "Medium" ? 10 : 4;
+      const survival = row.participationOutcome === "Paying" ? 15 : row.participationOutcome === "Punishing" ? -10 : 4;
+      const liquidity = /deep|stable|improving/i.test(row.liquidityPosture || "") ? 8 : /thin|fragmented/i.test(row.liquidityPosture || "") ? -7 : /choppy/i.test(row.liquidityPosture || "") ? -4 : 3;
+      const pressure = /crowd|elevated/i.test(row.pressureContext || "") ? -6 : /watch/i.test(row.pressureContext || "") ? -3 : 2;
+      return [
+        ["participation breadth", flow >= 80 ? 24 : flow >= 70 ? 16 : 8],
+        ["clean participant activity", participant],
+        ["survival quality", survival],
+        ["historical follow-through", flow >= 75 ? 12 : 5],
+        ["liquidity posture", liquidity],
+        ["crowding pressure", pressure],
+        ["confirmation quality", row.risk === "Stable" ? 6 : row.risk === "Watch" ? -3 : -8],
+        ["attention velocity", attention >= 15 ? 8 : attention >= 5 ? 5 : attention < 0 ? -4 : 2],
+      ];
+    }
+
+    function confidenceFor(row) {
+      let confidence = 54;
+      if (row.lastUpdated && row.lastUpdated !== "sample" && row.lastUpdated !== "delayed") confidence += 10;
+      if (row.participationOutcome === "Paying" || row.participationOutcome === "Punishing") confidence += 8;
+      if (row.risk === "Stable") confidence += 6;
+      if (row.risk === "Elevated") confidence -= 8;
+      if (/thin|fragmented/i.test(row.liquidityPosture || "")) confidence -= 8;
+      return clamp(confidence);
+    }
+
+    function explanationFor(row) {
+      const positives = [];
+      const negatives = [];
+      const risks = [];
+      const evidence = [];
+      if (Number(row.flowScore || 0) >= 80) positives.push("Participation expanding across the visible sample.");
+      else if (Number(row.flowScore || 0) >= 70) positives.push("Flow is constructive but not uniform.");
+      else negatives.push("Flow breadth is still developing.");
+      if (row.participantActivity === "High" || String(row.participantActivity || "").includes("OI expansion")) positives.push("Clean participant activity is elevated.");
+      if (row.participationOutcome === "Paying") positives.push("Participation outcome quality is improving.");
+      if (row.participationOutcome === "Punishing") negatives.push("Participation outcome quality weakened in the current window.");
+      if (/deep|stable|improving/i.test(row.liquidityPosture || "")) positives.push("Liquidity posture is manageable.");
+      if (/thin|fragmented|choppy/i.test(row.liquidityPosture || "")) risks.push("Liquidity context can make the read less stable.");
+      if (/crowd/i.test(row.pressureContext || "")) risks.push("Perps pressure remains crowded.");
+      if (row.risk === "Elevated") risks.push("Risk flag is elevated.");
+      evidence.push(`Flow score ${row.flowScore ?? "n/a"}`);
+      evidence.push(`Attention velocity ${Number(row.attentionVelocity || 0) > 0 ? "+" : ""}${row.attentionVelocity ?? "n/a"}`);
+      evidence.push(`Liquidity posture: ${row.liquidityPosture || "n/a"}`);
+      if (row.participationOutcome) evidence.push(`Participation outcome: ${row.participationOutcome}`);
+      if (row.chainVenue) evidence.push(`Chain/venue: ${row.chainVenue}`);
+      const headline = Number(row.flowScore || 0) >= 80 ? "Constructive structure" : row.risk === "Elevated" ? "Fragile structure" : "Mixed structure";
+      const summary = positives.length >= 3
+        ? "Constructive structure with broad participation and improving outcomes."
+        : risks.length
+          ? "Mixed structure with useful activity, but risk and liquidity context need attention."
+          : "Balanced structure with moderate participation and manageable pressure.";
+      return { headline, summary, confidence: confidenceFor(row), positives, negatives, risks, evidence, breakdown: scoreBreakdown(row) };
+    }
+
+    function renderExplanation(row) {
+      const explanation = explanationFor(row);
+      const breakdown = explanation.breakdown.map(([label, value]) => `
+        <div class="breakdown-row"><span>${label}</span><b class="${value >= 0 ? "positive" : "negative"}">${value >= 0 ? "+" : ""}${value}</b></div>
+      `).join("");
+      const why = [...explanation.positives, ...explanation.negatives, ...explanation.risks].slice(0, 6).map((item) => `<li>${item}</li>`).join("");
+      const evidence = explanation.evidence.slice(0, 5).map((item) => `<li>${item}</li>`).join("");
+      document.getElementById("explanationPanel").innerHTML = `
+        <div><span class="eyebrow">Why This Read</span><h3>${explanation.headline}</h3><p>${explanation.summary}</p></div>
+        <div><div class="breakdown-row"><span>Confidence</span><b>${explanation.confidence}/100</b></div><div class="confidence-track"><div class="confidence-fill" style="width:${explanation.confidence}%"></div></div></div>
+        <div><span class="eyebrow">Score Breakdown</span><div class="breakdown">${breakdown}</div></div>
+        <div><span class="eyebrow">Why</span><ul class="why-list">${why}</ul></div>
+        <div><span class="eyebrow">Evidence</span><ul class="why-list">${evidence}</ul></div>
+      `;
     }
 
     function visibleRows() {
@@ -573,6 +784,42 @@
         lastPrice: row.lastPrice || 0,
         locked: accessTier === "free" && index >= 5,
       }));
+    }
+
+    function dexResultToRow(result) {
+      const liquidity = Number(result.liquidityUsd || 0);
+      const volume = Number(result.volume24h || 0);
+      const txns = Number(result.txns24h || 0);
+      const change = Number(result.priceChange24h || 0);
+      const flowScore = clamp(Math.round(42 + Math.min(28, liquidity / 100000) + Math.min(18, volume / 50000) + Math.min(12, txns / 30) + Math.max(-10, Math.min(10, change / 2))));
+      return {
+        asset: `${result.symbol}/${result.quoteSymbol || "QUOTE"}`,
+        market: "Crypto Spot",
+        category: "crypto_spot",
+        chainVenue: result.chainId,
+        marketCapBand: result.marketCap >= 1_000_000_000 || result.fdv >= 1_000_000_000 ? "large cap" : result.marketCap >= 100_000_000 || result.fdv >= 100_000_000 ? "mid cap" : "small cap",
+        lastPrice: Number(result.priceUsd || 0),
+        flowScore,
+        attentionVelocity: Math.round(Math.min(50, txns / 10 + volume / 100000)),
+        participantActivity: txns >= 500 ? "High" : txns >= 100 ? "Medium" : "Low",
+        liquidityPosture: liquidity >= 1_000_000 ? "Deep public liquidity" : liquidity >= 150_000 ? "Public liquidity visible" : "Thin public liquidity",
+        risk: liquidity < 75_000 || Math.abs(change) > 35 ? "Elevated" : Math.abs(change) > 15 ? "Watch" : "Stable",
+        participationOutcome: change > 5 ? "Paying" : change < -5 ? "Punishing" : "Mixed",
+        lastUpdated: result.lastUpdated || "public",
+        provider: "Dexscreener",
+        coverage: result.coverage || "Public fallback",
+        isLive: false,
+        isCached: false,
+        isSample: false,
+        warning: result.warning || "Limited public coverage",
+        dex: result.dexId,
+        pairAddress: result.pairAddress,
+        tokenAddress: result.tokenAddress,
+        volume24h: volume,
+        liquidityUsd: liquidity,
+        marketCap: result.marketCap,
+        fdv: result.fdv,
+      };
     }
 
     function outcomeClass(outcome) {
@@ -622,10 +869,61 @@
       ].map(([k, v]) => `<div class="summary-cell"><span>${k}</span><strong>${v}</strong></div>`).join("");
     }
 
+    function structureTapeItems(rowsNow) {
+      const now = new Date().toISOString().slice(11, 16);
+      const sorted = [...rowsNow].sort((a, b) => Number(b.flowScore || 0) - Number(a.flowScore || 0));
+      const top = sorted[0] || selectedRow();
+      const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
+      const punishing = rowsNow.filter((row) => row.participationOutcome === "Punishing").length;
+      const elevated = rowsNow.filter((row) => row.risk === "Elevated").length;
+      const compression = rowsNow.find((row) => /thin|choppy|fragmented/i.test(row.liquidityPosture || ""));
+      return [
+        {
+          time: now,
+          title: `${top.asset} leads current ${modeLabel(activeMode).toLowerCase()}`,
+          detail: `Flow score ${top.flowScore} with ${top.participantActivity || "visible"} participant activity.`,
+          target: top.asset,
+        },
+        {
+          time: now,
+          title: `Participation outcomes: ${paying} paying, ${punishing} punishing`,
+          detail: "Outcome mix is linked to heatmap cells and score explanations.",
+          target: rowsNow.find((row) => row.participationOutcome === "Punishing")?.asset || top.asset,
+        },
+        {
+          time: now,
+          title: compression ? `${compression.asset} liquidity context is compressed` : `${elevated} elevated risk flags in view`,
+          detail: compression ? `${compression.liquidityPosture} posture is affecting confidence.` : "Risk flags reflect liquidity, pressure, or confirmation weakness.",
+          target: compression?.asset || rowsNow.find((row) => row.risk === "Elevated")?.asset || top.asset,
+        },
+      ];
+    }
+
+    function renderStructureTape(rowsNow) {
+      document.getElementById("structureTape").innerHTML = structureTapeItems(rowsNow).map((item) => `
+        <button class="tape-item" type="button" data-tape-target="${item.target}">
+          <time>${item.time}</time>
+          <strong>${item.title}</strong>
+          <span>${item.detail}</span>
+        </button>
+      `).join("");
+      document.querySelectorAll("[data-tape-target]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const target = button.getAttribute("data-tape-target");
+          const row = displayRows().find((item) => item.asset === target) || rows.find((item) => item.asset === target);
+          if (!row) return;
+          renderAssetOptions();
+          document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+        });
+      });
+    }
+
     function renderTable() {
       const columns = columnsForMode();
       const rowsNow = visibleRows();
       renderModeSummary(rowsNow);
+      renderStructureTape(rowsNow);
       document.getElementById("tableHeadRow").innerHTML = columns.map(([key, label]) => `<th data-sort="${key}">${label}</th>`).join("");
       document.getElementById("flowRows").innerHTML = rowsNow.map((row) => `
         <tr data-asset="${row.asset}" class="${row.locked ? "locked-row" : ""}">
@@ -675,6 +973,54 @@
       } catch (_) {}
     }
 
+    let dexSearchTimer = 0;
+
+    async function runDexSearch(query) {
+      const box = document.getElementById("dexSearchResults");
+      const q = String(query || "").trim();
+      if (q.length < 2) {
+        box.classList.remove("active");
+        box.innerHTML = "";
+        return;
+      }
+      box.classList.add("active");
+      box.innerHTML = `<button class="search-result" type="button"><strong>Searching public pairs...</strong><em>Dexscreener</em></button>`;
+      try {
+        const response = await fetch(`/api/dexscreener/search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        const results = Array.isArray(payload.results) ? payload.results.slice(0, 10) : [];
+        if (!results.length) {
+          box.innerHTML = `<button class="search-result" type="button"><strong>No public pairs found</strong><span>Try a contract, pair, symbol, or name.</span><em>Public</em></button>`;
+          return;
+        }
+        box.innerHTML = results.map((item, index) => `
+          <button class="search-result" type="button" data-dex-index="${index}">
+            <strong>${item.symbol} <span>${item.name}</span></strong>
+            <em>${item.chainId} · ${item.dexId}<br>${compactUsd(item.liquidityUsd)} liq · ${compactUsd(item.volume24h)} vol</em>
+          </button>
+        `).join("");
+        box.querySelectorAll("[data-dex-index]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const item = results[Number(button.getAttribute("data-dex-index"))];
+            const row = dexResultToRow(item);
+            dexRows = [row, ...dexRows.filter((existing) => existing.pairAddress !== row.pairAddress)].slice(0, 12);
+            activeCategory = "crypto_overview";
+            activeMode = "flow";
+            document.getElementById("modeSelect").value = activeMode;
+            renderNav();
+            renderAssetOptions();
+            document.getElementById("assetSelect").value = row.asset;
+            renderChart();
+            renderTable();
+            box.classList.remove("active");
+            document.getElementById("dexSearchInput").value = row.asset;
+          });
+        });
+      } catch (error) {
+        box.innerHTML = `<button class="search-result" type="button"><strong>Dexscreener unavailable</strong><span>Using Raven sample coverage until public lookup recovers.</span><em>Fallback</em></button>`;
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       await hydrateLiveContext();
       renderNav();
@@ -693,6 +1039,10 @@
       });
       document.getElementById("timeframeSelect").addEventListener("change", renderChart);
       document.getElementById("searchInput").addEventListener("input", renderTable);
+      document.getElementById("dexSearchInput").addEventListener("input", (event) => {
+        clearTimeout(dexSearchTimer);
+        dexSearchTimer = setTimeout(() => runDexSearch(event.target.value), 220);
+      });
       document.getElementById("riskFilter").addEventListener("change", renderTable);
       document.querySelectorAll("th[data-sort]").forEach((th) => {
         th.addEventListener("click", () => {
