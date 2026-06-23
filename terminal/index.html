@@ -702,6 +702,7 @@
         label: "Crypto Spot",
         items: [
           ["crypto_overview", "Overview", "active"],
+          ["opportunity_board", "Opportunity Board", "active"],
           ["market_cap_heatmap", "Market Cap Heatmap", "active"],
           ["nano_caps", "Nano Caps", "active"],
           ["micro_caps", "Micro Caps", "active"],
@@ -912,7 +913,7 @@
     }
 
     function isCryptoCategory(category) {
-      return ["crypto_overview", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
+      return ["crypto_overview", "opportunity_board", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
     }
 
     function isPerpsCategory(category) {
@@ -1724,7 +1725,7 @@
     }
 
     function filteredCryptoRows(source, category) {
-      if (category === "crypto_overview" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
+      if (category === "crypto_overview" || category === "opportunity_board" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
       if (category === "nano_caps") return source.filter((row) => rowCapBand(row) === "nano cap");
       if (category === "micro_caps") return source.filter((row) => rowCapBand(row) === "micro cap");
       if (category === "small_caps") return source.filter((row) => rowCapBand(row) === "small cap");
@@ -2061,7 +2062,7 @@
     function renderCapOutcomeHeatmap(rowsNow) {
       const panel = document.getElementById("capOutcomeHeatmap");
       if (!panel) return;
-      const show = activeMode === "crypto_heatmaps" || activeCategory === "market_cap_heatmap" || ["nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(activeCategory);
+      const show = activeCategory === "opportunity_board";
       if (!show) {
         panel.classList.remove("active");
         panel.innerHTML = "";
@@ -2101,8 +2102,8 @@
       panel.classList.add("active");
       panel.innerHTML = `
         <div class="cap-heatmap-head">
-          <strong>Participation Outcome by Cap Band</strong>
-          <span>Where current participation is being rewarded, punished, or unresolved.</span>
+          <strong>Opportunity Board</strong>
+          <span>Chain and cap-band reads first; heatmap evidence below explains why.</span>
         </div>
         ${renderRotationSnapshot(rowsNow, labels)}
         <div class="cap-heatmap-grid">${cells.join("")}</div>
@@ -2523,7 +2524,7 @@
       document.getElementById("assetSelect").addEventListener("change", renderChart);
       document.getElementById("modeSelect").addEventListener("change", () => {
         activeMode = document.getElementById("modeSelect").value;
-        if (activeMode === "crypto_heatmaps" && !isCryptoCategory(activeCategory)) activeCategory = "market_cap_heatmap";
+        if (activeMode === "crypto_heatmaps" && !isCryptoCategory(activeCategory)) activeCategory = "opportunity_board";
         if (activeMode === "perps_pressure" && !isPerpsCategory(activeCategory)) activeCategory = "perps_heatmap";
         renderNav();
         renderAssetOptions();
