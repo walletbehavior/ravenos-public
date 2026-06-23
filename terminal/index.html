@@ -784,19 +784,30 @@
       "VOO": 501.38,
       "COIN": 241.7,
       "MSTR": 384.24,
+      "BRK.B": 410.5,
+      "JPM": 202.3,
+      "LLY": 872.4,
+      "V": 274.8,
+      "MA": 463.2,
+      "UNH": 510.1,
+      "XOM": 115.4,
+      "ORCL": 139.6,
+      "NFLX": 674.5,
       "SPY": 548.3,
       "SPX": 5500,
       "SPX Vol": 17.4,
       "USD Liquidity": 100,
     };
 
-    const FREE_MARKET_SYMBOLS = new Set(["SPY", "QQQ", "NVDA", "TSLA", "SPX", "META"]);
+    const CORE_ETF_SYMBOLS = new Set(["SPY", "QQQ", "IWM"]);
+    const CORE_STOCK_SYMBOLS = new Set(["NVDA", "TSLA", "META", "AAPL", "MSFT", "AMZN", "GOOGL", "AMD", "AVGO", "BRK.B", "JPM", "LLY", "V", "MA", "UNH", "XOM", "ORCL", "NFLX", "COIN", "MSTR"]);
+    const FREE_MARKET_SYMBOLS = new Set([...CORE_ETF_SYMBOLS, ...CORE_STOCK_SYMBOLS]);
     const EQUITY_CATALOG = [
       ["SPY", "SPDR S&P 500 ETF Trust", "ETFs", "etfs", "Core market ETF", 58, 3, "Deep equity market depth", "Stable"],
       ["QQQ", "Invesco QQQ Trust", "ETFs", "etfs", "Core growth ETF", 61, 5, "Deep equity market depth", "Stable"],
+      ["IWM", "iShares Russell 2000 ETF", "ETFs", "etfs", "Core small-cap ETF", 55, 4, "ETF market depth", "Watch"],
       ["NVDA", "NVIDIA", "Equities", "equities", "Core mega-cap equity", 67, 9, "Deep equity market depth", "Stable"],
       ["TSLA", "Tesla", "Equities", "equities", "Core high-beta equity", 63, 14, "Active equity liquidity", "Watch"],
-      ["SPX", "S&P 500 Index", "Equities", "equities", "Core broad-market index", 56, 2, "Index context", "Stable"],
       ["META", "Meta Platforms", "Equities", "equities", "Core mega-cap equity", 64, 8, "Deep equity market depth", "Stable"],
       ["AAPL", "Apple", "Equities", "equities", "Mega-cap equity", 59, 4, "Deep equity market depth", "Stable"],
       ["MSFT", "Microsoft", "Equities", "equities", "Mega-cap equity", 62, 5, "Deep equity market depth", "Stable"],
@@ -804,10 +815,15 @@
       ["GOOGL", "Alphabet", "Equities", "equities", "Mega-cap equity", 58, 3, "Deep equity market depth", "Stable"],
       ["AMD", "Advanced Micro Devices", "Equities", "equities", "Semiconductor equity", 65, 11, "Active equity liquidity", "Watch"],
       ["AVGO", "Broadcom", "Equities", "equities", "Semiconductor equity", 63, 7, "Deep equity market depth", "Stable"],
-      ["SMH", "VanEck Semiconductor ETF", "ETFs", "etfs", "Semiconductor ETF", 66, 10, "ETF market depth", "Watch"],
-      ["IWM", "iShares Russell 2000 ETF", "ETFs", "etfs", "Small-cap ETF", 55, 4, "ETF market depth", "Watch"],
-      ["DIA", "SPDR Dow Jones Industrial Average ETF", "ETFs", "etfs", "Blue-chip ETF", 54, 2, "ETF market depth", "Stable"],
-      ["VOO", "Vanguard S&P 500 ETF", "ETFs", "etfs", "Broad-market ETF", 57, 2, "ETF market depth", "Stable"],
+      ["BRK.B", "Berkshire Hathaway", "Equities", "equities", "Large-cap equity", 57, 2, "Deep equity market depth", "Stable"],
+      ["JPM", "JPMorgan Chase", "Equities", "equities", "Financial equity", 58, 3, "Deep equity market depth", "Stable"],
+      ["LLY", "Eli Lilly", "Equities", "equities", "Healthcare equity", 61, 6, "Deep equity market depth", "Stable"],
+      ["V", "Visa", "Equities", "equities", "Payments equity", 56, 2, "Deep equity market depth", "Stable"],
+      ["MA", "Mastercard", "Equities", "equities", "Payments equity", 56, 2, "Deep equity market depth", "Stable"],
+      ["UNH", "UnitedHealth", "Equities", "equities", "Healthcare equity", 54, 1, "Deep equity market depth", "Stable"],
+      ["XOM", "Exxon Mobil", "Equities", "equities", "Energy equity", 55, 3, "Deep equity market depth", "Stable"],
+      ["ORCL", "Oracle", "Equities", "equities", "Software equity", 60, 5, "Deep equity market depth", "Stable"],
+      ["NFLX", "Netflix", "Equities", "equities", "Consumer internet equity", 62, 7, "Active equity liquidity", "Watch"],
       ["COIN", "Coinbase", "Equities", "equities", "Crypto-linked equity", 70, 17, "Active equity liquidity", "Watch"],
       ["MSTR", "MicroStrategy", "Equities", "equities", "Crypto-linked equity", 72, 19, "Active equity liquidity", "Watch"],
     ];
@@ -1030,12 +1046,45 @@
         provider: "Market preview",
         coverage: "Limited",
         isSample: true,
-        proOnly: !FREE_MARKET_SYMBOLS.has(asset),
+        expandedMarket: !FREE_MARKET_SYMBOLS.has(asset),
       }));
     }
 
     function isMarketPreviewCategory(category) {
       return ["equities", "etfs", "options", "macro"].includes(category);
+    }
+
+    function knownCryptoLikeSymbol(query) {
+      const q = normalizedMarketSymbol(query);
+      return uniqueRows([...cryptoRows, ...perpsRows, ...dexRows])
+        .some((row) => normalizedMarketSymbol(row.asset) === q);
+    }
+
+    function broaderMarketPreviewRow(query) {
+      const q = String(query || "").trim().toUpperCase();
+      if (!/^[A-Z][A-Z.]{0,5}$/.test(q)) return null;
+      if (knownCryptoLikeSymbol(q)) return null;
+      const isEtf = ["DIA", "VOO", "SMH", "XLF", "XLK", "XLE", "TLT", "GLD", "EEM", "EFA"].includes(q);
+      return {
+        asset: q,
+        name: `${q} market instrument`,
+        market: isEtf ? "ETFs" : "Equities",
+        category: isEtf ? "etfs" : "equities",
+        chainVenue: isEtf ? "Expanded ETF universe" : "Expanded equity universe",
+        marketCapBand: isEtf ? "ETF" : "Equity",
+        lastPrice: samplePriceFor(q),
+        flowScore: 50,
+        attentionVelocity: 0,
+        participantActivity: "Market participation",
+        liquidityPosture: "Coverage developing",
+        risk: "Watch",
+        participationOutcome: "Mixed",
+        lastUpdated: "preview",
+        provider: "Market preview",
+        coverage: "Limited",
+        isSample: true,
+        expandedMarket: true,
+      };
     }
 
     function rowsForCategory(category = activeCategory) {
@@ -1658,7 +1707,7 @@
         ...row,
         market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
         lastPrice: row.lastPrice || samplePriceFor(row.asset),
-        locked: accessTier === "free" && (index >= 5 || row.proOnly === true),
+        locked: accessTier === "free" && activeMode === "crypto_heatmaps" && row.category === "crypto_spot" && index >= 5,
       }));
     }
 
@@ -2224,9 +2273,12 @@
     function equityLookupRows(query) {
       const q = String(query || "").trim().toUpperCase();
       if (!q) return [];
-      return marketCatalogRows()
-        .filter((row) => row.asset === q || String(row.name || "").toUpperCase().includes(q) || String(row.chainVenue || "").toUpperCase().includes(q))
+      const matches = marketCatalogRows()
+        .filter((row) => row.asset === q || (q.length >= 4 && String(row.name || "").toUpperCase().includes(q)) || (q.length >= 4 && String(row.chainVenue || "").toUpperCase().includes(q)))
         .slice(0, 10);
+      const preview = broaderMarketPreviewRow(q);
+      if (preview && !matches.length) matches.push(preview);
+      return matches;
     }
 
     function shouldPreferMarketLookup(query, matches) {
@@ -2244,7 +2296,7 @@
       box.innerHTML = matches.map((row, index) => `
         <button class="search-result" type="button" data-market-index="${index}">
           <strong>${row.asset} <span>${row.name}</span></strong>
-          <em>${row.market} · ${row.proOnly ? "Pro coverage" : "Core preview"}<br>${row.chainVenue}</em>
+          <em>${row.market} · ${row.expandedMarket ? "Expanded preview" : "Core preview"}<br>${row.chainVenue}</em>
         </button>
       `).join("");
       box.querySelectorAll("[data-market-index]").forEach((button) => {
