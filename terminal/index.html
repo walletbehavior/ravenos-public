@@ -469,11 +469,11 @@
     ];
     const rows = [
       { asset: "SOL-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 69.0, flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "sample" },
-      { asset: "BTC-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 64280, flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "1m ago" },
-      { asset: "OP-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 2.24, flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "8m ago" },
-      { asset: "ETH Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 3410, flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
-      { asset: "ARB Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 0.92, flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "6m ago" },
-      { asset: "JUP Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 1.18, flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "5m ago" },
+      { asset: "BTC-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 64280, flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "sample" },
+      { asset: "OP-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 2.24, flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "sample" },
+      { asset: "ETH Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 3410, flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "sample" },
+      { asset: "ARB Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 0.92, flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "sample" },
+      { asset: "JUP Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 1.18, flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "sample" },
       { asset: "NVDA", market: "Equities", category: "equities", lastPrice: 920.12, flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
       { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: 548.3, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
@@ -558,25 +558,25 @@
     }
 
     const cryptoRows = [
-      ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "2m ago", "solana"],
-      ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "5m ago", "solana"],
-      ["BONK", "Solana", "memecoin", 74, 33, "Thin above", "High", "Elevated", "Mixed", "4m ago", "memes"],
-      ["WIF", "Solana", "memecoin", 69, 28, "Choppy", "Medium", "Watch", "Punishing", "7m ago", "memes"],
-      ["AERO", "Base", "mid cap", 76, 16, "Balanced", "Medium", "Stable", "Paying", "6m ago", "base"],
-      ["DEGEN", "Base", "small cap", 67, 19, "Thin", "High", "Elevated", "Mixed", "9m ago", "base"],
-      ["VIRTUAL", "Base", "mid cap", 82, 24, "Improving", "High", "Watch", "Paying", "3m ago", "base"],
-      ["BRETT", "Base", "memecoin", 75, 29, "Public liquidity visible", "High", "Watch", "Mixed", "5m ago", "base"],
-      ["TOSHI", "Base", "small cap", 63, 34, "Thin public liquidity", "High", "Elevated", "Punishing", "11m ago", "base"],
-      ["MORPHO", "Base", "mid cap", 70, 10, "Balanced", "Medium", "Stable", "Mixed", "14m ago", "base"],
-      ["AIXBT", "Base", "mid cap", 79, 27, "Choppy", "High", "Watch", "Paying", "6m ago", "base"],
-      ["ETH", "Ethereum", "large cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "3m ago", "ethereum"],
-      ["BTC", "Crypto Spot", "large cap", 68, 3, "Deep", "Medium", "Stable", "Mixed", "2m ago", "large_caps"],
-      ["LINK", "Ethereum", "large cap", 73, 9, "Deep", "Medium", "Stable", "Mixed", "7m ago", "ethereum"],
-      ["AAVE", "Ethereum", "large cap", 71, 8, "Deep", "Medium", "Stable", "Mixed", "8m ago", "ethereum"],
-      ["ARB", "Ethereum", "mid cap", 78, 14, "Thin above", "High", "Watch", "Paying", "6m ago", "ethereum"],
-      ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "10m ago", "memes"],
-      ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "12m ago", "large_caps"],
-      ["PYTH", "Solana", "mid cap", 73, 12, "Improving", "Medium", "Watch", "Paying", "8m ago", "mid_caps"],
+      ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "sample", "solana"],
+      ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "sample", "solana"],
+      ["BONK", "Solana", "memecoin", 74, 33, "Thin above", "High", "Elevated", "Mixed", "sample", "memes"],
+      ["WIF", "Solana", "memecoin", 69, 28, "Choppy", "Medium", "Watch", "Punishing", "sample", "memes"],
+      ["AERO", "Base", "mid cap", 76, 16, "Balanced", "Medium", "Stable", "Paying", "sample", "base"],
+      ["DEGEN", "Base", "small cap", 67, 19, "Thin", "High", "Elevated", "Mixed", "sample", "base"],
+      ["VIRTUAL", "Base", "mid cap", 82, 24, "Improving", "High", "Watch", "Paying", "sample", "base"],
+      ["BRETT", "Base", "memecoin", 75, 29, "Public liquidity visible", "High", "Watch", "Mixed", "sample", "base"],
+      ["TOSHI", "Base", "small cap", 63, 34, "Thin public liquidity", "High", "Elevated", "Punishing", "sample", "base"],
+      ["MORPHO", "Base", "mid cap", 70, 10, "Balanced", "Medium", "Stable", "Mixed", "sample", "base"],
+      ["AIXBT", "Base", "mid cap", 79, 27, "Choppy", "High", "Watch", "Paying", "sample", "base"],
+      ["ETH", "Ethereum", "large cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "sample", "ethereum"],
+      ["BTC", "Crypto Spot", "large cap", 68, 3, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
+      ["LINK", "Ethereum", "large cap", 73, 9, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["AAVE", "Ethereum", "large cap", 71, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["ARB", "Ethereum", "mid cap", 78, 14, "Thin above", "High", "Watch", "Paying", "sample", "ethereum"],
+      ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "sample", "memes"],
+      ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "sample", "large_caps"],
+      ["PYTH", "Solana", "mid cap", 73, 12, "Improving", "Medium", "Watch", "Paying", "sample", "mid_caps"],
       ["BNB", "Crypto Spot", "large cap", 64, 5, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
       ["XRP", "Crypto Spot", "large cap", 61, 4, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
       ["DOGE", "Crypto Spot", "large cap", 66, 13, "Deep", "High", "Watch", "Mixed", "sample", "memes"],
@@ -598,16 +598,16 @@
       asset, market: "Crypto Spot", category: "crypto_spot", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     const perpsRows = [
-      ["SOL-PERP", "Hyperliquid", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "2m ago", "pressure"],
-      ["BTC-PERP", "Hyperliquid", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "1m ago", "pressure"],
-      ["ETH-PERP", "Hyperliquid", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "3m ago", "pressure"],
-      ["OP-PERP", "Hyperliquid", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "8m ago", "pressure"],
-      ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "6m ago", "pressure"],
-      ["AVAX-PERP", "Hyperliquid", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "5m ago", "pressure"],
-      ["LINK-PERP", "Hyperliquid", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "7m ago", "pressure"],
-      ["AAVE-PERP", "Hyperliquid", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "9m ago", "pressure"],
-      ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "8m ago", "pressure"],
-      ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "10m ago", "pressure"],
+      ["SOL-PERP", "Hyperliquid", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "sample", "pressure"],
+      ["BTC-PERP", "Hyperliquid", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["ETH-PERP", "Hyperliquid", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "sample", "pressure"],
+      ["OP-PERP", "Hyperliquid", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "sample", "pressure"],
+      ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
+      ["AVAX-PERP", "Hyperliquid", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["LINK-PERP", "Hyperliquid", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "sample", "pressure"],
+      ["AAVE-PERP", "Hyperliquid", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "sample", "pressure"],
+      ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "sample", "pressure"],
       ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
       ["BNB-PERP", "Perps", "large cap", 64, 5, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
       ["XRP-PERP", "Perps", "large cap", 61, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
@@ -643,6 +643,25 @@
       if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
       if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
       return `$${Math.round(n).toLocaleString("en-US")}`;
+    }
+
+    function minutesSince(value) {
+      const ts = Date.parse(value || "");
+      if (!Number.isFinite(ts)) return null;
+      return Math.max(0, Math.floor((Date.now() - ts) / 60000));
+    }
+
+    function isFreshTimestamp(value, maxMinutes = 10) {
+      const minutes = minutesSince(value);
+      return minutes !== null && minutes <= maxMinutes;
+    }
+
+    function freshnessLabel(value) {
+      if (!value || value === "sample" || value === "preview" || value === "delayed" || value === "public" || value === "live") return value || "sample";
+      const minutes = minutesSince(value);
+      if (minutes === null) return String(value);
+      if (minutes > 10) return "stale";
+      return minutes <= 0 ? "now" : `${minutes}m ago`;
     }
 
     function uniqueRows(items) {
@@ -785,11 +804,11 @@
       document.getElementById("tickerInstrument").textContent = row.asset;
       document.getElementById("tickerPrice").textContent = money(row.lastPrice);
       document.getElementById("tickerFlow").textContent = row.flowScore;
-      document.getElementById("tickerUpdated").textContent = row.lastUpdated;
+      document.getElementById("tickerUpdated").textContent = freshnessLabel(row.lastUpdated);
       const coverage = coverageMeta(row);
       document.getElementById("coverageBadge").textContent = coverage.coverage;
       document.getElementById("providerSource").textContent = coverage.provider;
-      document.getElementById("staleTimestamp").textContent = coverage.lastUpdated || "sample";
+      document.getElementById("staleTimestamp").textContent = freshnessLabel(coverage.lastUpdated || "sample");
       const apiNote = document.getElementById("walletAccessDetail");
       if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
       document.getElementById("terminalBrief").textContent = row.participationOutcome
@@ -1157,6 +1176,7 @@
     function cellValue(row, key) {
       if (row.locked && key !== "asset" && key !== "chainVenue") return `<span class="lock-pill">Pro</span>`;
       if (key === "lastPrice") return money(row.lastPrice || 0);
+      if (key === "lastUpdated") return freshnessLabel(row.lastUpdated);
       if (key === "attentionVelocity") return `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       if (key === "risk") return `<span class="${riskClass(row.risk)}">${row.risk}</span>`;
       if (key === "participationOutcome") return `<span class="${outcomeClass(row.participationOutcome)}">${row.participationOutcome || "Mixed"}</span>`;
@@ -1307,12 +1327,12 @@
         const response = await fetch("/ravenos_market_states.json", { cache: "no-store" });
         const payload = await response.json();
         const solana = payload.states?.find?.((state) => state.chain === "solana" && state.cap_band === "all");
-        if (solana) {
+        if (solana && isFreshTimestamp(payload.generated_at, 10)) {
           const row = rows.find((item) => item.asset === "JUP Spot");
           if (row) {
             row.flowScore = Math.round((solana.usable_signal_rate || 0.69) * 100);
             row.risk = solana.risk_level === "high" ? "Elevated" : "Watch";
-            row.lastUpdated = "live";
+            row.lastUpdated = payload.generated_at;
           }
         }
       } catch (_) {}
