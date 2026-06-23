@@ -1,4 +1,3 @@
-import Stripe from "stripe";
 import { findSubscriptionStatus, subscriptionConfig } from "../../../lib/ravenos_subscriptions.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "../../../lib/solana_wallet_auth.mjs";
 
@@ -29,11 +28,20 @@ export async function onRequestPost(context) {
   if (!subscription?.stripe_customer_id) return json({ ok: false, error: "subscription_not_found" }, { status: 404 });
 
   try {
-    const stripe = new Stripe(config.secretKey, { apiVersion: "2025-06-30.basil" });
-    const session = await stripe.billingPortal.sessions.create({
+    const params = new URLSearchParams({
       customer: subscription.stripe_customer_id,
       return_url: config.portalReturnUrl,
     });
+    const response = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.secretKey}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    });
+    const session = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(session?.error?.message || "portal_failed");
     return json({ ok: true, url: session.url });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "portal_failed" }, { status: 502 });

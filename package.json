@@ -1,6 +1,7 @@
 {
   "name": "ravenos-public",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "node scripts/cloudflare-build-check.mjs"
   },
@@ -9,7 +10,6 @@
   },
   "dependencies": {
     "bs58": "^6.0.0",
-    "stripe": "^22.2.3",
     "tweetnacl": "^1.0.3"
   }
 }
