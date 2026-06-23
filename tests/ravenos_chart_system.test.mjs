@@ -12,6 +12,10 @@ assert.match(chart, /atlas: \["regime-marker", "breadth-line", "liquidity-zone"\
 assert.match(chart, /defaultActiveTypes/);
 assert.match(chart, /RavenChartOverlayVisuals/);
 assert.match(chart, /container\.innerHTML = ""/);
+assert.match(chart, /chartHost\.style\.overflow = "hidden"/);
+assert.match(chart, /regionLayer\.style\.height = `\$\{plotHeight\}px`/);
+assert.match(chart, /regionLayer\.style\.overflow = "hidden"/);
+assert.match(chart, /plotHeight \* 0\.78/);
 
 assert.match(chart, /EVENT_GLYPHS/);
 assert.doesNotMatch(chart, /text: compact \? "" : event\.label/);

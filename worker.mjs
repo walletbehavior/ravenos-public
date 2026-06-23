@@ -27,7 +27,9 @@ import {
 
 const dexCache = new Map();
 const hyperliquidCache = new Map();
+const priceCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
+const COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3";
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -39,6 +41,43 @@ const CANONICAL_PRICE_TOKENS = {
   WETH: { chainId: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
   BTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
   WBTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
+};
+const COINGECKO_PRICE_IDS = {
+  AAVE: "aave",
+  ADA: "cardano",
+  AERO: "aerodrome-finance",
+  AIXBT: "aixbt",
+  ARB: "arbitrum",
+  BNB: "binancecoin",
+  BONK: "bonk",
+  BRETT: "based-brett",
+  BTC: "bitcoin",
+  DEGEN: "degen-base",
+  DOGE: "dogecoin",
+  ENA: "ethena",
+  ETH: "ethereum",
+  FET: "artificial-superintelligence-alliance",
+  HYPE: "hyperliquid",
+  JUP: "jupiter-exchange-solana",
+  KAITO: "kaito",
+  LDO: "lido-dao",
+  LINK: "chainlink",
+  MORPHO: "morpho",
+  ONDO: "ondo-finance",
+  PENDLE: "pendle",
+  PEPE: "pepe",
+  PYTH: "pyth-network",
+  SEI: "sei-network",
+  SOL: "solana",
+  SUI: "sui",
+  TIA: "celestia",
+  TOSHI: "toshi",
+  UNI: "uniswap",
+  VIRTUAL: "virtual-protocol",
+  WELL: "moonwell",
+  WIF: "dogwifcoin",
+  XRP: "ripple",
+  ZORA: "zora",
 };
 
 function json(payload, init = {}) {
@@ -92,12 +131,12 @@ function normalizeDexPair(pair = {}) {
     priceChange24h: num(pair.priceChange?.h24),
     pairAgeMs: pair.pairCreatedAt ? Date.now() - Number(pair.pairCreatedAt) : null,
     provider: "Dexscreener",
-    coverage: "Public fallback",
+    coverage: "Developing",
     isLive: false,
     isCached: false,
     isSample: false,
     lastUpdated: new Date().toISOString(),
-    warning: "Limited public coverage",
+    warning: "Coverage developing",
   };
 }
 
@@ -178,6 +217,40 @@ async function resolveDexInput(input) {
   return searchDex(q);
 }
 
+async function coingeckoPrices(symbols = []) {
+  const wanted = [...new Set(symbols.map(normalizedMarketSymbol).filter((symbol) => COINGECKO_PRICE_IDS[symbol]))];
+  if (!wanted.length) return new Map();
+  const ids = [...new Set(wanted.map((symbol) => COINGECKO_PRICE_IDS[symbol]))];
+  const cacheKey = `coingecko:${ids.sort().join(",")}`;
+  const now = Date.now();
+  const hit = priceCache.get(cacheKey);
+  if (hit && hit.expires > now) return hit.payload;
+  const response = await fetch(`${COINGECKO_BASE_URL}/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd`, {
+    headers: { accept: "application/json" },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`coingecko_http_${response.status}`);
+  const rows = new Map();
+  wanted.forEach((symbol) => {
+    const id = COINGECKO_PRICE_IDS[symbol];
+    const price = num(payload[id]?.usd);
+    if (price > 0) rows.set(symbol, {
+      symbol,
+      priceUsd: price,
+      provider: "CoinGecko",
+      coverage: "Developing",
+      isLive: false,
+      isCached: false,
+      isSample: false,
+      lastUpdated: new Date().toISOString(),
+      warning: "Coverage developing",
+    });
+  });
+  priceCache.set(cacheKey, { payload: rows, expires: now + 30_000 });
+  if (priceCache.size > 100) priceCache.delete(priceCache.keys().next().value);
+  return rows;
+}
+
 function normalizedMarketSymbol(value = "") {
   return String(value || "")
     .trim()
@@ -202,10 +275,15 @@ function preferredDexPriceResult(symbol, results = []) {
 async function marketPrices(symbols = [], { market = "mixed" } = {}) {
   const wanted = [...new Set(symbols.map(normalizedMarketSymbol).filter(Boolean))].slice(0, 80);
   const usePerps = String(market || "mixed").toLowerCase() !== "spot";
+  const useSpotCatalog = String(market || "mixed").toLowerCase() === "spot";
   const perps = usePerps ? await hyperliquidPerps().catch(() => null) : null;
   const perpsBySymbol = new Map((perps?.results || []).map((row) => [normalizedMarketSymbol(row.asset || row.symbol), row]));
+  const catalogPrices = useSpotCatalog ? await coingeckoPrices(wanted).catch(() => new Map()) : new Map();
 
   const settled = await Promise.allSettled(wanted.map(async (symbol) => {
+    const catalog = catalogPrices.get(symbol);
+    if (catalog) return catalog;
+
     const perp = perpsBySymbol.get(symbol);
     if (perp && num(perp.lastPrice || perp.markPx)) {
       return {
@@ -229,12 +307,12 @@ async function marketPrices(symbols = [], { market = "mixed" } = {}) {
       symbol,
       priceUsd: num(dex.priceUsd),
       provider: dex.provider || "Dexscreener",
-      coverage: dex.coverage || "Public fallback",
+      coverage: dex.coverage || "Developing",
       isLive: false,
       isCached: false,
       isSample: false,
       lastUpdated: dex.lastUpdated || new Date().toISOString(),
-      warning: dex.warning || "Limited public coverage",
+      warning: dex.warning || "Coverage developing",
       chainId: dex.chainId,
       dexId: dex.dexId,
       pairAddress: dex.pairAddress,

@@ -64,12 +64,12 @@
     <section>
       <span class="eyebrow">Flagship Pro feature</span>
       <h1>Perps Intelligence built around pressure, participants, replay, and outcomes.</h1>
-      <p class="lead">RavenOS explains current perpetual futures structure: pressure composition, liquidity attraction, replay outcomes, supporting and breaking conditions, failure modes, candidate lanes, and forward-paper research status. This is research context, not trade execution or recommendations.</p>
+      <p class="lead">RavenOS explains current perpetual futures structure: pressure composition, liquidity attraction, replay outcomes, supporting and breaking conditions, failure modes, emerging structures, and forward observation status. This is research context, not trade execution or recommendations.</p>
       <div class="metric-grid">
         <div class="metric"><span>Coverage</span><strong id="coverageMetric">Loading</strong></div>
         <div class="metric"><span>Markets</span><strong id="marketMetric">0</strong></div>
         <div class="metric"><span>Highest pressure</span><strong id="pressureMetric">--</strong></div>
-        <div class="metric"><span>Research status</span><strong id="researchMetric">Paper</strong></div>
+        <div class="metric"><span>Research status</span><strong id="researchMetric">Active</strong></div>
       </div>
     </section>
 
@@ -83,7 +83,7 @@
       <article class="panel" data-feature="perps_intelligence">
         <div class="panel-head">
           <div><span class="eyebrow">Pressure Engine</span><h2 id="activeTitle">Loading</h2><p class="muted" id="activeSubtitle">Hyperliquid public data with RavenOS structure context.</p></div>
-          <span class="pill" id="sourcePill">Public fallback</span>
+          <span class="pill" id="sourcePill">Developing</span>
         </div>
         <div class="metric-grid">
           <div class="metric"><span>Pressure Score</span><strong id="pressureScore">--</strong></div>
@@ -110,15 +110,15 @@
         <div class="panel-head"><div><span class="eyebrow">Research</span><h2>Validated context</h2></div><span class="pill">Diagnostic only</span></div>
         <section>
           <h3>Candidate lanes</h3>
-          <div id="candidateLanes" class="list muted">Loading candidate research...</div>
+          <div id="candidateLanes" class="list muted">Loading emerging-structure research...</div>
         </section>
         <section style="margin-top:14px;">
           <h3>Failure modes</h3>
           <div id="failureModes" class="list muted">Loading failure analysis...</div>
         </section>
         <section style="margin-top:14px;">
-          <h3>Forward paper tracker</h3>
-          <div id="forwardTracker" class="list muted">Loading forward paper status...</div>
+          <h3>Forward observation tracker</h3>
+          <div id="forwardTracker" class="list muted">Loading forward observation status...</div>
         </section>
       </aside>
     </section>
@@ -138,9 +138,9 @@
   <script>
     const state = { rows: [], active: "", access: "free", sortKey: "pressureScore", sortDir: -1, artifacts: {} };
     const fallbackRows = [
-      { asset:"BTC-PERP", symbol:"BTC", market:"Perpetual Futures", pressureScore:72, pressureState:"Elevated", funding:0.00004, openInterest:120000, liquidityPosture:"Deep", risk:"Watch", lastUpdated:"sample", coverage:"Sample", provider:"Sample", flowScore:72, attentionVelocity:12 },
-      { asset:"ETH-PERP", symbol:"ETH", market:"Perpetual Futures", pressureScore:64, pressureState:"Constructive", funding:0.00002, openInterest:88000, liquidityPosture:"Deep", risk:"Stable", lastUpdated:"sample", coverage:"Sample", provider:"Sample", flowScore:64, attentionVelocity:8 },
-      { asset:"SOL-PERP", symbol:"SOL", market:"Perpetual Futures", pressureScore:79, pressureState:"Elevated", funding:0.00006, openInterest:76000, liquidityPosture:"Balanced", risk:"Watch", lastUpdated:"sample", coverage:"Sample", provider:"Sample", flowScore:79, attentionVelocity:18 },
+      { asset:"BTC-PERP", symbol:"BTC", market:"Perpetual Futures", pressureScore:72, pressureState:"Elevated", funding:0.00004, openInterest:120000, liquidityPosture:"Deep", risk:"Watch", lastUpdated:"sample", coverage:"Limited", provider:"Sample", flowScore:72, attentionVelocity:12 },
+      { asset:"ETH-PERP", symbol:"ETH", market:"Perpetual Futures", pressureScore:64, pressureState:"Constructive", funding:0.00002, openInterest:88000, liquidityPosture:"Deep", risk:"Stable", lastUpdated:"sample", coverage:"Limited", provider:"Sample", flowScore:64, attentionVelocity:8 },
+      { asset:"SOL-PERP", symbol:"SOL", market:"Perpetual Futures", pressureScore:79, pressureState:"Elevated", funding:0.00006, openInterest:76000, liquidityPosture:"Balanced", risk:"Watch", lastUpdated:"sample", coverage:"Limited", provider:"Sample", flowScore:79, attentionVelocity:18 },
     ];
     function money(value) {
       const n = Number(value);
@@ -187,11 +187,11 @@
     function renderResearch() {
       const candidates = state.artifacts.candidates?.candidate_lanes || state.artifacts.candidates?.rows || state.artifacts.candidates || [];
       const candidateRows = Array.isArray(candidates) ? candidates.slice(0, 5) : [];
-      document.getElementById("candidateLanes").innerHTML = candidateRows.length ? candidateRows.map((row) => `<div class="instrument"><strong>${row.setup_family || row.family || row.key || "Candidate structure"}</strong><br><span class="muted">Sample ${row.sample_count || row.count || "developing"} · diagnostic only</span></div>`).join("") : "Candidate research is loading or unavailable.";
+      document.getElementById("candidateLanes").innerHTML = candidateRows.length ? candidateRows.map((row) => `<div class="instrument"><strong>${row.setup_family || row.family || row.key || "Emerging structure"}</strong><br><span class="muted">${row.sample_count || row.count || "Developing"} observations · research validation</span></div>`).join("") : "Emerging-structure research is loading.";
       const failures = state.artifacts.failure?.top_causes_of_flatness || state.artifacts.failure?.failure_modes || state.artifacts.failure?.strongest_negative_predictors || [];
       document.getElementById("failureModes").innerHTML = Array.isArray(failures) && failures.length ? failures.slice(0, 5).map((row) => `<div class="instrument"><strong>${row.cause || row.value || row.dimension || "Failure condition"}</strong><br><span class="muted">${row.evidence || row.read || "Research context"}</span></div>`).join("") : "Failure analysis is loading or unavailable.";
       const forward = state.artifacts.forward?.summary || state.artifacts.forward?.ranked_lane_table || [];
-      document.getElementById("forwardTracker").innerHTML = Array.isArray(forward) && forward.length ? forward.slice(0, 5).map((row) => `<div class="instrument"><strong>${row.lane || row.symbol || "Forward paper lane"}</strong><br><span class="muted">Paper only · no promotion allowed</span></div>`).join("") : "Forward paper tracker is pending or unavailable.";
+      document.getElementById("forwardTracker").innerHTML = Array.isArray(forward) && forward.length ? forward.slice(0, 5).map((row) => `<div class="instrument"><strong>${row.lane || row.symbol || "Forward observation"}</strong><br><span class="muted">Observation mode · research validation</span></div>`).join("") : "Forward observation tracker is developing.";
     }
     function render() {
       const row = activeRow();
@@ -200,7 +200,7 @@
       const condition = conditions(row);
       document.getElementById("activeTitle").textContent = row.asset;
       document.getElementById("activeSubtitle").textContent = `${row.provider || "Provider"} · ${row.coverage || "Preview"} · ${money(row.lastPrice || row.markPx || 0)}`;
-      document.getElementById("sourcePill").textContent = row.coverage || "Preview";
+      document.getElementById("sourcePill").textContent = row.coverage || "Developing";
       document.getElementById("pressureScore").textContent = row.pressureScore;
       document.getElementById("pressureState").textContent = row.pressureState;
       document.getElementById("liquidityAttraction").textContent = `${liquidity.state} ${liquidity.score}`;
@@ -234,7 +234,7 @@
         readJson("/data/runtime/perps_v2_forward_paper_report.json"),
       ]);
       const top = [...state.rows].sort((a,b) => Number(b.pressureScore || 0) - Number(a.pressureScore || 0))[0] || {};
-      document.getElementById("coverageMetric").textContent = state.rows[0]?.coverage || "Sample";
+      document.getElementById("coverageMetric").textContent = state.rows[0]?.coverage || "Limited";
       document.getElementById("marketMetric").textContent = state.rows.length;
       document.getElementById("pressureMetric").textContent = top.asset || "--";
       renderResearch();

@@ -256,6 +256,16 @@ globalThis.fetch = async (url, init) => {
       },
     ]), { status: 200, headers: { "content-type": "application/json" } });
   }
+  if (href.includes("api.coingecko.com/api/v3/simple/price")) {
+    return new Response(JSON.stringify({
+      ethereum: { usd: 1658.42 },
+      solana: { usd: 68.76 },
+      bitcoin: { usd: 62123.45 },
+      chainlink: { usd: 7.57 },
+      "jupiter-exchange-solana": { usd: 0.201 },
+      "degen-base": { usd: 0.00188 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   return originalFetch(url, init);
 };
 
@@ -264,14 +274,25 @@ assert.equal(spotPrices.status, 200);
 const spotPricePayload = await spotPrices.json();
 assert.equal(spotPricePayload.results[0].symbol, "ETH");
 assert.equal(spotPricePayload.results[0].priceUsd, 1658.42);
-assert.equal(spotPricePayload.results[0].provider, "Dexscreener");
+assert.equal(spotPricePayload.results[0].provider, "CoinGecko");
+assert.equal(spotPricePayload.results[0].coverage, "Developing");
 
 const solSpotPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=SOL"), env);
 assert.equal(solSpotPrices.status, 200);
 const solSpotPricePayload = await solSpotPrices.json();
 assert.equal(solSpotPricePayload.results[0].symbol, "SOL");
 assert.equal(solSpotPricePayload.results[0].priceUsd, 68.76);
-assert.equal(solSpotPricePayload.results[0].chainId, "solana");
+assert.equal(solSpotPricePayload.results[0].provider, "CoinGecko");
+assert.equal(solSpotPricePayload.results[0].coverage, "Developing");
+
+const batchSpotPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=BTC,ETH,SOL,LINK,JUP,DEGEN"), env);
+assert.equal(batchSpotPrices.status, 200);
+const batchSpotPricePayload = await batchSpotPrices.json();
+const batchBySymbol = new Map(batchSpotPricePayload.results.map((row) => [row.symbol, row]));
+assert.equal(batchBySymbol.get("BTC").priceUsd, 62123.45);
+assert.equal(batchBySymbol.get("LINK").priceUsd, 7.57);
+assert.equal(batchBySymbol.get("JUP").priceUsd, 0.201);
+assert.equal(batchBySymbol.get("DEGEN").priceUsd, 0.00188);
 
 const perpPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=perp&symbols=ETH"), env);
 assert.equal(perpPrices.status, 200);

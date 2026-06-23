@@ -266,6 +266,7 @@
     chartHost.className = "raven-chart-host-inner";
     chartHost.style.position = "relative";
     chartHost.style.minHeight = `${options?.height || 520}px`;
+    chartHost.style.overflow = "hidden";
     container.appendChild(chartHost);
 
     const chart = api.createChart(chartHost, {
@@ -390,7 +391,8 @@
     const regionLayer = document.createElement("div");
     regionLayer.className = "raven-overlay-regions";
     regionLayer.style.position = "absolute";
-    regionLayer.style.inset = "0";
+    regionLayer.style.left = "0";
+    regionLayer.style.top = "0";
     regionLayer.style.pointerEvents = "none";
     regionLayer.style.zIndex = "3";
     chartHost.appendChild(regionLayer);
@@ -399,7 +401,17 @@
     function renderRegions() {
       regionLayer.innerHTML = "";
       const width = chartHost.clientWidth || container.clientWidth;
-      const height = options?.height || 520;
+      const chartRoot = chartHost.querySelector(".tv-lightweight-charts");
+      const plotCell = chartRoot?.querySelector("td[style*='position: relative']");
+      const plotRect = plotCell?.getBoundingClientRect?.();
+      const hostRect = chartHost.getBoundingClientRect();
+      const plotHeight = plotRect ? Math.max(0, plotRect.height) : Math.max(0, (options?.height || 520) - 34);
+      const plotTop = plotRect ? Math.max(0, plotRect.top - hostRect.top) : 0;
+      const plotWidth = plotRect ? Math.max(0, plotRect.width) : width;
+      regionLayer.style.top = `${plotTop}px`;
+      regionLayer.style.width = `${plotWidth}px`;
+      regionLayer.style.height = `${plotHeight}px`;
+      regionLayer.style.overflow = "hidden";
       visibleOverlays().forEach((overlay) => {
         const type = overlay.type;
         const renderAs = OVERLAY_RENDERER_REGISTRY[type]?.renderAs;
@@ -426,9 +438,9 @@
         if (renderAs === "time-region") {
           createRegion(regionLayer, tooltip, chartHost, overlay, {
             left,
-            top: height * 0.08,
+            top: plotHeight * 0.08,
             width: right - left,
-            height: height * 0.78,
+            height: plotHeight * 0.78,
           });
         }
       });

@@ -91,6 +91,51 @@
       text-transform: uppercase;
     }
     .button.secondary { border-color: var(--line); background: rgba(255,255,255,0.03); color: var(--muted); }
+    .structure-feed-panel {
+      border-bottom: 1px solid var(--line);
+      background: #050b09;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: stretch;
+      min-width: 0;
+    }
+    .structure-feed-label {
+      display: grid;
+      align-content: center;
+      border-right: 1px solid var(--line);
+      padding: 8px 12px;
+      color: var(--cyan);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+      background: rgba(125,211,252,0.045);
+    }
+    .structure-feed {
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      min-width: 0;
+    }
+    .feed-item {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      min-width: min(420px, 86vw);
+      max-width: 540px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .feed-item time { color: var(--cyan); font-family: var(--mono); font-size: 10px; }
+    .feed-item strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .feed-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; color: var(--muted); font-size: 11px; }
     .layout {
       display: grid;
       grid-template-columns: 230px minmax(0, 1fr) 330px;
@@ -182,12 +227,6 @@
     .composition-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); }
     .narrative { color: #c8d8d1; font-size: 12px; line-height: 1.45; display: grid; gap: 7px; }
     .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-    .tape-panel { grid-column: 2 / -1; }
-    .structure-tape { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
-    .tape-item { background: #050b09; padding: 11px 12px; min-height: 92px; border: 0; color: var(--text); text-align: left; }
-    .tape-item time { display: block; color: var(--cyan); font-family: var(--mono); font-size: 10px; }
-    .tape-item strong { display: block; margin-top: 6px; font-size: 12px; line-height: 1.25; }
-    .tape-item span { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.35; }
     .mode-summary {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -235,7 +274,6 @@
       .layout { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: 520px auto auto; }
       .intel { grid-column: 2; }
       .table-panel { grid-column: 1 / -1; }
-      .tape-panel { grid-column: 1 / -1; }
     }
     @media (max-width: 780px) {
       .topbar { gap: 8px; padding: 8px; position: static; }
@@ -255,7 +293,10 @@
       .nav-group { display: none; }
       .nav-item { margin: 0; min-width: 138px; padding: 8px; }
       .nav-item small { display: none; }
-      .intel, .table-panel, .tape-panel { grid-column: auto; }
+      .structure-feed-panel { grid-template-columns: 1fr; }
+      .structure-feed-label { border-right: 0; border-bottom: 1px solid var(--line); padding: 7px 10px; }
+      .feed-item { min-width: 88vw; padding: 8px 10px; }
+      .intel, .table-panel { grid-column: auto; }
       .footer { grid-column: auto; }
       .chart-panel { grid-template-rows: auto auto minmax(330px, 1fr); }
       .chart-panel .panel-head { gap: 8px; padding: 9px 10px; }
@@ -289,7 +330,6 @@
       .intel-row { padding: 8px 12px; font-size: 11px; }
       .perps-block, .explanation-panel, .brief { padding: 10px 12px; }
       .mode-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .structure-tape { grid-template-columns: 1fr; }
       .panel-head { align-items: flex-start; flex-direction: column; }
       .ticker-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       table { min-width: 880px; font-size: 11px; }
@@ -321,6 +361,8 @@
         <a href="/atlas/">Atlas</a>
         <a href="/alerts/">Alerts</a>
         <a href="/watchlists/">Watchlists</a>
+        <a href="/faq/">FAQ</a>
+        <a href="/disclosures/">Disclosures</a>
       </nav>
       <section class="global-search workspace-search" aria-label="Universal token lookup" data-feature="free_token_lookup">
         <input id="dexSearchInput" type="search" placeholder="Search token, symbol, pair, or contract..." autocomplete="off" />
@@ -341,6 +383,10 @@
         <a class="button" href="/upgrade/">Upgrade</a>
       </section>
     </header>
+    <section class="structure-feed-panel" data-feature="limited_structure_tape" aria-label="Structure Tape">
+      <div class="structure-feed-label">Structure Tape</div>
+      <div class="structure-feed" id="structureTape"></div>
+    </section>
 
     <section class="layout">
       <aside class="panel nav" aria-label="Market navigation">
@@ -445,16 +491,6 @@
             <tbody id="flowRows"></tbody>
           </table>
         </div>
-      </article>
-      <article class="panel tape-panel" data-feature="limited_structure_tape">
-        <div class="panel-head">
-          <div class="title">
-            <span class="eyebrow">Structure Tape v2</span>
-            <h2>Behavioral Observations</h2>
-            <p class="muted">Short, evidence-backed observations tied to current metrics and explanations.</p>
-          </div>
-        </div>
-        <div class="structure-tape" id="structureTape"></div>
       </article>
       <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a> · <a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a></footer>
     </section>
@@ -645,7 +681,7 @@
           if (normalizedMarketSymbol(row.asset) !== symbol) return;
           row.lastPrice = price;
           row.provider = priceRow.provider || row.provider || "Public market data";
-          row.coverage = priceRow.coverage || row.coverage || "Public fallback";
+          row.coverage = priceRow.coverage || row.coverage || "Developing";
           row.isLive = priceRow.isLive === true;
           row.isCached = priceRow.isCached === true;
           row.isSample = false;
@@ -910,10 +946,20 @@
         };
       }
       if (["equities", "etfs", "options", "macro"].includes(row.category)) {
-        return { provider: "Preview model", coverage: "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Tradier preview data until provider is available" };
+        return { provider: "Preview model", coverage: "Limited", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Coverage developing" };
       }
-      if (row.lastUpdated === "live") return { provider: "Raven indexed", coverage: "Live", isLive: true, isCached: false, isSample: false, lastUpdated: "live", warning: "" };
-      return { provider: "Sample model", coverage: "Sample", isLive: false, isCached: false, isSample: true, lastUpdated: row.lastUpdated || "sample", warning: "Sample coverage" };
+      if (row.lastUpdated === "live") return { provider: "Raven indexed", coverage: "Indexed", isLive: true, isCached: false, isSample: false, lastUpdated: "live", warning: "" };
+      return { provider: "Sample model", coverage: "Limited", isLive: false, isCached: false, isSample: true, lastUpdated: row.lastUpdated || "sample", warning: "Coverage developing" };
+    }
+
+    function coverageDisplayLabel(value) {
+      const text = String(value || "").toLowerCase();
+      if (text.includes("deep")) return "Deep Raven";
+      if (text.includes("indexed") || text.includes("live")) return "Indexed";
+      if (text.includes("develop") || text.includes("public")) return "Developing";
+      if (text.includes("cached") || text.includes("delayed")) return "Developing";
+      if (text.includes("sample") || text.includes("preview") || text.includes("limited") || text.includes("unavailable")) return "Limited";
+      return value || "Limited";
     }
 
     function renderChart() {
@@ -946,12 +992,13 @@
       document.getElementById("tickerFlow").textContent = row.flowScore;
       const coverage = state.coverageMeta;
       document.getElementById("tickerPressure").textContent = row.category === "perpetuals" ? pressureScore(row) : "n/a";
-      document.getElementById("tickerCoverage").textContent = coverage.coverage;
+      const coverageLabel = coverageDisplayLabel(coverage.coverage);
+      document.getElementById("tickerCoverage").textContent = coverageLabel;
       document.getElementById("tickerUpdated").textContent = freshnessLabel(row.lastUpdated);
-      document.getElementById("coverageBadge").textContent = coverage.coverage;
-      document.getElementById("coverageBadge").setAttribute("data-coverage", coverage.coverage);
-      document.getElementById("contextCoverage").textContent = coverage.coverage;
-      document.getElementById("contextCoverage").setAttribute("data-coverage", coverage.coverage);
+      document.getElementById("coverageBadge").textContent = coverageLabel;
+      document.getElementById("coverageBadge").setAttribute("data-coverage", coverageLabel);
+      document.getElementById("contextCoverage").textContent = coverageLabel;
+      document.getElementById("contextCoverage").setAttribute("data-coverage", coverageLabel);
       const apiNote = document.getElementById("walletAccessDetail");
       if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
       document.getElementById("terminalBrief").textContent = row.participationOutcome
@@ -1399,11 +1446,11 @@
         participationOutcome: change > 5 ? "Paying" : change < -5 ? "Punishing" : "Mixed",
         lastUpdated: result.lastUpdated || "public",
         provider: "Dexscreener",
-        coverage: result.coverage || "Public fallback",
+        coverage: result.coverage || "Developing",
         isLive: false,
         isCached: false,
         isSample: false,
-        warning: result.warning || "Limited public coverage",
+        warning: result.warning || "Coverage developing",
         dex: result.dexId,
         pairAddress: result.pairAddress,
         tokenAddress: result.tokenAddress,
@@ -1541,10 +1588,9 @@
 
     function renderStructureTape(rowsNow) {
       document.getElementById("structureTape").innerHTML = structureTapeItems(rowsNow).map((item) => `
-        <button class="tape-item" type="button" data-tape-target="${item.target}">
+        <button class="feed-item" type="button" data-tape-target="${item.target}">
           <time>${item.time}</time>
-          <strong>${item.title}</strong>
-          <span>${item.detail}</span>
+          <span><strong>${item.title}</strong><span>${item.detail}</span></span>
         </button>
       `).join("");
       document.querySelectorAll("[data-tape-target]").forEach((button) => {
@@ -1736,7 +1782,7 @@
           });
         });
       } catch (error) {
-        box.innerHTML = `<button class="search-result" type="button"><strong>Dexscreener unavailable</strong><span>Using Raven sample coverage until public lookup recovers.</span><em>Fallback</em></button>`;
+        box.innerHTML = `<button class="search-result" type="button"><strong>Lookup coverage is developing</strong><span>RavenOS remains available with limited context.</span><em>Limited</em></button>`;
       }
     }
 

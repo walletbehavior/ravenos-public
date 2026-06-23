@@ -1,7 +1,7 @@
 (function () {
   const FEATURES = {
     free_token_lookup: ["free", "Universal Token Lookup", "Search public token, pair, symbol, and contract coverage.", "Full public lookup available.", "Open Terminal"],
-    basic_chart: ["free", "Basic Chart", "View public chart context and baseline market structure.", "Available with public or sample coverage labels.", "Open Terminal"],
+    basic_chart: ["free", "Basic Chart", "View chart context and baseline market structure.", "Available with limited or developing coverage labels.", "Open Terminal"],
     basic_overlays: ["free", "Basic Overlays", "Public overlay context for liquidity, compression, and risk posture.", "Limited public overlays.", "Open Terminal"],
     market_cap_heatmap: ["free", "Market Cap Heatmap", "One public market-cap heatmap view.", "Free users see a limited public heatmap.", "Unlock Full Heatmaps"],
     limited_structure_tape: ["free", "Limited Structure Tape", "A compact feed of market structure observations.", "Limited tape items.", "Unlock Full Structure Tape"],
@@ -19,7 +19,7 @@
     perps_intelligence: ["pro", "Perps Intelligence", "Pressure, replay, liquidity attraction, and participant context for perpetual futures.", "Limited current pressure preview.", "Upgrade to Pro"],
     participant_intelligence: ["pro", "Participant Intelligence", "Participant contribution, direction, velocity, conflict, concentration, distribution risk, and accumulation context.", "Free users see a basic participant summary.", "Upgrade to Pro"],
     founder_experiments: ["founder", "Founder Experiments", "Experimental overlays, replay, pressure v3, participant models, and new structure families.", "Founder-only experimental preview.", "Founder Access Required"],
-    atlas_context: ["atlas", "Atlas Context", "Macro regime, liquidity regime, cross-asset, and institutional context layer.", "Preview, cached, or fallback context while providers are unavailable.", "Start Atlas"],
+    atlas_context: ["atlas", "Atlas Context", "Macro regime, liquidity regime, cross-asset, and institutional context layer.", "Limited or delayed context while coverage expands.", "Start Atlas"],
   };
 
   function feature(key) {
