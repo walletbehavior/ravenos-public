@@ -38,6 +38,7 @@ const QUOTE_RANK = { USDC: 90, USDT: 85, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CANONICAL_PRICE_TOKENS = {
   AAVE: { chainId: "ethereum", tokenAddress: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9" },
   AERO: { chainId: "base", tokenAddress: "0x940181a94A35A4569E4529A3CDfB74e38FD98631" },
+  AIXBT: { chainId: "base", tokenAddress: "0x4f9fd6be4a90f2620860d680c0d4d5fb53d1a825" },
   ARB: { chainId: "arbitrum", tokenAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548" },
   BONK: { chainId: "solana", tokenAddress: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
   BRETT: { chainId: "base", tokenAddress: "0x532f27101965dd16442E59d40670FaF5eBB142E4" },
@@ -49,6 +50,7 @@ const CANONICAL_PRICE_TOKENS = {
   WBTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
   JUP: { chainId: "solana", tokenAddress: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN" },
   LINK: { chainId: "ethereum", tokenAddress: "0x514910771AF9Ca656af840dff83E8264EcF986CA" },
+  MORPHO: { chainId: "ethereum", tokenAddress: "0x58D97B57BB95320F9a05dC918Aef65434969c2B2" },
   PEPE: { chainId: "ethereum", tokenAddress: "0x6982508145454Ce325dDbE47a25d4ec3d2311933" },
   PENDLE: { chainId: "arbitrum", tokenAddress: "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8" },
   TOSHI: { chainId: "base", tokenAddress: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4" },

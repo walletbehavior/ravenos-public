@@ -290,6 +290,36 @@ globalThis.fetch = async (url, init) => {
       },
     ]), { status: 200, headers: { "content-type": "application/json" } });
   }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/ethereum/0x58D97B57BB95320F9a05dC918Aef65434969c2B2")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "ethereum",
+        dexId: "uniswap",
+        pairAddress: "morphopair",
+        baseToken: { symbol: "MORPHO", name: "Morpho", address: "0x58D97B57BB95320F9a05dC918Aef65434969c2B2" },
+        quoteToken: { symbol: "ETH" },
+        priceUsd: "1.64",
+        liquidity: { usd: 500000 },
+        volume: { h24: 500000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/base/0x4f9fd6be4a90f2620860d680c0d4d5fb53d1a825")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "base",
+        dexId: "uniswap",
+        pairAddress: "aixbtpair",
+        baseToken: { symbol: "AIXBT", name: "aixbt", address: "0x4f9fd6be4a90f2620860d680c0d4d5fb53d1a825" },
+        quoteToken: { symbol: "VIRTUAL" },
+        priceUsd: "0.02189",
+        liquidity: { usd: 800000 },
+        volume: { h24: 500000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (href.includes("api.coingecko.com/api/v3/simple/price")) {
     if (forceCoingeckoDown) return new Response(JSON.stringify({ error: "down" }), { status: 503, headers: { "content-type": "application/json" } });
     if (href.includes("ids=") && href.includes(",") && !href.includes("%2C")) sawCommaSeparatedCoinGeckoIds = true;
@@ -339,14 +369,15 @@ assert.equal(perpPricePayload.results[0].priceUsd, 1601.25);
 assert.equal(perpPricePayload.results[0].provider, "Hyperliquid");
 
 forceCoingeckoDown = true;
-const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO"), env);
+const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO,AIXBT"), env);
 assert.equal(canonicalFallbackPrices.status, 200);
 const canonicalFallbackPayload = await canonicalFallbackPrices.json();
 const canonicalFallbackBySymbol = new Map(canonicalFallbackPayload.results.map((row) => [row.symbol, row]));
 assert.equal(canonicalFallbackBySymbol.get("AERO").priceUsd, 0.5022);
 assert.equal(canonicalFallbackBySymbol.get("AERO").provider, "Dexscreener");
 assert.equal(canonicalFallbackBySymbol.get("WIF").priceUsd, 0.1561);
-assert.equal(canonicalFallbackBySymbol.has("MORPHO"), false);
+assert.equal(canonicalFallbackBySymbol.get("MORPHO").priceUsd, 1.64);
+assert.equal(canonicalFallbackBySymbol.get("AIXBT").priceUsd, 0.02189);
 assert.equal(looseSearchCallsForKnownSymbols, 0);
 
 globalThis.fetch = originalFetch;
