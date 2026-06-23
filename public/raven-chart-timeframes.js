@@ -20,26 +20,53 @@
     return Math.floor(date.getTime() / 1000);
   }
 
-  function makeTimeframeCandles(pattern = [], timeframe = "1h", anchorPrice = null) {
+  function hashSeed(value = "") {
+    return Array.from(String(value || "RAVEN")).reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) % 1000003, 97);
+  }
+
+  function sourceStats(source) {
+    const closes = source.map((candle) => Number(candle.close)).filter(Number.isFinite);
+    const highs = source.map((candle) => Number(candle.high)).filter(Number.isFinite);
+    const lows = source.map((candle) => Number(candle.low)).filter(Number.isFinite);
+    const volumes = source.map((candle) => Number(candle.volume)).filter(Number.isFinite);
+    const mid = closes.reduce((sum, value) => sum + value, 0) / Math.max(1, closes.length);
+    const span = Math.max(Math.max(...highs, mid) - Math.min(...lows, mid), mid * 0.025, 1);
+    const avgVolume = volumes.reduce((sum, value) => sum + value, 0) / Math.max(1, volumes.length);
+    return { mid, span, avgVolume };
+  }
+
+  function makeTimeframeCandles(pattern = [], timeframe = "1h", anchorPrice = null, identity = "") {
     const config = timeframeConfig(timeframe);
     const source = Array.isArray(pattern) && pattern.length ? pattern : [{ open: 1, high: 1.02, low: 0.98, close: 1, volume: 1 }];
     const points = config.points;
-    const raw = Array.from({ length: points }, (_, index) => {
-      const base = source[(index * (timeframe === "15m" ? 1 : timeframe === "1h" ? 2 : 3)) % source.length];
-      const previous = source[(index + source.length - 1) % source.length];
-      const fastWave = Math.sin(index / (timeframe === "15m" ? 1.8 : timeframe === "1h" ? 2.6 : 4.2) + config.phase) * config.volatility;
-      const slowWave = Math.cos(index / (timeframe === "4h" ? 5.4 : 3.7) + config.phase * 0.6) * config.volatility * (timeframe === "15m" ? 0.28 : 0.72);
-      const drift = (index - points / 2) * config.volatility * (timeframe === "15m" ? 0.025 : timeframe === "1h" ? 0.052 : 0.083);
-      const open = base.open + fastWave + drift;
-      const close = base.close + slowWave + drift + (timeframe === "15m" ? Math.sin(index * 1.7) * 0.18 : 0);
-      const high = Math.max(open, close, base.high + fastWave * 0.45) + Math.abs(base.high - previous.close) * 0.07 * config.volatility;
-      const low = Math.min(open, close, base.low + slowWave * 0.38) - Math.abs(previous.close - base.low) * 0.06 * config.volatility;
+    const stats = sourceStats(source);
+    const seed = hashSeed(`${identity}|${timeframe}`);
+    const phaseA = config.phase + (seed % 37) / 11;
+    const phaseB = (seed % 71) / 13;
+    const phaseC = (seed % 113) / 17;
+    const trendBias = ((seed % 19) - 9) / 9;
+    const amplitude = stats.span * 0.12 * config.volatility;
+    const path = Array.from({ length: points }, (_, index) => {
+      const p = points <= 1 ? 0 : index / (points - 1);
+      const trend = (p - 0.5) * stats.span * 0.18 * config.volatility * trendBias;
+      const primary = Math.sin(p * Math.PI * (timeframe === "15m" ? 3.8 : timeframe === "1h" ? 2.7 : 1.8) + phaseA) * amplitude;
+      const secondary = Math.cos(p * Math.PI * (timeframe === "15m" ? 9.4 : timeframe === "1h" ? 5.1 : 3.2) + phaseB) * amplitude * (timeframe === "15m" ? 0.38 : 0.68);
+      const pulse = Math.sin((index + 1) * ((seed % 5) + 2) * 0.37 + phaseC) * amplitude * 0.22;
+      return stats.mid + trend + primary + secondary + pulse;
+    });
+    const raw = path.map((close, index) => {
+      const previousClose = index === 0 ? path[0] - (path[1] - path[0]) * 0.45 : path[index - 1];
+      const open = previousClose + (close - previousClose) * (timeframe === "15m" ? 0.28 : 0.18);
+      const range = Math.max(Math.abs(close - open), stats.span * 0.006 * config.volatility);
+      const wickA = range * (0.55 + Math.abs(Math.sin(index * 0.83 + phaseA)) * 0.9);
+      const wickB = range * (0.45 + Math.abs(Math.cos(index * 0.71 + phaseB)) * 0.85);
+      const volumeWave = 0.8 + Math.abs(Math.sin(index * 0.53 + phaseC)) * 0.34 + Math.abs(Math.cos(index * 0.19 + phaseA)) * 0.16;
       return {
         open,
-        high,
-        low,
+        high: Math.max(open, close) + wickA,
+        low: Math.min(open, close) - wickB,
         close,
-        volume: Math.round(Number(base.volume || 1) * config.volumeScale * (0.72 + (index % 9) * 0.045)),
+        volume: Math.round(stats.avgVolume * config.volumeScale * volumeWave),
         time: recentTime(index, points, config.stepMinutes),
       };
     });

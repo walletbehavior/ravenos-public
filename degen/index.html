@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RavenOS Degen Terminal</title>
+  <meta name="description" content="RavenOS Degen Terminal explains crypto discovery through participation, survival, attention, replay, rotation, and leadership." />
+  <style>
+    :root { color-scheme:dark; --bg:#050706; --panel:#09100e; --panel2:#0d1714; --line:rgba(148,163,184,.18); --line2:rgba(125,211,252,.34); --text:#edf6f1; --muted:#91a69d; --soft:#65786f; --cyan:#7dd3fc; --green:#34d399; --yellow:#facc15; --red:#fb7185; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:linear-gradient(180deg,rgba(125,211,252,.06),transparent 340px),var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; }
+    a { color:inherit; text-decoration:none; }
+    .shell { max-width:1480px; margin:0 auto; padding:18px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0 18px; border-bottom:1px solid var(--line); }
+    .brand { display:grid; gap:4px; }
+    .nav,.filters,.tabs { display:flex; gap:8px; flex-wrap:wrap; }
+    .button,.tab { border:1px solid var(--line2); background:#0c1815; color:var(--text); min-height:36px; padding:8px 11px; font-size:12px; font-weight:850; cursor:pointer; text-align:center; }
+    .button.secondary,.tab { border-color:var(--line); color:var(--muted); background:rgba(255,255,255,.03); }
+    .tab.active { color:var(--text); border-color:var(--line2); background:rgba(125,211,252,.08); }
+    .eyebrow { color:var(--cyan); font-size:11px; font-weight:850; text-transform:uppercase; }
+    h1,h2,h3,p { margin:0; }
+    h1 { max-width:1030px; margin-top:30px; font-size:clamp(34px,6vw,76px); line-height:.97; }
+    h2 { font-size:15px; text-transform:uppercase; }
+    h3 { color:var(--cyan); font-size:13px; text-transform:uppercase; }
+    .lead { max-width:900px; margin-top:14px; color:#bbcbc4; font-size:15px; line-height:1.55; }
+    .muted { color:var(--muted); font-size:12px; line-height:1.5; }
+    .layout { display:grid; grid-template-columns:270px minmax(0,1fr) 360px; gap:14px; margin-top:18px; }
+    .panel { border:1px solid var(--line); background:rgba(9,16,14,.92); padding:14px; min-width:0; }
+    .panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:10px; }
+    input,select { min-height:34px; border:1px solid var(--line); background:#050b09; color:var(--text); padding:8px 9px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { text-align:left; border-bottom:1px solid var(--line); padding:8px 7px; vertical-align:top; }
+    th { color:var(--cyan); text-transform:uppercase; font-size:10px; cursor:pointer; }
+    .metric-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin-top:16px; }
+    .metric,.card { border:1px solid var(--line); background:var(--panel2); padding:11px; }
+    .metric span { color:var(--soft); font-size:10px; text-transform:uppercase; font-weight:850; }
+    .metric strong { display:block; margin-top:7px; font-size:20px; }
+    .pill { display:inline-flex; min-height:22px; align-items:center; border:1px solid var(--line); padding:3px 8px; color:var(--cyan); font-size:10px; font-weight:850; text-transform:uppercase; }
+    .list { display:grid; gap:8px; }
+    .bucket { width:100%; text-align:left; border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--text); padding:10px; cursor:pointer; }
+    .bucket.active { border-color:var(--line2); background:rgba(125,211,252,.08); }
+    .tape-item { border:1px solid var(--line); background:rgba(255,255,255,.03); padding:10px; }
+    .good { color:var(--green); } .warn { color:var(--yellow); } .bad { color:var(--red); }
+    .footer { margin-top:18px; color:var(--soft); font-size:11px; line-height:1.45; }
+    @media (max-width:1120px){ .layout { grid-template-columns:1fr; } .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:680px){ .shell { padding:12px; } .topbar { align-items:flex-start; } .metric-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body data-access-tier="disconnected">
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="eyebrow">RavenOS Degen Terminal</span><strong>Behavioral discovery</strong></div>
+      <nav class="nav">
+        <a class="button" href="/terminal/">Terminal</a>
+        <a class="button" href="/perps/">Perps</a>
+        <a class="button" href="/research/">Research</a>
+        <a class="button" href="/pricing/">Pricing</a>
+      </nav>
+    </header>
+
+    <section>
+      <span class="eyebrow">Crypto discovery</span>
+      <h1>Find what is surviving, expanding, attracting participation, and becoming important.</h1>
+      <p class="lead">Degen Terminal treats each cap bucket as a behavioral ecosystem. Nano asks whether a market is real. Micro asks whether it is surviving. Small asks whether it is becoming a real market. Mid and Large track rotation and leadership. Mega explains what is driving broader crypto context.</p>
+      <div class="metric-grid" id="bucketMetrics"></div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <div class="panel-head"><div><span class="eyebrow">Navigation</span><h2>Behavioral ecosystems</h2></div><span class="pill" id="accessPill">Free</span></div>
+        <div class="tabs">
+          <button class="tab active" type="button" data-mode="discovery">Discovery</button>
+          <button class="tab" type="button" data-mode="rotation">Rotation</button>
+          <button class="tab" type="button" data-mode="leadership">Leadership</button>
+        </div>
+        <div class="list" id="bucketNav" style="margin-top:12px;"></div>
+      </aside>
+
+      <article class="panel" data-feature="degen_terminal">
+        <div class="panel-head">
+          <div><span class="eyebrow" id="modeLabel">Discovery</span><h2 id="bucketTitle">Micro ecosystem</h2><p class="muted" id="bucketQuestion">Is it surviving?</p></div>
+          <span class="pill">Behavioral discovery</span>
+        </div>
+        <div class="filters">
+          <input id="searchInput" type="search" placeholder="Search symbol, chain, sector..." />
+          <select id="chainFilter"><option value="">All chains</option><option>Solana</option><option>Base</option><option>Ethereum</option><option>BNB</option></select>
+          <select id="sectorFilter"><option value="">All sectors</option><option>Memes</option><option>AI</option><option>DeFi</option><option>Infrastructure</option><option>Gaming</option><option>Consumer</option><option>Other</option></select>
+          <select id="coverageFilter"><option value="">All coverage</option><option value="public">Public</option><option value="indexed">Indexed</option><option value="sample">Sample</option></select>
+        </div>
+        <table style="margin-top:12px;">
+          <thead><tr><th data-sort="symbol">Symbol</th><th data-sort="marketCap">Market Cap</th><th>Chain</th><th>Sector</th><th data-sort="flowScore">Flow</th><th data-sort="attentionVelocity">Attention</th><th>Participation</th><th>Fresh Survival</th><th>Replay</th><th>Risk</th><th>Coverage</th></tr></thead>
+          <tbody id="degenRows"></tbody>
+        </table>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-head"><div><span class="eyebrow">Explanation Engine</span><h2 id="activeSymbol">Select row</h2></div><span class="pill" id="activeBucket">Micro</span></div>
+        <section id="explanationPanel"></section>
+        <section id="replayPanel" style="margin-top:12px;"></section>
+      </aside>
+    </section>
+
+    <section class="layout" style="grid-template-columns:1fr 1fr 1fr;">
+      <article class="panel" data-feature="degen_terminal"><div class="panel-head"><div><span class="eyebrow">Rotation Engine</span><h2>Capital rotation matrix</h2></div></div><table><tbody id="rotationMatrix"></tbody></table></article>
+      <article class="panel" data-feature="degen_terminal"><div class="panel-head"><div><span class="eyebrow">Chain Rotation</span><h2>Solana, Base, Ethereum, BNB</h2></div></div><table><tbody id="chainRotation"></tbody></table></article>
+      <article class="panel" data-feature="degen_terminal"><div class="panel-head"><div><span class="eyebrow">Sector Rotation</span><h2>Sector behavior</h2></div></div><table><tbody id="sectorRotation"></tbody></table></article>
+    </section>
+
+    <section class="panel" style="margin-top:14px;" data-feature="limited_structure_tape">
+      <div class="panel-head"><div><span class="eyebrow">Degen Structure Tape</span><h2>Behavioral observations</h2></div><span class="pill">No trade calls</span></div>
+      <div class="list" id="structureTape"></div>
+    </section>
+
+    <footer class="footer">RavenOS Degen Terminal provides software and market analytics. It does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+  </main>
+
+  <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
+  <script src="/ravenos-replay.js"></script>
+  <script>
+    const buckets = [
+      ["nano","Nano","Is it real?","Discovery"],["micro","Micro","Is it surviving?","Discovery"],["small","Small","Is this becoming a real market?","Discovery"],
+      ["mid","Mid","Is capital rotating here?","Rotation"],["large","Large","Is this leading?","Rotation"],["mega","Mega","What is driving the market?","Leadership"],
+    ];
+    const rows = [
+      ["BONK","Bonk",1800000000,"Solana","Memes",82,22,78,77,72,"Watch","indexed"],["DEGEN","Degen",120000000,"Base","Memes",74,18,67,63,65,"Watch","public"],
+      ["TOSHI","Toshi",85000000,"Base","Memes",69,26,61,58,57,"Watch","public"],["AERO","Aerodrome",620000000,"Base","DeFi",76,10,72,74,69,"Stable","indexed"],
+      ["WIF","dogwifhat",900000000,"Solana","Memes",64,-4,48,43,54,"Elevated","public"],["VIRTUAL","Virtuals",1500000000,"Base","AI",79,19,75,71,76,"Watch","indexed"],
+      ["FARTCOIN","Fartcoin",780000000,"Solana","Memes",71,31,62,55,60,"Elevated","public"],["MOG","Mog",530000000,"Ethereum","Memes",63,8,55,52,50,"Watch","public"],
+      ["PIPPIN","Pippin",8500000,"Solana","AI",67,24,58,62,59,"Watch","sample"],["CLANKER","Clanker",32000000,"Base","Infrastructure",70,13,64,66,61,"Watch","public"],
+      ["ZORA","Zora",95000000,"Base","Consumer",66,9,60,57,56,"Watch","public"],["FWOG","Fwog",190000000,"Solana","Memes",68,16,57,53,58,"Watch","public"],
+      ["NANOAI","Nano AI",85000,"BNB","AI",54,18,42,37,44,"Elevated","sample"],["MICROBASE","Micro Base",640000,"Base","Other",59,11,49,46,48,"Watch","sample"],
+      ["SOLINFRA","Sol Infra",4200000,"Solana","Infrastructure",65,7,62,61,58,"Watch","sample"],["ETHGAME","Eth Game",7200000,"Ethereum","Gaming",52,-6,43,41,46,"Elevated","sample"],
+      ["BNBDEFI","BNB DeFi",18000000,"BNB","DeFi",61,5,58,55,52,"Watch","sample"],["PEPE","Pepe",4400000000,"Ethereum","Memes",73,14,69,65,68,"Watch","public"],
+    ].map(([symbol,name,marketCap,chain,sector,flowScore,attentionVelocity,participation,freshSurvival,replay,risk,coverage]) => ({ symbol,name,marketCap,chain,sector,flowScore,attentionVelocity,participation,freshSurvival,replay,risk,coverage }));
+    const state = { bucket:"micro", mode:"discovery", access:"free", sortKey:"flowScore", sortDir:-1, active:"" };
+    function capBucket(cap){ if(cap<100000)return"nano"; if(cap<1000000)return"micro"; if(cap<10000000)return"small"; if(cap<100000000)return"mid"; if(cap<1000000000)return"large"; return"mega"; }
+    function bucketLabel(key){ return buckets.find((b)=>b[0]===key)?.[1] || key; }
+    function money(n){ return Number(n)>=1e9?`$${(n/1e9).toFixed(2)}B`:Number(n)>=1e6?`$${(n/1e6).toFixed(1)}M`:Number(n)>=1e3?`$${(n/1e3).toFixed(0)}K`:`$${Number(n||0).toFixed(0)}`; }
+    function attention(v){ return v>=35?"Exploding":v>=10?"Rising":v>-8?"Stable":v>-25?"Fading":"Collapsing"; }
+    function survival(s){ return s>=82?"Strong":s>=66?"Improving":s>=48?"Stable":s>=30?"Weakening":"Failing"; }
+    function direction(s){ return s>=66?"Rising":s<=38?"Falling":"Stable"; }
+    function visibleRows(){
+      const q=document.getElementById("searchInput").value.toLowerCase(), chain=document.getElementById("chainFilter").value, sector=document.getElementById("sectorFilter").value, coverage=document.getElementById("coverageFilter").value;
+      const allowedBuckets = state.access==="free" ? [state.bucket] : buckets.filter((b)=>b[3].toLowerCase()===state.mode).map((b)=>b[0]);
+      return rows.filter((r)=>allowedBuckets.includes(capBucket(r.marketCap)) && (!q||`${r.symbol} ${r.name} ${r.chain} ${r.sector}`.toLowerCase().includes(q)) && (!chain||r.chain===chain) && (!sector||r.sector===sector) && (!coverage||r.coverage===coverage))
+        .sort((a,b)=>(a[state.sortKey]>b[state.sortKey]?1:-1)*state.sortDir);
+    }
+    function activeRow(){ return rows.find((r)=>r.symbol===state.active)||visibleRows()[0]||rows[0]; }
+    function explanation(row){
+      return { headline:`${bucketLabel(capBucket(row.marketCap))} ecosystem read: ${buckets.find((b)=>b[0]===capBucket(row.marketCap))?.[2]}`, summary:`${row.symbol} is evaluated through survival, participation, attention, liquidity, and replay context.`, confidence: Math.max(25, Math.min(90, Math.round(row.flowScore*.45+row.freshSurvival*.3+row.replay*.25))), positives:[direction(row.participation)==="Rising"?"Participation is expanding.":"",["Strong","Improving"].includes(survival(row.freshSurvival))?"Fresh survival is improving.":"",["Rising","Exploding"].includes(attention(row.attentionVelocity))?"Attention velocity is positive.":""].filter(Boolean), negatives:[survival(row.freshSurvival)==="Weakening"?"Survival quality is weakening.":""].filter(Boolean), risks:[row.risk==="Elevated"?"Risk posture is elevated.":"",row.coverage!=="indexed"?"Coverage is limited public context.":""].filter(Boolean), evidence:[`Bucket: ${bucketLabel(capBucket(row.marketCap))}`,`Fresh survival: ${survival(row.freshSurvival)}`,`Attention: ${attention(row.attentionVelocity)}`,`Replay strength: ${row.replay>=65?"Strong":"Moderate"}`,`Coverage: ${row.coverage}`], coverage:row.coverage, lastUpdated:"current sample" };
+    }
+    function matrix(groupKey, labels){ return labels.map((label)=>{ const scoped=rows.filter((r)=>groupKey==="bucket"?capBucket(r.marketCap)===label:r[groupKey]===label); const avg=(k)=>scoped.reduce((s,r)=>s+Number(r[k]||0),0)/Math.max(1,scoped.length); return { label: groupKey==="bucket"?bucketLabel(label):label, participation:direction(avg("participation")), attention:direction(50+avg("attentionVelocity")), flow:direction(avg("flowScore")), survival:survival(avg("freshSurvival")), replay:avg("replay")>=65?"Strong":"Moderate", count:scoped.length }; }); }
+    function tableRows(target, data, cols){ document.getElementById(target).innerHTML=data.map((r)=>`<tr>${cols.map((c)=>`<td>${r[c]||""}</td>`).join("")}</tr>`).join(""); }
+    function render(){
+      const bucket=buckets.find((b)=>b[0]===state.bucket)||buckets[1], row=activeRow(), visible=visibleRows();
+      document.getElementById("modeLabel").textContent=bucket[3]; document.getElementById("bucketTitle").textContent=`${bucket[1]} ecosystem`; document.getElementById("bucketQuestion").textContent=bucket[2]; document.getElementById("activeSymbol").textContent=row.symbol; document.getElementById("activeBucket").textContent=bucketLabel(capBucket(row.marketCap));
+      document.getElementById("bucketNav").innerHTML=buckets.filter((b)=>b[3].toLowerCase()===state.mode).map((b)=>`<button class="bucket ${b[0]===state.bucket?"active":""}" data-bucket="${b[0]}"><strong>${b[1]}</strong><br><span class="muted">${b[2]}</span></button>`).join("");
+      document.querySelectorAll("[data-bucket]").forEach((btn)=>btn.addEventListener("click",()=>{state.bucket=btn.dataset.bucket;render();}));
+      document.getElementById("bucketMetrics").innerHTML=buckets.map((b)=>`<div class="metric"><span>${b[1]}</span><strong>${rows.filter((r)=>capBucket(r.marketCap)===b[0]).length}</strong></div>`).join("");
+      document.getElementById("degenRows").innerHTML=visible.map((r)=>`<tr data-symbol="${r.symbol}"><td><strong>${r.symbol}</strong><br><span class="muted">${r.name}</span></td><td>${money(r.marketCap)}</td><td>${r.chain}</td><td>${r.sector}</td><td>${r.flowScore}</td><td>${attention(r.attentionVelocity)}<br><span class="muted">${r.attentionVelocity>0?"+":""}${r.attentionVelocity}</span></td><td>${direction(r.participation)}</td><td>${survival(r.freshSurvival)}</td><td>${r.replay>=65?"Strong":"Moderate"}</td><td>${r.risk}</td><td>${r.coverage}</td></tr>`).join("");
+      document.querySelectorAll("#degenRows tr").forEach((tr)=>tr.addEventListener("click",()=>{state.active=tr.dataset.symbol;render();}));
+      window.RavenOSExplanations?.render?.("#explanationPanel", explanation(row)); window.RavenOSReplay?.render?.("#replayPanel", { instrument:row.symbol, replaySimilarity:row.replay, sampleCount:state.access==="free"?18:60, coverage:row.coverage });
+      tableRows("rotationMatrix", matrix("bucket", buckets.map((b)=>b[0])), ["label","participation","attention","flow","count"]);
+      tableRows("chainRotation", matrix("chain", ["Solana","Base","Ethereum","BNB"]), ["label","participation","survival","replay","count"]);
+      tableRows("sectorRotation", matrix("sector", ["Memes","AI","DeFi","Infrastructure","Gaming","Consumer","Other"]), ["label","participation","survival","flow","count"]);
+      const topChain=matrix("chain",["Solana","Base","Ethereum","BNB"])[0], topSector=matrix("sector",["Memes","AI","DeFi","Infrastructure","Gaming","Consumer","Other"])[0];
+      document.getElementById("structureTape").innerHTML=[`Participation ${direction(row.participation).toLowerCase()} across ${bucketLabel(capBucket(row.marketCap)).toLowerCase()} rows.`,`${topChain.label} structure is ${topChain.survival.toLowerCase()} with ${topChain.participation.toLowerCase()} participation.`,`${topSector.label} sector shows ${topSector.participation.toLowerCase()} participation.`].map((t)=>`<div class="tape-item"><span class="eyebrow">${new Date().toISOString().slice(11,16)}</span><br>${t}</div>`).join("");
+      window.RavenOSFeatures?.applyFeatureGates?.();
+    }
+    document.addEventListener("DOMContentLoaded",()=>{ window.RavenOSAccess?.subscribe?.((access)=>{state.access=access.entitlements?.includes("pro")||access.entitlements?.includes("founder")?"pro":"free";document.getElementById("accessPill").textContent=state.access==="pro"?"Pro":"Free";render();}); document.querySelectorAll("[data-mode]").forEach((b)=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;state.bucket={discovery:"micro",rotation:"mid",leadership:"mega"}[state.mode];document.querySelectorAll("[data-mode]").forEach((x)=>x.classList.toggle("active",x===b));render();})); ["searchInput","chainFilter","sectorFilter","coverageFilter"].forEach((id)=>document.getElementById(id).addEventListener("input",render)); document.querySelectorAll("th[data-sort]").forEach((th)=>th.addEventListener("click",()=>{state.sortKey=th.dataset.sort;state.sortDir*=-1;render();})); render(); });
+  </script>
+</body>
+</html>

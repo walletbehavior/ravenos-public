@@ -464,6 +464,7 @@
         chart.timeScale().unsubscribeVisibleTimeRangeChange(renderRegions);
         resizeObserver.disconnect();
         chart.remove();
+        container.innerHTML = "";
       },
     };
     return apiRef;

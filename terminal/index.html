@@ -389,6 +389,7 @@
           <strong id="flowScore">84</strong>
         </div>
         <div class="intel-row"><span>Price</span><strong id="lastPrice">$69.000000</strong></div>
+        <div class="intel-row"><span>Window</span><strong id="timeframeWindow">1h · 42 bars</strong></div>
         <div class="intel-row"><span>Attention Velocity</span><strong id="attentionVelocity">+18</strong></div>
         <div class="intel-row"><span>Participant Activity</span><strong id="participantActivity">High</strong></div>
         <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
@@ -625,6 +626,35 @@
       return Number(samplePrices[key] ?? samplePrices[base] ?? samplePrices[base.replace(/-PERP$/, "")] ?? 1);
     }
 
+    function normalizedMarketSymbol(asset) {
+      return String(asset || "")
+        .trim()
+        .toUpperCase()
+        .replace(/\/.*$/, "")
+        .replace(/\s+SPOT$/, "")
+        .replace(/-PERP$/, "");
+    }
+
+    function applyMarketPrice(priceRow) {
+      const symbol = normalizedMarketSymbol(priceRow.symbol);
+      const price = Number(priceRow.priceUsd);
+      if (!symbol || !Number.isFinite(price) || price <= 0) return;
+      const pools = [rows, cryptoRows, perpsRows, livePerpsRows, dexRows];
+      pools.forEach((pool) => {
+        pool.forEach((row) => {
+          if (normalizedMarketSymbol(row.asset) !== symbol) return;
+          row.lastPrice = price;
+          row.provider = priceRow.provider || row.provider || "Public market data";
+          row.coverage = priceRow.coverage || row.coverage || "Public fallback";
+          row.isLive = priceRow.isLive === true;
+          row.isCached = priceRow.isCached === true;
+          row.isSample = false;
+          row.lastUpdated = priceRow.lastUpdated || row.lastUpdated || "public";
+          row.warning = priceRow.warning || row.warning || "";
+        });
+      });
+    }
+
     const cryptoRows = [
       ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "sample", "solana"],
       ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "sample", "solana"],
@@ -836,7 +866,28 @@
 
     function scaledCandles(row, timeframe = selectedTimeframe()) {
       const anchor = row.lastPrice || samplePriceFor(row.asset) || 1;
-      return window.RavenChartTimeframes?.makeTimeframeCandles?.(candlePattern, timeframe, anchor) || [];
+      const identity = `${row.asset}|${marketKind(row)}|${activeMode}|${timeframe}|${row.chainVenue || ""}|${row.marketCapBand || ""}`;
+      return window.RavenChartTimeframes?.makeTimeframeCandles?.(candlePattern, timeframe, anchor, identity) || [];
+    }
+
+    function timeframeMetrics(candles, timeframe) {
+      const first = candles[0] || {};
+      const last = candles[candles.length - 1] || {};
+      const highs = candles.map((candle) => Number(candle.high)).filter(Number.isFinite);
+      const lows = candles.map((candle) => Number(candle.low)).filter(Number.isFinite);
+      const start = Number(first.open || first.close || 0);
+      const end = Number(last.close || 0);
+      const changePct = start ? ((end - start) / start * 100) : 0;
+      const rangePct = end ? ((Math.max(...highs, end) - Math.min(...lows, end)) / end * 100) : 0;
+      const label = window.RavenChartTimeframes?.timeframeConfig?.(timeframe)?.windowLabel || "window";
+      return {
+        label,
+        changePct: Number(changePct.toFixed(2)),
+        rangePct: Number(rangePct.toFixed(2)),
+        count: candles.length,
+        first: first.time,
+        last: last.time,
+      };
     }
 
     function marketKind(row) {
@@ -869,6 +920,7 @@
       const row = selectedRow();
       const state = selectedChartState(row);
       const candleData = scaledCandles(row, state.timeframe);
+      const tfMetrics = timeframeMetrics(candleData, state.timeframe);
       const overlays = window.RavenChartOverlays?.getOverlays?.({
         symbol: state.instrument,
         market: state.market,
@@ -884,9 +936,10 @@
       document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
       document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
       document.getElementById("lastPrice").textContent = money(row.lastPrice);
-      document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
+      document.getElementById("timeframeWindow").textContent = `${state.timeframe} ${tfMetrics.label} · ${tfMetrics.count} bars`;
+      document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity} · ${tfMetrics.changePct > 0 ? "+" : ""}${tfMetrics.changePct}%`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
-      document.getElementById("liquidityPosture").textContent = row.liquidityPosture;
+      document.getElementById("liquidityPosture").textContent = `${row.liquidityPosture} · ${tfMetrics.rangePct}% range`;
       document.getElementById("riskRating").textContent = row.risk;
       document.getElementById("tickerInstrument").textContent = row.asset;
       document.getElementById("tickerPrice").textContent = money(row.lastPrice);
@@ -902,8 +955,8 @@
       const apiNote = document.getElementById("walletAccessDetail");
       if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
       document.getElementById("terminalBrief").textContent = row.participationOutcome
-        ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
-        : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
+        ? `${row.asset} ${state.timeframe} structure is currently scored at ${row.flowScore}. Window change is ${tfMetrics.changePct > 0 ? "+" : ""}${tfMetrics.changePct}% across ${tfMetrics.count} bars. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
+        : `${row.asset} ${state.timeframe} structure is currently scored at ${row.flowScore}. Window change is ${tfMetrics.changePct > 0 ? "+" : ""}${tfMetrics.changePct}% across ${tfMetrics.count} bars. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       renderExplanation(row);
       window.RavenOSParticipants?.render?.("#participantPanel", {
         ...row,
@@ -1431,6 +1484,7 @@
 
     function structureTapeItems(rowsNow) {
       const now = new Date().toISOString().slice(11, 16);
+      const timeframe = selectedTimeframe();
       const sorted = [...rowsNow].sort((a, b) => Number(b.flowScore || 0) - Number(a.flowScore || 0));
       const top = sorted[0] || selectedRow();
       if (isPerpsMode()) {
@@ -1441,20 +1495,20 @@
         return [
           {
             time: now,
-            title: `${lead.asset} pressure is ${pressureState(pressureScore(lead), lead).toLowerCase()}`,
-            detail: structureNarrative(lead)[0] || `Pressure score ${pressureScore(lead)} with ${lead.pressureContext || "visible pressure context"}.`,
+            title: `${lead.asset} ${timeframe} pressure is ${pressureState(pressureScore(lead), lead).toLowerCase()}`,
+            detail: `${timeframe} context: ${structureNarrative(lead)[0] || `Pressure score ${pressureScore(lead)} with ${lead.pressureContext || "visible pressure context"}.`}`,
             target: lead.asset,
           },
           {
             time: now,
-            title: `${replayLead.asset} replay similarity increasing`,
-            detail: structureNarrative(replayLead)[2] || `${replayMatches(replayLead)[0].similarity}% similarity to ${replayMatches(replayLead)[0].label}.`,
+            title: `${replayLead.asset} ${timeframe} replay similarity visible`,
+            detail: `${timeframe} context: ${structureNarrative(replayLead)[2] || `${replayMatches(replayLead)[0].similarity}% similarity to ${replayMatches(replayLead)[0].label}.`}`,
             target: replayLead.asset,
           },
           {
             time: now,
-            title: crowded ? `${crowded} perps show crowded or unstable pressure` : `${lead.asset} liquidity attraction is ${liquidityAttraction(lead).state.toLowerCase()}`,
-            detail: structureNarrative(lead)[3] || "Structure read combines pressure, participants, replay, outcomes, and liquidity attraction.",
+            title: crowded ? `${crowded} perps show crowded or unstable ${timeframe} pressure` : `${lead.asset} ${timeframe} liquidity attraction is ${liquidityAttraction(lead).state.toLowerCase()}`,
+            detail: `${timeframe} context: ${structureNarrative(lead)[3] || "Structure read combines pressure, participants, replay, outcomes, and liquidity attraction."}`,
             target: lead.asset,
           },
         ];
@@ -1466,20 +1520,20 @@
       return [
         {
           time: now,
-          title: `${top.asset} leads current ${modeLabel(activeMode).toLowerCase()}`,
-          detail: `Flow score ${top.flowScore} with ${top.participantActivity || "visible"} participant activity.`,
+          title: `${top.asset} leads current ${timeframe} ${modeLabel(activeMode).toLowerCase()}`,
+          detail: `${timeframe} context: flow score ${top.flowScore} with ${top.participantActivity || "visible"} participant activity.`,
           target: top.asset,
         },
         {
           time: now,
-          title: `Participation outcomes: ${paying} paying, ${punishing} punishing`,
-          detail: "Outcome mix is linked to heatmap cells and score explanations.",
+          title: `${timeframe} participation outcomes: ${paying} paying, ${punishing} punishing`,
+          detail: `${timeframe} outcome mix is linked to heatmap cells and score explanations.`,
           target: rowsNow.find((row) => row.participationOutcome === "Punishing")?.asset || top.asset,
         },
         {
           time: now,
-          title: compression ? `${compression.asset} liquidity context is compressed` : `${elevated} elevated risk flags in view`,
-          detail: compression ? `${compression.liquidityPosture} posture is affecting confidence.` : "Risk flags reflect liquidity, pressure, or confirmation weakness.",
+          title: compression ? `${compression.asset} ${timeframe} liquidity context is compressed` : `${elevated} elevated ${timeframe} risk flags in view`,
+          detail: compression ? `${timeframe} ${compression.liquidityPosture} posture is affecting confidence.` : `${timeframe} risk flags reflect liquidity, pressure, or confirmation weakness.`,
           target: compression?.asset || rowsNow.find((row) => row.risk === "Elevated")?.asset || top.asset,
         },
       ];
@@ -1574,6 +1628,17 @@
             lastPrice: Number(row.lastPrice || row.markPx || 0),
           }));
         }
+      } catch (_) {}
+      try {
+        const spotSymbols = uniqueRows([
+          ...rows.filter((row) => row.category === "crypto_spot"),
+          ...cryptoRows,
+        ]).map((row) => normalizedMarketSymbol(row.asset)).filter(Boolean);
+        const symbols = [...new Set(spotSymbols)].join(",");
+        if (!symbols) return;
+        const response = await fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        (Array.isArray(payload.results) ? payload.results : []).forEach(applyMarketPrice);
       } catch (_) {}
     }
 

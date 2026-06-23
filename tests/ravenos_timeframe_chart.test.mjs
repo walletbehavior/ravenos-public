@@ -44,6 +44,19 @@ assert.notEqual(window1h.first, window4h.first);
 assert.equal(window15m.last, window1h.last);
 assert.equal(window1h.last, window4h.last);
 
+function closeShape(candles, start, length) {
+  const closes = candles.slice(start, start + length).map((candle) => Number(candle.close));
+  const first = closes[0] || 1;
+  return closes.map((value) => Number(((value - first) / first * 100).toFixed(3))).join("|");
+}
+
+assert.notEqual(closeShape(candles15m, 0, 12), closeShape(candles15m, 12, 12), "15m should not tile the same 12-candle curve");
+assert.notEqual(closeShape(candles15m, 12, 12), closeShape(candles15m, 24, 12), "15m should not paste repeated segments");
+assert.notEqual(closeShape(candles1h, 0, 10), closeShape(candles1h, 10, 10), "1h should not tile the same curve");
+assert.notEqual(closeShape(candles4h, 0, 8), closeShape(candles4h, 8, 8), "4h should not tile the same curve");
+assert.notEqual(closeShape(candles15m, 0, 12), closeShape(candles1h, 0, 12), "15m and 1h should use different seeded paths");
+assert.notEqual(closeShape(candles1h, 0, 10), closeShape(candles4h, 0, 10), "1h and 4h should use different seeded paths");
+
 const key15m = chartKey({ instrument: "BTC-PERP", market: "perp", mode: "perps_intelligence", timeframe: "15m", coverage: "Sample" });
 const key1h = chartKey({ instrument: "BTC-PERP", market: "perp", mode: "perps_intelligence", timeframe: "1h", coverage: "Sample" });
 const key4h = chartKey({ instrument: "BTC-PERP", market: "perp", mode: "perps_intelligence", timeframe: "4h", coverage: "Sample" });
@@ -69,3 +82,5 @@ assert.match(terminal, /RavenChartTimeframes\?\.chartKey/);
 assert.match(terminal, /timeframe: state\.timeframe/);
 assert.match(terminal, /chartHost\.dataset\.chartKey = state\.key/);
 assert.match(terminal, /id="chartDebug"/);
+assert.match(terminal, /id="timeframeWindow"/);
+assert.match(terminal, /timeframeMetrics/);

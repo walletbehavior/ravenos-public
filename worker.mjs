@@ -171,6 +171,72 @@ async function resolveDexInput(input) {
   return searchDex(q);
 }
 
+function normalizedMarketSymbol(value = "") {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\/.*$/, "")
+    .replace(/\s+SPOT$/, "")
+    .replace(/-PERP$/, "");
+}
+
+function preferredDexPriceResult(symbol, results = []) {
+  const base = normalizedMarketSymbol(symbol);
+  const exact = results.filter((row) => normalizedMarketSymbol(row.symbol) === base);
+  const pool = exact.length ? exact : results;
+  return [...pool].sort((a, b) => {
+    const quoteScore = (quote) => ({ USDC: 4, USDT: 3, WETH: 2, ETH: 2, SOL: 2, WBNB: 1 }[String(quote || "").toUpperCase()] || 0);
+    return (quoteScore(b.quoteSymbol) - quoteScore(a.quoteSymbol))
+      || (num(b.liquidityUsd) - num(a.liquidityUsd))
+      || (num(b.volume24h) - num(a.volume24h));
+  })[0] || null;
+}
+
+async function marketPrices(symbols = [], { market = "mixed" } = {}) {
+  const wanted = [...new Set(symbols.map(normalizedMarketSymbol).filter(Boolean))].slice(0, 80);
+  const usePerps = String(market || "mixed").toLowerCase() !== "spot";
+  const perps = usePerps ? await hyperliquidPerps().catch(() => null) : null;
+  const perpsBySymbol = new Map((perps?.results || []).map((row) => [normalizedMarketSymbol(row.asset || row.symbol), row]));
+
+  const settled = await Promise.allSettled(wanted.map(async (symbol) => {
+    const perp = perpsBySymbol.get(symbol);
+    if (perp && num(perp.lastPrice || perp.markPx)) {
+      return {
+        symbol,
+        priceUsd: num(perp.lastPrice || perp.markPx),
+        provider: "Hyperliquid",
+        coverage: "Live",
+        isLive: true,
+        isCached: false,
+        isSample: false,
+        lastUpdated: perps.lastUpdated || new Date().toISOString(),
+        warning: "",
+      };
+    }
+
+    const dex = preferredDexPriceResult(symbol, await searchDex(symbol));
+    if (!dex || !num(dex.priceUsd)) return null;
+    return {
+      symbol,
+      priceUsd: num(dex.priceUsd),
+      provider: dex.provider || "Dexscreener",
+      coverage: dex.coverage || "Public fallback",
+      isLive: false,
+      isCached: false,
+      isSample: false,
+      lastUpdated: dex.lastUpdated || new Date().toISOString(),
+      warning: dex.warning || "Limited public coverage",
+      chainId: dex.chainId,
+      dexId: dex.dexId,
+      pairAddress: dex.pairAddress,
+      liquidityUsd: dex.liquidityUsd,
+      volume24h: dex.volume24h,
+    };
+  }));
+
+  return settled.flatMap((item) => item.status === "fulfilled" && item.value ? [item.value] : []);
+}
+
 async function readJson(request) {
   return request.json().catch(() => ({}));
 }
@@ -592,6 +658,17 @@ async function routeApi(request, env) {
       return json({ ok: true, results: await pairDex(url.searchParams.get("chainId") || "", url.searchParams.get("pairAddress") || "") });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (pathname === "/api/market/prices" && request.method === "GET") {
+    try {
+      const symbols = String(url.searchParams.get("symbols") || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      return json({ ok: true, results: await marketPrices(symbols, { market: url.searchParams.get("market") || "mixed" }) });
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "market_prices_failed", results: [] }, { status: 502 });
     }
   }
   if (pathname === "/api/hyperliquid/perps" && request.method === "GET") {

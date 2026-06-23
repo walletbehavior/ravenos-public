@@ -15,6 +15,7 @@ const required = [
   "limited_structure_tape",
   "research_preview",
   "full_heatmaps",
+  "degen_terminal",
   "full_structure_tape",
   "full_replay_engine",
   "full_research",
@@ -41,6 +42,7 @@ for (const key of required) {
 assert.equal(canAccessFeature("free_token_lookup", { tier: "free" }), true);
 assert.equal(canAccessFeature("basic_chart", { tier: "free" }), true);
 assert.equal(canAccessFeature("research_preview", { tier: "free" }), true);
+assert.equal(canAccessFeature("degen_terminal", { tier: "free" }), true);
 assert.equal(canAccessFeature("full_research", { tier: "free" }), false);
 assert.equal(canAccessFeature("full_research", { tier: "pro" }), true);
 assert.equal(canAccessFeature("perps_intelligence", { tier: "pro" }), true);

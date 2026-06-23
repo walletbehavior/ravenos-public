@@ -11,6 +11,7 @@ assert.match(chart, /degen: \["participant-shift", "history-window", "breadth-li
 assert.match(chart, /atlas: \["regime-marker", "breadth-line", "liquidity-zone"\]/);
 assert.match(chart, /defaultActiveTypes/);
 assert.match(chart, /RavenChartOverlayVisuals/);
+assert.match(chart, /container\.innerHTML = ""/);
 
 assert.match(chart, /EVENT_GLYPHS/);
 assert.doesNotMatch(chart, /text: compact \? "" : event\.label/);

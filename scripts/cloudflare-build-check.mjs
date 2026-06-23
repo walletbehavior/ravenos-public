@@ -10,6 +10,7 @@ const required = [
   "alerts/index.html",
   "watchlists/index.html",
   "perps/index.html",
+  "degen/index.html",
   "terminal/index.html",
   "raven-chart-timeframes.js",
   "ravenos-access.js",

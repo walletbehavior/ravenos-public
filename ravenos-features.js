@@ -7,6 +7,7 @@
     limited_structure_tape: ["free", "Limited Structure Tape", "A compact feed of market structure observations.", "Limited tape items.", "Unlock Full Structure Tape"],
     research_preview: ["free", "Research Preview", "Preview Structure Lab findings without full detail depth.", "Limited rows and summary context.", "Unlock Full Research"],
     full_heatmaps: ["pro", "Full Heatmaps", "Full crypto spot, perps, cap, chain, venue, and segment heatmaps.", "Locked preview cards and limited rows.", "Upgrade to Pro"],
+    degen_terminal: ["free", "Degen Terminal", "Behavioral crypto discovery across survival, participation, attention, replay, rotation, and leadership.", "Free users can review one bucket at a time with limited rows. Pro unlocks all buckets, chains, sectors, replay, and rotation context.", "Open Degen Terminal"],
     full_structure_tape: ["pro", "Full Structure Tape", "Expanded continuous behavioral observations and linked evidence.", "Free users see a limited tape.", "Upgrade to Pro"],
     full_replay_engine: ["pro", "Full Replay Engine", "Historical structure similarity and outcome distribution context.", "Replay summary preview only.", "Upgrade to Pro"],
     full_research: ["pro", "Full Research / Structure Lab", "Full Structure Lab views across setup families, replay, symbols, and failures.", "Limited research preview.", "Upgrade to Pro"],

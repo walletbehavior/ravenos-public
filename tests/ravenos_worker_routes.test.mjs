@@ -198,3 +198,49 @@ assert.equal((await watchlistItem.json()).item.instrument, "SOL-PERP");
 const watchlistsList = await worker.fetch(new Request("https://ravenos.xyz/api/watchlists?wallet=pro-wallet"), alertEnv);
 assert.equal(watchlistsList.status, 200);
 assert.equal((await watchlistsList.json()).watchlists[0].items.length, 1);
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  const href = String(url);
+  if (href.includes("api.hyperliquid.xyz/info")) {
+    return new Response(JSON.stringify([
+      { universe: [{ name: "ETH" }] },
+      [{ markPx: "1601.25", midPx: "1601.2", oraclePx: "1601.1", prevDayPx: "1580", funding: "0.00001", premium: "0.0002", openInterest: "100000", dayNtlVlm: "5000000" }],
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/latest/dex/search")) {
+    return new Response(JSON.stringify({
+      pairs: [
+        {
+          chainId: "ethereum",
+          dexId: "uniswap",
+          pairAddress: "0xpair",
+          baseToken: { symbol: "ETH", name: "Ether", address: "0xeth" },
+          quoteToken: { symbol: "USDC" },
+          priceUsd: "1658.42",
+          liquidity: { usd: 1000000 },
+          volume: { h24: 3000000 },
+          txns: { h24: { buys: 100, sells: 80 } },
+          priceChange: { h24: 1.2 },
+        },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  return originalFetch(url, init);
+};
+
+const spotPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=ETH"), env);
+assert.equal(spotPrices.status, 200);
+const spotPricePayload = await spotPrices.json();
+assert.equal(spotPricePayload.results[0].symbol, "ETH");
+assert.equal(spotPricePayload.results[0].priceUsd, 1658.42);
+assert.equal(spotPricePayload.results[0].provider, "Dexscreener");
+
+const perpPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=perp&symbols=ETH"), env);
+assert.equal(perpPrices.status, 200);
+const perpPricePayload = await perpPrices.json();
+assert.equal(perpPricePayload.results[0].symbol, "ETH");
+assert.equal(perpPricePayload.results[0].priceUsd, 1601.25);
+assert.equal(perpPricePayload.results[0].provider, "Hyperliquid");
+
+globalThis.fetch = originalFetch;

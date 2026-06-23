@@ -55,6 +55,8 @@ assert.match(terminal, /raven-chart-timeframes\.js/);
 assert.match(terminal, /function selectedTimeframe/);
 assert.match(terminal, /selectedChartState/);
 assert.match(terminal, /id="chartDebug"/);
+assert.match(terminal, /id="timeframeWindow"/);
+assert.match(terminal, /timeframeMetrics/);
 assert.match(terminal, /RavenChartTimeframes\?\.makeTimeframeCandles/);
 assert.match(terminal, /chartHost\.dataset\.chartKey = state\.key/);
 assert.doesNotMatch(terminal, /id="providerSource"/);
