@@ -171,6 +171,59 @@ function sortedDexResults(pairs = []) {
   return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
 }
 
+function capBandForDex(row = {}) {
+  const cap = num(row.marketCap) || num(row.fdv);
+  if (cap > 0 && cap < 100_000) return "nano_caps";
+  if (cap >= 100_000 && cap < 1_000_000) return "micro_caps";
+  if (cap >= 1_000_000 && cap < 10_000_000) return "small_caps";
+  if (cap >= 10_000_000 && cap < 100_000_000) return "mid_caps";
+  if (cap >= 100_000_000) return "large_caps";
+  return "";
+}
+
+function chainMatchesCategory(row = {}, category = "") {
+  const chain = String(row.chainId || "").toLowerCase();
+  if (category === "solana") return chain === "solana";
+  if (category === "base") return chain === "base";
+  if (category === "ethereum") return chain === "ethereum";
+  return true;
+}
+
+function categoryMatchesDexRow(row = {}, category = "") {
+  if (["nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps"].includes(category)) return capBandForDex(row) === category;
+  if (["solana", "base", "ethereum"].includes(category)) return chainMatchesCategory(row, category);
+  if (category === "memes") return /meme|dog|pepe|inu|cat|frog|bonk|wif|toshi|brett/i.test(`${row.symbol || ""} ${row.name || ""}`);
+  return true;
+}
+
+async function trendingDex(category = "market_cap_heatmap", { limit = 50 } = {}) {
+  const normalizedCategory = String(category || "market_cap_heatmap").toLowerCase();
+  const wantedChains = normalizedCategory === "solana" ? new Set(["solana"])
+    : normalizedCategory === "base" ? new Set(["base"])
+      : normalizedCategory === "ethereum" ? new Set(["ethereum"])
+        : new Set(["solana", "base", "ethereum", "bsc"]);
+  const [boosts, profiles] = await Promise.all([
+    cachedDex("/token-boosts/top/v1").catch(() => []),
+    cachedDex("/token-profiles/latest/v1").catch(() => []),
+  ]);
+  const seeds = [...(Array.isArray(boosts) ? boosts : []), ...(Array.isArray(profiles) ? profiles : [])]
+    .filter((item) => item?.chainId && item?.tokenAddress && wantedChains.has(String(item.chainId).toLowerCase()));
+  const seen = new Set();
+  const uniqueSeeds = seeds.filter((item) => {
+    const key = `${item.chainId}:${item.tokenAddress}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 40);
+  const settled = await Promise.allSettled(uniqueSeeds.map((item) => tokenDex(item.chainId, item.tokenAddress)));
+  const rows = settled
+    .flatMap((item) => item.status === "fulfilled" ? item.value.slice(0, 1) : [])
+    .filter((row) => categoryMatchesDexRow(row, normalizedCategory));
+  return rows
+    .sort((a, b) => (num(b.volume24h) - num(a.volume24h)) || (num(b.txns24h) - num(a.txns24h)) || (num(b.liquidityUsd) - num(a.liquidityUsd)))
+    .slice(0, Math.max(1, Math.min(100, Number(limit) || 50)));
+}
+
 async function hyperliquidPerps() {
   const key = "metaAndAssetCtxs";
   const now = Date.now();
@@ -751,6 +804,13 @@ async function routeApi(request, env) {
       return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_search_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (pathname === "/api/dexscreener/trending" && request.method === "GET") {
+    try {
+      return json({ ok: true, coverage: "Developing", results: await trendingDex(url.searchParams.get("category") || "market_cap_heatmap", { limit: url.searchParams.get("limit") || 50 }) });
+    } catch (error) {
+      return json({ ok: false, coverage: "Limited", error: error instanceof Error ? error.message : "dexscreener_trending_failed", results: [] }, { status: 502 });
     }
   }
   if (pathname === "/api/dexscreener/token" && request.method === "GET") {

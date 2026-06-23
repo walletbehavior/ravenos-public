@@ -230,6 +230,68 @@ globalThis.fetch = async (url, init) => {
       ],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }
+  if (href.includes("api.dexscreener.com/token-boosts/top/v1")) {
+    return new Response(JSON.stringify([
+      { chainId: "base", tokenAddress: "0xmicro000000000000000000000000000000000001" },
+      { chainId: "solana", tokenAddress: "NanoMint11111111111111111111111111111111111" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-profiles/latest/v1")) {
+    return new Response(JSON.stringify([
+      { chainId: "ethereum", tokenAddress: "0xlarge000000000000000000000000000000000001" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/base/0xmicro000000000000000000000000000000000001")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "base",
+        dexId: "uniswap",
+        pairAddress: "microbasepair",
+        baseToken: { symbol: "MICRO", name: "Micro Base", address: "0xmicro000000000000000000000000000000000001" },
+        quoteToken: { symbol: "USDC" },
+        priceUsd: "0.00042",
+        liquidity: { usd: 25000 },
+        volume: { h24: 120000 },
+        txns: { h24: { buys: 300, sells: 220 } },
+        marketCap: 520000,
+        fdv: 520000,
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/solana/NanoMint11111111111111111111111111111111111")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "solana",
+        dexId: "raydium",
+        pairAddress: "nanopair",
+        baseToken: { symbol: "NANO", name: "Nano Solana", address: "NanoMint11111111111111111111111111111111111" },
+        quoteToken: { symbol: "SOL" },
+        priceUsd: "0.000001",
+        liquidity: { usd: 8000 },
+        volume: { h24: 9000 },
+        txns: { h24: { buys: 40, sells: 35 } },
+        marketCap: 42000,
+        fdv: 42000,
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/ethereum/0xlarge000000000000000000000000000000000001")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "ethereum",
+        dexId: "uniswap",
+        pairAddress: "largepair",
+        baseToken: { symbol: "LARGE", name: "Large Ethereum", address: "0xlarge000000000000000000000000000000000001" },
+        quoteToken: { symbol: "USDC" },
+        priceUsd: "1.23",
+        liquidity: { usd: 1200000 },
+        volume: { h24: 320000 },
+        txns: { h24: { buys: 110, sells: 90 } },
+        marketCap: 220000000,
+        fdv: 220000000,
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (href.includes("api.dexscreener.com/token-pairs/v1/ethereum/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")) {
     return new Response(JSON.stringify([
       {
@@ -379,5 +441,12 @@ assert.equal(canonicalFallbackBySymbol.get("WIF").priceUsd, 0.1561);
 assert.equal(canonicalFallbackBySymbol.get("MORPHO").priceUsd, 1.64);
 assert.equal(canonicalFallbackBySymbol.get("AIXBT").priceUsd, 0.02189);
 assert.equal(looseSearchCallsForKnownSymbols, 0);
+
+const trendingMicro = await worker.fetch(new Request("https://ravenos.xyz/api/dexscreener/trending?category=micro_caps&limit=50"), env);
+assert.equal(trendingMicro.status, 200);
+const trendingMicroPayload = await trendingMicro.json();
+assert.equal(trendingMicroPayload.results[0].symbol, "MICRO");
+assert.equal(trendingMicroPayload.results[0].chainId, "base");
+assert.equal(trendingMicroPayload.results[0].marketCap, 520000);
 
 globalThis.fetch = originalFetch;

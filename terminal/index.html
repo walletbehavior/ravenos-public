@@ -543,6 +543,8 @@
         items: [
           ["crypto_overview", "Overview", "active"],
           ["market_cap_heatmap", "Market Cap Heatmap", "active"],
+          ["nano_caps", "Nano Caps", "active"],
+          ["micro_caps", "Micro Caps", "active"],
           ["small_caps", "Small Caps", "active"],
           ["mid_caps", "Mid Caps", "active"],
           ["large_caps", "Large Caps", "active"],
@@ -556,6 +558,10 @@
         label: "Perpetual Futures",
         items: [
           ["perps_overview", "Overview", "active"],
+          ["perps_majors", "Majors", "active"],
+          ["perps_alts", "Alts", "active"],
+          ["perps_memes", "Meme Perps", "active"],
+          ["perps_stables", "Stablecoin-linked", "active"],
           ["perps_heatmap", "Perps Heatmap", "active"],
           ["funding_oi", "Funding/OI Pressure", "active"],
           ["compression", "Compression", "active"],
@@ -590,9 +596,9 @@
       "SOL-PERP": 69.0,
       "BTC": 64280,
       "BTC-PERP": 64280,
-      "ETH": 3410,
-      "ETH Spot": 3410,
-      "ETH-PERP": 3410,
+      "ETH": 1660,
+      "ETH Spot": 1660,
+      "ETH-PERP": 1660,
       "JUP": 1.18,
       "JUP Spot": 1.18,
       "JUP-PERP": 1.18,
@@ -671,6 +677,42 @@
         .replace(/-PERP$/, "");
     }
 
+    function chainKey(value = "") {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function capBandForValue(value) {
+      const cap = Number(value || 0);
+      if (cap > 0 && cap < 100_000) return "nano cap";
+      if (cap >= 100_000 && cap < 1_000_000) return "micro cap";
+      if (cap >= 1_000_000 && cap < 10_000_000) return "small cap";
+      if (cap >= 10_000_000 && cap < 100_000_000) return "mid cap";
+      if (cap >= 100_000_000 && cap < 1_000_000_000) return "large cap";
+      if (cap >= 1_000_000_000) return "mega cap";
+      return "";
+    }
+
+    function rowCapBand(row) {
+      const capBand = capBandForValue(Number(row.marketCap || row.fdv || 0));
+      return capBand || String(row.marketCapBand || "").toLowerCase();
+    }
+
+    function isCryptoCategory(category) {
+      return ["crypto_overview", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
+    }
+
+    function isPerpsCategory(category) {
+      return ["perps_overview", "perps_heatmap", "perps_majors", "perps_alts", "perps_memes", "perps_stables", "funding_oi", "compression", "liquidation_zones"].includes(category);
+    }
+
+    function perpsClass(row) {
+      const symbol = normalizedMarketSymbol(row.asset);
+      if (["BTC", "ETH", "SOL", "BNB", "XRP"].includes(symbol)) return "major";
+      if (["USDC", "USDT", "USDE", "DAI", "FDUSD", "PYUSD", "USD1"].includes(symbol)) return "stable";
+      if (["DOGE", "WIF", "PEPE", "BONK", "BRETT", "TOSHI", "FLOKI", "SHIB", "POPCAT", "MEW"].includes(symbol) || String(row.marketCapBand || "").toLowerCase() === "memecoin") return "meme";
+      return "alt";
+    }
+
     function applyMarketPrice(priceRow) {
       const symbol = normalizedMarketSymbol(priceRow.symbol);
       const price = Number(priceRow.priceUsd);
@@ -727,7 +769,7 @@
       ["ZORA", "Base", "small cap", 68, 26, "Thin public liquidity", "High", "Watch", "Mixed", "sample", "base"],
       ["WELL", "Base", "small cap", 65, 14, "Public liquidity visible", "Medium", "Stable", "Mixed", "sample", "base"],
       ["KAITO", "Base", "mid cap", 71, 17, "Balanced", "Medium", "Watch", "Mixed", "sample", "base"],
-      ["MICRO-1", "Solana", "small cap", 58, 41, "Very thin", "High", "Elevated", "Punishing", "delayed", "small_caps"],
+      ["MICRO-1", "Solana", "micro cap", 58, 41, "Very thin", "High", "Elevated", "Punishing", "delayed", "micro_caps"],
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem]) => ({
       asset, market: "Crypto Spot", category: "crypto_spot", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
     }));
@@ -762,6 +804,7 @@
     let livePerpsRows = [];
     let activeCategory = "perps_overview";
     let activeMode = "perps_intelligence";
+    const categoryHydration = new Set();
     let accessTier = "free";
     let chartHandle;
     let chartRenderKey = "";
@@ -818,8 +861,8 @@
     }
 
     function rowsForCategory(category = activeCategory) {
-      if (category === "crypto_overview") return uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]);
-      if (category === "perps_overview") return uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
+      if (isCryptoCategory(category)) return filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]), category);
+      if (isPerpsCategory(category)) return filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]), category);
       if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
@@ -867,35 +910,41 @@
           renderAssetOptions();
           renderChart();
           renderTable();
+          hydrateCategoryOptions(activeCategory);
         });
       });
     }
 
     function navCount(id) {
-      if (id.includes("perps") || ["funding_oi", "compression", "liquidation_zones"].includes(id)) return filteredCryptoRows(perpsRows, id).length;
-      if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(id)) return filteredCryptoRows(cryptoRows, id).length;
+      if (isPerpsCategory(id)) return filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows]), id).length;
+      if (isCryptoCategory(id)) return filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows]), id).length;
       return rowsForCategory(id).length || "preview";
     }
 
     function modeForCategory(category) {
       if (category === "funding_oi" || category === "compression" || category === "liquidation_zones") return "perps_intelligence";
       if (category.includes("perps")) return category === "perps_overview" ? "perps_intelligence" : "perps_intelligence";
-      if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category)) return "crypto_heatmaps";
+      if (isCryptoCategory(category)) return "crypto_heatmaps";
       return "flow";
     }
 
     function renderAssetOptions() {
-      const current = document.getElementById("assetSelect").value;
+      const select = document.getElementById("assetSelect");
+      const current = select.value;
       const options = assetOptionsForMode();
-      document.getElementById("assetSelect").innerHTML = options.map((row) => `<option>${row.asset}</option>`).join("");
-      if (options.some((row) => row.asset === current)) document.getElementById("assetSelect").value = current;
+      select.innerHTML = options.map((row) => {
+        const context = [row.chainVenue || row.market, row.marketCapBand].filter(Boolean).join(" · ");
+        return `<option value="${row.asset}">${row.asset}${context ? ` · ${context}` : ""}</option>`;
+      }).join("");
+      if (options.some((row) => row.asset === current)) select.value = current;
+      else if (options[0]) select.value = options[0].asset;
     }
 
     function assetOptionsForMode() {
       if (activeMode === "flow") return flowUniverse();
-      if (activeMode === "perps_pressure" || activeMode === "perps_intelligence") return uniqueRows([...livePerpsRows, ...perpsRows]);
+      if (activeMode === "perps_pressure" || activeMode === "perps_intelligence") return displayRows().filter((row) => row.category === "perpetuals");
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") {
-        return uniqueRows([...dexRows, ...cryptoRows]);
+        return displayRows().filter((row) => row.category === "crypto_spot");
       }
       return uniqueRows(displayRows());
     }
@@ -1398,13 +1447,20 @@
     }
 
     function filteredCryptoRows(source, category) {
-      if (category === "small_caps") return source.filter((row) => row.marketCapBand === "small cap");
-      if (category === "mid_caps") return source.filter((row) => row.marketCapBand === "mid cap");
-      if (category === "large_caps") return source.filter((row) => row.marketCapBand === "large cap");
+      if (category === "crypto_overview" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
+      if (category === "nano_caps") return source.filter((row) => rowCapBand(row) === "nano cap");
+      if (category === "micro_caps") return source.filter((row) => rowCapBand(row) === "micro cap");
+      if (category === "small_caps") return source.filter((row) => rowCapBand(row) === "small cap");
+      if (category === "mid_caps") return source.filter((row) => rowCapBand(row) === "mid cap");
+      if (category === "large_caps") return source.filter((row) => rowCapBand(row) === "large cap" || rowCapBand(row) === "mega cap");
       if (category === "memes") return source.filter((row) => row.marketCapBand === "memecoin" || row.ecosystem === "memes");
-      if (category === "solana") return source.filter((row) => row.chainVenue === "Solana");
-      if (category === "base") return source.filter((row) => row.chainVenue === "Base");
-      if (category === "ethereum") return source.filter((row) => row.chainVenue === "Ethereum");
+      if (category === "solana") return source.filter((row) => chainKey(row.chainVenue) === "solana");
+      if (category === "base") return source.filter((row) => chainKey(row.chainVenue) === "base");
+      if (category === "ethereum") return source.filter((row) => ["ethereum", "eth"].includes(chainKey(row.chainVenue)));
+      if (category === "perps_majors") return source.filter((row) => perpsClass(row) === "major");
+      if (category === "perps_alts") return source.filter((row) => perpsClass(row) === "alt");
+      if (category === "perps_memes") return source.filter((row) => perpsClass(row) === "meme");
+      if (category === "perps_stables") return source.filter((row) => perpsClass(row) === "stable");
       if (category === "funding_oi") return source.filter((row) => String(row.pressureContext || "").toLowerCase().includes("funding") || String(row.participantActivity || "").toLowerCase().includes("oi"));
       if (category === "compression") return source.filter((row) => ["Choppy", "Thin", "Thin above"].includes(row.liquidityPosture));
       if (category === "liquidation_zones") return source.filter((row) => row.ecosystem === "liquidation" || row.risk === "Elevated");
@@ -1413,7 +1469,7 @@
 
     function displayRows() {
       let source = activeMode === "flow" ? flowUniverse() : rowsForCategory();
-      if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(cryptoRows, activeCategory);
+      if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows]), activeCategory);
       if (isPerpsMode()) source = filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows]), activeCategory);
       if (activeMode === "participant") source = source.filter((row) => row.participantActivity === "High" || row.participationOutcome !== "Mixed");
       if (activeMode === "breadth") source = source.map((row) => ({ ...row, marketCapBand: `${row.marketCapBand} breadth`, liquidityPosture: row.liquidityPosture }));
@@ -1436,7 +1492,7 @@
         market: "Crypto Spot",
         category: "crypto_spot",
         chainVenue: result.chainId,
-        marketCapBand: result.marketCap >= 1_000_000_000 || result.fdv >= 1_000_000_000 ? "large cap" : result.marketCap >= 100_000_000 || result.fdv >= 100_000_000 ? "mid cap" : "small cap",
+        marketCapBand: capBandForValue(result.marketCap || result.fdv) || "small cap",
         lastPrice: Number(result.priceUsd || 0),
         flowScore,
         attentionVelocity: Math.round(Math.min(50, txns / 10 + volume / 100000)),
@@ -1623,7 +1679,7 @@
           const asset = tr.getAttribute("data-asset");
           const row = rows.find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
           if (!row) return;
-          if (row.category) activeCategory = row.category;
+          if (row.category && !isCryptoCategory(activeCategory) && !isPerpsCategory(activeCategory)) activeCategory = row.category;
           renderNav();
           renderAssetOptions();
           document.getElementById("assetSelect").value = row.asset;
@@ -1768,7 +1824,7 @@
           button.addEventListener("click", () => {
             const item = results[Number(button.getAttribute("data-dex-index"))];
             const row = dexResultToRow(item);
-            dexRows = [row, ...dexRows.filter((existing) => existing.pairAddress !== row.pairAddress)].slice(0, 12);
+            dexRows = [row, ...dexRows.filter((existing) => existing.pairAddress !== row.pairAddress)].slice(0, 120);
             activeCategory = "crypto_overview";
             activeMode = "flow";
             document.getElementById("modeSelect").value = activeMode;
@@ -1786,17 +1842,39 @@
       }
     }
 
+    async function hydrateCategoryOptions(category) {
+      if (!isCryptoCategory(category) || category === "crypto_overview") return;
+      if (categoryHydration.has(category)) return;
+      categoryHydration.add(category);
+      try {
+        const response = await fetch(`/api/dexscreener/trending?category=${encodeURIComponent(category)}&limit=50`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        const incoming = Array.isArray(payload.results) ? payload.results.map(dexResultToRow) : [];
+        if (!incoming.length) return;
+        dexRows = uniqueRows([...incoming, ...dexRows]).slice(0, 120);
+        if (activeCategory === category) {
+          const before = document.getElementById("assetSelect").value;
+          renderNav();
+          renderAssetOptions();
+          if (before && assetOptionsForMode().some((row) => row.asset === before)) document.getElementById("assetSelect").value = before;
+          renderChart();
+          renderTable();
+        }
+      } catch (_) {}
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       await hydrateLiveContext();
       renderNav();
       renderAssetOptions();
       renderChart();
       renderTable();
+      hydrateCategoryOptions(activeCategory);
       document.getElementById("assetSelect").addEventListener("change", renderChart);
       document.getElementById("modeSelect").addEventListener("change", () => {
         activeMode = document.getElementById("modeSelect").value;
-        if (activeMode === "crypto_heatmaps" && !["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(activeCategory)) activeCategory = "market_cap_heatmap";
-        if (activeMode === "perps_pressure" && !["perps_heatmap", "funding_oi", "compression", "liquidation_zones"].includes(activeCategory)) activeCategory = "perps_heatmap";
+        if (activeMode === "crypto_heatmaps" && !isCryptoCategory(activeCategory)) activeCategory = "market_cap_heatmap";
+        if (activeMode === "perps_pressure" && !isPerpsCategory(activeCategory)) activeCategory = "perps_heatmap";
         renderNav();
         renderAssetOptions();
         renderChart();
