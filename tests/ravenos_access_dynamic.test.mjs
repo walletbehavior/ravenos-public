@@ -29,9 +29,17 @@ assert.equal(
   resolveAccessFromSignals({ tokenBalance: 0, stripeStatus: "trialing", env: baseEnv }).tier,
   "pro",
 );
+assert.deepEqual(
+  resolveAccessFromSignals({ tokenBalance: 0, stripeStatus: "trialing", env: baseEnv }).entitlements,
+  ["free", "pro"],
+);
 assert.equal(
   resolveAccessFromSignals({ tokenBalance: 0, stripeStatus: "active", stripePlanType: "atlas_monthly", env: baseEnv }).tier,
   "atlas",
+);
+assert.deepEqual(
+  resolveAccessFromSignals({ tokenBalance: 10_000_000, stripeStatus: "active", stripePlanType: "atlas_annual", env: baseEnv }).entitlements,
+  ["free", "pro", "founder", "atlas"],
 );
 assert.equal(
   resolveAccessFromSignals({ tokenBalance: 10_000_000, stripeStatus: "active", stripePlanType: "atlas_annual", env: baseEnv }).tier,

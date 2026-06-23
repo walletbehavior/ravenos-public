@@ -182,7 +182,7 @@
         <button class="tab" type="button" data-view="candidate_lanes">Candidate Lanes</button>
       </aside>
 
-      <article class="panel">
+      <article class="panel" data-feature="full_research">
         <div class="panel-head">
           <div>
             <span class="eyebrow" id="viewEyebrow">Setup Families</span>
@@ -202,6 +202,8 @@
     <footer class="footer">RavenOS provides software and market analytics. Structure Lab is diagnostic research and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
   </main>
 
+  <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
   <script>
     const state = {
       view: "setup_families",
@@ -219,6 +221,13 @@
       replay_analysis: ["Replay Analysis", "How replay similarity bands changed outcome quality."],
       symbol_concentration: ["Symbol Concentration", "Where outcomes concentrated by instrument or cohort."],
       candidate_lanes: ["Candidate Lanes", "Research candidates for future forward tracking review only."],
+    };
+    const viewFeatures = {
+      setup_families: "research_preview",
+      failure_analysis: "failure_analysis",
+      replay_analysis: "full_replay_engine",
+      symbol_concentration: "attribution",
+      candidate_lanes: "candidate_lanes",
     };
 
     function titleCase(value = "") {
@@ -373,7 +382,9 @@
     }
 
     function renderTable() {
-      const rows = rowsForView();
+      const featureKey = viewFeatures[state.view] || "research_preview";
+      const allowed = window.RavenOSFeatures?.canAccess?.(featureKey) ?? featureKey === "research_preview";
+      const rows = allowed ? rowsForView() : rowsForView().slice(0, state.view === "setup_families" ? 8 : 3);
       const [title, summary] = viewMeta[state.view] || viewMeta.setup_families;
       document.getElementById("viewEyebrow").textContent = title;
       document.getElementById("viewTitle").textContent = title;
@@ -395,6 +406,8 @@
         <td><ul class="list">${row.worstConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
         <td class="developer-only">${row.internalId || "n/a"}</td>
       </tr>`).join("");
+      document.querySelector(".panel")?.setAttribute("data-feature", featureKey);
+      window.RavenOSFeatures?.applyFeatureGates?.();
       const top = rows[0] || {};
       document.getElementById("detailGrid").innerHTML = [
         ["Current Read", `${top.setupFamily || "Research"} is ${String(top.status || "developing").toLowerCase()} with ${String(top.confidence || "moderate").toLowerCase()} confidence.`],
@@ -448,6 +461,7 @@
         document.body.classList.toggle("dev-mode", state.dev);
       });
       hydrate();
+      window.addEventListener("ravenos:access", renderTable);
     });
   </script>
 </body>

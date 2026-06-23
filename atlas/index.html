@@ -198,7 +198,7 @@
         <span class="eyebrow">Coverage state</span>
         <h2 id="atlasCoverageTitle">Fallback-aware context</h2>
         <p class="muted" id="atlasCoverageText">Tradier is temporarily unavailable. Atlas remains usable through cached, public, and preview macro context where available.</p>
-        <div><span class="pill" id="coveragePill">Preview</span> <span class="pill" id="sourcePill">Atlas fallback</span></div>
+        <div><span class="pill" id="coveragePill" data-coverage-badge>Preview</span> <span class="pill" id="sourcePill">Atlas fallback</span></div>
       </aside>
     </section>
 
@@ -210,7 +210,7 @@
     </section>
 
     <section class="grid">
-      <article class="panel" data-requires-tier="atlas">
+      <article class="panel" data-requires-tier="atlas" data-feature="atlas_context">
         <div class="panel-head">
           <div>
             <span class="eyebrow">Atlas Read</span>
@@ -243,7 +243,7 @@
     </section>
 
     <section class="grid">
-      <article class="panel" data-requires-tier="atlas">
+      <article class="panel" data-requires-tier="atlas" data-feature="atlas_context">
         <div class="panel-head">
           <div>
             <span class="eyebrow">Source Health</span>
@@ -257,7 +257,7 @@
         </table>
       </article>
 
-      <article class="panel" data-requires-tier="atlas">
+      <article class="panel" data-requires-tier="atlas" data-feature="atlas_context">
         <div class="panel-head">
           <div>
             <span class="eyebrow">Desk Rules</span>
@@ -280,6 +280,7 @@
   </main>
 
   <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
   <script>
     function text(value, fallback = "unavailable") {
       return value == null || value === "" ? fallback : String(value);

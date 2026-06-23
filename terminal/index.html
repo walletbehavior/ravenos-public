@@ -307,7 +307,7 @@
         <a href="/account/">Account</a>
         <a href="/docs/">Docs</a>
       </nav>
-      <section class="global-search" aria-label="Universal token lookup">
+      <section class="global-search" aria-label="Universal token lookup" data-feature="free_token_lookup">
         <input id="dexSearchInput" type="search" placeholder="Search token, symbol, pair, or contract..." autocomplete="off" />
         <div class="search-results" id="dexSearchResults"></div>
       </section>
@@ -338,12 +338,12 @@
         <div class="nav-foot">Crypto spot and perpetual futures are active. Equities, ETFs, options, and macro are represented as future-ready market categories.</div>
       </aside>
 
-      <article class="panel chart-panel">
+      <article class="panel chart-panel" data-feature="basic_chart">
         <div class="panel-head">
           <div class="title">
             <span class="eyebrow">Chart</span>
             <h2 id="chartTitle">SOL-PERP Flow Chart</h2>
-            <span class="coverage-badge" id="coverageBadge">Sample</span>
+            <span class="coverage-badge" id="coverageBadge" data-coverage-badge>Sample</span>
             <p class="muted" id="chartSubtitle">OHLCV with RavenOS overlays.</p>
           </div>
           <div class="selectors">
@@ -369,7 +369,7 @@
             <strong>Token / Contract Lookup</strong>
             <span>Symbol, pair, Solana mint, or EVM contract.</span>
           </div>
-          <section class="global-search" aria-label="Token and contract lookup">
+          <section class="global-search" aria-label="Token and contract lookup" data-feature="free_token_lookup">
             <input id="dexSearchInputPanel" type="search" placeholder="Paste contract address or search symbol..." autocomplete="off" />
             <div class="search-results" id="dexSearchResultsPanel"></div>
           </section>
@@ -377,7 +377,7 @@
         <div class="chart-host" id="flowChart"></div>
       </article>
 
-      <aside class="panel intel" aria-label="Intelligence summary">
+      <aside class="panel intel" aria-label="Intelligence summary" data-feature="basic_overlays">
         <div class="score">
           <span id="primaryScoreLabel">Flow Score</span>
           <strong id="flowScore">84</strong>
@@ -387,7 +387,7 @@
         <div class="intel-row"><span>Participant Activity</span><strong id="participantActivity">High</strong></div>
         <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
         <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
-        <div class="intel-row"><span>Access</span><strong id="resolvedTier">disconnected</strong></div>
+        <div class="intel-row"><span>Access</span><strong id="resolvedTier" data-access-badge>disconnected</strong></div>
         <div class="intel-row"><span>Token Access</span><strong id="tokenAccessStatus">not active</strong></div>
         <div class="intel-row"><span>Provider</span><strong id="providerSource">Sample model</strong></div>
         <div class="intel-row"><span>Data Age</span><strong id="staleTimestamp">sample</strong></div>
@@ -401,7 +401,7 @@
         <section class="explanation-panel" id="explanationPanel" aria-label="Explanation panel"></section>
       </aside>
 
-      <article class="panel table-panel">
+      <article class="panel table-panel" data-feature="full_heatmaps">
         <div class="panel-head">
           <div class="title">
             <span class="eyebrow">Monitor</span>
@@ -437,7 +437,7 @@
           </table>
         </div>
       </article>
-      <article class="panel tape-panel">
+      <article class="panel tape-panel" data-feature="limited_structure_tape">
         <div class="panel-head">
           <div class="title">
             <span class="eyebrow">Structure Tape v2</span>
@@ -455,6 +455,7 @@
   <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
   <script>
     window.__RAVEN_TERMINAL_BUILD__ = "contract-lookup-panel-v2";
     const candlePattern = [
@@ -856,7 +857,7 @@
         symbol: row.asset,
         market: marketKind(row),
         candles: candleData,
-        tier: "pro",
+        tier: accessTier,
       }) || [];
       if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
@@ -874,6 +875,7 @@
       document.getElementById("tickerUpdated").textContent = freshnessLabel(row.lastUpdated);
       const coverage = coverageMeta(row);
       document.getElementById("coverageBadge").textContent = coverage.coverage;
+      document.getElementById("coverageBadge").setAttribute("data-coverage", coverage.coverage);
       document.getElementById("providerSource").textContent = coverage.provider;
       document.getElementById("staleTimestamp").textContent = freshnessLabel(coverage.lastUpdated || "sample");
       const apiNote = document.getElementById("walletAccessDetail");
@@ -893,6 +895,9 @@
         compact: mobileChart,
         height: document.getElementById("flowChart").clientHeight || (mobileChart ? 330 : 520),
       });
+      const intelPanel = document.querySelector(".intel");
+      if (intelPanel) intelPanel.setAttribute("data-feature", isPerpsMode() ? "perps_intelligence" : "basic_overlays");
+      window.RavenOSFeatures?.applyFeatureGates?.();
     }
 
     function modeLabel(mode) {
@@ -1441,6 +1446,8 @@
     function renderTable() {
       const columns = columnsForMode();
       const rowsNow = visibleRows();
+      const tablePanel = document.querySelector(".table-panel");
+      if (tablePanel) tablePanel.setAttribute("data-feature", activeCategory === "market_cap_heatmap" ? "market_cap_heatmap" : "full_heatmaps");
       renderModeSummary(rowsNow);
       renderStructureTape(rowsNow);
       document.getElementById("tableHeadRow").innerHTML = columns.map(([key, label]) => `<th data-sort="${key}">${label}</th>`).join("");
@@ -1463,6 +1470,7 @@
         });
       });
       bindSortHeaders();
+      window.RavenOSFeatures?.applyFeatureGates?.();
     }
 
     function bindSortHeaders() {

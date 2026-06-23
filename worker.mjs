@@ -172,6 +172,7 @@ function freeAccess(env = {}, extra = {}) {
     thresholds: config.thresholds,
     subscription: null,
     stripeSubscriptionActive: false,
+    entitlements: ["free"],
     ...extra,
   };
 }

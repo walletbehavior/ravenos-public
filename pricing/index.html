@@ -209,8 +209,8 @@
     <section class="hero-grid">
       <div>
         <span class="eyebrow">Professional market intelligence</span>
-        <h1>Flow, posture, and participant intelligence for active markets.</h1>
-        <p class="lead">RavenOS brings market heatmaps, flow terminal views, participant behavior, perpetual futures context, alerts, watchlists, and historical research into one dense operating layer.</p>
+        <h1>Structure, pressure, replay, participation, and market context.</h1>
+        <p class="lead">RavenOS is a market intelligence platform built around structure, pressure, replay, participation, and market context across active markets.</p>
       </div>
       <aside class="ticker" aria-label="RavenOS product telemetry">
         <div class="ticker-row"><strong>Terminal</strong><span>Flow Score</span><span>Velocity</span><span>Risk</span></div>
@@ -228,16 +228,30 @@
     </section>
 
     <section class="plans" aria-label="RavenOS pricing plans">
+      <article class="plan">
+        <span class="eyebrow">Free</span>
+        <h2>Public Intelligence</h2>
+        <div class="price">$0 <small>/ public layer</small></div>
+        <p class="muted">Explore RavenOS public market intelligence without hitting an immediate wall.</p>
+        <ul class="feature-list">
+          <li>Any token lookup and public coverage badge</li>
+          <li>Basic chart, basic overlays, flow score, and structure summary</li>
+          <li>One public Market Cap Heatmap</li>
+          <li>Limited Structure Tape and Research preview</li>
+        </ul>
+        <div class="plan-actions"><a class="button" href="/terminal/">Open Terminal</a></div>
+      </article>
+
       <article class="plan primary-plan">
         <span class="eyebrow">Monthly Pro</span>
         <h2>RavenOS Pro</h2>
         <div class="price">$149 <small>/ month</small></div>
-        <p class="muted">Full Pro access for market operators who need persistent intelligence across instruments and venues.</p>
+        <p class="muted">Full RavenOS terminal, heatmaps, replay, research, alerts, and perps intelligence.</p>
         <ul class="feature-list">
-          <li>Flow Terminal and market heatmaps</li>
-          <li>Perpetual futures intelligence</li>
-          <li>Wallet and participant intelligence</li>
-          <li>Alerts, monitoring, watchlists, and research archive</li>
+          <li>Full heatmaps and Structure Tape</li>
+          <li>Full Replay Engine and Research / Structure Lab</li>
+          <li>Failure Analysis, Candidate Lanes, Attribution, and Alerts</li>
+          <li>Full Perps Intelligence</li>
         </ul>
         <div class="plan-actions"><button class="button primary" type="button" data-stripe-checkout="monthly">Upgrade Monthly</button></div>
       </article>
@@ -258,13 +272,14 @@
 
       <article class="plan">
         <span class="eyebrow">Token Holder Access</span>
-        <h2>SPL Access Gate</h2>
+        <h2>Founder Access</h2>
         <div class="price">Pro <small>or Founder</small></div>
         <p class="muted">Token-holder access is not active yet. When enabled, hold the required RavenOS token balance to unlock Pro access. Thresholds may evolve as RavenOS grows.</p>
         <ul class="feature-list">
           <li>Pro required balance <span id="proRequiredBalance">1,000,000</span></li>
           <li>Founder required balance <span id="founderRequiredBalance">10,000,000</span></li>
-          <li>Founder access is reserved for high-conviction early supporters</li>
+          <li>Experimental Raven research access for high-conviction token holders</li>
+          <li>Pressure v3, participant models, experimental replay, and new structure families when available</li>
           <li>Token access is product access only</li>
         </ul>
         <div class="plan-actions">
@@ -278,7 +293,7 @@
         <span class="eyebrow">Atlas Desk</span>
         <h2>High-level market context</h2>
         <div class="price">Atlas <small>premium</small></div>
-        <p class="muted">Atlas is a separate high-tier subscription for regime, macro, breadth, liquidity, and cross-market context. Tradier is temporarily unavailable, so macro coverage is labeled with fallback quality until live feeds return.</p>
+        <p class="muted">High-level market regime and cross-asset context layer. Tradier is temporarily unavailable, so macro coverage is labeled with fallback quality until live feeds return.</p>
         <ul class="feature-list">
           <li>Cross-asset regime posture and macro context</li>
           <li>Liquidity, volatility, breadth, and risk-context synthesis</li>
@@ -339,5 +354,6 @@
     </section>
   </main>
   <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
 </body>
 </html>

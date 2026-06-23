@@ -9,6 +9,7 @@
     reason: "Free",
     balance: 0,
     subscription: null,
+    entitlements: ["free"],
     thresholds: { pro: 1000000, founder: 10000000, stage: "early" },
     tokenAccessConfigured: false,
     tokenAccessStatus: "not_configured",
@@ -49,6 +50,7 @@
   function emit() {
     renderWalletState();
     applyFeatureGates();
+    window.RavenOSFeatures?.applyFeatureGates?.(document, { ...state });
     subscribers.forEach((fn) => {
       try { fn({ ...state }); } catch (_) {}
     });
@@ -141,6 +143,7 @@
     state.reason = "Free";
     state.balance = 0;
     state.subscription = null;
+    state.entitlements = ["free"];
     state.error = "";
     state.checking = false;
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
@@ -167,6 +170,7 @@
       state.reason = String(payload.reason || (state.tier === "atlas" ? "Atlas Subscription" : state.tier === "founder" ? "Founder" : state.tier === "pro" ? "Token Holder" : "Free"));
       state.balance = Number(payload.balance || 0);
       state.subscription = payload.subscription || null;
+      state.entitlements = Array.isArray(payload.entitlements) && payload.entitlements.length ? payload.entitlements : [state.tier || "free"];
       state.thresholds = payload.thresholds || state.thresholds;
       state.tokenAccessConfigured = Boolean(payload.tokenAccessConfigured);
       state.tokenAccessStatus = String(payload.tokenAccessStatus || (state.tokenAccessConfigured ? "configured" : "not_configured"));
@@ -179,6 +183,7 @@
       state.reason = "Free";
       state.balance = 0;
       state.subscription = null;
+      state.entitlements = ["free"];
       state.checking = false;
       state.error = "API unavailable. Subscription and future token access checks are temporarily unavailable.";
     }
@@ -221,6 +226,7 @@
     if (founderEl) founderEl.textContent = tokenCount(state.thresholds.founder);
     if (balanceEl) balanceEl.textContent = state.status === "connected" ? tokenCount(state.balance) : "not connected";
     if (tierEl) tierEl.textContent = state.status === "connected" ? state.tier : "disconnected";
+    document.querySelectorAll("[data-entitlements]").forEach((el) => { el.textContent = state.entitlements.join(", "); });
     if (reasonEl) reasonEl.textContent = state.status === "connected" ? state.reason : "not connected";
     if (subscriptionEl) subscriptionEl.textContent = state.subscription?.status || "not active";
     if (planEl) planEl.textContent = state.subscription?.plan_type || "none";
