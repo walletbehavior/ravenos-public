@@ -13,3 +13,4 @@ wrangler.jsonc
 worker.mjs
 *.md
 .env*
+data/runtime/chart-proof
