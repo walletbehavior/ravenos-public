@@ -8,6 +8,12 @@
   "assets": {
     "directory": "."
   },
+  "routes": [
+    {
+      "pattern": "ravenos.xyz/*",
+      "zone_name": "ravenos.xyz"
+    }
+  ],
   "compatibility_flags": [
     "nodejs_compat"
   ]
