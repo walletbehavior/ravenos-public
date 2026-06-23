@@ -1,6 +1,6 @@
 # Perps v2 Edge Attribution
 
-Generated: 2026-06-23T16:59:18.918Z
+Generated: 2026-06-23T16:58:15.264Z
 
 Diagnostic research only. No live rules, no promotion, no execution changes.
 
@@ -65,8 +65,8 @@ Diagnostic research only. No live rules, no promotion, no execution changes.
 | --- | --- |
 | broad_family_dilution | Sweep shows family-level direction is weak unless filtered by symbol/regime/window. |
 | wrong_holding_window | Many strong sweep lanes need 12h/24h; PerpSim exits often timed out or stopped before broad MFE capture. |
-| wrong_symbol_concentration | Closed PerpSim symbols were none, while many candidate lanes cluster elsewhere. |
-| exits_too_early_or_flat_target_logging | 0 closed rows were effectively flat; target rows in local artifacts include zero-PnL closes. |
-| mae_before_mfe_path_risk | Stop exits averaged 0 MAE with positive MFE still present in some stopped trades. |
+| wrong_symbol_concentration | Closed PerpSim symbols were ETH-PERP, SOL-PERP, while many candidate lanes cluster elsewhere. |
+| exits_too_early_or_flat_target_logging | 6 closed rows were effectively flat; target rows in local artifacts include zero-PnL closes. |
+| mae_before_mfe_path_risk | Stop exits averaged -0.012636 MAE with positive MFE still present in some stopped trades. |
 
 No trade recommendations are generated.

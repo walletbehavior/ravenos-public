@@ -1,6 +1,6 @@
 {
   "schema_version": "perps_v2_perpsim_flatness_report.v1",
-  "generated_at": "2026-06-23T16:59:18.918Z",
+  "generated_at": "2026-06-23T16:58:15.264Z",
   "diagnostic_only": true,
   "paper_only": true,
   "affects_live": false,
@@ -12,13 +12,13 @@
   "promotion_allowed": false,
   "trade_source": "data/perp_sim/perp_trades.jsonl",
   "closed_trade_summary": {
-    "count": 0,
-    "pnl_usd": 0,
-    "avg_pnl_usd": 0,
-    "avg_mfe_pct": 0,
-    "avg_mae_pct": 0,
-    "flat_rate": 0,
-    "positive_rate": 0
+    "count": 24,
+    "pnl_usd": 31.2231,
+    "avg_pnl_usd": 1.301,
+    "avg_mfe_pct": 0.013822,
+    "avg_mae_pct": -0.006576,
+    "flat_rate": 0.25,
+    "positive_rate": 0.375
   },
   "top_causes_of_flatness": [
     {
@@ -31,21 +31,237 @@
     },
     {
       "cause": "wrong_symbol_concentration",
-      "evidence": "Closed PerpSim symbols were none, while many candidate lanes cluster elsewhere."
+      "evidence": "Closed PerpSim symbols were ETH-PERP, SOL-PERP, while many candidate lanes cluster elsewhere."
     },
     {
       "cause": "exits_too_early_or_flat_target_logging",
-      "evidence": "0 closed rows were effectively flat; target rows in local artifacts include zero-PnL closes."
+      "evidence": "6 closed rows were effectively flat; target rows in local artifacts include zero-PnL closes."
     },
     {
       "cause": "mae_before_mfe_path_risk",
-      "evidence": "Stop exits averaged 0 MAE with positive MFE still present in some stopped trades."
+      "evidence": "Stop exits averaged -0.012636 MAE with positive MFE still present in some stopped trades."
     }
   ],
-  "by_symbol": [],
-  "by_exit_reason": [],
-  "should_have_been_blocked_examples": [],
-  "should_have_been_allowed_examples": [],
+  "by_symbol": [
+    {
+      "key": "SOL-PERP",
+      "count": 11,
+      "pnl_usd": 33.6635,
+      "avg_pnl_usd": 3.0603,
+      "avg_mfe_pct": 0.020966,
+      "avg_mae_pct": -0.00709,
+      "flat_rate": 0.2727,
+      "positive_rate": 0.4545
+    },
+    {
+      "key": "ETH-PERP",
+      "count": 13,
+      "pnl_usd": -2.4403,
+      "avg_pnl_usd": -0.1877,
+      "avg_mfe_pct": 0.007778,
+      "avg_mae_pct": -0.006142,
+      "flat_rate": 0.2308,
+      "positive_rate": 0.3077
+    }
+  ],
+  "by_exit_reason": [
+    {
+      "key": "partial_target",
+      "count": 1,
+      "pnl_usd": 41.6438,
+      "avg_pnl_usd": 41.6438,
+      "avg_mfe_pct": 0.167746,
+      "avg_mae_pct": -0.010133,
+      "flat_rate": 0,
+      "positive_rate": 1
+    },
+    {
+      "key": "timeout",
+      "count": 14,
+      "pnl_usd": 6.0179,
+      "avg_pnl_usd": 0.4299,
+      "avg_mfe_pct": 0.00743,
+      "avg_mae_pct": -0.006037,
+      "flat_rate": 0.1429,
+      "positive_rate": 0.5714
+    },
+    {
+      "key": "target",
+      "count": 4,
+      "pnl_usd": 0,
+      "avg_pnl_usd": 0,
+      "avg_mfe_pct": 0,
+      "avg_mae_pct": 0,
+      "flat_rate": 1,
+      "positive_rate": 0
+    },
+    {
+      "key": "stop",
+      "count": 5,
+      "pnl_usd": -16.4386,
+      "avg_pnl_usd": -3.2877,
+      "avg_mfe_pct": 0.011993,
+      "avg_mae_pct": -0.012636,
+      "flat_rate": 0,
+      "positive_rate": 0
+    }
+  ],
+  "should_have_been_blocked_examples": [
+    {
+      "symbol": "ETH-PERP",
+      "reason": "stop",
+      "realized_pnl_usd": -0.5823342307710466,
+      "mfe_pct": 0.021842998297933753,
+      "mae_pct": -0.0022276866536298807,
+      "blocker": "stop_exit_or_mae_path_risk"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "stop",
+      "realized_pnl_usd": -0.6975192515181383,
+      "mfe_pct": 0.020510459692247122,
+      "mae_pct": -0.002762669233689514,
+      "blocker": "stop_exit_or_mae_path_risk"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "stop",
+      "realized_pnl_usd": -8.056610188946678,
+      "mfe_pct": 0,
+      "mae_pct": -0.030842201970859604,
+      "blocker": "stop_exit_or_mae_path_risk"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "stop",
+      "realized_pnl_usd": -6.569844734863397,
+      "mfe_pct": 0,
+      "mae_pct": -0.025278541870048177,
+      "blocker": "stop_exit_or_mae_path_risk"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "stop",
+      "realized_pnl_usd": -0.5323398976268403,
+      "mfe_pct": 0.01761365259367864,
+      "mae_pct": -0.002069982178356421,
+      "blocker": "stop_exit_or_mae_path_risk"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "target",
+      "realized_pnl_usd": 0,
+      "mfe_pct": 0,
+      "mae_pct": 0,
+      "blocker": "flat_capture_or_target_logging"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "target",
+      "realized_pnl_usd": 0,
+      "mfe_pct": 0,
+      "mae_pct": 0,
+      "blocker": "flat_capture_or_target_logging"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "target",
+      "realized_pnl_usd": 0,
+      "mfe_pct": 0,
+      "mae_pct": 0,
+      "blocker": "flat_capture_or_target_logging"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "target",
+      "realized_pnl_usd": 0,
+      "mfe_pct": 0,
+      "mae_pct": 0,
+      "blocker": "flat_capture_or_target_logging"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 0,
+      "mfe_pct": 0,
+      "mae_pct": 0,
+      "blocker": "flat_capture_or_target_logging"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 0.024542024148956728,
+      "mfe_pct": 0.004911246651194429,
+      "mae_pct": -0.004246068922821697,
+      "blocker": "flat_capture_or_target_logging"
+    }
+  ],
+  "should_have_been_allowed_examples": [
+    {
+      "symbol": "SOL-PERP",
+      "reason": "partial_target",
+      "realized_pnl_usd": 41.64383267945943,
+      "mfe_pct": 0.1677461740720558,
+      "mae_pct": -0.0101332383257749,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 2.227561069764203,
+      "mfe_pct": 0.011874378091443283,
+      "mae_pct": -0.006570405275065136,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 1.1197793452735425,
+      "mfe_pct": 0.009511980704633442,
+      "mae_pct": -0.0013018168700522437,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 0.8222977600423114,
+      "mfe_pct": 0.008179719052111015,
+      "mae_pct": -0.0011627428922583768,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 3.4278783995882494,
+      "mfe_pct": 0.014041671783973746,
+      "mae_pct": -0.003535728479576424,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "SOL-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 1.1305861221102405,
+      "mfe_pct": 0.012071300906748584,
+      "mae_pct": 0,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 1.9123575691033234,
+      "mfe_pct": 0.017086990901728837,
+      "mae_pct": 0,
+      "read": "positive_closed_paper_outcome"
+    },
+    {
+      "symbol": "ETH-PERP",
+      "reason": "timeout",
+      "realized_pnl_usd": 4.406093439017807,
+      "mfe_pct": 0.01824462006584318,
+      "mae_pct": -0.005238294796693124,
+      "read": "positive_closed_paper_outcome"
+    }
+  ],
   "missed_positive_lanes": [
     {
       "key": "participant_rotation:neutral:LAYER-PERP:24h",
