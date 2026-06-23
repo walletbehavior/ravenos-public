@@ -36,11 +36,26 @@ const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const EVM_CHAINS = ["base", "ethereum", "arbitrum", "optimism", "bsc", "polygon"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CANONICAL_PRICE_TOKENS = {
+  AAVE: { chainId: "ethereum", tokenAddress: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9" },
+  AERO: { chainId: "base", tokenAddress: "0x940181a94A35A4569E4529A3CDfB74e38FD98631" },
+  ARB: { chainId: "arbitrum", tokenAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548" },
+  BONK: { chainId: "solana", tokenAddress: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
+  BRETT: { chainId: "base", tokenAddress: "0x532f27101965dd16442E59d40670FaF5eBB142E4" },
+  DEGEN: { chainId: "base", tokenAddress: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed" },
   SOL: { chainId: "solana", tokenAddress: "So11111111111111111111111111111111111111112" },
   ETH: { chainId: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
   WETH: { chainId: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
   BTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
   WBTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
+  JUP: { chainId: "solana", tokenAddress: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN" },
+  LINK: { chainId: "ethereum", tokenAddress: "0x514910771AF9Ca656af840dff83E8264EcF986CA" },
+  PEPE: { chainId: "ethereum", tokenAddress: "0x6982508145454Ce325dDbE47a25d4ec3d2311933" },
+  PENDLE: { chainId: "arbitrum", tokenAddress: "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8" },
+  TOSHI: { chainId: "base", tokenAddress: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4" },
+  VIRTUAL: { chainId: "base", tokenAddress: "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b" },
+  WELL: { chainId: "base", tokenAddress: "0xA88594D404727625A9437C3f886C7643872296AE" },
+  WIF: { chainId: "solana", tokenAddress: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" },
+  ZORA: { chainId: "base", tokenAddress: "0x1111111111166b7FE7bd91427724B487980aFc69" },
 };
 const COINGECKO_PRICE_IDS = {
   AAVE: "aave",
@@ -266,7 +281,7 @@ function preferredDexPriceResult(symbol, results = []) {
   const exact = results.filter((row) => normalizedMarketSymbol(row.symbol) === base);
   const pool = exact.length ? exact : results;
   return [...pool].sort((a, b) => {
-    const quoteScore = (quote) => ({ USDC: 4, USDT: 3, WETH: 2, ETH: 2, SOL: 2, WBNB: 1 }[String(quote || "").toUpperCase()] || 0);
+    const quoteScore = (quote) => ({ USDC: 8, USDT: 7, USD1: 6, WETH: 5, SOL: 5, WBNB: 4, WBTC: 3, ETH: 3, WSOL: 3 }[String(quote || "").toUpperCase()] || 0);
     return (quoteScore(b.quoteSymbol) - quoteScore(a.quoteSymbol))
       || (num(b.liquidityUsd) - num(a.liquidityUsd))
       || (num(b.volume24h) - num(a.volume24h));
@@ -301,8 +316,10 @@ async function marketPrices(symbols = [], { market = "mixed" } = {}) {
     }
 
     const canonical = CANONICAL_PRICE_TOKENS[symbol];
-    const dexResults = canonical ? await tokenDex(canonical.chainId, canonical.tokenAddress) : await searchDex(symbol);
+    const isKnownCatalogSymbol = Boolean(COINGECKO_PRICE_IDS[symbol]);
+    const dexResults = canonical ? await tokenDex(canonical.chainId, canonical.tokenAddress) : (isKnownCatalogSymbol ? [] : await searchDex(symbol));
     const dex = preferredDexPriceResult(symbol, dexResults);
+    if (!dex && isKnownCatalogSymbol) return null;
     if (!dex || !num(dex.priceUsd)) return null;
     return {
       symbol,

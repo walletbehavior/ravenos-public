@@ -201,6 +201,8 @@ assert.equal((await watchlistsList.json()).watchlists[0].items.length, 1);
 
 const originalFetch = globalThis.fetch;
 let sawCommaSeparatedCoinGeckoIds = false;
+let forceCoingeckoDown = false;
+let looseSearchCallsForKnownSymbols = 0;
 globalThis.fetch = async (url, init) => {
   const href = String(url);
   if (href.includes("api.hyperliquid.xyz/info")) {
@@ -210,6 +212,7 @@ globalThis.fetch = async (url, init) => {
     ]), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (href.includes("api.dexscreener.com/latest/dex/search")) {
+    if (href.includes("AERO") || href.includes("WIF") || href.includes("MORPHO")) looseSearchCallsForKnownSymbols += 1;
     return new Response(JSON.stringify({
       pairs: [
         {
@@ -257,7 +260,38 @@ globalThis.fetch = async (url, init) => {
       },
     ]), { status: 200, headers: { "content-type": "application/json" } });
   }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/base/0x940181a94A35A4569E4529A3CDfB74e38FD98631")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "base",
+        dexId: "aerodrome",
+        pairAddress: "aeropair",
+        baseToken: { symbol: "AERO", name: "Aerodrome", address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631" },
+        quoteToken: { symbol: "USDC" },
+        priceUsd: "0.5022",
+        liquidity: { usd: 25000000 },
+        volume: { h24: 2000000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/solana/EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "solana",
+        dexId: "raydium",
+        pairAddress: "wifpair",
+        baseToken: { symbol: "$WIF", name: "dogwifhat", address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" },
+        quoteToken: { symbol: "SOL" },
+        priceUsd: "0.1561",
+        liquidity: { usd: 4000000 },
+        volume: { h24: 450000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (href.includes("api.coingecko.com/api/v3/simple/price")) {
+    if (forceCoingeckoDown) return new Response(JSON.stringify({ error: "down" }), { status: 503, headers: { "content-type": "application/json" } });
     if (href.includes("ids=") && href.includes(",") && !href.includes("%2C")) sawCommaSeparatedCoinGeckoIds = true;
     return new Response(JSON.stringify({
       ethereum: { usd: 1658.42 },
@@ -303,5 +337,16 @@ const perpPricePayload = await perpPrices.json();
 assert.equal(perpPricePayload.results[0].symbol, "ETH");
 assert.equal(perpPricePayload.results[0].priceUsd, 1601.25);
 assert.equal(perpPricePayload.results[0].provider, "Hyperliquid");
+
+forceCoingeckoDown = true;
+const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO"), env);
+assert.equal(canonicalFallbackPrices.status, 200);
+const canonicalFallbackPayload = await canonicalFallbackPrices.json();
+const canonicalFallbackBySymbol = new Map(canonicalFallbackPayload.results.map((row) => [row.symbol, row]));
+assert.equal(canonicalFallbackBySymbol.get("AERO").priceUsd, 0.5022);
+assert.equal(canonicalFallbackBySymbol.get("AERO").provider, "Dexscreener");
+assert.equal(canonicalFallbackBySymbol.get("WIF").priceUsd, 0.1561);
+assert.equal(canonicalFallbackBySymbol.has("MORPHO"), false);
+assert.equal(looseSearchCallsForKnownSymbols, 0);
 
 globalThis.fetch = originalFetch;
