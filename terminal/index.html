@@ -987,10 +987,26 @@
       } catch (_) {}
     }
 
-    let dexSearchTimer = 0;
+    const dexSearchTimers = {};
 
-    async function runDexSearch(query) {
-      const box = document.getElementById("dexSearchResults");
+    function setDexSearchInputs(value) {
+      ["dexSearchInput", "dexSearchInputPanel"].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = value;
+      });
+    }
+
+    function closeDexSearchResults() {
+      ["dexSearchResults", "dexSearchResultsPanel"].forEach((id) => {
+        const box = document.getElementById(id);
+        if (!box) return;
+        box.classList.remove("active");
+      });
+    }
+
+    async function runDexSearch(query, resultsId = "dexSearchResults") {
+      const box = document.getElementById(resultsId);
+      if (!box) return;
       const q = String(query || "").trim();
       if (q.length < 2) {
         box.classList.remove("active");
@@ -1026,8 +1042,8 @@
             document.getElementById("assetSelect").value = row.asset;
             renderChart();
             renderTable();
-            box.classList.remove("active");
-            document.getElementById("dexSearchInput").value = row.asset;
+            closeDexSearchResults();
+            setDexSearchInputs(row.asset);
           });
         });
       } catch (error) {
@@ -1053,9 +1069,19 @@
       });
       document.getElementById("timeframeSelect").addEventListener("change", renderChart);
       document.getElementById("searchInput").addEventListener("input", renderTable);
-      document.getElementById("dexSearchInput").addEventListener("input", (event) => {
-        clearTimeout(dexSearchTimer);
-        dexSearchTimer = setTimeout(() => runDexSearch(event.target.value), 220);
+      [
+        ["dexSearchInput", "dexSearchResults"],
+        ["dexSearchInputPanel", "dexSearchResultsPanel"],
+      ].forEach(([inputId, resultsId]) => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.addEventListener("input", (event) => {
+          clearTimeout(dexSearchTimers[inputId]);
+          dexSearchTimers[inputId] = setTimeout(() => runDexSearch(event.target.value, resultsId), 220);
+        });
+        input.addEventListener("focus", (event) => {
+          if (String(event.target.value || "").trim().length >= 2) runDexSearch(event.target.value, resultsId);
+        });
       });
       document.getElementById("riskFilter").addEventListener("change", renderTable);
       document.querySelectorAll("th[data-sort]").forEach((th) => {
