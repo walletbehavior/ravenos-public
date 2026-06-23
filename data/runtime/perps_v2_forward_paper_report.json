@@ -1,6 +1,6 @@
 {
   "schema_version": "perps_v2_forward_paper_report.v1",
-  "generated_at": "2026-06-23T16:47:10.632Z",
+  "generated_at": "2026-06-23T16:58:25.163Z",
   "provider": "Hyperliquid",
   "market": "perpetual_futures",
   "diagnostic_only": true,
@@ -604,8 +604,13 @@
       ],
       "outcomes": {
         "15m": {
-          "status": "pending",
-          "reason": "no_candles"
+          "status": "observed",
+          "close_time": "2026-06-23T16:45:00.000Z",
+          "close_reference": 0.33545,
+          "gross_pct": 0.1401,
+          "net_after_assumed_fees_slippage_pct": 0.0601,
+          "mfe_pct": 0.9345,
+          "mae_pct": 0
         },
         "1h": {
           "status": "pending",
@@ -623,9 +628,9 @@
           "available_at": "2026-06-24T04:32:02.080Z"
         }
       },
-      "mae_pct": null,
-      "mfe_pct": null,
-      "net_after_assumed_fees_slippage_pct": null,
+      "mae_pct": 0,
+      "mfe_pct": 0.9345,
+      "net_after_assumed_fees_slippage_pct": 0.0601,
       "pressure_score": 9,
       "replay_similarity": 45,
       "liquidity_attraction": {
@@ -991,7 +996,7 @@
     "new_observations": 0,
     "blocked_observations": 7,
     "insufficient_sample": 7,
-    "pending_windows": 22,
+    "pending_windows": 21,
     "no_promotion_allowed": true,
     "best_provisional_lanes": [],
     "worst_provisional_lanes": []

@@ -1,6 +1,6 @@
 # Perps v2 Forward Paper Summary
 
-Generated: 2026-06-23T16:47:10.632Z
+Generated: 2026-06-23T16:58:25.163Z
 
 Safety: diagnostic/paper only. Live execution, promotion, sizing, caps, and mirrors are disabled.
 
@@ -9,7 +9,7 @@ Recommendation: continue
 ## Monitor Status
 | Open | 15m Matured | 1h Matured | 4h Matured | 12h Matured | New | Blocked | Pending Windows | Promotion Disabled |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 7 | 0 | 0 | 0 | 0 | 0 | 7 | 22 | true |
+| 7 | 0 | 0 | 0 | 0 | 0 | 7 | 21 | true |
 
 ## Ranked Lane Table
 | Lane | Samples | Avg Net % | PF | Backtest PF | Recommendation |

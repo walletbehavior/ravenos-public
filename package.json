@@ -12,7 +12,8 @@
     "perps:v2:paper": "node tools/perps_v2_forward_paper_tracker.mjs",
     "perps:v2:paper:loop": "node tools/perps_v2_forward_paper_sidecar.mjs",
     "perps:v2:sweep": "node tools/perps_v2_all_setup_7d_sweep.mjs",
-    "perps:v2:analyze": "node tools/analyze_perps_v2_failure_modes.mjs"
+    "perps:v2:analyze": "node tools/analyze_perps_v2_failure_modes.mjs",
+    "perps:v2:attribute": "node tools/generate_perps_v2_edge_attribution.mjs"
   },
   "engines": {
     "node": ">=18.19.0"
