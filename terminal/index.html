@@ -71,10 +71,10 @@
     .search-result { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); padding: 9px 10px; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
     .search-result span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
     .search-result em { color: var(--cyan); font-style: normal; font-size: 11px; text-align: right; }
-    .lookup-row { grid-column: 1 / -1; display: grid; grid-template-columns: 170px minmax(220px, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); background: rgba(125,211,252,0.025); }
+    .lookup-row { grid-column: 1 / -1; display: grid; grid-template-columns: 132px minmax(180px, 360px); gap: 9px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); background: rgba(125,211,252,0.025); }
     .lookup-label { display: grid; gap: 2px; }
     .lookup-label strong { font-size: 11px; text-transform: uppercase; color: var(--cyan); }
-    .lookup-label span { color: var(--muted); font-size: 11px; }
+    .lookup-label span { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .wallet-state { min-width: 112px; border: 1px solid var(--line); background: #050b09; padding: 7px 9px; font-family: var(--mono); font-size: 10px; color: var(--cyan); text-transform: uppercase; }
     .button {
       min-height: 32px;
@@ -130,7 +130,7 @@
     .nav-item small { display: block; margin-top: 3px; color: var(--soft); font-size: 10px; }
     .nav-item em { color: var(--cyan); font-style: normal; font-family: var(--mono); font-size: 10px; }
     .nav-foot { padding: 10px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.45; }
-    .chart-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .chart-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
     .selectors { display: grid; grid-template-columns: minmax(120px, 1fr) 150px 120px; gap: 8px; align-items: end; }
     select, input { min-height: 34px; border: 1px solid var(--line); background: #050b09; color: var(--text); padding: 7px 9px; outline: none; }
     select:focus, input:focus { border-color: var(--cyan); }
@@ -289,7 +289,7 @@
         <div class="lookup-row">
           <div class="lookup-label">
             <strong>Token / Contract Lookup</strong>
-            <span>Dexscreener public resolver. Symbol, pair, Solana mint, or EVM contract.</span>
+            <span>Symbol, pair, Solana mint, or EVM contract.</span>
           </div>
           <section class="global-search" aria-label="Token and contract lookup">
             <input id="dexSearchInputPanel" type="search" placeholder="Paste contract address or search symbol..." autocomplete="off" />
@@ -468,6 +468,83 @@
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
     ];
     let dexRows = [];
+    const samplePrices = {
+      "SOL": 69.0,
+      "SOL-PERP": 69.0,
+      "BTC": 64280,
+      "BTC-PERP": 64280,
+      "ETH": 3410,
+      "ETH Spot": 3410,
+      "ETH-PERP": 3410,
+      "JUP": 1.18,
+      "JUP Spot": 1.18,
+      "JUP-PERP": 1.18,
+      "ARB": 0.92,
+      "ARB Spot": 0.92,
+      "OP-PERP": 2.24,
+      "AVAX": 18.75,
+      "AVAX-PERP": 18.75,
+      "LINK": 13.4,
+      "LINK-PERP": 13.4,
+      "AAVE": 248,
+      "AAVE-PERP": 248,
+      "AERO": 0.72,
+      "AERO-PERP": 0.72,
+      "VIRTUAL": 1.46,
+      "VIRTUAL-PERP": 1.46,
+      "BONK": 0.000012,
+      "WIF": 0.73,
+      "WIF-PERP": 0.73,
+      "BRETT": 0.034,
+      "TOSHI": 0.00041,
+      "DEGEN": 0.0027,
+      "MORPHO": 1.32,
+      "AIXBT": 0.13,
+      "PEPE": 0.000010,
+      "TIA": 1.37,
+      "PYTH": 0.12,
+      "BNB": 590,
+      "BNB-PERP": 590,
+      "XRP": 0.49,
+      "XRP-PERP": 0.49,
+      "DOGE": 0.12,
+      "DOGE-PERP": 0.12,
+      "ADA": 0.41,
+      "ADA-PERP": 0.41,
+      "SUI": 2.7,
+      "SUI-PERP": 2.7,
+      "HYPE": 36,
+      "HYPE-PERP": 36,
+      "UNI": 7.1,
+      "UNI-PERP": 7.1,
+      "LDO": 0.93,
+      "LDO-PERP": 0.93,
+      "PENDLE": 3.9,
+      "PENDLE-PERP": 3.9,
+      "ENA": 0.31,
+      "ENA-PERP": 0.31,
+      "ONDO": 0.83,
+      "ONDO-PERP": 0.83,
+      "SEI": 0.19,
+      "SEI-PERP": 0.19,
+      "FET": 0.74,
+      "FET-PERP": 0.74,
+      "ZORA": 0.019,
+      "WELL": 0.032,
+      "KAITO": 1.18,
+      "MICRO-1": 0.0008,
+      "NVDA": 920.12,
+      "SPY": 548.3,
+      "SPX Vol": 17.4,
+      "USD Liquidity": 100,
+    };
+
+    function samplePriceFor(asset) {
+      const key = String(asset || "");
+      const base = key.replace(/\/.*$/, "").replace(/\s+Spot$/, "");
+      return Number(samplePrices[key] ?? samplePrices[base] ?? samplePrices[base.replace(/-PERP$/, "")] ?? 1);
+    }
+
     const cryptoRows = [
       ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "2m ago", "solana"],
       ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "5m ago", "solana"],
@@ -488,9 +565,25 @@
       ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "10m ago", "memes"],
       ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "12m ago", "large_caps"],
       ["PYTH", "Solana", "mid cap", 73, 12, "Improving", "Medium", "Watch", "Paying", "8m ago", "mid_caps"],
+      ["BNB", "Crypto Spot", "large cap", 64, 5, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
+      ["XRP", "Crypto Spot", "large cap", 61, 4, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
+      ["DOGE", "Crypto Spot", "large cap", 66, 13, "Deep", "High", "Watch", "Mixed", "sample", "memes"],
+      ["ADA", "Crypto Spot", "large cap", 59, 2, "Balanced", "Medium", "Stable", "Mixed", "sample", "large_caps"],
+      ["SUI", "Crypto Spot", "large cap", 74, 15, "Improving", "High", "Watch", "Paying", "sample", "large_caps"],
+      ["HYPE", "Crypto Spot", "large cap", 76, 18, "Balanced", "High", "Watch", "Paying", "sample", "large_caps"],
+      ["UNI", "Ethereum", "large cap", 67, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["LDO", "Ethereum", "mid cap", 63, 7, "Balanced", "Medium", "Watch", "Mixed", "sample", "ethereum"],
+      ["PENDLE", "Ethereum", "mid cap", 72, 14, "Improving", "Medium", "Watch", "Mixed", "sample", "ethereum"],
+      ["ENA", "Ethereum", "mid cap", 70, 16, "Choppy", "High", "Watch", "Mixed", "sample", "ethereum"],
+      ["ONDO", "Ethereum", "large cap", 69, 11, "Balanced", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["SEI", "Crypto Spot", "mid cap", 62, 5, "Balanced", "Medium", "Stable", "Mixed", "sample", "mid_caps"],
+      ["FET", "Crypto Spot", "mid cap", 65, 9, "Balanced", "Medium", "Watch", "Mixed", "sample", "mid_caps"],
+      ["ZORA", "Base", "small cap", 68, 26, "Thin public liquidity", "High", "Watch", "Mixed", "sample", "base"],
+      ["WELL", "Base", "small cap", 65, 14, "Public liquidity visible", "Medium", "Stable", "Mixed", "sample", "base"],
+      ["KAITO", "Base", "mid cap", 71, 17, "Balanced", "Medium", "Watch", "Mixed", "sample", "base"],
       ["MICRO-1", "Solana", "small cap", 58, 41, "Very thin", "High", "Elevated", "Punishing", "delayed", "small_caps"],
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem]) => ({
-      asset, chainVenue, marketCapBand, flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
+      asset, market: "Crypto Spot", category: "crypto_spot", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     const perpsRows = [
       ["SOL-PERP", "Hyperliquid", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "2m ago", "pressure"],
@@ -504,8 +597,21 @@
       ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "8m ago", "pressure"],
       ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "10m ago", "pressure"],
       ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
+      ["BNB-PERP", "Perps", "large cap", 64, 5, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["XRP-PERP", "Perps", "large cap", 61, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["DOGE-PERP", "Perps", "large cap", 66, 13, "Funding watch", "OI rising", "Balanced", "Watch", "Mixed", "sample", "pressure"],
+      ["ADA-PERP", "Perps", "large cap", 59, 2, "Funding neutral", "OI flat", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["SUI-PERP", "Perps", "large cap", 74, 15, "Funding elevated", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
+      ["HYPE-PERP", "Perps", "large cap", 76, 18, "Crowding watch", "OI expansion", "Balanced", "Watch", "Paying", "sample", "pressure"],
+      ["UNI-PERP", "Perps", "large cap", 67, 8, "Funding neutral", "OI rising", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["LDO-PERP", "Perps", "mid cap", 63, 7, "Funding neutral", "OI flat", "Balanced", "Watch", "Mixed", "sample", "pressure"],
+      ["PENDLE-PERP", "Perps", "mid cap", 72, 14, "Funding watch", "OI rising", "Improving", "Watch", "Mixed", "sample", "pressure"],
+      ["ENA-PERP", "Perps", "mid cap", 70, 16, "Crowding watch", "OI expansion", "Choppy", "Watch", "Mixed", "sample", "pressure"],
+      ["ONDO-PERP", "Perps", "large cap", 69, 11, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["SEI-PERP", "Perps", "mid cap", 62, 5, "Funding neutral", "OI flat", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["FET-PERP", "Perps", "mid cap", 65, 9, "Funding watch", "OI rising", "Balanced", "Watch", "Mixed", "sample", "pressure"],
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem]) => ({
-      asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
+      asset, market: "Perpetual Futures", category: "perpetuals", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     let activeCategory = "perps_overview";
     let activeMode = "flow";
@@ -526,15 +632,29 @@
       return `$${Math.round(n).toLocaleString("en-US")}`;
     }
 
+    function uniqueRows(items) {
+      const seen = new Set();
+      return items.filter((row) => {
+        const key = row.asset;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function flowUniverse() {
+      return uniqueRows([...dexRows, ...perpsRows, ...cryptoRows, ...rows]);
+    }
+
     function allRows() {
-      return [...dexRows, ...rows];
+      return flowUniverse();
     }
 
     function rowsForCategory(category = activeCategory) {
-      if (category === "crypto_overview") return allRows().filter((row) => row.category === "crypto_spot");
-      if (category === "perps_overview") return rows.filter((row) => row.category === "perpetuals");
+      if (category === "crypto_overview") return uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]);
+      if (category === "perps_overview") return uniqueRows([...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
       if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
-      return rows.filter((row) => row.category === "perpetuals");
+      return flowUniverse();
     }
 
     function selectedRow() {
@@ -577,12 +697,23 @@
     }
 
     function renderAssetOptions() {
-      const options = activeMode === "flow" ? rowsForCategory() : displayRows().map((row) => ({ asset: row.asset }));
+      const current = document.getElementById("assetSelect").value;
+      const options = assetOptionsForMode();
       document.getElementById("assetSelect").innerHTML = options.map((row) => `<option>${row.asset}</option>`).join("");
+      if (options.some((row) => row.asset === current)) document.getElementById("assetSelect").value = current;
+    }
+
+    function assetOptionsForMode() {
+      if (activeMode === "flow") return flowUniverse();
+      if (activeMode === "perps_pressure") return uniqueRows(perpsRows);
+      if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") {
+        return uniqueRows([...dexRows, ...cryptoRows]);
+      }
+      return uniqueRows(displayRows());
     }
 
     function scaledCandles(row) {
-      const anchor = row.lastPrice || 1;
+      const anchor = row.lastPrice || samplePriceFor(row.asset) || 1;
       const base = baseCandles[baseCandles.length - 1].close;
       return baseCandles.map((candle) => ({
         ...candle,
@@ -760,7 +891,6 @@
       const q = document.getElementById("searchInput").value.trim().toLowerCase();
       const risk = document.getElementById("riskFilter").value;
       return displayRows()
-        .filter((row) => activeMode !== "flow" || row.category === activeCategory || q)
         .filter((row) => {
           const hay = `${row.asset} ${row.market || ""} ${row.chainVenue || ""} ${row.marketCapBand || ""} ${row.participantActivity} ${row.liquidityPosture} ${row.risk} ${row.participationOutcome || ""}`.toLowerCase();
           return (!q || hay.includes(q)) && (!risk || row.risk === risk);
@@ -788,7 +918,7 @@
     }
 
     function displayRows() {
-      let source = rowsForCategory();
+      let source = activeMode === "flow" ? flowUniverse() : rowsForCategory();
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(cryptoRows, activeCategory);
       if (activeMode === "perps_pressure") source = filteredCryptoRows(perpsRows, activeCategory);
       if (activeMode === "participant") source = source.filter((row) => row.participantActivity === "High" || row.participationOutcome !== "Mixed");
@@ -796,7 +926,7 @@
       return source.map((row, index) => ({
         ...row,
         market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
-        lastPrice: row.lastPrice || 0,
+        lastPrice: row.lastPrice || samplePriceFor(row.asset),
         locked: accessTier === "free" && index >= 5,
       }));
     }
