@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "include": ["/api/*"],
+  "exclude": [
+    "/",
+    "/account/*",
+    "/pricing/*",
+    "/pro/*",
+    "/terminal/*",
+    "/token/*",
+    "/upgrade/*",
+    "/vendor/*",
+    "/*.js",
+    "/*.css",
+    "/*.json",
+    "/*.html"
+  ]
+}

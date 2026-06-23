@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RavenOS Flow Terminal</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #040706;
+      --panel: #08100d;
+      --panel-2: #0b1512;
+      --panel-3: #101b17;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(125, 211, 252, 0.32);
+      --text: #edf6f1;
+      --muted: #8da39a;
+      --soft: #60746b;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; background: var(--bg); }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+    button, select, input { font: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .terminal {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      background:
+        linear-gradient(180deg, rgba(125, 211, 252, 0.055), transparent 320px),
+        var(--bg);
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 14px;
+      align-items: end;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(4, 7, 6, 0.92);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .brand { display: flex; flex-direction: column; gap: 4px; }
+    .brand h1 { margin: 0; font-size: 20px; line-height: 1; }
+    .eyebrow { color: var(--cyan); font-size: 10px; line-height: 1; font-weight: 850; text-transform: uppercase; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .controls {
+      display: grid;
+      grid-template-columns: 180px 200px 140px;
+      gap: 8px;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .control label {
+      color: var(--soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 850;
+    }
+    select, input {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: #07100d;
+      color: var(--text);
+      padding: 8px 10px;
+      outline: none;
+    }
+    select:focus, input:focus { border-color: var(--cyan); }
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      grid-template-rows: minmax(420px, 1fr) minmax(260px, 34vh);
+      gap: 12px;
+      padding: 12px;
+      min-height: 0;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      min-width: 0;
+      min-height: 0;
+    }
+    .chart-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-title { display: flex; flex-direction: column; gap: 3px; }
+    .panel-title h2 { margin: 0; font-size: 15px; line-height: 1.15; }
+    .pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border: 1px solid var(--line);
+      background: rgba(125, 211, 252, 0.06);
+      color: var(--cyan);
+      padding: 3px 7px;
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    .chart-host { min-height: 0; height: 100%; }
+    .intel {
+      display: grid;
+      grid-template-rows: auto repeat(5, auto) minmax(0, 1fr);
+      gap: 0;
+    }
+    .score {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(52, 211, 153, 0.08), transparent);
+    }
+    .score strong { display: block; margin-top: 8px; font-size: 58px; line-height: 0.9; }
+    .score span { color: var(--muted); font-size: 12px; }
+    .intel-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .intel-row strong { color: var(--text); }
+    .brief { padding: 14px; color: #b9c9c2; font-size: 12px; line-height: 1.5; }
+    .table-panel {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .table-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .table-tools input { width: min(280px, 100%); }
+    .table-wrap { overflow: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 940px;
+      font-size: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel-2);
+      color: var(--cyan);
+      font-size: 10px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    td { color: #bfd0c8; }
+    td strong { color: var(--text); }
+    tr:hover td { background: rgba(125, 211, 252, 0.035); }
+    .risk-stable { color: var(--green); font-weight: 850; }
+    .risk-watch { color: var(--yellow); font-weight: 850; }
+    .risk-elevated { color: var(--red); font-weight: 850; }
+    @media (max-width: 1100px) {
+      .topbar { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+      .chart-host { height: 520px; }
+    }
+    @media (max-width: 680px) {
+      .controls { grid-template-columns: 1fr; }
+      .main { padding: 8px; gap: 8px; }
+      .panel-head { align-items: flex-start; flex-direction: column; }
+      .chart-host { height: 430px; }
+      .score strong { font-size: 46px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="terminal">
+    <header class="topbar">
+      <div class="brand">
+        <span class="eyebrow">RavenOS Flow Terminal</span>
+        <h1>Market Intelligence</h1>
+        <p class="muted">TradingView-style charting, Bloomberg-density panels, and Nansen-style participant context.</p>
+      </div>
+      <section class="controls" aria-label="Terminal selectors">
+        <div class="control">
+          <label for="marketSelect">Market</label>
+          <select id="marketSelect">
+            <option value="crypto_spot">Crypto Spot</option>
+            <option value="perpetuals">Perpetual Futures</option>
+            <option value="macro">Macro Watch</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="assetSelect">Asset</label>
+          <select id="assetSelect"></select>
+        </div>
+        <div class="control">
+          <label for="timeframeSelect">Timeframe</label>
+          <select id="timeframeSelect">
+            <option>15m</option>
+            <option selected>1h</option>
+            <option>4h</option>
+            <option>1d</option>
+          </select>
+        </div>
+      </section>
+    </header>
+
+    <section class="main">
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="eyebrow">Chart</span>
+            <h2 id="chartTitle">SOL-PERP Flow Chart</h2>
+            <p class="muted" id="chartSubtitle">Mock OHLCV with RavenOS overlays.</p>
+          </div>
+          <div class="pills"><span class="pill">Candles</span><span class="pill">Volume</span><span class="pill">Flow overlays</span></div>
+        </div>
+        <div class="chart-host" id="flowChart"></div>
+      </article>
+
+      <aside class="panel intel" aria-label="RavenOS intelligence panel">
+        <div class="score">
+          <span>Flow Score</span>
+          <strong id="flowScore">84</strong>
+        </div>
+        <div class="intel-row"><span>Attention Velocity</span><strong id="attentionVelocity">+18</strong></div>
+        <div class="intel-row"><span>Participant Activity</span><strong id="participantActivity">High</strong></div>
+        <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
+        <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
+        <div class="intel-row"><span>Last Updated</span><strong id="lastUpdated">2m ago</strong></div>
+        <div class="brief" id="terminalBrief">Flow is expanding while participant activity remains high. Risk posture is watch-level because liquidity depth is stable but attention velocity is elevated.</div>
+      </aside>
+
+      <article class="panel table-panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="eyebrow">Market Monitor</span>
+            <h2>Flow Table</h2>
+          </div>
+          <div class="table-tools">
+            <input id="searchInput" type="search" placeholder="Search asset, market, posture..." />
+            <select id="riskFilter">
+              <option value="">All risk</option>
+              <option value="Stable">Stable</option>
+              <option value="Watch">Watch</option>
+              <option value="Elevated">Elevated</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="asset">Asset</th>
+                <th data-sort="market">Market</th>
+                <th data-sort="flowScore">Flow Score</th>
+                <th data-sort="attentionVelocity">Attention Velocity</th>
+                <th data-sort="participantActivity">Participant Activity</th>
+                <th data-sort="liquidityPosture">Liquidity Posture</th>
+                <th data-sort="risk">Risk</th>
+                <th data-sort="lastUpdated">Last Updated</th>
+              </tr>
+            </thead>
+            <tbody id="flowRows"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/raven-price-chart.js"></script>
+  <script>
+    const baseCandles = [
+      { time: "2026-06-23", open: 162.1, high: 166.4, low: 159.8, close: 165.2, volume: 1420000 },
+      { time: "2026-06-24", open: 165.2, high: 168.3, low: 163.6, close: 164.1, volume: 1180000 },
+      { time: "2026-06-25", open: 164.1, high: 171.2, low: 162.4, close: 170.6, volume: 1910000 },
+      { time: "2026-06-26", open: 170.6, high: 174.9, low: 168.8, close: 173.4, volume: 2260000 },
+      { time: "2026-06-27", open: 173.4, high: 174.1, low: 167.6, close: 169.2, volume: 1680000 },
+      { time: "2026-06-28", open: 169.2, high: 176.7, low: 168.9, close: 176.2, volume: 2440000 },
+      { time: "2026-06-29", open: 176.2, high: 183.1, low: 175.5, close: 181.8, volume: 2840000 },
+      { time: "2026-06-30", open: 181.8, high: 184.6, low: 178.2, close: 180.4, volume: 2380000 },
+      { time: "2026-07-01", open: 180.4, high: 189.5, low: 179.8, close: 188.6, volume: 3160000 },
+      { time: "2026-07-02", open: 188.6, high: 191.3, low: 183.4, close: 185.8, volume: 2910000 },
+      { time: "2026-07-03", open: 185.8, high: 194.2, low: 184.7, close: 192.9, volume: 3370000 },
+      { time: "2026-07-04", open: 192.9, high: 198.7, low: 190.6, close: 196.4, volume: 3520000 },
+    ];
+    const chartEvents = [
+      { time: "2026-06-25", type: "entry-zone", label: "Flow expansion zone", price: 165.7, severity: "info" },
+      { time: "2026-06-27", type: "liquidity-warning", label: "Liquidity posture watch", price: 169.8, severity: "warning" },
+      { time: "2026-06-29", type: "smart-wallet-accumulation", label: "Participant accumulation cluster", severity: "success" },
+      { time: "2026-07-02", type: "toxicity-risk", label: "Risk posture elevated", price: 190.6, severity: "danger" },
+      { time: "2026-07-04", type: "exit-zone", label: "Flow exhaustion zone", price: 196.1, severity: "info" },
+    ];
+    const rows = [
+      { asset: "SOL-PERP", market: "Perpetual Futures", flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "2m ago" },
+      { asset: "ETH Spot", market: "Crypto Spot", flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
+      { asset: "BTC-PERP", market: "Perpetual Futures", flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "1m ago" },
+      { asset: "ARB Spot", market: "Crypto Spot", flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "6m ago" },
+      { asset: "NVDA Watch", market: "Equity Preview", flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
+      { asset: "USD Liquidity", market: "Macro Watch", flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
+      { asset: "OP-PERP", market: "Perpetual Futures", flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "8m ago" },
+      { asset: "JUP Spot", market: "Crypto Spot", flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "5m ago" },
+    ];
+    const assetByMarket = {
+      crypto_spot: ["ETH Spot", "ARB Spot", "JUP Spot"],
+      perpetuals: ["SOL-PERP", "BTC-PERP", "OP-PERP"],
+      macro: ["USD Liquidity", "NVDA Watch"],
+    };
+    let chartHandle;
+    let sortKey = "flowScore";
+    let sortDir = -1;
+
+    function selectedRow() {
+      const asset = document.getElementById("assetSelect").value;
+      return rows.find((row) => row.asset === asset) || rows[0];
+    }
+
+    function renderAssetOptions() {
+      const market = document.getElementById("marketSelect").value;
+      const options = assetByMarket[market] || assetByMarket.perpetuals;
+      document.getElementById("assetSelect").innerHTML = options.map((asset) => `<option>${asset}</option>`).join("");
+    }
+
+    function scaledCandles(row) {
+      const anchor = row.asset.includes("BTC") ? 64000 : row.asset.includes("ETH") ? 3400 : row.asset.includes("USD") ? 100 : row.asset.includes("NVDA") ? 920 : 1;
+      if (anchor === 1) return baseCandles;
+      const base = baseCandles[0].open;
+      return baseCandles.map((candle) => ({
+        ...candle,
+        open: Number((candle.open / base * anchor).toFixed(2)),
+        high: Number((candle.high / base * anchor).toFixed(2)),
+        low: Number((candle.low / base * anchor).toFixed(2)),
+        close: Number((candle.close / base * anchor).toFixed(2)),
+      }));
+    }
+
+    function renderChart() {
+      const row = selectedRow();
+      document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · mock OHLCV`;
+      document.getElementById("flowScore").textContent = row.flowScore;
+      document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
+      document.getElementById("participantActivity").textContent = row.participantActivity;
+      document.getElementById("liquidityPosture").textContent = row.liquidityPosture;
+      document.getElementById("riskRating").textContent = row.risk;
+      document.getElementById("lastUpdated").textContent = row.lastUpdated;
+      document.getElementById("terminalBrief").textContent = `${row.asset} flow score is ${row.flowScore}. Participant activity is ${row.participantActivity.toLowerCase()}, liquidity posture is ${row.liquidityPosture.toLowerCase()}, and risk is ${row.risk.toLowerCase()}.`;
+      if (chartHandle) chartHandle.destroy();
+      chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
+        candles: scaledCandles(row),
+        events: chartEvents,
+        showVolume: true,
+        height: document.getElementById("flowChart").clientHeight || 520,
+      });
+    }
+
+    function riskClass(risk) {
+      if (risk === "Elevated") return "risk-elevated";
+      if (risk === "Watch") return "risk-watch";
+      return "risk-stable";
+    }
+
+    function visibleRows() {
+      const q = document.getElementById("searchInput").value.trim().toLowerCase();
+      const risk = document.getElementById("riskFilter").value;
+      return rows
+        .filter((row) => {
+          const hay = `${row.asset} ${row.market} ${row.participantActivity} ${row.liquidityPosture} ${row.risk}`.toLowerCase();
+          return (!q || hay.includes(q)) && (!risk || row.risk === risk);
+        })
+        .sort((a, b) => {
+          const av = a[sortKey];
+          const bv = b[sortKey];
+          if (typeof av === "number" && typeof bv === "number") return (av - bv) * sortDir;
+          return String(av).localeCompare(String(bv)) * sortDir;
+        });
+    }
+
+    function renderTable() {
+      document.getElementById("flowRows").innerHTML = visibleRows().map((row) => `
+        <tr data-asset="${row.asset}">
+          <td><strong>${row.asset}</strong></td>
+          <td>${row.market}</td>
+          <td>${row.flowScore}</td>
+          <td>${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}</td>
+          <td>${row.participantActivity}</td>
+          <td>${row.liquidityPosture}</td>
+          <td class="${riskClass(row.risk)}">${row.risk}</td>
+          <td>${row.lastUpdated}</td>
+        </tr>
+      `).join("");
+      document.querySelectorAll("#flowRows tr").forEach((tr) => {
+        tr.addEventListener("click", () => {
+          const asset = tr.getAttribute("data-asset");
+          const row = rows.find((item) => item.asset === asset);
+          const marketKey = Object.entries(assetByMarket).find(([, assets]) => assets.includes(asset))?.[0] || "perpetuals";
+          document.getElementById("marketSelect").value = marketKey;
+          renderAssetOptions();
+          document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+        });
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderAssetOptions();
+      renderChart();
+      renderTable();
+      document.getElementById("marketSelect").addEventListener("change", () => { renderAssetOptions(); renderChart(); });
+      document.getElementById("assetSelect").addEventListener("change", renderChart);
+      document.getElementById("timeframeSelect").addEventListener("change", renderChart);
+      document.getElementById("searchInput").addEventListener("input", renderTable);
+      document.getElementById("riskFilter").addEventListener("change", renderTable);
+      document.querySelectorAll("th[data-sort]").forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-sort");
+          sortDir = sortKey === key ? sortDir * -1 : -1;
+          sortKey = key;
+          renderTable();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
