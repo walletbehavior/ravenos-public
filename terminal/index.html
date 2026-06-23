@@ -167,6 +167,13 @@
     .condition-list b { color: var(--text); font-family: var(--mono); font-weight: 800; }
     .replay-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; color: var(--muted); font-size: 11px; }
     .replay-row strong { color: var(--text); }
+    .composition-row { display: grid; gap: 4px; }
+    .composition-top { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; color: var(--muted); font-size: 11px; align-items: center; }
+    .composition-top strong { color: var(--text); }
+    .velocity-tag { color: var(--cyan); font-family: var(--mono); font-size: 10px; }
+    .composition-track { height: 5px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); }
+    .composition-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); }
+    .narrative { color: #c8d8d1; font-size: 12px; line-height: 1.45; display: grid; gap: 7px; }
     .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
     .tape-panel { grid-column: 2 / -1; }
     .structure-tape { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
@@ -904,6 +911,7 @@
     }
 
     function outcomeConditions(row) {
+      if (row.outcomeConditions?.supporting && row.outcomeConditions?.breaking) return row.outcomeConditions;
       const input = perpsInputVector(row);
       const supporting = [];
       const breaking = [];
@@ -917,6 +925,62 @@
       if (row.risk === "Stable") supporting.push(["confirmation improving", 66]);
       if (row.risk !== "Stable") breaking.push(["confirmation weakening", row.risk === "Elevated" ? 78 : 58]);
       return { supporting, breaking };
+    }
+
+    function pressureComposition(row) {
+      if (Array.isArray(row.pressureComposition) && row.pressureComposition.length) return row.pressureComposition;
+      const input = perpsInputVector(row);
+      const smart = clamp(input.openInterest * 0.42 + input.basis * 0.24 + (row.risk === "Stable" ? 10 : 0));
+      const retail = clamp(input.volume * 0.38 + input.funding * 0.28 + Math.max(0, Number(row.attentionVelocity || 0)));
+      const makers = clamp(input.basis * 0.52 + Math.max(0, 100 - input.volume) * 0.22);
+      const unknown = clamp(20 + Math.max(0, 45 - input.openInterest) * 0.25);
+      const total = smart + retail + makers + unknown || 1;
+      return [
+        ["Smart Money", smart, input.openInterest - input.funding],
+        ["Retail", retail, input.funding + input.volume / 2 - 55],
+        ["Market Makers", makers, input.basis - 35],
+        ["Unknown", unknown, 35 - Math.max(input.openInterest, input.volume)],
+      ].map(([name, raw, bias]) => ({
+        name,
+        contribution: Math.round(raw / total * 100),
+        direction: bias > 8 ? "expanding" : bias < -8 ? "contracting" : "steady",
+        velocity: Math.round(clamp(Math.abs(bias) + raw / 9)),
+      }));
+    }
+
+    function pressureSourceRead(row) {
+      if (row.pressureSource) return row.pressureSource;
+      const lead = [...pressureComposition(row)].sort((a, b) => b.contribution - a.contribution)[0];
+      const state = pressureState(pressureScore(row), row);
+      if (state === "Crowded" && lead?.name === "Retail") return "retail chasing";
+      if (lead?.name === "Smart Money" && lead.direction === "expanding") return "smart money accumulation";
+      if (lead?.name === "Market Makers") return "market maker inventory shift";
+      if (state === "Crowded" || state === "Unstable") return "liquidation cascade";
+      return `${String(lead?.name || "unknown").toLowerCase()} pressure ${lead?.direction || "steady"}`;
+    }
+
+    function liquidityAttraction(row) {
+      if (row.liquidityAttraction?.state) return row.liquidityAttraction;
+      const score = clamp(pressureScore(row) * 0.56 + perpsInputVector(row).liquidationDensity * 0.44);
+      const state = score >= 82 ? "Extreme" : score >= 66 ? "Strong" : score >= 45 ? "Moderate" : "Weak";
+      const distancePercent = clamp(0.22 + (100 - score) / 260, 0.12, 0.65);
+      const direction = String(row.pressureContext || "").includes("Funding") ? 1 : -1;
+      const nearestCluster = Number(row.lastPrice || 0) * (1 + direction * distancePercent / 100);
+      return { score: Math.round(score), state, nearestCluster, distancePercent: Number(distancePercent.toFixed(2)), attractionStrength: Math.round(score) };
+    }
+
+    function structureNarrative(row) {
+      if (Array.isArray(row.structureNarrative) && row.structureNarrative.length) return row.structureNarrative;
+      const lead = [...pressureComposition(row)].sort((a, b) => b.contribution - a.contribution)[0];
+      const replay = replayMatches(row)[0];
+      const liquidity = liquidityAttraction(row);
+      return [
+        `Pressure is building primarily from ${String(lead?.name || "unknown").toLowerCase()} participation.`,
+        `${String(lead?.name || "Unknown")} pressure is ${lead?.direction || "steady"} with velocity ${lead?.velocity || 0}.`,
+        `Current structure resembles ${replay.label} at ${replay.similarity}% similarity.`,
+        `Liquidity attraction is ${liquidity.state.toLowerCase()} with the nearest cluster ${liquidity.distancePercent}% from mark.`,
+        `Pressure remains ${pressureState(pressureScore(row), row).toLowerCase()} while confirmation context is ${String(row.risk || "unknown").toLowerCase()}.`,
+      ];
     }
 
     function perpsReplayOverlays(row, candles) {
@@ -964,6 +1028,10 @@
       const state = pressureState(score, row);
       const replay = replayMatches(row);
       const conditions = outcomeConditions(row);
+      const composition = pressureComposition(row);
+      const source = pressureSourceRead(row);
+      const attraction = liquidityAttraction(row);
+      const narrative = structureNarrative(row);
       panel.classList.add("active");
       panel.innerHTML = `
         <div class="perps-block">
@@ -972,8 +1040,28 @@
           ${Object.entries(input).map(([key, value]) => `<div class="replay-row"><span>${key.replace(/[A-Z]/g, " $&")}</span><strong>${Math.round(value)}</strong></div>`).join("")}
         </div>
         <div class="perps-block">
+          <h3>Pressure Composition</h3>
+          ${composition.map((item) => `<div class="composition-row">
+            <div class="composition-top"><span>${item.name}</span><strong>${item.contribution}%</strong><em class="velocity-tag">${item.direction} · v${item.velocity}</em></div>
+            <div class="composition-track"><div class="composition-fill" style="width:${item.contribution}%"></div></div>
+          </div>`).join("")}
+        </div>
+        <div class="perps-block">
+          <h3>Pressure Source</h3>
+          <div class="replay-row"><span>Pressure driven by</span><strong>${source}</strong></div>
+          <div class="replay-row"><span>Primary contributor</span><strong>${composition[0]?.name || "Unknown"}</strong></div>
+        </div>
+        <div class="perps-block">
+          <h3>Liquidity Attraction</h3>
+          <span class="pressure-state">${attraction.state}</span>
+          <div class="replay-row"><span>Attraction score</span><strong>${attraction.score}</strong></div>
+          <div class="replay-row"><span>Nearest cluster</span><strong>${money(attraction.nearestCluster || 0)}</strong></div>
+          <div class="replay-row"><span>Distance</span><strong>${attraction.distancePercent}%</strong></div>
+          <div class="replay-row"><span>Attraction strength</span><strong>${attraction.attractionStrength}</strong></div>
+        </div>
+        <div class="perps-block">
           <h3>Replay Engine</h3>
-          ${replay.slice(0, 3).map((item) => `<div class="replay-row"><span>${item.label}<br><small>${item.range}</small></span><strong>${item.similarity}%</strong></div>`).join("")}
+          ${replay.slice(0, 3).map((item) => `<div class="replay-row"><span>${item.label}<br><small>${item.range}</small></span><strong>${item.similarity}% · c${item.confidence || 64}</strong></div>`).join("")}
           <div class="replay-row"><span>Average outcome distribution</span><strong>${Math.round(replay[0].outcomes.expansion * 100)}% exp / ${Math.round(replay[0].outcomes.continuation * 100)}% cont / ${Math.round(replay[0].outcomes.reversal * 100)}% rev / ${Math.round(replay[0].outcomes.failure * 100)}% fail</strong></div>
         </div>
         <div class="perps-block">
@@ -982,6 +1070,10 @@
           <ul class="condition-list">${conditions.supporting.map(([label, value]) => `<li><span>${label}</span><b>${value}</b></li>`).join("") || "<li><span>No strong supporting condition in current sample</span><b>--</b></li>"}</ul>
           <span class="eyebrow">Breaking</span>
           <ul class="condition-list">${conditions.breaking.map(([label, value]) => `<li><span>${label}</span><b>${value}</b></li>`).join("") || "<li><span>No dominant breaking condition in current sample</span><b>--</b></li>"}</ul>
+        </div>
+        <div class="perps-block">
+          <h3>Structure Narrative</h3>
+          <div class="narrative">${narrative.map((line) => `<p>${line}</p>`).join("")}</div>
         </div>
       `;
     }
@@ -1221,19 +1313,19 @@
           {
             time: now,
             title: `${lead.asset} pressure is ${pressureState(pressureScore(lead), lead).toLowerCase()}`,
-            detail: `Pressure score ${pressureScore(lead)} with ${lead.pressureContext || "visible pressure context"}.`,
+            detail: structureNarrative(lead)[0] || `Pressure score ${pressureScore(lead)} with ${lead.pressureContext || "visible pressure context"}.`,
             target: lead.asset,
           },
           {
             time: now,
             title: `${replayLead.asset} replay similarity increasing`,
-            detail: `${replayMatches(replayLead)[0].similarity}% similarity to ${replayMatches(replayLead)[0].label}.`,
+            detail: structureNarrative(replayLead)[2] || `${replayMatches(replayLead)[0].similarity}% similarity to ${replayMatches(replayLead)[0].label}.`,
             target: replayLead.asset,
           },
           {
             time: now,
-            title: crowded ? `${crowded} perps show crowded or unstable pressure` : "Crowding is contained in current perps view",
-            detail: "Structure read combines funding, OI, basis, liquidation density, participation, and volume.",
+            title: crowded ? `${crowded} perps show crowded or unstable pressure` : `${lead.asset} liquidity attraction is ${liquidityAttraction(lead).state.toLowerCase()}`,
+            detail: structureNarrative(lead)[3] || "Structure read combines pressure, participants, replay, outcomes, and liquidity attraction.",
             target: lead.asset,
           },
         ];

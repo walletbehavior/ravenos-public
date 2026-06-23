@@ -6,6 +6,7 @@ import {
 } from "./lib/ravenos_subscriptions.mjs";
 import { processStripeWebhookEvent } from "./lib/ravenos_stripe_webhooks.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "./lib/solana_wallet_auth.mjs";
+import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 
 const dexCache = new Map();
 const hyperliquidCache = new Map();
@@ -88,79 +89,6 @@ function rankDexPair(pair = {}) {
 
 function sortedDexResults(pairs = []) {
   return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
-}
-
-function pressureStateFromScore(score) {
-  if (score >= 84) return "Crowded";
-  if (score >= 74) return "Elevated";
-  if (score <= 42) return "Exhausted";
-  return "Constructive";
-}
-
-function normalizeHyperliquidPerps(payload) {
-  const universe = payload?.[0]?.universe || [];
-  const contexts = payload?.[1] || [];
-  const oiValues = contexts.map((ctx) => num(ctx.openInterest)).filter((value) => value > 0);
-  const volumeValues = contexts.map((ctx) => num(ctx.dayNtlVlm)).filter((value) => value > 0);
-  const maxOi = Math.max(...oiValues, 1);
-  const maxVolume = Math.max(...volumeValues, 1);
-  return universe.map((meta, index) => {
-    const ctx = contexts[index] || {};
-    const symbol = String(meta.name || "").toUpperCase();
-    const funding = num(ctx.funding);
-    const premium = num(ctx.premium);
-    const openInterest = num(ctx.openInterest);
-    const dayNtlVlm = num(ctx.dayNtlVlm);
-    const markPx = num(ctx.markPx || ctx.midPx || ctx.oraclePx);
-    const oiScore = Math.min(100, openInterest / maxOi * 100);
-    const volumeScore = Math.min(100, dayNtlVlm / maxVolume * 100);
-    const fundingScore = Math.min(100, Math.abs(funding) * 1_000_000);
-    const basisScore = Math.min(100, Math.abs(premium) * 100_000);
-    const pressureScore = Math.round(
-      fundingScore * 0.22 +
-      oiScore * 0.24 +
-      basisScore * 0.18 +
-      volumeScore * 0.20 +
-      Math.min(100, Math.abs(num(ctx.prevDayPx) ? (markPx - num(ctx.prevDayPx)) / num(ctx.prevDayPx) : 0) * 1000) * 0.16
-    );
-    return {
-      asset: `${symbol}-PERP`,
-      symbol,
-      market: "Perpetual Futures",
-      category: "perpetuals",
-      venue: "Hyperliquid",
-      chainVenue: "Hyperliquid",
-      lastPrice: markPx,
-      markPx,
-      midPx: num(ctx.midPx),
-      oraclePx: num(ctx.oraclePx),
-      prevDayPx: num(ctx.prevDayPx),
-      funding,
-      openInterest,
-      oiScore,
-      dayNtlVlm,
-      dayBaseVlm: num(ctx.dayBaseVlm),
-      premium,
-      basis: premium,
-      maxLeverage: meta.maxLeverage || null,
-      pressureScore,
-      pressureState: pressureStateFromScore(pressureScore),
-      pressureContext: fundingScore >= 65 ? "Funding elevated" : basisScore >= 55 ? "Basis firm" : "Funding neutral",
-      participantActivity: oiScore >= 65 ? "OI expansion" : oiScore <= 25 ? "OI light" : "OI balanced",
-      liquidityPosture: volumeScore >= 65 ? "Deep" : volumeScore >= 30 ? "Balanced" : "Thin",
-      risk: pressureScore >= 84 ? "Elevated" : pressureScore >= 70 ? "Watch" : "Stable",
-      participationOutcome: volumeScore >= 65 && pressureScore < 82 ? "Paying" : pressureScore >= 84 ? "Punishing" : "Mixed",
-      attentionVelocity: Math.round(volumeScore / 3 + fundingScore / 8),
-      flowScore: pressureScore,
-      lastUpdated: new Date().toISOString(),
-      provider: "Hyperliquid",
-      coverage: "Live",
-      isLive: true,
-      isCached: false,
-      isSample: false,
-      warning: "",
-    };
-  }).filter((row) => row.symbol && row.lastPrice > 0);
 }
 
 async function hyperliquidPerps() {
