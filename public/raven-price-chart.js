@@ -7,13 +7,33 @@
   };
 
   const OVERLAY_META = {
-    "pressure-zone": { label: "Pressure", color: "#fb7185" },
-    "history-window": { label: "History", color: "#7dd3fc" },
-    "breadth-line": { label: "Breadth", color: "#34d399" },
-    "compression-band": { label: "Compression", color: "#facc15" },
-    "regime-marker": { label: "Regime", color: "#7dd3fc" },
-    "liquidity-zone": { label: "Liquidity", color: "#a78bfa" },
-    "participant-shift": { label: "Participant", color: "#34d399" },
+    "pressure-zone": { label: "Pressure", color: "#fb7185", glyph: "P", family: "pressure" },
+    "history-window": { label: "Replay", color: "#7dd3fc", glyph: "R", family: "replay" },
+    "breadth-line": { label: "Breadth", color: "#34d399", glyph: "B", family: "breadth" },
+    "compression-band": { label: "Volatility", color: "#facc15", glyph: "V", family: "volatility" },
+    "regime-marker": { label: "Regime", color: "#7dd3fc", glyph: "G", family: "regime" },
+    "liquidity-zone": { label: "Liquidity", color: "#a78bfa", glyph: "L", family: "liquidity" },
+    "participant-shift": { label: "Participation", color: "#34d399", glyph: "•", family: "participation" },
+  };
+
+  const CONTEXT_DEFAULT_TYPES = {
+    perps: ["pressure-zone", "liquidity-zone", "history-window"],
+    crypto_perp: ["pressure-zone", "liquidity-zone", "history-window"],
+    degen: ["participant-shift", "history-window", "breadth-line"],
+    crypto_spot: ["participant-shift", "breadth-line", "history-window"],
+    atlas: ["regime-marker", "breadth-line", "liquidity-zone"],
+    macro: ["regime-marker", "breadth-line", "compression-band"],
+    default: ["breadth-line", "liquidity-zone", "history-window"],
+  };
+
+  const EVENT_GLYPHS = {
+    "entry-zone": "E",
+    "exit-zone": "X",
+    "liquidity-warning": "L",
+    "smart-wallet-accumulation": "A",
+    "smart-wallet-distribution": "D",
+    "opportunity-marker": "O",
+    "toxicity-risk": "!",
   };
 
   const OVERLAY_RENDERER_REGISTRY = {
@@ -32,6 +52,35 @@
 
   function colorFor(item) {
     return SEVERITY_COLOR[item?.severity] || OVERLAY_META[overlayType(item?.type)]?.color || SEVERITY_COLOR.info;
+  }
+
+  function visualMeta(item) {
+    const type = overlayType(item?.type);
+    const base = OVERLAY_META[type] || { label: "Overlay", color: SEVERITY_COLOR.info, glyph: "•", family: "flow" };
+    const family = item?.metadata?.visualFamily || item?.metadata?.family || base.family;
+    const label = item?.metadata?.visualLabel || base.label;
+    const glyph = item?.metadata?.glyph || base.glyph;
+    return { ...base, family, label, glyph };
+  }
+
+  function contextKey(value) {
+    const text = String(value || "default").toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+    if (text.includes("perp")) return "perps";
+    if (text.includes("degen") || text.includes("discovery")) return "degen";
+    if (text.includes("atlas") || text.includes("macro")) return "atlas";
+    if (text.includes("spot")) return "crypto_spot";
+    return CONTEXT_DEFAULT_TYPES[text] ? text : "default";
+  }
+
+  function defaultActiveTypes(overlays, context) {
+    const available = Array.from(new Set(overlays.map((overlay) => overlay.type)));
+    const preferred = CONTEXT_DEFAULT_TYPES[contextKey(context)] || CONTEXT_DEFAULT_TYPES.default;
+    const active = preferred.filter((type) => available.includes(type));
+    for (const type of available) {
+      if (active.length >= 3) break;
+      if (!active.includes(type)) active.push(type);
+    }
+    return active.slice(0, 3);
   }
 
   function normalizeCandles(candles) {
@@ -56,18 +105,18 @@
       }));
   }
 
-  function markerFor(event) {
+  function markerFor(event, compact = false) {
     const above = event.type === "liquidity-warning" || event.type === "toxicity-risk" || event.type === "smart-wallet-distribution";
     return {
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(event),
       shape: event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
-      text: event.label,
+      text: compact ? "" : (EVENT_GLYPHS[event.type] || "•"),
     };
   }
 
-  function overlayMarker(overlay) {
+  function overlayMarker(overlay, compact = false) {
     const type = overlayType(overlay.type);
     const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk";
     return {
@@ -75,7 +124,7 @@
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(overlay),
       shape: type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
-      text: overlay.label,
+      text: compact ? "" : visualMeta(overlay).glyph,
     };
   }
 
@@ -86,11 +135,7 @@
   }
 
   function priceLineTitle(event) {
-    if (event.type === "entry-zone") return `Entry zone: ${event.label}`;
-    if (event.type === "exit-zone") return `Exit zone: ${event.label}`;
-    if (event.type === "toxicity-risk") return `Risk marker: ${event.label}`;
-    if (event.type === "liquidity-warning") return `Liquidity marker: ${event.label}`;
-    return event.label;
+    return EVENT_GLYPHS[event.type] || "";
   }
 
   function setState(container, message, className) {
@@ -117,7 +162,8 @@
 
   function showTooltip(tooltip, chartHost, event, overlay) {
     const rect = chartHost.getBoundingClientRect();
-    const title = overlay.label || OVERLAY_META[overlayType(overlay.type)]?.label || "Overlay";
+    const meta = visualMeta(overlay);
+    const title = overlay.label || meta.label || "Overlay";
     const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8da39a;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
     tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}`;
     tooltip.style.left = `${Math.min(rect.width - 292, Math.max(8, event.clientX - rect.left + 12))}px`;
@@ -171,8 +217,9 @@
       const meta = OVERLAY_META[type];
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = meta.label;
+      button.innerHTML = `<span aria-hidden="true" style="display:inline-flex;width:14px;color:${meta.color};font-weight:900">${meta.glyph}</span>${meta.label}`;
       button.dataset.overlayType = type;
+      button.dataset.active = activeTypes.has(type) ? "true" : "false";
       button.style.border = `1px solid ${meta.color}55`;
       button.style.background = activeTypes.has(type) ? `${meta.color}22` : "rgba(8, 17, 14, 0.72)";
       button.style.color = activeTypes.has(type) ? "#e5f0eb" : "#60746b";
@@ -194,7 +241,8 @@
     const candles = normalizeCandles(options?.candles);
     const events = Array.isArray(options?.events) ? options.events : [];
     const overlays = (Array.isArray(options?.overlays) ? options.overlays : []).map((overlay) => ({ ...overlay, type: overlayType(overlay.type) }));
-    const activeTypes = new Set(options?.visibleOverlayTypes || overlays.map((overlay) => overlay.type));
+    const activeTypes = new Set(options?.visibleOverlayTypes || defaultActiveTypes(overlays, options?.overlayContext || options?.marketContext));
+    const compact = Boolean(options?.compact || window.matchMedia?.("(max-width: 780px)")?.matches);
 
     if (options?.loading) {
       setState(container, "Loading chart...", "loading");
@@ -235,7 +283,7 @@
       rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
       timeScale: {
         borderColor: "rgba(148, 163, 184, 0.18)",
-        timeVisible: true,
+        timeVisible: !compact,
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
@@ -248,6 +296,11 @@
       borderDownColor: "#fb7185",
       wickUpColor: "#86efac",
       wickDownColor: "#fca5a5",
+      priceFormat: {
+        type: "price",
+        precision: 6,
+        minMove: 0.000001,
+      },
     });
     candleSeries.setData(candles);
 
@@ -287,11 +340,11 @@
       });
     });
 
-    const markers = events.filter((event) => event && event.time).map(markerFor).concat(
+    const markers = events.filter((event) => event && event.time).map((event) => markerFor(event, compact)).concat(
       visibleOverlays()
         .filter((overlay) => OVERLAY_RENDERER_REGISTRY[overlay.type]?.renderAs === "marker")
         .filter((overlay) => overlay.time || overlay.startTime)
-        .map(overlayMarker),
+        .map((overlay) => overlayMarker(overlay, compact)),
     );
     if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers);
     else if (typeof candleSeries.setMarkers === "function") candleSeries.setMarkers(markers);
@@ -304,8 +357,8 @@
           color: colorFor(event),
           lineWidth: 1,
           lineStyle: api.LineStyle?.Dashed || 2,
-          axisLabelVisible: true,
-          title: priceLineTitle(event),
+          axisLabelVisible: Boolean(options?.showPriceLineLabels),
+          title: options?.showPriceLineLabels ? priceLineTitle(event) : "",
         });
       });
 
@@ -319,7 +372,7 @@
             lineWidth: 1,
             lineStyle: api.LineStyle?.Dotted || 1,
             axisLabelVisible: false,
-            title: `${overlay.label} low`,
+            title: "",
           });
         }
         if (Number.isFinite(Number(overlay.priceMax))) {
@@ -328,8 +381,8 @@
             color: colorFor(overlay),
             lineWidth: 1,
             lineStyle: api.LineStyle?.Dotted || 1,
-            axisLabelVisible: true,
-            title: `${overlay.label} high`,
+            axisLabelVisible: false,
+            title: "",
           });
         }
       });
@@ -417,5 +470,6 @@
   }
 
   window.RavenChartOverlayRenderers = OVERLAY_RENDERER_REGISTRY;
+  window.RavenChartOverlayVisuals = { meta: OVERLAY_META, defaults: CONTEXT_DEFAULT_TYPES, defaultActiveTypes };
   window.RavenPriceChart = RavenPriceChart;
 })();

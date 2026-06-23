@@ -45,6 +45,11 @@ assert.match(terminal, /id="dexSearchInput"/);
 assert.doesNotMatch(terminal, /dexSearchInputPanel/);
 assert.match(terminal, /id="tickerPressure"/);
 assert.match(terminal, /id="tickerCoverage"/);
+assert.match(terminal, /id="contextCoverage"/);
+assert.match(terminal, /overlayContext/);
+assert.doesNotMatch(terminal, /id="providerSource"/);
+assert.doesNotMatch(terminal, /id="staleTimestamp"/);
+assert.doesNotMatch(terminal, /id="tokenAccessStatus"/);
 
 assert.match(research, /data-feature="full_research"/);
 assert.match(research, /failure_analysis/);

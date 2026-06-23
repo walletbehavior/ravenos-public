@@ -391,10 +391,8 @@
         <div class="intel-row"><span>Participant Activity</span><strong id="participantActivity">High</strong></div>
         <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
         <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
+        <div class="intel-row"><span>Coverage</span><strong id="contextCoverage" class="coverage-badge-ui" data-coverage-badge>Sample</strong></div>
         <div class="intel-row"><span>Access</span><strong id="resolvedTier" data-access-badge>disconnected</strong></div>
-        <div class="intel-row"><span>Token Access</span><strong id="tokenAccessStatus">not active</strong></div>
-        <div class="intel-row"><span>Provider</span><strong id="providerSource">Sample model</strong></div>
-        <div class="intel-row"><span>Data Age</span><strong id="staleTimestamp">sample</strong></div>
         <div class="cta-row">
           <button class="button" type="button" data-wallet-connect="Phantom">Connect wallet</button>
           <button class="button secondary" type="button" id="saveWatchlistButton">Save to Watchlist</button>
@@ -888,8 +886,8 @@
       document.getElementById("tickerUpdated").textContent = freshnessLabel(row.lastUpdated);
       document.getElementById("coverageBadge").textContent = coverage.coverage;
       document.getElementById("coverageBadge").setAttribute("data-coverage", coverage.coverage);
-      document.getElementById("providerSource").textContent = coverage.provider;
-      document.getElementById("staleTimestamp").textContent = freshnessLabel(coverage.lastUpdated || "sample");
+      document.getElementById("contextCoverage").textContent = coverage.coverage;
+      document.getElementById("contextCoverage").setAttribute("data-coverage", coverage.coverage);
       const apiNote = document.getElementById("walletAccessDetail");
       if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
       document.getElementById("terminalBrief").textContent = row.participationOutcome
@@ -915,6 +913,7 @@
         candles: candleData,
         events: chartEventsFor(candleData),
         overlays,
+        overlayContext: isPerpsMode() ? "perps" : activeMode === "crypto_heatmaps" ? "degen" : row.category || row.market,
         showVolume: true,
         compact: mobileChart,
         height: document.getElementById("flowChart").clientHeight || (mobileChart ? 330 : 520),

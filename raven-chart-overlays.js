@@ -54,7 +54,7 @@
         severity: pressure >= 75 ? "danger" : pressure >= 65 ? "warning" : "info",
         source: "perps",
         summary: "Funding, open interest, basis, and liquidation-proximity context normalized for this instrument.",
-        metadata: { pressureScore: pressure, market: marketName },
+        metadata: { pressureScore: pressure, market: marketName, visualFamily: "pressure", visualLabel: "Pressure", glyph: "P" },
       },
       {
         id: `${upper}-compression`,
@@ -68,7 +68,7 @@
         severity: compression >= 75 ? "warning" : "info",
         source: "liquidity",
         summary: "Range, realized volatility, activity, and liquidity posture compressed into one chart band.",
-        metadata: { compressionScore: compression },
+        metadata: { compressionScore: compression, visualFamily: "volatility", visualLabel: "Volatility", glyph: "V" },
       },
       {
         id: `${upper}-breadth`,
@@ -82,7 +82,7 @@
         severity: breadth >= 65 ? "success" : breadth <= 40 ? "warning" : "info",
         source: "market-breadth",
         summary: "Participation breadth for the asset's tracked market group.",
-        metadata: { breadthPercentile: breadth },
+        metadata: { breadthPercentile: breadth, visualFamily: "breadth", visualLabel: "Breadth", glyph: "B" },
       },
       {
         id: `${upper}-history`,
@@ -94,6 +94,7 @@
         severity: "info",
         source: "history",
         summary: "Prior market windows with similar pressure, breadth, and compression structure.",
+        metadata: { replaySimilarity: score([68, 73, 61, 79, 57], seed + 7, 67), visualFamily: "replay", visualLabel: "Replay", glyph: "R" },
       },
       {
         id: `${upper}-liquidity-zone`,
@@ -107,6 +108,7 @@
         severity: "info",
         source: "liquidity",
         summary: "Price-region context where liquidity depth, resting flow, or repeated acceptance is visible.",
+        metadata: { visualFamily: "liquidity", visualLabel: "Liquidity Attraction", glyph: "L" },
       },
       {
         id: `${upper}-participant-accumulation`,
@@ -117,7 +119,7 @@
         severity: "success",
         source: "history",
         summary: "Behavior signal: higher-quality participants became more active while concentration stayed controlled.",
-        metadata: { participantShiftType: "smart_money_accumulation" },
+        metadata: { participantShiftType: "smart_money_accumulation", visualFamily: "participation", visualLabel: "Participation Expansion", glyph: "A" },
       },
       {
         id: `${upper}-retail-expansion`,
@@ -128,7 +130,7 @@
         severity: "info",
         source: "history",
         summary: "Behavior signal: participation broadened into smaller, faster accounts.",
-        metadata: { participantShiftType: "retail_expansion" },
+        metadata: { participantShiftType: "retail_expansion", visualFamily: "attention", visualLabel: "Attention Velocity", glyph: "T" },
       },
       {
         id: `${upper}-concentration-increase`,
@@ -139,7 +141,7 @@
         severity: score([48, 66, 74, 55, 71], seed + 11, 62) >= 70 ? "warning" : "info",
         source: "history",
         summary: "Behavior signal: activity became more concentrated among fewer participants.",
-        metadata: { participantShiftType: "concentration_increase" },
+        metadata: { participantShiftType: "concentration_increase", visualFamily: "survival", visualLabel: "Fresh Survival", glyph: "S" },
       },
       {
         id: `${upper}-distribution-risk`,
@@ -150,7 +152,7 @@
         severity: score([44, 63, 76, 58, 69], seed + 12, 60) >= 70 ? "danger" : "warning",
         source: "history",
         summary: "Behavior signal: prior active participants reduced exposure while activity stayed elevated.",
-        metadata: { participantShiftType: "distribution_risk" },
+        metadata: { participantShiftType: "distribution_risk", visualFamily: "risk", visualLabel: "Crowding", glyph: "!" },
       },
     ];
 
