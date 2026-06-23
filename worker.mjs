@@ -439,20 +439,25 @@ function alertIdFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
+function apiPath(pathname) {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+}
+
 async function handleAlerts(request, env) {
   const url = new URL(request.url);
+  const pathname = apiPath(url.pathname);
   const body = request.method === "GET" ? {} : await readJson(request);
   const wallet = String(url.searchParams.get("wallet") || body.wallet || body.user_id || body.userId || "").trim();
   const access = await resolveAccessForWallet(wallet, env);
   const entitlements = access.entitlements || ["free"];
   if (!wallet) return json({ ok: false, error: "missing_wallet", alertTypes: ALERT_TYPES, preview: true }, { status: 400 });
-  const id = alertIdFromPath(url.pathname);
+  const id = alertIdFromPath(pathname);
   try {
-    if (url.pathname === "/api/alerts/events" && request.method === "GET") {
+    if (pathname === "/api/alerts/events" && request.method === "GET") {
       return json({ ok: true, events: await listAlertEvents(env, wallet), access });
     }
     if (request.method === "GET") return json({ ok: true, alerts: await listAlerts(env, wallet), alertTypes: ALERT_TYPES, access });
-    if (request.method === "POST" && url.pathname === "/api/alerts") {
+    if (request.method === "POST" && pathname === "/api/alerts") {
       return json({ ok: true, alert: await createAlert(env, { ...body, user_id: wallet }, entitlements), access }, { status: 201 });
     }
     if (request.method === "PATCH" && id) {
@@ -498,35 +503,36 @@ function handleHealth(env = {}) {
 
 async function routeApi(request, env) {
   const url = new URL(request.url);
-  if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(env);
-  if (url.pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) return handleAccess(request, env);
-  if (url.pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
-  if (url.pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
-  if (url.pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
-  if ((url.pathname === "/api/alerts" || url.pathname === "/api/alerts/events" || url.pathname.startsWith("/api/alerts/"))
+  const pathname = apiPath(url.pathname);
+  if (pathname === "/api/health" && request.method === "GET") return handleHealth(env);
+  if (pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) return handleAccess(request, env);
+  if (pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
+  if (pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
+  if (pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
+  if ((pathname === "/api/alerts" || pathname === "/api/alerts/events" || pathname.startsWith("/api/alerts/"))
       && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) return handleAlerts(request, env);
-  if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
+  if (pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {
       return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_search_failed", results: [] }, { status: 502 });
     }
   }
-  if (url.pathname === "/api/dexscreener/token" && request.method === "GET") {
+  if (pathname === "/api/dexscreener/token" && request.method === "GET") {
     try {
       return json({ ok: true, results: await tokenDex(url.searchParams.get("chainId") || "", url.searchParams.get("tokenAddress") || "") });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_token_failed", results: [] }, { status: 502 });
     }
   }
-  if (url.pathname === "/api/dexscreener/pair" && request.method === "GET") {
+  if (pathname === "/api/dexscreener/pair" && request.method === "GET") {
     try {
       return json({ ok: true, results: await pairDex(url.searchParams.get("chainId") || "", url.searchParams.get("pairAddress") || "") });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
     }
   }
-  if (url.pathname === "/api/hyperliquid/perps" && request.method === "GET") {
+  if (pathname === "/api/hyperliquid/perps" && request.method === "GET") {
     try {
       return json(await hyperliquidPerps());
     } catch (error) {
