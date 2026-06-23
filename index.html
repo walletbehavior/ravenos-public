@@ -655,6 +655,63 @@
       background: rgba(128,214,138,0.075);
     }
 
+    .wallet-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      padding: 11px;
+      background: rgba(255,255,255,0.025);
+    }
+
+    .wallet-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .wallet-status {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .wallet-status strong {
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .wallet-key {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .access-locked {
+      opacity: 0.46;
+      filter: grayscale(0.9);
+    }
+
+    .gate-note {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
     .chart-surface {
       width: 100%;
       height: 112px;
@@ -1126,14 +1183,14 @@
       <div class="strip-cell"><span class="k">breadth</span><span class="v" id="stripBreadth">building</span></div>
       <div class="strip-cell"><span class="k">followthrough</span><span class="v" id="stripFollow">building</span></div>
       <div class="strip-cell"><span class="k">pressure</span><span class="v" id="stripPressure">awaiting sample</span></div>
-      <div class="strip-cell"><span class="k">reward</span><span class="v" id="stripReward">building</span></div>
+      <div class="strip-cell"><span class="k">outcome</span><span class="v" id="stripReward">building</span></div>
     </section>
 
     <section class="hero" aria-label="current market read">
-      <article class="panel read-panel searchable" data-search="current read participation breadth followthrough reward pressure">
+      <article class="panel read-panel searchable" data-search="current read participation breadth followthrough outcome pressure">
         <p class="eyebrow">current market read</p>
         <h2 class="headline" id="headline">Market structure is loading.</h2>
-        <p class="desk-read" id="deskRead">RavenOS reads whether crypto participation is being rewarded or punished. Latest public sample is refreshing.</p>
+        <p class="desk-read" id="deskRead">RavenOS reads whether crypto participation is broadening, thinning, confirming, or becoming fragile. Latest public sample is refreshing.</p>
         <div class="metric-grid">
           <div class="metric"><span class="k">chain split</span><span class="v" id="chainSplit">Solana / ETH / Base</span></div>
           <div class="metric"><span class="k">confirms if</span><span class="v" id="confirmIf">participation keeps broadening</span></div>
@@ -1152,6 +1209,20 @@
           <div class="quick"><strong>try</strong>show weak followthrough</div>
           <div class="quick"><strong>try</strong>show market reads with thin data</div>
           <div class="quick"><strong>state</strong><span id="searchState">Search highlights visible modules. Full command workflows are coming online.</span></div>
+        </div>
+        <div class="wallet-panel searchable" data-search="wallet access phantom solflare backpack pro founder free">
+          <span class="label">access</span>
+          <div class="wallet-status">
+            <strong id="walletState">disconnected</strong>
+            <span id="walletAccessDetail">Connect a Solana wallet to resolve product access.</span>
+            <span class="wallet-key" id="walletPublicKey"></span>
+          </div>
+          <div class="wallet-row">
+            <button type="button" class="terminal-button" id="connectPhantom">Phantom</button>
+            <button type="button" class="terminal-button" id="connectSolflare">Solflare</button>
+            <button type="button" class="terminal-button" id="connectBackpack">Backpack</button>
+            <button type="button" class="terminal-button" id="disconnectWallet">Disconnect</button>
+          </div>
         </div>
       </aside>
     </section>
@@ -1181,7 +1252,7 @@
     </section>
 
     <section class="below">
-      <article class="panel searchable" data-search="charts breadth clean sample trend survival reward pressure historical similarity">
+      <article class="panel searchable" data-search="charts breadth clean sample trend survival outcome pressure historical similarity">
         <div class="section-title">
           <h2>Charts / Replay</h2>
           <p>Compact chart surfaces use current public artifacts when history is thin.</p>
@@ -1257,10 +1328,10 @@
         <p>Deeper workflows for people who want to interrogate the tape instead of waiting for the headline.</p>
       </div>
       <div class="desk-grid">
-        <article class="desk-card"><span class="pill blue">pro</span><h3>Condition search</h3><p>Find markets where participation is broadening, payoff is changing, or confirmation is still fragile.</p></article>
-        <article class="desk-card"><span class="pill blue">pro</span><h3>Saved alerts</h3><p>Track fresh survival, payoff rotation, pressure flips, and weak followthrough without watching every refresh.</p></article>
-        <article class="desk-card"><span class="pill blue">desk</span><h3>Replay lab</h3><p>Compare the current structure with prior windows and see whether similar tapes broadened, faded, or stayed mixed.</p></article>
-        <article class="desk-card"><span class="pill blue">desk</span><h3>Segment depth</h3><p>Break the headline into chain and segment views when the broad read says mixed but one corner is active.</p></article>
+        <article class="desk-card" data-requires-tier="pro"><span class="pill blue">pro</span><h3>Condition search</h3><p>Find markets where participation is broadening, pressure is changing, or confirmation is still fragile.</p></article>
+        <article class="desk-card" data-requires-tier="pro"><span class="pill blue">pro</span><h3>Saved alerts</h3><p>Track fresh survival, pressure flips, and weak followthrough without watching every refresh.</p></article>
+        <article class="desk-card" data-requires-tier="founder"><span class="pill blue">founder</span><h3>Replay lab</h3><p>Compare the current structure with prior windows and see whether similar tapes broadened, faded, or stayed mixed.</p></article>
+        <article class="desk-card" data-requires-tier="founder"><span class="pill blue">founder</span><h3>Segment depth</h3><p>Break the headline into chain and segment views when the broad read says mixed but one corner is active.</p></article>
       </div>
     </section>
 
@@ -1286,6 +1357,7 @@
     <div class="palette-results" id="paletteResults"></div>
   </aside>
 
+  <script src="/ravenos-access.js"></script>
   <script>
     const URLS = {
       snapshot: ["/ravenos_public_snapshot.json", "/public/ravenos_public_snapshot.json", "/ravenos_latest.json"],
@@ -1333,6 +1405,10 @@
       return text(value, fallback)
         .replace(new RegExp("\\b" + "wall" + "ets?\\b", "gi"), "participants")
         .replace(/\btrades?\b/gi, "market actions")
+        .replace(/\bpayoff\b/gi, "outcome")
+        .replace(/\breward(?:ed|ing|s)?\b/gi, "confirming")
+        .replace(/\byield\b/gi, "quality")
+        .replace(/\bprofit(?:able|ability|s)?\b/gi, "positive outcome")
         .replace(new RegExp("\\b" + "candi" + "dates?\\b", "gi"), "developing reads")
         .replace(new RegExp("\\b" + "pri" + "vate\\b", "gi"), "restricted");
     }
@@ -1532,7 +1608,7 @@
       const punishing = allRows.filter((r) => text(r.participant_outcome?.direction, "").toLowerCase() === "negative").length;
       const building = allRows.filter((r) => text(r.condition, "").toLowerCase() === "building").length;
       const improving = allRows.filter((r) => text(r.breadth?.direction, "").toLowerCase() === "improving").length;
-      let headline = "Activity is visible, but payoff is uneven.";
+      let headline = "Activity is visible, but outcome is uneven.";
       if (punishing >= 2) headline = "Participation is active, but still being punished.";
       else if (improving >= 2) headline = "Breadth is improving, confirmation still matters.";
       else if (building >= 2) headline = "The tape is building, not yet clean.";
@@ -1548,7 +1624,7 @@
       ].filter(Boolean);
       setText("chainSplit", `${improving} improving · ${building} building · ${punishing} fragile`);
       setText("confirmIf", "breadth holds while fresh activity survives");
-      setText("weakensIf", "payoff fades, pressure rises, or chains split");
+      setText("weakensIf", "confirmation fades, pressure rises, or chains split");
     }
 
     function detailRows(data, chain, segment, row, heat) {
@@ -1629,12 +1705,12 @@
     function comparePane(label, item, other) {
       const [deltaText, deltaClass] = comparisonDelta(item, other);
       const condition = title(item.all.condition || "building");
-      const payoff = safeText(item.heat.profitability_label || item.heat.avg_outcome || "outcome building");
+      const outcomeText = safeText(item.heat.profitability_label || item.heat.avg_outcome || "outcome building");
       const reason = safeText(item.part.public_summary || item.all.summary || "Public structure sample is building.");
-      return `<div class="compare-pane searchable" data-search="${escapeHtml(`${label} ${condition} ${payoff} ${reason}`.toLowerCase())}">
+      return `<div class="compare-pane searchable" data-search="${escapeHtml(`${label} ${condition} ${outcomeText} ${reason}`.toLowerCase())}">
         <h3>${escapeHtml(label)}</h3>
         <span class="delta ${deltaClass}">${escapeHtml(deltaText)}</span>
-        <p><strong>${escapeHtml(condition)}</strong> · ${escapeHtml(payoff)}</p>
+        <p><strong>${escapeHtml(condition)}</strong> · ${escapeHtml(outcomeText)}</p>
         <p>${escapeHtml(reason)}</p>
       </div>`;
     }
@@ -1771,7 +1847,7 @@
         interactiveChart("Participation breadth", "How broad the public participation sample is across chains.", breadthRows.map(([,v]) => v), compareValues, { deltaLabel: "breadth delta" }),
         interactiveChart("Clean sample depth", "Relative clean-sample depth. History expands as public memory grows.", cleanRows.map(([,v]) => v), compareValues, { deltaLabel: "sample delta" }),
         interactiveChart("Fresh survival", safeText(survival.public_summary || "History building from current snapshot values."), survivalValues.some(Boolean) ? survivalValues : [12, 22, 18, 30, 26], [], { deltaLabel: "survival" }),
-        interactiveChart("Reward conditions", safeText(weather.public_summary || "Reward conditions are building."), breadthRows.map(([,v]) => v).concat([num(weather.weather_score) ? num(weather.weather_score) * 100 : 0]), compareValues, { deltaLabel: "payoff" }),
+        interactiveChart("Outcome conditions", safeText(weather.public_summary || "Outcome conditions are building."), breadthRows.map(([,v]) => v).concat([num(weather.weather_score) ? num(weather.weather_score) * 100 : 0]), compareValues, { deltaLabel: "outcome" }),
         interactiveChart("Pressure / crowding", safeText(pressure.risk_read || pressure.confirmation_state || "Pressure context is building."), [pressure.crowding_state ? 58 : 18, pressure.confirmation_state ? 45 : 22, pressure.tactical_risk ? 62 : 20], [], { deltaLabel: "pressure" }),
         interactiveChart("Replay similarity", safeText(replay.public_summary || "Historical similarity is building."), [num(replay.similarity) ? num(replay.similarity) * 100 : 0, num(replay.broadening_tendency) ? num(replay.broadening_tendency) * 100 : 0, num(replay.persistence_tendency) ? num(replay.persistence_tendency) * 100 : 0], [], { deltaLabel: "history" })
       ].join("");
@@ -1787,7 +1863,7 @@
         ["active", states.length ? `${states.length} chain fresh-pair reads are visible.` : "Fresh-pair history is building."],
         ["survival", safeText(survival.summary?.survival || survival.public_summary || "Survival beyond first impulse is still forming.")],
         ["confirms if", "fresh activity keeps surviving across later refreshes"],
-        ["weakens if", "activity remains visible but payoff stays unclear"]
+        ["weakens if", "activity remains visible but outcome stays unclear"]
       ].map(([k,v]) => `<div><strong>${escapeHtml(k)}</strong>${escapeHtml(v)}</div>`).join("");
     }
 
@@ -2184,7 +2260,7 @@
       setText("stripStatus", "fallback");
       setText("stripReward", "building");
       setText("headline", "Latest read is refreshing.");
-      setText("deskRead", "RavenOS watches participation, breadth, followthrough, reward conditions, survival, pressure, and historical similarity.");
+      setText("deskRead", "RavenOS watches participation, breadth, followthrough, outcome conditions, survival, pressure, and historical similarity.");
     });
   </script>
 </body>

@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RavenOS Pro Access</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050608;
+      --panel: #0a0f12;
+      --panel2: #0d1418;
+      --ink: #f2f6ef;
+      --muted: #9ba6a8;
+      --soft: #667174;
+      --line: rgba(214,226,220,0.14);
+      --line2: rgba(214,226,220,0.26);
+      --blue: #65bdd6;
+      --green: #80d68a;
+      --amber: #ddb45f;
+      --red: #e17868;
+      --mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+      --sans: "IBM Plex Sans", "Aptos", ui-sans-serif, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(243,246,239,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(243,246,239,0.024) 1px, transparent 1px),
+        #050608;
+      background-size: 26px 26px, 26px 26px, auto;
+      font-family: var(--sans);
+    }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin: 0; }
+    button, input, select { font: inherit; }
+
+    .shell {
+      width: min(1480px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 14px 0 44px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1px;
+      border: 1px solid var(--line2);
+      background: var(--line);
+    }
+
+    .brand, .access-strip {
+      min-height: 58px;
+      padding: 11px 13px;
+      background: rgba(5,7,8,0.96);
+    }
+
+    .brand strong {
+      font-size: 22px;
+      letter-spacing: -0.055em;
+    }
+
+    .brand span:last-child { color: var(--blue); }
+    .brand small, .label {
+      display: block;
+      margin-top: 4px;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .access-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: min(720px, 55vw);
+    }
+
+    .metric {
+      min-width: 120px;
+      border-left: 1px solid var(--line);
+      padding-left: 10px;
+    }
+
+    .metric b {
+      display: block;
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .button {
+      border: 1px solid var(--line2);
+      padding: 7px 9px;
+      color: var(--ink);
+      background: rgba(101,189,214,0.08);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    .button:hover { border-color: rgba(101,189,214,0.52); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) 410px;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(13,20,24,0.96), rgba(7,10,12,0.96));
+    }
+
+    .intro { padding: clamp(18px, 2.3vw, 30px); }
+    .eyebrow {
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+    h1 {
+      max-width: 980px;
+      margin-top: 12px;
+      font-size: clamp(2.4rem, 5vw, 5.2rem);
+      line-height: 0.92;
+      letter-spacing: -0.07em;
+    }
+    .intro p {
+      max-width: 850px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.52;
+    }
+
+    .wallet-box { padding: 15px; }
+    .wallet-status {
+      display: grid;
+      gap: 6px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .wallet-status strong {
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+    .wallet-key {
+      overflow: hidden;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wallet-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tier-grid, .module-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 14px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+    .tier-card, .module-card {
+      min-height: 134px;
+      padding: 14px;
+      background: rgba(7,10,12,0.94);
+    }
+    .tier-card h3, .module-card h3 {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .tier-card p, .module-card p {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.44;
+    }
+    .pill {
+      display: inline-flex;
+      margin-bottom: 10px;
+      border: 1px solid var(--line2);
+      padding: 4px 7px;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    body[data-access-tier="founder"] .founder-badge { color: var(--green); border-color: rgba(128,214,138,0.48); }
+    .access-locked { opacity: 0.5; filter: grayscale(0.85); }
+    .gate-note {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    .module-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .module-head h2 {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .control {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      color: var(--ink);
+      background: rgba(255,255,255,0.025);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .heatmap-wrap {
+      position: relative;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      min-width: 1180px;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 9px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      color: var(--soft);
+      background: #070a0c;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    td { color: var(--muted); }
+    td strong { color: var(--ink); }
+    tr:hover td { background: rgba(101,189,214,0.055); }
+    .score { color: var(--green); }
+    .risk-high { color: var(--red); }
+    .risk-watch { color: var(--amber); }
+    .dense table { font-size: 10px; }
+    .dense th, .dense td { padding: 6px 8px; }
+    .founder-only { display: none; }
+    body[data-access-tier="founder"] .founder-only { display: table-cell; }
+
+    .locked-overlay {
+      display: none;
+      position: sticky;
+      bottom: 0;
+      border-top: 1px solid var(--line2);
+      padding: 13px 14px;
+      background: rgba(5,7,8,0.96);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.42;
+    }
+    body:not([data-access-tier="pro"]):not([data-access-tier="founder"]) .locked-overlay { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .detail-panel {
+      min-height: 80px;
+      padding: 13px 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .detail-panel strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 980px) {
+      .topbar, .hero, .tier-grid, .module-grid { grid-template-columns: 1fr; }
+      .access-strip { min-width: 0; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body data-access-tier="disconnected">
+  <main class="shell">
+    <nav class="topbar">
+      <a class="brand" href="/">
+        <strong><span>Raven</span><span>OS</span></strong>
+        <small>Pro access</small>
+      </a>
+      <div class="access-strip">
+        <div class="metric"><b id="resolvedTier">disconnected</b><span>resolved tier</span></div>
+        <div class="metric"><b id="walletBalance">not connected</b><span>access balance</span></div>
+        <button class="button" type="button" id="connectPhantom">Phantom</button>
+        <button class="button" type="button" id="connectSolflare">Solflare</button>
+        <button class="button" type="button" id="connectBackpack">Backpack</button>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <article class="panel intro">
+        <p class="eyebrow">RavenOS Pro</p>
+        <h1>Dense market-structure workflows unlocked by wallet access.</h1>
+        <p>Users unlock Pro features by connecting a wallet holding the required RavenOS token balance. The token is used strictly for product access.</p>
+        <div class="tier-grid">
+          <div class="tier-card"><span class="pill">free</span><h3>Public layer</h3><p>Current aggregate market read, public heatmap, replay shell, and limited delayed Pro previews.</p></div>
+          <div class="tier-card"><span class="pill">pro</span><h3>Pro threshold</h3><p><strong id="proRequiredBalance">1,000,000</strong> tokens unlock Pro modules and full Live Flow Heatmap rows.</p></div>
+          <div class="tier-card"><span class="pill founder-badge">founder</span><h3>Founder threshold</h3><p><strong id="founderRequiredBalance">10,000,000</strong> tokens unlock Pro modules plus experimental columns.</p></div>
+        </div>
+      </article>
+
+      <aside class="panel wallet-box">
+        <span class="label">wallet access</span>
+        <div class="wallet-status">
+          <strong id="walletState">disconnected</strong>
+          <span id="walletAccessDetail">Connect a Solana wallet to resolve product access.</span>
+          <span class="wallet-key" id="walletPublicKey"></span>
+        </div>
+        <div class="wallet-row">
+          <button class="button" type="button" data-access-check>Connect Wallet / Check Access</button>
+          <button class="button" type="button" id="disconnectWallet">Disconnect</button>
+        </div>
+      </aside>
+    </section>
+
+    <section class="module-grid" aria-label="RavenOS Pro modules">
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Live Flow Heatmap</h3><p>Chain and token-level flow rows with attention, concentration, liquidity posture, and risk flags.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Wallet Behavior Feed</h3><p>Participant behavior clusters, repeat activity, and posture changes summarized for product workflows.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Signal Archive</h3><p>Search historical public-safe conditions and compare current structure against prior windows.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Watchlists</h3><p>Save chain, segment, and condition views for faster operator review.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Chain Posture</h3><p>Dense chain-level structure cards for breadth, pressure, followthrough, and data quality.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+      <article class="module-card" data-requires-tier="pro"><span class="pill">pro</span><h3>Raven Brief</h3><p>A compact desk read that turns the latest public-safe market structure into an operator brief.</p><button class="button" type="button" data-access-check>Connect Wallet / Check Access</button></article>
+    </section>
+
+    <section class="panel" id="live-flow-heatmap">
+      <div class="module-head">
+        <div>
+          <h2>Live Flow Heatmap</h2>
+          <span class="label">free sees delayed preview rows · pro sees full table · founder sees experimental columns</span>
+        </div>
+        <div class="controls">
+          <input class="control" id="flowFilter" placeholder="filter symbol, chain, risk">
+          <select class="control" id="chainFilter" aria-label="chain filter">
+            <option value="">all chains</option>
+            <option value="Solana">Solana</option>
+            <option value="Base">Base</option>
+            <option value="ETH">ETH</option>
+          </select>
+          <button class="button" type="button" id="densityToggle">dense</button>
+        </div>
+      </div>
+      <div class="heatmap-wrap" id="flowWrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="symbol">symbol</th>
+              <th data-sort="chain">chain</th>
+              <th data-sort="flowScore">flow score</th>
+              <th data-sort="attentionVelocity">attention velocity</th>
+              <th data-sort="walletConcentration">wallet concentration</th>
+              <th data-sort="smartWalletActivity">smart wallet activity</th>
+              <th data-sort="liquidityPosture">liquidity posture</th>
+              <th data-sort="riskFlag">risk flag</th>
+              <th data-sort="updated">last updated</th>
+              <th class="founder-only" data-sort="clusterDrift">cluster drift</th>
+              <th class="founder-only" data-sort="routeFreshness">route freshness</th>
+            </tr>
+          </thead>
+          <tbody id="flowRows"></tbody>
+        </table>
+        <div class="locked-overlay">
+          <span>Free preview shows 5 delayed rows. Connect wallet or check access for the full heatmap.</span>
+          <button class="button" type="button" data-access-check>Connect Wallet / Check Access</button>
+        </div>
+      </div>
+      <div class="detail-panel" id="flowDetail"><strong>why this matters</strong>Select or hover a row to inspect the structure context behind the flow read.</div>
+    </section>
+  </main>
+
+  <script src="/ravenos-access.js"></script>
+  <script>
+    const MOCK_FLOW_ROWS = [
+      ["SOL", "Solana", 91, "rising", "medium", "heavy", "deep", "watch", "2m ago", "broadening", "fresh"],
+      ["JUP", "Solana", 84, "rising", "medium", "active", "deep", "clear", "4m ago", "steady", "fresh"],
+      ["WIF", "Solana", 76, "flat", "high", "active", "normal", "watch", "8m ago", "narrow", "fresh"],
+      ["BONK", "Solana", 72, "cooling", "high", "moderate", "normal", "watch", "12m ago", "narrow", "aged"],
+      ["PYTH", "Solana", 69, "rising", "low", "moderate", "normal", "clear", "16m ago", "steady", "fresh"],
+      ["ETH", "ETH", 88, "rising", "medium", "heavy", "deep", "clear", "3m ago", "broadening", "fresh"],
+      ["AERO", "Base", 80, "rising", "medium", "active", "normal", "clear", "6m ago", "steady", "fresh"],
+      ["DEGEN", "Base", 64, "flat", "high", "moderate", "thin", "elevated", "14m ago", "narrow", "aged"],
+      ["OP", "Base", 67, "cooling", "low", "light", "normal", "clear", "18m ago", "steady", "aged"],
+      ["LINK", "ETH", 74, "rising", "low", "active", "deep", "clear", "11m ago", "broadening", "fresh"],
+      ["ENA", "ETH", 70, "flat", "medium", "moderate", "normal", "watch", "20m ago", "steady", "aged"],
+      ["MPLX", "Solana", 63, "rising", "medium", "light", "normal", "watch", "24m ago", "forming", "aged"],
+    ].map(([symbol, chain, flowScore, attentionVelocity, walletConcentration, smartWalletActivity, liquidityPosture, riskFlag, updated, clusterDrift, routeFreshness]) => ({
+      symbol, chain, flowScore, attentionVelocity, walletConcentration, smartWalletActivity, liquidityPosture, riskFlag, updated, clusterDrift, routeFreshness,
+      why: `${symbol} shows ${attentionVelocity} attention with ${liquidityPosture} liquidity posture and ${walletConcentration} concentration. Use this as a structure read, not an instruction.`
+    }));
+
+    let sortKey = "flowScore";
+    let sortDir = -1;
+    let dense = false;
+
+    function rankTier() {
+      const tier = window.RavenOSAccess?.getState().tier || "free";
+      const status = window.RavenOSAccess?.getState().status || "disconnected";
+      if (status !== "connected") return "free";
+      return tier;
+    }
+
+    function visibleRows() {
+      const tier = rankTier();
+      const q = document.getElementById("flowFilter")?.value.toLowerCase().trim() || "";
+      const chain = document.getElementById("chainFilter")?.value || "";
+      let rows = MOCK_FLOW_ROWS.filter((row) => {
+        const hay = `${row.symbol} ${row.chain} ${row.riskFlag} ${row.liquidityPosture}`.toLowerCase();
+        return (!q || hay.includes(q)) && (!chain || row.chain === chain);
+      });
+      rows = rows.sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * sortDir;
+        return String(av).localeCompare(String(bv)) * sortDir;
+      });
+      return tier === "pro" || tier === "founder" ? rows : rows.slice(0, 5);
+    }
+
+    function riskClass(value) {
+      if (value === "elevated") return "risk-high";
+      if (value === "watch") return "risk-watch";
+      return "";
+    }
+
+    function renderFlowRows() {
+      document.getElementById("flowWrap")?.classList.toggle("dense", dense);
+      const root = document.getElementById("flowRows");
+      if (!root) return;
+      root.innerHTML = visibleRows().map((row) => `
+        <tr data-symbol="${row.symbol}">
+          <td><strong>${row.symbol}</strong></td>
+          <td>${row.chain}</td>
+          <td class="score">${row.flowScore}</td>
+          <td>${row.attentionVelocity}</td>
+          <td>${row.walletConcentration}</td>
+          <td>${row.smartWalletActivity}</td>
+          <td>${row.liquidityPosture}</td>
+          <td class="${riskClass(row.riskFlag)}">${row.riskFlag}</td>
+          <td>${row.updated}</td>
+          <td class="founder-only">${row.clusterDrift}</td>
+          <td class="founder-only">${row.routeFreshness}</td>
+        </tr>
+      `).join("");
+      root.querySelectorAll("tr").forEach((tr) => {
+        const row = MOCK_FLOW_ROWS.find((item) => item.symbol === tr.dataset.symbol);
+        const show = () => {
+          const detail = document.getElementById("flowDetail");
+          if (detail && row) detail.innerHTML = `<strong>why this matters · ${row.symbol}</strong>${row.why}`;
+        };
+        tr.addEventListener("mouseenter", show);
+        tr.addEventListener("click", show);
+      });
+    }
+
+    document.querySelectorAll("[data-sort]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-sort");
+        sortDir = sortKey === key ? sortDir * -1 : -1;
+        sortKey = key;
+        renderFlowRows();
+      });
+    });
+    document.getElementById("flowFilter")?.addEventListener("input", renderFlowRows);
+    document.getElementById("chainFilter")?.addEventListener("change", renderFlowRows);
+    document.getElementById("densityToggle")?.addEventListener("click", () => {
+      dense = !dense;
+      renderFlowRows();
+    });
+    window.RavenOSAccess?.subscribe(renderFlowRows);
+    renderFlowRows();
+  </script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RavenOS Pricing</title>
+  <style>
+    :root { color-scheme: dark; --bg:#050907; --panel:#08110e; --panel2:#0b1713; --line:rgba(148,163,184,.18); --strong:rgba(125,211,252,.28); --text:#e5f0eb; --muted:#8da39a; --green:#34d399; --cyan:#7dd3fc; --yellow:#facc15; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; }
+    .shell { max-width:1180px; margin:0 auto; padding:18px; }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; padding:10px 0 16px; border-bottom:1px solid var(--line); }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:clamp(28px,4vw,48px); line-height:1.02; }
+    h2 { font-size:14px; text-transform:uppercase; }
+    h3 { font-size:18px; }
+    .eyebrow { color:var(--cyan); font-size:11px; text-transform:uppercase; font-weight:850; }
+    .muted { color:var(--muted); font-size:12px; line-height:1.5; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:14px; }
+    .card { border:1px solid var(--line); background:var(--panel); padding:14px; min-height:320px; display:flex; flex-direction:column; gap:12px; }
+    .card.featured { border-color:rgba(52,211,153,.45); background:#07130f; }
+    .price { font-size:34px; line-height:1; font-weight:850; }
+    .price small { color:var(--muted); font-size:13px; font-weight:700; }
+    .list { display:grid; gap:8px; margin:2px 0 0; padding:0; list-style:none; color:var(--muted); font-size:13px; line-height:1.4; }
+    .list li { border-top:1px solid var(--line); padding-top:8px; }
+    .button { border:1px solid var(--strong); background:#0c1a15; color:var(--text); min-height:38px; padding:9px 12px; font-size:12px; font-weight:850; cursor:pointer; text-align:center; text-decoration:none; }
+    .button.primary { background:rgba(52,211,153,.12); border-color:rgba(52,211,153,.45); }
+    .actions { margin-top:auto; display:flex; gap:8px; flex-wrap:wrap; }
+    .status { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
+    .metric { border:1px solid var(--line); background:var(--panel2); padding:10px; min-height:66px; }
+    .metric span { display:block; color:var(--muted); font-size:10px; text-transform:uppercase; font-weight:850; }
+    .metric strong { display:block; margin-top:7px; overflow-wrap:anywhere; }
+    @media (max-width:900px) { .grid,.status { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body data-access-tier="disconnected">
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">RavenOS Pricing</span>
+        <h1>Market Intelligence Access</h1>
+        <p class="muted">Upgrade RavenOS for expanded market, instrument, participant, flow, and posture modules.</p>
+      </div>
+      <a class="button" href="/account/">Account</a>
+    </header>
+
+    <section class="status">
+      <div class="metric"><span>Current tier</span><strong id="resolvedTier">disconnected</strong></div>
+      <div class="metric"><span>Access source</span><strong id="accessReason">not connected</strong></div>
+      <div class="metric"><span>Subscription</span><strong id="subscriptionStatus">not active</strong></div>
+      <div class="metric"><span>Plan type</span><strong id="planType">none</strong></div>
+    </section>
+
+    <section class="grid">
+      <article class="card featured">
+        <span class="eyebrow">Monthly Pro</span>
+        <h2>RavenOS Pro</h2>
+        <div class="price">$149 <small>/ mo</small></div>
+        <p class="muted">Full Pro module access for active market review workflows.</p>
+        <ul class="list">
+          <li>Live Flow Heatmap</li>
+          <li>Wallet Behavior Feed and participant posture views</li>
+          <li>Signal Archive, Watchlists, Chain Posture, Raven Brief</li>
+        </ul>
+        <div class="actions"><button class="button primary" type="button" data-stripe-checkout="monthly">Upgrade Monthly</button></div>
+      </article>
+
+      <article class="card">
+        <span class="eyebrow">Annual Pro</span>
+        <h2>RavenOS Pro</h2>
+        <div class="price">$999 <small>/ yr</small></div>
+        <p class="muted">Annual access for teams and operators who review markets continuously.</p>
+        <ul class="list">
+          <li>Same Pro module set as monthly</li>
+          <li>Customer portal management through Stripe</li>
+          <li>One unified RavenOS access tier</li>
+        </ul>
+        <div class="actions"><button class="button primary" type="button" data-stripe-checkout="annual">Upgrade Annual</button></div>
+      </article>
+
+      <article class="card">
+        <span class="eyebrow">Token Holder Access</span>
+        <h2>SPL Token Gate</h2>
+        <div class="price">Pro <small>or Founder</small></div>
+        <p class="muted">Connect a Solana wallet holding the configured RavenOS SPL token balance.</p>
+        <ul class="list">
+          <li>Pro required balance: <span id="proRequiredBalance">1,000,000</span></li>
+          <li>Founder required balance: <span id="founderRequiredBalance">10,000,000</span></li>
+          <li>Founder remains token-balance based and extensible</li>
+        </ul>
+        <div class="actions">
+          <button class="button" type="button" id="connectPhantom">Phantom</button>
+          <button class="button" type="button" id="connectSolflare">Solflare</button>
+          <button class="button" type="button" id="connectBackpack">Backpack</button>
+        </div>
+      </article>
+    </section>
+  </main>
+  <script src="/ravenos-access.js"></script>
+</body>
+</html>

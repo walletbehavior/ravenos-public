@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@solana/web3.js": "^1.95.3",
+    "@triton-one/yellowstone-grpc": "^5.0.8",
+    "@turnkey/api-key-stamper": "^0.6.6",
+    "@turnkey/sdk-server": "^6.0.0",
+    "@turnkey/solana": "^1.1.29",
+    "bs58": "^6.0.0",
+    "lightweight-charts": "^5.2.0",
+    "node": "^20.18.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "stripe": "^22.2.3",
+    "tweetnacl": "^1.0.3"
+  }
+}
