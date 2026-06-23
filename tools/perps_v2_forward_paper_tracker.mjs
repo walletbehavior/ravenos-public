@@ -23,6 +23,12 @@ const SAFETY_FLAGS = {
   live_execution_enabled: false,
   promotion_allowed: false,
 };
+const OUTCOME_WINDOWS = {
+  "15m": 15 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+  "4h": 4 * 60 * 60 * 1000,
+  "12h": 12 * 60 * 60 * 1000,
+};
 
 function num(value, fallback = 0) {
   const n = Number(value);
@@ -91,6 +97,30 @@ function latestObservationAgeMs(observations, lane, nowMs) {
   return nowMs - latest;
 }
 
+function observationKey(lane, timestamp) {
+  return `${lane}:${timestamp}`;
+}
+
+function hasPendingWindows(observation) {
+  return Object.keys(OUTCOME_WINDOWS).some((windowName) => observation.outcomes?.[windowName]?.status !== "observed");
+}
+
+function hasOpenObservationForLane(observations, lane) {
+  return observations.some((row) => row.lane === lane && row.status !== "blocked_missing_live_context" && hasPendingWindows(row));
+}
+
+function dedupeObservations(observations) {
+  const seen = new Set();
+  const out = [];
+  for (const observation of observations) {
+    const key = observation.observation_key || observationKey(observation.lane, observation.timestamp);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ observation_key: key, ...observation });
+  }
+  return out;
+}
+
 function liveSnapshotFor(row) {
   const replay = Array.isArray(row?.replayMatches) && row.replayMatches[0] ? row.replayMatches[0] : {};
   const liquidity = row?.liquidityAttraction || {};
@@ -116,6 +146,7 @@ function createObservation({ lane, config, liveRow, now }) {
   const entry = num(liveRow?.markPx || liveRow?.lastPrice);
   return {
     ...SAFETY_FLAGS,
+    observation_key: observationKey(lane, new Date(now).toISOString()),
     lane,
     setup_family: parsed.setup_family,
     direction: parsed.direction,
@@ -180,16 +211,10 @@ function aggregateObservation(observation) {
 
 async function updateObservationOutcomes(observations, config) {
   const bySymbol = new Map();
-  const windows = {
-    "15m": 15 * 60 * 1000,
-    "1h": 60 * 60 * 1000,
-    "4h": 4 * 60 * 60 * 1000,
-    "12h": 12 * 60 * 60 * 1000,
-  };
   const fee = num(config.assumed_fee_slippage_pct, 0.0008);
   for (const observation of observations) {
     if (!observation.entry_reference || observation.status === "blocked_missing_live_context") continue;
-    const missing = Object.keys(windows).filter((windowName) => observation.outcomes?.[windowName]?.status !== "observed");
+    const missing = Object.keys(OUTCOME_WINDOWS).filter((windowName) => observation.outcomes?.[windowName]?.status !== "observed");
     if (!missing.length) continue;
     if (!bySymbol.has(observation.symbol)) {
       const start = (Date.parse(observation.timestamp) || Date.now()) - 15 * 60 * 1000;
@@ -206,7 +231,7 @@ async function updateObservationOutcomes(observations, config) {
     }
     const candles = bySymbol.get(observation.symbol) || [];
     observation.outcomes ||= {};
-    for (const [windowName, windowMs] of Object.entries(windows)) {
+    for (const [windowName, windowMs] of Object.entries(OUTCOME_WINDOWS)) {
       if (observation.outcomes[windowName]?.status === "observed") continue;
       observation.outcomes[windowName] = outcomeForWindow(observation, candles, windowMs, fee);
     }
@@ -286,6 +311,39 @@ function recommendationFor(tables) {
   return "continue";
 }
 
+function buildMonitoringSummary({ observations, previousObservations, newObservations, tables }) {
+  const openObservations = observations.filter((row) => row.status !== "blocked_missing_live_context" && hasPendingWindows(row)).length;
+  const blockedObservations = observations.filter((row) => (row.blockers || []).length || row.status === "blocked_missing_live_context").length;
+  const previousByKey = new Map(previousObservations.map((row) => [row.observation_key || observationKey(row.lane, row.timestamp), row]));
+  const matured = Object.fromEntries(Object.keys(OUTCOME_WINDOWS).map((windowName) => [`matured_${windowName}`, 0]));
+
+  for (const observation of observations) {
+    const key = observation.observation_key || observationKey(observation.lane, observation.timestamp);
+    const previous = previousByKey.get(key);
+    for (const windowName of Object.keys(OUTCOME_WINDOWS)) {
+      const nowObserved = observation.outcomes?.[windowName]?.status === "observed";
+      const wasObserved = previous?.outcomes?.[windowName]?.status === "observed";
+      if (nowObserved && !wasObserved) matured[`matured_${windowName}`] += 1;
+    }
+  }
+
+  const provisional = tables.ranked_lane_table
+    .filter((row) => row.forward_samples > 0)
+    .sort((a, b) => b.avg_net_after_assumed_fees_slippage_pct - a.avg_net_after_assumed_fees_slippage_pct);
+
+  return {
+    open_observations: openObservations,
+    ...matured,
+    new_observations: newObservations.length,
+    blocked_observations: blockedObservations,
+    insufficient_sample: tables.sample_sufficiency_table.filter((row) => !row.sufficient).length,
+    pending_windows: observations.reduce((sum, row) => sum + Object.keys(OUTCOME_WINDOWS).filter((windowName) => row.outcomes?.[windowName]?.status !== "observed").length, 0),
+    no_promotion_allowed: true,
+    best_provisional_lanes: provisional.slice(0, 5),
+    worst_provisional_lanes: provisional.slice(-5).reverse(),
+  };
+}
+
 function markdownTable(rows, columns) {
   const header = `| ${columns.map((col) => col.label).join(" | ")} |`;
   const sep = `| ${columns.map(() => "---").join(" | ")} |`;
@@ -297,6 +355,7 @@ function writeSummary(report) {
   const ranked = report.ranked_lane_table.slice(0, 12);
   const blocked = report.blocked_lane_table.slice(0, 14);
   const samples = report.sample_sufficiency_table;
+  const monitor = report.monitoring_summary || {};
   const md = [
     "# Perps v2 Forward Paper Summary",
     "",
@@ -305,6 +364,19 @@ function writeSummary(report) {
     "Safety: diagnostic/paper only. Live execution, promotion, sizing, caps, and mirrors are disabled.",
     "",
     `Recommendation: ${report.recommendation}`,
+    "",
+    "## Monitor Status",
+    markdownTable([monitor], [
+      { key: "open_observations", label: "Open" },
+      { key: "matured_15m", label: "15m Matured" },
+      { key: "matured_1h", label: "1h Matured" },
+      { key: "matured_4h", label: "4h Matured" },
+      { key: "matured_12h", label: "12h Matured" },
+      { key: "new_observations", label: "New" },
+      { key: "blocked_observations", label: "Blocked" },
+      { key: "pending_windows", label: "Pending Windows" },
+      { key: "no_promotion_allowed", label: "Promotion Disabled" },
+    ]),
     "",
     "## Ranked Lane Table",
     markdownTable(ranked, [
@@ -332,6 +404,8 @@ function writeSummary(report) {
     ]),
     "",
     "No live trade recommendations are generated by this artifact.",
+    "All lanes remain insufficient sample until they meet the configured future-review threshold.",
+    "Pending windows are measurement state only and do not permit promotion.",
     "",
   ].join("\n");
   fs.writeFileSync(SUMMARY_PATH, md);
@@ -343,22 +417,33 @@ export async function buildPerpsV2ForwardPaperTracker({ write = true } = {}) {
   const backtest = readJson(BACKTEST_PATH, {});
   const now = Date.now();
   const minCreateIntervalMs = num(process.env.PERPS_V2_FORWARD_CREATE_INTERVAL_MIN, 60) * 60 * 1000;
-  const observations = Array.isArray(previous.observations) ? previous.observations : [];
+  const previousObservations = dedupeObservations(Array.isArray(previous.observations) ? previous.observations : []);
+  const observations = await updateObservationOutcomes(previousObservations, config);
   const liveRows = await fetchLivePerps();
+  const newObservations = [];
 
   for (const lane of config.validated_lanes || []) {
+    if (hasOpenObservationForLane(observations, lane)) continue;
     if (latestObservationAgeMs(observations, lane, now) < minCreateIntervalMs) continue;
     const parsed = parseLane(lane);
-    observations.push(createObservation({
+    const observation = createObservation({
       lane,
       config,
       liveRow: liveRows.get(parsed.symbol),
       now,
-    }));
+    });
+    observations.push(observation);
+    newObservations.push(observation);
   }
 
-  const updatedObservations = await updateObservationOutcomes(observations, config);
+  const updatedObservations = dedupeObservations(observations);
   const tables = buildTables(updatedObservations, config, backtest);
+  const monitoringSummary = buildMonitoringSummary({
+    observations: updatedObservations,
+    previousObservations,
+    newObservations,
+    tables,
+  });
   const report = {
     schema_version: "perps_v2_forward_paper_report.v1",
     generated_at: new Date(now).toISOString(),
@@ -373,6 +458,7 @@ export async function buildPerpsV2ForwardPaperTracker({ write = true } = {}) {
     blockers: config.blockers || [],
     observations: updatedObservations,
     ...tables,
+    monitoring_summary: monitoringSummary,
     recommendation: recommendationFor(tables),
   };
 
@@ -390,6 +476,18 @@ async function main() {
     summary: path.relative(APP_ROOT, SUMMARY_PATH),
     generated_at: report.generated_at,
     observations: report.observations.length,
+    open_observations: report.monitoring_summary.open_observations,
+    matured_15m: report.monitoring_summary.matured_15m,
+    matured_1h: report.monitoring_summary.matured_1h,
+    matured_4h: report.monitoring_summary.matured_4h,
+    matured_12h: report.monitoring_summary.matured_12h,
+    new_observations: report.monitoring_summary.new_observations,
+    blocked_observations: report.monitoring_summary.blocked_observations,
+    insufficient_sample: report.monitoring_summary.insufficient_sample,
+    pending_windows: report.monitoring_summary.pending_windows,
+    no_promotion_allowed: report.monitoring_summary.no_promotion_allowed,
+    best_provisional_lanes: report.monitoring_summary.best_provisional_lanes,
+    worst_provisional_lanes: report.monitoring_summary.worst_provisional_lanes,
     recommendation: report.recommendation,
     ranked_lane_table: report.ranked_lane_table,
   }, null, 2));
