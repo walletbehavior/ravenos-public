@@ -63,7 +63,8 @@ const pressure = explanationForMetric("pressure_score", {
 assert.match(pressure.headline, /Pressure Score/);
 assert.ok(pressure.risks.length >= 1);
 assert.ok(pressure.breakdown.length >= 4);
-assert.equal(pressure.coverage, "Live");
+assert.equal(pressure.coverage, "indexed");
+assert.equal(pressure.confidenceModel.label, "moderate");
 
 const replay = explanationForMetric("replay_similarity", {
   replaySimilarity: 76,
