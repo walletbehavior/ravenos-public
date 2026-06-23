@@ -8,7 +8,9 @@ import { processStripeWebhookEvent } from "./lib/ravenos_stripe_webhooks.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "./lib/solana_wallet_auth.mjs";
 
 const dexCache = new Map();
+const hyperliquidCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
+const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const EVM_CHAINS = ["base", "ethereum", "arbitrum", "optimism", "bsc", "polygon"];
@@ -86,6 +88,105 @@ function rankDexPair(pair = {}) {
 
 function sortedDexResults(pairs = []) {
   return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
+}
+
+function pressureStateFromScore(score) {
+  if (score >= 84) return "Crowded";
+  if (score >= 74) return "Elevated";
+  if (score <= 42) return "Exhausted";
+  return "Constructive";
+}
+
+function normalizeHyperliquidPerps(payload) {
+  const universe = payload?.[0]?.universe || [];
+  const contexts = payload?.[1] || [];
+  const oiValues = contexts.map((ctx) => num(ctx.openInterest)).filter((value) => value > 0);
+  const volumeValues = contexts.map((ctx) => num(ctx.dayNtlVlm)).filter((value) => value > 0);
+  const maxOi = Math.max(...oiValues, 1);
+  const maxVolume = Math.max(...volumeValues, 1);
+  return universe.map((meta, index) => {
+    const ctx = contexts[index] || {};
+    const symbol = String(meta.name || "").toUpperCase();
+    const funding = num(ctx.funding);
+    const premium = num(ctx.premium);
+    const openInterest = num(ctx.openInterest);
+    const dayNtlVlm = num(ctx.dayNtlVlm);
+    const markPx = num(ctx.markPx || ctx.midPx || ctx.oraclePx);
+    const oiScore = Math.min(100, openInterest / maxOi * 100);
+    const volumeScore = Math.min(100, dayNtlVlm / maxVolume * 100);
+    const fundingScore = Math.min(100, Math.abs(funding) * 1_000_000);
+    const basisScore = Math.min(100, Math.abs(premium) * 100_000);
+    const pressureScore = Math.round(
+      fundingScore * 0.22 +
+      oiScore * 0.24 +
+      basisScore * 0.18 +
+      volumeScore * 0.20 +
+      Math.min(100, Math.abs(num(ctx.prevDayPx) ? (markPx - num(ctx.prevDayPx)) / num(ctx.prevDayPx) : 0) * 1000) * 0.16
+    );
+    return {
+      asset: `${symbol}-PERP`,
+      symbol,
+      market: "Perpetual Futures",
+      category: "perpetuals",
+      venue: "Hyperliquid",
+      chainVenue: "Hyperliquid",
+      lastPrice: markPx,
+      markPx,
+      midPx: num(ctx.midPx),
+      oraclePx: num(ctx.oraclePx),
+      prevDayPx: num(ctx.prevDayPx),
+      funding,
+      openInterest,
+      oiScore,
+      dayNtlVlm,
+      dayBaseVlm: num(ctx.dayBaseVlm),
+      premium,
+      basis: premium,
+      maxLeverage: meta.maxLeverage || null,
+      pressureScore,
+      pressureState: pressureStateFromScore(pressureScore),
+      pressureContext: fundingScore >= 65 ? "Funding elevated" : basisScore >= 55 ? "Basis firm" : "Funding neutral",
+      participantActivity: oiScore >= 65 ? "OI expansion" : oiScore <= 25 ? "OI light" : "OI balanced",
+      liquidityPosture: volumeScore >= 65 ? "Deep" : volumeScore >= 30 ? "Balanced" : "Thin",
+      risk: pressureScore >= 84 ? "Elevated" : pressureScore >= 70 ? "Watch" : "Stable",
+      participationOutcome: volumeScore >= 65 && pressureScore < 82 ? "Paying" : pressureScore >= 84 ? "Punishing" : "Mixed",
+      attentionVelocity: Math.round(volumeScore / 3 + fundingScore / 8),
+      flowScore: pressureScore,
+      lastUpdated: new Date().toISOString(),
+      provider: "Hyperliquid",
+      coverage: "Live",
+      isLive: true,
+      isCached: false,
+      isSample: false,
+      warning: "",
+    };
+  }).filter((row) => row.symbol && row.lastPrice > 0);
+}
+
+async function hyperliquidPerps() {
+  const key = "metaAndAssetCtxs";
+  const now = Date.now();
+  const hit = hyperliquidCache.get(key);
+  if (hit && hit.expires > now) return hit.payload;
+  const response = await fetch(HYPERLIQUID_INFO_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ type: "metaAndAssetCtxs" }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(`hyperliquid_http_${response.status}`);
+  const rows = normalizeHyperliquidPerps(payload);
+  const result = {
+    ok: true,
+    provider: "Hyperliquid",
+    coverage: "Live",
+    isLive: true,
+    lastUpdated: new Date().toISOString(),
+    count: rows.length,
+    results: rows,
+  };
+  hyperliquidCache.set(key, { payload: result, expires: now + 15_000 });
+  return result;
 }
 
 async function searchDex(query) {
@@ -363,8 +464,33 @@ async function handleWebhook(request, env) {
   }
 }
 
+function handleHealth(env = {}) {
+  const stripeConfigured = Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
+  const tokenConfigured = Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
+  const dbConfigured = Boolean(env.RAVENOS_DB);
+  const checks = {
+    worker: "ok",
+    assets: env.ASSETS ? "ok" : "unavailable",
+    accessApi: "ok",
+    hyperliquid: "configured_public_endpoint",
+    dexscreener: "configured_public_endpoint",
+    stripe: stripeConfigured ? "configured" : "not_configured",
+    tokenAccess: tokenConfigured ? "configured" : "not_configured",
+    database: dbConfigured ? "configured" : "not_configured",
+  };
+  const requiredHealthy = checks.worker === "ok" && checks.assets === "ok" && checks.accessApi === "ok";
+  return json({
+    ok: requiredHealthy,
+    status: requiredHealthy ? "ok" : "degraded",
+    service: "ravenos-public",
+    timestamp: new Date().toISOString(),
+    checks,
+  }, { status: requiredHealthy ? 200 : 503 });
+}
+
 async function routeApi(request, env) {
   const url = new URL(request.url);
+  if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(env);
   if (url.pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) return handleAccess(request, env);
   if (url.pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
   if (url.pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
@@ -388,6 +514,13 @@ async function routeApi(request, env) {
       return json({ ok: true, results: await pairDex(url.searchParams.get("chainId") || "", url.searchParams.get("pairAddress") || "") });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/hyperliquid/perps" && request.method === "GET") {
+    try {
+      return json(await hyperliquidPerps());
+    } catch (error) {
+      return json({ ok: false, provider: "Hyperliquid", coverage: "Unavailable", isLive: false, warning: "Hyperliquid unavailable", error: error instanceof Error ? error.message : "hyperliquid_perps_failed", results: [] }, { status: 502 });
     }
   }
   return json({ ok: false, error: "not_found" }, { status: 404 });

@@ -157,6 +157,16 @@
     .why-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
     .why-list li { color: var(--muted); font-size: 11px; line-height: 1.35; }
     .why-list li::before { content: "• "; color: var(--cyan); }
+    .perps-intel-panel { border-top: 1px solid var(--line); display: none; }
+    .perps-intel-panel.active { display: grid; }
+    .perps-block { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 9px; }
+    .perps-block h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--cyan); }
+    .pressure-state { display: inline-flex; width: fit-content; padding: 4px 7px; border: 1px solid var(--line-strong); color: var(--text); background: rgba(125,211,252,0.08); font-size: 10px; text-transform: uppercase; font-weight: 850; }
+    .condition-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+    .condition-list li { display: grid; grid-template-columns: 1fr auto; gap: 8px; color: var(--muted); font-size: 11px; }
+    .condition-list b { color: var(--text); font-family: var(--mono); font-weight: 800; }
+    .replay-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; color: var(--muted); font-size: 11px; }
+    .replay-row strong { color: var(--text); }
     .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
     .tape-panel { grid-column: 2 / -1; }
     .structure-tape { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
@@ -275,6 +285,7 @@
               <option value="flow">Flow Terminal</option>
               <option value="crypto_heatmaps">Crypto Heatmaps</option>
               <option value="perps_pressure">Perps Pressure</option>
+              <option value="perps_intelligence">Perps Intelligence</option>
               <option value="participant">Participant Intelligence</option>
               <option value="breadth">Market Breadth</option>
             </select>
@@ -301,7 +312,7 @@
 
       <aside class="panel intel" aria-label="Intelligence summary">
         <div class="score">
-          <span>Flow Score</span>
+          <span id="primaryScoreLabel">Flow Score</span>
           <strong id="flowScore">84</strong>
         </div>
         <div class="intel-row"><span>Price</span><strong id="lastPrice">$69.000000</strong></div>
@@ -319,6 +330,7 @@
         </div>
         <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
         <div class="brief" id="terminalBrief"></div>
+        <section class="perps-intel-panel" id="perpsIntelligencePanel" aria-label="Perps intelligence panel"></section>
         <section class="explanation-panel" id="explanationPanel" aria-label="Explanation panel"></section>
       </aside>
 
@@ -613,8 +625,9 @@
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem]) => ({
       asset, market: "Perpetual Futures", category: "perpetuals", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
     }));
+    let livePerpsRows = [];
     let activeCategory = "perps_overview";
-    let activeMode = "flow";
+    let activeMode = "perps_intelligence";
     let accessTier = "free";
     let chartHandle;
     let sortKey = "flowScore";
@@ -652,7 +665,7 @@
 
     function rowsForCategory(category = activeCategory) {
       if (category === "crypto_overview") return uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]);
-      if (category === "perps_overview") return uniqueRows([...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
+      if (category === "perps_overview") return uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
       if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
@@ -690,8 +703,8 @@
     }
 
     function modeForCategory(category) {
-      if (category === "funding_oi" || category === "compression" || category === "liquidation_zones") return "perps_pressure";
-      if (category.includes("perps")) return category === "perps_overview" ? "flow" : "perps_pressure";
+      if (category === "funding_oi" || category === "compression" || category === "liquidation_zones") return "perps_intelligence";
+      if (category.includes("perps")) return category === "perps_overview" ? "perps_intelligence" : "perps_intelligence";
       if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category)) return "crypto_heatmaps";
       return "flow";
     }
@@ -705,7 +718,7 @@
 
     function assetOptionsForMode() {
       if (activeMode === "flow") return flowUniverse();
-      if (activeMode === "perps_pressure") return uniqueRows(perpsRows);
+      if (activeMode === "perps_pressure" || activeMode === "perps_intelligence") return uniqueRows([...livePerpsRows, ...perpsRows]);
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") {
         return uniqueRows([...dexRows, ...cryptoRows]);
       }
@@ -759,9 +772,11 @@
         candles: candleData,
         tier: "pro",
       }) || [];
+      if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
       document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
-      document.getElementById("flowScore").textContent = row.flowScore;
+      document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
+      document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
       document.getElementById("lastPrice").textContent = money(row.lastPrice);
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
@@ -781,6 +796,7 @@
         ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
         : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       renderExplanation(row);
+      renderPerpsIntelligence(row);
       if (chartHandle) chartHandle.destroy();
       chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
         candles: candleData,
@@ -796,6 +812,7 @@
         flow: "Flow Chart",
         crypto_heatmaps: "Crypto Heatmap",
         perps_pressure: "Perps Pressure",
+        perps_intelligence: "Perps Intelligence",
         participant: "Participant Intelligence",
         breadth: "Market Breadth",
       })[mode] || "Flow Chart";
@@ -811,6 +828,143 @@
       const n = Number(value);
       if (!Number.isFinite(n)) return min;
       return Math.max(min, Math.min(max, n));
+    }
+
+    function isPerpsMode() {
+      return activeMode === "perps_pressure" || activeMode === "perps_intelligence";
+    }
+
+    function perpsInputVector(row) {
+      const seed = Array.from(String(row.asset || "PERP")).reduce((sum, char) => sum + char.charCodeAt(0), 19);
+      const funding = /elevated|crowd/i.test(row.pressureContext || "") ? 78 : /watch|basis/i.test(row.pressureContext || "") ? 62 : 42;
+      const openInterest = /expansion|rising/i.test(row.participantActivity || "") ? 76 : /flat/i.test(row.participantActivity || "") ? 44 : 58;
+      const oiVelocity = clamp(Number(row.attentionVelocity || 0) * 2 + 42);
+      const basis = /basis firm/i.test(row.pressureContext || "") ? 72 : funding - 8;
+      const liquidationDensity = row.risk === "Elevated" ? 82 : row.risk === "Watch" ? 64 : 38;
+      const participation = row.participationOutcome === "Paying" ? 74 : row.participationOutcome === "Punishing" ? 38 : 55;
+      const volume = clamp(48 + Number(row.attentionVelocity || 0) + (seed % 18));
+      return { funding, openInterest, oiVelocity, basis, liquidationDensity, participation, volume };
+    }
+
+    function pressureScore(row) {
+      if (Number.isFinite(Number(row.pressureScore))) return Number(row.pressureScore);
+      const input = perpsInputVector(row);
+      return Math.round(
+        input.funding * 0.16 +
+        input.openInterest * 0.18 +
+        input.oiVelocity * 0.16 +
+        input.basis * 0.12 +
+        input.liquidationDensity * 0.16 +
+        input.participation * 0.12 +
+        input.volume * 0.10
+      );
+    }
+
+    function pressureState(score, row) {
+      if (row.risk === "Elevated" && score >= 70) return "Unstable";
+      if (/crowd/i.test(row.pressureContext || "") || score >= 82) return "Crowded";
+      if (score >= 72) return "Elevated";
+      if (score <= 42) return "Exhausted";
+      return "Constructive";
+    }
+
+    function replayMatches(row) {
+      const score = pressureScore(row);
+      const seed = Array.from(String(row.asset || "PERP")).reduce((sum, char) => sum + char.charCodeAt(0), 31);
+      const base = [
+        ["May 2026 compression unwind", "2026-05-08 to 2026-05-13", 0.34, 0.26, 0.22, 0.18],
+        ["March 2026 pressure reset", "2026-03-18 to 2026-03-24", 0.22, 0.31, 0.29, 0.18],
+        ["January 2026 crowded continuation", "2026-01-09 to 2026-01-15", 0.28, 0.37, 0.18, 0.17],
+      ];
+      return base.map(([label, range, expansion, continuation, reversal, failure], index) => ({
+        label,
+        range,
+        similarity: clamp(score - 7 + ((seed + index * 11) % 18), 45, 94),
+        outcomes: { expansion, continuation, reversal, failure },
+      })).sort((a, b) => b.similarity - a.similarity);
+    }
+
+    function outcomeConditions(row) {
+      const input = perpsInputVector(row);
+      const supporting = [];
+      const breaking = [];
+      if (input.participation >= 65) supporting.push(["participation broadening", input.participation]);
+      else breaking.push(["participation narrowing", input.participation]);
+      if (input.openInterest >= 65 && input.oiVelocity >= 55) supporting.push(["pressure expansion", Math.round((input.openInterest + input.oiVelocity) / 2)]);
+      if (input.openInterest < 45 || input.oiVelocity < 42) breaking.push(["pressure collapse", Math.round((input.openInterest + input.oiVelocity) / 2)]);
+      if (input.liquidationDensity >= 70) breaking.push(["liquidation density elevated", input.liquidationDensity]);
+      if (/deep|stable|improving/i.test(row.liquidityPosture || "")) supporting.push(["liquidity context manageable", 68]);
+      else breaking.push(["liquidity deterioration", input.liquidationDensity]);
+      if (row.risk === "Stable") supporting.push(["confirmation improving", 66]);
+      if (row.risk !== "Stable") breaking.push(["confirmation weakening", row.risk === "Elevated" ? 78 : 58]);
+      return { supporting, breaking };
+    }
+
+    function perpsReplayOverlays(row, candles) {
+      const matches = replayMatches(row);
+      const times = {
+        start: candles[1]?.time,
+        mid: candles[Math.floor(candles.length / 2)]?.time,
+        late: candles[Math.max(0, candles.length - 3)]?.time,
+      };
+      return [
+        {
+          id: `${row.asset}-replay-window`,
+          type: "history-window",
+          label: "Replay analog window",
+          startTime: times.start,
+          endTime: times.mid,
+          value: matches[0]?.similarity || 65,
+          severity: "info",
+          source: "history",
+          summary: `Top analog: ${matches[0]?.label || "historical structure"} at ${matches[0]?.similarity || 65}% similarity.`,
+        },
+        {
+          id: `${row.asset}-pressure-regime`,
+          type: "regime-marker",
+          time: times.late,
+          label: `${pressureState(pressureScore(row), row)} pressure`,
+          value: pressureScore(row),
+          severity: pressureScore(row) >= 75 ? "warning" : "info",
+          source: "perps",
+          summary: "Pressure regime marker from funding, open interest, basis, liquidation density, participation, and volume.",
+        },
+      ].filter((overlay) => overlay.startTime || overlay.time);
+    }
+
+    function renderPerpsIntelligence(row) {
+      const panel = document.getElementById("perpsIntelligencePanel");
+      if (!panel) return;
+      if (!isPerpsMode() || row.category !== "perpetuals") {
+        panel.classList.remove("active");
+        panel.innerHTML = "";
+        return;
+      }
+      const input = perpsInputVector(row);
+      const score = pressureScore(row);
+      const state = pressureState(score, row);
+      const replay = replayMatches(row);
+      const conditions = outcomeConditions(row);
+      panel.classList.add("active");
+      panel.innerHTML = `
+        <div class="perps-block">
+          <h3>Pressure Engine</h3>
+          <span class="pressure-state">${state}</span>
+          ${Object.entries(input).map(([key, value]) => `<div class="replay-row"><span>${key.replace(/[A-Z]/g, " $&")}</span><strong>${Math.round(value)}</strong></div>`).join("")}
+        </div>
+        <div class="perps-block">
+          <h3>Replay Engine</h3>
+          ${replay.slice(0, 3).map((item) => `<div class="replay-row"><span>${item.label}<br><small>${item.range}</small></span><strong>${item.similarity}%</strong></div>`).join("")}
+          <div class="replay-row"><span>Average outcome distribution</span><strong>${Math.round(replay[0].outcomes.expansion * 100)}% exp / ${Math.round(replay[0].outcomes.continuation * 100)}% cont / ${Math.round(replay[0].outcomes.reversal * 100)}% rev / ${Math.round(replay[0].outcomes.failure * 100)}% fail</strong></div>
+        </div>
+        <div class="perps-block">
+          <h3>Outcome Conditions</h3>
+          <span class="eyebrow">Supporting</span>
+          <ul class="condition-list">${conditions.supporting.map(([label, value]) => `<li><span>${label}</span><b>${value}</b></li>`).join("") || "<li><span>No strong supporting condition in current sample</span><b>--</b></li>"}</ul>
+          <span class="eyebrow">Breaking</span>
+          <ul class="condition-list">${conditions.breaking.map(([label, value]) => `<li><span>${label}</span><b>${value}</b></li>`).join("") || "<li><span>No dominant breaking condition in current sample</span><b>--</b></li>"}</ul>
+        </div>
+      `;
     }
 
     function scoreBreakdown(row) {
@@ -920,7 +1074,7 @@
     function displayRows() {
       let source = activeMode === "flow" ? flowUniverse() : rowsForCategory();
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(cryptoRows, activeCategory);
-      if (activeMode === "perps_pressure") source = filteredCryptoRows(perpsRows, activeCategory);
+      if (isPerpsMode()) source = filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows]), activeCategory);
       if (activeMode === "participant") source = source.filter((row) => row.participantActivity === "High" || row.participationOutcome !== "Mixed");
       if (activeMode === "breadth") source = source.map((row) => ({ ...row, marketCapBand: `${row.marketCapBand} breadth`, liquidityPosture: row.liquidityPosture }));
       return source.map((row, index) => ({
@@ -982,6 +1136,15 @@
         ];
       }
       const pressure = activeMode === "perps_pressure";
+      const perpsIntel = isPerpsMode();
+      if (perpsIntel) {
+        return [
+          ["asset", "Instrument"], ["chainVenue", "Venue"], ["flowScore", "Pressure Score"],
+          ["pressureContext", "Pressure Context"], ["participantActivity", "OI / Participation"],
+          ["liquidityPosture", "Liquidity Context"], ["participationOutcome", "Outcome Condition"],
+          ["risk", "Structure State"], ["lastUpdated", "Last Updated"],
+        ];
+      }
       return [
         ["asset", "Asset"], ["chainVenue", pressure ? "Venue" : "Chain/Venue"], ["marketCapBand", "Cap Band"],
         ["flowScore", "Flow Score"], ["attentionVelocity", "Attention Velocity"],
@@ -1006,6 +1169,17 @@
       const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
       const punishing = rowsNow.filter((row) => row.participationOutcome === "Punishing").length;
       const elevated = rowsNow.filter((row) => row.risk === "Elevated").length;
+      if (isPerpsMode()) {
+        const avgPressure = Math.round(rowsNow.reduce((sum, row) => sum + pressureScore(row), 0) / Math.max(1, rowsNow.length));
+        const crowded = rowsNow.filter((row) => ["Crowded", "Unstable"].includes(pressureState(pressureScore(row), row))).length;
+        document.getElementById("modeSummary").innerHTML = [
+          ["Mode", "Perps Intelligence"],
+          ["Avg Pressure", avgPressure || "n/a"],
+          ["Replay High", `${rowsNow.filter((row) => replayMatches(row)[0].similarity >= 75).length} analogs`],
+          ["Crowding", `${crowded} crowded/unstable`],
+        ].map(([k, v]) => `<div class="summary-cell"><span>${k}</span><strong>${v}</strong></div>`).join("");
+        return;
+      }
       document.getElementById("modeSummary").innerHTML = [
         ["Mode", modeLabel(activeMode)],
         ["Avg Flow", avgFlow || "n/a"],
@@ -1018,6 +1192,32 @@
       const now = new Date().toISOString().slice(11, 16);
       const sorted = [...rowsNow].sort((a, b) => Number(b.flowScore || 0) - Number(a.flowScore || 0));
       const top = sorted[0] || selectedRow();
+      if (isPerpsMode()) {
+        const pressureSorted = [...rowsNow].sort((a, b) => pressureScore(b) - pressureScore(a));
+        const lead = pressureSorted[0] || top;
+        const replayLead = [...rowsNow].sort((a, b) => replayMatches(b)[0].similarity - replayMatches(a)[0].similarity)[0] || top;
+        const crowded = rowsNow.filter((row) => ["Crowded", "Unstable"].includes(pressureState(pressureScore(row), row))).length;
+        return [
+          {
+            time: now,
+            title: `${lead.asset} pressure is ${pressureState(pressureScore(lead), lead).toLowerCase()}`,
+            detail: `Pressure score ${pressureScore(lead)} with ${lead.pressureContext || "visible pressure context"}.`,
+            target: lead.asset,
+          },
+          {
+            time: now,
+            title: `${replayLead.asset} replay similarity increasing`,
+            detail: `${replayMatches(replayLead)[0].similarity}% similarity to ${replayMatches(replayLead)[0].label}.`,
+            target: replayLead.asset,
+          },
+          {
+            time: now,
+            title: crowded ? `${crowded} perps show crowded or unstable pressure` : "Crowding is contained in current perps view",
+            detail: "Structure read combines funding, OI, basis, liquidation density, participation, and volume.",
+            target: lead.asset,
+          },
+        ];
+      }
       const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
       const punishing = rowsNow.filter((row) => row.participationOutcome === "Punishing").length;
       const elevated = rowsNow.filter((row) => row.risk === "Elevated").length;
@@ -1114,6 +1314,21 @@
             row.risk = solana.risk_level === "high" ? "Elevated" : "Watch";
             row.lastUpdated = "live";
           }
+        }
+      } catch (_) {}
+      try {
+        const response = await fetch("/api/hyperliquid/perps", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        const incoming = Array.isArray(payload.results) ? payload.results : [];
+        if (incoming.length) {
+          livePerpsRows = incoming.map((row) => ({
+            ...row,
+            marketCapBand: row.marketCapBand || "perp",
+            ecosystem: "pressure",
+            flowScore: Number(row.pressureScore || row.flowScore || 0),
+            attentionVelocity: Number(row.attentionVelocity || 0),
+            lastPrice: Number(row.lastPrice || row.markPx || 0),
+          }));
         }
       } catch (_) {}
     }
