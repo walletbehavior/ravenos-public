@@ -71,6 +71,10 @@
     .search-result { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); padding: 9px 10px; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
     .search-result span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
     .search-result em { color: var(--cyan); font-style: normal; font-size: 11px; text-align: right; }
+    .lookup-row { grid-column: 1 / -1; display: grid; grid-template-columns: 170px minmax(220px, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); background: rgba(125,211,252,0.025); }
+    .lookup-label { display: grid; gap: 2px; }
+    .lookup-label strong { font-size: 11px; text-transform: uppercase; color: var(--cyan); }
+    .lookup-label span { color: var(--muted); font-size: 11px; }
     .wallet-state { min-width: 112px; border: 1px solid var(--line); background: #050b09; padding: 7px 9px; font-family: var(--mono); font-size: 10px; color: var(--cyan); text-transform: uppercase; }
     .button {
       min-height: 32px;
@@ -199,6 +203,7 @@
     }
     @media (max-width: 780px) {
       .layout { grid-template-columns: 1fr; grid-template-rows: auto 480px auto auto; padding: 8px; }
+      .lookup-row { grid-template-columns: 1fr; }
       .nav { grid-row: auto; }
       .nav-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
       .nav-item { margin: 0; }
@@ -231,9 +236,9 @@
       </section>
       <section class="ticker-strip" aria-label="Current instrument summary">
         <div class="ticker"><span>Instrument</span><strong id="tickerInstrument">SOL-PERP</strong></div>
-        <div class="ticker"><span>Last</span><strong id="tickerPrice">$196.40</strong></div>
+        <div class="ticker"><span>Last</span><strong id="tickerPrice">$69.000000</strong></div>
         <div class="ticker"><span>Flow</span><strong id="tickerFlow">84</strong></div>
-        <div class="ticker"><span>Updated</span><strong id="tickerUpdated">2m ago</strong></div>
+        <div class="ticker"><span>Updated</span><strong id="tickerUpdated">sample</strong></div>
       </section>
       <section class="wallet-box" aria-label="Access controls">
         <div class="wallet-state" id="walletState">disconnected</div>
@@ -281,6 +286,16 @@
             </select>
           </div>
         </div>
+        <div class="lookup-row">
+          <div class="lookup-label">
+            <strong>Token / Contract Lookup</strong>
+            <span>Dexscreener public resolver. Symbol, pair, Solana mint, or EVM contract.</span>
+          </div>
+          <section class="global-search" aria-label="Token and contract lookup">
+            <input id="dexSearchInputPanel" type="search" placeholder="Paste contract address or search symbol..." autocomplete="off" />
+            <div class="search-results" id="dexSearchResultsPanel"></div>
+          </section>
+        </div>
         <div class="chart-host" id="flowChart"></div>
       </article>
 
@@ -289,7 +304,7 @@
           <span>Flow Score</span>
           <strong id="flowScore">84</strong>
         </div>
-        <div class="intel-row"><span>Price</span><strong id="lastPrice">$196.40</strong></div>
+        <div class="intel-row"><span>Price</span><strong id="lastPrice">$69.000000</strong></div>
         <div class="intel-row"><span>Attention Velocity</span><strong id="attentionVelocity">+18</strong></div>
         <div class="intel-row"><span>Participant Activity</span><strong id="participantActivity">High</strong></div>
         <div class="intel-row"><span>Liquidity Posture</span><strong id="liquidityPosture">Stable depth</strong></div>
@@ -440,7 +455,7 @@
       },
     ];
     const rows = [
-      { asset: "SOL-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 196.4, flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "2m ago" },
+      { asset: "SOL-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 69.0, flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "sample" },
       { asset: "BTC-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 64280, flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "1m ago" },
       { asset: "OP-PERP", market: "Perpetual Futures", category: "perpetuals", lastPrice: 2.24, flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "8m ago" },
       { asset: "ETH Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 3410, flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
@@ -499,8 +514,7 @@
     let sortDir = -1;
 
     function money(value) {
-      const decimals = value >= 100 ? 2 : value >= 10 ? 2 : 4;
-      return `$${Number(value).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+      return `$${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 6 })}`;
     }
 
     function compactUsd(value) {
@@ -571,10 +585,10 @@
       const base = baseCandles[baseCandles.length - 1].close;
       return baseCandles.map((candle) => ({
         ...candle,
-        open: Number((candle.open / base * anchor).toFixed(anchor >= 100 ? 2 : 4)),
-        high: Number((candle.high / base * anchor).toFixed(anchor >= 100 ? 2 : 4)),
-        low: Number((candle.low / base * anchor).toFixed(anchor >= 100 ? 2 : 4)),
-        close: Number((candle.close / base * anchor).toFixed(anchor >= 100 ? 2 : 4)),
+        open: Number((candle.open / base * anchor).toFixed(6)),
+        high: Number((candle.high / base * anchor).toFixed(6)),
+        low: Number((candle.low / base * anchor).toFixed(6)),
+        close: Number((candle.close / base * anchor).toFixed(6)),
       }));
     }
 

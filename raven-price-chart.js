@@ -248,6 +248,11 @@
       borderDownColor: "#fb7185",
       wickUpColor: "#86efac",
       wickDownColor: "#fca5a5",
+      priceFormat: {
+        type: "price",
+        precision: 6,
+        minMove: 0.000001,
+      },
     });
     candleSeries.setData(candles);
 
