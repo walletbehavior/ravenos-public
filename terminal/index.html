@@ -149,6 +149,8 @@
     .brief { padding: 14px; color: #b9c9c2; font-size: 12px; line-height: 1.5; overflow: auto; }
     .cta-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
     .api-note { padding: 0 14px 12px; color: var(--yellow); font-size: 11px; line-height: 1.4; }
+    .chart-debug { display: none; margin: 0 14px 12px; border: 1px solid rgba(125,211,252,0.24); background: rgba(125,211,252,0.05); color: var(--muted); padding: 8px; font-family: var(--mono); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+    body.dev-mode .chart-debug { display: block; }
     .explanation-panel { border-top: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 12px; }
     .explanation-panel h3 { margin: 0; font-size: 13px; line-height: 1.2; }
     .explanation-panel p { color: #b9c9c2; font-size: 12px; line-height: 1.45; }
@@ -399,6 +401,7 @@
           <a class="button secondary" href="/upgrade/">Upgrade to Pro</a>
         </div>
         <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
+        <div class="chart-debug" id="chartDebug" aria-label="Developer chart diagnostics"></div>
         <div class="brief" id="terminalBrief"></div>
         <section class="perps-intel-panel" id="perpsIntelligencePanel" aria-label="Perps intelligence panel"></section>
         <section id="participantPanel" data-feature="participant_intelligence" aria-label="Participant intelligence panel"></section>
@@ -452,11 +455,12 @@
         </div>
         <div class="structure-tape" id="structureTape"></div>
       </article>
-      <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a></footer>
+      <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a> · <a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a></footer>
     </section>
   </main>
 
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/raven-chart-timeframes.js"></script>
   <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script src="/ravenos-access.js"></script>
@@ -481,49 +485,8 @@
       { open: 192.9, high: 198.7, low: 190.6, close: 196.4, volume: 3520000 },
     ];
 
-    const timeframeConfig = {
-      "15m": { stepMinutes: 15, points: 48, volatility: 0.42, volumeScale: 0.34 },
-      "1h": { stepMinutes: 60, points: 36, volatility: 0.72, volumeScale: 0.78 },
-      "4h": { stepMinutes: 240, points: 30, volatility: 1.08, volumeScale: 1.45 },
-      "1d": { stepMinutes: 1440, points: 24, volatility: 1.58, volumeScale: 2.55 },
-    };
-
     function selectedTimeframe() {
       return document.getElementById("timeframeSelect")?.value || "1h";
-    }
-
-    function recentIsoAt(index, total, stepMinutes) {
-      const date = new Date();
-      date.setUTCSeconds(0, 0);
-      const roundedMinute = Math.floor(date.getUTCMinutes() / 15) * 15;
-      date.setUTCMinutes(roundedMinute);
-      date.setTime(date.getTime() - (total - 1 - index) * stepMinutes * 60 * 1000);
-      if (stepMinutes >= 1440) return date.toISOString().slice(0, 10);
-      return Math.floor(date.getTime() / 1000);
-    }
-
-    function makeRecentCandles(pattern = candlePattern, timeframe = "1h") {
-      const config = timeframeConfig[timeframe] || timeframeConfig["1h"];
-      const points = config.points;
-      const expanded = Array.from({ length: points }, (_, index) => {
-        const base = pattern[index % pattern.length];
-        const previous = pattern[(index + pattern.length - 1) % pattern.length];
-        const wave = Math.sin((index + timeframe.length) / 2.7) * config.volatility;
-        const drift = (index - points / 2) * config.volatility * 0.06;
-        const open = base.open + wave + drift;
-        const close = base.close + Math.cos((index + 1) / 2.3) * config.volatility + drift;
-        const high = Math.max(open, close, base.high + wave * 0.6) + Math.abs(base.high - previous.close) * 0.08 * config.volatility;
-        const low = Math.min(open, close, base.low + wave * 0.4) - Math.abs(previous.close - base.low) * 0.07 * config.volatility;
-        return {
-          open,
-          high,
-          low,
-          close,
-          volume: Math.round(base.volume * config.volumeScale * (0.78 + (index % 7) * 0.055)),
-          time: recentIsoAt(index, points, config.stepMinutes),
-        };
-      });
-      return expanded;
     }
 
     function chartEventsFor(candles) {
@@ -735,6 +698,7 @@
     let activeMode = "perps_intelligence";
     let accessTier = "free";
     let chartHandle;
+    let chartRenderKey = "";
     let sortKey = "flowScore";
     let sortDir = -1;
 
@@ -799,6 +763,27 @@
       return allRows().find((row) => row.asset === asset) || displayRows().find((row) => row.asset === asset) || rowsForCategory()[0] || rows[0];
     }
 
+    function selectedChartState(row = selectedRow()) {
+      const coverage = coverageMeta(row);
+      const timeframe = selectedTimeframe();
+      const market = marketKind(row);
+      return {
+        instrument: row.asset,
+        market,
+        mode: activeMode,
+        timeframe,
+        coverage: coverage.coverage,
+        coverageMeta: coverage,
+        key: window.RavenChartTimeframes?.chartKey?.({
+          instrument: row.asset,
+          market,
+          mode: activeMode,
+          timeframe,
+          coverage: coverage.coverage,
+        }) || `${row.asset}|${market}|${activeMode}|${timeframe}|${coverage.coverage}`,
+      };
+    }
+
     function renderNav() {
       document.getElementById("marketNav").innerHTML = navGroups.map((group) => `
         <div class="nav-group">${group.label}</div>
@@ -849,18 +834,9 @@
       return uniqueRows(displayRows());
     }
 
-    function scaledCandles(row) {
+    function scaledCandles(row, timeframe = selectedTimeframe()) {
       const anchor = row.lastPrice || samplePriceFor(row.asset) || 1;
-      const timeframe = selectedTimeframe();
-      const candles = makeRecentCandles(candlePattern, timeframe);
-      const base = candles[candles.length - 1].close;
-      return candles.map((candle) => ({
-        ...candle,
-        open: Number((candle.open / base * anchor).toFixed(6)),
-        high: Number((candle.high / base * anchor).toFixed(6)),
-        low: Number((candle.low / base * anchor).toFixed(6)),
-        close: Number((candle.close / base * anchor).toFixed(6)),
-      }));
+      return window.RavenChartTimeframes?.makeTimeframeCandles?.(candlePattern, timeframe, anchor) || [];
     }
 
     function marketKind(row) {
@@ -891,16 +867,20 @@
 
     function renderChart() {
       const row = selectedRow();
-      const candleData = scaledCandles(row);
+      const state = selectedChartState(row);
+      const candleData = scaledCandles(row, state.timeframe);
       const overlays = window.RavenChartOverlays?.getOverlays?.({
-        symbol: row.asset,
-        market: marketKind(row),
+        symbol: state.instrument,
+        market: state.market,
+        mode: state.mode,
+        timeframe: state.timeframe,
+        coverage: state.coverage,
         candles: candleData,
         tier: accessTier,
       }) || [];
       if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
-      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
+      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · OHLCV with RavenOS overlays`;
       document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
       document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
       document.getElementById("lastPrice").textContent = money(row.lastPrice);
@@ -911,7 +891,7 @@
       document.getElementById("tickerInstrument").textContent = row.asset;
       document.getElementById("tickerPrice").textContent = money(row.lastPrice);
       document.getElementById("tickerFlow").textContent = row.flowScore;
-      const coverage = coverageMeta(row);
+      const coverage = state.coverageMeta;
       document.getElementById("tickerPressure").textContent = row.category === "perpetuals" ? pressureScore(row) : "n/a";
       document.getElementById("tickerCoverage").textContent = coverage.coverage;
       document.getElementById("tickerUpdated").textContent = freshnessLabel(row.lastUpdated);
@@ -939,19 +919,42 @@
       });
       renderPerpsIntelligence(row);
       if (chartHandle) chartHandle.destroy();
+      chartRenderKey = state.key;
       const mobileChart = window.matchMedia?.("(max-width: 780px)")?.matches;
-      chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
+      const chartHost = document.getElementById("flowChart");
+      chartHost.dataset.chartKey = state.key;
+      chartHandle = window.RavenPriceChart(chartHost, {
+        key: state.key,
         candles: candleData,
         events: chartEventsFor(candleData),
         overlays,
         overlayContext: isPerpsMode() ? "perps" : activeMode === "crypto_heatmaps" ? "degen" : row.category || row.market,
         showVolume: true,
         compact: mobileChart,
-        height: document.getElementById("flowChart").clientHeight || (mobileChart ? 330 : 520),
+        height: chartHost.clientHeight || (mobileChart ? 330 : 520),
       });
+      renderChartDebug(state, candleData, overlays);
       const intelPanel = document.querySelector(".intel");
       if (intelPanel) intelPanel.setAttribute("data-feature", isPerpsMode() ? "perps_intelligence" : "basic_overlays");
       window.RavenOSFeatures?.applyFeatureGates?.();
+    }
+
+    function renderChartDebug(state, candles, overlays) {
+      const debug = document.getElementById("chartDebug");
+      if (!debug) return;
+      const windowMeta = window.RavenChartTimeframes?.candleWindow?.(candles) || { count: candles.length, first: candles[0]?.time, last: candles[candles.length - 1]?.time };
+      const overlayTypes = [...new Set((overlays || []).map((overlay) => overlay.type))].join(", ");
+      debug.textContent = [
+        `key=${state.key}`,
+        `instrument=${state.instrument}`,
+        `mode=${state.mode}`,
+        `timeframe=${state.timeframe}`,
+        `candles=${windowMeta.count}`,
+        `first=${windowMeta.first}`,
+        `last=${windowMeta.last}`,
+        `overlays=${overlays.length}`,
+        `types=${overlayTypes || "none"}`,
+      ].join(" | ");
     }
 
     function modeLabel(mode) {
