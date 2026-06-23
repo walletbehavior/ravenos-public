@@ -6,8 +6,8 @@ const overlays = fs.readFileSync("raven-chart-overlays.js", "utf8");
 const terminal = fs.readFileSync("terminal/index.html", "utf8");
 
 assert.match(chart, /CONTEXT_DEFAULT_TYPES/);
-assert.match(chart, /perps: \["pressure-zone", "liquidity-zone", "history-window"\]/);
-assert.match(chart, /degen: \["participant-shift", "history-window", "breadth-line"\]/);
+assert.match(chart, /perps: \["reward-zone", "pressure-zone", "conflict-marker"\]/);
+assert.match(chart, /degen: \["reward-zone", "expansion-path", "participation-quality"\]/);
 assert.match(chart, /atlas: \["regime-marker", "breadth-line", "liquidity-zone"\]/);
 assert.match(chart, /defaultActiveTypes/);
 assert.match(chart, /RavenChartOverlayVisuals/);
@@ -29,6 +29,14 @@ assert.match(overlays, /visualLabel: "Replay"/);
 assert.match(overlays, /visualLabel: "Participation Expansion"/);
 assert.match(overlays, /visualLabel: "Attention Velocity"/);
 assert.match(overlays, /visualLabel: "Fresh Survival"/);
+assert.match(overlays, /visualLabel: "Reward\/Punish"/);
+assert.match(overlays, /visualLabel: "Compression Expansion"/);
+assert.match(overlays, /visualLabel: "Participation Quality"/);
+assert.match(overlays, /visualLabel: "Replay Outcome"/);
+assert.match(overlays, /visualLabel: "Pressure Conflict"/);
+assert.match(overlays, /participation is \$\{outcome\.posture\}/);
+assert.match(chart, /sampleDepth < 20 \? "dashed" : "solid"/);
+assert.match(chart, /Confidence \$\{Math\.round\(confidence\)\}/);
 
 assert.match(terminal, /overlayContext: isPerpsMode\(\) \? "perps"/);
 assert.match(terminal, /id="contextCoverage"/);

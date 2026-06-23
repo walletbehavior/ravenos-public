@@ -14,16 +14,21 @@
     "regime-marker": { label: "Regime", color: "#7dd3fc", glyph: "G", family: "regime" },
     "liquidity-zone": { label: "Liquidity", color: "#a78bfa", glyph: "L", family: "liquidity" },
     "participant-shift": { label: "Participation", color: "#34d399", glyph: "•", family: "participation" },
+    "reward-zone": { label: "Reward/Punish", color: "#2dd4bf", glyph: "±", family: "outcome" },
+    "expansion-path": { label: "Expansion Path", color: "#facc15", glyph: "↗", family: "structure" },
+    "participation-quality": { label: "Participation Quality", color: "#34d399", glyph: "Q", family: "participation" },
+    "outcome-memory": { label: "Outcome Memory", color: "#7dd3fc", glyph: "M", family: "replay" },
+    "conflict-marker": { label: "Pressure Conflict", color: "#fb923c", glyph: "!", family: "conflict" },
   };
 
   const CONTEXT_DEFAULT_TYPES = {
-    perps: ["pressure-zone", "liquidity-zone", "history-window"],
-    crypto_perp: ["pressure-zone", "liquidity-zone", "history-window"],
-    degen: ["participant-shift", "history-window", "breadth-line"],
-    crypto_spot: ["participant-shift", "breadth-line", "history-window"],
+    perps: ["reward-zone", "pressure-zone", "conflict-marker"],
+    crypto_perp: ["reward-zone", "pressure-zone", "conflict-marker"],
+    degen: ["reward-zone", "expansion-path", "participation-quality"],
+    crypto_spot: ["reward-zone", "participation-quality", "outcome-memory"],
     atlas: ["regime-marker", "breadth-line", "liquidity-zone"],
     macro: ["regime-marker", "breadth-line", "compression-band"],
-    default: ["breadth-line", "liquidity-zone", "history-window"],
+    default: ["reward-zone", "participation-quality", "outcome-memory"],
   };
 
   const EVENT_GLYPHS = {
@@ -44,6 +49,11 @@
     "regime-marker": { renderAs: "marker" },
     "liquidity-zone": { renderAs: "price-region" },
     "participant-shift": { renderAs: "marker" },
+    "reward-zone": { renderAs: "price-region" },
+    "expansion-path": { renderAs: "time-region" },
+    "participation-quality": { renderAs: "line" },
+    "outcome-memory": { renderAs: "marker" },
+    "conflict-marker": { renderAs: "marker" },
   };
 
   function overlayType(type) {
@@ -118,12 +128,12 @@
 
   function overlayMarker(overlay, compact = false) {
     const type = overlayType(overlay.type);
-    const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk";
+    const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk" || type === "conflict-marker";
     return {
       time: overlay.time || overlay.startTime,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(overlay),
-      shape: type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
+      shape: type === "participant-shift" || type === "outcome-memory" || type === "conflict-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
       text: compact ? "" : visualMeta(overlay).glyph,
     };
   }
@@ -165,7 +175,12 @@
     const meta = visualMeta(overlay);
     const title = overlay.label || meta.label || "Overlay";
     const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8da39a;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
-    tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}`;
+    const confidence = Number(overlay.metadata?.confidence ?? overlay.confidence);
+    const sampleDepth = Number(overlay.metadata?.sampleDepth ?? overlay.sampleDepth);
+    const evidence = Array.isArray(overlay.metadata?.evidence) ? overlay.metadata.evidence.slice(0, 3) : [];
+    const confidenceLine = Number.isFinite(confidence) ? `<div style="color:#8da39a;margin-top:4px">Confidence ${Math.round(confidence)}${Number.isFinite(sampleDepth) ? ` · ${sampleDepth} samples` : ""}</div>` : "";
+    const evidenceLine = evidence.length ? `<ul style="margin:6px 0 0;padding-left:15px;color:#9fb5aa">${evidence.map((item) => `<li>${item}</li>`).join("")}</ul>` : "";
+    tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}${confidenceLine}${evidenceLine}`;
     tooltip.style.left = `${Math.min(rect.width - 292, Math.max(8, event.clientX - rect.left + 12))}px`;
     tooltip.style.top = `${Math.min(rect.height - 110, Math.max(8, event.clientY - rect.top + 12))}px`;
     tooltip.style.display = "block";
@@ -177,6 +192,9 @@
 
   function createRegion(layer, tooltip, chartHost, overlay, rect) {
     const color = colorFor(overlay);
+    const confidence = Number(overlay.metadata?.confidence ?? overlay.confidence ?? overlay.value ?? 62);
+    const opacity = Math.max(0.08, Math.min(0.24, confidence / 420));
+    const borderOpacity = Math.max(0.25, Math.min(0.7, confidence / 150));
     const region = document.createElement("button");
     region.type = "button";
     region.className = `raven-overlay-region raven-overlay-${overlayType(overlay.type)}`;
@@ -186,9 +204,9 @@
     region.style.top = `${Math.max(0, rect.top)}px`;
     region.style.width = `${Math.max(4, rect.width)}px`;
     region.style.height = `${Math.max(4, rect.height)}px`;
-    region.style.border = `1px solid ${color}66`;
-    region.style.background = `${color}18`;
-    region.style.boxShadow = `inset 0 0 0 1px ${color}12`;
+    region.style.border = `1px ${overlay.metadata?.sampleDepth < 20 ? "dashed" : "solid"} ${color}${Math.round(borderOpacity * 255).toString(16).padStart(2, "0")}`;
+    region.style.background = `${color}${Math.round(opacity * 255).toString(16).padStart(2, "0")}`;
+    region.style.boxShadow = `inset 0 0 0 1px ${color}14`;
     region.style.cursor = "help";
     region.style.pointerEvents = "auto";
     region.style.padding = "0";

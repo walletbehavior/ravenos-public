@@ -37,6 +37,20 @@
     return { pressureShift: 4, compressionShift: -8, breadthShift: 15, includeCompression: false, includeBreadth: true, includeExtraParticipant: false, includeRegime: true };
   }
 
+  function candleAt(candles, ratio) {
+    const pool = Array.isArray(candles) ? candles : [];
+    return pool[Math.max(0, Math.min(pool.length - 1, Math.floor(pool.length * ratio)))] || {};
+  }
+
+  function outcomeState({ pressure, compression, breadth, seed }) {
+    const rewardQuality = clamp(breadth * 0.42 + compression * 0.22 + Math.max(0, 82 - pressure) * 0.24 + (seed % 13), 0, 100);
+    if (pressure >= 80 && breadth < 60) return { label: "Punishing participation", severity: "danger", quality: rewardQuality, glyph: "-", posture: "punishing" };
+    if (compression >= 74 && breadth >= 62) return { label: "Rewarding participation", severity: "success", quality: clamp(rewardQuality + 12, 0, 100), glyph: "+", posture: "rewarding" };
+    if (breadth >= 66 && pressure < 74) return { label: "Rewarding participation", severity: "success", quality: rewardQuality, glyph: "+", posture: "rewarding" };
+    if (pressure >= 72 || breadth < 46) return { label: "Mixed outcomes", severity: "warning", quality: rewardQuality, glyph: "±", posture: "mixed" };
+    return { label: "Unresolved structure", severity: "info", quality: rewardQuality, glyph: "·", posture: "unresolved" };
+  }
+
   function getOverlays({ symbol, market = "spot", mode = "flow", timeframe = "1h", coverage = "Sample", candles = [], tier = "free" } = {}) {
     const upper = String(symbol || "ASSET").toUpperCase();
     const marketName = String(market || "spot").toLowerCase();
@@ -49,8 +63,114 @@
     const compression = clamp(score([71, 58, 83, 66, 77], seed + 2, 70) + profile.compressionShift, 0, 100);
     const breadth = clamp(score([54, 63, 47, 72, 59], seed + 4, 58) + profile.breadthShift, 0, 100);
     const delayed = tier === "free";
+    const outcome = outcomeState({ pressure, compression, breadth, seed });
+    const compressionStart = tf === "15m" ? 0.38 : tf === "4h" ? 0.18 : 0.28;
+    const expansionStart = tf === "15m" ? 0.58 : tf === "4h" ? 0.44 : 0.52;
+    const qualityBase = clamp(outcome.quality + (tf === "15m" ? -4 : tf === "4h" ? 8 : 2), 0, 100);
 
     const overlays = [
+      {
+        id: `${upper}-${tf}-reward-punish-zone`,
+        type: "reward-zone",
+        label: `${tf} ${outcome.label}`,
+        startTime: candleAt(candles, expansionStart).time || t.third || t.first,
+        endTime: t.last,
+        priceMin: range.min + range.span * (outcome.posture === "punishing" ? 0.56 : 0.34),
+        priceMax: range.min + range.span * (outcome.posture === "punishing" ? 0.88 : 0.62),
+        value: qualityBase,
+        severity: outcome.severity,
+        source: "outcome-memory",
+        summary: `${tf} structure read: participation is ${outcome.posture}. Raven compares follow-through quality, drawdown pressure, survival, liquidity persistence, and replay context.`,
+        metadata: {
+          timeframe: tf,
+          visualFamily: "outcome",
+          visualLabel: "Reward/Punish",
+          glyph: outcome.glyph,
+          confidence: clamp(52 + qualityBase * 0.34 + (coverage === "Deep Raven" ? 10 : 0), 35, 88),
+          sampleDepth: delayed ? 18 : 74 + (seed % 41),
+          evidence: [`Pressure ${pressure}`, `Compression ${compression}`, `Participation breadth ${breadth}`],
+        },
+      },
+      {
+        id: `${upper}-${tf}-compression-expansion-path`,
+        type: "expansion-path",
+        label: `${tf} compression to expansion`,
+        startTime: candleAt(candles, compressionStart).time || t.third || t.first,
+        endTime: candleAt(candles, expansionStart + 0.22).time || t.late || t.last,
+        value: compression,
+        severity: compression >= 76 && breadth >= 58 ? "success" : compression >= 70 ? "warning" : "info",
+        source: "structure",
+        summary: `${tf} compression path tracks where range contraction began resolving into acceptance, failure, or recompression.`,
+        metadata: {
+          timeframe: tf,
+          visualFamily: "structure",
+          visualLabel: "Compression Expansion",
+          glyph: "↗",
+          confidence: clamp(46 + compression * 0.38, 30, 84),
+          sampleDepth: delayed ? 16 : 58 + (seed % 37),
+          evidence: [`Range compression ${compression}`, `Breadth ${breadth}`, `Outcome posture ${outcome.posture}`],
+        },
+      },
+      {
+        id: `${upper}-${tf}-participation-quality-line`,
+        type: "participation-quality",
+        label: `${tf} participation quality`,
+        values: (Array.isArray(candles) ? candles : []).map((candle, index) => ({
+          time: candle.time,
+          value: clamp(qualityBase + Math.sin((index + seed) / (tf === "15m" ? 2.1 : tf === "4h" ? 5.2 : 3.4)) * 10 + index * (tf === "4h" ? 0.55 : 0.22), 5, 95),
+        })),
+        value: qualityBase,
+        severity: qualityBase >= 68 ? "success" : qualityBase <= 42 ? "warning" : "info",
+        source: "participation",
+        summary: `${tf} participation quality blends breadth, survival, liquidity persistence, and follow-through after activity expands.`,
+        metadata: {
+          timeframe: tf,
+          visualFamily: "participation",
+          visualLabel: "Participation Quality",
+          glyph: "Q",
+          confidence: clamp(44 + qualityBase * 0.42, 32, 86),
+          sampleDepth: delayed ? 14 : 66 + (seed % 43),
+          evidence: [`Quality ${Math.round(qualityBase)}`, `Breadth ${breadth}`, `Replay context included`],
+        },
+      },
+      {
+        id: `${upper}-${tf}-outcome-memory-marker`,
+        type: "outcome-memory",
+        label: `${tf} replay outcome memory`,
+        time: candleAt(candles, tf === "15m" ? 0.52 : 0.62).time || t.mid || t.late,
+        value: score([58, 67, 74, 81, 62], seed + 13, 66),
+        severity: "info",
+        source: "history",
+        summary: `${tf} memory marker summarizes how similar prior structures behaved after comparable participation, pressure, and compression conditions.`,
+        metadata: {
+          timeframe: tf,
+          visualFamily: "replay",
+          visualLabel: "Replay Outcome",
+          glyph: "M",
+          confidence: clamp(48 + score([58, 67, 74, 81, 62], seed + 13, 66) * 0.34, 34, 86),
+          sampleDepth: delayed ? 12 : 42 + (seed % 58),
+          evidence: [`Replay similarity ${score([68, 73, 61, 79, 57], seed + 7, 67)}`, `Outcome posture ${outcome.posture}`, `Timeframe ${tf}`],
+        },
+      },
+      {
+        id: `${upper}-${tf}-pressure-participation-conflict`,
+        type: "conflict-marker",
+        label: `${tf} pressure/participation conflict`,
+        time: candleAt(candles, tf === "4h" ? 0.72 : 0.78).time || t.late || t.last,
+        value: clamp(Math.abs(pressure - breadth) + compression * 0.28, 0, 100),
+        severity: Math.abs(pressure - breadth) >= 24 ? "warning" : "info",
+        source: "structure",
+        summary: `${tf} conflict marker appears when pressure, participation breadth, compression, or replay context disagree.`,
+        metadata: {
+          timeframe: tf,
+          visualFamily: "conflict",
+          visualLabel: "Pressure Conflict",
+          glyph: "!",
+          confidence: clamp(42 + Math.abs(pressure - breadth) * 0.7, 28, 82),
+          sampleDepth: delayed ? 10 : 39 + (seed % 36),
+          evidence: [`Pressure ${pressure}`, `Breadth ${breadth}`, `Compression ${compression}`],
+        },
+      },
       {
         id: `${upper}-${tf}-perps-pressure`,
         type: "pressure-zone",
