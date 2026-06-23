@@ -6,6 +6,34 @@
     success: "#34d399",
   };
 
+  const OVERLAY_META = {
+    "pressure-zone": { label: "Pressure", color: "#fb7185" },
+    "history-window": { label: "History", color: "#7dd3fc" },
+    "breadth-line": { label: "Breadth", color: "#34d399" },
+    "compression-band": { label: "Compression", color: "#facc15" },
+    "regime-marker": { label: "Regime", color: "#7dd3fc" },
+    "liquidity-zone": { label: "Liquidity", color: "#a78bfa" },
+    "participant-shift": { label: "Participant", color: "#34d399" },
+  };
+
+  const OVERLAY_RENDERER_REGISTRY = {
+    "pressure-zone": { renderAs: "price-region" },
+    "history-window": { renderAs: "time-region" },
+    "breadth-line": { renderAs: "line" },
+    "compression-band": { renderAs: "price-region" },
+    "regime-marker": { renderAs: "marker" },
+    "liquidity-zone": { renderAs: "price-region" },
+    "participant-shift": { renderAs: "marker" },
+  };
+
+  function overlayType(type) {
+    return String(type || "regime-marker").replace(/_/g, "-");
+  }
+
+  function colorFor(item) {
+    return SEVERITY_COLOR[item?.severity] || OVERLAY_META[overlayType(item?.type)]?.color || SEVERITY_COLOR.info;
+  }
+
   function normalizeCandles(candles) {
     return (Array.isArray(candles) ? candles : [])
       .filter((candle) => candle && candle.time && Number.isFinite(Number(candle.close)))
@@ -33,19 +61,20 @@
     return {
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
-      color: SEVERITY_COLOR[event.severity] || SEVERITY_COLOR.info,
+      color: colorFor(event),
       shape: event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
       text: event.label,
     };
   }
 
   function overlayMarker(overlay) {
-    const above = overlay.type === "pressure-zone" || overlay.type === "regime-marker";
+    const type = overlayType(overlay.type);
+    const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk";
     return {
       time: overlay.time || overlay.startTime,
       position: above ? "aboveBar" : "belowBar",
-      color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
-      shape: overlay.type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
+      color: colorFor(overlay),
+      shape: type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
       text: overlay.label,
     };
   }
@@ -54,10 +83,6 @@
     return (Array.isArray(overlay?.values) ? overlay.values : [])
       .filter((point) => point && point.time && Number.isFinite(Number(point.value)))
       .map((point) => ({ time: point.time, value: Number(point.value) }));
-  }
-
-  function overlayTitle(overlay, side) {
-    return `${overlay.label} ${side === "min" ? "low" : "high"}`;
   }
 
   function priceLineTitle(event) {
@@ -72,12 +97,104 @@
     container.innerHTML = `<div class="chart-state ${className || ""}">${message}</div>`;
   }
 
+  function createTooltip(chartHost) {
+    const tooltip = document.createElement("div");
+    tooltip.className = "raven-overlay-tooltip";
+    tooltip.style.position = "absolute";
+    tooltip.style.zIndex = "9";
+    tooltip.style.display = "none";
+    tooltip.style.maxWidth = "280px";
+    tooltip.style.padding = "9px 10px";
+    tooltip.style.border = "1px solid rgba(125, 211, 252, 0.28)";
+    tooltip.style.background = "rgba(5, 9, 7, 0.96)";
+    tooltip.style.boxShadow = "0 14px 36px rgba(0, 0, 0, 0.38)";
+    tooltip.style.color = "#e5f0eb";
+    tooltip.style.font = "12px/1.45 Inter, ui-sans-serif, system-ui, sans-serif";
+    tooltip.style.pointerEvents = "none";
+    chartHost.appendChild(tooltip);
+    return tooltip;
+  }
+
+  function showTooltip(tooltip, chartHost, event, overlay) {
+    const rect = chartHost.getBoundingClientRect();
+    const title = overlay.label || OVERLAY_META[overlayType(overlay.type)]?.label || "Overlay";
+    const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8da39a;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
+    tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}`;
+    tooltip.style.left = `${Math.min(rect.width - 292, Math.max(8, event.clientX - rect.left + 12))}px`;
+    tooltip.style.top = `${Math.min(rect.height - 110, Math.max(8, event.clientY - rect.top + 12))}px`;
+    tooltip.style.display = "block";
+  }
+
+  function hideTooltip(tooltip) {
+    tooltip.style.display = "none";
+  }
+
+  function createRegion(layer, tooltip, chartHost, overlay, rect) {
+    const color = colorFor(overlay);
+    const region = document.createElement("button");
+    region.type = "button";
+    region.className = `raven-overlay-region raven-overlay-${overlayType(overlay.type)}`;
+    region.setAttribute("aria-label", `${overlay.label}: ${overlay.summary || ""}`);
+    region.style.position = "absolute";
+    region.style.left = `${Math.max(0, rect.left)}px`;
+    region.style.top = `${Math.max(0, rect.top)}px`;
+    region.style.width = `${Math.max(4, rect.width)}px`;
+    region.style.height = `${Math.max(4, rect.height)}px`;
+    region.style.border = `1px solid ${color}66`;
+    region.style.background = `${color}18`;
+    region.style.boxShadow = `inset 0 0 0 1px ${color}12`;
+    region.style.cursor = "help";
+    region.style.pointerEvents = "auto";
+    region.style.padding = "0";
+    region.style.outline = "0";
+    region.addEventListener("mousemove", (event) => showTooltip(tooltip, chartHost, event, overlay));
+    region.addEventListener("mouseleave", () => hideTooltip(tooltip));
+    layer.appendChild(region);
+  }
+
+  function createLegend(container, overlays, activeTypes, onToggle) {
+    const existing = container.querySelector(".raven-overlay-legend");
+    if (existing) existing.remove();
+    const types = Array.from(new Set(overlays.map((overlay) => overlayType(overlay.type)))).filter((type) => OVERLAY_META[type]);
+    if (!types.length) return null;
+
+    const legend = document.createElement("div");
+    legend.className = "raven-overlay-legend";
+    legend.style.display = "flex";
+    legend.style.flexWrap = "wrap";
+    legend.style.gap = "6px";
+    legend.style.alignItems = "center";
+    legend.style.padding = "8px 0 0";
+    legend.style.font = "11px Inter, ui-sans-serif, system-ui, sans-serif";
+
+    types.forEach((type) => {
+      const meta = OVERLAY_META[type];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = meta.label;
+      button.dataset.overlayType = type;
+      button.style.border = `1px solid ${meta.color}55`;
+      button.style.background = activeTypes.has(type) ? `${meta.color}22` : "rgba(8, 17, 14, 0.72)";
+      button.style.color = activeTypes.has(type) ? "#e5f0eb" : "#60746b";
+      button.style.padding = "5px 7px";
+      button.style.cursor = "pointer";
+      button.style.fontWeight = "800";
+      button.style.textTransform = "uppercase";
+      button.addEventListener("click", () => onToggle(type));
+      legend.appendChild(button);
+    });
+
+    container.appendChild(legend);
+    return legend;
+  }
+
   function RavenPriceChart(container, options) {
     if (!container) return null;
     const api = window.LightweightCharts;
     const candles = normalizeCandles(options?.candles);
     const events = Array.isArray(options?.events) ? options.events : [];
-    const overlays = Array.isArray(options?.overlays) ? options.overlays : [];
+    const overlays = (Array.isArray(options?.overlays) ? options.overlays : []).map((overlay) => ({ ...overlay, type: overlayType(overlay.type) }));
+    const activeTypes = new Set(options?.visibleOverlayTypes || overlays.map((overlay) => overlay.type));
 
     if (options?.loading) {
       setState(container, "Loading chart...", "loading");
@@ -148,29 +265,31 @@
       });
     }
 
-    overlays
-      .filter((overlay) => overlay && overlay.type === "breadth-line")
-      .forEach((overlay) => {
-        const values = normalizeOverlayValues(overlay);
-        if (!values.length) return;
-        const lineSeries = chart.addSeries(api.LineSeries, {
-          color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
-          lineWidth: 2,
-          priceScaleId: `overlay-${overlay.id || overlay.label}`,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          title: overlay.label,
-        });
-        lineSeries.setData(values);
-        chart.priceScale(`overlay-${overlay.id || overlay.label}`).applyOptions({
-          scaleMargins: { top: 0.08, bottom: options?.showVolume === false ? 0.12 : 0.74 },
-          borderVisible: false,
-        });
+    function visibleOverlays(type) {
+      return overlays.filter((overlay) => activeTypes.has(overlay.type) && (!type || overlay.type === type));
+    }
+
+    visibleOverlays("breadth-line").forEach((overlay) => {
+      const values = normalizeOverlayValues(overlay);
+      if (!values.length) return;
+      const lineSeries = chart.addSeries(api.LineSeries, {
+        color: colorFor(overlay),
+        lineWidth: 2,
+        priceScaleId: `overlay-${overlay.id || overlay.label}`,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        title: overlay.label,
       });
+      lineSeries.setData(values);
+      chart.priceScale(`overlay-${overlay.id || overlay.label}`).applyOptions({
+        scaleMargins: { top: 0.08, bottom: options?.showVolume === false ? 0.12 : 0.74 },
+        borderVisible: false,
+      });
+    });
 
     const markers = events.filter((event) => event && event.time).map(markerFor).concat(
-      overlays
-        .filter((overlay) => overlay && (overlay.type === "regime-marker" || overlay.type === "participant-shift"))
+      visibleOverlays()
+        .filter((overlay) => OVERLAY_RENDERER_REGISTRY[overlay.type]?.renderAs === "marker")
         .filter((overlay) => overlay.time || overlay.startTime)
         .map(overlayMarker),
     );
@@ -182,7 +301,7 @@
       .forEach((event) => {
         candleSeries.createPriceLine({
           price: Number(event.price),
-          color: SEVERITY_COLOR[event.severity] || SEVERITY_COLOR.info,
+          color: colorFor(event),
           lineWidth: 1,
           lineStyle: api.LineStyle?.Dashed || 2,
           axisLabelVisible: true,
@@ -190,80 +309,113 @@
         });
       });
 
-    overlays
-      .filter((overlay) => overlay && (Number.isFinite(Number(overlay.priceMin)) || Number.isFinite(Number(overlay.priceMax))))
+    visibleOverlays()
+      .filter((overlay) => Number.isFinite(Number(overlay.priceMin)) || Number.isFinite(Number(overlay.priceMax)))
       .forEach((overlay) => {
         if (Number.isFinite(Number(overlay.priceMin))) {
           candleSeries.createPriceLine({
             price: Number(overlay.priceMin),
-            color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+            color: colorFor(overlay),
             lineWidth: 1,
             lineStyle: api.LineStyle?.Dotted || 1,
             axisLabelVisible: false,
-            title: overlayTitle(overlay, "min"),
+            title: `${overlay.label} low`,
           });
         }
         if (Number.isFinite(Number(overlay.priceMax))) {
           candleSeries.createPriceLine({
             price: Number(overlay.priceMax),
-            color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+            color: colorFor(overlay),
             lineWidth: 1,
             lineStyle: api.LineStyle?.Dotted || 1,
             axisLabelVisible: true,
-            title: overlayTitle(overlay, "max"),
+            title: `${overlay.label} high`,
           });
         }
       });
 
-    const bandLayer = document.createElement("div");
-    bandLayer.className = "raven-overlay-bands";
-    bandLayer.style.position = "absolute";
-    bandLayer.style.inset = "0";
-    bandLayer.style.pointerEvents = "none";
-    chartHost.appendChild(bandLayer);
+    const regionLayer = document.createElement("div");
+    regionLayer.className = "raven-overlay-regions";
+    regionLayer.style.position = "absolute";
+    regionLayer.style.inset = "0";
+    regionLayer.style.pointerEvents = "none";
+    regionLayer.style.zIndex = "3";
+    chartHost.appendChild(regionLayer);
+    const tooltip = createTooltip(chartHost);
 
-    function renderBands() {
-      bandLayer.innerHTML = "";
-      overlays
-        .filter((overlay) => overlay && overlay.startTime && overlay.endTime)
-        .filter((overlay) => overlay.type === "history-window" || overlay.type === "compression-band" || overlay.type === "pressure-zone")
-        .forEach((overlay) => {
-          const start = chart.timeScale().timeToCoordinate(overlay.startTime);
-          const end = chart.timeScale().timeToCoordinate(overlay.endTime);
-          if (start === null || end === null || start === undefined || end === undefined) return;
-          const color = SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info;
-          const band = document.createElement("div");
-          band.title = `${overlay.label}: ${overlay.summary || ""}`;
-          band.style.position = "absolute";
-          band.style.left = `${Math.max(0, Math.min(start, end))}px`;
-          band.style.width = `${Math.max(4, Math.abs(end - start))}px`;
-          band.style.top = overlay.type === "history-window" ? "8%" : overlay.type === "compression-band" ? "48%" : "18%";
-          band.style.height = overlay.type === "history-window" ? "80%" : "24%";
-          band.style.border = `1px solid ${color}55`;
-          band.style.background = `${color}18`;
-          band.style.boxShadow = `inset 0 0 0 1px ${color}12`;
-          bandLayer.appendChild(band);
+    function renderRegions() {
+      regionLayer.innerHTML = "";
+      const width = chartHost.clientWidth || container.clientWidth;
+      const height = options?.height || 520;
+      visibleOverlays().forEach((overlay) => {
+        const type = overlay.type;
+        const renderAs = OVERLAY_RENDERER_REGISTRY[type]?.renderAs;
+        if (renderAs === "line" || renderAs === "marker") return;
+
+        const start = overlay.startTime ? chart.timeScale().timeToCoordinate(overlay.startTime) : 0;
+        const end = overlay.endTime ? chart.timeScale().timeToCoordinate(overlay.endTime) : width;
+        const left = start === null || start === undefined ? 0 : Math.min(start, end === null || end === undefined ? width : end);
+        const right = end === null || end === undefined ? width : Math.max(start || 0, end);
+
+        if (renderAs === "price-region" && Number.isFinite(Number(overlay.priceMin)) && Number.isFinite(Number(overlay.priceMax))) {
+          const yMin = candleSeries.priceToCoordinate(Number(overlay.priceMin));
+          const yMax = candleSeries.priceToCoordinate(Number(overlay.priceMax));
+          if (yMin === null || yMax === null || yMin === undefined || yMax === undefined) return;
+          createRegion(regionLayer, tooltip, chartHost, overlay, {
+            left,
+            top: Math.min(yMin, yMax),
+            width: right - left,
+            height: Math.abs(yMax - yMin),
+          });
+          return;
+        }
+
+        if (renderAs === "time-region") {
+          createRegion(regionLayer, tooltip, chartHost, overlay, {
+            left,
+            top: height * 0.08,
+            width: right - left,
+            height: height * 0.78,
+          });
+        }
+      });
+    }
+
+    function redrawLegend() {
+      createLegend(container, overlays, activeTypes, (type) => {
+        if (activeTypes.has(type)) activeTypes.delete(type);
+        else activeTypes.add(type);
+        apiRef.destroy();
+        const next = RavenPriceChart(container, {
+          ...options,
+          visibleOverlayTypes: Array.from(activeTypes),
         });
+        apiRef.chart = next?.chart;
+        apiRef.destroy = next?.destroy || apiRef.destroy;
+      });
     }
 
     chart.timeScale().fitContent();
-    renderBands();
-    chart.timeScale().subscribeVisibleTimeRangeChange(renderBands);
+    renderRegions();
+    if (options?.showOverlayLegend !== false) redrawLegend();
+    chart.timeScale().subscribeVisibleTimeRangeChange(renderRegions);
     const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({ width: chartHost.clientWidth || container.clientWidth });
-      renderBands();
+      renderRegions();
     });
     resizeObserver.observe(chartHost);
 
-    return {
+    const apiRef = {
       chart,
       destroy() {
-        chart.timeScale().unsubscribeVisibleTimeRangeChange(renderBands);
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(renderRegions);
         resizeObserver.disconnect();
         chart.remove();
       },
     };
+    return apiRef;
   }
 
+  window.RavenChartOverlayRenderers = OVERLAY_RENDERER_REGISTRY;
   window.RavenPriceChart = RavenPriceChart;
 })();
