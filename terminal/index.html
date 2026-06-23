@@ -300,6 +300,47 @@
     .cap-heatmap-legend .rewarding i { background: var(--green); }
     .cap-heatmap-legend .punishing i { background: var(--red); }
     .cap-heatmap-legend .mixed i { background: var(--yellow); }
+    .cap-drilldown {
+      display: none;
+      border-top: 1px solid var(--line);
+      background: rgba(255,255,255,0.018);
+      grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.2fr) minmax(220px, 1fr);
+      gap: 1px;
+      background-color: var(--line);
+    }
+    .cap-drilldown.active { display: grid; }
+    .drill-block { background: #050b09; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+    .drill-block h3 { margin: 0; color: var(--cyan); font-size: 11px; text-transform: uppercase; }
+    .drill-headline { display: grid; gap: 5px; }
+    .drill-headline strong { font-size: 16px; line-height: 1.1; }
+    .drill-headline strong.rewarding { color: var(--green); }
+    .drill-headline strong.punishing { color: var(--red); }
+    .drill-headline strong.mixed { color: var(--yellow); }
+    .drill-headline span { color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .drill-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    .drill-metric { background: var(--panel-2); padding: 7px; }
+    .drill-metric span { display: block; color: var(--soft); font-size: 9px; text-transform: uppercase; }
+    .drill-metric strong { display: block; margin-top: 4px; font-family: var(--mono); font-size: 12px; }
+    .drill-list { display: grid; gap: 5px; }
+    .drill-row {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.018);
+      color: var(--text);
+      padding: 7px 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      text-align: left;
+      min-width: 0;
+    }
+    .drill-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .drill-row em { color: var(--muted); font-style: normal; font-size: 10px; }
+    .drill-row strong { font-family: var(--mono); font-size: 11px; }
+    .drill-row.rewarding strong { color: var(--green); }
+    .drill-row.punishing strong { color: var(--red); }
+    .drill-why { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+    .drill-why li { color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .drill-why li::before { content: "• "; color: var(--cyan); }
     .table-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .table-tools input { width: min(300px, 100%); }
     .table-wrap { overflow: auto; min-width: 0; }
@@ -364,6 +405,8 @@
       .cap-heatmap-grid { grid-template-columns: 58px repeat(6, minmax(52px, 1fr)); }
       .cap-cell { min-height: 40px; padding: 6px; }
       .cap-cell strong { font-size: 11px; }
+      .cap-drilldown { grid-template-columns: 1fr; }
+      .drill-block { padding: 9px; }
       .intel, .table-panel { grid-column: auto; }
       .footer { grid-column: auto; }
       .chart-panel { grid-template-rows: auto auto minmax(330px, 1fr); }
@@ -874,6 +917,7 @@
     let activeCategory = "perps_overview";
     let activeMode = "perps_intelligence";
     const categoryHydration = new Set();
+    let selectedCapDrilldownKey = "";
     let accessTier = "free";
     let chartHandle;
     let chartRenderKey = "";
@@ -1675,6 +1719,107 @@
             : "Unresolved";
     }
 
+    function confidenceLabel(score) {
+      const n = Number(score || 0);
+      if (n >= 75) return "High";
+      if (n >= 58) return "Moderate";
+      if (n >= 38) return "Developing";
+      return "Low";
+    }
+
+    function capDrilldownModel(group, labels = {}) {
+      const rowsInGroup = group?.rows || [];
+      const count = rowsInGroup.length;
+      const avg = count ? Math.round(group.score / count) : 0;
+      const state = outcomeStateForScore(avg, count);
+      const sortedRewarding = [...rowsInGroup].sort((a, b) => outcomeScore(b) - outcomeScore(a));
+      const sortedPunishing = [...rowsInGroup].sort((a, b) => outcomeScore(a) - outcomeScore(b));
+      const topRewarding = sortedRewarding.filter((row) => outcomeScore(row) > 0).slice(0, 4);
+      const topPunishing = sortedPunishing.filter((row) => outcomeScore(row) < 0).slice(0, 4);
+      const topAttention = [...rowsInGroup].sort((a, b) => Number(b.attentionVelocity || 0) - Number(a.attentionVelocity || 0))[0];
+      const strongestLiquidity = [...rowsInGroup].sort((a, b) => {
+        const scoreLiquidity = (row) => /deep|stable|improving|visible/i.test(row.liquidityPosture || "") ? 2 : /thin|fragmented|choppy/i.test(row.liquidityPosture || "") ? 0 : 1;
+        return scoreLiquidity(b) - scoreLiquidity(a) || Number(b.flowScore || 0) - Number(a.flowScore || 0);
+      })[0];
+      const weakestSurvival = [...rowsInGroup].sort((a, b) => outcomeScore(a) - outcomeScore(b))[0];
+      const paying = rowsInGroup.filter((row) => row.participationOutcome === "Paying").length;
+      const punishing = rowsInGroup.filter((row) => row.participationOutcome === "Punishing").length;
+      const mixed = Math.max(0, count - paying - punishing);
+      const confidence = clamp(28 + Math.min(34, count * 4) + Math.min(22, Math.abs(avg)) + (strongestLiquidity ? 6 : 0), 20, 92);
+      const why = [
+        count ? `${paying} rewarding, ${punishing} punishing, and ${mixed} mixed structures are visible in this cell.` : "No current structure sample is available in this cell.",
+        topRewarding[0] ? `${topRewarding[0].asset} has the strongest rewarding participation read.` : "No clearly rewarding asset is leading this cell.",
+        topPunishing[0] ? `${topPunishing[0].asset} is the weakest current participation read.` : "Punishing participation is not dominant in this cell.",
+        topAttention ? `${topAttention.asset} has the strongest attention velocity in the group.` : "Attention velocity is not yet available.",
+        weakestSurvival ? `${weakestSurvival.asset} defines the weakest survival/risk context.` : "Survival context is not yet resolved.",
+      ];
+      return {
+        ...group,
+        count,
+        avg,
+        state,
+        stateLabel: outcomeLabelForState(state),
+        bucketLabel: labels[group?.bucket] || group?.bucket || "Cap band",
+        topRewarding,
+        topPunishing,
+        topAttention,
+        strongestLiquidity,
+        weakestSurvival,
+        paying,
+        punishing,
+        mixed,
+        confidence,
+        confidenceLabel: confidenceLabel(confidence),
+        why,
+      };
+    }
+
+    function drillRow(row, state) {
+      if (!row) return "";
+      const score = outcomeScore(row);
+      return `<button class="drill-row ${state}" type="button" data-drill-asset="${row.asset}">
+        <span>${row.asset}<br><em>${row.chainVenue || row.market} · ${row.liquidityPosture}</em></span>
+        <strong>${score > 0 ? "+" : ""}${score}</strong>
+      </button>`;
+    }
+
+    function renderCapDrilldown(group, labels) {
+      if (!group || !group.rows?.length) return "";
+      const model = capDrilldownModel(group, labels);
+      return `
+        <section class="cap-drilldown active" id="capDrilldown" aria-label="Participation outcome drilldown">
+          <div class="drill-block">
+            <div class="drill-headline">
+              <h3>${model.chain} ${model.bucketLabel}</h3>
+              <strong class="${model.state}">${model.stateLabel} participation</strong>
+              <span>${model.count} instruments · confidence ${model.confidenceLabel} · outcome score ${model.avg > 0 ? "+" : ""}${model.avg}</span>
+            </div>
+            <div class="drill-metrics">
+              <div class="drill-metric"><span>Rewarding</span><strong class="outcome-paying">${model.paying}</strong></div>
+              <div class="drill-metric"><span>Punishing</span><strong class="outcome-punishing">${model.punishing}</strong></div>
+              <div class="drill-metric"><span>Mixed</span><strong class="outcome-mixed">${model.mixed}</strong></div>
+            </div>
+          </div>
+          <div class="drill-block">
+            <h3>What Worked / Failed</h3>
+            <div class="drill-list">
+              ${model.topRewarding.length ? model.topRewarding.map((row) => drillRow(row, "rewarding")).join("") : `<div class="drill-row"><span>No dominant rewarding read</span><strong>--</strong></div>`}
+              ${model.topPunishing.length ? model.topPunishing.map((row) => drillRow(row, "punishing")).join("") : `<div class="drill-row"><span>No dominant punishing read</span><strong>--</strong></div>`}
+            </div>
+          </div>
+          <div class="drill-block">
+            <h3>Why This Cell Reads This Way</h3>
+            <ul class="drill-why">${model.why.map((item) => `<li>${item}</li>`).join("")}</ul>
+            <div class="drill-metrics">
+              <div class="drill-metric"><span>Attention</span><strong>${model.topAttention?.asset || "--"}</strong></div>
+              <div class="drill-metric"><span>Liquidity</span><strong>${model.strongestLiquidity?.asset || "--"}</strong></div>
+              <div class="drill-metric"><span>Weakest</span><strong>${model.weakestSurvival?.asset || "--"}</strong></div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
     function capHeatmapCells(rowsNow) {
       const crypto = rowsNow.filter((row) => row.category === "crypto_spot");
       const chains = ["Solana", "Base", "Ethereum", "BNB", "Other"];
@@ -1706,6 +1851,7 @@
       const { chains, buckets, labels, groups } = capHeatmapCells(uniqueRows([...dexRows, ...cryptoRows]));
       const visibleChains = chains.filter((chain) => buckets.some((bucket) => groups.has(`${chain}:${bucket}`)));
       const chainList = visibleChains.length ? visibleChains : ["Solana", "Base", "Ethereum"];
+      if (selectedCapDrilldownKey && !groups.has(selectedCapDrilldownKey)) selectedCapDrilldownKey = "";
       const cells = [
         `<div class="cap-cell header">Chain</div>`,
         ...buckets.map((bucket) => `<div class="cap-cell header">${labels[bucket]}</div>`),
@@ -1726,7 +1872,7 @@
           const mixed = Math.max(0, group.rows.length - paying - punishing);
           const title = `${chain} ${labels[bucket]}: ${outcomeLabelForState(state)} participation context. ${paying} rewarding, ${punishing} punishing, ${mixed} mixed. Leader: ${top.asset}. Flow ${top.flowScore}. Liquidity: ${top.liquidityPosture}. Risk: ${top.risk}.`;
           cells.push(`
-            <button class="cap-cell ${state}" type="button" data-heatmap-asset="${top.asset}" title="${title}">
+            <button class="cap-cell ${state}" type="button" data-heatmap-key="${chain}:${bucket}" data-heatmap-asset="${top.asset}" title="${title}">
               <strong>${avg > 0 ? "+" : ""}${avg}</strong>
               <span>${outcomeLabelForState(state)} · ${group.rows.length}</span>
             </button>
@@ -1746,10 +1892,23 @@
           <span class="mixed"><i></i>Mixed</span>
           <span><i></i>Unresolved</span>
         </div>
+        ${renderCapDrilldown(groups.get(selectedCapDrilldownKey), labels)}
       `;
       panel.querySelectorAll("[data-heatmap-asset]").forEach((button) => {
         button.addEventListener("click", () => {
+          selectedCapDrilldownKey = button.getAttribute("data-heatmap-key") || "";
           const asset = button.getAttribute("data-heatmap-asset");
+          const row = allRows().find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
+          if (!row) return;
+          renderAssetOptions();
+          document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+          renderTable();
+        });
+      });
+      panel.querySelectorAll("[data-drill-asset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const asset = button.getAttribute("data-drill-asset");
           const row = allRows().find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
           if (!row) return;
           renderAssetOptions();
