@@ -296,6 +296,7 @@
   </main>
 
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script>
     const baseCandles = [
@@ -364,8 +365,16 @@
 
     function renderChart() {
       const row = selectedRow();
+      const candleData = scaledCandles(row);
+      const marketKind = row.market === "Perpetual Futures" ? "perp" : row.market === "Crypto Spot" ? "spot" : "macro";
+      const overlays = window.RavenChartOverlays?.getOverlays?.({
+        symbol: row.asset,
+        market: marketKind,
+        candles: candleData,
+        tier: "pro",
+      }) || [];
       document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
-      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · mock OHLCV`;
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
       document.getElementById("flowScore").textContent = row.flowScore;
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
@@ -375,8 +384,9 @@
       document.getElementById("terminalBrief").textContent = `${row.asset} flow score is ${row.flowScore}. Participant activity is ${row.participantActivity.toLowerCase()}, liquidity posture is ${row.liquidityPosture.toLowerCase()}, and risk is ${row.risk.toLowerCase()}.`;
       if (chartHandle) chartHandle.destroy();
       chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
-        candles: scaledCandles(row),
+        candles: candleData,
         events: chartEvents,
+        overlays,
         showVolume: true,
         height: document.getElementById("flowChart").clientHeight || 520,
       });

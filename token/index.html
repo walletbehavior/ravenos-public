@@ -241,12 +241,18 @@
           <span class="eyebrow">Event Timeline</span>
           <div class="timeline" id="eventTimeline"></div>
         </section>
+
+        <section class="panel side-section">
+          <span class="eyebrow">Chart Overlays</span>
+          <div class="timeline" id="overlayTimeline"></div>
+        </section>
       </aside>
     </section>
   </main>
 
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>
   <script src="/ravenos-access.js"></script>
+  <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script>
     const candles = [
@@ -267,7 +273,7 @@
       { time: "2026-06-25", type: "entry-zone", label: "Entry zone observed", price: 0.00455, severity: "info" },
       { time: "2026-06-27", type: "liquidity-warning", label: "Liquidity depth thinned", price: 0.00475, severity: "warning" },
       { time: "2026-06-29", type: "smart-wallet-accumulation", label: "Smart-wallet accumulation cluster", severity: "success" },
-      { time: "2026-07-01", type: "promotion-candidate", label: "Promotion candidate marker", price: 0.00665, severity: "success" },
+      { time: "2026-07-01", type: "opportunity-marker", label: "Emerging opportunity marker", price: 0.00665, severity: "success" },
       { time: "2026-07-02", type: "toxicity-risk", label: "Toxicity risk elevated", price: 0.00695, severity: "danger" },
       { time: "2026-07-03", type: "smart-wallet-distribution", label: "Smart-wallet distribution cluster", severity: "warning" },
       { time: "2026-07-04", type: "exit-zone", label: "Exit zone observed", price: 0.00745, severity: "info" },
@@ -298,6 +304,16 @@
       return baseEvents.slice(0, 4).map((event) => ({ ...event, label: `Delayed sample: ${event.label}` }));
     }
 
+    function visibleOverlays() {
+      const current = tier();
+      return window.RavenChartOverlays?.getOverlays?.({
+        symbol: "SOL",
+        market: "perp",
+        candles,
+        tier: current,
+      }) || [];
+    }
+
     function renderIntel() {
       const current = tier();
       const rows = current === "founder" ? intel.concat([["Experimental overlays", "Enabled"]]) : intel;
@@ -312,8 +328,16 @@
       )).join("");
     }
 
+    function renderOverlayTimeline(overlays) {
+      document.getElementById("overlayTimeline").innerHTML = overlays.map((overlay) => {
+        const when = overlay.time || [overlay.startTime, overlay.endTime].filter(Boolean).join(" to ") || "active";
+        return `<div class="event ${overlay.severity}"><span>${when}</span><strong>${overlay.label}</strong><p class="muted">${overlay.summary}</p></div>`;
+      }).join("");
+    }
+
     function renderChart() {
       const events = visibleEvents();
+      const overlays = visibleOverlays();
       const current = tier();
       const overlayMode = document.getElementById("overlayMode");
       overlayMode.textContent = current === "founder"
@@ -325,11 +349,13 @@
       chartHandle = window.RavenPriceChart(document.getElementById("ravenChart"), {
         candles,
         events,
+        overlays,
         showVolume: true,
         height: window.innerWidth < 760 ? 440 : 520,
       });
       renderIntel();
       renderTimeline(events);
+      renderOverlayTimeline(overlays);
     }
 
     document.addEventListener("DOMContentLoaded", () => {

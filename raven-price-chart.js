@@ -34,9 +34,30 @@
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
       color: SEVERITY_COLOR[event.severity] || SEVERITY_COLOR.info,
-      shape: event.type === "promotion-candidate" ? "circle" : above ? "arrowDown" : "arrowUp",
+      shape: event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
       text: event.label,
     };
+  }
+
+  function overlayMarker(overlay) {
+    const above = overlay.type === "pressure-zone" || overlay.type === "regime-marker";
+    return {
+      time: overlay.time || overlay.startTime,
+      position: above ? "aboveBar" : "belowBar",
+      color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+      shape: overlay.type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
+      text: overlay.label,
+    };
+  }
+
+  function normalizeOverlayValues(overlay) {
+    return (Array.isArray(overlay?.values) ? overlay.values : [])
+      .filter((point) => point && point.time && Number.isFinite(Number(point.value)))
+      .map((point) => ({ time: point.time, value: Number(point.value) }));
+  }
+
+  function overlayTitle(overlay, side) {
+    return `${overlay.label} ${side === "min" ? "low" : "high"}`;
   }
 
   function priceLineTitle(event) {
@@ -56,6 +77,7 @@
     const api = window.LightweightCharts;
     const candles = normalizeCandles(options?.candles);
     const events = Array.isArray(options?.events) ? options.events : [];
+    const overlays = Array.isArray(options?.overlays) ? options.overlays : [];
 
     if (options?.loading) {
       setState(container, "Loading chart...", "loading");
@@ -75,9 +97,15 @@
     }
 
     container.innerHTML = "";
-    const chart = api.createChart(container, {
+    const chartHost = document.createElement("div");
+    chartHost.className = "raven-chart-host-inner";
+    chartHost.style.position = "relative";
+    chartHost.style.minHeight = `${options?.height || 520}px`;
+    container.appendChild(chartHost);
+
+    const chart = api.createChart(chartHost, {
       height: options?.height || 520,
-      width: container.clientWidth,
+      width: chartHost.clientWidth || container.clientWidth,
       layout: {
         background: { color: "#050907" },
         textColor: "#9fb5aa",
@@ -120,7 +148,32 @@
       });
     }
 
-    const markers = events.filter((event) => event && event.time).map(markerFor);
+    overlays
+      .filter((overlay) => overlay && overlay.type === "breadth-line")
+      .forEach((overlay) => {
+        const values = normalizeOverlayValues(overlay);
+        if (!values.length) return;
+        const lineSeries = chart.addSeries(api.LineSeries, {
+          color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+          lineWidth: 2,
+          priceScaleId: `overlay-${overlay.id || overlay.label}`,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: overlay.label,
+        });
+        lineSeries.setData(values);
+        chart.priceScale(`overlay-${overlay.id || overlay.label}`).applyOptions({
+          scaleMargins: { top: 0.08, bottom: options?.showVolume === false ? 0.12 : 0.74 },
+          borderVisible: false,
+        });
+      });
+
+    const markers = events.filter((event) => event && event.time).map(markerFor).concat(
+      overlays
+        .filter((overlay) => overlay && (overlay.type === "regime-marker" || overlay.type === "participant-shift"))
+        .filter((overlay) => overlay.time || overlay.startTime)
+        .map(overlayMarker),
+    );
     if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers);
     else if (typeof candleSeries.setMarkers === "function") candleSeries.setMarkers(markers);
 
@@ -137,13 +190,75 @@
         });
       });
 
+    overlays
+      .filter((overlay) => overlay && (Number.isFinite(Number(overlay.priceMin)) || Number.isFinite(Number(overlay.priceMax))))
+      .forEach((overlay) => {
+        if (Number.isFinite(Number(overlay.priceMin))) {
+          candleSeries.createPriceLine({
+            price: Number(overlay.priceMin),
+            color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+            lineWidth: 1,
+            lineStyle: api.LineStyle?.Dotted || 1,
+            axisLabelVisible: false,
+            title: overlayTitle(overlay, "min"),
+          });
+        }
+        if (Number.isFinite(Number(overlay.priceMax))) {
+          candleSeries.createPriceLine({
+            price: Number(overlay.priceMax),
+            color: SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info,
+            lineWidth: 1,
+            lineStyle: api.LineStyle?.Dotted || 1,
+            axisLabelVisible: true,
+            title: overlayTitle(overlay, "max"),
+          });
+        }
+      });
+
+    const bandLayer = document.createElement("div");
+    bandLayer.className = "raven-overlay-bands";
+    bandLayer.style.position = "absolute";
+    bandLayer.style.inset = "0";
+    bandLayer.style.pointerEvents = "none";
+    chartHost.appendChild(bandLayer);
+
+    function renderBands() {
+      bandLayer.innerHTML = "";
+      overlays
+        .filter((overlay) => overlay && overlay.startTime && overlay.endTime)
+        .filter((overlay) => overlay.type === "history-window" || overlay.type === "compression-band" || overlay.type === "pressure-zone")
+        .forEach((overlay) => {
+          const start = chart.timeScale().timeToCoordinate(overlay.startTime);
+          const end = chart.timeScale().timeToCoordinate(overlay.endTime);
+          if (start === null || end === null || start === undefined || end === undefined) return;
+          const color = SEVERITY_COLOR[overlay.severity] || SEVERITY_COLOR.info;
+          const band = document.createElement("div");
+          band.title = `${overlay.label}: ${overlay.summary || ""}`;
+          band.style.position = "absolute";
+          band.style.left = `${Math.max(0, Math.min(start, end))}px`;
+          band.style.width = `${Math.max(4, Math.abs(end - start))}px`;
+          band.style.top = overlay.type === "history-window" ? "8%" : overlay.type === "compression-band" ? "48%" : "18%";
+          band.style.height = overlay.type === "history-window" ? "80%" : "24%";
+          band.style.border = `1px solid ${color}55`;
+          band.style.background = `${color}18`;
+          band.style.boxShadow = `inset 0 0 0 1px ${color}12`;
+          bandLayer.appendChild(band);
+        });
+    }
+
     chart.timeScale().fitContent();
-    const resizeObserver = new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth }));
-    resizeObserver.observe(container);
+    renderBands();
+    chart.timeScale().subscribeVisibleTimeRangeChange(renderBands);
+    const resizeObserver = new ResizeObserver(() => {
+      chart.applyOptions({ width: chartHost.clientWidth || container.clientWidth });
+      renderBands();
+    });
+    resizeObserver.observe(chartHost);
 
     return {
       chart,
       destroy() {
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(renderBands);
         resizeObserver.disconnect();
         chart.remove();
       },
