@@ -142,6 +142,10 @@
       grid-template-rows: minmax(480px, 1fr) minmax(260px, 34vh) auto;
       gap: 10px;
       min-height: 0;
+      min-width: 0;
+      width: 100%;
+      max-width: 100vw;
+      overflow: hidden;
       padding: 10px;
     }
     .panel { border: 1px solid var(--line); background: var(--panel); min-width: 0; min-height: 0; }
@@ -226,7 +230,7 @@
     .composition-track { height: 5px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); }
     .composition-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); }
     .narrative { color: #c8d8d1; font-size: 12px; line-height: 1.45; display: grid; gap: 7px; }
-    .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .table-panel { grid-column: 2 / -1; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
     .mode-summary {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -237,9 +241,68 @@
     .summary-cell { min-height: 58px; padding: 10px 12px; background: #050b09; }
     .summary-cell span { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; font-weight: 850; }
     .summary-cell strong { display: block; margin-top: 5px; font-size: 14px; color: var(--text); }
+    .cap-outcome-heatmap {
+      display: none;
+      border-bottom: 1px solid var(--line);
+      background: #050b09;
+      padding: 10px 12px;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    .cap-outcome-heatmap.active { display: grid; }
+    .cap-heatmap-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; min-width: 0; }
+    .cap-heatmap-head strong { font-size: 11px; text-transform: uppercase; color: var(--cyan); }
+    .cap-heatmap-head span { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cap-heatmap-grid {
+      display: grid;
+      grid-template-columns: 84px repeat(6, minmax(62px, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      overflow-x: auto;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .cap-cell {
+      min-height: 46px;
+      border: 0;
+      background: #07100d;
+      color: var(--text);
+      padding: 7px 8px;
+      text-align: left;
+      display: grid;
+      align-content: center;
+      gap: 3px;
+    }
+    .cap-cell.header {
+      background: var(--panel-2);
+      color: var(--soft);
+      font-size: 9px;
+      font-weight: 900;
+      text-transform: uppercase;
+      cursor: default;
+    }
+    .cap-cell strong { font-family: var(--mono); font-size: 12px; line-height: 1; }
+    .cap-cell span { color: rgba(237, 246, 241, 0.72); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cap-cell.rewarding { background: linear-gradient(180deg, rgba(52, 211, 153, 0.24), rgba(52, 211, 153, 0.07)); }
+    .cap-cell.punishing { background: linear-gradient(180deg, rgba(251, 113, 133, 0.24), rgba(251, 113, 133, 0.07)); }
+    .cap-cell.mixed { background: linear-gradient(180deg, rgba(250, 204, 21, 0.18), rgba(250, 204, 21, 0.055)); }
+    .cap-cell.unresolved { background: rgba(255,255,255,0.025); color: var(--muted); }
+    .cap-cell.rewarding strong { color: var(--green); }
+    .cap-cell.punishing strong { color: var(--red); }
+    .cap-cell.mixed strong { color: var(--yellow); }
+    .cap-cell.empty { opacity: 0.42; cursor: default; }
+    .cap-heatmap-legend { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 10px; }
+    .cap-heatmap-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .cap-heatmap-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: var(--soft); }
+    .cap-heatmap-legend .rewarding i { background: var(--green); }
+    .cap-heatmap-legend .punishing i { background: var(--red); }
+    .cap-heatmap-legend .mixed i { background: var(--yellow); }
     .table-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .table-tools input { width: min(300px, 100%); }
-    .table-wrap { overflow: auto; }
+    .table-wrap { overflow: auto; min-width: 0; }
     table { width: 100%; border-collapse: collapse; min-width: 1120px; font-size: 12px; }
     th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     th { position: sticky; top: 0; z-index: 2; background: var(--panel-2); color: var(--cyan); font-size: 10px; text-transform: uppercase; cursor: pointer; }
@@ -296,6 +359,11 @@
       .structure-feed-panel { grid-template-columns: 1fr; }
       .structure-feed-label { border-right: 0; border-bottom: 1px solid var(--line); padding: 7px 10px; }
       .feed-item { min-width: 78vw; padding: 6px 9px; }
+      .cap-outcome-heatmap { padding: 6px; }
+      .cap-heatmap-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .cap-heatmap-grid { grid-template-columns: 58px repeat(6, minmax(52px, 1fr)); }
+      .cap-cell { min-height: 40px; padding: 6px; }
+      .cap-cell strong { font-size: 11px; }
       .intel, .table-panel { grid-column: auto; }
       .footer { grid-column: auto; }
       .chart-panel { grid-template-rows: auto auto minmax(330px, 1fr); }
@@ -473,6 +541,7 @@
           </div>
         </div>
         <div class="mode-summary" id="modeSummary"></div>
+        <section class="cap-outcome-heatmap" id="capOutcomeHeatmap" aria-label="Participation outcome by cap band"></section>
         <div class="table-wrap">
           <table>
             <thead>
@@ -1561,6 +1630,135 @@
       return row[key] ?? "";
     }
 
+    function capBucketFromRow(row) {
+      const band = rowCapBand(row);
+      if (band.includes("nano")) return "nano";
+      if (band.includes("micro")) return "micro";
+      if (band.includes("small")) return "small";
+      if (band.includes("mid")) return "mid";
+      if (band.includes("large")) return "large";
+      if (band.includes("mega")) return "mega";
+      if (String(row.marketCapBand || "").toLowerCase() === "memecoin") return "small";
+      return "unknown";
+    }
+
+    function chainBucketFromRow(row) {
+      const chain = chainKey(row.chainVenue);
+      if (chain === "solana") return "Solana";
+      if (chain === "base") return "Base";
+      if (chain === "ethereum" || chain === "eth") return "Ethereum";
+      if (chain === "bsc" || chain === "bnb") return "BNB";
+      return "Other";
+    }
+
+    function outcomeScore(row) {
+      const outcome = String(row.participationOutcome || "Mixed");
+      const liquidity = /deep|stable|improving|visible/i.test(row.liquidityPosture || "") ? 8 : /thin|fragmented|choppy/i.test(row.liquidityPosture || "") ? -9 : 0;
+      const risk = row.risk === "Elevated" ? -14 : row.risk === "Watch" ? -5 : 7;
+      const participant = row.participantActivity === "High" ? 9 : row.participantActivity === "Medium" ? 3 : -3;
+      const attention = clamp(Number(row.attentionVelocity || 0), -35, 45) * 0.22;
+      const base = outcome === "Paying" ? 28 : outcome === "Punishing" ? -28 : 0;
+      return Math.round(base + liquidity + risk + participant + attention);
+    }
+
+    function outcomeStateForScore(score, count) {
+      if (!count) return "unresolved";
+      if (score >= 12) return "rewarding";
+      if (score <= -12) return "punishing";
+      return "mixed";
+    }
+
+    function outcomeLabelForState(state) {
+      return state === "rewarding" ? "Rewarding"
+        : state === "punishing" ? "Punishing"
+          : state === "mixed" ? "Mixed"
+            : "Unresolved";
+    }
+
+    function capHeatmapCells(rowsNow) {
+      const crypto = rowsNow.filter((row) => row.category === "crypto_spot");
+      const chains = ["Solana", "Base", "Ethereum", "BNB", "Other"];
+      const buckets = ["nano", "micro", "small", "mid", "large", "mega"];
+      const labels = { nano: "Nano", micro: "Micro", small: "Small", mid: "Mid", large: "Large", mega: "Mega" };
+      const groups = new Map();
+      crypto.forEach((row) => {
+        const bucket = capBucketFromRow(row);
+        if (!buckets.includes(bucket)) return;
+        const chain = chainBucketFromRow(row);
+        const key = `${chain}:${bucket}`;
+        const current = groups.get(key) || { chain, bucket, rows: [], score: 0 };
+        current.rows.push(row);
+        current.score += outcomeScore(row);
+        groups.set(key, current);
+      });
+      return { chains, buckets, labels, groups };
+    }
+
+    function renderCapOutcomeHeatmap(rowsNow) {
+      const panel = document.getElementById("capOutcomeHeatmap");
+      if (!panel) return;
+      const show = activeMode === "crypto_heatmaps" || activeCategory === "market_cap_heatmap" || ["nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(activeCategory);
+      if (!show) {
+        panel.classList.remove("active");
+        panel.innerHTML = "";
+        return;
+      }
+      const { chains, buckets, labels, groups } = capHeatmapCells(uniqueRows([...dexRows, ...cryptoRows]));
+      const visibleChains = chains.filter((chain) => buckets.some((bucket) => groups.has(`${chain}:${bucket}`)));
+      const chainList = visibleChains.length ? visibleChains : ["Solana", "Base", "Ethereum"];
+      const cells = [
+        `<div class="cap-cell header">Chain</div>`,
+        ...buckets.map((bucket) => `<div class="cap-cell header">${labels[bucket]}</div>`),
+      ];
+      chainList.forEach((chain) => {
+        cells.push(`<div class="cap-cell header">${chain}</div>`);
+        buckets.forEach((bucket) => {
+          const group = groups.get(`${chain}:${bucket}`);
+          if (!group || !group.rows.length) {
+            cells.push(`<button class="cap-cell empty unresolved" type="button" disabled><strong>--</strong><span>No read</span></button>`);
+            return;
+          }
+          const avg = Math.round(group.score / group.rows.length);
+          const state = outcomeStateForScore(avg, group.rows.length);
+          const top = [...group.rows].sort((a, b) => Math.abs(outcomeScore(b)) - Math.abs(outcomeScore(a)) || Number(b.flowScore || 0) - Number(a.flowScore || 0))[0];
+          const paying = group.rows.filter((row) => row.participationOutcome === "Paying").length;
+          const punishing = group.rows.filter((row) => row.participationOutcome === "Punishing").length;
+          const mixed = Math.max(0, group.rows.length - paying - punishing);
+          const title = `${chain} ${labels[bucket]}: ${outcomeLabelForState(state)} participation context. ${paying} rewarding, ${punishing} punishing, ${mixed} mixed. Leader: ${top.asset}. Flow ${top.flowScore}. Liquidity: ${top.liquidityPosture}. Risk: ${top.risk}.`;
+          cells.push(`
+            <button class="cap-cell ${state}" type="button" data-heatmap-asset="${top.asset}" title="${title}">
+              <strong>${avg > 0 ? "+" : ""}${avg}</strong>
+              <span>${outcomeLabelForState(state)} · ${group.rows.length}</span>
+            </button>
+          `);
+        });
+      });
+      panel.classList.add("active");
+      panel.innerHTML = `
+        <div class="cap-heatmap-head">
+          <strong>Participation Outcome by Cap Band</strong>
+          <span>Where current participation is being rewarded, punished, or unresolved.</span>
+        </div>
+        <div class="cap-heatmap-grid">${cells.join("")}</div>
+        <div class="cap-heatmap-legend">
+          <span class="rewarding"><i></i>Rewarding</span>
+          <span class="punishing"><i></i>Punishing</span>
+          <span class="mixed"><i></i>Mixed</span>
+          <span><i></i>Unresolved</span>
+        </div>
+      `;
+      panel.querySelectorAll("[data-heatmap-asset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const asset = button.getAttribute("data-heatmap-asset");
+          const row = allRows().find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
+          if (!row) return;
+          renderAssetOptions();
+          document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+        });
+      });
+    }
+
     function renderModeSummary(rowsNow) {
       const avgFlow = Math.round(rowsNow.reduce((sum, row) => sum + Number(row.flowScore || 0), 0) / Math.max(1, rowsNow.length));
       const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
@@ -1667,6 +1865,7 @@
       const tablePanel = document.querySelector(".table-panel");
       if (tablePanel) tablePanel.setAttribute("data-feature", activeCategory === "market_cap_heatmap" ? "market_cap_heatmap" : "full_heatmaps");
       renderModeSummary(rowsNow);
+      renderCapOutcomeHeatmap(rowsNow);
       renderStructureTape(rowsNow);
       document.getElementById("tableHeadRow").innerHTML = columns.map(([key, label]) => `<th data-sort="${key}">${label}</th>`).join("");
       document.getElementById("flowRows").innerHTML = rowsNow.map((row) => `
