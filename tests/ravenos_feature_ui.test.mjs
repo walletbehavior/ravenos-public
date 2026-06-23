@@ -41,6 +41,10 @@ assert.match(terminal, /ravenos-replay\.js/);
 assert.match(terminal, /ravenos-participants\.js/);
 assert.match(terminal, /data-feature="participant_intelligence"/);
 assert.match(terminal, /github\.com\/walletbehavior\/ravenos-public\/tree\/main\/docs/);
+assert.match(terminal, /id="dexSearchInput"/);
+assert.doesNotMatch(terminal, /dexSearchInputPanel/);
+assert.match(terminal, /id="tickerPressure"/);
+assert.match(terminal, /id="tickerCoverage"/);
 
 assert.match(research, /data-feature="full_research"/);
 assert.match(research, /failure_analysis/);
