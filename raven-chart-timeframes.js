@@ -44,15 +44,36 @@
     const phaseA = config.phase + (seed % 37) / 11;
     const phaseB = (seed % 71) / 13;
     const phaseC = (seed % 113) / 17;
-    const trendBias = ((seed % 19) - 9) / 9;
-    const amplitude = stats.span * 0.12 * config.volatility;
+    const seedDirection = ((seed % 2) ? 1 : -1) * (0.65 + (seed % 11) / 22);
+    const intradayBias = ((seed % 13) - 6) / 16;
+    const swingDirection = ((seed % 5) - 2) / 2 || 0.75;
+    const amplitude = stats.span * (timeframe === "15m" ? 0.075 : timeframe === "1h" ? 0.16 : timeframe === "4h" ? 0.25 : 0.34) * config.volatility;
     const path = Array.from({ length: points }, (_, index) => {
       const p = points <= 1 ? 0 : index / (points - 1);
-      const trend = (p - 0.5) * stats.span * 0.18 * config.volatility * trendBias;
-      const primary = Math.sin(p * Math.PI * (timeframe === "15m" ? 3.8 : timeframe === "1h" ? 2.7 : 1.8) + phaseA) * amplitude;
-      const secondary = Math.cos(p * Math.PI * (timeframe === "15m" ? 9.4 : timeframe === "1h" ? 5.1 : 3.2) + phaseB) * amplitude * (timeframe === "15m" ? 0.38 : 0.68);
-      const pulse = Math.sin((index + 1) * ((seed % 5) + 2) * 0.37 + phaseC) * amplitude * 0.22;
-      return stats.mid + trend + primary + secondary + pulse;
+      if (timeframe === "15m") {
+        const meanRevert = Math.sin(p * Math.PI * 7.8 + phaseA) * amplitude * 0.72;
+        const microPulse = Math.sin(index * 1.27 + phaseC) * amplitude * 0.38;
+        const chop = Math.cos(index * 2.11 + phaseB) * amplitude * 0.18;
+        const drift = (p - 0.5) * stats.span * 0.035 * intradayBias;
+        return stats.mid + meanRevert + microPulse + chop + drift;
+      }
+      if (timeframe === "1h") {
+        const swing = Math.sin(p * Math.PI * 2.45 + phaseA) * amplitude * 0.92;
+        const counterSwing = Math.cos(p * Math.PI * 5.2 + phaseB) * amplitude * 0.34;
+        const trend = (p - 0.5) * stats.span * 0.16 * swingDirection * config.volatility;
+        const pullback = -Math.exp(-Math.pow((p - 0.58) / 0.16, 2)) * amplitude * 0.62 * Math.sign(swingDirection);
+        return stats.mid + trend + swing + counterSwing + pullback;
+      }
+      if (timeframe === "4h") {
+        const broadTrend = (p - 0.5) * stats.span * 0.34 * seedDirection * config.volatility;
+        const regimeWave = Math.sin(p * Math.PI * 1.32 + phaseA) * amplitude * 1.05;
+        const lateExpansion = Math.pow(p, 1.85) * amplitude * 0.52 * seedDirection;
+        return stats.mid + broadTrend + regimeWave + lateExpansion;
+      }
+      const trend = (p - 0.5) * stats.span * 0.42 * seedDirection * config.volatility;
+      const cycle = Math.sin(p * Math.PI * 1.08 + phaseA) * amplitude;
+      const weeklyReset = Math.cos(p * Math.PI * 2.6 + phaseB) * amplitude * 0.32;
+      return stats.mid + trend + cycle + weeklyReset;
     });
     const raw = path.map((close, index) => {
       const previousClose = index === 0 ? path[0] - (path[1] - path[0]) * 0.45 : path[index - 1];
