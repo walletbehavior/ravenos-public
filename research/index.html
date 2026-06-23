@@ -207,6 +207,7 @@
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
   <script src="/ravenos-explanations.js"></script>
+  <script src="/ravenos-replay.js"></script>
   <script>
     const state = {
       view: "setup_families",
@@ -427,6 +428,17 @@
           lastUpdated: "research",
         }, "replay_similarity");
         document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;">${window.RavenOSExplanations.ExplanationPanel(explanation)}</div>`;
+      }
+      if (window.RavenOSReplay?.ReplayOutcomePanel) {
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;" data-feature="full_replay_engine">${window.RavenOSReplay.ReplayOutcomePanel({
+          instrument: top.instrument,
+          setupFamily: top.setupFamily,
+          replaySimilarity: Number(String(top.replayBand || "55").match(/\d+/)?.[0] || 55),
+          sampleCount: top.sampleCount,
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
+          coverage: "Research",
+        })}</div>`;
       }
     }
 

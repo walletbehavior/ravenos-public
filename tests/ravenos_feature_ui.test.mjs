@@ -3,6 +3,7 @@ import fs from "node:fs";
 
 const featureScript = fs.readFileSync("ravenos-features.js", "utf8");
 const explanationScript = fs.readFileSync("ravenos-explanations.js", "utf8");
+const replayScript = fs.readFileSync("ravenos-replay.js", "utf8");
 const accessScript = fs.readFileSync("ravenos-access.js", "utf8");
 const terminal = fs.readFileSync("terminal/index.html", "utf8");
 const research = fs.readFileSync("research/index.html", "utf8");
@@ -19,6 +20,9 @@ assert.match(explanationScript, /ScoreBreakdown/);
 assert.match(explanationScript, /ConfidenceBadge/);
 assert.match(explanationScript, /EvidenceList/);
 assert.match(explanationScript, /WhyThisChanged/);
+assert.match(replayScript, /ReplayOutcomePanel/);
+assert.match(replayScript, /similarStructures/);
+assert.match(replayScript, /Outcome distribution/);
 
 assert.match(accessScript, /API unavailable\. Subscription and future token access checks are temporarily unavailable\./);
 assert.match(accessScript, /entitlements/);
@@ -28,12 +32,15 @@ assert.match(terminal, /data-feature="basic_chart"/);
 assert.match(terminal, /data-feature="full_heatmaps"/);
 assert.match(terminal, /ravenos-features\.js/);
 assert.match(terminal, /ravenos-explanations\.js/);
+assert.match(terminal, /ravenos-replay\.js/);
+assert.match(terminal, /github\.com\/walletbehavior\/ravenos-public\/tree\/main\/docs/);
 
 assert.match(research, /data-feature="full_research"/);
 assert.match(research, /failure_analysis/);
 assert.match(research, /candidate_lanes/);
 assert.match(research, /ravenos-features\.js/);
 assert.match(research, /ravenos-explanations\.js/);
+assert.match(research, /ravenos-replay\.js/);
 
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);
@@ -43,3 +50,4 @@ assert.match(watchlists, /data-feature="watchlists"/);
 assert.match(watchlists, /\/api\/watchlists/);
 assert.match(watchlists, /Free users can keep one compact watchlist/);
 assert.match(watchlists, /ravenos-explanations\.js/);
+assert.match(watchlists, /ravenos-replay\.js/);

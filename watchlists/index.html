@@ -104,6 +104,7 @@
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
   <script src="/ravenos-explanations.js"></script>
+  <script src="/ravenos-replay.js"></script>
   <script>
     const state = { watchlists: [], activeId: "" };
 
@@ -150,7 +151,12 @@
           risk: item.risk,
           coverage: item.coverage,
           lastUpdated: item.updated_at ? new Date(item.updated_at * 1000).toLocaleString() : "saved",
-        }, item.pressure_score ? "pressure_score" : "flow_score")) || ""}</td></tr>
+        }, item.pressure_score ? "pressure_score" : "flow_score")) || ""}${item.replay_similarity && window.RavenOSReplay?.ReplayOutcomePanel ? window.RavenOSReplay.ReplayOutcomePanel({
+          instrument: item.instrument,
+          replaySimilarity: item.replay_similarity,
+          sampleCount: 20,
+          coverage: item.coverage || "Preview",
+        }) : ""}</td></tr>
       `).join("");
       document.querySelectorAll("[data-delete-item]").forEach((button) => button.addEventListener("click", () => deleteItem(button.dataset.deleteItem)));
     }

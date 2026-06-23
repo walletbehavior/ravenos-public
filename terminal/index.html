@@ -307,7 +307,7 @@
         <a href="/pricing/">Pricing</a>
         <a href="/atlas/">Atlas</a>
         <a href="/account/">Account</a>
-        <a href="/docs/">Docs</a>
+        <a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
       </nav>
       <section class="global-search" aria-label="Universal token lookup" data-feature="free_token_lookup">
         <input id="dexSearchInput" type="search" placeholder="Search token, symbol, pair, or contract..." autocomplete="off" />
@@ -402,6 +402,7 @@
         <div class="brief" id="terminalBrief"></div>
         <section class="perps-intel-panel" id="perpsIntelligencePanel" aria-label="Perps intelligence panel"></section>
         <section class="explanation-panel" id="explanationPanel" aria-label="Explanation panel"></section>
+        <section id="replayOutcomePanel" data-feature="full_replay_engine" aria-label="Replay outcomes panel"></section>
       </aside>
 
       <article class="panel table-panel" data-feature="full_heatmaps">
@@ -460,6 +461,7 @@
   <script src="/ravenos-access.js"></script>
   <script src="/ravenos-features.js"></script>
   <script src="/ravenos-explanations.js"></script>
+  <script src="/ravenos-replay.js"></script>
   <script>
     window.__RAVEN_TERMINAL_BUILD__ = "contract-lookup-panel-v2";
     const candlePattern = [
@@ -888,6 +890,13 @@
         ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
         : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       renderExplanation(row);
+      window.RavenOSReplay?.render?.("#replayOutcomePanel", {
+        ...row,
+        instrument: row.asset,
+        replaySimilarity: isPerpsMode() && row.category === "perpetuals" ? replayMatches(row)[0]?.similarity : row.replaySimilarity || row.flowScore,
+        sampleCount: row.sampleCount || (coverage.coverage === "Sample" ? 18 : 64),
+        coverage: coverage.coverage,
+      });
       renderPerpsIntelligence(row);
       if (chartHandle) chartHandle.destroy();
       const mobileChart = window.matchMedia?.("(max-width: 780px)")?.matches;

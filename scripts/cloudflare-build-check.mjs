@@ -10,6 +10,7 @@ const required = [
   "terminal/index.html",
   "ravenos-access.js",
   "ravenos-explanations.js",
+  "ravenos-replay.js",
   "functions/api/access.js",
 ];
 
