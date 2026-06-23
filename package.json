@@ -3,10 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/cloudflare-build-check.mjs"
+    "build": "node scripts/cloudflare-build-check.mjs",
+    "pages:build": "node scripts/cloudflare-build-check.mjs",
+    "build:pages": "node scripts/cloudflare-build-check.mjs",
+    "cf:build": "node scripts/cloudflare-build-check.mjs",
+    "export": "node scripts/cloudflare-build-check.mjs",
+    "generate": "node scripts/cloudflare-build-check.mjs"
   },
   "engines": {
-    "node": ">=20.18.0"
+    "node": ">=18.19.0"
   },
   "dependencies": {
     "bs58": "^6.0.0",

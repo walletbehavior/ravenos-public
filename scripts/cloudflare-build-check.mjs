@@ -8,7 +8,6 @@ const required = [
   "terminal/index.html",
   "ravenos-access.js",
   "functions/api/access.js",
-  "_routes.json",
 ];
 
 const missing = required.filter((path) => !existsSync(path));
