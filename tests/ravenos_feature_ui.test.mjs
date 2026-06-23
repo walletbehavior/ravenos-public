@@ -49,6 +49,11 @@ assert.match(research, /ravenos-features\.js/);
 assert.match(research, /ravenos-explanations\.js/);
 assert.match(research, /ravenos-replay\.js/);
 assert.match(research, /ravenos-participants\.js/);
+assert.match(research, /Key Findings This Week/);
+assert.match(research, /What Worked/);
+assert.match(research, /Outcome Quality/);
+assert.match(research, /Replay Strength/);
+assert.match(research, /Developer Mode/);
 
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);

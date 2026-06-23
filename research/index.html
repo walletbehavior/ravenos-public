@@ -127,6 +127,16 @@
       margin-top: 12px;
     }
     .detail-card { border: 1px solid var(--line); background: var(--panel-2); padding: 11px; }
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .finding-card { border: 1px solid var(--line); background: var(--panel-2); padding: 12px; display: grid; gap: 8px; }
+    .finding-card h3 { margin: 0; font-size: 13px; color: var(--text); }
+    .finding-card p { margin: 0; }
+    .finding-card strong { color: var(--cyan); }
     .developer-only { display: none; }
     body.dev-mode .developer-only { display: table-cell; }
     .footer { margin-top: 18px; color: var(--soft); font-size: 11px; line-height: 1.45; }
@@ -134,14 +144,14 @@
       .layout { grid-template-columns: 1fr; }
       .side { display: flex; overflow-x: auto; }
       .side button { flex: 0 0 180px; }
-      .metric-grid, .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric-grid, .detail-grid, .report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 640px) {
       .shell { padding: 12px; }
       .topbar { align-items: flex-start; }
       .main-nav { overflow-x: auto; flex-wrap: nowrap; width: 100%; }
       .main-nav a { flex: 0 0 auto; }
-      .metric-grid, .detail-grid { grid-template-columns: 1fr; }
+      .metric-grid, .detail-grid, .report-grid { grid-template-columns: 1fr; }
       .panel { overflow-x: auto; }
     }
   </style>
@@ -166,8 +176,8 @@
 
     <section>
       <span class="eyebrow">Market structure research</span>
-      <h1>Research findings without internal lane keys.</h1>
-      <p class="lead">Structure Lab explains which setup families, regimes, replay bands, symbols, and failure modes separated from broad perps noise. It is research context only and does not generate trade recommendations.</p>
+      <h1>What Raven learned from market structure research.</h1>
+      <p class="lead">Structure Lab translates setup research into findings, confidence, sample depth, supporting conditions, failure conditions, and outcome quality. It is research context only and does not generate trade recommendations.</p>
       <div class="metric-grid">
         <div class="metric"><span>Candidate lanes</span><strong id="candidateCount">0</strong></div>
         <div class="metric"><span>Forward tracking</span><strong id="trackingCount">0</strong></div>
@@ -194,6 +204,7 @@
           </div>
           <button class="button" type="button" id="developerToggle">Developer Mode</button>
         </div>
+        <section class="report-grid" id="reportGrid" aria-label="Research findings report"></section>
         <table>
           <thead id="tableHead"></thead>
           <tbody id="tableBody"></tbody>
@@ -387,6 +398,71 @@
       return n.toFixed(2);
     }
 
+    function replayStrength(value = "") {
+      const nums = String(value || "").match(/\d+/g)?.map(Number) || [];
+      const score = nums.length ? Math.max(...nums) : 0;
+      if (score >= 80) return "Exceptional";
+      if (score >= 65) return "Strong";
+      if (score >= 50) return "Moderate";
+      if (score > 0) return "Developing";
+      return "Contextual";
+    }
+
+    function outcomeQuality(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return "Unproven";
+      if (n > 50) return "Exceptional";
+      if (n >= 1.35) return "Strong";
+      if (n >= 1.2) return "Constructive";
+      if (n >= 1.0) return "Mixed";
+      return "Weak";
+    }
+
+    function sampleDepth(value) {
+      const n = Number(value || 0);
+      if (n >= 1000) return "Very deep";
+      if (n >= 100) return "Deep";
+      if (n >= 50) return "Sufficient";
+      if (n >= 20) return "Developing";
+      return "Thin";
+    }
+
+    function researchStatus(value = "") {
+      const text = String(value).toLowerCase();
+      if (text.includes("reject")) return "Not useful";
+      if (text.includes("forward")) return "Forward tracking";
+      if (text.includes("candidate")) return "Developing";
+      if (text.includes("validated")) return "Validated";
+      return "Developing";
+    }
+
+    function renderReport(rows = []) {
+      const worked = rows.filter((row) => row.status !== "Rejected" && Number(row.profitFactor || 0) >= 1.15);
+      const failed = rows.filter((row) => row.status === "Rejected" || Number(row.profitFactor || 0) < 1);
+      const high = [...rows].sort((a, b) => {
+        const rank = { High: 4, Moderate: 3, Developing: 2, Low: 1 };
+        return (rank[b.confidence] || 0) - (rank[a.confidence] || 0) || Number(b.sampleCount || 0) - Number(a.sampleCount || 0);
+      });
+      const low = [...rows].sort((a, b) => Number(a.sampleCount || 0) - Number(b.sampleCount || 0));
+      const card = (title, body, items = []) => `
+        <article class="finding-card">
+          <span class="eyebrow">${title}</span>
+          <p class="muted">${body}</p>
+          ${items.length ? `<ul class="list">${items.slice(0, 4).map((item) => `<li>${item}</li>`).join("")}</ul>` : ""}
+        </article>`;
+      document.getElementById("reportGrid").innerHTML = [
+        card("Key Findings This Week", `${worked.length || rows.length} structures showed usable separation while ${failed.length} structures explained failure or dilution.`, [
+          `Top research focus: ${rows[0]?.setupFamily || "Setup families"}`,
+          `Best visible outcome quality: ${outcomeQuality(Math.max(...rows.map((row) => Number(row.profitFactor || 0)), 0))}`,
+          `Primary sample depth: ${sampleDepth(rows[0]?.sampleCount || 0)}`,
+        ]),
+        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} sample depth.` : "No structure has enough visible evidence to call it working in this view.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
+        card("What Failed", failed[0] ? `${failed[0].setupFamily} is best read as a failure or dilution explanation.` : "No dominant failure row is visible in this view.", failed.slice(0, 3).map((row) => `${row.setupFamily}: ${(row.worstConditions || []).slice(0, 1).join("") || "weak transfer"}`)),
+        card("Highest Confidence Structures", high[0] ? `${high[0].setupFamily} has ${String(high[0].confidence).toLowerCase()} confidence and ${sampleDepth(high[0].sampleCount).toLowerCase()} sample depth.` : "Confidence is still developing.", high.slice(0, 3).map((row) => `${row.setupFamily}: ${row.confidence} confidence`)),
+        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "No low-confidence rows loaded.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} sample depth`)),
+      ].join("");
+    }
+
     function renderTable() {
       const featureKey = viewFeatures[state.view] || "research_preview";
       const allowed = window.RavenOSFeatures?.canAccess?.(featureKey) ?? featureKey === "research_preview";
@@ -395,21 +471,22 @@
       document.getElementById("viewEyebrow").textContent = title;
       document.getElementById("viewTitle").textContent = title;
       document.getElementById("viewSummary").textContent = summary;
+      renderReport(rows);
       document.getElementById("tableHead").innerHTML = `<tr>
-        <th>Setup Family</th><th>Instrument</th><th>Direction</th><th>Status</th><th>Confidence</th>
-        <th>Sample Count</th><th>Profit Factor</th><th>Replay Band</th><th>Best Conditions</th><th>Worst Conditions</th><th class="developer-only">Internal ID</th>
+        <th>Finding</th><th>Structure</th><th>Status</th><th>Confidence</th><th>Sample Depth</th>
+        <th>Outcome Quality</th><th>Replay Strength</th><th>Supporting Conditions</th><th>Failure Conditions</th><th class="developer-only">Raw Metrics</th><th class="developer-only">Internal ID</th>
       </tr>`;
       document.getElementById("tableBody").innerHTML = rows.map((row) => `<tr>
-        <td><strong>${row.setupFamily}</strong></td>
-        <td>${row.instrument}</td>
+        <td><strong>${row.setupFamily}</strong><br><span class="muted">${row.instrument}</span></td>
         <td>${row.direction}</td>
-        <td><span class="${statusClass(row.status)}">${row.status}</span></td>
+        <td><span class="${statusClass(row.status)}">${researchStatus(row.status)}</span></td>
         <td>${row.confidence}</td>
-        <td>${fmtNumber(row.sampleCount)}</td>
-        <td>${fmtPf(row.profitFactor)}</td>
-        <td>${row.replayBand}</td>
+        <td>${sampleDepth(row.sampleCount)}<br><span class="muted">${fmtNumber(row.sampleCount)} observations</span></td>
+        <td>${outcomeQuality(row.profitFactor)}</td>
+        <td>${replayStrength(row.replayBand)}</td>
         <td><ul class="list">${row.bestConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
         <td><ul class="list">${row.worstConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
+        <td class="developer-only">PF ${fmtPf(row.profitFactor)} · Replay ${row.replayBand}</td>
         <td class="developer-only">${row.internalId || "n/a"}</td>
       </tr>`).join("");
       document.querySelector(".panel")?.setAttribute("data-feature", featureKey);
