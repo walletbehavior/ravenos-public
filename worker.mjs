@@ -15,6 +15,15 @@ import {
   listAlerts,
   updateAlert,
 } from "./lib/ravenos_alerts.mjs";
+import {
+  addWatchlistItem,
+  createWatchlist,
+  deleteWatchlist,
+  deleteWatchlistItem,
+  listWatchlists,
+  updateWatchlist,
+  watchlistLimits,
+} from "./lib/ravenos_watchlists.mjs";
 
 const dexCache = new Map();
 const hyperliquidCache = new Map();
@@ -443,6 +452,15 @@ function apiPath(pathname) {
   return pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 }
 
+function watchlistPath(pathname) {
+  const parts = apiPath(pathname).split("/").filter(Boolean);
+  return {
+    listId: parts[2] || "",
+    action: parts[3] || "",
+    itemId: parts[4] || "",
+  };
+}
+
 async function handleAlerts(request, env) {
   const url = new URL(request.url);
   const pathname = apiPath(url.pathname);
@@ -473,6 +491,48 @@ async function handleAlerts(request, env) {
         : message === "alert_not_found" ? 404
           : 400;
     return json({ ok: false, error: message, errors: error?.errors || [], alertTypes: ALERT_TYPES, access }, { status });
+  }
+  return json({ ok: false, error: "not_found" }, { status: 404 });
+}
+
+async function handleWatchlists(request, env) {
+  const url = new URL(request.url);
+  const pathname = apiPath(url.pathname);
+  const body = request.method === "GET" ? {} : await readJson(request);
+  const wallet = String(url.searchParams.get("wallet") || body.wallet || body.user_id || body.userId || "").trim();
+  const access = await resolveAccessForWallet(wallet, env);
+  const entitlements = access.entitlements || ["free"];
+  if (!wallet) return json({ ok: false, error: "missing_wallet", limits: watchlistLimits(entitlements), access }, { status: 400 });
+  const { listId, action, itemId } = watchlistPath(pathname);
+  try {
+    if (pathname === "/api/watchlists" && request.method === "GET") {
+      return json({ ok: true, watchlists: await listWatchlists(env, wallet), limits: watchlistLimits(entitlements), access });
+    }
+    if (pathname === "/api/watchlists" && request.method === "POST") {
+      return json({ ok: true, watchlist: await createWatchlist(env, { ...body, user_id: wallet }, entitlements), limits: watchlistLimits(entitlements), access }, { status: 201 });
+    }
+    if (pathname === "/api/watchlists/items" && request.method === "POST") {
+      return json({ ok: true, item: await addWatchlistItem(env, { ...body, user_id: wallet }, entitlements), limits: watchlistLimits(entitlements), access }, { status: 201 });
+    }
+    if (listId && !action && request.method === "PATCH") {
+      return json({ ok: true, watchlist: await updateWatchlist(env, wallet, listId, body), limits: watchlistLimits(entitlements), access });
+    }
+    if (listId && !action && request.method === "DELETE") {
+      return json({ ok: true, ...(await deleteWatchlist(env, wallet, listId)), limits: watchlistLimits(entitlements), access });
+    }
+    if (listId && action === "items" && request.method === "POST") {
+      return json({ ok: true, item: await addWatchlistItem(env, { ...body, user_id: wallet, watchlist_id: listId }, entitlements), limits: watchlistLimits(entitlements), access }, { status: 201 });
+    }
+    if (listId && action === "items" && itemId && request.method === "DELETE") {
+      return json({ ok: true, ...(await deleteWatchlistItem(env, wallet, itemId)), limits: watchlistLimits(entitlements), access });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "watchlists_request_failed";
+    const status = message === "watchlists_db_unavailable" ? 503
+      : message.includes("limit_reached") ? 403
+        : message.startsWith("missing_") ? 400
+          : 400;
+    return json({ ok: false, error: message, limits: watchlistLimits(entitlements), access }, { status });
   }
   return json({ ok: false, error: "not_found" }, { status: 404 });
 }
@@ -511,6 +571,8 @@ async function routeApi(request, env) {
   if (pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
   if ((pathname === "/api/alerts" || pathname === "/api/alerts/events" || pathname.startsWith("/api/alerts/"))
       && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) return handleAlerts(request, env);
+  if ((pathname === "/api/watchlists" || pathname === "/api/watchlists/items" || pathname.startsWith("/api/watchlists/"))
+      && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) return handleWatchlists(request, env);
   if (pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {
       return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });

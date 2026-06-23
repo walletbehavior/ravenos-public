@@ -6,6 +6,7 @@ const accessScript = fs.readFileSync("ravenos-access.js", "utf8");
 const terminal = fs.readFileSync("terminal/index.html", "utf8");
 const research = fs.readFileSync("research/index.html", "utf8");
 const atlas = fs.readFileSync("atlas/index.html", "utf8");
+const watchlists = fs.readFileSync("watchlists/index.html", "utf8");
 
 assert.match(featureScript, /function FeatureGate/);
 assert.match(featureScript, /function lockedPreview/);
@@ -29,3 +30,7 @@ assert.match(research, /ravenos-features\.js/);
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);
 assert.match(atlas, /Tradier is temporarily unavailable/);
+
+assert.match(watchlists, /data-feature="watchlists"/);
+assert.match(watchlists, /\/api\/watchlists/);
+assert.match(watchlists, /Free users can keep one compact watchlist/);

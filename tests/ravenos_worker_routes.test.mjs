@@ -58,6 +58,8 @@ assert.equal(await staticAsset.text(), "asset");
 
 function alertDb() {
   const alerts = [];
+  const watchlists = [];
+  const watchlistItems = [];
   return {
     prepare(sql) {
       return {
@@ -74,11 +76,16 @@ function alertDb() {
                 };
               }
               if (sql.includes("FROM alerts")) return alerts.find((row) => row.id === params[0] && row.user_id === params[1]) || null;
+              if (sql.includes("COUNT(*)") && sql.includes("FROM watchlists")) return { count: watchlists.filter((row) => row.user_id === params[0]).length };
+              if (sql.includes("COUNT(*)") && sql.includes("FROM watchlist_items")) return { count: watchlistItems.filter((row) => row.user_id === params[0] && row.watchlist_id === params[1]).length };
+              if (sql.includes("FROM watchlists")) return watchlists.filter((row) => row.user_id === params[0])[0] || null;
               return null;
             },
             all: async () => {
               if (sql.includes("FROM alerts")) return { results: alerts.filter((row) => row.user_id === params[0]) };
               if (sql.includes("FROM alert_events")) return { results: [] };
+              if (sql.includes("FROM watchlists")) return { results: watchlists.filter((row) => row.user_id === params[0]) };
+              if (sql.includes("FROM watchlist_items")) return { results: watchlistItems.filter((row) => row.user_id === params[0] && row.watchlist_id === params[1]) };
               return { results: [] };
             },
             run: async () => {
@@ -101,6 +108,26 @@ function alertDb() {
               } else if (sql.includes("DELETE FROM alerts")) {
                 const idx = alerts.findIndex((row) => row.id === params[0] && row.user_id === params[1]);
                 if (idx >= 0) alerts.splice(idx, 1);
+              } else if (sql.includes("INSERT INTO watchlists")) {
+                watchlists.push({ id: params[0], user_id: params[1], name: params[2], created_at: params[3], updated_at: params[4] });
+              } else if (sql.includes("INSERT INTO watchlist_items")) {
+                watchlistItems.push({
+                  id: params[0],
+                  watchlist_id: params[1],
+                  user_id: params[2],
+                  instrument: params[3],
+                  market: params[4],
+                  price: params[5],
+                  flow_score: params[6],
+                  pressure_score: params[7],
+                  replay_similarity: params[8],
+                  risk: params[9],
+                  coverage: params[10],
+                  provider: params[11],
+                  source_payload: params[12],
+                  created_at: params[13],
+                  updated_at: params[14],
+                });
               }
               return { meta: { changes: 1 } };
             },
@@ -150,3 +177,24 @@ const unavailableAlert = await worker.fetch(new Request("https://ravenos.xyz/api
 }), env);
 assert.equal(unavailableAlert.status, 503);
 assert.equal((await unavailableAlert.json()).error, "alerts_db_unavailable");
+
+const watchlistCreate = await worker.fetch(new Request("https://ravenos.xyz/api/watchlists", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ wallet: "pro-wallet", name: "Perps" }),
+}), alertEnv);
+assert.equal(watchlistCreate.status, 201);
+const watchlistCreatePayload = await watchlistCreate.json();
+assert.equal(watchlistCreatePayload.watchlist.name, "Perps");
+
+const watchlistItem = await worker.fetch(new Request(`https://ravenos.xyz/api/watchlists/${watchlistCreatePayload.watchlist.id}/items`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ wallet: "pro-wallet", instrument: "SOL-PERP", market: "Perpetual Futures", flowScore: 84 }),
+}), alertEnv);
+assert.equal(watchlistItem.status, 201);
+assert.equal((await watchlistItem.json()).item.instrument, "SOL-PERP");
+
+const watchlistsList = await worker.fetch(new Request("https://ravenos.xyz/api/watchlists?wallet=pro-wallet"), alertEnv);
+assert.equal(watchlistsList.status, 200);
+assert.equal((await watchlistsList.json()).watchlists[0].items.length, 1);

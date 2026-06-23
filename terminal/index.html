@@ -303,6 +303,7 @@
         <a href="/terminal/">Terminal</a>
         <a href="/research/">Research</a>
         <a href="/alerts/">Alerts</a>
+        <a href="/watchlists/">Watchlists</a>
         <a href="/pricing/">Pricing</a>
         <a href="/atlas/">Atlas</a>
         <a href="/account/">Account</a>
@@ -394,6 +395,7 @@
         <div class="intel-row"><span>Data Age</span><strong id="staleTimestamp">sample</strong></div>
         <div class="cta-row">
           <button class="button" type="button" data-wallet-connect="Phantom">Connect wallet</button>
+          <button class="button secondary" type="button" id="saveWatchlistButton">Save to Watchlist</button>
           <a class="button secondary" href="/upgrade/">Upgrade to Pro</a>
         </div>
         <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
@@ -1525,6 +1527,45 @@
       });
     }
 
+    async function saveCurrentToWatchlist() {
+      const state = window.RavenOSAccess?.getState?.() || {};
+      const wallet = state.publicKey || "";
+      const status = document.getElementById("walletAccessDetail");
+      if (!wallet) {
+        if (status) status.textContent = "Connect a wallet before saving to a watchlist.";
+        return;
+      }
+      const row = selectedRow();
+      try {
+        const response = await fetch("/api/watchlists/items", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            wallet,
+            instrument: row.asset,
+            market: row.market,
+            price: row.lastPrice,
+            flowScore: row.flowScore,
+            pressureScore: row.pressureScore || row.flowScore,
+            replaySimilarity: row.replaySimilarity || null,
+            risk: row.risk,
+            coverage: coverageForRow(row).coverage,
+            provider: coverageForRow(row).provider,
+            sourcePayload: { category: row.category, ecosystem: row.ecosystem, pairAddress: row.pairAddress || "", tokenAddress: row.tokenAddress || "" },
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "watchlist_save_failed");
+        if (status) status.textContent = `${row.asset} saved to Watchlists.`;
+      } catch (error) {
+        if (status) status.textContent = error.message === "watchlists_db_unavailable"
+          ? "Watchlists database unavailable. The terminal remains usable in preview mode."
+          : error.message === "watchlist_item_limit_reached"
+            ? "Free watchlist item limit reached. Pro expands practical limits."
+            : `Watchlist save failed: ${error.message}`;
+      }
+    }
+
     function closeDexSearchResults() {
       ["dexSearchResults", "dexSearchResultsPanel"].forEach((id) => {
         const box = document.getElementById(id);
@@ -1613,6 +1654,7 @@
         });
       });
       document.getElementById("riskFilter").addEventListener("change", renderTable);
+      document.getElementById("saveWatchlistButton")?.addEventListener("click", saveCurrentToWatchlist);
       document.querySelectorAll("th[data-sort]").forEach((th) => {
         th.addEventListener("click", () => {
           const key = th.getAttribute("data-sort");

@@ -22,6 +22,7 @@ const required = [
   "candidate_lanes",
   "attribution",
   "alerts",
+  "watchlists",
   "perps_intelligence",
   "founder_experiments",
   "atlas_context",
