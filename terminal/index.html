@@ -255,6 +255,52 @@
     .cap-heatmap-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; min-width: 0; }
     .cap-heatmap-head strong { font-size: 11px; text-transform: uppercase; color: var(--cyan); }
     .cap-heatmap-head span { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rotation-snapshot {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .rotation-block {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.018);
+      min-width: 0;
+      display: grid;
+      gap: 1px;
+    }
+    .rotation-block h3 {
+      margin: 0;
+      padding: 7px 8px;
+      color: var(--cyan);
+      font-size: 10px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+    }
+    .rotation-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+    .rotation-tile {
+      border: 0;
+      background: #07100d;
+      color: var(--text);
+      min-width: 0;
+      min-height: 62px;
+      padding: 8px;
+      display: grid;
+      gap: 4px;
+      text-align: left;
+    }
+    .rotation-tile strong { font-size: 12px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rotation-tile b { font-family: var(--mono); font-size: 14px; line-height: 1; }
+    .rotation-tile span { color: rgba(237, 246, 241, 0.72); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rotation-tile.rewarding { background: linear-gradient(180deg, rgba(52, 211, 153, 0.20), rgba(52, 211, 153, 0.055)); }
+    .rotation-tile.punishing { background: linear-gradient(180deg, rgba(251, 113, 133, 0.20), rgba(251, 113, 133, 0.055)); }
+    .rotation-tile.mixed { background: linear-gradient(180deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.05)); }
+    .rotation-tile.rewarding b { color: var(--green); }
+    .rotation-tile.punishing b { color: var(--red); }
+    .rotation-tile.mixed b { color: var(--yellow); }
     .cap-heatmap-grid {
       display: grid;
       grid-template-columns: 84px repeat(6, minmax(62px, 1fr));
@@ -402,6 +448,8 @@
       .feed-item { min-width: 78vw; padding: 6px 9px; }
       .cap-outcome-heatmap { padding: 6px; }
       .cap-heatmap-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .rotation-snapshot { grid-template-columns: 1fr; }
+      .rotation-strip { grid-template-columns: repeat(3, minmax(82px, 1fr)); overflow-x: auto; }
       .cap-heatmap-grid { grid-template-columns: 58px repeat(6, minmax(52px, 1fr)); }
       .cap-cell { min-height: 40px; padding: 6px; }
       .cap-cell strong { font-size: 11px; }
@@ -1956,6 +2004,60 @@
       return { chains, buckets, labels, groups };
     }
 
+    function rotationGroups(rowsNow, groupBy, labelFor) {
+      const groups = new Map();
+      rowsNow.filter((row) => row.category === "crypto_spot").forEach((row) => {
+        const key = groupBy(row);
+        if (!key || key === "unknown") return;
+        const current = groups.get(key) || { key, label: labelFor(key), rows: [], score: 0 };
+        current.rows.push(row);
+        current.score += outcomeScore(row);
+        groups.set(key, current);
+      });
+      return [...groups.values()]
+        .map((group) => {
+          const avg = Math.round(group.score / Math.max(1, group.rows.length));
+          const state = outcomeStateForScore(avg, group.rows.length);
+          const top = [...group.rows].sort((a, b) => outcomeScore(b) - outcomeScore(a) || Number(b.flowScore || 0) - Number(a.flowScore || 0))[0];
+          const paying = group.rows.filter((row) => row.participationOutcome === "Paying").length;
+          const punishing = group.rows.filter((row) => row.participationOutcome === "Punishing").length;
+          return { ...group, avg, state, top, paying, punishing };
+        })
+        .sort((a, b) => b.avg - a.avg || b.rows.length - a.rows.length);
+    }
+
+    function rotationTile(group, type) {
+      if (!group) return "";
+      const title = `${group.label}: ${outcomeLabelForState(group.state)}. ${group.paying} rewarding, ${group.punishing} punishing, ${group.rows.length} total. Top read: ${group.top?.asset || "--"}.`;
+      return `
+        <button class="rotation-tile ${group.state}" type="button" data-rotation-type="${type}" data-rotation-key="${group.key}" data-rotation-asset="${group.top?.asset || ""}" title="${title}">
+          <strong>${group.label}</strong>
+          <b>${group.avg > 0 ? "+" : ""}${group.avg}</b>
+          <span>${group.paying}/${group.punishing} · ${group.top?.asset || "No read"}</span>
+        </button>
+      `;
+    }
+
+    function renderRotationSnapshot(rowsNow, labels) {
+      const pool = uniqueRows([...dexRows, ...cryptoRows]);
+      const chainRows = rotationGroups(pool, chainBucketFromRow, (key) => key).filter((group) => ["Solana", "Base", "Ethereum", "BNB"].includes(group.key));
+      const bucketRows = rotationGroups(pool, capBucketFromRow, (key) => labels[key] || key);
+      const chainTiles = chainRows.slice(0, 3).map((group) => rotationTile(group, "chain")).join("") || `<div class="rotation-tile mixed"><strong>No chain read</strong><b>--</b><span>Coverage developing</span></div>`;
+      const bucketTiles = bucketRows.slice(0, 3).map((group) => rotationTile(group, "bucket")).join("") || `<div class="rotation-tile mixed"><strong>No cap read</strong><b>--</b><span>Coverage developing</span></div>`;
+      return `
+        <section class="rotation-snapshot" aria-label="Intraday rotation snapshot">
+          <div class="rotation-block">
+            <h3>Chain Opportunity Snapshot</h3>
+            <div class="rotation-strip">${chainTiles}</div>
+          </div>
+          <div class="rotation-block">
+            <h3>Cap Band Snapshot</h3>
+            <div class="rotation-strip">${bucketTiles}</div>
+          </div>
+        </section>
+      `;
+    }
+
     function renderCapOutcomeHeatmap(rowsNow) {
       const panel = document.getElementById("capOutcomeHeatmap");
       if (!panel) return;
@@ -2002,6 +2104,7 @@
           <strong>Participation Outcome by Cap Band</strong>
           <span>Where current participation is being rewarded, punished, or unresolved.</span>
         </div>
+        ${renderRotationSnapshot(rowsNow, labels)}
         <div class="cap-heatmap-grid">${cells.join("")}</div>
         <div class="cap-heatmap-legend">
           <span class="rewarding"><i></i>Rewarding</span>
@@ -2031,6 +2134,27 @@
           renderAssetOptions();
           document.getElementById("assetSelect").value = row.asset;
           renderChart();
+        });
+      });
+      panel.querySelectorAll("[data-rotation-asset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const type = button.getAttribute("data-rotation-type");
+          const key = button.getAttribute("data-rotation-key");
+          const asset = button.getAttribute("data-rotation-asset");
+          const categoryByBucket = { nano: "nano_caps", micro: "micro_caps", small: "small_caps", mid: "mid_caps", large: "large_caps", mega: "large_caps" };
+          const categoryByChain = { Solana: "solana", Base: "base", Ethereum: "ethereum" };
+          const nextCategory = type === "bucket" ? categoryByBucket[key] : categoryByChain[key];
+          if (nextCategory) {
+            activeCategory = nextCategory;
+            activeMode = "crypto_heatmaps";
+            document.getElementById("modeSelect").value = activeMode;
+          }
+          renderNav();
+          renderAssetOptions();
+          const row = allRows().find((item) => item.asset === asset) || displayRows()[0];
+          if (row) document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+          renderTable();
         });
       });
     }
