@@ -57,7 +57,13 @@ assert.match(research, /Developer Mode/);
 
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);
-assert.match(atlas, /Tradier is temporarily unavailable/);
+assert.match(atlas, /market regime/);
+assert.match(atlas, /Liquidity conditions/);
+assert.match(atlas, /Breadth quality/);
+assert.match(atlas, /Volatility environment/);
+assert.match(atlas, /Cross-market posture/);
+assert.doesNotMatch(atlas, /Tradier is temporarily unavailable/);
+assert.doesNotMatch(atlas, /Provider status and fallback quality/);
 
 assert.match(watchlists, /data-feature="watchlists"/);
 assert.match(watchlists, /\/api\/watchlists/);

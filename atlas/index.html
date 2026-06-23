@@ -155,6 +155,8 @@
     }
     .gate-note { margin-top: 10px; color: var(--yellow); font-size: 12px; }
     .footer { margin-top: 18px; color: var(--soft); font-size: 11px; line-height: 1.45; }
+    .diagnostics { display: none; }
+    body.dev-mode .diagnostics { display: block; }
     @media (max-width: 980px) {
       .hero, .grid { grid-template-columns: 1fr; }
       .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -190,7 +192,7 @@
       <div>
         <span class="eyebrow">Atlas tier</span>
         <h1>Regime, macro, breadth, and liquidity context for senior market operators.</h1>
-        <p class="lead">Atlas is a separate high-tier RavenOS layer. It summarizes cross-market posture, macro context, volatility state, breadth quality, liquidity conditions, and source health without producing trade recommendations.</p>
+        <p class="lead">Atlas is a separate high-tier RavenOS layer. It summarizes market regime, liquidity conditions, breadth quality, volatility environment, and cross-market posture without producing trade recommendations.</p>
         <div class="nav" style="margin-top:16px;">
           <button class="button primary" type="button" data-stripe-checkout="atlas_monthly">Start Atlas Monthly</button>
           <button class="button" type="button" data-stripe-checkout="atlas_annual">Start Atlas Annual</button>
@@ -198,10 +200,10 @@
         </div>
       </div>
       <aside class="desk-card">
-        <span class="eyebrow">Coverage state</span>
-        <h2 id="atlasCoverageTitle">Fallback-aware context</h2>
-        <p class="muted" id="atlasCoverageText">Tradier is temporarily unavailable. Atlas remains usable through cached, public, and preview macro context where available.</p>
-        <div><span class="pill" id="coveragePill" data-coverage-badge>Preview</span> <span class="pill" id="sourcePill">Atlas fallback</span></div>
+        <span class="eyebrow">Regime context</span>
+        <h2 id="atlasCoverageTitle">Coverage developing</h2>
+        <p class="muted" id="atlasCoverageText">Atlas is building a high-level read across market regime, liquidity conditions, breadth quality, volatility environment, and cross-market posture.</p>
+        <div><span class="pill" id="coveragePill" data-coverage-badge>Limited coverage</span> <span class="pill" id="sourcePill">Regime desk</span></div>
       </aside>
     </section>
 
@@ -223,7 +225,7 @@
         </div>
         <p class="lead" id="atlasHeadline" style="font-size:15px; margin-top:0;">Loading Atlas context...</p>
         <table class="table" style="margin-top:14px;">
-          <thead><tr><th>Dimension</th><th>Read</th><th>Coverage</th></tr></thead>
+          <thead><tr><th>Dimension</th><th>Read</th><th>Context</th></tr></thead>
           <tbody id="atlasTable"></tbody>
         </table>
       </article>
@@ -236,7 +238,7 @@
           </div>
           <span class="pill">Premium</span>
         </div>
-        <p class="muted">Atlas access is subscription-based. Founder and Pro tiers do not automatically unlock Atlas. The product is positioned for high-level context, review cadence, and cross-market understanding.</p>
+        <p class="muted">Atlas access is subscription-based. Founder and Pro tiers do not automatically unlock Atlas. The product is positioned for high-level regime context, review cadence, and cross-market understanding.</p>
         <div class="nav" style="margin-top:14px;">
           <button class="button primary" type="button" data-stripe-checkout="atlas_monthly">Atlas Monthly</button>
           <button class="button" type="button" data-stripe-checkout="atlas_annual">Atlas Annual</button>
@@ -245,14 +247,14 @@
       </aside>
     </section>
 
-    <section class="grid">
+    <section class="grid diagnostics">
       <article class="panel" data-requires-tier="atlas" data-feature="atlas_context">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">Source Health</span>
-            <h2>Provider status and fallback quality</h2>
+            <span class="eyebrow">Diagnostics</span>
+            <h2>Raw source state</h2>
           </div>
-          <span class="pill warning">Fallback-aware</span>
+          <span class="pill warning">Developer</span>
         </div>
         <table class="table">
           <thead><tr><th>Source</th><th>Status</th><th>Use</th></tr></thead>
@@ -273,7 +275,7 @@
             <tr><td>Trade calls</td><td>Not generated</td></tr>
             <tr><td>Execution</td><td>Not provided</td></tr>
             <tr><td>Custody or brokerage</td><td>Not provided</td></tr>
-            <tr><td>Fallback data</td><td>Always labeled when live providers are degraded</td></tr>
+            <tr><td>Limited coverage</td><td>Always labeled when context is still developing</td></tr>
           </tbody>
         </table>
       </article>
@@ -289,8 +291,17 @@
       return value == null || value === "" ? fallback : String(value);
     }
 
-    function row(label, value, coverage = "Preview") {
-      return `<tr><td>${label}</td><td>${text(value)}</td><td>${coverage}</td></tr>`;
+    function row(label, value, context = "Limited coverage") {
+      return `<tr><td>${label}</td><td>${text(value)}</td><td>${context}</td></tr>`;
+    }
+
+    function productCoverageLabel(state = "") {
+      const value = String(state || "").toLowerCase();
+      if (value === "fresh" || value === "live") return "Current context";
+      if (value === "cached") return "Delayed context";
+      if (value === "fallback") return "Coverage developing";
+      if (value === "preview" || value === "sample") return "Limited coverage";
+      return "Coverage developing";
     }
 
     async function hydrateAtlas() {
@@ -303,34 +314,38 @@
       const sourceHealth = payload.source_health || payload.source_quality || {};
       const freshness = posture.data_freshness || {};
       const atlasState = freshness.atlas_state || "preview";
-      const headline = posture.headline || "Atlas context is in preview fallback mode while primary macro providers recover.";
-      const macroPosture = posture.macro_posture || "fallback_macro_context";
+      const productCoverage = productCoverageLabel(atlasState);
+      const headline = posture.headline || "Atlas is reading a developing regime backdrop across liquidity, breadth, volatility, and cross-market posture.";
+      const macroPosture = posture.macro_posture || "regime context developing";
       document.getElementById("atlasHeadline").textContent = headline;
-      document.getElementById("atlasState").textContent = atlasState;
-      document.getElementById("coveragePill").textContent = atlasState === "fresh" ? "Live" : atlasState === "cached" ? "Cached" : "Preview";
-      document.getElementById("sourcePill").textContent = atlasState === "fresh" ? "Atlas live" : "Atlas fallback";
-      document.getElementById("atlasCoverageTitle").textContent = atlasState === "fresh" ? "Live Atlas context" : "Fallback Atlas context";
-      document.getElementById("atlasCoverageText").textContent = atlasState === "fresh"
-        ? "Atlas context is currently resolving from live and indexed sources."
-        : "Tradier is temporarily unavailable. Atlas is using cached, public, and preview context where available.";
+      document.getElementById("atlasState").textContent = productCoverage;
+      document.getElementById("coveragePill").textContent = productCoverage;
+      document.getElementById("sourcePill").textContent = "Regime desk";
+      document.getElementById("atlasCoverageTitle").textContent = productCoverage;
+      document.getElementById("atlasCoverageText").textContent = productCoverage === "Current context"
+        ? "Atlas is reading current market regime, liquidity, breadth, volatility, and cross-market posture."
+        : "Atlas is reading a developing context layer across regime, liquidity, breadth, volatility, and cross-market posture.";
       document.getElementById("atlasTable").innerHTML = [
-        row("Macro posture", macroPosture, atlasState),
-        row("Confidence", posture.confidence, atlasState),
-        row("Crypto breadth", posture.crypto_breadth, atlasState),
-        row("Crypto trend", posture.crypto_trend, atlasState),
-        row("Crypto beta health", posture.crypto_beta_health, atlasState),
+        row("Market regime", macroPosture, productCoverage),
+        row("Liquidity conditions", posture.liquidity_conditions || posture.confidence || "developing", productCoverage),
+        row("Breadth quality", posture.crypto_breadth, productCoverage),
+        row("Volatility environment", posture.volatility_environment || posture.crypto_trend, productCoverage),
+        row("Cross-market posture", posture.crypto_beta_health, productCoverage),
       ].join("");
       const sourceRows = Object.entries(sourceHealth).slice(0, 12).map(([key, value]) => row(key, typeof value === "object" ? JSON.stringify(value) : value, "Source health"));
       document.getElementById("sourceTable").innerHTML = sourceRows.length
         ? sourceRows.join("")
         : [
-            row("Tradier", "temporarily unavailable", "Fallback"),
-            row("Atlas fallback", "preview context available", "Preview"),
-            row("Raven indexed data", "used where available", "Mixed"),
+            row("Macro source", "not active", "diagnostic"),
+            row("Atlas context layer", "limited coverage available", "diagnostic"),
+            row("Raven indexed data", "used where available", "diagnostic"),
           ].join("");
     }
 
-    document.addEventListener("DOMContentLoaded", hydrateAtlas);
+    document.addEventListener("DOMContentLoaded", () => {
+      if (new URLSearchParams(location.search).get("dev") === "1") document.body.classList.add("dev-mode");
+      hydrateAtlas();
+    });
   </script>
 </body>
 </html>
