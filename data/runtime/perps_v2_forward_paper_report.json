@@ -1,0 +1,956 @@
+{
+  "schema_version": "perps_v2_forward_paper_report.v1",
+  "generated_at": "2026-06-23T16:33:14.003Z",
+  "provider": "Hyperliquid",
+  "market": "perpetual_futures",
+  "diagnostic_only": true,
+  "paper_only": true,
+  "affects_live": false,
+  "affects_sizing": false,
+  "affects_caps": false,
+  "affects_mirrors": false,
+  "affects_promotion": false,
+  "live_execution_enabled": false,
+  "promotion_allowed": false,
+  "config_path": "data/runtime/perps_v2_forward_paper_config.json",
+  "backtest_path": "data/runtime/raven_perps_intelligence_v2_backtest.json",
+  "validated_lanes": [
+    "compression_release:short:2Z-PERP",
+    "compression_release:short:ARB-PERP",
+    "compression_release:short:BCH-PERP",
+    "compression_release:short:DOGE-PERP",
+    "compression_release:short:ONDO-PERP",
+    "compression_release:short:ETHFI-PERP",
+    "compression_release:short:SOL-PERP"
+  ],
+  "diagnostic_15m_symbol_lanes": [
+    "BCH-PERP",
+    "VVV-PERP",
+    "LINK-PERP",
+    "WLD-PERP",
+    "TIA-PERP",
+    "UNI-PERP",
+    "AVAX-PERP"
+  ],
+  "promotion_review_criteria": {
+    "minimum_forward_samples_per_lane": 50,
+    "positive_avg_net_after_fees_slippage": true,
+    "profit_factor_min": 1.2,
+    "max_drawdown_acceptable": true,
+    "no_single_symbol_dependency": true,
+    "stable_across_market_regimes_min": 3
+  },
+  "blockers": [
+    {
+      "blocker": "broad_long_reclaim_lanes_blocked",
+      "reason": "Broad long/reclaim lanes did not validate in the seven-day diagnostic backtest."
+    },
+    {
+      "blocker": "broad_15m_lanes_blocked",
+      "reason": "15m broad families did not validate; symbol-specific 15m lanes may be diagnostic-only."
+    },
+    {
+      "blocker": "unvalidated_family_blocked",
+      "reason": "Only explicit validated 1h lanes are eligible for v2 forward paper tracking."
+    },
+    {
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Future review requires at least 50 forward samples per lane before promotion review."
+    }
+  ],
+  "observations": [
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:2Z-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "2Z-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 0.069479,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 26,
+      "replay_similarity": 45,
+      "liquidity_attraction": {
+        "score": 17,
+        "state": "Weak",
+        "nearest_cluster": 0.069103620299162,
+        "distance_percent": 0.54,
+        "attraction_strength": 45
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 20,
+          "direction": "contracting",
+          "velocity": 19
+        },
+        {
+          "name": "Retail",
+          "contribution": 4,
+          "direction": "contracting",
+          "velocity": 39
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 49,
+          "direction": "expanding",
+          "velocity": 71
+        },
+        {
+          "name": "Unknown",
+          "contribution": 27,
+          "direction": "expanding",
+          "velocity": 40
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          26
+        ],
+        [
+          "liquidity attraction weak",
+          17
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:ARB-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "ARB-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 0.07864,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 34,
+      "replay_similarity": 46,
+      "liquidity_attraction": {
+        "score": 26,
+        "state": "Weak",
+        "nearest_cluster": 0.07824323723832338,
+        "distance_percent": 0.5,
+        "attraction_strength": 57
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 17,
+          "direction": "contracting",
+          "velocity": 39
+        },
+        {
+          "name": "Retail",
+          "contribution": 11,
+          "direction": "contracting",
+          "velocity": 20
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 43,
+          "direction": "expanding",
+          "velocity": 48
+        },
+        {
+          "name": "Unknown",
+          "contribution": 29,
+          "direction": "expanding",
+          "velocity": 39
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          34
+        ],
+        [
+          "liquidity attraction weak",
+          26
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:BCH-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "BCH-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 190.6,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 18,
+      "replay_similarity": 45,
+      "liquidity_attraction": {
+        "score": 12,
+        "state": "Weak",
+        "nearest_cluster": 189.53476648845435,
+        "distance_percent": 0.56,
+        "attraction_strength": 31
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 15,
+          "direction": "contracting",
+          "velocity": 14
+        },
+        {
+          "name": "Retail",
+          "contribution": 5,
+          "direction": "contracting",
+          "velocity": 43
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 42,
+          "direction": "expanding",
+          "velocity": 14
+        },
+        {
+          "name": "Unknown",
+          "contribution": 38,
+          "direction": "expanding",
+          "velocity": 40
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          18
+        ],
+        [
+          "liquidity attraction weak",
+          12
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:DOGE-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "DOGE-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 0.078942,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 19,
+      "replay_similarity": 45,
+      "liquidity_attraction": {
+        "score": 11,
+        "state": "Weak",
+        "nearest_cluster": 0.07849752153416187,
+        "distance_percent": 0.56,
+        "attraction_strength": 44
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 17,
+          "direction": "steady",
+          "velocity": 6
+        },
+        {
+          "name": "Retail",
+          "contribution": 2,
+          "direction": "contracting",
+          "velocity": 50
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 44,
+          "direction": "expanding",
+          "velocity": 22
+        },
+        {
+          "name": "Unknown",
+          "contribution": 37,
+          "direction": "expanding",
+          "velocity": 38
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          19
+        ],
+        [
+          "liquidity attraction weak",
+          11
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:ONDO-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "ONDO-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 0.31105,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 21,
+      "replay_similarity": 45,
+      "liquidity_attraction": {
+        "score": 12,
+        "state": "Weak",
+        "nearest_cluster": 0.30930856792936195,
+        "distance_percent": 0.56,
+        "attraction_strength": 41
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 17,
+          "direction": "steady",
+          "velocity": 8
+        },
+        {
+          "name": "Retail",
+          "contribution": 2,
+          "direction": "contracting",
+          "velocity": 49
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 44,
+          "direction": "expanding",
+          "velocity": 23
+        },
+        {
+          "name": "Unknown",
+          "contribution": 37,
+          "direction": "expanding",
+          "velocity": 39
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          21
+        ],
+        [
+          "liquidity attraction weak",
+          12
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:ETHFI-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "ETHFI-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 0.33592,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 9,
+      "replay_similarity": 45,
+      "liquidity_attraction": {
+        "score": 8,
+        "state": "Weak",
+        "nearest_cluster": 0.3378530510074379,
+        "distance_percent": 0.58,
+        "attraction_strength": 35
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 8,
+          "direction": "contracting",
+          "velocity": 13
+        },
+        {
+          "name": "Retail",
+          "contribution": 7,
+          "direction": "contracting",
+          "velocity": 43
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 30,
+          "direction": "contracting",
+          "velocity": 37
+        },
+        {
+          "name": "Unknown",
+          "contribution": 55,
+          "direction": "expanding",
+          "velocity": 40
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          9
+        ],
+        [
+          "liquidity attraction weak",
+          8
+        ]
+      ]
+    },
+    {
+      "diagnostic_only": true,
+      "paper_only": true,
+      "affects_live": false,
+      "affects_sizing": false,
+      "affects_caps": false,
+      "affects_mirrors": false,
+      "affects_promotion": false,
+      "live_execution_enabled": false,
+      "promotion_allowed": false,
+      "lane": "compression_release:short:SOL-PERP",
+      "setup_family": "compression_release",
+      "direction": "short",
+      "symbol": "SOL-PERP",
+      "interval": "1h",
+      "timestamp": "2026-06-23T16:32:02.080Z",
+      "entry_reference": 69.021,
+      "entry_source": "hyperliquid_mark",
+      "status": "tracking_forward_outcomes",
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "outcomes": {
+        "15m": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T16:47:02.080Z"
+        },
+        "1h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T17:32:02.080Z"
+        },
+        "4h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-23T20:32:02.080Z"
+        },
+        "12h": {
+          "status": "pending",
+          "reason": "window_not_elapsed",
+          "available_at": "2026-06-24T04:32:02.080Z"
+        }
+      },
+      "mae_pct": null,
+      "mfe_pct": null,
+      "net_after_assumed_fees_slippage_pct": null,
+      "pressure_score": 37,
+      "replay_similarity": 49,
+      "liquidity_attraction": {
+        "score": 30,
+        "state": "Weak",
+        "nearest_cluster": 68.68408596475403,
+        "distance_percent": 0.49,
+        "attraction_strength": 57
+      },
+      "pressure_composition": [
+        {
+          "name": "Smart Money",
+          "contribution": 16,
+          "direction": "contracting",
+          "velocity": 51
+        },
+        {
+          "name": "Retail",
+          "contribution": 15,
+          "direction": "steady",
+          "velocity": 9
+        },
+        {
+          "name": "Market Makers",
+          "contribution": 43,
+          "direction": "expanding",
+          "velocity": 57
+        },
+        {
+          "name": "Unknown",
+          "contribution": 26,
+          "direction": "expanding",
+          "velocity": 40
+        }
+      ],
+      "supporting_conditions": [
+        [
+          "liquidity stable",
+          64
+        ]
+      ],
+      "breaking_conditions": [
+        [
+          "pressure collapse",
+          37
+        ],
+        [
+          "liquidity attraction weak",
+          30
+        ]
+      ]
+    }
+  ],
+  "ranked_lane_table": [
+    {
+      "lane": "compression_release:short:2Z-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.6209,
+      "backtest_profit_factor": 7.885,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ARB-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.7586,
+      "backtest_profit_factor": 7.8696,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ONDO-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.3207,
+      "backtest_profit_factor": 5.8635,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:DOGE-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 0.8999,
+      "backtest_profit_factor": 5.4661,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:BCH-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.1636,
+      "backtest_profit_factor": 4.6235,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ETHFI-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.173,
+      "backtest_profit_factor": 3.7471,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:SOL-PERP",
+      "forward_samples": 0,
+      "avg_net_after_assumed_fees_slippage_pct": 0,
+      "win_rate": 0,
+      "profit_factor": 0,
+      "backtest_avg_net_pct": 1.12,
+      "backtest_profit_factor": 3.1875,
+      "blockers": [
+        "insufficient_forward_sample_blocked"
+      ],
+      "recommendation": "continue_diagnostics"
+    }
+  ],
+  "blocked_lane_table": [
+    {
+      "lane": "broad_long_reclaim_lanes",
+      "blocker": "broad_long_reclaim_lanes_blocked",
+      "reason": "Broad long/reclaim lanes did not validate.",
+      "recommendation": "reject_for_now"
+    },
+    {
+      "lane": "broad_15m_lanes",
+      "blocker": "broad_15m_lanes_blocked",
+      "reason": "15m broad families did not validate.",
+      "recommendation": "reject_for_now"
+    },
+    {
+      "lane": "unvalidated_families",
+      "blocker": "unvalidated_family_blocked",
+      "reason": "Families outside the config are not eligible for v2 forward tracking.",
+      "recommendation": "reject_for_now"
+    },
+    {
+      "lane": "compression_release:short:2Z-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ARB-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ONDO-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:DOGE-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:BCH-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:ETHFI-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    },
+    {
+      "lane": "compression_release:short:SOL-PERP",
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Lane has not met future-review sample or quality thresholds.",
+      "recommendation": "continue_diagnostics"
+    }
+  ],
+  "sample_sufficiency_table": [
+    {
+      "lane": "compression_release:short:2Z-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:ARB-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:ONDO-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:DOGE-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:BCH-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:ETHFI-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    },
+    {
+      "lane": "compression_release:short:SOL-PERP",
+      "forward_samples": 0,
+      "required_forward_samples": 50,
+      "sufficient": false
+    }
+  ],
+  "recommendation": "continue"
+}

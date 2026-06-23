@@ -1,0 +1,81 @@
+{
+  "schema_version": "perps_v2_forward_paper_config.v1",
+  "created_at": "2026-06-23T16:22:00.000Z",
+  "diagnostic_only": true,
+  "paper_only": true,
+  "affects_live": false,
+  "affects_sizing": false,
+  "affects_caps": false,
+  "affects_mirrors": false,
+  "affects_promotion": false,
+  "live_execution_enabled": false,
+  "promotion_allowed": false,
+  "provider": "Hyperliquid",
+  "market": "perpetual_futures",
+  "validated_interval": "1h",
+  "entry_interval": "1h",
+  "outcome_windows": ["15m", "1h", "4h", "12h"],
+  "assumed_fee_slippage_pct": 0.0008,
+  "validated_families": [
+    {
+      "setup_family": "compression_release",
+      "direction": "short",
+      "interval": "1h",
+      "backtest_trades": 1370,
+      "avg_net_pct": 0.142,
+      "profit_factor": 1.202
+    },
+    {
+      "setup_family": "crowded_upside_exhaustion",
+      "direction": "short",
+      "interval": "1h",
+      "backtest_trades": 27,
+      "avg_net_pct": 0.2963,
+      "profit_factor": 1.4167
+    }
+  ],
+  "validated_lanes": [
+    "compression_release:short:2Z-PERP",
+    "compression_release:short:ARB-PERP",
+    "compression_release:short:BCH-PERP",
+    "compression_release:short:DOGE-PERP",
+    "compression_release:short:ONDO-PERP",
+    "compression_release:short:ETHFI-PERP",
+    "compression_release:short:SOL-PERP"
+  ],
+  "diagnostic_15m_symbol_lanes": [
+    "BCH-PERP",
+    "VVV-PERP",
+    "LINK-PERP",
+    "WLD-PERP",
+    "TIA-PERP",
+    "UNI-PERP",
+    "AVAX-PERP"
+  ],
+  "blockers": [
+    {
+      "blocker": "broad_long_reclaim_lanes_blocked",
+      "reason": "Broad long/reclaim lanes did not validate in the seven-day diagnostic backtest."
+    },
+    {
+      "blocker": "broad_15m_lanes_blocked",
+      "reason": "15m broad families did not validate; symbol-specific 15m lanes may be diagnostic-only."
+    },
+    {
+      "blocker": "unvalidated_family_blocked",
+      "reason": "Only explicit validated 1h lanes are eligible for v2 forward paper tracking."
+    },
+    {
+      "blocker": "insufficient_forward_sample_blocked",
+      "reason": "Future review requires at least 50 forward samples per lane before promotion review."
+    }
+  ],
+  "promotion_review_criteria": {
+    "minimum_forward_samples_per_lane": 50,
+    "positive_avg_net_after_fees_slippage": true,
+    "profit_factor_min": 1.2,
+    "max_drawdown_acceptable": true,
+    "no_single_symbol_dependency": true,
+    "stable_across_market_regimes_min": 3
+  }
+}

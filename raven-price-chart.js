@@ -56,18 +56,18 @@
       }));
   }
 
-  function markerFor(event) {
+  function markerFor(event, compact = false) {
     const above = event.type === "liquidity-warning" || event.type === "toxicity-risk" || event.type === "smart-wallet-distribution";
     return {
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(event),
       shape: event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
-      text: event.label,
+      text: compact ? "" : event.label,
     };
   }
 
-  function overlayMarker(overlay) {
+  function overlayMarker(overlay, compact = false) {
     const type = overlayType(overlay.type);
     const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk";
     return {
@@ -75,7 +75,7 @@
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(overlay),
       shape: type === "participant-shift" ? "circle" : above ? "arrowDown" : "arrowUp",
-      text: overlay.label,
+      text: compact ? "" : overlay.label,
     };
   }
 
@@ -195,6 +195,7 @@
     const events = Array.isArray(options?.events) ? options.events : [];
     const overlays = (Array.isArray(options?.overlays) ? options.overlays : []).map((overlay) => ({ ...overlay, type: overlayType(overlay.type) }));
     const activeTypes = new Set(options?.visibleOverlayTypes || overlays.map((overlay) => overlay.type));
+    const compact = Boolean(options?.compact || window.matchMedia?.("(max-width: 780px)")?.matches);
 
     if (options?.loading) {
       setState(container, "Loading chart...", "loading");
@@ -235,7 +236,7 @@
       rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
       timeScale: {
         borderColor: "rgba(148, 163, 184, 0.18)",
-        timeVisible: true,
+        timeVisible: !compact,
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
@@ -292,11 +293,11 @@
       });
     });
 
-    const markers = events.filter((event) => event && event.time).map(markerFor).concat(
+    const markers = events.filter((event) => event && event.time).map((event) => markerFor(event, compact)).concat(
       visibleOverlays()
         .filter((overlay) => OVERLAY_RENDERER_REGISTRY[overlay.type]?.renderAs === "marker")
         .filter((overlay) => overlay.time || overlay.startTime)
-        .map(overlayMarker),
+        .map((overlay) => overlayMarker(overlay, compact)),
     );
     if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers);
     else if (typeof candleSeries.setMarkers === "function") candleSeries.setMarkers(markers);
