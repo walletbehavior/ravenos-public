@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RavenOS Research</title>
+  <meta name="description" content="RavenOS Research explains market structure setup families, candidate lanes, replay analysis, symbol concentration, and failure analysis." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050706;
+      --panel: #09100e;
+      --panel-2: #0d1714;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(125, 211, 252, 0.34);
+      --text: #edf6f1;
+      --muted: #91a69d;
+      --soft: #65786f;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, rgba(125, 211, 252, 0.06), transparent 320px), var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { max-width: 1360px; margin: 0 auto; padding: 18px; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: grid; gap: 4px; }
+    .main-nav, .tabs, .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .button, .tab {
+      border: 1px solid var(--line);
+      background: #0c1815;
+      color: var(--text);
+      min-height: 36px;
+      padding: 8px 11px;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      text-align: center;
+    }
+    .button.primary, .tab.active { border-color: var(--line-strong); background: rgba(125, 211, 252, 0.12); color: var(--cyan); }
+    .eyebrow {
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { max-width: 960px; margin-top: 34px; font-size: clamp(34px, 6vw, 74px); line-height: 0.98; }
+    h2 { font-size: 16px; text-transform: uppercase; }
+    h3 { font-size: 14px; }
+    .lead { max-width: 800px; margin-top: 14px; color: #bbcbc4; font-size: 15px; line-height: 1.55; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .metric, .panel {
+      border: 1px solid var(--line);
+      background: rgba(9, 16, 14, 0.92);
+      padding: 12px;
+    }
+    .metric span { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; font-weight: 850; }
+    .metric strong { display: block; margin-top: 8px; font-size: 18px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .side { align-self: start; display: grid; gap: 8px; }
+    .side button { width: 100%; text-align: left; }
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 7px;
+      vertical-align: top;
+    }
+    th { color: var(--cyan); text-transform: uppercase; font-size: 10px; white-space: nowrap; }
+    td strong { font-size: 13px; }
+    .pill {
+      display: inline-flex;
+      min-height: 22px;
+      align-items: center;
+      border: 1px solid var(--line);
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .status-candidate { color: var(--green); }
+    .status-developing { color: var(--yellow); }
+    .status-rejected { color: var(--red); }
+    .list { margin: 0; padding-left: 16px; color: #c5d3cd; line-height: 1.45; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .detail-card { border: 1px solid var(--line); background: var(--panel-2); padding: 11px; }
+    .developer-only { display: none; }
+    body.dev-mode .developer-only { display: table-cell; }
+    .footer { margin-top: 18px; color: var(--soft); font-size: 11px; line-height: 1.45; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { display: flex; overflow-x: auto; }
+      .side button { flex: 0 0 180px; }
+      .metric-grid, .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 12px; }
+      .topbar { align-items: flex-start; }
+      .main-nav { overflow-x: auto; flex-wrap: nowrap; width: 100%; }
+      .main-nav a { flex: 0 0 auto; }
+      .metric-grid, .detail-grid { grid-template-columns: 1fr; }
+      .panel { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="eyebrow">RavenOS Research</span>
+        <strong>Structure Lab</strong>
+      </div>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a class="button" href="/terminal/">Terminal</a>
+        <a class="button primary" href="/research/">Research</a>
+        <a class="button" href="/atlas/">Atlas</a>
+        <a class="button" href="/pricing/">Pricing</a>
+      </nav>
+    </header>
+
+    <section>
+      <span class="eyebrow">Market structure research</span>
+      <h1>Research findings without internal lane keys.</h1>
+      <p class="lead">Structure Lab explains which setup families, regimes, replay bands, symbols, and failure modes separated from broad perps noise. It is research context only and does not generate trade recommendations.</p>
+      <div class="metric-grid">
+        <div class="metric"><span>Candidate lanes</span><strong id="candidateCount">0</strong></div>
+        <div class="metric"><span>Forward tracking</span><strong id="trackingCount">0</strong></div>
+        <div class="metric"><span>Top positive condition</span><strong id="topPositive">Loading</strong></div>
+        <div class="metric"><span>Top failure cause</span><strong id="topFailure">Loading</strong></div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="side" aria-label="Research navigation">
+        <button class="tab active" type="button" data-view="setup_families">Setup Families</button>
+        <button class="tab" type="button" data-view="failure_analysis">Failure Analysis</button>
+        <button class="tab" type="button" data-view="replay_analysis">Replay Analysis</button>
+        <button class="tab" type="button" data-view="symbol_concentration">Symbol Concentration</button>
+        <button class="tab" type="button" data-view="candidate_lanes">Candidate Lanes</button>
+      </aside>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow" id="viewEyebrow">Setup Families</span>
+            <h2 id="viewTitle">Research cohorts</h2>
+            <p class="muted" id="viewSummary">Loading Structure Lab...</p>
+          </div>
+          <button class="button" type="button" id="developerToggle">Developer Mode</button>
+        </div>
+        <table>
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="detail-grid" id="detailGrid"></div>
+      </article>
+    </section>
+
+    <footer class="footer">RavenOS provides software and market analytics. Structure Lab is diagnostic research and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+  </main>
+
+  <script>
+    const state = {
+      view: "setup_families",
+      dev: new URLSearchParams(location.search).get("dev") === "1",
+      edge: {},
+      failure: {},
+      forward: {},
+      plan: {},
+      flatness: {},
+    };
+
+    const viewMeta = {
+      setup_families: ["Setup Families", "Which behavioral setup families separated from broad noise."],
+      failure_analysis: ["Failure Analysis", "Why broad families and flat PerpSim captures failed to separate."],
+      replay_analysis: ["Replay Analysis", "How replay similarity bands changed outcome quality."],
+      symbol_concentration: ["Symbol Concentration", "Where outcomes concentrated by instrument or cohort."],
+      candidate_lanes: ["Candidate Lanes", "Research candidates for future forward tracking review only."],
+    };
+
+    function titleCase(value = "") {
+      return String(value || "unknown").replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function parseLane(key = "") {
+      const parts = String(key || "").split(":");
+      return {
+        family: parts[0] || "unknown",
+        direction: parts[1] || "structure",
+        instrument: parts.find((part) => part.endsWith("-PERP")) || "",
+        window: parts.find((part) => ["15m", "1h", "4h", "12h", "24h"].includes(part)) || "",
+        internalId: key,
+      };
+    }
+
+    function confidence(row = {}) {
+      const count = Number(row.count || row.sampleCount || 0);
+      const pf = Number(row.profit_factor || row.profitFactor || 0);
+      if (count >= 100 && pf >= 1.25) return "High";
+      if (count >= 40 && pf >= 1.15) return "Moderate";
+      if (count >= 20) return "Developing";
+      return "Low";
+    }
+
+    function status(row = {}) {
+      const text = String(row.status || row.classification || "").toLowerCase();
+      if (text.includes("reject")) return "Rejected";
+      if (text.includes("candidate") || text.includes("high_priority")) return "Candidate";
+      if (text.includes("tracking")) return "Forward Tracking";
+      return "Developing";
+    }
+
+    function statusClass(value = "") {
+      const text = String(value).toLowerCase();
+      if (text.includes("reject")) return "status-rejected";
+      if (text.includes("candidate") || text.includes("tracking")) return "status-candidate";
+      return "status-developing";
+    }
+
+    function replayBand(row = {}) {
+      if (row.replay_similarity_band) return row.replay_similarity_band;
+      const key = String(row.key || "");
+      if (key.includes("24h")) return "65-80";
+      if (key.includes("12h")) return "50-65";
+      return "50-65";
+    }
+
+    function bestConditions(row = {}) {
+      const family = String(row.setup_family || parseLane(row.key).family || "");
+      const conditions = ["Moderate liquidity attraction", "Constructive pressure"];
+      if (family.includes("compression")) conditions.push("Compressed regime");
+      if (family.includes("participant")) conditions.push("Participant rotation visible");
+      return conditions.slice(0, 3);
+    }
+
+    function worstConditions() {
+      return ["Crowded pressure", "Weak participation"];
+    }
+
+    function displayLane(row = {}) {
+      const parsed = parseLane(row.key || row.lane || row.internalId || "");
+      return {
+        setupFamily: titleCase(row.setup_family || parsed.family),
+        instrument: row.symbol || parsed.instrument || row.best_symbol || row.value || "Cross-market cohort",
+        direction: titleCase(row.direction || parsed.direction),
+        status: status(row),
+        confidence: confidence(row),
+        sampleCount: Number(row.count || row.forward_samples || 0),
+        profitFactor: Number(row.profit_factor || 0),
+        replayBand: replayBand(row),
+        bestConditions: bestConditions(row),
+        worstConditions: worstConditions(row),
+        internalId: row.key || row.lane || "",
+      };
+    }
+
+    function metricRow(row = {}, label = "Research Cohort") {
+      return {
+        setupFamily: titleCase(row.dimension || label),
+        instrument: titleCase(row.value || row.key || "Cross-market cohort"),
+        direction: "Structure",
+        status: Number(row.weighted_avg_net_pct || 0) < 0 ? "Rejected" : "Developing",
+        confidence: Number(row.count || 0) > 100000 ? "High" : "Moderate",
+        sampleCount: Number(row.count || 0),
+        profitFactor: Number(row.profit_factor || 0),
+        replayBand: row.dimension === "replay_similarity_band" ? String(row.value || "50-65") : "Context",
+        bestConditions: [row.read || "Positive separation observed"].filter(Boolean),
+        worstConditions: ["Weak sample transfer", "Broad-family dilution"],
+        internalId: `${row.dimension || label}:${row.value || ""}`,
+      };
+    }
+
+    function rowsForView() {
+      const planRows = [
+        ...(state.plan.classifications?.high_priority_forward_track || []),
+        ...(state.plan.classifications?.forward_track_candidate || []),
+        ...(state.plan.classifications?.watch || []),
+      ];
+      if (state.view === "candidate_lanes") return planRows.slice(0, 80).map(displayLane);
+      if (state.view === "setup_families") {
+        const families = state.edge.setup_clusters?.positive || state.failure.family_clustering?.top_positive || planRows;
+        return families.slice(0, 80).map((row) => row.key ? displayLane(row) : metricRow(row, "Setup Family"));
+      }
+      if (state.view === "failure_analysis") {
+        const flat = state.flatness.top_causes_of_flatness || [];
+        const negative = state.edge.strongest_negative_predictors || [];
+        return [
+          ...flat.map((row) => ({
+            setupFamily: titleCase(row.cause),
+            instrument: "PerpSim cohort",
+            direction: "Structure",
+            status: "Rejected",
+            confidence: "Moderate",
+            sampleCount: Number(state.flatness.closed_trade_summary?.count || 0),
+            profitFactor: 0,
+            replayBand: "Context",
+            bestConditions: ["Narrow filters required"],
+            worstConditions: [row.evidence],
+            internalId: row.cause,
+          })),
+          ...negative.slice(0, 20).map((row) => metricRow(row, "Failure Predictor")),
+        ];
+      }
+      if (state.view === "replay_analysis") {
+        const replay = (state.failure.explanatory_findings?.replay_similarity || state.edge.strongest_positive_predictors || [])
+          .filter((row) => row.dimension === "replay_similarity_band");
+        return replay.map((row) => metricRow(row, "Replay Band"));
+      }
+      if (state.view === "symbol_concentration") {
+        const positive = state.edge.symbol_clusters?.positive || [];
+        const negative = state.edge.symbol_clusters?.negative || [];
+        return [
+          ...positive.slice(0, 30).map((row) => metricRow(row, "Symbol Concentration")),
+          ...negative.slice(0, 20).map((row) => ({ ...metricRow(row, "Weak Symbol Concentration"), status: "Rejected" })),
+        ];
+      }
+      return [];
+    }
+
+    function fmtNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n.toLocaleString("en-US") : "0";
+    }
+
+    function fmtPf(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return "n/a";
+      if (n > 50) return ">50.00";
+      return n.toFixed(2);
+    }
+
+    function renderTable() {
+      const rows = rowsForView();
+      const [title, summary] = viewMeta[state.view] || viewMeta.setup_families;
+      document.getElementById("viewEyebrow").textContent = title;
+      document.getElementById("viewTitle").textContent = title;
+      document.getElementById("viewSummary").textContent = summary;
+      document.getElementById("tableHead").innerHTML = `<tr>
+        <th>Setup Family</th><th>Instrument</th><th>Direction</th><th>Status</th><th>Confidence</th>
+        <th>Sample Count</th><th>Profit Factor</th><th>Replay Band</th><th>Best Conditions</th><th>Worst Conditions</th><th class="developer-only">Internal ID</th>
+      </tr>`;
+      document.getElementById("tableBody").innerHTML = rows.map((row) => `<tr>
+        <td><strong>${row.setupFamily}</strong></td>
+        <td>${row.instrument}</td>
+        <td>${row.direction}</td>
+        <td><span class="${statusClass(row.status)}">${row.status}</span></td>
+        <td>${row.confidence}</td>
+        <td>${fmtNumber(row.sampleCount)}</td>
+        <td>${fmtPf(row.profitFactor)}</td>
+        <td>${row.replayBand}</td>
+        <td><ul class="list">${row.bestConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
+        <td><ul class="list">${row.worstConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
+        <td class="developer-only">${row.internalId || "n/a"}</td>
+      </tr>`).join("");
+      const top = rows[0] || {};
+      document.getElementById("detailGrid").innerHTML = [
+        ["Current Read", `${top.setupFamily || "Research"} is ${String(top.status || "developing").toLowerCase()} with ${String(top.confidence || "moderate").toLowerCase()} confidence.`],
+        ["Best Conditions", (top.bestConditions || []).join(", ") || "No condition data available."],
+        ["Worst Conditions", (top.worstConditions || []).join(", ") || "No failure condition data available."],
+        ["Research Boundary", "No live rules, no automatic promotion, and no trade recommendations."],
+      ].map(([k, v]) => `<div class="detail-card"><span class="eyebrow">${k}</span><p class="muted" style="margin-top:8px;">${v}</p></div>`).join("");
+    }
+
+    async function readJson(url) {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        return response.ok ? response.json() : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    async function hydrate() {
+      [state.edge, state.failure, state.forward, state.plan, state.flatness] = await Promise.all([
+        readJson("/data/runtime/perps_v2_edge_attribution_report.json"),
+        readJson("/data/runtime/perps_v2_failure_mode_analysis.json"),
+        readJson("/data/runtime/perps_v2_forward_paper_report.json"),
+        readJson("/data/runtime/perps_v2_candidate_promotion_plan.json"),
+        readJson("/data/runtime/perps_v2_perpsim_flatness_report.json"),
+      ]);
+      const candidates = [
+        ...(state.plan.classifications?.high_priority_forward_track || []),
+        ...(state.plan.classifications?.forward_track_candidate || []),
+        ...(state.plan.classifications?.watch || []),
+      ];
+      document.getElementById("candidateCount").textContent = fmtNumber(candidates.length);
+      document.getElementById("trackingCount").textContent = fmtNumber((state.forward.ranked_lane_table || []).length);
+      const positive = state.edge.strongest_positive_predictors?.[0];
+      document.getElementById("topPositive").textContent = positive ? `${titleCase(positive.dimension)}: ${titleCase(positive.value)}` : "Unavailable";
+      document.getElementById("topFailure").textContent = titleCase(state.flatness.top_causes_of_flatness?.[0]?.cause || state.edge.strongest_negative_predictors?.[0]?.value || "Unavailable");
+      renderTable();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (state.dev) document.body.classList.add("dev-mode");
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.view = button.getAttribute("data-view");
+          document.querySelectorAll("[data-view]").forEach((item) => item.classList.toggle("active", item === button));
+          renderTable();
+        });
+      });
+      document.getElementById("developerToggle").addEventListener("click", () => {
+        state.dev = !state.dev;
+        document.body.classList.toggle("dev-mode", state.dev);
+      });
+      hydrate();
+    });
+  </script>
+</body>
+</html>

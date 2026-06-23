@@ -301,6 +301,7 @@
       </div>
       <nav class="main-nav" aria-label="Primary navigation">
         <a href="/terminal/">Terminal</a>
+        <a href="/research/">Research</a>
         <a href="/pricing/">Pricing</a>
         <a href="/atlas/">Atlas</a>
         <a href="/account/">Account</a>
@@ -354,7 +355,6 @@
               <option value="perps_intelligence">Perps Intelligence</option>
               <option value="participant">Participant Intelligence</option>
               <option value="breadth">Market Breadth</option>
-              <option value="structure_lab">Structure Lab</option>
             </select>
             <select id="timeframeSelect" aria-label="Timeframe selector">
               <option>15m</option>
@@ -531,17 +531,6 @@
           ["etfs", "ETFs preview", "preview"],
           ["options", "Options preview", "preview"],
           ["macro", "Macro preview", "preview"],
-          ["atlas", "Atlas Desk", "premium"],
-        ],
-      },
-      {
-        label: "Research",
-        items: [
-          ["structure_setup_families", "Structure Lab", "research"],
-          ["structure_symbol_concentration", "Symbol Concentration", "research"],
-          ["structure_replay", "Replay Analysis", "research"],
-          ["structure_liquidity", "Liquidity Attraction", "research"],
-          ["structure_failure", "Failure Analysis", "research"],
         ],
       },
     ];
@@ -556,7 +545,6 @@
       { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: 548.3, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
-      { asset: "Atlas Macro Posture", market: "Atlas Desk", category: "atlas", lastPrice: 100.0, flowScore: 58, attentionVelocity: -4, participantActivity: "Cross-market", liquidityPosture: "Fallback macro context", risk: "Watch", lastUpdated: "preview", provider: "Atlas fallback", coverage: "Preview", warning: "Tradier unavailable; Atlas is using fallback macro context" },
     ];
     let dexRows = [];
     const samplePrices = {
@@ -705,7 +693,6 @@
       asset, market: "Perpetual Futures", category: "perpetuals", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     let livePerpsRows = [];
-    let structureLabData = { rows: [] };
     let activeCategory = "perps_overview";
     let activeMode = "perps_intelligence";
     let accessTier = "free";
@@ -765,7 +752,7 @@
     function rowsForCategory(category = activeCategory) {
       if (category === "crypto_overview") return uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]);
       if (category === "perps_overview") return uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]);
-      if (["equities", "etfs", "options", "macro", "atlas"].includes(category)) return rows.filter((row) => row.category === category);
+      if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
 
@@ -798,12 +785,10 @@
     function navCount(id) {
       if (id.includes("perps") || ["funding_oi", "compression", "liquidation_zones"].includes(id)) return filteredCryptoRows(perpsRows, id).length;
       if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(id)) return filteredCryptoRows(cryptoRows, id).length;
-      if (id.startsWith("structure_")) return structureLabRows(id).length || "research";
       return rowsForCategory(id).length || "preview";
     }
 
     function modeForCategory(category) {
-      if (category.startsWith("structure_")) return "structure_lab";
       if (category === "funding_oi" || category === "compression" || category === "liquidation_zones") return "perps_intelligence";
       if (category.includes("perps")) return category === "perps_overview" ? "perps_intelligence" : "perps_intelligence";
       if (["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category)) return "crypto_heatmaps";
@@ -820,7 +805,6 @@
     function assetOptionsForMode() {
       if (activeMode === "flow") return flowUniverse();
       if (activeMode === "perps_pressure" || activeMode === "perps_intelligence") return uniqueRows([...livePerpsRows, ...perpsRows]);
-      if (activeMode === "structure_lab") return structureLabRows(activeCategory);
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") {
         return uniqueRows([...dexRows, ...cryptoRows]);
       }
@@ -858,9 +842,6 @@
           warning: row.warning || "",
         };
       }
-      if (row.category === "atlas") {
-        return { provider: row.provider || "Atlas fallback", coverage: row.coverage || "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: row.lastUpdated || "preview", warning: row.warning || "Tradier unavailable; Atlas is using fallback macro context" };
-      }
       if (["equities", "etfs", "options", "macro"].includes(row.category)) {
         return { provider: "Preview model", coverage: "Preview", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Tradier preview data until provider is available" };
       }
@@ -897,13 +878,9 @@
       document.getElementById("staleTimestamp").textContent = freshnessLabel(coverage.lastUpdated || "sample");
       const apiNote = document.getElementById("walletAccessDetail");
       if (apiNote && coverage.warning) apiNote.textContent = coverage.warning;
-      if (activeMode === "structure_lab") {
-        document.getElementById("terminalBrief").textContent = `${row.asset} is a structure research cohort with ${Number(row.sampleCount || 0).toLocaleString()} samples, ${Number(row.avgNet || 0).toFixed(4)}% average net, ${Number(row.profitFactor || 0).toFixed(3)} profit factor, and ${row.status || "developing"} status. ${row.researchDetail || "This is diagnostic research, not a trading signal."}`;
-      } else {
-        document.getElementById("terminalBrief").textContent = row.participationOutcome
-          ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
-          : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
-      }
+      document.getElementById("terminalBrief").textContent = row.participationOutcome
+        ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
+        : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       renderExplanation(row);
       renderPerpsIntelligence(row);
       if (chartHandle) chartHandle.destroy();
@@ -926,7 +903,6 @@
         perps_intelligence: "Perps Intelligence",
         participant: "Participant Intelligence",
         breadth: "Market Breadth",
-        structure_lab: "Structure Lab",
       })[mode] || "Flow Chart";
     }
 
@@ -1194,45 +1170,6 @@
     }
 
     function explanationFor(row) {
-      if (activeMode === "structure_lab" || row.category === "structure_lab") {
-        const avg = Number(row.avgNet || 0);
-        const pf = Number(row.profitFactor || 0);
-        const count = Number(row.sampleCount || 0);
-        const positives = [];
-        const negatives = [];
-        const risks = [];
-        const evidence = [];
-        if (avg > 0) positives.push("Historical sample produced positive average net after assumed fees and slippage.");
-        else if (avg < 0) negatives.push("Historical sample was negative after assumed fees and slippage.");
-        else negatives.push("Historical sample is flat or lacks directional separation.");
-        if (pf >= 1.2) positives.push("Profit factor clears the preferred diagnostic threshold.");
-        else if (pf > 0) risks.push("Profit factor is still below the preferred forward-track threshold.");
-        if (count >= 50) positives.push("Sample count is sufficient for provisional research review.");
-        else risks.push("Sample count is not enough for promotion review.");
-        if (String(row.status || "").includes("reject")) risks.push("This cohort is currently classified as rejected or failure-related.");
-        if (String(row.status || "").includes("tracking")) positives.push("This cohort is already under forward paper observation.");
-        evidence.push(`Samples: ${count.toLocaleString()}`);
-        evidence.push(`Average net: ${avg.toFixed(4)}%`);
-        evidence.push(`Profit factor: ${pf.toFixed(3)}`);
-        evidence.push(`Status: ${row.status || "developing"}`);
-        if (row.researchDetail) evidence.push(row.researchDetail);
-        return {
-          headline: String(row.status || "").includes("reject") ? "Failure pattern under review" : "Structure cohort under review",
-          summary: row.researchDetail || "This row explains a historical structure cohort and why it did or did not separate from broad perps noise.",
-          confidence: Number(row.confidence || 0),
-          positives,
-          negatives,
-          risks,
-          evidence,
-          breakdown: [
-            ["sample depth", count >= 50 ? 18 : count >= 20 ? 8 : -8],
-            ["average outcome", avg > 0 ? Math.round(Math.min(24, avg * 10)) : Math.round(Math.max(-16, avg * 10))],
-            ["profit factor quality", pf >= 1.2 ? 18 : pf >= 1.15 ? 10 : -6],
-            ["outlier dependency", Number(row.outlierDependency || 0) < 0.22 ? 8 : -8],
-            ["MAE/MFE access", Math.abs(Number(row.mfe || 0)) >= Math.abs(Number(row.mae || 0)) ? 6 : -6],
-          ],
-        };
-      }
       const positives = [];
       const negatives = [];
       const risks = [];
@@ -1308,7 +1245,6 @@
     }
 
     function displayRows() {
-      if (activeMode === "structure_lab") return structureLabRows(activeCategory);
       let source = activeMode === "flow" ? flowUniverse() : rowsForCategory();
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(cryptoRows, activeCategory);
       if (isPerpsMode()) source = filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows]), activeCategory);
@@ -1364,125 +1300,12 @@
       return "outcome-mixed";
     }
 
-    function statusClass(status) {
-      const text = String(status || "").toLowerCase();
-      if (text.includes("reject")) return "status-rejected";
-      if (text.includes("tracking")) return "status-forward_tracking";
-      if (text.includes("candidate") || text.includes("high_priority")) return "status-candidate";
-      return "status-developing";
-    }
-
-    function parseStructureLane(key) {
-      const parts = String(key || "").split(":");
-      return {
-        setup: parts[0] || "unknown",
-        direction: parts[1] || "structure",
-        symbol: parts.find((part) => part.endsWith("-PERP")) || "",
-        timeframe: parts.find((part) => ["15m", "1h", "4h", "12h", "24h"].includes(part)) || "",
-      };
-    }
-
-    function labStatus(row) {
-      const classification = String(row.classification || row.status || "");
-      if (classification === "reject") return "rejected";
-      if (classification === "discovery_candidate") return "candidate";
-      if (classification === "provisional_candidate" || classification === "forward_track_candidate" || classification === "high_priority_forward_track") return "candidate";
-      if (classification === "insufficient_sample" || classification === "needs_more_sample") return "developing";
-      return classification || "developing";
-    }
-
-    function researchRowFromMetric(row, type, index = 0) {
-      const lane = parseStructureLane(row.key || row.lane || row.value);
-      const avg = Number(row.avg_net_after_fees_slippage_pct ?? row.weighted_avg_net_pct ?? 0);
-      const pf = Number(row.profit_factor || 0);
-      const count = Number(row.count || 0);
-      return {
-        asset: row.key || row.lane || `${row.dimension || type}:${row.value || index}`,
-        market: "Structure Research",
-        category: "structure_lab",
-        setupFamily: lane.setup || row.dimension || type,
-        direction: lane.direction || "structure",
-        symbol: lane.symbol || row.best_symbol || row.value || "cross-market",
-        timeframe: lane.timeframe || "context",
-        sampleCount: count,
-        avgNet: avg,
-        profitFactor: pf,
-        winRate: Number(row.win_rate ?? row.positive_group_rate ?? 0),
-        confidence: Math.round(clamp((count >= 50 ? 42 : 25) + Math.max(0, avg) * 4 + Math.min(30, pf))),
-        status: labStatus(row),
-        outlierDependency: Number(row.outlier_dependency || 0),
-        mae: Number(row.avg_mae_pct || 0),
-        mfe: Number(row.avg_mfe_pct || 0),
-        flowScore: Math.round(clamp(50 + avg * 5)),
-        attentionVelocity: Math.round(avg),
-        participantActivity: row.value || row.best_symbol || "research cohort",
-        liquidityPosture: row.dimension || type,
-        risk: avg < 0 ? "Elevated" : avg > 0.5 ? "Stable" : "Watch",
-        participationOutcome: avg > 0 ? "Paying" : avg < 0 ? "Punishing" : "Mixed",
-        lastUpdated: structureLabData.generated_at || "research",
-        researchDetail: row.read || row.evidence || row.reason || "Research row compares historical structure outcomes. It is not a trade signal.",
-        provider: "Raven research",
-        coverage: "Research",
-        isLive: false,
-        isCached: false,
-        isSample: false,
-      };
-    }
-
-    function structureLabRows(category = activeCategory) {
-      const edge = structureLabData.edge || {};
-      const failure = structureLabData.failure || {};
-      const forward = structureLabData.forward || {};
-      const plan = structureLabData.plan || {};
-      const candidateRows = [
-        ...(plan.classifications?.high_priority_forward_track || []),
-        ...(plan.classifications?.forward_track_candidate || []),
-        ...(plan.classifications?.watch || []),
-      ];
-      if (category === "structure_symbol_concentration") {
-        return [
-          ...(edge.symbol_clusters?.positive || []).slice(0, 14).map((row, i) => researchRowFromMetric(row, "best_symbol", i)),
-          ...(edge.symbol_clusters?.negative || []).slice(0, 8).map((row, i) => ({ ...researchRowFromMetric(row, "weak_symbol", i), status: "rejected" })),
-        ];
-      }
-      if (category === "structure_replay") {
-        return (failure.explanatory_findings?.replay_similarity || edge.strongest_positive_predictors || [])
-          .filter((row) => row.dimension === "replay_similarity_band")
-          .map((row, i) => researchRowFromMetric(row, "replay_band", i));
-      }
-      if (category === "structure_liquidity") {
-        return (failure.explanatory_findings?.liquidity_attraction || edge.strongest_positive_predictors || [])
-          .filter((row) => row.dimension === "liquidity_attraction_band")
-          .map((row, i) => researchRowFromMetric(row, "liquidity_band", i));
-      }
-      if (category === "structure_failure") {
-        const flat = structureLabData.flatness || {};
-        return [
-          ...(edge.feature_interactions || []).map((row, i) => ({ ...researchRowFromMetric({ key: row.interaction, avg_net_after_fees_slippage_pct: 0, count: 1, classification: "developing", read: row.read }, "interaction", i), status: "developing" })),
-          ...(flat.top_causes_of_flatness || []).map((row, i) => ({ ...researchRowFromMetric({ key: row.cause, avg_net_after_fees_slippage_pct: -0.1, count: 1, classification: "reject", reason: row.evidence }, "failure", i), status: "rejected" })),
-        ];
-      }
-      const tracked = (forward.ranked_lane_table || []).map((row, i) => ({ ...researchRowFromMetric({ ...row, key: row.lane, classification: "forward_tracking", count: row.forward_samples }, "forward_tracking", i), status: "forward tracking" }));
-      return [
-        ...tracked,
-        ...candidateRows.slice(0, 40).map((row, i) => researchRowFromMetric(row, "candidate_lane", i)),
-        ...(edge.setup_clusters?.positive || []).slice(0, 20).map((row, i) => researchRowFromMetric(row, "setup_family", i)),
-      ];
-    }
-
     function columnsForMode() {
       if (activeMode === "flow") {
         return [
           ["asset", "Instrument"], ["market", "Market"], ["lastPrice", "Price"], ["flowScore", "Flow Score"],
           ["attentionVelocity", "Attention Velocity"], ["participantActivity", "Participant Activity"],
           ["liquidityPosture", "Liquidity Posture"], ["risk", "Risk"], ["lastUpdated", "Last Updated"],
-        ];
-      }
-      if (activeMode === "structure_lab") {
-        return [
-          ["setupFamily", "Setup Family"], ["direction", "Direction"], ["symbol", "Symbol / Cohort"],
-          ["timeframe", "Window"], ["sampleCount", "Samples"], ["avgNet", "Avg Net"],
-          ["profitFactor", "Profit Factor"], ["winRate", "Win Rate"], ["confidence", "Confidence"], ["status", "Status"],
         ];
       }
       const pressure = activeMode === "perps_pressure";
@@ -1508,11 +1331,6 @@
       if (row.locked && key !== "asset" && key !== "chainVenue") return `<span class="lock-pill">Pro</span>`;
       if (key === "lastPrice") return money(row.lastPrice || 0);
       if (key === "lastUpdated") return freshnessLabel(row.lastUpdated);
-      if (key === "avgNet") return `${Number(row.avgNet || 0).toFixed(4)}%`;
-      if (key === "profitFactor") return Number(row.profitFactor || 0).toFixed(3);
-      if (key === "winRate") return `${Math.round(Number(row.winRate || 0) * 100)}%`;
-      if (key === "confidence") return `${Number(row.confidence || 0)}/100`;
-      if (key === "status") return `<span class="${statusClass(row.status)}">${row.status}</span>`;
       if (key === "attentionVelocity") return `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       if (key === "risk") return `<span class="${riskClass(row.risk)}">${row.risk}</span>`;
       if (key === "participationOutcome") return `<span class="${outcomeClass(row.participationOutcome)}">${row.participationOutcome || "Mixed"}</span>`;
@@ -1534,21 +1352,6 @@
           ["Replay High", `${rowsNow.filter((row) => replayMatches(row)[0].similarity >= 75).length} analogs`],
           ["Crowding", `${crowded} crowded/unstable`],
         ].map(([k, v]) => `<div class="summary-cell"><span>${k}</span><strong>${v}</strong></div>`).join("");
-        return;
-      }
-      if (activeMode === "structure_lab") {
-        const candidates = rowsNow.filter((row) => String(row.status || "").includes("candidate")).length;
-        const tracking = rowsNow.filter((row) => String(row.status || "").includes("tracking")).length;
-        const rejected = rowsNow.filter((row) => String(row.status || "").includes("reject")).length;
-        const avgConfidence = Math.round(rowsNow.reduce((sum, row) => sum + Number(row.confidence || 0), 0) / Math.max(1, rowsNow.length));
-        document.getElementById("modeSummary").innerHTML = [
-          ["Mode", "Structure Lab"],
-          ["Rows", rowsNow.length],
-          ["Candidates", candidates],
-          ["Forward Tracking", tracking],
-          ["Rejected", rejected],
-          ["Avg Confidence", avgConfidence || "n/a"],
-        ].slice(0, 4).map(([k, v]) => `<div class="summary-cell"><span>${k}</span><strong>${v}</strong></div>`).join("");
         return;
       }
       document.getElementById("modeSummary").innerHTML = [
@@ -1587,15 +1390,6 @@
             detail: structureNarrative(lead)[3] || "Structure read combines pressure, participants, replay, outcomes, and liquidity attraction.",
             target: lead.asset,
           },
-        ];
-      }
-      if (activeMode === "structure_lab") {
-        const top = rowsNow[0] || {};
-        const failure = rowsNow.find((row) => String(row.status || "").includes("reject")) || top;
-        return [
-          { time: now, title: `${top.setupFamily || "Structure"} research leads current view`, detail: top.researchDetail || "Research compares structure outcomes and context bands.", target: top.asset },
-          { time: now, title: `${top.symbol || "Cohort"} concentration is visible`, detail: `Samples ${top.sampleCount || 0}, confidence ${top.confidence || 0}/100, status ${top.status || "developing"}.`, target: top.asset },
-          { time: now, title: `${failure.setupFamily || "Failure"} explains structure weakness`, detail: failure.researchDetail || "Failure rows identify broad-family dilution, direction mismatch, or timing mismatch.", target: failure.asset },
         ];
       }
       const paying = rowsNow.filter((row) => row.participationOutcome === "Paying").length;
@@ -1683,15 +1477,6 @@
     }
 
     async function hydrateLiveContext() {
-      const readResearchJson = async (url) => {
-        try {
-          const response = await fetch(url, { cache: "no-store" });
-          if (!response.ok) return null;
-          return await response.json();
-        } catch (_) {
-          return null;
-        }
-      };
       try {
         const response = await fetch("/ravenos_market_states.json", { cache: "no-store" });
         const payload = await response.json();
@@ -1720,22 +1505,6 @@
           }));
         }
       } catch (_) {}
-      const [edge, failure, forward, plan, flatness] = await Promise.all([
-        readResearchJson("/data/runtime/perps_v2_edge_attribution_report.json"),
-        readResearchJson("/data/runtime/perps_v2_failure_mode_analysis.json"),
-        readResearchJson("/data/runtime/perps_v2_forward_paper_report.json"),
-        readResearchJson("/data/runtime/perps_v2_candidate_promotion_plan.json"),
-        readResearchJson("/data/runtime/perps_v2_perpsim_flatness_report.json"),
-      ]);
-      structureLabData = {
-        rows: [],
-        edge: edge || {},
-        failure: failure || {},
-        forward: forward || {},
-        plan: plan || {},
-        flatness: flatness || {},
-        generated_at: edge?.generated_at || failure?.generated_at || forward?.generated_at || plan?.generated_at || "research",
-      };
     }
 
     const dexSearchTimers = {};
@@ -1813,7 +1582,6 @@
         activeMode = document.getElementById("modeSelect").value;
         if (activeMode === "crypto_heatmaps" && !["market_cap_heatmap", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(activeCategory)) activeCategory = "market_cap_heatmap";
         if (activeMode === "perps_pressure" && !["perps_heatmap", "funding_oi", "compression", "liquidation_zones"].includes(activeCategory)) activeCategory = "perps_heatmap";
-        if (activeMode === "structure_lab" && !activeCategory.startsWith("structure_")) activeCategory = "structure_setup_families";
         renderNav();
         renderAssetOptions();
         renderChart();
