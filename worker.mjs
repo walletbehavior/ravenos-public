@@ -33,6 +33,13 @@ const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const EVM_CHAINS = ["base", "ethereum", "arbitrum", "optimism", "bsc", "polygon"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
+const CANONICAL_PRICE_TOKENS = {
+  SOL: { chainId: "solana", tokenAddress: "So11111111111111111111111111111111111111112" },
+  ETH: { chainId: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+  WETH: { chainId: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+  BTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
+  WBTC: { chainId: "ethereum", tokenAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
+};
 
 function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
@@ -214,7 +221,9 @@ async function marketPrices(symbols = [], { market = "mixed" } = {}) {
       };
     }
 
-    const dex = preferredDexPriceResult(symbol, await searchDex(symbol));
+    const canonical = CANONICAL_PRICE_TOKENS[symbol];
+    const dexResults = canonical ? await tokenDex(canonical.chainId, canonical.tokenAddress) : await searchDex(symbol);
+    const dex = preferredDexPriceResult(symbol, dexResults);
     if (!dex || !num(dex.priceUsd)) return null;
     return {
       symbol,

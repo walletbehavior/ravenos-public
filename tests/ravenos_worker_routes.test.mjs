@@ -226,6 +226,36 @@ globalThis.fetch = async (url, init) => {
       ],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/ethereum/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "ethereum",
+        dexId: "uniswap",
+        pairAddress: "0xethpair",
+        baseToken: { symbol: "WETH", name: "Wrapped Ether", address: "0xeth" },
+        quoteToken: { symbol: "USDC" },
+        priceUsd: "1658.42",
+        liquidity: { usd: 1000000 },
+        volume: { h24: 3000000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (href.includes("api.dexscreener.com/token-pairs/v1/solana/So11111111111111111111111111111111111111112")) {
+    return new Response(JSON.stringify([
+      {
+        chainId: "solana",
+        dexId: "orca",
+        pairAddress: "solpair",
+        baseToken: { symbol: "SOL", name: "Solana", address: "So11111111111111111111111111111111111111112" },
+        quoteToken: { symbol: "USDC" },
+        priceUsd: "68.76",
+        liquidity: { usd: 23000000 },
+        volume: { h24: 9000000 },
+        txns: { h24: { buys: 100, sells: 80 } },
+      },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }
   return originalFetch(url, init);
 };
 
@@ -235,6 +265,13 @@ const spotPricePayload = await spotPrices.json();
 assert.equal(spotPricePayload.results[0].symbol, "ETH");
 assert.equal(spotPricePayload.results[0].priceUsd, 1658.42);
 assert.equal(spotPricePayload.results[0].provider, "Dexscreener");
+
+const solSpotPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=SOL"), env);
+assert.equal(solSpotPrices.status, 200);
+const solSpotPricePayload = await solSpotPrices.json();
+assert.equal(solSpotPricePayload.results[0].symbol, "SOL");
+assert.equal(solSpotPricePayload.results[0].priceUsd, 68.76);
+assert.equal(solSpotPricePayload.results[0].chainId, "solana");
 
 const perpPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=perp&symbols=ETH"), env);
 assert.equal(perpPrices.status, 200);
