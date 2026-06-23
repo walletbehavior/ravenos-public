@@ -476,7 +476,7 @@
         <a href="/disclosures/">Disclosures</a>
       </nav>
       <section class="global-search workspace-search" aria-label="Universal token lookup" data-feature="free_token_lookup">
-        <input id="dexSearchInput" type="search" placeholder="Search token, symbol, pair, or contract..." autocomplete="off" />
+        <input id="dexSearchInput" type="search" placeholder="Search symbol, token, pair, or contract..." autocomplete="off" />
         <div class="search-results" id="dexSearchResults"></div>
       </section>
       <section class="ticker-strip" aria-label="Current instrument summary">
@@ -769,10 +769,48 @@
       "KAITO": 1.18,
       "MICRO-1": 0.0008,
       "NVDA": 920.12,
+      "AAPL": 195.64,
+      "MSFT": 478.87,
+      "AMZN": 219.39,
+      "GOOGL": 176.52,
+      "META": 682.35,
+      "TSLA": 322.16,
+      "AMD": 128.86,
+      "AVGO": 180.34,
+      "QQQ": 527.21,
+      "IWM": 212.42,
+      "DIA": 423.76,
+      "SMH": 264.18,
+      "VOO": 501.38,
+      "COIN": 241.7,
+      "MSTR": 384.24,
       "SPY": 548.3,
+      "SPX": 5500,
       "SPX Vol": 17.4,
       "USD Liquidity": 100,
     };
+
+    const FREE_MARKET_SYMBOLS = new Set(["SPY", "QQQ", "NVDA", "TSLA", "SPX", "META"]);
+    const EQUITY_CATALOG = [
+      ["SPY", "SPDR S&P 500 ETF Trust", "ETFs", "etfs", "Core market ETF", 58, 3, "Deep equity market depth", "Stable"],
+      ["QQQ", "Invesco QQQ Trust", "ETFs", "etfs", "Core growth ETF", 61, 5, "Deep equity market depth", "Stable"],
+      ["NVDA", "NVIDIA", "Equities", "equities", "Core mega-cap equity", 67, 9, "Deep equity market depth", "Stable"],
+      ["TSLA", "Tesla", "Equities", "equities", "Core high-beta equity", 63, 14, "Active equity liquidity", "Watch"],
+      ["SPX", "S&P 500 Index", "Equities", "equities", "Core broad-market index", 56, 2, "Index context", "Stable"],
+      ["META", "Meta Platforms", "Equities", "equities", "Core mega-cap equity", 64, 8, "Deep equity market depth", "Stable"],
+      ["AAPL", "Apple", "Equities", "equities", "Mega-cap equity", 59, 4, "Deep equity market depth", "Stable"],
+      ["MSFT", "Microsoft", "Equities", "equities", "Mega-cap equity", 62, 5, "Deep equity market depth", "Stable"],
+      ["AMZN", "Amazon", "Equities", "equities", "Mega-cap equity", 60, 6, "Deep equity market depth", "Stable"],
+      ["GOOGL", "Alphabet", "Equities", "equities", "Mega-cap equity", 58, 3, "Deep equity market depth", "Stable"],
+      ["AMD", "Advanced Micro Devices", "Equities", "equities", "Semiconductor equity", 65, 11, "Active equity liquidity", "Watch"],
+      ["AVGO", "Broadcom", "Equities", "equities", "Semiconductor equity", 63, 7, "Deep equity market depth", "Stable"],
+      ["SMH", "VanEck Semiconductor ETF", "ETFs", "etfs", "Semiconductor ETF", 66, 10, "ETF market depth", "Watch"],
+      ["IWM", "iShares Russell 2000 ETF", "ETFs", "etfs", "Small-cap ETF", 55, 4, "ETF market depth", "Watch"],
+      ["DIA", "SPDR Dow Jones Industrial Average ETF", "ETFs", "etfs", "Blue-chip ETF", 54, 2, "ETF market depth", "Stable"],
+      ["VOO", "Vanguard S&P 500 ETF", "ETFs", "etfs", "Broad-market ETF", 57, 2, "ETF market depth", "Stable"],
+      ["COIN", "Coinbase", "Equities", "equities", "Crypto-linked equity", 70, 17, "Active equity liquidity", "Watch"],
+      ["MSTR", "MicroStrategy", "Equities", "equities", "Crypto-linked equity", 72, 19, "Active equity liquidity", "Watch"],
+    ];
 
     function samplePriceFor(asset) {
       const key = String(asset || "");
@@ -966,17 +1004,45 @@
     }
 
     function flowUniverse() {
-      return uniqueRows([...dexRows, ...perpsRows, ...cryptoRows, ...rows]);
+      return uniqueRows([...dexRows, ...perpsRows, ...cryptoRows, ...marketCatalogRows(), ...rows]);
     }
 
     function allRows() {
       return flowUniverse();
     }
 
+    function marketCatalogRows() {
+      return EQUITY_CATALOG.map(([asset, name, market, category, sector, flowScore, attentionVelocity, liquidityPosture, risk]) => ({
+        asset,
+        name,
+        market,
+        category,
+        chainVenue: sector,
+        marketCapBand: market === "ETFs" ? "ETF" : "Equity",
+        lastPrice: samplePriceFor(asset),
+        flowScore,
+        attentionVelocity,
+        participantActivity: "Market participation",
+        liquidityPosture,
+        risk,
+        participationOutcome: "Mixed",
+        lastUpdated: "preview",
+        provider: "Market preview",
+        coverage: "Limited",
+        isSample: true,
+        proOnly: !FREE_MARKET_SYMBOLS.has(asset),
+      }));
+    }
+
+    function isMarketPreviewCategory(category) {
+      return ["equities", "etfs", "options", "macro"].includes(category);
+    }
+
     function rowsForCategory(category = activeCategory) {
       if (isCryptoCategory(category)) return filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]), category);
       if (isPerpsCategory(category)) return filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]), category);
-      if (["equities", "etfs", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
+      if (category === "equities" || category === "etfs") return uniqueRows([...marketCatalogRows(), ...rows]).filter((row) => row.category === category);
+      if (["options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
 
@@ -1054,6 +1120,7 @@
     }
 
     function assetOptionsForMode() {
+      if (activeMode === "flow" && isMarketPreviewCategory(activeCategory)) return displayRows();
       if (activeMode === "flow") return flowUniverse();
       if (activeMode === "perps_pressure" || activeMode === "perps_intelligence") return displayRows().filter((row) => row.category === "perpetuals");
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") {
@@ -1582,6 +1649,7 @@
 
     function displayRows() {
       let source = activeMode === "flow" ? flowUniverse() : rowsForCategory();
+      if (activeMode === "flow" && isMarketPreviewCategory(activeCategory)) source = rowsForCategory(activeCategory);
       if (activeMode === "crypto_heatmaps" || activeMode === "participant" || activeMode === "breadth") source = filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows]), activeCategory);
       if (isPerpsMode()) source = filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows]), activeCategory);
       if (activeMode === "participant") source = source.filter((row) => row.participantActivity === "High" || row.participationOutcome !== "Mixed");
@@ -1590,7 +1658,7 @@
         ...row,
         market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
         lastPrice: row.lastPrice || samplePriceFor(row.asset),
-        locked: accessTier === "free" && index >= 5,
+        locked: accessTier === "free" && (index >= 5 || row.proOnly === true),
       }));
     }
 
@@ -2153,6 +2221,49 @@
       if (box) box.classList.remove("active");
     }
 
+    function equityLookupRows(query) {
+      const q = String(query || "").trim().toUpperCase();
+      if (!q) return [];
+      return marketCatalogRows()
+        .filter((row) => row.asset === q || String(row.name || "").toUpperCase().includes(q) || String(row.chainVenue || "").toUpperCase().includes(q))
+        .slice(0, 10);
+    }
+
+    function shouldPreferMarketLookup(query, matches) {
+      const q = String(query || "").trim().toUpperCase();
+      if (!matches.length) return false;
+      if (matches.some((row) => row.asset === q)) return true;
+      if (/^[A-Z.]{1,6}$/.test(q)) return true;
+      if (q.length >= 3 && matches.some((row) => String(row.name || "").toUpperCase().includes(q))) return true;
+      if (isMarketPreviewCategory(activeCategory)) return true;
+      return false;
+    }
+
+    function renderMarketLookupResults(box, query, matches) {
+      box.classList.add("active");
+      box.innerHTML = matches.map((row, index) => `
+        <button class="search-result" type="button" data-market-index="${index}">
+          <strong>${row.asset} <span>${row.name}</span></strong>
+          <em>${row.market} · ${row.proOnly ? "Pro coverage" : "Core preview"}<br>${row.chainVenue}</em>
+        </button>
+      `).join("");
+      box.querySelectorAll("[data-market-index]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = matches[Number(button.getAttribute("data-market-index"))];
+          activeCategory = row.category;
+          activeMode = "flow";
+          document.getElementById("modeSelect").value = activeMode;
+          renderNav();
+          renderAssetOptions();
+          document.getElementById("assetSelect").value = row.asset;
+          renderChart();
+          renderTable();
+          closeDexSearchResults();
+          setDexSearchInputs(row.asset);
+        });
+      });
+    }
+
     async function runDexSearch(query, resultsId = "dexSearchResults") {
       const box = document.getElementById(resultsId);
       if (!box) return;
@@ -2160,6 +2271,11 @@
       if (q.length < 2) {
         box.classList.remove("active");
         box.innerHTML = "";
+        return;
+      }
+      const marketMatches = equityLookupRows(q);
+      if (shouldPreferMarketLookup(q, marketMatches)) {
+        renderMarketLookupResults(box, q, marketMatches);
         return;
       }
       box.classList.add("active");
