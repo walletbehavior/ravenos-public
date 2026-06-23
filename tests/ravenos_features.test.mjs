@@ -24,6 +24,7 @@ const required = [
   "alerts",
   "watchlists",
   "perps_intelligence",
+  "participant_intelligence",
   "founder_experiments",
   "atlas_context",
 ];
@@ -43,6 +44,8 @@ assert.equal(canAccessFeature("research_preview", { tier: "free" }), true);
 assert.equal(canAccessFeature("full_research", { tier: "free" }), false);
 assert.equal(canAccessFeature("full_research", { tier: "pro" }), true);
 assert.equal(canAccessFeature("perps_intelligence", { tier: "pro" }), true);
+assert.equal(canAccessFeature("participant_intelligence", { tier: "free" }), false);
+assert.equal(canAccessFeature("participant_intelligence", { tier: "pro" }), true);
 assert.equal(canAccessFeature("founder_experiments", { tier: "pro" }), false);
 assert.equal(canAccessFeature("founder_experiments", { tier: "founder" }), true);
 assert.equal(canAccessFeature("atlas_context", { tier: "atlas" }), true);

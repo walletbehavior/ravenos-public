@@ -16,6 +16,7 @@
     alerts: ["pro", "Alerts", "Monitoring for RavenOS market structure and context changes.", "Locked alert preview.", "Upgrade to Pro"],
     watchlists: ["free", "Watchlists", "Save instruments, pairs, perps, and market groups for research context.", "Free users can keep one compact watchlist. Pro expands practical limits.", "Open Watchlists"],
     perps_intelligence: ["pro", "Perps Intelligence", "Pressure, replay, liquidity attraction, and participant context for perpetual futures.", "Limited current pressure preview.", "Upgrade to Pro"],
+    participant_intelligence: ["pro", "Participant Intelligence", "Participant contribution, direction, velocity, conflict, concentration, distribution risk, and accumulation context.", "Free users see a basic participant summary.", "Upgrade to Pro"],
     founder_experiments: ["founder", "Founder Experiments", "Experimental overlays, replay, pressure v3, participant models, and new structure families.", "Founder-only experimental preview.", "Founder Access Required"],
     atlas_context: ["atlas", "Atlas Context", "Macro regime, liquidity regime, cross-asset, and institutional context layer.", "Preview, cached, or fallback context while providers are unavailable.", "Start Atlas"],
   };

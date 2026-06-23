@@ -11,6 +11,7 @@ const required = [
   "ravenos-access.js",
   "ravenos-explanations.js",
   "ravenos-replay.js",
+  "ravenos-participants.js",
   "functions/api/access.js",
 ];
 

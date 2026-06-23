@@ -208,6 +208,7 @@
   <script src="/ravenos-features.js"></script>
   <script src="/ravenos-explanations.js"></script>
   <script src="/ravenos-replay.js"></script>
+  <script src="/ravenos-participants.js"></script>
   <script>
     const state = {
       view: "setup_families",
@@ -438,6 +439,16 @@
           flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
           risk: top.status === "Rejected" ? "Elevated" : "Watch",
           coverage: "Research",
+        })}</div>`;
+      }
+      if (window.RavenOSParticipants?.ParticipantPanel) {
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;" data-feature="participant_intelligence">${window.RavenOSParticipants.ParticipantPanel({
+          instrument: top.instrument,
+          market: "Research",
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          attentionVelocity: top.sampleCount > 50 ? 12 : 3,
+          liquidityPosture: top.status === "Rejected" ? "Thin" : "Stable",
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
         })}</div>`;
       }
     }

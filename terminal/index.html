@@ -401,6 +401,7 @@
         <div class="api-note" id="walletAccessDetail">Access checks load after wallet connection. Token-holder access is not active yet.</div>
         <div class="brief" id="terminalBrief"></div>
         <section class="perps-intel-panel" id="perpsIntelligencePanel" aria-label="Perps intelligence panel"></section>
+        <section id="participantPanel" data-feature="participant_intelligence" aria-label="Participant intelligence panel"></section>
         <section class="explanation-panel" id="explanationPanel" aria-label="Explanation panel"></section>
         <section id="replayOutcomePanel" data-feature="full_replay_engine" aria-label="Replay outcomes panel"></section>
       </aside>
@@ -462,6 +463,7 @@
   <script src="/ravenos-features.js"></script>
   <script src="/ravenos-explanations.js"></script>
   <script src="/ravenos-replay.js"></script>
+  <script src="/ravenos-participants.js"></script>
   <script>
     window.__RAVEN_TERMINAL_BUILD__ = "contract-lookup-panel-v2";
     const candlePattern = [
@@ -890,6 +892,11 @@
         ? `${row.asset} is currently scored at ${row.flowScore}. Participation outcome is ${row.participationOutcome.toLowerCase()}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`
         : `${row.asset} is currently scored at ${row.flowScore}. Attention velocity is ${row.attentionVelocity > 0 ? "positive" : "negative"}, participant activity is ${String(row.participantActivity).toLowerCase()}, liquidity posture is ${String(row.liquidityPosture).toLowerCase()}, and risk is ${String(row.risk).toLowerCase()}.`;
       renderExplanation(row);
+      window.RavenOSParticipants?.render?.("#participantPanel", {
+        ...row,
+        instrument: row.asset,
+        coverage: coverage.coverage,
+      });
       window.RavenOSReplay?.render?.("#replayOutcomePanel", {
         ...row,
         instrument: row.asset,
