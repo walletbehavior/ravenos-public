@@ -1,0 +1,174 @@
+{
+  "generated_at": "2026-06-23T00:00:00.000Z",
+  "objective": "Make RavenOS feel like one coherent market intelligence product before adding more isolated features.",
+  "status": "audit_only_no_fixes_implemented",
+  "principles": [
+    "Prefer clarity over density.",
+    "Prefer product coherence over feature count.",
+    "Keep technical provider details behind developer mode or tooltips.",
+    "Every module should answer what is happening, why, confidence, and what changed."
+  ],
+  "issues": [
+    {
+      "id": "product_shell_fragmentation",
+      "severity": "Critical",
+      "problem": "Different pages use different headers, navigation order, account controls, and workspace context patterns.",
+      "affected_pages": ["terminal", "research", "perps", "atlas", "alerts", "watchlists", "pricing", "account", "upgrade", "degen"],
+      "recommended_fix": "Create one shared product shell with global nav, workspace context, and account/access controls.",
+      "expected_user_impact": "Users can move through RavenOS as one system instead of relearning each page."
+    },
+    {
+      "id": "search_filter_confusion",
+      "severity": "Critical",
+      "problem": "Terminal has a global lookup and a table search that look like competing search boxes.",
+      "affected_pages": ["terminal"],
+      "recommended_fix": "Keep global search as the only instrument lookup and label the table search as a row filter.",
+      "expected_user_impact": "Users know exactly where to search tokens, pairs, contracts, and symbols."
+    },
+    {
+      "id": "buried_raven_read",
+      "severity": "Critical",
+      "problem": "The most valuable explanation, replay, and participant reads are often below controls, access prompts, or diagnostic panels.",
+      "affected_pages": ["terminal", "perps", "research", "watchlists", "alerts"],
+      "recommended_fix": "Introduce a compact Raven Read block on each core page with current state, why, confidence, and what changed.",
+      "expected_user_impact": "First-time users understand product value within 60 seconds."
+    },
+    {
+      "id": "coverage_language_inconsistency",
+      "severity": "Critical",
+      "problem": "Coverage labels vary between live, public, sample, preview, limited coverage, developing coverage, delayed context, and unavailable.",
+      "affected_pages": ["terminal", "atlas", "alerts", "watchlists", "degen"],
+      "recommended_fix": "Standardize product-facing coverage labels and keep raw provider state in developer mode.",
+      "expected_user_impact": "Users understand data quality without infrastructure noise."
+    },
+    {
+      "id": "score_hierarchy_inconsistency",
+      "severity": "High",
+      "problem": "Flow, pressure, survival, attention, replay, liquidity, risk, and confidence compete without a consistent hierarchy.",
+      "affected_pages": ["terminal", "perps", "research", "degen", "alerts", "watchlists"],
+      "recommended_fix": "Define primary state score, driver metrics, and trust metrics per module.",
+      "expected_user_impact": "Users understand headline metrics and supporting context faster."
+    },
+    {
+      "id": "overlay_legend_contract",
+      "severity": "High",
+      "problem": "Chart overlays now have better defaults but need one shared legend and visual identity contract across modules.",
+      "affected_pages": ["terminal", "perps", "degen", "atlas"],
+      "recommended_fix": "Make Perps, Degen, and Atlas overlay families first-class with consistent glyphs, colors, hover details, and default visibility.",
+      "expected_user_impact": "Users identify market state visually instead of reading chart labels."
+    },
+    {
+      "id": "research_table_gravity",
+      "severity": "High",
+      "problem": "Structure Lab still leans toward tables and raw rows even after report-language improvements.",
+      "affected_pages": ["research"],
+      "recommended_fix": "Make findings cards the default and move raw tables behind details or developer mode.",
+      "expected_user_impact": "Research feels like findings rather than a data export."
+    },
+    {
+      "id": "perps_story_unclear",
+      "severity": "High",
+      "problem": "Perps has the right modules but needs a clearer sequence from pressure to source to replay to conditions to research status.",
+      "affected_pages": ["perps", "terminal", "research"],
+      "recommended_fix": "Reframe Perps around current pressure state, source, replay, improving/weakening conditions, and paper research status.",
+      "expected_user_impact": "Perps becomes a flagship RavenOS experience instead of another analytics dashboard."
+    },
+    {
+      "id": "access_messaging_noise",
+      "severity": "High",
+      "problem": "Wallet, upgrade, Pro, Founder, Atlas, subscription, and token-holder access copy appears in many panels.",
+      "affected_pages": ["terminal", "atlas", "pricing", "upgrade", "account", "alerts", "watchlists", "research"],
+      "recommended_fix": "Centralize access language in Account/Access controls and use compact locked previews in modules.",
+      "expected_user_impact": "Users focus on product value before paywall mechanics."
+    },
+    {
+      "id": "degen_not_integrated",
+      "severity": "Medium",
+      "problem": "Degen Terminal exists locally but is not fully registered, committed, tested, or using the shared product shell.",
+      "affected_pages": ["degen", "terminal", "pricing", "feature_registry"],
+      "recommended_fix": "Finish Degen as a Pro crypto-discovery module or keep it hidden until integrated.",
+      "expected_user_impact": "Avoids exposing an isolated experience that weakens product coherence."
+    },
+    {
+      "id": "table_density_no_presets",
+      "severity": "Medium",
+      "problem": "Tables are dense but do not adapt cleanly by context or screen size.",
+      "affected_pages": ["terminal", "watchlists", "degen", "research", "perps"],
+      "recommended_fix": "Create compact, standard, and full table column presets.",
+      "expected_user_impact": "Mobile and mid-size layouts become usable without removing information."
+    },
+    {
+      "id": "confidence_not_adjacent",
+      "severity": "Medium",
+      "problem": "Confidence exists but is not always shown next to the score or read it qualifies.",
+      "affected_pages": ["terminal", "watchlists", "alerts", "degen", "perps", "atlas"],
+      "recommended_fix": "Show Low, Developing, Moderate, or High confidence beside every primary read.",
+      "expected_user_impact": "Users know whether a read is strong or still developing."
+    },
+    {
+      "id": "what_changed_gap",
+      "severity": "Medium",
+      "problem": "RavenOS does not consistently explain what changed since the previous update or last visit.",
+      "affected_pages": ["terminal", "alerts", "watchlists", "research", "future_my_raven"],
+      "recommended_fix": "Add a reusable Changed field to the Raven Read model.",
+      "expected_user_impact": "RavenOS feels current and useful between sessions."
+    },
+    {
+      "id": "atlas_boundary",
+      "severity": "Medium",
+      "problem": "Atlas is positioned as a separate high-tier product but still feels visually similar to standard app pages.",
+      "affected_pages": ["atlas", "pricing", "account"],
+      "recommended_fix": "Use a regime memo layout focused on market regime, liquidity, breadth, volatility, and cross-market posture.",
+      "expected_user_impact": "Atlas feels like a premium context layer."
+    },
+    {
+      "id": "internal_terms_visible",
+      "severity": "Low",
+      "problem": "Terms like candidate lanes, setup families, and paper tracking can feel internal to customers.",
+      "affected_pages": ["research", "perps", "pricing"],
+      "recommended_fix": "Translate internal terms to structure families, developing structures, and forward research tracking.",
+      "expected_user_impact": "Product language feels more polished without losing rigor."
+    },
+    {
+      "id": "legal_copy_variance",
+      "severity": "Low",
+      "problem": "Legal and safety copy appears with slight variations across pages.",
+      "affected_pages": ["terminal", "research", "watchlists", "degen", "pricing", "atlas"],
+      "recommended_fix": "Use one shared legal footer string.",
+      "expected_user_impact": "Reduces repetitive copy and improves professional consistency."
+    },
+    {
+      "id": "pricing_workflow_gap",
+      "severity": "Low",
+      "problem": "Pricing lists many features but does not clearly show the RavenOS workflow they unlock.",
+      "affected_pages": ["pricing", "upgrade", "pro"],
+      "recommended_fix": "Frame pricing around explore, understand, monitor, research, and review context.",
+      "expected_user_impact": "Paid plans feel easier to understand and justify."
+    },
+    {
+      "id": "developer_mode_discoverability",
+      "severity": "Low",
+      "problem": "Developer diagnostics exist but lack a consistent authenticated/internal affordance.",
+      "affected_pages": ["research", "atlas"],
+      "recommended_fix": "Add internal-only diagnostics entry point while keeping normal users on product language.",
+      "expected_user_impact": "Power users retain detail without confusing paying customers."
+    }
+  ],
+  "recommended_sequence": [
+    "Unify product shell across app pages.",
+    "Define and implement one Raven Read model.",
+    "Standardize coverage and confidence language.",
+    "Clarify Terminal global search versus table filtering.",
+    "Make Structure Lab report-first.",
+    "Polish Perps flagship flow.",
+    "Finish or hide Degen until fully integrated.",
+    "Add table density presets.",
+    "Align Pricing and Upgrade around the product workflow."
+  ],
+  "non_goals": [
+    "No live trading changes.",
+    "No PerpSim promotion changes.",
+    "No new backend features.",
+    "No implementation of cleanup findings in this audit pass."
+  ]
+}
