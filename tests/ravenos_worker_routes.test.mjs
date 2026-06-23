@@ -200,6 +200,7 @@ assert.equal(watchlistsList.status, 200);
 assert.equal((await watchlistsList.json()).watchlists[0].items.length, 1);
 
 const originalFetch = globalThis.fetch;
+let sawCommaSeparatedCoinGeckoIds = false;
 globalThis.fetch = async (url, init) => {
   const href = String(url);
   if (href.includes("api.hyperliquid.xyz/info")) {
@@ -257,6 +258,7 @@ globalThis.fetch = async (url, init) => {
     ]), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (href.includes("api.coingecko.com/api/v3/simple/price")) {
+    if (href.includes("ids=") && href.includes(",") && !href.includes("%2C")) sawCommaSeparatedCoinGeckoIds = true;
     return new Response(JSON.stringify({
       ethereum: { usd: 1658.42 },
       solana: { usd: 68.76 },
@@ -293,6 +295,7 @@ assert.equal(batchBySymbol.get("BTC").priceUsd, 62123.45);
 assert.equal(batchBySymbol.get("LINK").priceUsd, 7.57);
 assert.equal(batchBySymbol.get("JUP").priceUsd, 0.201);
 assert.equal(batchBySymbol.get("DEGEN").priceUsd, 0.00188);
+assert.equal(sawCommaSeparatedCoinGeckoIds, true);
 
 const perpPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=perp&symbols=ETH"), env);
 assert.equal(perpPrices.status, 200);

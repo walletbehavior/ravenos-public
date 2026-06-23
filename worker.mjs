@@ -225,7 +225,8 @@ async function coingeckoPrices(symbols = []) {
   const now = Date.now();
   const hit = priceCache.get(cacheKey);
   if (hit && hit.expires > now) return hit.payload;
-  const response = await fetch(`${COINGECKO_BASE_URL}/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd`, {
+  const encodedIds = ids.map((id) => encodeURIComponent(id)).join(",");
+  const response = await fetch(`${COINGECKO_BASE_URL}/simple/price?ids=${encodedIds}&vs_currencies=usd`, {
     headers: { accept: "application/json" },
   });
   const payload = await response.json().catch(() => ({}));
