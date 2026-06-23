@@ -7,6 +7,7 @@ const required = [
   "account/index.html",
   "alerts/index.html",
   "watchlists/index.html",
+  "perps/index.html",
   "terminal/index.html",
   "ravenos-access.js",
   "ravenos-explanations.js",

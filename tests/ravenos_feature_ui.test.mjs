@@ -10,6 +10,7 @@ const terminal = fs.readFileSync("terminal/index.html", "utf8");
 const research = fs.readFileSync("research/index.html", "utf8");
 const atlas = fs.readFileSync("atlas/index.html", "utf8");
 const watchlists = fs.readFileSync("watchlists/index.html", "utf8");
+const perps = fs.readFileSync("perps/index.html", "utf8");
 
 assert.match(featureScript, /function FeatureGate/);
 assert.match(featureScript, /function lockedPreview/);
@@ -58,3 +59,9 @@ assert.match(watchlists, /\/api\/watchlists/);
 assert.match(watchlists, /Free users can keep one compact watchlist/);
 assert.match(watchlists, /ravenos-explanations\.js/);
 assert.match(watchlists, /ravenos-replay\.js/);
+
+assert.match(perps, /data-feature="perps_intelligence"/);
+assert.match(perps, /\/api\/hyperliquid\/perps/);
+assert.match(perps, /RavenOS Perps Intelligence/);
+assert.match(perps, /ravenos-participants\.js/);
+assert.match(perps, /ravenos-replay\.js/);
