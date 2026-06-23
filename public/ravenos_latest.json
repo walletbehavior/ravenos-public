@@ -3,17 +3,17 @@
     "base": {
       "age_s": 0,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-05-01T15:30:02Z"
+      "updated_at": "2026-06-23T12:13:13Z"
     },
     "eth": {
       "age_s": 0,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-05-01T15:30:02Z"
+      "updated_at": "2026-06-23T12:13:13Z"
     },
     "sol": {
       "age_s": 0,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-05-01T15:30:02Z"
+      "updated_at": "2026-06-23T12:13:13Z"
     }
   },
   "chains": [
@@ -24,85 +24,75 @@
         {
           "chain": "Base",
           "followthrough_quality": "unknown",
-          "lane": "Base flow lane",
+          "lane": "Public chain read",
           "outlier_warning": false,
-          "sample_size": 281,
-          "sample_size_trust": "unknown",
+          "sample_size": 2779,
+          "sample_size_trust": "high",
           "status": "unknown",
-          "trust_level": "unknown"
+          "trust_level": "high"
         }
       ],
       "status": "unknown"
     },
     {
       "chain": "Ethereum",
-      "lane_count": 3,
-      "lanes": [
-        {
-          "chain": "Ethereum",
-          "followthrough_quality": "strong",
-          "lane": "Ethereum flow lane",
-          "outlier_warning": false,
-          "sample_size": 37,
-          "sample_size_trust": "high",
-          "status": "negative",
-          "trust_level": "medium"
-        },
-        {
-          "chain": "Ethereum",
-          "followthrough_quality": "weak",
-          "lane": "Ethereum flow lane",
-          "outlier_warning": false,
-          "sample_size": 2,
-          "sample_size_trust": "low",
-          "status": "negative",
-          "trust_level": "low"
-        },
-        {
-          "chain": "Ethereum",
-          "followthrough_quality": "mixed",
-          "lane": "Ethereum flow lane",
-          "outlier_warning": false,
-          "sample_size": 5,
-          "sample_size_trust": "low",
-          "status": "negative",
-          "trust_level": "low"
-        }
-      ],
-      "status": "negative"
-    },
-    {
-      "chain": "Solana",
       "lane_count": 1,
       "lanes": [
         {
+          "chain": "Ethereum",
+          "followthrough_quality": "unknown",
+          "lane": "Public chain read",
+          "outlier_warning": false,
+          "sample_size": 2199,
+          "sample_size_trust": "high",
+          "status": "unknown",
+          "trust_level": "high"
+        }
+      ],
+      "status": "unknown"
+    },
+    {
+      "chain": "Solana",
+      "lane_count": 2,
+      "lanes": [
+        {
           "chain": "Solana",
-          "followthrough_quality": "strong",
+          "followthrough_quality": "weak",
+          "lane": "Public chain read",
+          "outlier_warning": false,
+          "sample_size": 10,
+          "sample_size_trust": "medium",
+          "status": "negative",
+          "trust_level": "low"
+        },
+        {
+          "chain": "Solana",
+          "followthrough_quality": "unknown",
           "lane": "Solana flow lane",
           "outlier_warning": false,
-          "sample_size": 5,
+          "sample_size": 1,
           "sample_size_trust": "low",
           "status": "positive",
           "trust_level": "low"
         }
       ],
-      "status": "positive"
+      "status": "negative"
     }
   ],
   "freshness": {
     "age_seconds": 0,
     "status": "fresh"
   },
-  "generated_at": "2026-05-01T15:30:03Z",
-  "public_read": "Latest read is positive; longer-window confirmation is conflicting. This is a system-quality summary, not financial advice.",
+  "generated_at": "2026-06-23T12:13:14Z",
+  "public_read": "Latest read is flat; longer-window confirmation is confirming. This is a system-quality summary, not financial advice.",
   "regime": {
-    "confirmation": "conflicting",
-    "consistency": "low",
-    "direction": "positive",
-    "outlier_dependency": "high"
+    "confirmation": "confirming",
+    "consistency": "unknown",
+    "direction": "flat",
+    "outlier_dependency": "unknown"
   },
   "source_artifact_mtimes": {
-    "ravenos_public_snapshot.json": 1777649402
+    "ravenos_public_snapshot.json": 1782216793
   },
   "source_quality": {
     "label": "degraded",
@@ -113,10 +103,10 @@
   "warnings": [
     "current_context_only",
     "do_not_overread:flow_confirmation_not_established",
-    "do_not_overread:longer_windows_disagree_with_24h",
-    "do_not_overread:positive_24h_outlier_driven",
     "do_not_overread:source_sample_insufficient",
     "do_not_overread:source_sample_or_freshness_limited",
-    "regime_data_stale"
+    "raven_truth_data_stale",
+    "regime_data_stale",
+    "system_advisory_data_stale"
   ]
 }
