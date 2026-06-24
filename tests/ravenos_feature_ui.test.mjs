@@ -23,6 +23,33 @@ const ethereumChain = fs.readFileSync("chains/ethereum/index.html", "utf8");
 const faq = fs.readFileSync("faq/index.html", "utf8");
 const disclosures = fs.readFileSync("disclosures/index.html", "utf8");
 
+const githubDocsHref = "https://github.com/walletbehavior/ravenos-public/tree/main/docs";
+const coreResearchPages = [
+  ["terminal", terminal],
+  ["opportunity", opportunity],
+  ["brief", brief],
+  ["replay", replayPage],
+  ["outcomes", outcomes],
+  ["memory", memory],
+  ["behavior", behavior],
+  ["research", research],
+  ["solana chain", solanaChain],
+  ["base chain", baseChain],
+  ["ethereum chain", ethereumChain],
+];
+
+for (const [name, page] of coreResearchPages) {
+  assert.match(page, /\/terminal\//, `${name} should link to Terminal`);
+  assert.match(page, /\/brief\//, `${name} should link to Brief`);
+  assert.match(page, /\/opportunity\//, `${name} should link to Opportunity`);
+  assert.match(page, /\/replay\//, `${name} should link to Replay`);
+  assert.match(page, /\/outcomes\//, `${name} should link to Outcomes`);
+  assert.match(page, /\/memory\//, `${name} should link to Memory`);
+  assert.match(page, /\/behavior\//, `${name} should link to Behavior`);
+  assert.match(page, /\/research\//, `${name} should link to Research`);
+  assert.ok(page.includes(githubDocsHref), `${name} should link to public docs`);
+}
+
 assert.match(featureScript, /function FeatureGate/);
 assert.match(featureScript, /function lockedPreview/);
 assert.match(featureScript, /AccessBadge/);
