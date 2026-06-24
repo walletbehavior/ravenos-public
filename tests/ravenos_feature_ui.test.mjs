@@ -14,6 +14,9 @@ const perps = fs.readFileSync("perps/index.html", "utf8");
 const opportunity = fs.readFileSync("opportunity/index.html", "utf8");
 const brief = fs.readFileSync("brief/index.html", "utf8");
 const replayPage = fs.readFileSync("replay/index.html", "utf8");
+const outcomes = fs.readFileSync("outcomes/index.html", "utf8");
+const memory = fs.readFileSync("memory/index.html", "utf8");
+const behavior = fs.readFileSync("behavior/index.html", "utf8");
 const solanaChain = fs.readFileSync("chains/solana/index.html", "utf8");
 const baseChain = fs.readFileSync("chains/base/index.html", "utf8");
 const ethereumChain = fs.readFileSync("chains/ethereum/index.html", "utf8");
@@ -124,6 +127,9 @@ assert.match(research, /Why Raven Believes This/);
 assert.match(research, /Why It Matters/);
 assert.match(research, /\/brief\//);
 assert.match(research, /\/replay\//);
+assert.match(research, /\/outcomes\//);
+assert.match(research, /\/memory\//);
+assert.match(research, /\/behavior\//);
 
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);
@@ -175,6 +181,8 @@ assert.match(brief, /Most similar regime/);
 assert.match(brief, /Why It Matters/);
 assert.match(brief, /Historical analogs/);
 assert.match(brief, /Daily Change Table/);
+assert.match(brief, /\/outcomes\//);
+assert.match(brief, /\/memory\//);
 
 assert.match(replayPage, /RavenOS Replay Lab/);
 assert.match(replayPage, /Have we seen this before/);
@@ -182,6 +190,34 @@ assert.match(replayPage, /12 Similar Structures/);
 assert.match(replayPage, /Why Similar/);
 assert.match(replayPage, /Outcome Distribution/);
 assert.match(replayPage, /Historical similarity does not guarantee future outcomes/);
+assert.match(replayPage, /\/outcomes\//);
+assert.match(replayPage, /\/memory\//);
+assert.match(replayPage, /\/behavior\//);
+
+assert.match(outcomes, /RavenOS Outcome Dashboard/);
+assert.match(outcomes, /Public Outcome Scorecard/);
+assert.match(outcomes, /Rewarding/);
+assert.match(outcomes, /Punishing/);
+assert.match(outcomes, /Insufficient Sample/);
+assert.match(outcomes, /Evidence/);
+assert.match(outcomes, /descriptive research/i);
+assert.doesNotMatch(outcomes, /WalletMemory|ShadowMirror|0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/);
+
+assert.match(memory, /RavenOS Market Memory/);
+assert.match(memory, /Current Structure Rank/);
+assert.match(memory, /Most Common Structures/);
+assert.match(memory, /Regime Transitions/);
+assert.match(memory, /Similarity History/);
+assert.match(memory, /Public Methodology/);
+assert.doesNotMatch(memory, /WalletMemory|ShadowMirror|0x[a-fA-F0-9]{40}/);
+
+assert.match(behavior, /RavenOS Behavior Explorer/);
+assert.match(behavior, /Participation mix|Aggregate Participant Context/);
+assert.match(behavior, /Breadth & Concentration/);
+assert.match(behavior, /Survival \/ Followthrough/);
+assert.match(behavior, /Public Methodology/);
+assert.match(behavior, /Privacy Boundary/);
+assert.doesNotMatch(behavior, /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
 
 assert.match(solanaChain, /RavenOS Solana Intelligence/);
 assert.match(solanaChain, /Micro-cap participation is broadening/);
