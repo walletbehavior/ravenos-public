@@ -296,6 +296,7 @@
   </main>
 
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/raven-chart-timeframes.js"></script>
   <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script>
@@ -324,24 +325,49 @@
       { asset: "SOL-PERP", market: "Perpetual Futures", flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "2m ago" },
       { asset: "ETH Spot", market: "Crypto Spot", flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
       { asset: "BTC-PERP", market: "Perpetual Futures", flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "1m ago" },
+      { asset: "ETH-PERP", market: "Perpetual Futures", flowScore: 70, attentionVelocity: 8, participantActivity: "High", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "live" },
       { asset: "ARB Spot", market: "Crypto Spot", flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "6m ago" },
       { asset: "NVDA Watch", market: "Equity Preview", flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
+      { asset: "AAPL Watch", market: "Equity Preview", flowScore: 58, attentionVelocity: 3, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Stable", lastUpdated: "developing" },
+      { asset: "SPY Watch", market: "ETF Preview", flowScore: 60, attentionVelocity: 4, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Stable", lastUpdated: "developing" },
       { asset: "USD Liquidity", market: "Macro Watch", flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
       { asset: "OP-PERP", market: "Perpetual Futures", flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "8m ago" },
       { asset: "JUP Spot", market: "Crypto Spot", flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "5m ago" },
     ];
     const assetByMarket = {
-      crypto_spot: ["ETH Spot", "ARB Spot", "JUP Spot"],
-      perpetuals: ["SOL-PERP", "BTC-PERP", "OP-PERP"],
-      macro: ["USD Liquidity", "NVDA Watch"],
+      crypto_spot: ["BTC Spot", "ETH Spot", "SOL Spot", "BNB Spot", "XRP Spot", "DOGE Spot", "ARB Spot", "OP Spot", "LINK Spot", "AVAX Spot", "SUI Spot", "JUP Spot", "AERO Spot", "VIRTUAL Spot", "WIF Spot", "BONK Spot", "PEPE Spot", "ONDO Spot", "ENA Spot", "PENDLE Spot"],
+      perpetuals: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "BNB-PERP", "XRP-PERP", "DOGE-PERP", "HYPE-PERP", "AAVE-PERP", "ADA-PERP", "AVAX-PERP", "LINK-PERP", "LTC-PERP", "SUI-PERP", "UNI-PERP", "ARB-PERP", "OP-PERP", "WLD-PERP", "TIA-PERP", "ONDO-PERP", "JUP-PERP"],
+      macro: ["SPY Watch", "QQQ Watch", "IWM Watch", "NVDA Watch", "TSLA Watch", "AAPL Watch", "META Watch", "USD Liquidity"],
     };
     let chartHandle;
     let sortKey = "flowScore";
     let sortDir = -1;
+    let chartRequestId = 0;
 
     function selectedRow() {
       const asset = document.getElementById("assetSelect").value;
-      return rows.find((row) => row.asset === asset) || rows[0];
+      const found = rows.find((row) => row.asset === asset);
+      if (found) return found;
+      const market = document.getElementById("marketSelect").value;
+      const marketLabel = market === "perpetuals" ? "Perpetual Futures" : market === "crypto_spot" ? "Crypto Spot" : /^(SPY|QQQ|IWM)\s/i.test(asset) ? "ETF Preview" : "Equity Preview";
+      return {
+        asset,
+        market: marketLabel,
+        flowScore: market === "perpetuals" ? 68 : market === "crypto_spot" ? 64 : 50,
+        attentionVelocity: market === "perpetuals" ? 6 : market === "crypto_spot" ? 4 : 0,
+        participantActivity: market === "macro" ? "Coverage developing" : "Active",
+        liquidityPosture: market === "macro" ? "Coverage developing" : "Public context",
+        risk: "Stable",
+        lastUpdated: market === "macro" ? "developing" : "live",
+      };
+    }
+
+    function cleanSymbol(asset) {
+      return String(asset || "")
+        .replace(/\s+(Spot|Watch)$/i, "")
+        .replace(/-PERP$/i, "")
+        .trim()
+        .toUpperCase();
     }
 
     function renderAssetOptions() {
@@ -350,38 +376,120 @@
       document.getElementById("assetSelect").innerHTML = options.map((asset) => `<option>${asset}</option>`).join("");
     }
 
-    function scaledCandles(row) {
-      const anchor = row.asset.includes("BTC") ? 64000 : row.asset.includes("ETH") ? 3400 : row.asset.includes("USD") ? 100 : row.asset.includes("NVDA") ? 920 : 1;
-      if (anchor === 1) return baseCandles;
-      const base = baseCandles[0].open;
-      return baseCandles.map((candle) => ({
-        ...candle,
-        open: Number((candle.open / base * anchor).toFixed(2)),
-        high: Number((candle.high / base * anchor).toFixed(2)),
-        low: Number((candle.low / base * anchor).toFixed(2)),
-        close: Number((candle.close / base * anchor).toFixed(2)),
-      }));
+    function selectedMarketKind(row) {
+      if (row.market === "Perpetual Futures" || /-PERP$/i.test(row.asset)) return "perp";
+      if (row.market === "Crypto Spot" || /\sSpot$/i.test(row.asset)) return "spot";
+      if (/ETF/i.test(row.market) || /^(SPY|QQQ|IWM)\s/i.test(row.asset)) return "etf";
+      if (/Equity/i.test(row.market) || /Watch$/i.test(row.asset)) return "equity";
+      return "macro";
     }
 
-    function renderChart() {
+    async function fetchJson(url) {
+      const response = await fetch(url, { headers: { accept: "application/json" } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `http_${response.status}`);
+      return payload;
+    }
+
+    function formatPrice(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return "";
+      if (n >= 1000) return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      if (n >= 1) return `$${n.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+      return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+    }
+
+    async function resolveChartData(row, timeframe) {
+      const kind = selectedMarketKind(row);
+      const symbol = cleanSymbol(row.asset);
+      if (kind === "perp") {
+        const payload = await fetchJson(`/api/hyperliquid/candles?symbol=${encodeURIComponent(symbol)}-PERP&timeframe=${encodeURIComponent(timeframe)}`);
+        const candles = Array.isArray(payload.candles) ? payload.candles : [];
+        if (candles.length) {
+          return {
+            candles,
+            source: "Live Hyperliquid candles",
+            coverage: "Live",
+            price: candles[candles.length - 1]?.close,
+            provider: payload.provider || "Hyperliquid",
+          };
+        }
+      }
+      if (kind === "spot") {
+        const pricePayload = await fetchJson(`/api/market/prices?market=spot&symbols=${encodeURIComponent(symbol)}`);
+        const priceRow = Array.isArray(pricePayload.results) ? pricePayload.results[0] : null;
+        const price = Number(priceRow?.priceUsd);
+        return {
+          candles: window.RavenChartTimeframes.makeTimeframeCandles(baseCandles, timeframe, Number.isFinite(price) && price > 0 ? price : null, `${symbol}:spot:${priceRow?.provider || "public"}`),
+          source: `Structure Proxy · ${priceRow?.provider || "Public market context"}`,
+          coverage: priceRow?.coverage || "Developing",
+          price,
+          provider: priceRow?.provider || "Public market context",
+        };
+      }
+      const pricePayload = await fetchJson(`/api/market/prices?market=${encodeURIComponent(kind)}&symbols=${encodeURIComponent(symbol)}`);
+      const priceRow = Array.isArray(pricePayload.results) ? pricePayload.results[0] : null;
+      const price = Number(priceRow?.priceUsd);
+      if (!Number.isFinite(price) || price <= 0) {
+        return {
+          candles: [],
+          source: "Coverage developing",
+          coverage: "Developing",
+          price: null,
+          provider: priceRow?.provider || "Market provider",
+          emptyLabel: "Coverage developing for this market. Raven will show provider-backed charts when the market feed is available.",
+        };
+      }
+      return {
+        candles: window.RavenChartTimeframes.makeTimeframeCandles(baseCandles, timeframe, price, `${symbol}:${kind}`),
+        source: `${priceRow?.provider || "Market provider"} chart`,
+        coverage: priceRow?.coverage || "Developing",
+        price,
+        provider: priceRow?.provider || "Market provider",
+      };
+    }
+
+    async function renderChart() {
+      const requestId = ++chartRequestId;
       const row = selectedRow();
-      const candleData = scaledCandles(row);
-      const marketKind = row.market === "Perpetual Futures" ? "perp" : row.market === "Crypto Spot" ? "spot" : "macro";
+      const timeframe = document.getElementById("timeframeSelect").value;
+      const marketKind = selectedMarketKind(row);
+      document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${timeframe} · loading provider context`;
+      if (chartHandle) chartHandle.destroy();
+      chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), { loading: true, height: document.getElementById("flowChart").clientHeight || 520 });
+      let resolved;
+      try {
+        resolved = await resolveChartData(row, timeframe);
+      } catch (error) {
+        resolved = {
+          candles: [],
+          source: "Coverage developing",
+          coverage: "Developing",
+          price: null,
+          provider: "Market provider",
+          emptyLabel: "Coverage developing. Raven kept the terminal stable while provider context refreshes.",
+        };
+      }
+      if (requestId !== chartRequestId) return;
+      const candleData = resolved.candles || [];
       const overlays = window.RavenChartOverlays?.getOverlays?.({
         symbol: row.asset,
         market: marketKind,
         candles: candleData,
+        timeframe,
+        coverage: resolved.coverage,
         tier: "pro",
       }) || [];
-      document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
-      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · OHLCV with RavenOS overlays`;
+      const priceLabel = formatPrice(resolved.price);
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${timeframe} · ${resolved.source}${priceLabel ? ` · ${priceLabel}` : ""}`;
       document.getElementById("flowScore").textContent = row.flowScore;
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
       document.getElementById("liquidityPosture").textContent = row.liquidityPosture;
       document.getElementById("riskRating").textContent = row.risk;
-      document.getElementById("lastUpdated").textContent = row.lastUpdated;
-      document.getElementById("terminalBrief").textContent = `${row.asset} flow score is ${row.flowScore}. Participant activity is ${row.participantActivity.toLowerCase()}, liquidity posture is ${row.liquidityPosture.toLowerCase()}, and risk is ${row.risk.toLowerCase()}.`;
+      document.getElementById("lastUpdated").textContent = resolved.coverage === "Live" ? "live" : "developing";
+      document.getElementById("terminalBrief").textContent = `${row.asset} uses ${resolved.provider} context. ${marketKind === "perp" ? "Candles are provider-backed." : marketKind === "spot" ? "Chart is a structure proxy anchored to public market price context." : "Coverage is developing until provider-backed market data is available."} Participant activity is ${row.participantActivity.toLowerCase()} and risk is ${row.risk.toLowerCase()}.`;
       if (chartHandle) chartHandle.destroy();
       chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
         candles: candleData,
@@ -389,6 +497,8 @@
         overlays,
         showVolume: true,
         height: document.getElementById("flowChart").clientHeight || 520,
+        overlayContext: marketKind,
+        emptyLabel: resolved.emptyLabel,
       });
     }
 
@@ -458,6 +568,23 @@
         });
       });
     });
+
+    async function hydrateLiveMenus() {
+      try {
+        const payload = await fetchJson("/api/hyperliquid/perps");
+        const perps = (payload.results || [])
+          .filter((row) => row.asset || row.symbol)
+          .sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0))
+          .slice(0, 20)
+          .map((row) => `${cleanSymbol(row.asset || row.symbol)}-PERP`);
+        if (perps.length >= 10) {
+          assetByMarket.perpetuals = perps;
+          if (document.getElementById("marketSelect").value === "perpetuals") renderAssetOptions();
+        }
+      } catch (_) {}
+    }
+
+    hydrateLiveMenus();
   </script>
 </body>
 </html>
