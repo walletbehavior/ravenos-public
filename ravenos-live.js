@@ -192,7 +192,7 @@
     setText("oppHeroDetail", best.read || best.summary || "Current public participation read is forming from live public context.");
     setText("oppParticipation", rewarding > punishing ? "Participation expanding" : punishing > rewarding ? "Participation fragile" : "Mixed participation");
     setText("oppConfidence", titleCase(best.confidence || (observed > 20 ? "moderate" : "developing")));
-    setText("oppUsableSample", observed ? `${fmtNumber(observed)} rows` : "sample forming");
+    setText("oppUsableSample", observed ? `${fmtNumber(observed)} rows` : "evidence forming");
     setText("oppWhatChanged", summary.live_public_markets ? `${fmtNumber(summary.live_public_markets)} live public markets` : "public read refreshed");
     renderOpportunityTables(summary);
     renderOpportunityTiles(summary);
@@ -224,7 +224,7 @@
     host.innerHTML = summary.top_opportunities.slice(0, 6).map((row) => {
       const positives = Array.isArray(row.what_is_working) ? row.what_is_working : [];
       const negatives = Array.isArray(row.what_could_fail) ? row.what_could_fail : [];
-      const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public sample forming";
+      const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public evidence forming";
       return `<article class="opportunity-tile">
         <span class="kicker">${escapeHtml(marketVenueLabel(row.chain_label || row.chain))} · ${escapeHtml(capBandLabel(row.cap_band_label || row.cap_band))}</span>
         <strong>${escapeHtml(plainOpportunityRead(row.read || row.why_now))}</strong>
@@ -233,7 +233,7 @@
           <div><span class="kicker">Supports</span><ul>${positives.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
           <div><span class="kicker">Risks</span><ul>${negatives.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
         </div>
-        <div class="evidence-row"><span>Sample / assets</span><strong>${fmtNumber(row.sample_size)} · ${escapeHtml(assets)}</strong></div>
+        <div class="evidence-row"><span>Evidence / assets</span><strong>${fmtNumber(row.sample_size)} · ${escapeHtml(assets)}</strong></div>
       </article>`;
     }).join("");
   }
@@ -257,7 +257,7 @@
           continue;
         }
         const klass = stateClassFor(`${row.opportunity_label} ${row.outcome_direction} ${row.read}`);
-        cells.push(`<button type="button" class="matrix-cell ${klass}" data-opp-cell="${escapeHtml(`${row.chain}:${row.cap_band}`)}"><strong>${escapeHtml(row.opportunity_label || "Mixed")}</strong><span>${escapeHtml(row.reward_punishment_status || row.read || "Read forming")}</span><em>${escapeHtml(row.confidence || "Developing")} · ${fmtNumber(row.sample_size)} sample</em></button>`);
+        cells.push(`<button type="button" class="matrix-cell ${klass}" data-opp-cell="${escapeHtml(`${row.chain}:${row.cap_band}`)}"><strong>${escapeHtml(row.opportunity_label || "Mixed")}</strong><span>${escapeHtml(row.reward_punishment_status || row.read || "Read forming")}</span><em>${escapeHtml(row.confidence || "Developing")} · ${fmtNumber(row.sample_size)} evidence</em></button>`);
       }
     }
     host.innerHTML = cells.join("");
@@ -273,9 +273,9 @@
     const host = document.getElementById("oppDrilldown");
     if (!host) return;
     const row = summary.selected_cell || summary.matrix?.[0] || summary.top_opportunities?.[0] || {};
-    const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public sample forming";
+    const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public evidence forming";
     host.innerHTML = `<div class="evidence-grid" style="margin-top:10px;">
-      <article class="evidence-card"><h4>What Raven Believes</h4><p>${escapeHtml(marketVenueLabel(row.chain_label || row.chain))} ${escapeHtml(capBandLabel(row.cap_band_label || row.cap_band))} is ${escapeHtml(String(row.opportunity_label || row.read || "forming").toLowerCase())}.</p><div class="evidence-row"><span>Sample</span><strong>${fmtNumber(row.sample_size || 0)}</strong></div></article>
+      <article class="evidence-card"><h4>What Raven Believes</h4><p>${escapeHtml(marketVenueLabel(row.chain_label || row.chain))} ${escapeHtml(capBandLabel(row.cap_band_label || row.cap_band))} is ${escapeHtml(String(row.opportunity_label || row.read || "forming").toLowerCase())}.</p><div class="evidence-row"><span>Evidence</span><strong>${fmtNumber(row.sample_size || 0)}</strong></div></article>
       <article class="evidence-card"><h4>What Is Working</h4><p>${escapeHtml(row.participation_status || row.why_now || "Participation evidence is forming.")}</p><div class="evidence-row"><span>Assets</span><strong>${escapeHtml(assets)}</strong></div></article>
       <article class="evidence-card"><h4>What Is Weak</h4><p>${escapeHtml(row.outcome_direction === "weak" ? "Weak outcome evidence remains visible." : "Confirmation and survival still need followthrough.")}</p><div class="evidence-row"><span>Would weaken</span><strong>Survival fades</strong></div></article>
       <article class="evidence-card"><h4>Evidence</h4><p>Public aggregate participation, outcome quality, top public assets, and current refresh age.</p><div class="evidence-row"><span>Confidence</span><strong>${escapeHtml(row.confidence || "Developing")}</strong></div></article>
@@ -295,22 +295,22 @@
     setText("outGenerated", payload?.generated_at ? new Date(payload.generated_at).toISOString().slice(0, 16).replace("T", " ") : "current read forming");
     setText("outHeroBadge", rewarding > punishing ? "Rewarding / Forming" : punishing > rewarding ? "Punishing / Forming" : "Mixed / Forming");
     setText("outHeroSummary", rows.length
-      ? `Current public outcome layer has ${fmtNumber(rows.length)} aggregate rows, ${fmtNumber(observed)} observed samples, and ${fmtNumber(usable)} usable samples.`
-      : "Outcome sample is forming from public artifacts.");
+      ? `Current public outcome layer has ${fmtNumber(rows.length)} aggregate rows, ${fmtNumber(observed)} observed structures, and ${fmtNumber(usable)} usable observations.`
+      : "Outcome evidence is forming from public artifacts.");
     setText("outRewardingCount", fmtNumber(rewarding));
     setText("outPunishingCount", fmtNumber(punishing));
     setText("outMixedCount", fmtNumber(mixed));
     setText("outInsufficientCount", rows.length ? fmtNumber(rows.filter((row) => sampleOf(row) < 20).length) : "forming");
-    setText("out7dStatus", rows.length ? `${fmtNumber(rows.length)} current rows` : "Sample forming");
+    setText("out7dStatus", rows.length ? `${fmtNumber(rows.length)} current rows` : "Evidence forming");
     setText("out7dText", rows.length ? "Current public rows are refreshing now; 7D interpretation remains a developing aggregate." : "Current public dashboard is waiting for usable rows.");
     setText("out30dStatus", usable >= 1000 ? "Developing aggregate" : "Insufficient history");
-    setText("out30dText", usable >= 1000 ? "Usable sample depth is improving, but the public 30D view is still conservative." : "Longer outcome aggregation is not yet complete in the public artifact.");
+    setText("out30dText", usable >= 1000 ? "Usable evidence depth is improving, but the public 30D view is still conservative." : "Longer outcome aggregation is not yet complete in the public artifact.");
     setText("out90dStatus", "Coverage limited");
     setText("out90dText", "Deep public outcome history is not presented as live until enough validated aggregate history exists.");
     const rowLabel = (row) => `${marketVenueLabel(row.chain || "market")} ${capBandLabel(row.cap_band || "all")}`;
     const listItems = (items, fallback) => (items.length ? items.map((row) => {
       const assets = Array.isArray(row.top_public_symbols) && row.top_public_symbols.length ? ` Assets: ${row.top_public_symbols.slice(0, 3).join(", ")}.` : "";
-      return `<li>${escapeHtml(rowLabel(row))}: ${escapeHtml(plainOpportunityRead(rowRead(row)))} with ${fmtNumber(sampleOf(row))} sample.${escapeHtml(assets)}</li>`;
+      return `<li>${escapeHtml(rowLabel(row))}: ${escapeHtml(plainOpportunityRead(rowRead(row)))} with ${fmtNumber(sampleOf(row))} observations.${escapeHtml(assets)}</li>`;
     }) : [fallback].map((item) => `<li>${escapeHtml(item)}</li>`)).join("");
     setHtml("outImprovedList", listItems(topRewarding, "No strong rewarding cohort is confirmed in the current public rows."));
     setHtml("outWeakenedList", listItems(topPunishing, "Weak outcome evidence is not dominant in the current public rows."));
@@ -321,7 +321,7 @@
         const read = rowRead(row);
         const confidence = titleCase(row.confidence || (sampleOf(row) >= 50 ? "moderate" : "developing"));
         const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
-        return `<tr><td>${marketVenueLabel(row.chain || "market")}</td><td>${titleCase(row.cap_band || "all")}</td><td>${fmtNumber(row.observed_sample || row.observed || sampleOf(row))}</td><td>${fmtNumber(row.clean_sample || sampleOf(row))}</td><td class="${stateClass}">${titleCase(read)}</td><td>${confidence}</td><td>${sampleOf(row) < 20 ? "Sample forming" : "Usable public sample"}</td></tr>`;
+        return `<tr><td>${marketVenueLabel(row.chain || "market")}</td><td>${titleCase(row.cap_band || "all")}</td><td>${fmtNumber(row.observed_sample || row.observed || sampleOf(row))}</td><td>${fmtNumber(row.clean_sample || sampleOf(row))}</td><td class="${stateClass}">${titleCase(read)}</td><td>${confidence}</td><td>${sampleOf(row) < 20 ? "Evidence forming" : "Usable public evidence"}</td></tr>`;
       }).join("");
     }
   }
@@ -335,8 +335,8 @@
     setText("chainConfidence", titleCase(best.confidence || "developing"));
     setText("chainUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
     setText("chainCurrentRead", summary.current_read || "Current chain read is forming.");
-    setText("chainWeakestArea", summary.weakest_cap_band?.label ? capBandLabel(summary.weakest_cap_band.label) : "Sample forming");
-    setText("chainTopAssets", Array.isArray(summary.top_assets) && summary.top_assets.length ? summary.top_assets.slice(0, 8).join(", ") : "Public sample forming");
+    setText("chainWeakestArea", summary.weakest_cap_band?.label ? capBandLabel(summary.weakest_cap_band.label) : "Evidence forming");
+    setText("chainTopAssets", Array.isArray(summary.top_assets) && summary.top_assets.length ? summary.top_assets.slice(0, 8).join(", ") : "Public evidence forming");
     const body = document.getElementById("chainCapRows");
     if (body && Array.isArray(summary.cap_band_rows)) {
       body.innerHTML = summary.cap_band_rows.slice(0, 12).map((row) => {
@@ -402,7 +402,7 @@
       ? "This brief is using the last verified public read while the next source artifact forms."
       : "This brief is hydrated from the current public artifact and refreshed without rebuilding the site.");
     setText("briefHeroSurface", data.best_surface || data.best_opportunity_surface || "Current surface forming");
-    setText("briefBestSurface", data.best_surface || data.best_opportunity_surface || "Sample forming");
+    setText("briefBestSurface", data.best_surface || data.best_opportunity_surface || "Evidence forming");
     setText("briefRisk", warnings.length ? titleCase(warnings[0]) : "Confirmation depth");
     setText("briefParticipation", data.participation_change || (warnings.length ? "Developing" : "Expanding"));
     setText("briefPressure", data.pressure_change || "Context forming");
@@ -464,7 +464,7 @@
     setHtml("replaySuccessConditions", (topReasons.length ? topReasons : ["Participation breadth aligns", "Outcome context is observable", "Sample depth is public-safe"]).map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
     setHtml("replayFailureConditions", [
       failed ? "Weak outcome evidence appears in the analogue set." : "Failure count is low in the current analogue set.",
-      stalled ? "Mixed structures remain unresolved across part of the sample." : "Stall evidence is not dominant.",
+      stalled ? "Mixed structures remain unresolved across part of the evidence set." : "Stall evidence is not dominant.",
       payload?.stale ? "Freshness would weaken confidence." : "Confirmation depth is still the main caveat.",
     ].map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
   }
@@ -479,13 +479,13 @@
     setText("memoryReadTitle", `${titleCase(dominant)} remains the dominant public memory family.`);
     setText("memoryReadSummary", cards[0]?.summary || "Market Memory is tracking whether current structures repeat, change, or disappear.");
     setText("memoryDominant", titleCase(dominant));
-    setText("memoryFrequency", total ? fmtNumber(total) : "sample forming");
+    setText("memoryFrequency", total ? fmtNumber(total) : "evidence forming");
     setText("memoryRank", titleCase(data.condition_stability || "forming"));
-    setText("memorySample", total ? `${fmtNumber(total)} public records` : "sample forming");
+    setText("memorySample", total ? `${fmtNumber(total)} public records` : "evidence forming");
     setText("memoryFreshness", ageLabel(Number(payload?.freshness_age_seconds)));
     setText("memoryTrend", titleCase(data.consistency_trend || "mixed"));
     setText("memoryRarity", entries.length > 3 ? "Common structure set" : "Narrow structure set");
-    setText("memoryMostCommonText", entries[0] ? `${titleCase(entries[0][0])} is the most common current public condition family.` : "Memory sample is forming.");
+    setText("memoryMostCommonText", entries[0] ? `${titleCase(entries[0][0])} is the most common current public condition family.` : "Memory evidence is forming.");
     setText("memoryPersistence", confidenceFromSample(entries[0]?.[1] || 0));
     setText("memoryPersistenceText", total ? `${titleCase(dominant)} is being tracked across ${fmtNumber(total)} public memory observations.` : "Persistence is still forming.");
     setText("memoryTransitionTrend", titleCase(data.consistency_trend || "mixed"));
@@ -500,7 +500,7 @@
     const rareBody = document.getElementById("memoryRareRows");
     if (rareBody && entries.length) {
       rareBody.innerHTML = [...entries].reverse().slice(0, 5).map(([name, count]) => {
-        const rarity = Number(count) < 50 ? "Thin sample" : Number(count) < 250 ? "Developing" : "Less common";
+        const rarity = Number(count) < 50 ? "Thin evidence" : Number(count) < 250 ? "Developing" : "Less common";
         return `<tr><td>${escapeHtml(titleCase(name))}</td><td>${escapeHtml(fmtNumber(count))}</td><td>${escapeHtml(rarity)}</td><td>Use as context until repeat evidence and outcome quality are visible.</td></tr>`;
       }).join("");
     }
@@ -510,7 +510,7 @@
       transitionBody.innerHTML = [
         [`${primary} -> Broader confirmation`, "Constructive if the condition spreads across more chains or cap bands.", "Repeat observations plus improving outcome quality.", "The condition remains isolated."],
         [`${primary} -> Stall`, "Possible if the condition repeats without better followthrough.", "Frequent memory plus mixed outcome evidence.", "Rewarding evidence broadens."],
-        [`${primary} -> Failure`, "More likely when weak outcomes or concentrated participation dominate.", "Weak public outcome rows and thin confirmation.", "Sample depth improves and weak rows fade."],
+        [`${primary} -> Failure`, "More likely when weak outcomes or concentrated participation dominate.", "Weak public outcome rows and thin confirmation.", "Evidence depth improves and weak rows fade."],
         ["Rare structure -> Research watch", "Rare structures need caveats before strong reads.", "Low frequency and limited repeat evidence.", "Multiple refreshes confirm persistence."],
       ].map((row) => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1])}</td><td>${escapeHtml(row[2])}</td><td>${escapeHtml(row[3])}</td></tr>`).join("");
     }
@@ -532,7 +532,7 @@
       : "Behavior Explorer is waiting for a usable public participant artifact.");
     setText("behaviorState", rewarding > punishing ? "Constructive But Fragile" : punishing > rewarding ? "Early Participation Returning" : "Confirmation Still Thin");
     setText("behaviorNew", best.derived_state ? titleCase(best.derived_state).replace(/Outcomes Unclear/i, "Mixed Outcome Evidence") : "Early Participation Returning");
-    setText("behaviorReturning", rows.length ? `${fmtNumber(rows.length)} aggregate rows` : "Sample forming");
+    setText("behaviorReturning", rows.length ? `${fmtNumber(rows.length)} aggregate rows` : "Evidence forming");
     setText("behaviorConcentration", punishing > rewarding ? "Concentrated participation risk" : "Concentration manageable");
     setText("behaviorBreadth", mixed > rewarding ? "Broadening watch" : "Broadening selectively");
     setText("behaviorSurvival", data.metadata?.timeframe ? "Survival evidence forming" : "Followthrough forming");
@@ -545,9 +545,9 @@
     setText("behaviorBreadthScore", mix.constructive > mix.weak ? "Broadening selectively" : mix.mixed > mix.constructive ? "Confirmation still thin" : "Developing");
     setText("behaviorConcentrationScore", mix.weak > mix.constructive ? "Concentrated participation risk" : "Concentration manageable");
     setText("behaviorNewText", rows.length ? `${fmtNumber(rows.length)} aggregate rows are refreshing; new activity needs survival followthrough before stronger confirmation.` : "New participation is still forming.");
-    setText("behaviorReturningText", mix.constructive ? `${fmtNumber(mix.constructive)} rows show constructive participation context.` : "Returning participation is visible but not yet constructive across the sample.");
-    setText("behaviorConcentrationText", mix.weak ? `${fmtNumber(mix.weak)} rows still show weak or punishing outcome evidence.` : "Weak concentration evidence is not dominant in the current sample.");
-    setText("behaviorBreadthText", mix.mixed ? `${fmtNumber(mix.mixed)} rows remain mixed, so breadth is observable but not fully confirmed.` : "Breadth is cleaner in the current public sample.");
+    setText("behaviorReturningText", mix.constructive ? `${fmtNumber(mix.constructive)} rows show constructive participation context.` : "Returning participation is visible but not yet constructive across the evidence set.");
+    setText("behaviorConcentrationText", mix.weak ? `${fmtNumber(mix.weak)} rows still show weak or punishing outcome evidence.` : "Weak concentration evidence is not dominant in the current evidence.");
+    setText("behaviorBreadthText", mix.mixed ? `${fmtNumber(mix.mixed)} rows remain mixed, so breadth is observable but not fully confirmed.` : "Breadth is cleaner in the current public evidence.");
     setHtml("behaviorSupportList", [
       `${fmtNumber(rows.length)} public aggregate behavior rows are available.`,
       mix.constructive ? `${fmtNumber(mix.constructive)} rows show constructive participation context.` : "Constructive behavior evidence is still forming.",
@@ -565,7 +565,7 @@
         const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
         const behaviorState = titleCase(row.derived_state || "observable").replace(/Outcomes Unclear/i, "Mixed Outcome Evidence").replace(/Participation Punishing/i, "Participation Fragile").replace(/Participation Rewarding/i, "Participation Constructive");
         const outcomeLabel = titleCase(row.profitability_label || "mixed outcomes").replace(/Punishing Outcomes/i, "Weak Outcome Evidence").replace(/Rewarding Outcomes/i, "Constructive Outcome Evidence").replace(/Mixed Outcomes/i, "Mixed Outcome Evidence");
-        return `<tr><td>${escapeHtml(marketVenueLabel(row.chain || "market"))}</td><td>${escapeHtml(titleCase(row.cap_band || "all"))}</td><td>${escapeHtml(behaviorState)}</td><td>${escapeHtml(titleCase(row.score_strength || "developing"))}</td><td>${escapeHtml(outcomeLabel)}</td><td class="${stateClass}">${escapeHtml(titleCase(read).replace(/Outcomes Unclear/i, "Mixed Outcome Evidence"))}</td><td>${escapeHtml(sampleOf(row) < 20 ? "Sample forming" : "Public aggregate")}</td></tr>`;
+        return `<tr><td>${escapeHtml(marketVenueLabel(row.chain || "market"))}</td><td>${escapeHtml(titleCase(row.cap_band || "all"))}</td><td>${escapeHtml(behaviorState)}</td><td>${escapeHtml(titleCase(row.score_strength || "developing"))}</td><td>${escapeHtml(outcomeLabel)}</td><td class="${stateClass}">${escapeHtml(titleCase(read).replace(/Outcomes Unclear/i, "Mixed Outcome Evidence"))}</td><td>${escapeHtml(sampleOf(row) < 20 ? "Evidence forming" : "Public aggregate")}</td></tr>`;
       }).join("");
     }
   }

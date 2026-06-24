@@ -189,7 +189,7 @@
       <div class="metric-grid" style="margin-top:10px;">
         <div class="metric"><span>Research Source</span><strong id="researchSource">Loading</strong></div>
         <div class="metric"><span>Freshness</span><strong id="researchAge">Loading</strong></div>
-        <div class="metric"><span>Sample Depth</span><strong id="researchSampleDepth">Loading</strong></div>
+        <div class="metric"><span>Evidence Depth</span><strong id="researchSampleDepth">Loading</strong></div>
         <div class="metric"><span>Status</span><strong id="researchStatus">Loading</strong></div>
       </div>
       <div class="report-grid" aria-label="Research evidence summary" style="margin-top:12px;">
@@ -200,7 +200,7 @@
         </article>
         <article class="finding-card">
           <h3>Why It Matters</h3>
-          <p class="muted">The strongest research rows explain what worked, what failed, what sample depth supports the read, and what would invalidate the structure.</p>
+          <p class="muted">The strongest research rows explain what worked, what failed, what evidence depth supports the read, and what would invalidate the structure.</p>
           <strong>Designed for review and monitoring.</strong>
         </article>
       </div>
@@ -498,12 +498,12 @@
         card("Key Findings This Week", `${worked.length || rows.length} structures showed usable separation while ${failed.length} structures explained failure or dilution.`, [
           `Top research focus: ${rows[0]?.setupFamily || "Setup families"}`,
           `Best visible outcome quality: ${outcomeQuality(Math.max(...rows.map((row) => Number(row.profitFactor || 0)), 0))}`,
-          `Primary sample depth: ${sampleDepth(rows[0]?.sampleCount || 0)}`,
+          `Primary evidence depth: ${sampleDepth(rows[0]?.sampleCount || 0)}`,
         ]),
-        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} sample depth.` : "No structure has enough visible evidence to call it working in this view.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
+        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} evidence depth.` : "No structure has enough visible evidence to call it working in this view.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
         card("What Failed", failed[0] ? `${failed[0].setupFamily} is best read as a failure or dilution explanation.` : "No dominant failure row is visible in this view.", failed.slice(0, 3).map((row) => `${row.setupFamily}: ${(row.worstConditions || []).slice(0, 1).join("") || "weak transfer"}`)),
-        card("Highest Confidence Structures", high[0] ? `${high[0].setupFamily} has ${String(high[0].confidence).toLowerCase()} confidence and ${sampleDepth(high[0].sampleCount).toLowerCase()} sample depth.` : "Confidence is still developing.", high.slice(0, 3).map((row) => `${row.setupFamily}: ${row.confidence} confidence`)),
-        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "No low-confidence rows loaded.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} sample depth`)),
+        card("Highest Confidence Structures", high[0] ? `${high[0].setupFamily} has ${String(high[0].confidence).toLowerCase()} confidence and ${sampleDepth(high[0].sampleCount).toLowerCase()} evidence depth.` : "Confidence is still developing.", high.slice(0, 3).map((row) => `${row.setupFamily}: ${row.confidence} confidence`)),
+        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "No low-confidence rows loaded.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} evidence depth`)),
       ].join("");
     }
 
@@ -525,7 +525,7 @@
         : summary;
       renderReport(rows);
       document.getElementById("tableHead").innerHTML = `<tr>
-        <th>Finding</th><th>Structure</th><th>Status</th><th>Confidence</th><th>Sample Depth</th>
+        <th>Finding</th><th>Structure</th><th>Status</th><th>Confidence</th><th>Evidence Depth</th>
         <th>Outcome Quality</th><th>Replay Strength</th><th>Supporting Conditions</th><th>Failure Conditions</th><th class="developer-only">Raw Metrics</th><th class="developer-only">Internal ID</th>
       </tr>`;
       document.getElementById("tableBody").innerHTML = rows.map((row) => `<tr>
@@ -594,7 +594,7 @@
 
     function ageLabel(seconds) {
       const n = Number(seconds);
-      if (!Number.isFinite(n)) return "sample forming";
+      if (!Number.isFinite(n)) return "evidence forming";
       if (n < 60) return `${Math.floor(n)}s`;
       const minutes = Math.floor(n / 60);
       if (minutes < 60) return `${minutes}m`;
@@ -614,7 +614,7 @@
       document.getElementById("researchSource").textContent = titleCase(live.source || "public research");
       document.getElementById("researchAge").textContent = live.stale ? `Last known research snapshot · ${ageLabel(live.freshness_age_seconds)}` : `${ageLabel(live.freshness_age_seconds)} ago`;
       document.getElementById("researchSampleDepth").textContent = fmtNumber(summary.sample_depth || 0);
-      document.getElementById("researchStatus").textContent = live.stale ? "Sample forming" : "Fresh public read";
+      document.getElementById("researchStatus").textContent = live.stale ? "Evidence forming" : "Fresh public read";
       renderTable();
       return true;
     }
@@ -640,7 +640,7 @@
         document.getElementById("topPositive").textContent = positive ? `${titleCase(positive.dimension)}: ${titleCase(positive.value)}` : "Unavailable";
         document.getElementById("topFailure").textContent = titleCase(state.flatness.top_causes_of_flatness?.[0]?.cause || state.edge.strongest_negative_predictors?.[0]?.value || "Unavailable");
         document.getElementById("researchSource").textContent = "Last known research snapshot";
-        document.getElementById("researchAge").textContent = "sample forming";
+        document.getElementById("researchAge").textContent = "evidence forming";
         document.getElementById("researchSampleDepth").textContent = "snapshot";
         document.getElementById("researchStatus").textContent = "Fallback";
       }

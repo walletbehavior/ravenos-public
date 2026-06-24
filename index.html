@@ -102,7 +102,7 @@
         <div class="trust-strip" aria-label="Freshness and evidence">
           <div><span>Updated</span><strong id="homeUpdated">read forming</strong></div>
           <div><span>Coverage</span><strong id="homeCoverage">public markets</strong></div>
-          <div><span>Sample</span><strong id="homeSample">sample forming</strong></div>
+          <div><span>Evidence</span><strong id="homeSample">evidence forming</strong></div>
           <div><span>Replay</span><strong id="homeReplay">analogs forming</strong></div>
           <div><span>Source</span><strong id="homeSource">Live public API</strong></div>
         </div>
@@ -127,7 +127,7 @@
       <article class="panel">
         <div class="panel-head"><div><span class="kicker">What Happened Last Time</span><h2>Replay / outcome context</h2></div><a class="button" href="/replay/">Replay</a></div>
         <div class="read">
-          <div class="row"><span>Similar structures</span><strong id="homeSimilar">sample forming</strong></div>
+          <div class="row"><span>Similar structures</span><strong id="homeSimilar">evidence forming</strong></div>
           <div class="row"><span>Expanded</span><strong id="homeExpanded" class="positive">forming</strong></div>
           <div class="row"><span>Mixed / stalled</span><strong id="homeMixed" class="mixed">forming</strong></div>
           <div class="row"><span>Failed</span><strong id="homeFailed" class="negative">forming</strong></div>
@@ -155,7 +155,7 @@
 
     <section class="grid">
       <article class="card"><h3>Terminal</h3><p>Inspect current structure, pressure, participation, overlays, and chart context for one instrument.</p><a class="button" href="/terminal/">Open</a></article>
-      <article class="card"><h3>Outcomes</h3><p>Review which observed structures have recently been rewarding, punishing, mixed, or sample-forming.</p><a class="button" href="/outcomes/">Open</a></article>
+      <article class="card"><h3>Outcomes</h3><p>Review which observed structures have recently been rewarding, punishing, mixed, or still building evidence.</p><a class="button" href="/outcomes/">Open</a></article>
       <article class="card"><h3>Market Memory</h3><p>See whether current conditions resemble common, rare, or transitioning historical structures.</p><a class="button" href="/memory/">Open</a></article>
     </section>
 
@@ -220,7 +220,7 @@
       text("homeSurfaceConfidence", `${title(best.confidence || (observed > 20 ? "moderate" : "developing"))} · ${age(Number(opportunity.freshness_age_seconds))}`);
       const tiles = Array.isArray(opp.top_opportunities) ? opp.top_opportunities.slice(0, 3) : [];
       if (tiles.length) {
-        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p>Why: ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. Caveat: ${(row.what_could_fail || ["sample depth remains developing"])[0]}.</p><div class="row"><span>Sample</span><strong>${safeCount(row.sample_size)}</strong></div></article>`).join("");
+        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p>Why: ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. Caveat: ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Evidence</span><strong>${safeCount(row.sample_size)}</strong></div></article>`).join("");
       }
     }
     hydrateHome();
