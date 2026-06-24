@@ -140,10 +140,23 @@ const originOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/o
   RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
 });
 const originOutcomesPayload = await originOutcomes.json();
-assert.equal(originOutcomesPayload.source, "origin");
+assert.equal(originOutcomesPayload.source, "public_origin");
+assert.equal(originOutcomesPayload.source_detail, "origin");
 assert.equal(originOutcomesPayload.data.outcomes[0].chain, "base");
 assert.equal(sawOriginBearer, true);
 assert.equal(sawOriginTokenHeader, true);
+
+const originStatus = await worker.fetch(new Request("https://ravenos.xyz/api/status"), {
+  ...env,
+  RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
+  RAVENOS_PUBLIC_ORIGIN_TOKEN: "test-token",
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const originStatusPayload = await originStatus.json();
+const originStatusOutcomes = originStatusPayload.endpoints.find((row) => row.endpoint === "/api/outcomes");
+assert.equal(originStatusOutcomes.source, "public_origin");
+assert.ok(["origin", "origin_cache"].includes(originStatusOutcomes.source_detail));
+assert.equal(originStatusOutcomes.source_label, "public artifact origin");
 
 globalThis.fetch = async () => new Response(JSON.stringify({
   generated_at: new Date().toISOString(),

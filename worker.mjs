@@ -923,6 +923,18 @@ function publicTextSafe(payload) {
   return validatePublicPayload(payload).ok;
 }
 
+function isOriginSource(source = "") {
+  return source === "origin" || source === "origin_cache";
+}
+
+function normalizePublicSource(source = "") {
+  return isOriginSource(source) ? "public_origin" : source;
+}
+
+function publicSourceLabel(source = "") {
+  return isOriginSource(source) || source === "public_origin" ? "public artifact origin" : "bundled public artifact";
+}
+
 function originPathForKey(key, config = {}) {
   if (config.originPath) return config.originPath;
   return "";
@@ -999,10 +1011,12 @@ async function readPublicArtifact(request, env, key, config) {
 }
 
 function publicEnvelope(key, config, payload, extra = {}) {
+  const { source: extraSource, source_detail: _extraSourceDetail, source_label: _extraSourceLabel, ...restExtra } = extra;
   const generatedAt = extra.generated_at || generatedAtOf(payload) || new Date().toISOString();
   const age = ageSeconds(generatedAt);
   const stale = age === null ? true : age > Number(config.freshnessTargetSeconds || 900);
-  const source = extra.source || "bundled_artifact";
+  const rawSource = extraSource || "bundled_artifact";
+  const source = normalizePublicSource(rawSource);
   return {
     ok: true,
     key,
@@ -1018,10 +1032,11 @@ function publicEnvelope(key, config, payload, extra = {}) {
     coverage: stale ? "delayed context" : "active",
     status: stale ? "stale" : "live_public_read",
     source,
-    source_label: source === "origin" || source === "origin_cache" ? "public artifact origin" : "bundled public artifact",
+    source_detail: rawSource,
+    source_label: publicSourceLabel(source),
     artifact_path: config.artifactPath,
     data: payload || {},
-    ...extra,
+    ...restExtra,
   };
 }
 
@@ -1194,12 +1209,14 @@ async function handlePublicStatus(request, env) {
     const liveProviderActive = Boolean(config.liveProvider) && String(env?.RAVENOS_DISABLE_LIVE_PROVIDER_FETCH || "").toLowerCase() !== "true";
     const effectiveGeneratedAt = liveProviderActive ? new Date().toISOString() : generatedAt;
     const effectiveAge = ageSeconds(effectiveGeneratedAt);
+    const normalizedSource = normalizePublicSource(artifact.source);
     return {
       key,
       endpoint: config.endpoint,
       artifact_path: config.artifactPath,
-      source: liveProviderActive ? `${config.liveProvider}+${artifact.source}` : artifact.source,
-      source_label: liveProviderActive ? "live public provider with verified artifact context" : artifact.source === "origin" || artifact.source === "origin_cache" ? "public artifact origin" : "bundled public artifact",
+      source: liveProviderActive ? `${config.liveProvider}+${normalizedSource}` : normalizedSource,
+      source_detail: artifact.source,
+      source_label: liveProviderActive ? "live public provider with verified artifact context" : publicSourceLabel(normalizedSource),
       freshness_target_seconds: config.freshnessTargetSeconds,
       last_generated_at: effectiveGeneratedAt || null,
       artifact_generated_at: generatedAt || null,
@@ -1212,7 +1229,7 @@ async function handlePublicStatus(request, env) {
       schema_version: config.schemaVersion,
       redaction_policy: "aggregate_public_market_context_only",
       status: payload ? "available" : "degraded",
-      origin_fetch_failed: Boolean(config.originPath && artifact.source !== "origin" && artifact.source !== "origin_cache" && artifact.error),
+      origin_fetch_failed: Boolean(config.originPath && !isOriginSource(artifact.source) && artifact.error),
       error: artifact.error || "",
     };
   }));
