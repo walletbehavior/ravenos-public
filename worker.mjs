@@ -1253,9 +1253,18 @@ function buildPublicIntelligenceRead(key, payload = {}, extra = {}) {
   if (key === "opportunity") {
     const best = summary.best_surface || rows.sort((a, b) => rowScore(b) - rowScore(a))[0] || {};
     const surface = `${publicVenueLabel(best.chain || "market")} ${publicCapBandLabel(best.cap_band || "current")}`.trim();
+    const bestRead = publicOutcomeRead(best);
+    const bestConstructive = /reward|favorable|constructive/i.test(bestRead);
+    const bestWeak = /punish|weak|negative|fragile/i.test(bestRead);
     return {
       ...common,
-      net_read: best.chain ? `${surface} is the clearest current opportunity surface.` : "Opportunity evidence is forming.",
+      net_read: best.chain
+        ? bestConstructive
+          ? `${surface} is the clearest current opportunity surface.`
+          : bestWeak
+            ? `${surface} is active, but current evidence remains fragile.`
+            : `${surface} is the clearest current activity surface, but outcome confirmation is still mixed.`
+        : "Opportunity evidence is forming.",
       why: "Raven compares participation, outcome quality, sample depth, and fresh public market context across chain and cap-band surfaces.",
       supports: [
         summary.rewarding_count !== undefined ? `${Number(summary.rewarding_count || 0).toLocaleString("en-US")} surfaces show constructive public evidence` : "Constructive surfaces are being tracked",
