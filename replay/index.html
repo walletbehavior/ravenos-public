@@ -18,6 +18,7 @@
     .read{padding:14px;display:grid;gap:12px}.big{font-size:clamp(30px,5vw,58px);line-height:1;color:var(--green);font-family:var(--mono);}
     .row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:7px;color:var(--muted);font-size:11px}.row strong{color:var(--text);font-family:var(--mono);text-align:right;}
     .positive{color:var(--green)}.mixed{color:var(--yellow)}.negative{color:var(--red)}
+    .bar-stack{display:grid;gap:7px}.bar-row{display:grid;grid-template-columns:92px 1fr 48px;gap:8px;align-items:center;color:var(--muted);font-size:11px}.bar-track{height:7px;background:rgba(255,255,255,.05);border:1px solid var(--line);overflow:hidden}.bar-fill{height:100%;background:var(--cyan)}.bar-fill.positive{background:var(--green)}.bar-fill.mixed{background:var(--yellow)}.bar-fill.negative{background:var(--red)}
     table{width:100%;border-collapse:collapse;min-width:760px} th,td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;font-size:12px;vertical-align:top} th{color:var(--cyan)} .table-wrap{overflow-x:auto}
     ul{margin:0;padding-left:18px;color:var(--muted);line-height:1.55;font-size:13px}.footer{color:var(--soft);font-size:11px;text-align:center;padding:10px;border-top:1px solid var(--line)}
     @media(max-width:920px){.topbar,.hero,.grid,.evidence,.outcomes{grid-template-columns:1fr}nav{overflow-x:auto;flex-wrap:nowrap}nav a{flex:0 0 auto}}
@@ -74,8 +75,8 @@
       <article class="panel">
         <div class="panel-head"><div><span class="kicker">Replay Breakdown</span><h2>What usually separated outcomes</h2></div></div>
         <div class="read">
-          <div class="card"><h3>Success Conditions</h3><ul><li>Participation broadened beyond first movers.</li><li>Reward persistence improved after attention appeared.</li><li>Liquidity posture stayed manageable.</li></ul></div>
-          <div class="card"><h3>Failure Conditions</h3><ul><li>Attention accelerated without breadth.</li><li>Liquidity concentration rose.</li><li>Survival faded before confirmation improved.</li></ul></div>
+          <div class="card"><h3>Success Conditions</h3><ul id="replaySuccessConditions"><li>Participation broadened beyond first movers.</li><li>Reward persistence improved after attention appeared.</li><li>Liquidity posture stayed manageable.</li></ul></div>
+          <div class="card"><h3>Failure Conditions</h3><ul id="replayFailureConditions"><li>Attention accelerated without breadth.</li><li>Liquidity concentration rose.</li><li>Survival faded before confirmation improved.</li></ul></div>
           <div class="card"><h3>Public Methodology</h3><p>Replay uses participation, pressure, breadth, survival, liquidity, reward persistence, and chain/cap context. Proprietary weights and private sources are not exposed.</p></div>
         </div>
       </article>
@@ -86,7 +87,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr><th>Outcome</th><th>Count</th><th>Median Time</th><th>Median Outcome</th><th>Why It Matters</th></tr></thead>
-          <tbody>
+          <tbody id="replayOutcomeRows">
             <tr><td>Expansion</td><td>8</td><td>2.8 days</td><td>Constructive continuation</td><td>Broad participation persisted after confirmation.</td></tr>
             <tr><td>Stall</td><td>3</td><td>1.4 days</td><td>Flat structure</td><td>Attention rose but participant breadth did not follow.</td></tr>
             <tr><td>Failure</td><td>1</td><td>0.9 days</td><td>Structure failed</td><td>Liquidity deterioration appeared before confirmation.</td></tr>

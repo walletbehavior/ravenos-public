@@ -347,6 +347,33 @@
     return "Low";
   }
 
+  function pct(part, total) {
+    const a = Number(part);
+    const b = Number(total);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
+  }
+
+  function setHtml(id, html) {
+    const node = document.getElementById(id);
+    if (node) node.innerHTML = html;
+  }
+
+  function replayOutcomeKind(row = {}) {
+    const text = String(row.after_window_summary || row.public_read || row.outcome || row.derived_state || "").toLowerCase();
+    if (/favorable|expand|constructive|reward/.test(text)) return "Expansion";
+    if (/fail|weak|punish|deterior/.test(text)) return "Failure";
+    if (/stall|flat|mixed|unclear/.test(text)) return "Stall";
+    return "Observed";
+  }
+
+  function behaviorMix(rows = []) {
+    const constructive = rows.filter(isRewarding).length;
+    const weak = rows.filter(isPunishing).length;
+    const mixed = Math.max(0, rows.length - constructive - weak);
+    return { constructive, mixed, weak, total: rows.length };
+  }
+
   function renderBriefLive(payload) {
     const data = dataFromPayload(payload);
     const warnings = Array.isArray(data.warnings) ? data.warnings : [];
@@ -372,9 +399,9 @@
   function renderReplayLive(payload) {
     const data = dataFromPayload(payload);
     const rows = Array.isArray(data.comparables) ? data.comparables : rowsFromPayload(payload);
-    const expanded = rows.filter((row) => /expand|constructive|reward/i.test(String(row.after_window_summary || row.public_read || row.outcome || ""))).length;
-    const failed = rows.filter((row) => /fail|weak|punish|deterior/i.test(String(row.after_window_summary || row.public_read || row.outcome || ""))).length;
-    const stalled = Math.max(0, rows.length - expanded - failed);
+    const expanded = rows.filter((row) => replayOutcomeKind(row) === "Expansion").length;
+    const failed = rows.filter((row) => replayOutcomeKind(row) === "Failure").length;
+    const stalled = rows.filter((row) => replayOutcomeKind(row) === "Stall").length;
     const best = rows[0] || {};
     setText("replayAnalogCount", rows.length ? `${fmtNumber(rows.length)} Similar Structures` : "Replay Set Forming");
     setText("replayExpanded", fmtNumber(expanded));
@@ -397,6 +424,31 @@
         return `<tr><td>${escapeHtml(row.matched_window_start || row.window || "Historical window")}</td><td>${escapeHtml(pct)}</td><td>${escapeHtml(reasons)}</td><td class="${klass}">${escapeHtml(outcome)}</td><td>${escapeHtml(read)}</td></tr>`;
       }).join("");
     }
+    const outcomeRows = document.getElementById("replayOutcomeRows");
+    if (outcomeRows && rows.length) {
+      const total = rows.length;
+      const distribution = [
+        ["Expansion", expanded, "Constructive continuation", "Broad participation and favorable public context persisted.", "positive"],
+        ["Stall", stalled, "Flat or unresolved structure", "Attention or participation did not broaden enough.", "mixed"],
+        ["Failure", failed, "Structure weakened", "Weak outcome evidence or liquidity deterioration appeared.", "negative"],
+      ];
+      outcomeRows.innerHTML = distribution.map(([label, count, median, matters, klass]) =>
+        `<tr><td>${label}</td><td class="${klass}">${fmtNumber(count)} (${pct(count, total)}%)</td><td>${label === "Expansion" ? "live / 24h" : "24h context"}</td><td>${median}</td><td>${matters}</td></tr>`
+      ).join("");
+    }
+    const commonReasons = rows.flatMap((row) => Array.isArray(row.match_reasons) ? row.match_reasons : []);
+    const reasonCounts = commonReasons.reduce((acc, reason) => {
+      const key = titleCase(reason);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const topReasons = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason]) => reason);
+    setHtml("replaySuccessConditions", (topReasons.length ? topReasons : ["Participation breadth aligns", "Outcome context is observable", "Sample depth is public-safe"]).map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
+    setHtml("replayFailureConditions", [
+      failed ? "Weak outcome evidence appears in the analogue set." : "Failure count is low in the current analogue set.",
+      stalled ? "Mixed structures remain unresolved across part of the sample." : "Stall evidence is not dominant.",
+      payload?.stale ? "Freshness would weaken confidence." : "Confirmation depth is still the main caveat.",
+    ].map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
   }
 
   function renderMemoryLive(payload) {
@@ -414,12 +466,35 @@
     setText("memorySample", total ? `${fmtNumber(total)} public records` : "sample forming");
     setText("memoryFreshness", ageLabel(Number(payload?.freshness_age_seconds)));
     setText("memoryTrend", titleCase(data.consistency_trend || "mixed"));
+    setText("memoryRarity", entries.length > 3 ? "Common structure set" : "Narrow structure set");
+    setText("memoryMostCommonText", entries[0] ? `${titleCase(entries[0][0])} is the most common current public condition family.` : "Memory sample is forming.");
+    setText("memoryPersistence", confidenceFromSample(entries[0]?.[1] || 0));
+    setText("memoryPersistenceText", total ? `${titleCase(dominant)} is being tracked across ${fmtNumber(total)} public memory observations.` : "Persistence is still forming.");
+    setText("memoryTransitionTrend", titleCase(data.consistency_trend || "mixed"));
+    setText("memoryTransitionText", data.cards?.[0]?.what_to_watch || "Raven is watching whether the dominant condition broadens, stalls, or weakens.");
     const tbody = document.getElementById("memoryCommonRows");
     if (tbody && entries.length) {
       tbody.innerHTML = entries.slice(0, 8).map(([name, count]) => {
         const confidence = confidenceFromSample(count);
         return `<tr><td>${escapeHtml(titleCase(name))}</td><td>${escapeHtml(fmtNumber(count))}</td><td>Tracked across public memory refreshes</td><td>${escapeHtml(confidence)}</td><td>Shows whether this condition keeps appearing or fades.</td></tr>`;
       }).join("");
+    }
+    const rareBody = document.getElementById("memoryRareRows");
+    if (rareBody && entries.length) {
+      rareBody.innerHTML = [...entries].reverse().slice(0, 5).map(([name, count]) => {
+        const rarity = Number(count) < 50 ? "Thin sample" : Number(count) < 250 ? "Developing" : "Less common";
+        return `<tr><td>${escapeHtml(titleCase(name))}</td><td>${escapeHtml(fmtNumber(count))}</td><td>${escapeHtml(rarity)}</td><td>Use as context until repeat evidence and outcome quality are visible.</td></tr>`;
+      }).join("");
+    }
+    const transitionBody = document.getElementById("memoryTransitionRows");
+    if (transitionBody && entries.length) {
+      const primary = titleCase(entries[0][0]);
+      transitionBody.innerHTML = [
+        [`${primary} -> Broader confirmation`, "Constructive if the condition spreads across more chains or cap bands.", "Repeat observations plus improving outcome quality.", "The condition remains isolated."],
+        [`${primary} -> Stall`, "Possible if the condition repeats without better followthrough.", "Frequent memory plus mixed outcome evidence.", "Rewarding evidence broadens."],
+        [`${primary} -> Failure`, "More likely when weak outcomes or concentrated participation dominate.", "Weak public outcome rows and thin confirmation.", "Sample depth improves and weak rows fade."],
+        ["Rare structure -> Research watch", "Rare structures need caveats before strong reads.", "Low frequency and limited repeat evidence.", "Multiple refreshes confirm persistence."],
+      ].map((row) => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1])}</td><td>${escapeHtml(row[2])}</td><td>${escapeHtml(row[3])}</td></tr>`).join("");
     }
   }
 
@@ -429,6 +504,7 @@
     const rewarding = rows.filter(isRewarding).length;
     const punishing = rows.filter(isPunishing).length;
     const mixed = Math.max(0, rows.length - rewarding - punishing);
+    const mix = behaviorMix(rows);
     const best = bestRows(payload)[0] || {};
     setText("behaviorReadTitle", rows.length
       ? `${marketVenueLabel(best.chain || "Market")} ${titleCase(best.cap_band || "participation")} has the clearest behavior surface, but confirmation is still thin.`
@@ -443,6 +519,27 @@
     setText("behaviorBreadth", mixed > rewarding ? "Broadening watch" : "Broadening selectively");
     setText("behaviorSurvival", data.metadata?.timeframe ? "Survival evidence forming" : "Followthrough forming");
     setText("behaviorUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
+    setHtml("behaviorMixBars", [
+      ["Constructive", mix.constructive, "positive"],
+      ["Mixed", mix.mixed, "mixed"],
+      ["Weak", mix.weak, "negative"],
+    ].map(([label, count, klass]) => `<div class="bar-row"><span>${label}</span><div class="bar-track"><div class="bar-fill ${klass}" style="width:${pct(count, mix.total)}%"></div></div><strong>${pct(count, mix.total)}%</strong></div>`).join(""));
+    setText("behaviorBreadthScore", mix.constructive > mix.weak ? "Broadening selectively" : mix.mixed > mix.constructive ? "Confirmation still thin" : "Developing");
+    setText("behaviorConcentrationScore", mix.weak > mix.constructive ? "Concentrated participation risk" : "Concentration manageable");
+    setText("behaviorNewText", rows.length ? `${fmtNumber(rows.length)} aggregate rows are refreshing; new activity needs survival followthrough before stronger confirmation.` : "New participation is still forming.");
+    setText("behaviorReturningText", mix.constructive ? `${fmtNumber(mix.constructive)} rows show constructive participation context.` : "Returning participation is visible but not yet constructive across the sample.");
+    setText("behaviorConcentrationText", mix.weak ? `${fmtNumber(mix.weak)} rows still show weak or punishing outcome evidence.` : "Weak concentration evidence is not dominant in the current sample.");
+    setText("behaviorBreadthText", mix.mixed ? `${fmtNumber(mix.mixed)} rows remain mixed, so breadth is observable but not fully confirmed.` : "Breadth is cleaner in the current public sample.");
+    setHtml("behaviorSupportList", [
+      `${fmtNumber(rows.length)} public aggregate behavior rows are available.`,
+      mix.constructive ? `${fmtNumber(mix.constructive)} rows show constructive participation context.` : "Constructive behavior evidence is still forming.",
+      best.chain ? `${marketVenueLabel(best.chain)} ${titleCase(best.cap_band || "all")} is the clearest behavior surface.` : "No single market dominates yet.",
+    ].map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
+    setHtml("behaviorRiskList", [
+      mix.weak ? `${fmtNumber(mix.weak)} rows show weak outcome evidence.` : "Weak evidence can reappear if participation narrows.",
+      mix.mixed ? `${fmtNumber(mix.mixed)} rows are still mixed or unresolved.` : "Current read still needs repeat confirmation.",
+      "Survival and followthrough need to broaden beyond narrow clusters.",
+    ].map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
     const tbody = document.getElementById("behaviorRows");
     if (tbody && rows.length) {
       tbody.innerHTML = bestRows(payload).slice(0, 12).map((row) => {
