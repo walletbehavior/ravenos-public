@@ -56,6 +56,10 @@
     .positive { color: var(--green); }
     .mixed { color: var(--yellow); }
     .negative { color: var(--red); }
+    .badge { border: 1px solid var(--line); background: rgba(255,255,255,.03); padding: 4px 7px; color: var(--muted); font-family: var(--mono); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .badge.on { color: var(--green); border-color: rgba(52,211,153,.34); background: rgba(52,211,153,.08); }
+    .badge.off { color: var(--red); border-color: rgba(251,113,133,.34); background: rgba(251,113,133,.08); }
+    .badge.mix { color: var(--yellow); border-color: rgba(250,204,21,.3); background: rgba(250,204,21,.07); }
     .trust-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid rgba(52,211,153,.25); background: rgba(52,211,153,.045); }
     .trust-strip div { padding: 10px; border-right: 1px solid var(--line); display: grid; gap: 3px; }
     .trust-strip div:last-child { border-right: 0; }
@@ -68,6 +72,9 @@
     .bar { display: grid; grid-template-columns: 90px 1fr 50px; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; }
     .bar-track { height: 8px; background: rgba(148,163,184,.12); border: 1px solid var(--line); }
     .bar-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--cyan)); }
+    .regime-card { min-height: 152px; }
+    .regime-top { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
+    .regime-top strong { display: block; margin-top: 4px; font-size: 18px; }
     .footer { color: var(--soft); font-size: 11px; text-align: center; padding: 10px; border-top: 1px solid var(--line); }
     @media (max-width: 920px) {
       .topbar, .hero, .grid, .cards, .evidence, .opps, .trust-strip { grid-template-columns: 1fr; }
@@ -111,6 +118,18 @@
           <p>RavenOS studies participation, pressure, structure, outcome persistence, replay similarity, and market memory. It is not a token scanner, a pick list, or a liquidation heatmap clone.</p>
         </div>
       </article>
+    </section>
+
+    <section class="panel" aria-label="Risk regime map">
+      <div class="panel-head">
+        <div><span class="kicker">Risk-On / Risk-Off Map</span><h2>Follow the surface, then inspect evidence</h2></div>
+        <a class="button" href="/opportunity/">Opportunity</a>
+      </div>
+      <div class="grid read" id="homeRegimeMap">
+        <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Spot Chains</span><strong>Read forming</strong></div><span class="badge mix">Mixed</span></div><p>Loading chain participation context.</p></article>
+        <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Cap Bands</span><strong>Read forming</strong></div><span class="badge mix">Mixed</span></div><p>Loading cap-band participation context.</p></article>
+        <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Perps Context</span><strong>Separate pressure read</strong></div><span class="badge mix">Context</span></div><p>Perps are tracked as pressure context, not as the homepage chain opportunity headline.</p></article>
+      </div>
     </section>
 
     <section class="evidence" aria-label="Evidence and replay">
@@ -177,6 +196,26 @@
       const n = Number(value);
       return Number.isFinite(n) && n > 0 ? new Intl.NumberFormat("en-US").format(n) : fallback;
     }
+    function regimeClass(value) {
+      const text = String(value || "").toLowerCase();
+      if (/weak|fragile|punish|risk-off|deterior|thin/.test(text)) return "off";
+      if (/constructive|reward|favorable|improv|expand|risk-on/.test(text)) return "on";
+      return "mix";
+    }
+    function regimeLabel(value) {
+      const cls = regimeClass(value);
+      if (cls === "on") return "Risk-on";
+      if (cls === "off") return "Risk-off";
+      return "Mixed";
+    }
+    function regimeCard(kicker, label, read, drivers = []) {
+      const cls = regimeClass(`${label} ${read}`);
+      return `<article class="card regime-card">
+        <div class="regime-top"><div><span class="kicker">${kicker}</span><strong>${label}</strong></div><span class="badge ${cls}">${regimeLabel(`${label} ${read}`)}</span></div>
+        <p>${read}</p>
+        ${drivers.slice(0, 3).map((item) => `<div class="row"><span>${item[0]}</span><strong>${item[1]}</strong></div>`).join("")}
+      </article>`;
+    }
     async function hydrateHome() {
       const [brief, opportunity, replay, outcomes] = await Promise.all([
         fetch("/api/brief", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
@@ -186,6 +225,9 @@
       ]);
       const opp = opportunity.summary || {};
       const best = opp.best_surface || {};
+      const chains = Array.isArray(opp.chain_rows) ? opp.chain_rows : [];
+      const capBands = Array.isArray(opp.cap_band_rows) ? opp.cap_band_rows : [];
+      const perps = opp.perps_context || {};
       const rows = Array.isArray(opportunity.rows) ? opportunity.rows : [];
       const replayRows = Array.isArray(replay.rows) ? replay.rows : [];
       const outcomeRows = Array.isArray(outcomes.rows) ? outcomes.rows : [];
@@ -218,6 +260,25 @@
       text("homeFailed", safeCount(outcomeRows.filter((row) => /fail|punish|weak/i.test(JSON.stringify(row))).length || punishing));
       text("homeSurfaceRead", best.read || best.summary || "Participation visible, confirmation forming");
       text("homeSurfaceConfidence", `${title(best.confidence || (observed > 20 ? "moderate" : "developing"))} · ${age(Number(opportunity.freshness_age_seconds))}`);
+      const chain = chains[0] || {};
+      const cap = capBands[0] || {};
+      document.getElementById("homeRegimeMap").innerHTML = [
+        regimeCard("Spot Chains", chain.label || "Chain read forming", chain.read || "Spot chain participation is forming.", [
+          ["Surface", chain.label || "forming"],
+          ["Evidence", safeCount(chain.sample_size)],
+          ["Confidence", title(chain.confidence || "developing")],
+        ]),
+        regimeCard("Cap Bands", cap.label || "Cap-band read forming", cap.read || "Cap-band participation is forming.", [
+          ["Surface", cap.label || "forming"],
+          ["Evidence", safeCount(cap.sample_size)],
+          ["Status", cap.participation_status || "observable"],
+        ]),
+        regimeCard("Perps Context", "Separate pressure read", perps.read || "Perps are tracked separately from chain participation opportunity.", [
+          ["Context rows", safeCount(perps.observed_rows, "0")],
+          ["Role", "pressure context"],
+          ["Headline", "not chain opportunity"],
+        ]),
+      ].join("");
       const tiles = Array.isArray(opp.top_opportunities) ? opp.top_opportunities.slice(0, 3) : [];
       if (tiles.length) {
         document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p>Why: ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. Caveat: ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Evidence</span><strong>${safeCount(row.sample_size)}</strong></div></article>`).join("");
