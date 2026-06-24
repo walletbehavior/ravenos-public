@@ -915,7 +915,7 @@ async function readAssetJson(request, env, path) {
 }
 
 function publicEnvelope(key, config, payload, extra = {}) {
-  const generatedAt = generatedAtOf(payload) || extra.generated_at || new Date().toISOString();
+  const generatedAt = extra.generated_at || generatedAtOf(payload) || new Date().toISOString();
   const age = ageSeconds(generatedAt);
   const stale = age === null ? true : age > Number(config.freshnessTargetSeconds || 900);
   return {
@@ -1014,6 +1014,7 @@ async function liveOpportunityPayload(request, env, config) {
     }
   }
   return publicEnvelope("opportunity", config, heatmap || {}, {
+    generated_at: trending.length ? new Date().toISOString() : generatedAtOf(heatmap || {}),
     summary: {
       ...summary,
       live_public_markets: trending.length,
@@ -1037,6 +1038,7 @@ async function liveTerminalPayload(request, env, config) {
     perps = null;
   }
   return publicEnvelope("terminal", config, heatmap || {}, {
+    generated_at: perps?.lastUpdated || generatedAtOf(heatmap || {}),
     summary: {
       heatmap: opportunitySummaryFromHeatmap(heatmap || {}),
       perps: perps ? {
