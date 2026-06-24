@@ -1089,12 +1089,99 @@ function rowScore(row = {}) {
   return stateScore + confidence + num(row.sample_size || row.clean_sample || row.observed_sample) / 10;
 }
 
+function publicVenueLabel(value = "") {
+  return /^hyperliquid$/i.test(String(value || "")) ? "Perps" : researchLabel(value || "market");
+}
+
+function publicCapBandLabel(value = "") {
+  const text = String(value || "all");
+  const labels = {
+    fresh_pairs: "Fresh Pairs",
+    perps_all: "Perps",
+    perps_alts: "Perps Alts",
+    perps_large_alts: "Perps Large Alts",
+    perps_majors: "Perps Majors",
+  };
+  return labels[text] || researchLabel(text);
+}
+
+function aggregateOpportunityRows(rows = [], groupKey = "chain") {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = String(row[groupKey] || "all").toLowerCase();
+    const current = groups.get(key) || {
+      key,
+      label: groupKey === "chain" ? publicVenueLabel(key) : publicCapBandLabel(key),
+      observed: 0,
+      usable: 0,
+      rewarding: 0,
+      punishing: 0,
+      mixed: 0,
+      sample_size: 0,
+      top_row: null,
+      top_assets: [],
+      score: 0,
+    };
+    const sample = sampleSizeOf(row);
+    current.observed += 1;
+    current.usable += sample > 0 ? 1 : 0;
+    current.sample_size += sample;
+    if (/reward|favorable|constructive/i.test(publicOutcomeRead(row))) current.rewarding += 1;
+    else if (/punish|weak|negative/i.test(publicOutcomeRead(row))) current.punishing += 1;
+    else current.mixed += 1;
+    current.score += rowScore(row);
+    if (!current.top_row || rowScore(row) > rowScore(current.top_row)) current.top_row = row;
+    if (Array.isArray(row.top_public_symbols)) current.top_assets.push(...row.top_public_symbols.slice(0, 4));
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      top_assets: [...new Set(group.top_assets)].slice(0, 8),
+      confidence: confidenceFromPublicSample(group.sample_size, group.top_row?.confidence),
+      read: group.rewarding > group.punishing ? "Participation constructive"
+        : group.punishing > group.rewarding ? "Outcome evidence weak"
+          : "Mixed outcome evidence",
+      opportunity_label: group.rewarding > group.punishing ? "Improving"
+        : group.punishing > group.rewarding ? "Fragile"
+          : "Mixed",
+      outcome_direction: group.rewarding > group.punishing ? "constructive"
+        : group.punishing > group.rewarding ? "weak"
+          : "mixed",
+      participation_status: researchLabel(group.top_row?.participation_status || group.top_row?.derived_state || "observable"),
+      reward_punishment_status: `${group.rewarding} rewarding / ${group.punishing} weak`,
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
 function opportunitySummaryFromHeatmap(payload = {}) {
   const rows = heatmapRows(payload);
   const sorted = [...rows].sort((a, b) => rowScore(b) - rowScore(a));
   const top = sorted[0] || null;
   const rewarding = rows.filter((row) => /reward|favorable/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
   const punishing = rows.filter((row) => /punish|struggling/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
+  const chainRows = aggregateOpportunityRows(rows, "chain");
+  const capRows = aggregateOpportunityRows(rows, "cap_band");
+  const matrix = chainRows.slice(0, 8).flatMap((chain) => {
+    return capRows.slice(0, 12).map((band) => {
+      const matching = rows.filter((row) => String(row.chain || "").toLowerCase() === chain.key && String(row.cap_band || "").toLowerCase() === band.key);
+      const aggregate = aggregateOpportunityRows(matching, "cap_band")[0] || null;
+      return aggregate ? {
+        chain: chain.key,
+        chain_label: chain.label,
+        cap_band: band.key,
+        cap_band_label: band.label,
+        opportunity_label: aggregate.opportunity_label,
+        outcome_direction: aggregate.outcome_direction,
+        participation_status: aggregate.participation_status,
+        reward_punishment_status: aggregate.reward_punishment_status,
+        confidence: aggregate.confidence,
+        sample_size: aggregate.sample_size,
+        top_assets: aggregate.top_assets,
+        read: aggregate.read,
+      } : null;
+    }).filter(Boolean);
+  });
   return {
     observed_rows: rows.length,
     best_surface: top ? {
@@ -1107,13 +1194,38 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     rewarding_count: rewarding,
     punishing_count: punishing,
     mixed_count: Math.max(0, rows.length - rewarding - punishing),
+    chain_rows: chainRows,
+    cap_band_rows: capRows,
+    matrix,
+    top_opportunities: sorted.slice(0, 6).map((row) => ({
+      chain: row.chain,
+      chain_label: publicVenueLabel(row.chain),
+      cap_band: row.cap_band,
+      cap_band_label: publicCapBandLabel(row.cap_band),
+      why_now: row.plain_language_summary || publicOutcomeRead(row),
+      what_is_working: [
+        `Participation: ${researchLabel(row.participation_status || row.derived_state || "observable")}`,
+        `Sample depth: ${sampleSizeOf(row).toLocaleString("en-US")}`,
+      ],
+      what_could_fail: [
+        /punish|weak/i.test(publicOutcomeRead(row)) ? "Weak outcome evidence remains visible" : "Confirmation could narrow",
+        "Liquidity and survival need continued followthrough",
+      ],
+      confidence: confidenceFromPublicSample(sampleSizeOf(row), row.confidence),
+      top_assets: Array.isArray(row.top_public_symbols) ? row.top_public_symbols.slice(0, 6) : [],
+      sample_size: sampleSizeOf(row),
+      read: publicOutcomeRead(row),
+    })),
     top_rows: sorted.slice(0, 8).map((row) => ({
       chain: row.chain,
+      chain_label: publicVenueLabel(row.chain),
       cap_band: row.cap_band,
+      cap_band_label: publicCapBandLabel(row.cap_band),
       sample_size: row.sample_size || row.clean_sample || row.observed_sample,
       confidence: row.confidence,
       read: row.derived_state || row.participant_outcome,
       summary: row.plain_language_summary || "",
+      top_assets: Array.isArray(row.top_public_symbols) ? row.top_public_symbols.slice(0, 6) : [],
     })),
   };
 }
@@ -1340,9 +1452,22 @@ async function chainPublicPayload(request, env, key, config) {
   const payload = artifact.payload;
   if (!payload) return degradedEnvelope(key, config, "chain read forming");
   const rows = heatmapRows(payload).filter((row) => String(row.chain || "").toLowerCase() === config.chain);
+  const summary = opportunitySummaryFromHeatmap({ rows });
+  const capBands = aggregateOpportunityRows(rows, "cap_band");
+  const best = capBands[0] || null;
+  const weakest = [...capBands].sort((a, b) => (b.punishing - b.rewarding) - (a.punishing - a.rewarding))[0] || null;
   return publicEnvelope(key, config, payload, {
     source: artifact.source,
-    summary: opportunitySummaryFromHeatmap({ rows }),
+    summary: {
+      ...summary,
+      cap_band_rows: capBands,
+      best_cap_band: best,
+      weakest_cap_band: weakest,
+      top_assets: [...new Set(rows.flatMap((row) => Array.isArray(row.top_public_symbols) ? row.top_public_symbols : []))].slice(0, 12),
+      current_read: best
+        ? `${publicVenueLabel(config.chain)} ${best.label} is the clearest current surface; ${weakest?.label || "weaker cohorts"} remains the main caveat.`
+        : `${publicVenueLabel(config.chain)} read is forming from public context.`,
+    },
     rows,
   });
 }

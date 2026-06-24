@@ -116,6 +116,29 @@ assert.match(publicOpportunity.headers.get("cache-control") || "", /max-age=60/)
 const publicOpportunityPayload = await publicOpportunity.json();
 assert.equal(publicOpportunityPayload.safe_public, true);
 assert.equal(publicOpportunityPayload.summary.best_surface.chain, "solana");
+assert.ok(Array.isArray(publicOpportunityPayload.summary.chain_rows));
+assert.ok(publicOpportunityPayload.summary.chain_rows.length >= 1);
+assert.ok(Array.isArray(publicOpportunityPayload.summary.cap_band_rows));
+assert.ok(publicOpportunityPayload.summary.cap_band_rows.length >= 1);
+assert.ok(Array.isArray(publicOpportunityPayload.summary.matrix));
+assert.ok(publicOpportunityPayload.summary.matrix.length >= 1);
+assert.ok(Array.isArray(publicOpportunityPayload.summary.top_opportunities));
+assert.ok(publicOpportunityPayload.summary.top_opportunities.length >= 1);
+assert.equal(publicOpportunityPayload.summary.chain_rows[0].label, "Solana");
+assert.equal(publicOpportunityPayload.summary.cap_band_rows[0].label, "Micro");
+
+const publicSolana = await worker.fetch(new Request("https://ravenos.xyz/api/chains/solana"), {
+  ...env,
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+assert.equal(publicSolana.status, 200);
+const publicSolanaPayload = await publicSolana.json();
+assert.equal(publicSolanaPayload.safe_public, true);
+assert.ok(Array.isArray(publicSolanaPayload.summary.cap_band_rows));
+assert.ok(publicSolanaPayload.summary.cap_band_rows.length >= 1);
+assert.ok(publicSolanaPayload.summary.best_cap_band);
+assert.ok(publicSolanaPayload.summary.weakest_cap_band);
+assert.match(publicSolanaPayload.summary.current_read, /Solana/i);
 
 const publicArtifactOriginalFetch = globalThis.fetch;
 let sawOriginBearer = false;

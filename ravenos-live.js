@@ -125,6 +125,32 @@
     return /^hyperliquid$/i.test(text) ? "Perps" : titleCase(text);
   }
 
+  function capBandLabel(value) {
+    const labels = {
+      fresh_pairs: "Fresh Pairs",
+      perps_all: "Perps",
+      perps_alts: "Perps Alts",
+      perps_large_alts: "Perps Large Alts",
+      perps_majors: "Perps Majors",
+    };
+    return labels[String(value || "").toLowerCase()] || titleCase(value || "All");
+  }
+
+  function stateClassFor(read = "") {
+    if (/improving|constructive|reward|favorable/i.test(read)) return "rewarding";
+    if (/fragile|weak|punish|negative/i.test(read)) return "punishing";
+    return "mixed";
+  }
+
+  function plainOpportunityRead(read = "") {
+    return titleCase(read)
+      .replace(/Punishing Outcomes/i, "Weak Outcome Evidence")
+      .replace(/Rewarding Outcomes/i, "Constructive Outcome Evidence")
+      .replace(/Outcomes Unclear/i, "Mixed Outcome Evidence")
+      .replace(/Participation Punishing/i, "Participation Fragile")
+      .replace(/Participation Rewarding/i, "Participation Constructive");
+  }
+
   function isRewarding(row) {
     return /reward|favorable|improving|constructive/i.test(rowRead(row));
   }
@@ -149,8 +175,8 @@
   function renderOpportunityLive(payload) {
     const summary = payload?.summary || {};
     const best = summary.best_surface || bestRows(payload)[0] || {};
-    const chain = titleCase(best.chain || "Market");
-    const band = titleCase(best.cap_band || "Current");
+    const chain = marketVenueLabel(best.chain_label || best.chain || "Market");
+    const band = capBandLabel(best.cap_band_label || best.cap_band || "Current");
     const surface = `${chain} ${band}`.trim();
     const rewarding = Number(summary.rewarding_count);
     const punishing = Number(summary.punishing_count);
@@ -164,10 +190,96 @@
     setText("oppUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
     setText("oppHeroSurface", surface);
     setText("oppHeroDetail", best.read || best.summary || "Current public participation read is forming from live public context.");
-    setText("oppParticipation", rewarding > punishing ? "Expanding" : punishing > rewarding ? "Fragile" : "Mixed");
+    setText("oppParticipation", rewarding > punishing ? "Participation expanding" : punishing > rewarding ? "Participation fragile" : "Mixed participation");
     setText("oppConfidence", titleCase(best.confidence || (observed > 20 ? "moderate" : "developing")));
     setText("oppUsableSample", observed ? `${fmtNumber(observed)} rows` : "sample forming");
     setText("oppWhatChanged", summary.live_public_markets ? `${fmtNumber(summary.live_public_markets)} live public markets` : "public read refreshed");
+    renderOpportunityTables(summary);
+    renderOpportunityTiles(summary);
+    renderOpportunityMatrix(summary);
+    renderOpportunityDrilldown(summary);
+  }
+
+  function renderOpportunityTables(summary = {}) {
+    const chainBody = document.getElementById("oppChainRows");
+    if (chainBody && Array.isArray(summary.chain_rows)) {
+      chainBody.innerHTML = summary.chain_rows.slice(0, 12).map((row) => {
+        const edge = row.rewarding > row.punishing ? "High" : row.punishing > row.rewarding ? "Low" : "Medium";
+        const edgeClass = edge === "High" ? "high" : edge === "Low" ? "low" : "medium";
+        return `<tr><td>${escapeHtml(row.label)}</td><td class="edge ${edgeClass}">${edge}</td><td class="mono positive">${fmtNumber(row.rewarding)}</td><td class="mono negative">${fmtNumber(row.punishing)}</td><td>${escapeHtml(capBandLabel(row.top_row?.cap_band || row.key))}</td><td>${escapeHtml(plainOpportunityRead(row.read))}</td></tr>`;
+      }).join("");
+    }
+    const capBody = document.getElementById("oppCapRows");
+    if (capBody && Array.isArray(summary.cap_band_rows)) {
+      capBody.innerHTML = summary.cap_band_rows.slice(0, 12).map((row) => {
+        const activity = row.sample_size >= 1000 ? "Very High" : row.sample_size >= 250 ? "High" : row.sample_size >= 50 ? "Medium" : "Forming";
+        return `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(marketVenueLabel(row.top_row?.chain || "Market"))}</td><td class="mono positive">${fmtNumber(row.rewarding)}</td><td class="mono negative">${fmtNumber(row.punishing)}</td><td>${activity}</td><td>${escapeHtml(plainOpportunityRead(row.read))}</td></tr>`;
+      }).join("");
+    }
+  }
+
+  function renderOpportunityTiles(summary = {}) {
+    const host = document.getElementById("oppTopTiles");
+    if (!host || !Array.isArray(summary.top_opportunities)) return;
+    host.innerHTML = summary.top_opportunities.slice(0, 6).map((row) => {
+      const positives = Array.isArray(row.what_is_working) ? row.what_is_working : [];
+      const negatives = Array.isArray(row.what_could_fail) ? row.what_could_fail : [];
+      const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public sample forming";
+      return `<article class="opportunity-tile">
+        <span class="kicker">${escapeHtml(marketVenueLabel(row.chain_label || row.chain))} · ${escapeHtml(capBandLabel(row.cap_band_label || row.cap_band))}</span>
+        <strong>${escapeHtml(plainOpportunityRead(row.read || row.why_now))}</strong>
+        <span>${escapeHtml(row.why_now || "Current public read is forming.")}</span>
+        <div class="score-drivers">
+          <div><span class="kicker">Supports</span><ul>${positives.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+          <div><span class="kicker">Risks</span><ul>${negatives.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+        </div>
+        <div class="evidence-row"><span>Sample / assets</span><strong>${fmtNumber(row.sample_size)} · ${escapeHtml(assets)}</strong></div>
+      </article>`;
+    }).join("");
+  }
+
+  function renderOpportunityMatrix(summary = {}) {
+    const host = document.getElementById("oppMatrix");
+    if (!host || !Array.isArray(summary.matrix)) return;
+    const chains = [...new Map(summary.matrix.map((row) => [row.chain, row.chain_label || row.chain])).entries()].slice(0, 6);
+    const bands = [...new Map(summary.matrix.map((row) => [row.cap_band, row.cap_band_label || row.cap_band])).entries()].slice(0, 8);
+    const byKey = new Map(summary.matrix.map((row) => [`${row.chain}:${row.cap_band}`, row]));
+    const cells = [
+      `<div class="matrix-cell header">Market</div>`,
+      ...bands.map(([, label]) => `<div class="matrix-cell header">${escapeHtml(capBandLabel(label))}</div>`),
+    ];
+    for (const [chain, chainLabel] of chains) {
+      cells.push(`<div class="matrix-cell header">${escapeHtml(marketVenueLabel(chainLabel))}</div>`);
+      for (const [band] of bands) {
+        const row = byKey.get(`${chain}:${band}`);
+        if (!row) {
+          cells.push(`<div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>`);
+          continue;
+        }
+        const klass = stateClassFor(`${row.opportunity_label} ${row.outcome_direction} ${row.read}`);
+        cells.push(`<button type="button" class="matrix-cell ${klass}" data-opp-cell="${escapeHtml(`${row.chain}:${row.cap_band}`)}"><strong>${escapeHtml(row.opportunity_label || "Mixed")}</strong><span>${escapeHtml(row.reward_punishment_status || row.read || "Read forming")}</span><em>${escapeHtml(row.confidence || "Developing")} · ${fmtNumber(row.sample_size)} sample</em></button>`);
+      }
+    }
+    host.innerHTML = cells.join("");
+    host.querySelectorAll("[data-opp-cell]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const row = byKey.get(button.getAttribute("data-opp-cell"));
+        if (row) renderOpportunityDrilldown({ ...summary, selected_cell: row });
+      });
+    });
+  }
+
+  function renderOpportunityDrilldown(summary = {}) {
+    const host = document.getElementById("oppDrilldown");
+    if (!host) return;
+    const row = summary.selected_cell || summary.matrix?.[0] || summary.top_opportunities?.[0] || {};
+    const assets = Array.isArray(row.top_assets) && row.top_assets.length ? row.top_assets.join(", ") : "public sample forming";
+    host.innerHTML = `<div class="evidence-grid" style="margin-top:10px;">
+      <article class="evidence-card"><h4>What Raven Believes</h4><p>${escapeHtml(marketVenueLabel(row.chain_label || row.chain))} ${escapeHtml(capBandLabel(row.cap_band_label || row.cap_band))} is ${escapeHtml(String(row.opportunity_label || row.read || "forming").toLowerCase())}.</p><div class="evidence-row"><span>Sample</span><strong>${fmtNumber(row.sample_size || 0)}</strong></div></article>
+      <article class="evidence-card"><h4>What Is Working</h4><p>${escapeHtml(row.participation_status || row.why_now || "Participation evidence is forming.")}</p><div class="evidence-row"><span>Assets</span><strong>${escapeHtml(assets)}</strong></div></article>
+      <article class="evidence-card"><h4>What Is Weak</h4><p>${escapeHtml(row.outcome_direction === "weak" ? "Weak outcome evidence remains visible." : "Confirmation and survival still need followthrough.")}</p><div class="evidence-row"><span>Would weaken</span><strong>Survival fades</strong></div></article>
+      <article class="evidence-card"><h4>Evidence</h4><p>Public aggregate participation, outcome quality, top public assets, and current refresh age.</p><div class="evidence-row"><span>Confidence</span><strong>${escapeHtml(row.confidence || "Developing")}</strong></div></article>
+    </div>`;
   }
 
   function renderOutcomesLive(payload) {
@@ -199,11 +311,21 @@
   function renderChainLive(payload) {
     const summary = payload?.summary || {};
     const best = summary.best_surface || bestRows(payload)[0] || {};
-    setText("chainTopSurface", titleCase(best.cap_band || "Current surface"));
-    setText("chainParticipation", best.read ? titleCase(best.read) : "Current read forming");
+    setText("chainTopSurface", capBandLabel(summary.best_cap_band?.label || best.cap_band || "Current surface"));
+    setText("chainParticipation", best.read ? plainOpportunityRead(best.read) : "Current read forming");
     setText("chainSample", best.sample_size ? fmtNumber(best.sample_size) : fmtNumber(summary.observed_rows || rowsFromPayload(payload).length));
     setText("chainConfidence", titleCase(best.confidence || "developing"));
     setText("chainUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
+    setText("chainCurrentRead", summary.current_read || "Current chain read is forming.");
+    setText("chainWeakestArea", summary.weakest_cap_band?.label ? capBandLabel(summary.weakest_cap_band.label) : "Sample forming");
+    setText("chainTopAssets", Array.isArray(summary.top_assets) && summary.top_assets.length ? summary.top_assets.slice(0, 8).join(", ") : "Public sample forming");
+    const body = document.getElementById("chainCapRows");
+    if (body && Array.isArray(summary.cap_band_rows)) {
+      body.innerHTML = summary.cap_band_rows.slice(0, 12).map((row) => {
+        const klass = stateClassFor(`${row.opportunity_label} ${row.read}`);
+        return `<tr><td>${escapeHtml(capBandLabel(row.label))}</td><td class="${klass === "rewarding" ? "positive" : klass === "punishing" ? "negative" : "mixed"}">${escapeHtml(plainOpportunityRead(row.read))}</td><td>${fmtNumber(row.rewarding)}</td><td>${fmtNumber(row.punishing)}</td><td>${fmtNumber(row.sample_size)}</td><td>${escapeHtml(row.confidence)}</td></tr>`;
+      }).join("");
+    }
   }
 
   function renderTerminalLive(payload) {
