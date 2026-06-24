@@ -1337,11 +1337,11 @@ function buildPublicIntelligenceRead(key, payload = {}, extra = {}) {
 function rowScore(row = {}) {
   const confidence = { high: 25, medium: 14, low: 4 }[String(row.confidence || "").toLowerCase()] || 0;
   const state = String(row.derived_state || row.participant_outcome || "").toLowerCase();
-  const stateScore = state.includes("reward") || state.includes("favorable") ? 45
-    : state.includes("punish") ? -15
-      : state.includes("unclear") || state.includes("mixed") ? 10
+  const stateScore = state.includes("reward") || state.includes("favorable") || state.includes("constructive") ? 85
+    : state.includes("punish") || state.includes("weak") ? -25
+      : state.includes("unclear") || state.includes("mixed") ? 2
         : 0;
-  return stateScore + confidence + num(row.sample_size || row.clean_sample || row.observed_sample) / 10;
+  return stateScore + confidence + Math.min(20, num(row.sample_size || row.clean_sample || row.observed_sample) / 10);
 }
 
 function publicVenueLabel(value = "") {
