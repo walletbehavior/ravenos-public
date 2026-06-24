@@ -1,6 +1,6 @@
 {
-  "count": 86,
-  "generated_at": "2026-06-24T10:30:18Z",
+  "count": 85,
+  "generated_at": "2026-06-24T10:45:18Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -87,7 +87,7 @@
       "plain_language_summary": "Fresh Pairs participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 110,
+      "sample_size": 113,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -120,7 +120,7 @@
       "plain_language_summary": "Large-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 158,
+      "sample_size": 159,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -186,7 +186,7 @@
       "plain_language_summary": "Micro-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 105,
+      "sample_size": 108,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -219,7 +219,7 @@
       "plain_language_summary": "Mid-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 35,
+      "sample_size": 36,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -252,7 +252,7 @@
       "plain_language_summary": "Nano-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 220,
+      "sample_size": 216,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -285,7 +285,7 @@
       "plain_language_summary": "Small-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 69,
+      "sample_size": 68,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -549,7 +549,7 @@
       "plain_language_summary": "Broad Market participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 84,
+      "sample_size": 85,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -747,7 +747,7 @@
       "plain_language_summary": "Small-Cap participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 8,
+      "sample_size": 9,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -929,39 +929,6 @@
       "timeframe": "24h",
       "trend": "stable",
       "win_rate_band": "medium",
-      "window": "24h"
-    },
-    {
-      "avg_outcome": "mixed",
-      "cap_band": "mid",
-      "chain": "bnb",
-      "confidence": "low",
-      "derived_state": "outcomes unclear",
-      "heatmap_id": "bnb_mid_24h",
-      "outcome_score": 0.42,
-      "outcome_strength": "building",
-      "participant_outcome_context": "This condition appears while mixed outcomes.",
-      "participant_success_rate": 0.3,
-      "plain_language_summary": "Mid-Cap participation on BNB Chain is mixed or still unclear.",
-      "profitability_label": "mixed outcomes",
-      "public_safe": true,
-      "sample_size": 1,
-      "score_strength": "moderate",
-      "search_terms": [
-        "rewarding",
-        "punishing",
-        "outcome quality",
-        "participants",
-        "outcomes unclear",
-        "mixed outcomes",
-        "weakening",
-        "bnb",
-        "mid",
-        "24h"
-      ],
-      "timeframe": "24h",
-      "trend": "weakening",
-      "win_rate_band": "low",
       "window": "24h"
     },
     {
@@ -2166,7 +2133,7 @@
       "plain_language_summary": "Fresh Pairs participation on Solana is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_size": 100,
+      "sample_size": 102,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2199,7 +2166,7 @@
       "plain_language_summary": "Jupiter Velocity participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 206,
+      "sample_size": 201,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2232,7 +2199,7 @@
       "plain_language_summary": "Large-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 68,
+      "sample_size": 69,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2255,18 +2222,18 @@
       "avg_outcome": "mixed",
       "cap_band": "live_activity",
       "chain": "solana",
-      "confidence": "high",
+      "confidence": "medium",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_live_activity_live",
-      "outcome_score": 0.4,
+      "outcome_score": 0.3,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
       "participant_success_rate": 0.5,
       "plain_language_summary": "Live Activity participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 99190,
-      "score_strength": "moderate",
+      "sample_size": 19734,
+      "score_strength": "weak",
       "search_terms": [
         "rewarding",
         "punishing",
@@ -2331,7 +2298,7 @@
       "plain_language_summary": "Micro-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 37,
+      "sample_size": 40,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2364,7 +2331,7 @@
       "plain_language_summary": "Mid-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 17,
+      "sample_size": 19,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2397,7 +2364,7 @@
       "plain_language_summary": "Nano-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 141,
+      "sample_size": 137,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2430,7 +2397,7 @@
       "plain_language_summary": "Small-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 38,
+      "sample_size": 36,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2562,7 +2529,7 @@
       "plain_language_summary": "Fresh Pairs participation on Ton is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 1,
+      "sample_size": 2,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
