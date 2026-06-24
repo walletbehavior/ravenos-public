@@ -1223,7 +1223,7 @@ function strongestPublicSignal(rows = [], fallback = "Public evidence is forming
   const row = ranked[0] || {};
   if (row.plain_language_summary) return researchLabel(row.plain_language_summary);
   if (row.match_reasons?.[0]) return researchLabel(row.match_reasons[0]);
-  if (row.structure || row.condition) return `${researchLabel(row.structure || row.condition)} is recurring`;
+  if (row.structure || row.condition) return `${publicConditionLabel(row.structure || row.condition)} is recurring`;
   if (row.chain || row.cap_band) return `${publicVenueLabel(row.chain || "Market")} ${publicCapBandLabel(row.cap_band || "current")} has the clearest evidence`;
   return fallback;
 }
@@ -1302,7 +1302,7 @@ function buildPublicIntelligenceRead(key, payload = {}, extra = {}) {
     const dominant = payload.dominant_condition_family || rows[0]?.structure || rows[0]?.condition || "market memory";
     return {
       ...common,
-      net_read: `${researchLabel(dominant)} is the dominant public memory condition.`,
+      net_read: `${publicConditionLabel(dominant)} is the dominant public memory condition.`,
       why: "Memory tracks which structure families keep recurring and whether they transition into stronger, stalled, or weaker regimes.",
       supports: [common.strongest_signal, "Recurring conditions are being tracked across public refreshes", "Memory connects current reads to prior observed regimes"],
       risks: ["Frequent conditions are not automatically useful", "Outcome quality still matters", stale ? "Freshness is delayed" : "Rare structures need more repeat evidence"],
@@ -1363,6 +1363,14 @@ function publicCapBandLabel(value = "") {
   return labels[text] || researchLabel(text);
 }
 
+function publicConditionLabel(value = "") {
+  return researchLabel(value || "current")
+    .replace(/\bOutcomes Unclear\b/gi, "Mixed Outcome Evidence")
+    .replace(/\bParticipation Punishing\b/gi, "Participation Fragile")
+    .replace(/\bParticipant Cohort Validation\b/gi, "Aggregate Followthrough Evidence")
+    .replace(/\bJupiter Velocity\b/gi, "Solana Routing Context");
+}
+
 function isPerpsOpportunityRow(row = {}) {
   const chain = String(row.chain || "").toLowerCase();
   const band = String(row.cap_band || "").toLowerCase();
@@ -1371,7 +1379,7 @@ function isPerpsOpportunityRow(row = {}) {
 
 function isSupportingContextRow(row = {}) {
   const band = String(row.cap_band || "").toLowerCase();
-  return band === "live_activity" || band === "jupiter_velocity";
+  return band === "live_activity" || band === "jupiter_velocity" || band === "participant_cohorts";
 }
 
 function isSpecificSpotSurface(row = {}) {
