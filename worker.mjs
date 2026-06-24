@@ -1361,6 +1361,7 @@ function publicCapBandLabel(value = "") {
   const text = String(value || "all");
   const labels = {
     fresh_pairs: "Fresh Pairs",
+    nano: "Micro",
     nano_caps: "Micro",
     live_activity: "Live Activity",
     jupiter_velocity: "Solana Routing Context",
@@ -1383,6 +1384,16 @@ function publicCapBandLabel(value = "") {
     perps_majors: "Perps Majors",
   };
   return labels[text] || researchLabel(text);
+}
+
+function publicCapBandKey(value = "") {
+  const text = String(value || "all").toLowerCase();
+  if (text.includes("fresh") || text.includes("nano") || text.includes("micro")) return "micro";
+  if (text.includes("small")) return "small";
+  if (text.includes("mid")) return "mid";
+  if (text.includes("high") || text.includes("large")) return "high";
+  if (text.includes("major") || text.includes("mega")) return "mega";
+  return text || "all";
 }
 
 function publicConditionLabel(value = "") {
@@ -1416,7 +1427,8 @@ function isSpecificSpotSurface(row = {}) {
 function aggregateOpportunityRows(rows = [], groupKey = "chain") {
   const groups = new Map();
   for (const row of rows) {
-    const key = String(row[groupKey] || "all").toLowerCase();
+    const rawKey = String(row[groupKey] || "all").toLowerCase();
+    const key = groupKey === "cap_band" ? publicCapBandKey(rawKey) : rawKey;
     const current = groups.get(key) || {
       key,
       label: groupKey === "chain" ? publicVenueLabel(key) : publicCapBandLabel(key),
@@ -1477,7 +1489,7 @@ function opportunitySummaryFromHeatmap(payload = {}) {
   const perpsContext = aggregateOpportunityRows(perpsRows, "cap_band");
   const matrix = chainRows.slice(0, 8).flatMap((chain) => {
     return capRows.slice(0, 12).map((band) => {
-      const matching = spotRows.filter((row) => String(row.chain || "").toLowerCase() === chain.key && String(row.cap_band || "").toLowerCase() === band.key);
+      const matching = spotRows.filter((row) => String(row.chain || "").toLowerCase() === chain.key && publicCapBandKey(row.cap_band) === band.key);
       const aggregate = aggregateOpportunityRows(matching, "cap_band")[0] || null;
       return aggregate ? {
         chain: chain.key,
@@ -1500,7 +1512,7 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     total_observed_rows: rows.length,
     best_surface: top ? {
       chain: top.chain || "all",
-      cap_band: top.cap_band || "all",
+      cap_band: publicCapBandKey(top.cap_band || "all"),
       sample_size: num(top.sample_size || top.clean_sample),
       confidence: top.confidence || "developing",
       read: top.derived_state || top.plain_language_summary || "current read forming",
@@ -1521,7 +1533,7 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     top_opportunities: sorted.slice(0, 6).map((row) => ({
       chain: row.chain,
       chain_label: publicVenueLabel(row.chain),
-      cap_band: row.cap_band,
+      cap_band: publicCapBandKey(row.cap_band),
       cap_band_label: publicCapBandLabel(row.cap_band),
       why_now: row.plain_language_summary || publicOutcomeRead(row),
       what_is_working: [
@@ -1540,7 +1552,7 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     top_rows: sorted.slice(0, 8).map((row) => ({
       chain: row.chain,
       chain_label: publicVenueLabel(row.chain),
-      cap_band: row.cap_band,
+      cap_band: publicCapBandKey(row.cap_band),
       cap_band_label: publicCapBandLabel(row.cap_band),
       sample_size: row.sample_size || row.clean_sample || row.observed_sample,
       confidence: row.confidence,
