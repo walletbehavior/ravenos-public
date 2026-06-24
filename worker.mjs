@@ -373,6 +373,58 @@ async function hyperliquidPerps() {
   return result;
 }
 
+function hyperliquidInterval(timeframe = "1h") {
+  const value = String(timeframe || "1h").toLowerCase();
+  return ["15m", "1h", "4h", "1d"].includes(value) ? value : "1h";
+}
+
+async function hyperliquidCandles(symbol = "", timeframe = "1h") {
+  const coin = normalizedMarketSymbol(symbol);
+  if (!coin || !/^[A-Z0-9]+$/.test(coin)) throw new Error("invalid_symbol");
+  const interval = hyperliquidInterval(timeframe);
+  const intervalMs = { "15m": 15 * 60_000, "1h": 60 * 60_000, "4h": 4 * 60 * 60_000, "1d": 24 * 60 * 60_000 }[interval];
+  const count = { "15m": 96, "1h": 96, "4h": 90, "1d": 120 }[interval];
+  const endTime = Date.now();
+  const startTime = endTime - intervalMs * count;
+  const key = `candles:${coin}:${interval}:${Math.floor(endTime / 30_000)}`;
+  const hit = hyperliquidCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.payload;
+  const response = await fetch(HYPERLIQUID_INFO_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      type: "candleSnapshot",
+      req: { coin, interval, startTime, endTime },
+    }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(`hyperliquid_candles_http_${response.status}`);
+  const candles = (Array.isArray(payload) ? payload : [])
+    .map((row) => ({
+      time: Math.floor(num(row.t || row.T || row.time) / 1000),
+      open: num(row.o || row.open),
+      high: num(row.h || row.high),
+      low: num(row.l || row.low),
+      close: num(row.c || row.close),
+      volume: num(row.v || row.volume),
+    }))
+    .filter((row) => row.time && row.open > 0 && row.high > 0 && row.low > 0 && row.close > 0)
+    .sort((a, b) => a.time - b.time);
+  const result = {
+    ok: true,
+    provider: "Hyperliquid",
+    coverage: "Live",
+    isLive: true,
+    symbol: coin,
+    timeframe: interval,
+    generated_at: new Date().toISOString(),
+    count: candles.length,
+    candles,
+  };
+  hyperliquidCache.set(key, { payload: result, expires: Date.now() + 30_000 });
+  return result;
+}
+
 async function searchDex(query) {
   if (!query) return [];
   const payload = await cachedDex(`/latest/dex/search?q=${encodeURIComponent(query)}`);
@@ -1646,6 +1698,15 @@ async function routeApi(request, env) {
       return json(await hyperliquidPerps());
     } catch (error) {
       return json({ ok: false, provider: "Hyperliquid", coverage: "Unavailable", isLive: false, warning: "Hyperliquid unavailable", error: error instanceof Error ? error.message : "hyperliquid_perps_failed", results: [] }, { status: 502 });
+    }
+  }
+  if (pathname === "/api/hyperliquid/candles" && request.method === "GET") {
+    try {
+      const symbol = url.searchParams.get("symbol") || "";
+      const timeframe = url.searchParams.get("timeframe") || "1h";
+      return json(await hyperliquidCandles(symbol, timeframe));
+    } catch (error) {
+      return json({ ok: false, provider: "Hyperliquid", coverage: "Unavailable", isLive: false, warning: "Hyperliquid candles unavailable", error: error instanceof Error ? error.message : "hyperliquid_candles_failed", candles: [] }, { status: 502 });
     }
   }
   return json({ ok: false, error: "not_found" }, { status: 404 });

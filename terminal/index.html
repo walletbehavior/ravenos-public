@@ -931,7 +931,7 @@
       return "alt";
     }
 
-    function applyMarketPrice(priceRow) {
+    function applyMarketPrice(priceRow, targetCategory = "") {
       const symbol = normalizedMarketSymbol(priceRow.symbol);
       const price = Number(priceRow.priceUsd);
       if (!symbol || !Number.isFinite(price) || price <= 0) return;
@@ -939,6 +939,9 @@
       pools.forEach((pool) => {
         pool.forEach((row) => {
           if (normalizedMarketSymbol(row.asset) !== symbol) return;
+          if (targetCategory === "perpetuals" && row.category !== "perpetuals") return;
+          if (targetCategory === "crypto_spot" && row.category !== "crypto_spot") return;
+          if (targetCategory === "market_preview" && !["equities", "etfs"].includes(row.category)) return;
           row.lastPrice = price;
           row.provider = priceRow.provider || row.provider || "Public market data";
           row.coverage = priceRow.coverage || row.coverage || "Developing";
@@ -1027,6 +1030,8 @@
     let accessTier = "free";
     let chartHandle;
     let chartRenderKey = "";
+    const candleCache = new Map();
+    const candleInflight = new Set();
     let sortKey = "flowScore";
     let sortDir = -1;
 
@@ -1071,8 +1076,18 @@
       });
     }
 
+    function mergeRowsByAsset(items) {
+      const byAsset = new Map();
+      items.forEach((row) => {
+        if (!row?.asset) return;
+        const existing = byAsset.get(row.asset) || {};
+        byAsset.set(row.asset, { ...existing, ...row });
+      });
+      return [...byAsset.values()];
+    }
+
     function flowUniverse() {
-      return uniqueRows([...dexRows, ...perpsRows, ...cryptoRows, ...marketCatalogRows(), ...rows]);
+      return mergeRowsByAsset([...rows, ...marketCatalogRows(), ...cryptoRows, ...perpsRows, ...livePerpsRows, ...dexRows]);
     }
 
     function allRows() {
@@ -1140,9 +1155,9 @@
     }
 
     function rowsForCategory(category = activeCategory) {
-      if (isCryptoCategory(category)) return filteredCryptoRows(uniqueRows([...dexRows, ...cryptoRows, ...rows.filter((row) => row.category === "crypto_spot")]), category);
-      if (isPerpsCategory(category)) return filteredCryptoRows(uniqueRows([...livePerpsRows, ...perpsRows, ...rows.filter((row) => row.category === "perpetuals")]), category);
-      if (category === "equities" || category === "etfs") return uniqueRows([...marketCatalogRows(), ...rows]).filter((row) => row.category === category);
+      if (isCryptoCategory(category)) return filteredCryptoRows(mergeRowsByAsset([...rows.filter((row) => row.category === "crypto_spot"), ...cryptoRows, ...dexRows]), category);
+      if (isPerpsCategory(category)) return filteredCryptoRows(mergeRowsByAsset([...rows.filter((row) => row.category === "perpetuals"), ...perpsRows, ...livePerpsRows]), category);
+      if (category === "equities" || category === "etfs") return mergeRowsByAsset([...rows, ...marketCatalogRows()]).filter((row) => row.category === category);
       if (["options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
@@ -1236,6 +1251,37 @@
       return window.RavenChartTimeframes?.makeTimeframeCandles?.(candlePattern, timeframe, anchor, identity) || [];
     }
 
+    function liveCandleKey(row, timeframe = selectedTimeframe()) {
+      return `${normalizedMarketSymbol(row.asset)}|${timeframe}`;
+    }
+
+    function candlesForRow(row, timeframe = selectedTimeframe()) {
+      const key = liveCandleKey(row, timeframe);
+      const cached = candleCache.get(key);
+      if (row.category === "perpetuals" && cached?.candles?.length) return { candles: cached.candles, source: "live", provider: cached.provider || "Hyperliquid" };
+      return { candles: scaledCandles(row, timeframe), source: "proxy", provider: "Raven structure proxy" };
+    }
+
+    async function fetchLiveCandles(row, timeframe = selectedTimeframe()) {
+      if (!row || row.category !== "perpetuals") return;
+      const key = liveCandleKey(row, timeframe);
+      if (candleInflight.has(key)) return;
+      candleInflight.add(key);
+      try {
+        const response = await fetch(`/api/hyperliquid/candles?symbol=${encodeURIComponent(normalizedMarketSymbol(row.asset))}&timeframe=${encodeURIComponent(timeframe)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        const candles = Array.isArray(payload.candles) ? payload.candles : [];
+        if (payload.ok && candles.length) {
+          candleCache.set(key, { candles, provider: payload.provider || "Hyperliquid", updatedAt: payload.generated_at || new Date().toISOString() });
+          const current = selectedRow();
+          if (current.asset === row.asset && selectedTimeframe() === timeframe) renderChart();
+        }
+      } catch (_) {
+      } finally {
+        candleInflight.delete(key);
+      }
+    }
+
     function timeframeMetrics(candles, timeframe) {
       const first = candles[0] || {};
       const last = candles[candles.length - 1] || {};
@@ -1295,7 +1341,8 @@
     function renderChart() {
       const row = selectedRow();
       const state = selectedChartState(row);
-      const candleData = scaledCandles(row, state.timeframe);
+      const candleResult = candlesForRow(row, state.timeframe);
+      const candleData = candleResult.candles;
       const tfMetrics = timeframeMetrics(candleData, state.timeframe);
       const overlays = window.RavenChartOverlays?.getOverlays?.({
         symbol: state.instrument,
@@ -1308,7 +1355,7 @@
       }) || [];
       if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
-      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · OHLCV with RavenOS overlays`;
+      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · ${candleResult.source === "live" ? `${candleResult.provider} OHLCV` : "structure proxy OHLCV"} with RavenOS overlays`;
       document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
       document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
       document.getElementById("lastPrice").textContent = money(row.lastPrice);
@@ -1363,13 +1410,14 @@
         compact: mobileChart,
         height: chartHost.clientHeight || (mobileChart ? 330 : 520),
       });
-      renderChartDebug(state, candleData, overlays);
+      renderChartDebug(state, candleData, overlays, candleResult);
+      if (row.category === "perpetuals" && candleResult.source !== "live") fetchLiveCandles(row, state.timeframe);
       const intelPanel = document.querySelector(".intel");
       if (intelPanel) intelPanel.setAttribute("data-feature", isPerpsMode() ? "perps_intelligence" : "basic_overlays");
       window.RavenOSFeatures?.applyFeatureGates?.();
     }
 
-    function renderChartDebug(state, candles, overlays) {
+    function renderChartDebug(state, candles, overlays, candleResult = {}) {
       const debug = document.getElementById("chartDebug");
       if (!debug) return;
       const windowMeta = window.RavenChartTimeframes?.candleWindow?.(candles) || { count: candles.length, first: candles[0]?.time, last: candles[candles.length - 1]?.time };
@@ -1380,6 +1428,7 @@
         `mode=${state.mode}`,
         `timeframe=${state.timeframe}`,
         `candles=${windowMeta.count}`,
+        `source=${candleResult.source || "unknown"}`,
         `first=${windowMeta.first}`,
         `last=${windowMeta.last}`,
         `overlays=${overlays.length}`,
@@ -2258,8 +2307,34 @@
         if (!symbols) return;
         const response = await fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
-        (Array.isArray(payload.results) ? payload.results : []).forEach(applyMarketPrice);
+        (Array.isArray(payload.results) ? payload.results : []).forEach((row) => applyMarketPrice(row, "crypto_spot"));
       } catch (_) {}
+    }
+
+    function symbolsForRows(source) {
+      return [...new Set(source.map((row) => normalizedMarketSymbol(row.asset)).filter(Boolean))].slice(0, 80);
+    }
+
+    async function refreshMarketPrices({ rerender = true } = {}) {
+      const select = document.getElementById("assetSelect");
+      const selectedBefore = select?.value || "";
+      const perpsSymbols = symbolsForRows(mergeRowsByAsset([...rows.filter((row) => row.category === "perpetuals"), ...perpsRows, ...livePerpsRows]));
+      const spotSymbols = symbolsForRows(mergeRowsByAsset([...rows.filter((row) => row.category === "crypto_spot"), ...cryptoRows, ...dexRows]));
+      const marketSymbols = symbolsForRows(mergeRowsByAsset([...rows.filter((row) => ["equities", "etfs"].includes(row.category)), ...marketCatalogRows()]));
+      const requests = [
+        perpsSymbols.length ? { target: "perpetuals", promise: fetch(`/api/market/prices?market=perp&symbols=${encodeURIComponent(perpsSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
+        spotSymbols.length ? { target: "crypto_spot", promise: fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(spotSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
+        marketSymbols.length ? { target: "market_preview", promise: fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(marketSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
+      ].filter(Boolean);
+      const payloads = await Promise.all(requests.map((item) => item.promise));
+      payloads.forEach((payload, index) => {
+        (Array.isArray(payload?.results) ? payload.results : []).forEach((row) => applyMarketPrice(row, requests[index].target));
+      });
+      if (!rerender) return;
+      renderAssetOptions();
+      if (selectedBefore && assetOptionsForMode().some((row) => row.asset === selectedBefore)) select.value = selectedBefore;
+      renderChart();
+      renderTable();
     }
 
     const dexSearchTimers = {};
@@ -2434,11 +2509,19 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
       await hydrateLiveContext();
+      await refreshMarketPrices({ rerender: false });
       renderNav();
       renderAssetOptions();
       renderChart();
       renderTable();
       hydrateCategoryOptions(activeCategory);
+      window.setInterval(() => {
+        if (document.hidden) return;
+        refreshMarketPrices().catch(() => {});
+      }, 30000);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) refreshMarketPrices().catch(() => {});
+      });
       document.getElementById("assetSelect").addEventListener("change", renderChart);
       document.getElementById("modeSelect").addEventListener("change", () => {
         activeMode = document.getElementById("modeSelect").value;

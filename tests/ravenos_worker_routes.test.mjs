@@ -374,6 +374,13 @@ let looseSearchCallsForKnownSymbols = 0;
 globalThis.fetch = async (url, init) => {
   const href = String(url);
   if (href.includes("api.hyperliquid.xyz/info")) {
+    const body = JSON.parse(init?.body || "{}");
+    if (body.type === "candleSnapshot") {
+      return new Response(JSON.stringify([
+        { t: 1_800_000_000_000, o: "62000", h: "62500", l: "61800", c: "62400", v: "123.4" },
+        { t: 1_800_003_600_000, o: "62400", h: "62600", l: "62100", c: "62550", v: "234.5" },
+      ]), { status: 200, headers: { "content-type": "application/json" } });
+    }
     return new Response(JSON.stringify([
       { universe: [{ name: "ETH" }] },
       [{ markPx: "1601.25", midPx: "1601.2", oraclePx: "1601.1", prevDayPx: "1580", funding: "0.00001", premium: "0.0002", openInterest: "100000", dayNtlVlm: "5000000" }],
@@ -597,6 +604,15 @@ const perpPricePayload = await perpPrices.json();
 assert.equal(perpPricePayload.results[0].symbol, "ETH");
 assert.equal(perpPricePayload.results[0].priceUsd, 1601.25);
 assert.equal(perpPricePayload.results[0].provider, "Hyperliquid");
+
+const perpCandles = await worker.fetch(new Request("https://ravenos.xyz/api/hyperliquid/candles?symbol=BTC-PERP&timeframe=1h"), env);
+assert.equal(perpCandles.status, 200);
+const perpCandlePayload = await perpCandles.json();
+assert.equal(perpCandlePayload.provider, "Hyperliquid");
+assert.equal(perpCandlePayload.symbol, "BTC");
+assert.equal(perpCandlePayload.timeframe, "1h");
+assert.equal(perpCandlePayload.candles.length, 2);
+assert.equal(perpCandlePayload.candles[0].close, 62400);
 
 forceCoingeckoDown = true;
 const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO,AIXBT"), env);
