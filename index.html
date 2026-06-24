@@ -225,6 +225,9 @@
       if (!Number.isFinite(n)) return fallback;
       return `${n.toFixed(n >= 100 ? 0 : 1)}%`;
     }
+    function payloadData(payload) {
+      return payload?.data && typeof payload.data === "object" ? payload.data : payload || {};
+    }
     function isConstructiveRead(value) {
       return /constructive|reward|favorable|improv|expand|risk-on/.test(String(value || "").toLowerCase());
     }
@@ -263,9 +266,12 @@
       const chains = Array.isArray(opp.chain_rows) ? opp.chain_rows : [];
       const capBands = Array.isArray(opp.cap_band_rows) ? opp.cap_band_rows : [];
       const perps = opp.perps_context || {};
-      const rows = Array.isArray(opportunity.rows) ? opportunity.rows : [];
-      const replayRows = Array.isArray(replay.rows) ? replay.rows : [];
-      const outcomeRows = Array.isArray(outcomes.rows) ? outcomes.rows : [];
+      const opportunityData = payloadData(opportunity);
+      const replayData = payloadData(replay);
+      const outcomesData = payloadData(outcomes);
+      const rows = Array.isArray(opportunityData.rows) ? opportunityData.rows : [];
+      const replayRows = Array.isArray(replayData.comparables) ? replayData.comparables : Array.isArray(replayData.rows) ? replayData.rows : [];
+      const outcomeRows = Array.isArray(outcomesData.outcomes) ? outcomesData.outcomes : Array.isArray(outcomesData.rows) ? outcomesData.rows : [];
       const observed = Number(opp.observed_rows || rows.length || outcomeRows.length || 0);
       const rewarding = Number(opp.rewarding_count || 0);
       const punishing = Number(opp.punishing_count || 0);
@@ -277,7 +283,7 @@
       text("homeUpdated", age(Math.min(...[brief, opportunity, replay, outcomes].map((p) => Number(p.freshness_age_seconds)).filter(Number.isFinite))));
       text("homeCoverage", `${safeCount(opp.live_public_markets || observed)} public markets`);
       text("homeSample", `${safeCount(observed)} observations`);
-      text("homeReplay", `${safeCount(replayRows.length || replay.data?.analog_count)} similar structures`);
+      text("homeReplay", `${safeCount(replayRows.length || replayData.analog_count)} similar structures`);
       text("homeSource", opportunity.source === "public_origin" ? "Verified public origin" : "Live public API");
       if (surface && surface !== "Market Current" && isConstructiveRead(bestRead) && !isWeakRead(bestRead)) {
         text("homeReadTitle", `${surface} is the strongest current constructive surface.`);
@@ -293,7 +299,7 @@
       text("homeOutcome", rewarding || punishing ? `${safeCount(rewarding)} rewarding / ${safeCount(punishing)} punishing` : "mixed evidence");
       text("homeStrongest", best.strongest_signal || "participation breadth");
       text("homeWeakest", best.weakest_signal || "confirmation depth");
-      text("homeSimilar", safeCount(replayRows.length || replay.data?.analog_count));
+      text("homeSimilar", safeCount(replayRows.length || replayData.analog_count));
       text("homeExpanded", safeCount(outcomeRows.filter((row) => /reward|expand|continu/i.test(JSON.stringify(row))).length || rewarding));
       text("homeMixed", safeCount(mixed));
       text("homeFailed", safeCount(outcomeRows.filter((row) => /fail|punish|weak/i.test(JSON.stringify(row))).length || punishing));
@@ -325,7 +331,7 @@
       ].join("");
       const tiles = Array.isArray(opp.top_opportunities) ? opp.top_opportunities.slice(0, 3) : [];
       if (tiles.length) {
-        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p>Why: ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. Caveat: ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Evidence</span><strong>${safeCount(row.sample_size)}</strong></div></article>`).join("");
+        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p><strong>What Raven believes:</strong> ${row.read || "Current activity is forming."}</p><p><strong>Why:</strong> ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. <strong>Risk:</strong> ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Sample</span><strong>${safeCount(row.sample_size)}</strong></div><div class="row"><span>Freshness</span><strong>${age(Number(opportunity.freshness_age_seconds))}</strong></div></article>`).join("");
       }
     }
     hydrateHome();

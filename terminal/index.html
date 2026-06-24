@@ -1275,7 +1275,42 @@
       const key = liveCandleKey(row, timeframe);
       const cached = candleCache.get(key);
       if (row.category === "perpetuals" && cached?.candles?.length) return { candles: cached.candles, source: "live", provider: cached.provider || "Hyperliquid" };
+      if (["equities", "etfs"].includes(row.category) && row.isLive !== true) return { candles: [], source: "external", provider: "External market chart" };
       return { candles: scaledCandles(row, timeframe), source: "proxy", provider: "Structure Proxy" };
+    }
+
+    function externalChartUrl(row = {}) {
+      const symbol = normalizedMarketSymbol(row.asset);
+      if (!symbol) return "";
+      if (["equities", "etfs"].includes(row.category)) return `https://finance.yahoo.com/chart/${encodeURIComponent(symbol)}`;
+      return "";
+    }
+
+    function chartSourceLabel(row, candleResult) {
+      if (candleResult.source === "live") return `${candleResult.provider} OHLCV`;
+      if (candleResult.source === "external") return "External market chart available";
+      return "Structure Proxy";
+    }
+
+    function chartEmptyLabel(row, candleResult) {
+      if (candleResult.source === "external") return "Coverage Developing. Provider-backed Raven candles are not active for this market yet.";
+      return "No chart data available.";
+    }
+
+    function renderExternalChartCta(row, candleResult, chartHost) {
+      const existing = chartHost.querySelector(".external-chart-cta");
+      if (existing) existing.remove();
+      const url = externalChartUrl(row);
+      if (candleResult.source !== "external" || !url) return;
+      const cta = document.createElement("a");
+      cta.className = "external-chart-cta";
+      cta.href = url;
+      cta.target = "_blank";
+      cta.rel = "noopener noreferrer";
+      cta.textContent = `Open ${normalizedMarketSymbol(row.asset)} on Yahoo Finance`;
+      cta.style.cssText = "position:absolute;left:50%;top:58%;transform:translateX(-50%);border:1px solid rgba(125,211,252,.38);background:rgba(125,211,252,.08);color:#edf6f1;padding:8px 10px;font-size:11px;font-weight:850;text-transform:uppercase;z-index:5;";
+      chartHost.style.position = "relative";
+      chartHost.appendChild(cta);
     }
 
     async function fetchLiveCandles(row, timeframe = selectedTimeframe()) {
@@ -1371,7 +1406,7 @@
       }) || [];
       if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
-      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · ${candleResult.source === "live" ? `${candleResult.provider} OHLCV` : "Structure Proxy"} with RavenOS overlays`;
+      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · ${chartSourceLabel(row, candleResult)}${candleResult.source === "external" ? "" : " with RavenOS overlays"}`;
       document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
       document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
       document.getElementById("lastPrice").textContent = displayPrice(row);
@@ -1425,7 +1460,9 @@
         showVolume: true,
         compact: mobileChart,
         height: chartHost.clientHeight || (mobileChart ? 330 : 520),
+        emptyLabel: chartEmptyLabel(row, candleResult),
       });
+      renderExternalChartCta(row, candleResult, chartHost);
       renderChartDebug(state, candleData, overlays, candleResult);
       if (row.category === "perpetuals" && candleResult.source !== "live") fetchLiveCandles(row, state.timeframe);
       const intelPanel = document.querySelector(".intel");
