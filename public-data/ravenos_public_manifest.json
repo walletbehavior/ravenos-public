@@ -6,6 +6,7 @@
   "normal_pages_rebuild_required_for_data": false,
   "notes": [
     "Static frontend shell can poll public API endpoints.",
+    "Worker can optionally fetch a signed public-safe origin via RAVENOS_PUBLIC_ORIGIN_URL and falls back to bundled artifacts.",
     "Fast endpoints use Worker-side public providers and verified public artifacts.",
     "Private Raven trading logic, wallets, token targets, execution internals, and raw runtime data are not public endpoints."
   ],

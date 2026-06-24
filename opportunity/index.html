@@ -162,12 +162,12 @@
 
     <main>
       <section class="status-strip" aria-label="Intraday opportunity status">
-        <div class="status-cell hot"><span>Hot Sector</span><strong>Solana Micro</strong></div>
-        <div class="status-cell"><span>Best Chain</span><strong>Solana</strong></div>
-        <div class="status-cell"><span>Best Cap Band</span><strong>$100k-$1m</strong></div>
-        <div class="status-cell"><span>Rewarding</span><strong class="positive">61</strong></div>
-        <div class="status-cell"><span>Punishing</span><strong class="negative">24</strong></div>
-        <div class="status-cell"><span>Updated</span><strong>Current Session</strong></div>
+        <div class="status-cell hot"><span>Hot Sector</span><strong id="oppHotSector">Solana Micro</strong></div>
+        <div class="status-cell"><span>Best Chain</span><strong id="oppBestChain">Solana</strong></div>
+        <div class="status-cell"><span>Best Cap Band</span><strong id="oppBestBand">$100k-$1m</strong></div>
+        <div class="status-cell"><span>Rewarding</span><strong id="oppRewarding" class="positive">61</strong></div>
+        <div class="status-cell"><span>Punishing</span><strong id="oppPunishing" class="negative">24</strong></div>
+        <div class="status-cell"><span>Updated</span><strong id="oppUpdated">Current Session</strong></div>
       </section>
 
       <section class="hero-grid">
@@ -182,16 +182,16 @@
           </div>
           <div class="hot-read">
             <div>
-              <strong>Solana Micro</strong>
-              <span>Fresh participation and survival quality are strongest in the micro-cap band, with Base small caps beginning to build. This is a research read with visible evidence, not a trade call.</span>
+              <strong id="oppHeroSurface">Solana Micro</strong>
+              <span id="oppHeroDetail">Fresh participation and survival quality are strongest in the micro-cap band, with Base small caps beginning to build. This is a research read with visible evidence, not a trade call.</span>
             </div>
             <a class="button" href="/terminal/">Open Chart Workspace</a>
           </div>
           <div class="metric-grid">
-            <div class="metric"><span>Participation</span><strong class="positive">Expanding</strong></div>
-            <div class="metric"><span>Confidence</span><strong>Moderate</strong></div>
-            <div class="metric"><span>Usable Sample</span><strong>85 / 109</strong></div>
-            <div class="metric"><span>What Changed</span><strong>Base Improving</strong></div>
+            <div class="metric"><span>Participation</span><strong id="oppParticipation" class="positive">Expanding</strong></div>
+            <div class="metric"><span>Confidence</span><strong id="oppConfidence">Moderate</strong></div>
+            <div class="metric"><span>Usable Sample</span><strong id="oppUsableSample">85 / 109</strong></div>
+            <div class="metric"><span>What Changed</span><strong id="oppWhatChanged">Base Improving</strong></div>
           </div>
         </article>
 

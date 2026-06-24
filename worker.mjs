@@ -104,6 +104,7 @@ const PUBLIC_API_ENDPOINTS = {
     freshnessTargetSeconds: 60,
     cacheControl: "public, max-age=15, stale-while-revalidate=60",
     schemaVersion: "ravenos_terminal_public_v1",
+    liveProvider: "hyperliquid_public",
   },
   opportunity: {
     endpoint: "/api/opportunity",
@@ -111,6 +112,7 @@ const PUBLIC_API_ENDPOINTS = {
     freshnessTargetSeconds: 120,
     cacheControl: "public, max-age=60, stale-while-revalidate=120",
     schemaVersion: "ravenos_opportunity_public_v1",
+    liveProvider: "dexscreener_public",
   },
   brief: {
     endpoint: "/api/brief",
@@ -176,6 +178,7 @@ const PUBLIC_API_ENDPOINTS = {
 const PUBLIC_FORBIDDEN_PATTERNS = [
   /WalletMemory/i,
   /ShadowMirror/i,
+  /canary/i,
   /live execution/i,
   /private wallet/i,
   /private token target/i,
@@ -183,6 +186,11 @@ const PUBLIC_FORBIDDEN_PATTERNS = [
   /Turnkey/i,
   /signer/i,
   /treasury/i,
+];
+
+const PUBLIC_WALLET_LIKE_PATTERNS = [
+  /\b0x[a-fA-F0-9]{40}\b/,
+  /\b[1-9A-HJ-NP-Za-km-z]{42,44}\b/,
 ];
 
 function json(payload, init = {}) {
@@ -897,9 +905,56 @@ function ageSeconds(generatedAt) {
   return Math.max(0, Math.floor((Date.now() - ts) / 1000));
 }
 
-function publicTextSafe(payload) {
+function validatePublicPayload(payload) {
   const text = JSON.stringify(payload || {});
-  return !PUBLIC_FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text));
+  const forbidden = PUBLIC_FORBIDDEN_PATTERNS.find((pattern) => pattern.test(text));
+  if (forbidden) return { ok: false, reason: "private_label_detected" };
+  const addressLike = PUBLIC_WALLET_LIKE_PATTERNS.find((pattern) => pattern.test(text));
+  if (addressLike) return { ok: false, reason: "address_like_value_detected" };
+  return { ok: true, reason: "" };
+}
+
+function publicTextSafe(payload) {
+  return validatePublicPayload(payload).ok;
+}
+
+function originPathForKey(key, config = {}) {
+  const cleanKey = String(key || "").replace(/[^a-z0-9/_-]/gi, "");
+  if (config.originPath) return config.originPath;
+  return `/public-data/${cleanKey}.json`;
+}
+
+async function readOriginJson(request, env, key, config) {
+  const base = String(env?.RAVENOS_PUBLIC_ORIGIN_URL || env?.RAVENOS_PUBLIC_ARTIFACT_ORIGIN || "").replace(/\/+$/, "");
+  if (!base) return { payload: null, source: "origin_not_configured", error: "" };
+  const originUrl = new URL(`${base}${originPathForKey(key, config)}`);
+  const headers = { accept: "application/json" };
+  if (env?.RAVENOS_PUBLIC_ORIGIN_TOKEN) headers["x-ravenos-public-token"] = env.RAVENOS_PUBLIC_ORIGIN_TOKEN;
+  const cacheKey = new Request(originUrl.toString(), { method: "GET" });
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const cached = cache ? await cache.match(cacheKey).catch(() => null) : null;
+  if (cached) {
+    const payload = await cached.clone().json().catch(() => null);
+    if (payload && validatePublicPayload(payload).ok) return { payload, source: "origin_cache", error: "" };
+  }
+  const response = await fetch(originUrl.toString(), { headers });
+  if (!response.ok) return { payload: null, source: "origin", error: `origin_http_${response.status}` };
+  const payload = await response.json().catch(() => null);
+  const validation = validatePublicPayload(payload);
+  if (!payload || typeof payload !== "object" || !validation.ok) {
+    return { payload: null, source: "origin", error: validation.reason || "origin_invalid_json" };
+  }
+  if (cache) {
+    const ttl = Math.max(15, Math.min(900, Number(config.freshnessTargetSeconds || 120)));
+    const cachedResponse = new Response(JSON.stringify(payload), {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": `public, max-age=${ttl}`,
+      },
+    });
+    await cache.put(cacheKey, cachedResponse).catch(() => {});
+  }
+  return { payload, source: "origin", error: "" };
 }
 
 async function readAssetJson(request, env, path) {
@@ -914,10 +969,23 @@ async function readAssetJson(request, env, path) {
   return payload;
 }
 
+async function readPublicArtifact(request, env, key, config) {
+  const origin = await readOriginJson(request, env, key, config).catch((error) => ({
+    payload: null,
+    source: "origin",
+    error: error instanceof Error ? error.message : "origin_unavailable",
+  }));
+  if (origin.payload) return origin;
+  const asset = await readAssetJson(request, env, config.artifactPath);
+  if (asset) return { payload: asset, source: "bundled_artifact", error: origin.error || "" };
+  return { payload: null, source: origin.source || "bundled_artifact", error: origin.error || "artifact_unavailable" };
+}
+
 function publicEnvelope(key, config, payload, extra = {}) {
   const generatedAt = extra.generated_at || generatedAtOf(payload) || new Date().toISOString();
   const age = ageSeconds(generatedAt);
   const stale = age === null ? true : age > Number(config.freshnessTargetSeconds || 900);
+  const source = extra.source || "bundled_artifact";
   return {
     ok: true,
     key,
@@ -932,6 +1000,8 @@ function publicEnvelope(key, config, payload, extra = {}) {
     redaction_policy: "aggregate_public_market_context_only",
     coverage: stale ? "delayed context" : "active",
     status: stale ? "stale" : "live_public_read",
+    source,
+    source_label: source === "origin" || source === "origin_cache" ? "public artifact origin" : "bundled public artifact",
     artifact_path: config.artifactPath,
     data: payload || {},
     ...extra,
@@ -953,6 +1023,8 @@ function degradedEnvelope(key, config, message = "current read forming") {
     redaction_policy: "aggregate_public_market_context_only",
     coverage: "developing",
     status: "degraded",
+    source: "none",
+    source_label: "current read forming",
     message,
     data: {},
   };
@@ -1003,7 +1075,8 @@ function opportunitySummaryFromHeatmap(payload = {}) {
 }
 
 async function liveOpportunityPayload(request, env, config) {
-  const heatmap = await readAssetJson(request, env, config.artifactPath);
+  const artifact = await readPublicArtifact(request, env, "opportunity", config);
+  const heatmap = artifact.payload;
   const summary = opportunitySummaryFromHeatmap(heatmap || {});
   let trending = [];
   if (String(env?.RAVENOS_DISABLE_LIVE_PROVIDER_FETCH || "").toLowerCase() !== "true") {
@@ -1014,6 +1087,7 @@ async function liveOpportunityPayload(request, env, config) {
     }
   }
   return publicEnvelope("opportunity", config, heatmap || {}, {
+    source: artifact.source,
     generated_at: trending.length ? new Date().toISOString() : generatedAtOf(heatmap || {}),
     summary: {
       ...summary,
@@ -1030,7 +1104,8 @@ async function liveOpportunityPayload(request, env, config) {
 }
 
 async function liveTerminalPayload(request, env, config) {
-  const heatmap = await readAssetJson(request, env, config.artifactPath);
+  const artifact = await readPublicArtifact(request, env, "terminal", config);
+  const heatmap = artifact.payload;
   let perps = null;
   try {
     perps = await hyperliquidPerps();
@@ -1038,6 +1113,7 @@ async function liveTerminalPayload(request, env, config) {
     perps = null;
   }
   return publicEnvelope("terminal", config, heatmap || {}, {
+    source: artifact.source,
     generated_at: perps?.lastUpdated || generatedAtOf(heatmap || {}),
     summary: {
       heatmap: opportunitySummaryFromHeatmap(heatmap || {}),
@@ -1062,16 +1138,18 @@ async function liveTerminalPayload(request, env, config) {
 }
 
 async function staticPublicPayload(request, env, key, config) {
-  const payload = await readAssetJson(request, env, config.artifactPath);
-  if (!payload) return degradedEnvelope(key, config, "using page fallback; public artifact unavailable");
-  return publicEnvelope(key, config, payload);
+  const artifact = await readPublicArtifact(request, env, key, config);
+  if (!artifact.payload) return degradedEnvelope(key, config, "using page fallback; public artifact unavailable");
+  return publicEnvelope(key, config, artifact.payload, { source: artifact.source });
 }
 
 async function chainPublicPayload(request, env, key, config) {
-  const payload = await readAssetJson(request, env, config.artifactPath);
+  const artifact = await readPublicArtifact(request, env, key, config);
+  const payload = artifact.payload;
   if (!payload) return degradedEnvelope(key, config, "chain read forming");
   const rows = heatmapRows(payload).filter((row) => String(row.chain || "").toLowerCase() === config.chain);
   return publicEnvelope(key, config, payload, {
+    source: artifact.source,
     summary: opportunitySummaryFromHeatmap({ rows }),
     rows,
   });
@@ -1092,21 +1170,30 @@ async function handlePublicRead(request, env, key) {
 
 async function handlePublicStatus(request, env) {
   const entries = await Promise.all(Object.entries(PUBLIC_API_ENDPOINTS).map(async ([key, config]) => {
-    const payload = await readAssetJson(request, env, config.artifactPath);
+    const artifact = await readPublicArtifact(request, env, key, config);
+    const payload = artifact.payload;
     const generatedAt = generatedAtOf(payload || {});
-    const age = ageSeconds(generatedAt);
+    const artifactAge = ageSeconds(generatedAt);
+    const liveProviderActive = Boolean(config.liveProvider) && String(env?.RAVENOS_DISABLE_LIVE_PROVIDER_FETCH || "").toLowerCase() !== "true";
+    const effectiveGeneratedAt = liveProviderActive ? new Date().toISOString() : generatedAt;
+    const effectiveAge = ageSeconds(effectiveGeneratedAt);
     return {
       key,
       endpoint: config.endpoint,
       artifact_path: config.artifactPath,
+      source: liveProviderActive ? `${config.liveProvider}+${artifact.source}` : artifact.source,
+      source_label: liveProviderActive ? "live public provider with verified artifact context" : artifact.source === "origin" || artifact.source === "origin_cache" ? "public artifact origin" : "bundled public artifact",
       freshness_target_seconds: config.freshnessTargetSeconds,
-      last_generated_at: generatedAt || null,
-      freshness_age_seconds: age,
-      stale: age === null ? true : age > Number(config.freshnessTargetSeconds || 900),
+      last_generated_at: effectiveGeneratedAt || null,
+      artifact_generated_at: generatedAt || null,
+      freshness_age_seconds: effectiveAge,
+      artifact_age_seconds: artifactAge,
+      stale: effectiveAge === null ? true : effectiveAge > Number(config.freshnessTargetSeconds || 900),
       safe_public: true,
       schema_version: config.schemaVersion,
       redaction_policy: "aggregate_public_market_context_only",
       status: payload ? "available" : "degraded",
+      error: artifact.error || "",
     };
   }));
   return publicJson({

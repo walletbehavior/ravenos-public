@@ -98,7 +98,11 @@ assert.equal(publicStatus.status, 200);
 assert.match(publicStatus.headers.get("cache-control") || "", /max-age=30/);
 const publicStatusPayload = await publicStatus.json();
 assert.equal(publicStatusPayload.normal_pages_rebuild_required_for_data, false);
-assert.ok(publicStatusPayload.endpoints.find((row) => row.endpoint === "/api/opportunity"));
+const opportunityStatus = publicStatusPayload.endpoints.find((row) => row.endpoint === "/api/opportunity");
+assert.ok(opportunityStatus);
+assert.equal(opportunityStatus.source, "dexscreener_public+bundled_artifact");
+assert.equal(opportunityStatus.stale, false);
+assert.ok(Number.isFinite(opportunityStatus.artifact_age_seconds));
 
 const publicOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
   ...env,
@@ -109,6 +113,35 @@ assert.match(publicOpportunity.headers.get("cache-control") || "", /max-age=60/)
 const publicOpportunityPayload = await publicOpportunity.json();
 assert.equal(publicOpportunityPayload.safe_public, true);
 assert.equal(publicOpportunityPayload.summary.best_surface.chain, "solana");
+
+const publicArtifactOriginalFetch = globalThis.fetch;
+globalThis.fetch = async (url) => new Response(JSON.stringify({
+  generated_at: new Date().toISOString(),
+  rows: [{ chain: "base", cap_band: "small", sample_size: 88, confidence: "high", derived_state: "participation rewarding" }],
+}), { status: 200, headers: { "content-type": "application/json" } });
+const originOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+  ...env,
+  RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
+  RAVENOS_PUBLIC_ORIGIN_TOKEN: "test-token",
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const originOpportunityPayload = await originOpportunity.json();
+assert.equal(originOpportunityPayload.source, "origin");
+assert.equal(originOpportunityPayload.summary.best_surface.chain, "base");
+
+globalThis.fetch = async () => new Response(JSON.stringify({
+  generated_at: new Date().toISOString(),
+  rows: [{ chain: "base", cap_band: "small", derived_state: "WalletMemory should not publish" }],
+}), { status: 200, headers: { "content-type": "application/json" } });
+const guardedOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+  ...env,
+  RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const guardedOpportunityPayload = await guardedOpportunity.json();
+assert.equal(guardedOpportunityPayload.source, "bundled_artifact");
+assert.equal(guardedOpportunityPayload.summary.best_surface.chain, "solana");
+globalThis.fetch = publicArtifactOriginalFetch;
 
 const publicOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), env);
 assert.equal(publicOutcomes.status, 200);

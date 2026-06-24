@@ -82,7 +82,12 @@ assert.match(accessScript, /entitlements/);
 assert.match(liveScript, /DEFAULT_INTERVALS/);
 assert.match(liveScript, /document\.hidden/);
 assert.match(liveScript, /data-ravenos-live-strip/);
+assert.match(liveScript, /renderOpportunityLive/);
+assert.match(liveScript, /renderOutcomesLive/);
+assert.match(liveScript, /renderTerminalLive/);
+assert.match(liveScript, /renderChainLive/);
 assert.match(publicManifest, /"normal_pages_rebuild_required_for_data": false/);
+assert.match(publicManifest, /RAVENOS_PUBLIC_ORIGIN_URL/);
 assert.ok(publicManifest.includes('"public_endpoint": "/api/opportunity"'));
 
 assert.match(terminal, /data-feature="free_token_lookup"/);
@@ -192,6 +197,9 @@ assert.match(perps, /ravenos-replay\.js/);
 assert.match(opportunity, /RavenOS Opportunity Board/);
 assert.match(opportunity, /data-ravenos-api="\/api\/opportunity"/);
 assert.match(opportunity, /ravenos-live\.js/);
+assert.match(opportunity, /id="oppHotSector"/);
+assert.match(opportunity, /id="oppHeroSurface"/);
+assert.match(opportunity, /id="oppUsableSample"/);
 assert.match(opportunity, /Hot Sector/);
 assert.match(opportunity, /Solana Micro/);
 assert.match(opportunity, /Opportunity evidence and provenance/);
@@ -237,6 +245,9 @@ assert.match(replayPage, /\/behavior\//);
 
 assert.match(outcomes, /RavenOS Outcome Dashboard/);
 assert.match(outcomes, /data-ravenos-api="\/api\/outcomes"/);
+assert.match(outcomes, /id="outBreakdownRows"/);
+assert.match(outcomes, /id="outHeroBadge"/);
+assert.match(outcomes, /id="outRewardingCount"/);
 assert.match(outcomes, /Public Outcome Scorecard/);
 assert.match(outcomes, /Rewarding/);
 assert.match(outcomes, /Punishing/);
@@ -265,6 +276,8 @@ assert.doesNotMatch(behavior, /WalletMemory|ShadowMirror|canary|live execution|0
 
 assert.match(solanaChain, /RavenOS Solana Intelligence/);
 assert.match(solanaChain, /data-ravenos-api="\/api\/chains\/solana"/);
+assert.match(solanaChain, /id="chainTopSurface"/);
+assert.match(solanaChain, /id="chainSample"/);
 assert.match(solanaChain, /Micro-cap participation is broadening/);
 assert.match(solanaChain, /Top opportunity surface/);
 assert.match(solanaChain, /Historical Context/);
