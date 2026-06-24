@@ -84,6 +84,7 @@
       .trust-strip div { border-right: 0; border-bottom: 1px solid var(--line); }
     }
   </style>
+  <link rel="stylesheet" href="/ravenos-funnel.css" />
 </head>
 <body data-ravenos-api="/api/brief">
   <main class="shell">
@@ -202,7 +203,28 @@
       </div>
     </section>
 
-    <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a></footer>
+<section class="raven-funnel" aria-label="Raven intelligence funnel">
+      <div class="raven-funnel-head">
+        <div>
+          <span class="raven-funnel-eyebrow">Understand → Validate → Investigate → Future Act</span>
+          <h2>RavenOS intelligence funnel</h2>
+          <p>What is happening, why does Raven believe it, and where should I investigate?</p>
+        </div>
+        <div class="raven-funnel-actions">
+          <a class="primary" href="/opportunity/">Open Opportunity</a>
+          <a href="/terminal/">Inspect Terminal</a>
+          <span>Future Trade Layer</span>
+        </div>
+      </div>
+      <div class="raven-funnel-grid">
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Understand</span><h3>Raven&apos;s Read</h3><p>What Raven believes and why the current read matters.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Freshness, coverage, sample depth, strongest support, and weakest caveat.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>What Happened Before</h3><p>Replay, Memory, and Outcomes show precedent and followthrough context.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>What To Investigate Next</h3><p>Opportunity is the prioritization layer; Terminal is the inspection layer.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Future Act</span><h3>Future Connected Venues</h3><p>Connected venues may come later. RavenOS remains market intelligence today.</p></article>
+      </div>
+    </section>
+<footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a></footer>
   </main>
   <script>
     function text(id, value) { const node = document.getElementById(id); if (node && value !== undefined && value !== null && value !== "") node.textContent = value; }

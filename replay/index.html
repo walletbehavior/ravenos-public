@@ -23,6 +23,7 @@
     ul{margin:0;padding-left:18px;color:var(--muted);line-height:1.55;font-size:13px}.footer{color:var(--soft);font-size:11px;text-align:center;padding:10px;border-top:1px solid var(--line)}
     @media(max-width:920px){.topbar,.hero,.grid,.evidence,.outcomes{grid-template-columns:1fr}nav{overflow-x:auto;flex-wrap:nowrap}nav a{flex:0 0 auto}}
   </style>
+  <link rel="stylesheet" href="/ravenos-funnel.css" />
 </head>
 <body>
   <main class="shell">
@@ -108,7 +109,29 @@
       <article class="card"><h3>Behavior Explorer</h3><p>Inspect aggregate participation, breadth, concentration, survival, and followthrough.</p><div class="row"><span>Open</span><strong><a href="/behavior/">Behavior</a></strong></div></article>
       <article class="card"><h3>Terminal</h3><p>Return to chart-level inspection once the evidence context is clear.</p><div class="row"><span>Open</span><strong><a href="/terminal/">Terminal</a></strong></div></article>
     </section>
-    <footer class="footer">Replay Lab is research context. Historical similarity does not guarantee future outcomes and does not constitute financial advice or a trading recommendation.</footer>
+
+<section class="raven-funnel" aria-label="Raven intelligence funnel">
+      <div class="raven-funnel-head">
+        <div>
+          <span class="raven-funnel-eyebrow">Understand → Validate → Investigate → Future Act</span>
+          <h2>Replay answers: have we seen this before?</h2>
+          <p>Replay compares current structures against similar prior market tapes.</p>
+        </div>
+        <div class="raven-funnel-actions">
+          <a class="primary" href="/opportunity/">Find Active Surfaces</a>
+          <a href="/memory/">Open Memory</a>
+          <span>Future Trade Layer</span>
+        </div>
+      </div>
+      <div class="raven-funnel-grid">
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Understand</span><h3>Raven&apos;s Read</h3><p>What Raven believes and why the current read matters.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Freshness, coverage, sample depth, strongest support, and weakest caveat.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>What Happened Before</h3><p>Replay, Memory, and Outcomes show precedent and followthrough context.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>What To Investigate Next</h3><p>Use Opportunity to find where similar structures are active now.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Future Act</span><h3>Future Connected Venues</h3><p>Connected venues may come later. RavenOS remains market intelligence today.</p></article>
+      </div>
+    </section>
+<footer class="footer">Replay Lab is research context. Historical similarity does not guarantee future outcomes and does not constitute financial advice or a trading recommendation.</footer>
   </main>
   <script src="/ravenos-live.js"></script>
 </body>

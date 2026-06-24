@@ -60,6 +60,45 @@ for (const [name, page] of coreResearchPages) {
   assert.ok(page.includes(githubDocsHref), `${name} should link to public docs`);
 }
 
+const funnelPages = [
+  ["home", home, /RavenOS intelligence funnel/i],
+  ["brief", brief, /Brief answers: what is happening\?/i],
+  ["opportunity", opportunity, /Opportunity answers: where should I look\?/i],
+  ["replay", replayPage, /Replay answers: have we seen this before\?/i],
+  ["memory", memory, /Memory answers: how unusual is this\?/i],
+  ["outcomes", outcomes, /Outcomes answer: what has worked\?/i],
+  ["behavior", behavior, /Behavior answers: who is participating\?/i],
+  ["research", research, /Research answers: why does Raven think this\?/i],
+  ["perps", perps, /Perps answer: where is pressure building\?/i],
+  ["solana chain", solanaChain, /Solana answers: what is happening on this chain\?/i],
+  ["base chain", baseChain, /Base answers: what is happening on this chain\?/i],
+  ["ethereum chain", ethereumChain, /Ethereum answers: what is happening on this chain\?/i],
+  ["terminal", terminal, /Terminal answers: let me inspect it\./i],
+];
+
+for (const [name, page, questionPattern] of funnelPages) {
+  assert.match(page, /ravenos-funnel\.css/, `${name} should load the shared funnel styles`);
+  assert.match(page, /aria-label="Raven intelligence funnel"/, `${name} should expose the intelligence funnel`);
+  assert.match(page, /Understand → Validate → Investigate → Future Act/, `${name} should show the convergence model`);
+  assert.match(page, /Raven&apos;s Read/, `${name} should include Raven's Read`);
+  assert.match(page, /Why Raven Believes This/, `${name} should include evidence framing`);
+  assert.match(page, /What Happened Before/, `${name} should include validation framing`);
+  assert.match(page, /What To Investigate Next/, `${name} should include next-step framing`);
+  assert.match(page, /Future Connected Venues/, `${name} should position future venues without building execution`);
+  assert.match(page, /RavenOS remains market intelligence today/, `${name} should keep execution positioning bounded`);
+  assert.match(page, questionPattern, `${name} should state the page question`);
+}
+
+assert.match(opportunity, /Brief, Replay, Memory, Outcomes, Behavior, Chain posture, and Perps context/);
+assert.match(opportunity, /Opportunity synthesizes/);
+assert.match(opportunity, /Open Terminal only after Opportunity has prioritized the surface/);
+assert.match(home, /Opportunity is the prioritization layer; Terminal is the inspection layer/);
+assert.match(terminal, /Terminal is the chart and context workspace after Raven has prioritized an opportunity surface/);
+assert.doesNotMatch(
+  `${home}\n${terminal}\n${opportunity}\n${brief}\n${replayPage}\n${outcomes}\n${memory}\n${behavior}\n${research}\n${perps}\n${solanaChain}\n${baseChain}\n${ethereumChain}`,
+  /Hyperliquid Chain|Trade Call|Buy Now|Recommendation engine|alpha call/i,
+);
+
 assert.match(featureScript, /function FeatureGate/);
 assert.match(featureScript, /function lockedPreview/);
 assert.match(featureScript, /AccessBadge/);

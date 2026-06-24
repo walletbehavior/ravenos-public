@@ -47,6 +47,7 @@
     @media (max-width:1100px){ .layout { grid-template-columns:1fr; } .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media (max-width:680px){ .metric-grid { grid-template-columns:1fr; } .topbar { align-items:flex-start; } }
   </style>
+  <link rel="stylesheet" href="/ravenos-funnel.css" />
 </head>
 <body data-access-tier="disconnected">
   <main class="shell">
@@ -155,7 +156,28 @@
       <table><thead><tr><th data-sort="asset">Instrument</th><th data-sort="pressureScore">Pressure</th><th>State</th><th>Funding</th><th>Open Interest</th><th>Liquidity</th><th>Replay</th><th>Risk</th><th>Updated</th></tr></thead><tbody id="perpsRows"></tbody></table>
     </section>
 
-    <footer class="footer">RavenOS Perps Intelligence provides software and market analytics. It does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+<section class="raven-funnel" aria-label="Raven intelligence funnel">
+      <div class="raven-funnel-head">
+        <div>
+          <span class="raven-funnel-eyebrow">Understand → Validate → Investigate → Future Act</span>
+          <h2>Perps answer: where is pressure building?</h2>
+          <p>Perps context explains leverage pressure, replay, and outcome conditions by venue.</p>
+        </div>
+        <div class="raven-funnel-actions">
+          <a class="primary" href="/opportunity/">Open Opportunity</a>
+          <a href="/terminal/">Inspect Terminal</a>
+          <span>Future Trade Layer</span>
+        </div>
+      </div>
+      <div class="raven-funnel-grid">
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Understand</span><h3>Raven&apos;s Read</h3><p>What Raven believes and why the current read matters.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Freshness, coverage, sample depth, strongest support, and weakest caveat.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>What Happened Before</h3><p>Replay, Memory, and Outcomes show precedent and followthrough context.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>What To Investigate Next</h3><p>Use Opportunity for market prioritization, then Terminal for instrument inspection.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Future Act</span><h3>Future Connected Venues</h3><p>Connected venues may come later. RavenOS remains market intelligence today.</p></article>
+      </div>
+    </section>
+<footer class="footer">RavenOS Perps Intelligence provides software and market analytics. It does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
   </main>
 
   <script src="/ravenos-access.js"></script>
