@@ -92,7 +92,7 @@
       <nav aria-label="Primary navigation">
         <a class="active" href="/">Home</a><a href="/terminal/">Terminal</a><a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
       </nav>
-      <a class="button primary" href="/terminal/">Open Terminal</a>
+      <a class="button primary" href="/pricing/">Plans</a>
     </header>
 
     <section class="hero" aria-label="Current RavenOS read">
@@ -123,7 +123,6 @@
     <section class="panel" aria-label="Risk regime map">
       <div class="panel-head">
         <div><span class="kicker">Risk-On / Risk-Off Map</span><h2>Follow the surface, then inspect evidence</h2></div>
-        <a class="button" href="/opportunity/">Opportunity</a>
       </div>
       <div class="grid read" id="homeRegimeMap">
         <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Spot Chains</span><strong>Read forming</strong></div><span class="badge mix">Mixed</span></div><p>Loading chain participation context.</p></article>
@@ -158,7 +157,6 @@
     <section class="panel" aria-label="Opportunity now">
       <div class="panel-head">
         <div><span class="kicker">Where Opportunity Is Now</span><h2>Opportunity board</h2></div>
-        <a class="button" href="/opportunity/">Open Opportunity</a>
       </div>
       <div class="read">
         <div class="row"><span>Best opportunity surface</span><strong id="homeBestSurface">Solana micro caps</strong></div>
@@ -173,7 +171,7 @@
     </section>
 
     <section class="grid">
-      <article class="card"><h3>Terminal</h3><p>Inspect current structure, pressure, participation, overlays, and chart context for one instrument.</p><a class="button" href="/terminal/">Open</a></article>
+      <article class="card"><h3>Terminal</h3><p>Inspect current structure, pressure, participation, overlays, and chart context for one instrument.</p><a class="button" href="/terminal/">Inspect</a></article>
       <article class="card"><h3>Outcomes</h3><p>Review which observed structures have recently been rewarding, punishing, mixed, or still building evidence.</p><a class="button" href="/outcomes/">Open</a></article>
       <article class="card"><h3>Market Memory</h3><p>See whether current conditions resemble common, rare, or transitioning historical structures.</p><a class="button" href="/memory/">Open</a></article>
     </section>
@@ -195,6 +193,12 @@
     function safeCount(value, fallback = "forming") {
       const n = Number(value);
       return Number.isFinite(n) && n > 0 ? new Intl.NumberFormat("en-US").format(n) : fallback;
+    }
+    function isConstructiveRead(value) {
+      return /constructive|reward|favorable|improv|expand|risk-on/.test(String(value || "").toLowerCase());
+    }
+    function isWeakRead(value) {
+      return /unclear|mixed|weak|fragile|punish|risk-off|deterior|thin/.test(String(value || "").toLowerCase());
     }
     function regimeClass(value) {
       const text = String(value || "").toLowerCase();
@@ -235,19 +239,23 @@
       const rewarding = Number(opp.rewarding_count || 0);
       const punishing = Number(opp.punishing_count || 0);
       const mixed = Number(opp.mixed_count || Math.max(0, observed - rewarding - punishing));
-      const chain = title(best.chain_label || best.chain || "Market");
+      const bestChainLabel = title(best.chain_label || best.chain || "Market");
       const band = title(best.cap_band_label || best.cap_band || "Current");
-      const surface = `${chain} ${band}`.trim();
+      const surface = `${bestChainLabel} ${band}`.trim();
+      const bestRead = best.read || best.summary || "";
       text("homeUpdated", age(Math.min(...[brief, opportunity, replay, outcomes].map((p) => Number(p.freshness_age_seconds)).filter(Number.isFinite))));
       text("homeCoverage", `${safeCount(opp.live_public_markets || observed)} public markets`);
       text("homeSample", `${safeCount(observed)} observations`);
       text("homeReplay", `${safeCount(replayRows.length || replay.data?.analog_count)} similar structures`);
       text("homeSource", opportunity.source === "public_origin" ? "Verified public origin" : "Live public API");
-      if (surface && surface !== "Market Current") {
-        text("homeReadTitle", `${surface} is the clearest current opportunity surface.`);
+      if (surface && surface !== "Market Current" && isConstructiveRead(bestRead) && !isWeakRead(bestRead)) {
+        text("homeReadTitle", `${surface} is the strongest current constructive surface.`);
+        text("homeBestSurface", surface);
+      } else if (surface && surface !== "Market Current") {
+        text("homeReadTitle", `${surface} has the most evidence, but the read is still mixed.`);
         text("homeBestSurface", surface);
       }
-      text("homeReadSummary", best.read || "Raven is seeing a constructive but still selective tape: participation is visible while confirmation and outcome evidence remain uneven across chains and cap bands.");
+      text("homeReadSummary", bestRead || "Raven is seeing a selective tape: participation is visible while confirmation and outcome evidence remain uneven across chains and cap bands.");
       text("homeNetRead", rewarding > punishing ? "Constructive, still selective" : punishing > rewarding ? "Fragile, evidence forming" : "Mixed, evidence forming");
       text("homeParticipation", rewarding > punishing ? "participation expanding" : "participation mixed");
       text("homePressure", best.pressure || "structure context developing");
@@ -258,15 +266,15 @@
       text("homeExpanded", safeCount(outcomeRows.filter((row) => /reward|expand|continu/i.test(JSON.stringify(row))).length || rewarding));
       text("homeMixed", safeCount(mixed));
       text("homeFailed", safeCount(outcomeRows.filter((row) => /fail|punish|weak/i.test(JSON.stringify(row))).length || punishing));
-      text("homeSurfaceRead", best.read || best.summary || "Participation visible, confirmation forming");
+      text("homeSurfaceRead", bestRead || "Participation visible, confirmation forming");
       text("homeSurfaceConfidence", `${title(best.confidence || (observed > 20 ? "moderate" : "developing"))} · ${age(Number(opportunity.freshness_age_seconds))}`);
-      const chain = chains[0] || {};
+      const chainRow = chains[0] || {};
       const cap = capBands[0] || {};
       document.getElementById("homeRegimeMap").innerHTML = [
-        regimeCard("Spot Chains", chain.label || "Chain read forming", chain.read || "Spot chain participation is forming.", [
-          ["Surface", chain.label || "forming"],
-          ["Evidence", safeCount(chain.sample_size)],
-          ["Confidence", title(chain.confidence || "developing")],
+        regimeCard("Spot Chains", chainRow.label || "Chain read forming", chainRow.read || "Spot chain participation is forming.", [
+          ["Surface", chainRow.label || "forming"],
+          ["Evidence", safeCount(chainRow.sample_size)],
+          ["Confidence", title(chainRow.confidence || "developing")],
         ]),
         regimeCard("Cap Bands", cap.label || "Cap-band read forming", cap.read || "Cap-band participation is forming.", [
           ["Surface", cap.label || "forming"],
