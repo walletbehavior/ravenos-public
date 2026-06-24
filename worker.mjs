@@ -960,7 +960,10 @@ async function readOriginJson(request, env, key, config) {
       const publicPayload = payload.safe_public === true && payload.data && typeof payload.data === "object"
         ? payload.data
         : payload;
-      return { payload: publicPayload, source: "origin_cache", error: "" };
+      const cachedAge = ageSeconds(generatedAtOf(publicPayload));
+      if (cachedAge !== null && cachedAge <= Number(config.freshnessTargetSeconds || 900)) {
+        return { payload: publicPayload, source: "origin_cache", error: "" };
+      }
     }
   }
   const response = await fetch(originUrl.toString(), { headers });
