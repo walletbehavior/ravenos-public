@@ -1,0 +1,102 @@
+{
+  "schema_version": "ravenos_public_manifest_v1",
+  "generated_at": "2026-06-24T08:10:00Z",
+  "safe_public": true,
+  "redaction_policy": "aggregate_public_market_context_only",
+  "normal_pages_rebuild_required_for_data": false,
+  "notes": [
+    "Static frontend shell can poll public API endpoints.",
+    "Fast endpoints use Worker-side public providers and verified public artifacts.",
+    "Private Raven trading logic, wallets, token targets, execution internals, and raw runtime data are not public endpoints."
+  ],
+  "endpoints": {
+    "terminal": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/terminal",
+      "freshness_target_seconds": 60,
+      "safe_public": true,
+      "schema_version": "ravenos_terminal_public_v1",
+      "redaction_policy": "aggregate_public_market_context_only"
+    },
+    "opportunity": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/opportunity",
+      "freshness_target_seconds": 120,
+      "safe_public": true,
+      "schema_version": "ravenos_opportunity_public_v1",
+      "redaction_policy": "aggregate_public_market_context_only"
+    },
+    "brief": {
+      "artifact_path": "/public/data/ravenos_summary.json",
+      "public_endpoint": "/api/brief",
+      "freshness_target_seconds": 900,
+      "safe_public": true,
+      "schema_version": "ravenos_brief_public_v1",
+      "redaction_policy": "aggregate_public_summary_only"
+    },
+    "replay": {
+      "artifact_path": "/ravenos_historical_replay.json",
+      "public_endpoint": "/api/replay",
+      "freshness_target_seconds": 3600,
+      "safe_public": true,
+      "schema_version": "ravenos_replay_public_v1",
+      "redaction_policy": "aggregate_public_replay_only"
+    },
+    "outcomes": {
+      "artifact_path": "/ravenos_participant_outcomes.json",
+      "public_endpoint": "/api/outcomes",
+      "freshness_target_seconds": 3600,
+      "safe_public": true,
+      "schema_version": "ravenos_outcomes_public_v1",
+      "redaction_policy": "aggregate_public_outcomes_only"
+    },
+    "memory": {
+      "artifact_path": "/ravenos_recent_memory.json",
+      "public_endpoint": "/api/memory",
+      "freshness_target_seconds": 3600,
+      "safe_public": true,
+      "schema_version": "ravenos_memory_public_v1",
+      "redaction_policy": "aggregate_public_memory_only"
+    },
+    "behavior": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/behavior",
+      "freshness_target_seconds": 900,
+      "safe_public": true,
+      "schema_version": "ravenos_behavior_public_v1",
+      "redaction_policy": "aggregate_public_behavior_only"
+    },
+    "chains/solana": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/chains/solana",
+      "freshness_target_seconds": 120,
+      "safe_public": true,
+      "schema_version": "ravenos_chain_public_v1",
+      "redaction_policy": "aggregate_public_chain_only"
+    },
+    "chains/base": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/chains/base",
+      "freshness_target_seconds": 120,
+      "safe_public": true,
+      "schema_version": "ravenos_chain_public_v1",
+      "redaction_policy": "aggregate_public_chain_only"
+    },
+    "chains/ethereum": {
+      "artifact_path": "/ravenos_participant_heatmap.json",
+      "public_endpoint": "/api/chains/ethereum",
+      "freshness_target_seconds": 120,
+      "safe_public": true,
+      "schema_version": "ravenos_chain_public_v1",
+      "redaction_policy": "aggregate_public_chain_only"
+    },
+    "status": {
+      "artifact_path": "worker_generated",
+      "public_endpoint": "/api/status",
+      "freshness_target_seconds": 30,
+      "safe_public": true,
+      "schema_version": "ravenos_public_status_v1",
+      "redaction_policy": "public_endpoint_metadata_only"
+    }
+  }
+}

@@ -97,12 +97,111 @@ const COINGECKO_PRICE_IDS = {
   ZORA: "zora",
 };
 
+const PUBLIC_API_ENDPOINTS = {
+  terminal: {
+    endpoint: "/api/terminal",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 60,
+    cacheControl: "public, max-age=15, stale-while-revalidate=60",
+    schemaVersion: "ravenos_terminal_public_v1",
+  },
+  opportunity: {
+    endpoint: "/api/opportunity",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 120,
+    cacheControl: "public, max-age=60, stale-while-revalidate=120",
+    schemaVersion: "ravenos_opportunity_public_v1",
+  },
+  brief: {
+    endpoint: "/api/brief",
+    artifactPath: "/public/data/ravenos_summary.json",
+    freshnessTargetSeconds: 900,
+    cacheControl: "public, max-age=300, stale-while-revalidate=900",
+    schemaVersion: "ravenos_brief_public_v1",
+  },
+  replay: {
+    endpoint: "/api/replay",
+    artifactPath: "/ravenos_historical_replay.json",
+    freshnessTargetSeconds: 3600,
+    cacheControl: "public, max-age=900, stale-while-revalidate=3600",
+    schemaVersion: "ravenos_replay_public_v1",
+  },
+  outcomes: {
+    endpoint: "/api/outcomes",
+    artifactPath: "/ravenos_participant_outcomes.json",
+    freshnessTargetSeconds: 3600,
+    cacheControl: "public, max-age=900, stale-while-revalidate=3600",
+    schemaVersion: "ravenos_outcomes_public_v1",
+  },
+  memory: {
+    endpoint: "/api/memory",
+    artifactPath: "/ravenos_recent_memory.json",
+    freshnessTargetSeconds: 3600,
+    cacheControl: "public, max-age=900, stale-while-revalidate=3600",
+    schemaVersion: "ravenos_memory_public_v1",
+  },
+  behavior: {
+    endpoint: "/api/behavior",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 900,
+    cacheControl: "public, max-age=900, stale-while-revalidate=1800",
+    schemaVersion: "ravenos_behavior_public_v1",
+  },
+  "chains/solana": {
+    endpoint: "/api/chains/solana",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 120,
+    cacheControl: "public, max-age=120, stale-while-revalidate=300",
+    schemaVersion: "ravenos_chain_public_v1",
+    chain: "solana",
+  },
+  "chains/base": {
+    endpoint: "/api/chains/base",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 120,
+    cacheControl: "public, max-age=120, stale-while-revalidate=300",
+    schemaVersion: "ravenos_chain_public_v1",
+    chain: "base",
+  },
+  "chains/ethereum": {
+    endpoint: "/api/chains/ethereum",
+    artifactPath: "/ravenos_participant_heatmap.json",
+    freshnessTargetSeconds: 120,
+    cacheControl: "public, max-age=120, stale-while-revalidate=300",
+    schemaVersion: "ravenos_chain_public_v1",
+    chain: "eth",
+  },
+};
+
+const PUBLIC_FORBIDDEN_PATTERNS = [
+  /WalletMemory/i,
+  /ShadowMirror/i,
+  /live execution/i,
+  /private wallet/i,
+  /private token target/i,
+  /raw trade intent/i,
+  /Turnkey/i,
+  /signer/i,
+  /treasury/i,
+];
+
 function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
     status: init.status || 200,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      ...(init.headers || {}),
+    },
+  });
+}
+
+function publicJson(payload, endpointConfig, init = {}) {
+  return json(payload, {
+    status: init.status || 200,
+    headers: {
+      "cache-control": endpointConfig?.cacheControl || "public, max-age=60, stale-while-revalidate=120",
+      "x-ravenos-public-api": "true",
       ...(init.headers || {}),
     },
   });
@@ -787,10 +886,246 @@ function handleHealth(env = {}) {
   }, { status: requiredHealthy ? 200 : 503 });
 }
 
+function generatedAtOf(payload = {}) {
+  return payload.generated_at || payload.updated_at || payload.freshness?.generated_at || "";
+}
+
+function ageSeconds(generatedAt) {
+  if (!generatedAt) return null;
+  const ts = Date.parse(String(generatedAt));
+  if (!Number.isFinite(ts)) return null;
+  return Math.max(0, Math.floor((Date.now() - ts) / 1000));
+}
+
+function publicTextSafe(payload) {
+  const text = JSON.stringify(payload || {});
+  return !PUBLIC_FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+async function readAssetJson(request, env, path) {
+  if (!env?.ASSETS || !path) return null;
+  const url = new URL(request.url);
+  url.pathname = path;
+  url.search = "";
+  const response = await env.ASSETS.fetch(new Request(url.toString(), { method: "GET" }));
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || !publicTextSafe(payload)) return null;
+  return payload;
+}
+
+function publicEnvelope(key, config, payload, extra = {}) {
+  const generatedAt = generatedAtOf(payload) || extra.generated_at || new Date().toISOString();
+  const age = ageSeconds(generatedAt);
+  const stale = age === null ? true : age > Number(config.freshnessTargetSeconds || 900);
+  return {
+    ok: true,
+    key,
+    endpoint: config.endpoint,
+    schema_version: config.schemaVersion,
+    generated_at: generatedAt,
+    updated_at: new Date().toISOString(),
+    freshness_target_seconds: config.freshnessTargetSeconds,
+    freshness_age_seconds: age,
+    stale,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    coverage: stale ? "delayed context" : "active",
+    status: stale ? "stale" : "live_public_read",
+    artifact_path: config.artifactPath,
+    data: payload || {},
+    ...extra,
+  };
+}
+
+function degradedEnvelope(key, config, message = "current read forming") {
+  return {
+    ok: false,
+    key,
+    endpoint: config.endpoint,
+    schema_version: config.schemaVersion,
+    generated_at: "",
+    updated_at: new Date().toISOString(),
+    freshness_target_seconds: config.freshnessTargetSeconds,
+    freshness_age_seconds: null,
+    stale: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    coverage: "developing",
+    status: "degraded",
+    message,
+    data: {},
+  };
+}
+
+function heatmapRows(payload = {}) {
+  const rows = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.outcomes) ? payload.outcomes : [];
+  return rows.filter((row) => row && typeof row === "object");
+}
+
+function rowScore(row = {}) {
+  const confidence = { high: 25, medium: 14, low: 4 }[String(row.confidence || "").toLowerCase()] || 0;
+  const state = String(row.derived_state || row.participant_outcome || "").toLowerCase();
+  const stateScore = state.includes("reward") || state.includes("favorable") ? 45
+    : state.includes("punish") ? -15
+      : state.includes("unclear") || state.includes("mixed") ? 10
+        : 0;
+  return stateScore + confidence + num(row.sample_size || row.clean_sample || row.observed_sample) / 10;
+}
+
+function opportunitySummaryFromHeatmap(payload = {}) {
+  const rows = heatmapRows(payload);
+  const sorted = [...rows].sort((a, b) => rowScore(b) - rowScore(a));
+  const top = sorted[0] || null;
+  const rewarding = rows.filter((row) => /reward|favorable/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
+  const punishing = rows.filter((row) => /punish|struggling/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
+  return {
+    observed_rows: rows.length,
+    best_surface: top ? {
+      chain: top.chain || "all",
+      cap_band: top.cap_band || "all",
+      sample_size: num(top.sample_size || top.clean_sample),
+      confidence: top.confidence || "developing",
+      read: top.derived_state || top.plain_language_summary || "current read forming",
+    } : null,
+    rewarding_count: rewarding,
+    punishing_count: punishing,
+    mixed_count: Math.max(0, rows.length - rewarding - punishing),
+    top_rows: sorted.slice(0, 8).map((row) => ({
+      chain: row.chain,
+      cap_band: row.cap_band,
+      sample_size: row.sample_size || row.clean_sample || row.observed_sample,
+      confidence: row.confidence,
+      read: row.derived_state || row.participant_outcome,
+      summary: row.plain_language_summary || "",
+    })),
+  };
+}
+
+async function liveOpportunityPayload(request, env, config) {
+  const heatmap = await readAssetJson(request, env, config.artifactPath);
+  const summary = opportunitySummaryFromHeatmap(heatmap || {});
+  let trending = [];
+  if (String(env?.RAVENOS_DISABLE_LIVE_PROVIDER_FETCH || "").toLowerCase() !== "true") {
+    try {
+      trending = await trendingDex("market_cap_heatmap", { limit: 20 });
+    } catch (_) {
+      trending = [];
+    }
+  }
+  return publicEnvelope("opportunity", config, heatmap || {}, {
+    summary: {
+      ...summary,
+      live_public_markets: trending.length,
+      live_top_symbols: trending.slice(0, 8).map((row) => ({
+        symbol: row.symbol,
+        chain: row.chainId,
+        liquidity_usd: row.liquidityUsd,
+        volume_24h: row.volume24h,
+        market_cap: row.marketCap || row.fdv,
+      })),
+    },
+  });
+}
+
+async function liveTerminalPayload(request, env, config) {
+  const heatmap = await readAssetJson(request, env, config.artifactPath);
+  let perps = null;
+  try {
+    perps = await hyperliquidPerps();
+  } catch (_) {
+    perps = null;
+  }
+  return publicEnvelope("terminal", config, heatmap || {}, {
+    summary: {
+      heatmap: opportunitySummaryFromHeatmap(heatmap || {}),
+      perps: perps ? {
+        provider: "Hyperliquid",
+        count: perps.count,
+        lastUpdated: perps.lastUpdated,
+        top: (perps.results || []).slice(0, 12).map((row) => ({
+          symbol: row.symbol || row.asset,
+          price: row.lastPrice || row.markPx,
+          pressureScore: row.pressureScore,
+          pressureState: row.pressureState,
+          liquidityPosture: row.liquidityPosture,
+        })),
+      } : {
+        provider: "Hyperliquid",
+        count: 0,
+        warning: "perps public context forming",
+      },
+    },
+  });
+}
+
+async function staticPublicPayload(request, env, key, config) {
+  const payload = await readAssetJson(request, env, config.artifactPath);
+  if (!payload) return degradedEnvelope(key, config, "using page fallback; public artifact unavailable");
+  return publicEnvelope(key, config, payload);
+}
+
+async function chainPublicPayload(request, env, key, config) {
+  const payload = await readAssetJson(request, env, config.artifactPath);
+  if (!payload) return degradedEnvelope(key, config, "chain read forming");
+  const rows = heatmapRows(payload).filter((row) => String(row.chain || "").toLowerCase() === config.chain);
+  return publicEnvelope(key, config, payload, {
+    summary: opportunitySummaryFromHeatmap({ rows }),
+    rows,
+  });
+}
+
+async function handlePublicRead(request, env, key) {
+  const config = PUBLIC_API_ENDPOINTS[key];
+  if (!config) return json({ ok: false, error: "not_found" }, { status: 404 });
+  try {
+    if (key === "terminal") return publicJson(await liveTerminalPayload(request, env, config), config);
+    if (key === "opportunity") return publicJson(await liveOpportunityPayload(request, env, config), config);
+    if (key.startsWith("chains/")) return publicJson(await chainPublicPayload(request, env, key, config), config);
+    return publicJson(await staticPublicPayload(request, env, key, config), config);
+  } catch (error) {
+    return publicJson(degradedEnvelope(key, config, error instanceof Error ? error.message : "public read unavailable"), config, { status: 200 });
+  }
+}
+
+async function handlePublicStatus(request, env) {
+  const entries = await Promise.all(Object.entries(PUBLIC_API_ENDPOINTS).map(async ([key, config]) => {
+    const payload = await readAssetJson(request, env, config.artifactPath);
+    const generatedAt = generatedAtOf(payload || {});
+    const age = ageSeconds(generatedAt);
+    return {
+      key,
+      endpoint: config.endpoint,
+      artifact_path: config.artifactPath,
+      freshness_target_seconds: config.freshnessTargetSeconds,
+      last_generated_at: generatedAt || null,
+      freshness_age_seconds: age,
+      stale: age === null ? true : age > Number(config.freshnessTargetSeconds || 900),
+      safe_public: true,
+      schema_version: config.schemaVersion,
+      redaction_policy: "aggregate_public_market_context_only",
+      status: payload ? "available" : "degraded",
+    };
+  }));
+  return publicJson({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    status: entries.some((entry) => entry.status === "degraded") ? "degraded" : "live_public_api",
+    endpoints: entries,
+    private_leak_guard: "public_artifacts_only",
+    normal_pages_rebuild_required_for_data: false,
+  }, { cacheControl: "public, max-age=30, stale-while-revalidate=120" });
+}
+
 async function routeApi(request, env) {
   const url = new URL(request.url);
   const pathname = apiPath(url.pathname);
   if (pathname === "/api/health" && request.method === "GET") return handleHealth(env);
+  if (pathname === "/api/status" && request.method === "GET") return handlePublicStatus(request, env);
+  if (request.method === "GET") {
+    const publicKey = pathname.replace(/^\/api\//, "");
+    if (PUBLIC_API_ENDPOINTS[publicKey]) return handlePublicRead(request, env, publicKey);
+  }
   if (pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) return handleAccess(request, env);
   if (pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
   if (pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);

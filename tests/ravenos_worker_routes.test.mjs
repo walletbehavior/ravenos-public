@@ -1,9 +1,46 @@
 import assert from "node:assert/strict";
 import worker from "../worker.mjs";
 
+const publicAssetPayloads = {
+  "/ravenos_participant_heatmap.json": {
+    generated_at: new Date().toISOString(),
+    rows: [
+      {
+        chain: "solana",
+        cap_band: "micro",
+        sample_size: 42,
+        confidence: "high",
+        derived_state: "participation rewarding",
+        plain_language_summary: "Micro-cap participation on Solana is producing stronger public outcomes than most rows.",
+      },
+      {
+        chain: "base",
+        cap_band: "small",
+        sample_size: 18,
+        confidence: "medium",
+        derived_state: "outcomes unclear",
+      },
+    ],
+  },
+  "/ravenos_participant_outcomes.json": {
+    generated_at: new Date().toISOString(),
+    outcomes: [{ chain: "solana", cap_band: "micro", clean_sample: 42, participant_outcome: "favorable" }],
+  },
+  "/ravenos_historical_replay.json": { generated_at: new Date().toISOString(), comparables: [] },
+  "/ravenos_recent_memory.json": { generated_at: new Date().toISOString(), memory: [] },
+  "/public/data/ravenos_summary.json": { generated_at: new Date().toISOString(), public_read: "Current read forming." },
+};
 const assetResponse = new Response("asset", { status: 200 });
 const env = {
-  ASSETS: { fetch: async () => assetResponse },
+  ASSETS: {
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      if (publicAssetPayloads[path]) {
+        return new Response(JSON.stringify(publicAssetPayloads[path]), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return assetResponse;
+    },
+  },
   RAVENOS_MARKET_CAP_STAGE: "growth",
   RAVENOS_PRO_THRESHOLD_GROWTH: "500000",
   RAVENOS_FOUNDER_THRESHOLD: "10000000",
@@ -55,6 +92,35 @@ assert.equal(dotPath.status, 404);
 const staticAsset = await worker.fetch(new Request("https://ravenos.xyz/terminal/"), env);
 assert.equal(staticAsset.status, 200);
 assert.equal(await staticAsset.text(), "asset");
+
+const publicStatus = await worker.fetch(new Request("https://ravenos.xyz/api/status"), env);
+assert.equal(publicStatus.status, 200);
+assert.match(publicStatus.headers.get("cache-control") || "", /max-age=30/);
+const publicStatusPayload = await publicStatus.json();
+assert.equal(publicStatusPayload.normal_pages_rebuild_required_for_data, false);
+assert.ok(publicStatusPayload.endpoints.find((row) => row.endpoint === "/api/opportunity"));
+
+const publicOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+  ...env,
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+assert.equal(publicOpportunity.status, 200);
+assert.match(publicOpportunity.headers.get("cache-control") || "", /max-age=60/);
+const publicOpportunityPayload = await publicOpportunity.json();
+assert.equal(publicOpportunityPayload.safe_public, true);
+assert.equal(publicOpportunityPayload.summary.best_surface.chain, "solana");
+
+const publicOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), env);
+assert.equal(publicOutcomes.status, 200);
+assert.match(publicOutcomes.headers.get("cache-control") || "", /max-age=900/);
+assert.equal((await publicOutcomes.json()).schema_version, "ravenos_outcomes_public_v1");
+
+const missingAssetEnv = { ...env, ASSETS: { fetch: async () => new Response("missing", { status: 404 }) } };
+const degradedBrief = await worker.fetch(new Request("https://ravenos.xyz/api/brief"), missingAssetEnv);
+assert.equal(degradedBrief.status, 200);
+const degradedBriefPayload = await degradedBrief.json();
+assert.equal(degradedBriefPayload.status, "degraded");
+assert.equal(degradedBriefPayload.safe_public, true);
 
 function alertDb() {
   const alerts = [];

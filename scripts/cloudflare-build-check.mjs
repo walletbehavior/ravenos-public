@@ -23,10 +23,12 @@ const required = [
   "terminal/index.html",
   "raven-chart-timeframes.js",
   "ravenos-access.js",
+  "ravenos-live.js",
   "ravenos-explanations.js",
   "ravenos-replay.js",
   "ravenos-participants.js",
   "functions/api/access.js",
+  "public-data/ravenos_public_manifest.json",
 ];
 
 const missing = required.filter((path) => !existsSync(path));

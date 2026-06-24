@@ -6,6 +6,8 @@ const explanationScript = fs.readFileSync("ravenos-explanations.js", "utf8");
 const replayScript = fs.readFileSync("ravenos-replay.js", "utf8");
 const participantScript = fs.readFileSync("ravenos-participants.js", "utf8");
 const accessScript = fs.readFileSync("ravenos-access.js", "utf8");
+const liveScript = fs.readFileSync("ravenos-live.js", "utf8");
+const publicManifest = fs.readFileSync("public-data/ravenos_public_manifest.json", "utf8");
 const terminal = fs.readFileSync("terminal/index.html", "utf8");
 const research = fs.readFileSync("research/index.html", "utf8");
 const atlas = fs.readFileSync("atlas/index.html", "utf8");
@@ -77,6 +79,11 @@ assert.match(participantScript, /Distribution risk/);
 
 assert.match(accessScript, /API unavailable\. Subscription and future token access checks are temporarily unavailable\./);
 assert.match(accessScript, /entitlements/);
+assert.match(liveScript, /DEFAULT_INTERVALS/);
+assert.match(liveScript, /document\.hidden/);
+assert.match(liveScript, /data-ravenos-live-strip/);
+assert.match(publicManifest, /"normal_pages_rebuild_required_for_data": false/);
+assert.ok(publicManifest.includes('"public_endpoint": "/api/opportunity"'));
 
 assert.match(terminal, /data-feature="free_token_lookup"/);
 assert.match(terminal, /data-feature="basic_chart"/);
@@ -92,6 +99,8 @@ assert.match(terminal, /\/disclosures\//);
 assert.match(terminal, /\/opportunity\//);
 assert.match(terminal, /\/brief\//);
 assert.match(terminal, /\/replay\//);
+assert.match(terminal, /data-ravenos-api="\/api\/terminal"/);
+assert.match(terminal, /ravenos-live\.js/);
 assert.match(terminal, /Hot Sector/);
 assert.match(terminal, /id="dexSearchInput"/);
 assert.match(terminal, /Search symbol, token, pair, or contract/);
@@ -181,6 +190,8 @@ assert.match(perps, /ravenos-participants\.js/);
 assert.match(perps, /ravenos-replay\.js/);
 
 assert.match(opportunity, /RavenOS Opportunity Board/);
+assert.match(opportunity, /data-ravenos-api="\/api\/opportunity"/);
+assert.match(opportunity, /ravenos-live\.js/);
 assert.match(opportunity, /Hot Sector/);
 assert.match(opportunity, /Solana Micro/);
 assert.match(opportunity, /Opportunity evidence and provenance/);
@@ -202,6 +213,8 @@ assert.match(opportunity, /What&apos;s Working/);
 assert.match(opportunity, /What Would Change The Read/);
 
 assert.match(brief, /RavenOS Daily Brief/);
+assert.match(brief, /data-ravenos-api="\/api\/brief"/);
+assert.match(brief, /ravenos-live\.js/);
 assert.match(brief, /Current Market Read/);
 assert.match(brief, /Best opportunity surface/);
 assert.match(brief, /Most similar regime/);
@@ -212,6 +225,7 @@ assert.match(brief, /\/outcomes\//);
 assert.match(brief, /\/memory\//);
 
 assert.match(replayPage, /RavenOS Replay Lab/);
+assert.match(replayPage, /data-ravenos-api="\/api\/replay"/);
 assert.match(replayPage, /Have we seen this before/);
 assert.match(replayPage, /12 Similar Structures/);
 assert.match(replayPage, /Why Similar/);
@@ -222,6 +236,7 @@ assert.match(replayPage, /\/memory\//);
 assert.match(replayPage, /\/behavior\//);
 
 assert.match(outcomes, /RavenOS Outcome Dashboard/);
+assert.match(outcomes, /data-ravenos-api="\/api\/outcomes"/);
 assert.match(outcomes, /Public Outcome Scorecard/);
 assert.match(outcomes, /Rewarding/);
 assert.match(outcomes, /Punishing/);
@@ -231,6 +246,7 @@ assert.match(outcomes, /descriptive research/i);
 assert.doesNotMatch(outcomes, /WalletMemory|ShadowMirror|0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/);
 
 assert.match(memory, /RavenOS Market Memory/);
+assert.match(memory, /data-ravenos-api="\/api\/memory"/);
 assert.match(memory, /Current Structure Rank/);
 assert.match(memory, /Most Common Structures/);
 assert.match(memory, /Regime Transitions/);
@@ -239,6 +255,7 @@ assert.match(memory, /Public Methodology/);
 assert.doesNotMatch(memory, /WalletMemory|ShadowMirror|0x[a-fA-F0-9]{40}/);
 
 assert.match(behavior, /RavenOS Behavior Explorer/);
+assert.match(behavior, /data-ravenos-api="\/api\/behavior"/);
 assert.match(behavior, /Participation mix|Aggregate Participant Context/);
 assert.match(behavior, /Breadth & Concentration/);
 assert.match(behavior, /Survival \/ Followthrough/);
@@ -247,13 +264,16 @@ assert.match(behavior, /Privacy Boundary/);
 assert.doesNotMatch(behavior, /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
 
 assert.match(solanaChain, /RavenOS Solana Intelligence/);
+assert.match(solanaChain, /data-ravenos-api="\/api\/chains\/solana"/);
 assert.match(solanaChain, /Micro-cap participation is broadening/);
 assert.match(solanaChain, /Top opportunity surface/);
 assert.match(solanaChain, /Historical Context/);
 assert.match(baseChain, /RavenOS Base Intelligence/);
+assert.match(baseChain, /data-ravenos-api="\/api\/chains\/base"/);
 assert.match(baseChain, /Small-cap rotation is building/);
 assert.match(baseChain, /Coverage/);
 assert.match(ethereumChain, /RavenOS Ethereum Intelligence/);
+assert.match(ethereumChain, /data-ravenos-api="\/api\/chains\/ethereum"/);
 assert.match(ethereumChain, /Liquidity is stable, but breadth is narrow/);
 assert.match(ethereumChain, /Why It Matters/);
 
