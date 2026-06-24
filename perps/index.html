@@ -73,6 +73,21 @@
       </div>
     </section>
 
+    <section class="panel" style="margin-top:14px;" aria-label="Perps evidence">
+      <div class="panel-head"><div><span class="eyebrow">Perps Evidence</span><h2>Live pressure plus forward observation</h2></div><span class="pill" id="perpsEvidenceFreshness">Loading</span></div>
+      <div class="metric-grid">
+        <div class="metric"><span>Observed Markets</span><strong id="perpsEvidenceMarkets">--</strong></div>
+        <div class="metric"><span>Book Snapshots</span><strong id="perpsEvidenceBooks">--</strong></div>
+        <div class="metric"><span>Forward Observations</span><strong id="perpsEvidenceForward">--</strong></div>
+        <div class="metric"><span>12H Matured</span><strong id="perpsEvidence12h">--</strong></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;">
+        <article class="panel" style="padding:12px;"><h3>What Supports The Read</h3><ul class="condition-list" id="perpsEvidenceSupports"><li>Loading support evidence.</li></ul></article>
+        <article class="panel" style="padding:12px;"><h3>What Keeps It Tentative</h3><ul class="condition-list" id="perpsEvidenceCaveats"><li>Loading caveats.</li></ul></article>
+      </div>
+      <p class="muted" id="perpsEvidenceRead" style="margin-top:10px;">Perps evidence is loading from the public RavenOS artifact layer.</p>
+    </section>
+
     <section class="layout">
       <aside class="panel">
         <div class="panel-head"><div><span class="eyebrow">Instruments</span><h2>Perps universe</h2></div><span class="pill" id="accessPill">Free preview</span></div>
@@ -107,9 +122,9 @@
       </article>
 
       <aside class="panel">
-        <div class="panel-head"><div><span class="eyebrow">Research</span><h2>Validated context</h2></div><span class="pill">Diagnostic only</span></div>
+        <div class="panel-head"><div><span class="eyebrow">Research</span><h2>Validated context</h2></div><span class="pill">Research validation</span></div>
         <section>
-          <h3>Candidate lanes</h3>
+          <h3>Emerging structures</h3>
           <div id="candidateLanes" class="list muted">Loading emerging-structure research...</div>
         </section>
         <section style="margin-top:14px;">
@@ -124,7 +139,7 @@
     </section>
 
     <section class="panel" style="margin-top:14px;" data-feature="perps_intelligence">
-      <div class="panel-head"><div><span class="eyebrow">Perps Table</span><h2>Pressure universe</h2></div><span class="pill">No live execution</span></div>
+      <div class="panel-head"><div><span class="eyebrow">Perps Table</span><h2>Pressure universe</h2></div><span class="pill">Research only</span></div>
       <table><thead><tr><th data-sort="asset">Instrument</th><th data-sort="pressureScore">Pressure</th><th>State</th><th>Funding</th><th>Open Interest</th><th>Liquidity</th><th>Replay</th><th>Risk</th><th>Updated</th></tr></thead><tbody id="perpsRows"></tbody></table>
     </section>
 
@@ -150,6 +165,25 @@
     function fmt(value) {
       const n = Number(value);
       return Number.isFinite(n) ? n.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "n/a";
+    }
+    function ageLabel(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "read forming";
+      if (n < 60) return `${Math.max(0, Math.floor(n))}s ago`;
+      if (n < 3600) return `${Math.floor(n / 60)}m ago`;
+      return `${Math.floor(n / 3600)}h ago`;
+    }
+    function setText(id, value) {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value;
+    }
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
     function activeRow() {
       return state.rows.find((row) => row.asset === state.active) || state.rows[0] || fallbackRows[0];
@@ -193,6 +227,23 @@
       const forward = state.artifacts.forward?.summary || state.artifacts.forward?.ranked_lane_table || [];
       document.getElementById("forwardTracker").innerHTML = Array.isArray(forward) && forward.length ? forward.slice(0, 5).map((row) => `<div class="instrument"><strong>${row.lane || row.symbol || "Forward observation"}</strong><br><span class="muted">Observation mode · research validation</span></div>`).join("") : "Forward observation tracker is developing.";
     }
+    function renderPerpsEvidence() {
+      const envelope = state.artifacts.evidence || {};
+      const data = envelope.data || envelope;
+      const summary = data.summary || {};
+      const proof = data.proof_points || {};
+      const forward = data.forward_observation || {};
+      setText("perpsEvidenceFreshness", envelope.freshness_age_seconds !== undefined ? ageLabel(envelope.freshness_age_seconds) : "current read");
+      setText("perpsEvidenceMarkets", summary.markets_observed ?? "--");
+      setText("perpsEvidenceBooks", summary.books_observed ?? "--");
+      setText("perpsEvidenceForward", summary.forward_observations ?? forward.observations ?? "--");
+      setText("perpsEvidence12h", summary.matured_12h_windows ?? forward.matured_windows?.["12h"] ?? "--");
+      setText("perpsEvidenceRead", data.public_read || "Perps pressure evidence is forming from public market data.");
+      const supports = Array.isArray(proof.top_positive_contributors) ? proof.top_positive_contributors : [];
+      const caveats = Array.isArray(proof.top_caveats) ? proof.top_caveats : [];
+      document.getElementById("perpsEvidenceSupports").innerHTML = supports.length ? supports.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>Support evidence is forming.</li>";
+      document.getElementById("perpsEvidenceCaveats").innerHTML = caveats.length ? caveats.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>Caveats are forming with the sample.</li>";
+    }
     function render() {
       const row = activeRow();
       const liquidity = liquidityAttraction(row);
@@ -216,6 +267,7 @@
       ]).slice(0, state.access === "free" ? 3 : 6).map((line) => `<div class="instrument"><span class="eyebrow">${new Date().toISOString().slice(11,16)}</span><br>${line}</div>`).join("");
       renderInstruments();
       renderTable();
+      renderPerpsEvidence();
       window.RavenOSFeatures?.applyFeatureGates?.();
     }
     async function readJson(path) {
@@ -228,10 +280,11 @@
         state.rows = Array.isArray(payload.results) && payload.results.length ? payload.results : fallbackRows;
       } catch (_) { state.rows = fallbackRows; }
       if (!state.active) state.active = state.rows.find((row) => row.asset === "SOL-PERP")?.asset || state.rows[0]?.asset;
-      [state.artifacts.candidates, state.artifacts.failure, state.artifacts.forward] = await Promise.all([
+      [state.artifacts.candidates, state.artifacts.failure, state.artifacts.forward, state.artifacts.evidence] = await Promise.all([
         readJson("/data/runtime/perps_v2_candidate_lanes.json"),
         readJson("/data/runtime/perps_v2_perpsim_flatness_report.json"),
         readJson("/data/runtime/perps_v2_forward_paper_report.json"),
+        readJson("/api/perps/evidence"),
       ]);
       const top = [...state.rows].sort((a,b) => Number(b.pressureScore || 0) - Number(a.pressureScore || 0))[0] || {};
       document.getElementById("coverageMetric").textContent = state.rows[0]?.coverage || "Limited";

@@ -43,6 +43,26 @@ const publicAssetPayloads = {
   },
   "/ravenos_historical_replay.json": { generated_at: new Date().toISOString(), comparables: [] },
   "/ravenos_recent_memory.json": { generated_at: new Date().toISOString(), memory: [] },
+  "/ravenos_perps_evidence.json": {
+    generated_at: new Date().toISOString(),
+    safe_public: true,
+    coverage: "active",
+    public_read: "Perps coverage is active; mixed pressure is the largest current pressure bucket across 66 markets.",
+    summary: {
+      markets_observed: 100,
+      books_observed: 96,
+      forward_observations: 14,
+      matured_12h_windows: 14,
+    },
+    proof_points: {
+      top_positive_contributors: ["100 Hyperliquid perp markets observed with live public context."],
+      top_caveats: ["Forward observation sample remains below the preferred review depth."],
+    },
+    forward_observation: {
+      observations: 14,
+      matured_windows: { "15m": 14, "1h": 14, "4h": 14, "12h": 14 },
+    },
+  },
   "/public/data/ravenos_summary.json": { generated_at: new Date().toISOString(), public_read: "Current read forming." },
 };
 const assetResponse = new Response("asset", { status: 200 });
@@ -237,6 +257,21 @@ const researchStatusRow = researchStatusPayload.endpoints.find((row) => row.endp
 assert.ok(researchStatusRow);
 assert.equal(researchStatusRow.leak_guard, "pass");
 assert.equal(researchStatusRow.origin_fetch_failed, false);
+
+const publicPerpsEvidence = await worker.fetch(new Request("https://ravenos.xyz/api/perps/evidence"), env);
+assert.equal(publicPerpsEvidence.status, 200);
+assert.match(publicPerpsEvidence.headers.get("cache-control") || "", /max-age=30/);
+const publicPerpsEvidencePayload = await publicPerpsEvidence.json();
+assert.equal(publicPerpsEvidencePayload.schema_version, "ravenos_perps_evidence_public_v1");
+assert.equal(publicPerpsEvidencePayload.safe_public, true);
+assert.equal(publicPerpsEvidencePayload.data.summary.markets_observed, 100);
+assert.equal(publicPerpsEvidencePayload.data.summary.forward_observations, 14);
+assert.match(JSON.stringify(publicPerpsEvidencePayload), /Hyperliquid perp markets observed/);
+assert.doesNotMatch(JSON.stringify(publicPerpsEvidencePayload), /WalletMemory|ShadowMirror|canary|live execution|private wallet|raw trade intent/i);
+
+const perpsStatusRow = researchStatusPayload.endpoints.find((row) => row.endpoint === "/api/perps/evidence");
+assert.ok(perpsStatusRow);
+assert.equal(perpsStatusRow.leak_guard, "pass");
 
 const missingAssetEnv = { ...env, ASSETS: { fetch: async () => new Response("missing", { status: 404 }) } };
 const degradedBrief = await worker.fetch(new Request("https://ravenos.xyz/api/brief"), missingAssetEnv);

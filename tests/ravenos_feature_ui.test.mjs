@@ -288,7 +288,11 @@ assert.match(watchlists, /ravenos-replay\.js/);
 
 assert.match(perps, /data-feature="perps_intelligence"/);
 assert.match(perps, /\/api\/hyperliquid\/perps/);
+assert.match(perps, /\/api\/perps\/evidence/);
 assert.match(perps, /RavenOS Perps Intelligence/);
+assert.match(perps, /Perps Evidence/);
+assert.match(perps, /Forward Observations/);
+assert.match(perps, /Research validation/);
 assert.match(perps, /ravenos-participants\.js/);
 assert.match(perps, /ravenos-replay\.js/);
 

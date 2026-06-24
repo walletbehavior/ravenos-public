@@ -168,6 +168,15 @@ const PUBLIC_API_ENDPOINTS = {
     schemaVersion: "ravenos_research_public_v1",
     derivedFrom: ["outcomes", "replay", "memory", "behavior"],
   },
+  "perps/evidence": {
+    endpoint: "/api/perps/evidence",
+    artifactPath: "/ravenos_perps_evidence.json",
+    originPath: "/public/ravenos/perps.json",
+    freshnessTargetSeconds: 120,
+    cacheControl: "public, max-age=30, stale-while-revalidate=120",
+    schemaVersion: "ravenos_perps_evidence_public_v1",
+    liveProvider: "hyperliquid_public",
+  },
   "chains/solana": {
     endpoint: "/api/chains/solana",
     artifactPath: "/ravenos_participant_heatmap.json",
