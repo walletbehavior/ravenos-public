@@ -91,11 +91,26 @@
     if (node) node.textContent = value;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function dataFromPayload(payload) {
+    return payload?.data || {};
+  }
+
   function rowsFromPayload(payload) {
-    const data = payload?.data || {};
+    const data = dataFromPayload(payload);
     if (Array.isArray(payload?.rows)) return payload.rows;
     if (Array.isArray(data.rows)) return data.rows;
     if (Array.isArray(data.outcomes)) return data.outcomes;
+    if (Array.isArray(data.comparables)) return data.comparables;
+    if (Array.isArray(data.cards)) return data.cards;
     return [];
   }
 
@@ -194,9 +209,128 @@
     }
   }
 
+  function confidenceFromSample(sample, fallback = "developing") {
+    const n = Number(sample);
+    if (!Number.isFinite(n)) return titleCase(fallback);
+    if (n >= 1000) return "High";
+    if (n >= 100) return "Moderate";
+    if (n >= 20) return "Developing";
+    return "Low";
+  }
+
+  function renderBriefLive(payload) {
+    const data = dataFromPayload(payload);
+    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    const read = data.one_sentence_read || data.summary || "Current market read is forming.";
+    const stale = payload?.stale;
+    setText("briefReadTitle", titleCase(read));
+    setText("briefReadSummary", stale
+      ? "This brief is using the last verified public read while the next source artifact forms."
+      : "This brief is hydrated from the current public artifact and refreshed without rebuilding the site.");
+    setText("briefHeroSurface", data.best_surface || data.best_opportunity_surface || "Current surface forming");
+    setText("briefBestSurface", data.best_surface || data.best_opportunity_surface || "Sample forming");
+    setText("briefRisk", warnings.length ? titleCase(warnings[0]) : "Confirmation depth");
+    setText("briefParticipation", data.participation_change || (warnings.length ? "Developing" : "Expanding"));
+    setText("briefPressure", data.pressure_change || "Context forming");
+    setText("briefReward", data.reward_change || "Observed outcomes forming");
+    setText("briefRegime", data.most_similar_regime || data.regime || "Replay context forming");
+    setText("briefUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
+    setText("briefCoverage", payload?.coverage || "active");
+    setText("briefAnalogCount", fmtNumber(data.historical_analog_count || data.analog_count || 0));
+    setText("briefConfidenceReason", stale ? "Delayed context: freshness is the weakest input." : "Current artifact available with public-safe evidence.");
+  }
+
+  function renderReplayLive(payload) {
+    const data = dataFromPayload(payload);
+    const rows = Array.isArray(data.comparables) ? data.comparables : rowsFromPayload(payload);
+    const expanded = rows.filter((row) => /expand|constructive|reward/i.test(String(row.after_window_summary || row.public_read || row.outcome || ""))).length;
+    const failed = rows.filter((row) => /fail|weak|punish|deterior/i.test(String(row.after_window_summary || row.public_read || row.outcome || ""))).length;
+    const stalled = Math.max(0, rows.length - expanded - failed);
+    const best = rows[0] || {};
+    setText("replayAnalogCount", rows.length ? `${fmtNumber(rows.length)} Similar Structures` : "Replay Set Forming");
+    setText("replayExpanded", fmtNumber(expanded));
+    setText("replayStalled", fmtNumber(stalled));
+    setText("replayFailed", fmtNumber(failed));
+    setText("replayConfidence", confidenceFromSample(rows.length, payload?.stale ? "low" : "developing"));
+    setText("replayUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
+    setText("replayCoverage", payload?.coverage || "active");
+    setText("replayStrongestSignal", titleCase((best.match_reasons || [])[0] || "participation breadth"));
+    setText("replayWeakestSignal", payload?.stale ? "Freshness" : "Confirmation depth");
+    const tbody = document.getElementById("replayAnalogRows");
+    if (tbody && rows.length) {
+      tbody.innerHTML = rows.slice(0, 8).map((row) => {
+        const similarity = Number(row.similarity_score);
+        const pct = Number.isFinite(similarity) ? `${Math.round(similarity * 100)}%` : "forming";
+        const reasons = Array.isArray(row.match_reasons) ? row.match_reasons.slice(0, 3).map(titleCase).join(", ") : "Public structure features";
+        const read = row.public_read || row.after_window_summary || "Comparable structure observed.";
+        const outcome = /fail|weak/i.test(read) ? "Fragile" : /stall|mixed/i.test(read) ? "Stalled" : "Observed";
+        const klass = outcome === "Fragile" ? "negative" : outcome === "Stalled" ? "mixed" : "positive";
+        return `<tr><td>${escapeHtml(row.matched_window_start || row.window || "Historical window")}</td><td>${escapeHtml(pct)}</td><td>${escapeHtml(reasons)}</td><td class="${klass}">${escapeHtml(outcome)}</td><td>${escapeHtml(read)}</td></tr>`;
+      }).join("");
+    }
+  }
+
+  function renderMemoryLive(payload) {
+    const data = dataFromPayload(payload);
+    const families = data.frequent_condition_families || {};
+    const entries = Object.entries(families).sort((a, b) => Number(b[1]) - Number(a[1]));
+    const cards = Array.isArray(data.cards) ? data.cards : [];
+    const dominant = data.dominant_condition_family || entries[0]?.[0] || "memory forming";
+    const total = entries.reduce((sum, [, count]) => sum + Number(count || 0), 0);
+    setText("memoryReadTitle", `${titleCase(dominant)} remains the dominant public memory family.`);
+    setText("memoryReadSummary", cards[0]?.summary || "Market Memory is tracking whether current structures repeat, change, or disappear.");
+    setText("memoryDominant", titleCase(dominant));
+    setText("memoryFrequency", total ? fmtNumber(total) : "sample forming");
+    setText("memoryRank", titleCase(data.condition_stability || "forming"));
+    setText("memorySample", total ? `${fmtNumber(total)} public records` : "sample forming");
+    setText("memoryFreshness", ageLabel(Number(payload?.freshness_age_seconds)));
+    setText("memoryTrend", titleCase(data.consistency_trend || "mixed"));
+    const tbody = document.getElementById("memoryCommonRows");
+    if (tbody && entries.length) {
+      tbody.innerHTML = entries.slice(0, 8).map(([name, count]) => {
+        const confidence = confidenceFromSample(count);
+        return `<tr><td>${escapeHtml(titleCase(name))}</td><td>${escapeHtml(fmtNumber(count))}</td><td>Tracked across public memory refreshes</td><td>${escapeHtml(confidence)}</td><td>Shows whether this condition keeps appearing or fades.</td></tr>`;
+      }).join("");
+    }
+  }
+
+  function renderBehaviorLive(payload) {
+    const data = dataFromPayload(payload);
+    const rows = rowsFromPayload(payload);
+    const rewarding = rows.filter(isRewarding).length;
+    const punishing = rows.filter(isPunishing).length;
+    const mixed = Math.max(0, rows.length - rewarding - punishing);
+    const best = bestRows(payload)[0] || {};
+    setText("behaviorReadTitle", rows.length
+      ? `${titleCase(best.chain || "Market")} ${titleCase(best.cap_band || "participation")} is the clearest current behavior read.`
+      : "Behavior read is forming.");
+    setText("behaviorReadSummary", rows.length
+      ? `Behavior Explorer is using ${fmtNumber(rows.length)} aggregate public rows across participant outcome context.`
+      : "Behavior Explorer is waiting for a usable public participant artifact.");
+    setText("behaviorState", rewarding > punishing ? "Constructive / Observable" : punishing > rewarding ? "Fragile / Observable" : "Mixed / Observable");
+    setText("behaviorNew", best.derived_state ? titleCase(best.derived_state) : "Developing");
+    setText("behaviorReturning", rows.length ? `${fmtNumber(rows.length)} aggregate rows` : "Sample forming");
+    setText("behaviorConcentration", punishing > rewarding ? "Elevated" : "Manageable");
+    setText("behaviorBreadth", mixed > rewarding ? "Mixed by chain" : "Broadening selectively");
+    setText("behaviorSurvival", data.metadata?.timeframe ? `${data.metadata.timeframe} context` : "Followthrough forming");
+    setText("behaviorUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
+    const tbody = document.getElementById("behaviorRows");
+    if (tbody && rows.length) {
+      tbody.innerHTML = bestRows(payload).slice(0, 12).map((row) => {
+        const read = rowRead(row);
+        const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
+        return `<tr><td>${escapeHtml(titleCase(row.chain || "market"))}</td><td>${escapeHtml(titleCase(row.cap_band || "all"))}</td><td>${escapeHtml(titleCase(row.derived_state || "observable"))}</td><td>${escapeHtml(titleCase(row.score_strength || "developing"))}</td><td>${escapeHtml(titleCase(row.profitability_label || "mixed outcomes"))}</td><td class="${stateClass}">${escapeHtml(titleCase(read))}</td><td>${escapeHtml(sampleOf(row) < 20 ? "Sample forming" : "Public aggregate")}</td></tr>`;
+      }).join("");
+    }
+  }
+
   function applyPagePayload(endpoint, payload) {
     if (endpoint === "/api/opportunity") renderOpportunityLive(payload);
+    if (endpoint === "/api/brief") renderBriefLive(payload);
+    if (endpoint === "/api/replay") renderReplayLive(payload);
     if (endpoint === "/api/outcomes") renderOutcomesLive(payload);
+    if (endpoint === "/api/memory") renderMemoryLive(payload);
+    if (endpoint === "/api/behavior") renderBehaviorLive(payload);
     if (endpoint === "/api/terminal") renderTerminalLive(payload);
     if (endpoint.startsWith("/api/chains/")) renderChainLive(payload);
   }

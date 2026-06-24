@@ -36,24 +36,24 @@
         <span class="kicker">Current Structure Snapshot</span>
         <h1>Have we seen this before?</h1>
         <p>Replay compares the current structure against prior market tapes using participation breadth, pressure alignment, reward persistence, chain/cap context, liquidity posture, and failure conditions.</p>
-        <strong class="big">12 Similar Structures</strong>
+        <strong id="replayAnalogCount" class="big">12 Similar Structures</strong>
       </article>
       <article class="panel">
         <div class="panel-head"><div><span class="kicker">Historical Outcomes</span><h2>Current replay set</h2></div></div>
         <div class="outcomes" style="padding:12px;">
-          <div class="card"><span class="kicker">Expanded</span><strong class="positive">8</strong><p>Structure broadened after confirmation improved.</p></div>
-          <div class="card"><span class="kicker">Stalled</span><strong class="mixed">3</strong><p>Attention rose but participation failed to persist.</p></div>
-          <div class="card"><span class="kicker">Failed</span><strong class="negative">1</strong><p>Liquidity weakened and survival deteriorated.</p></div>
-          <div class="card"><span class="kicker">Confidence</span><strong>Moderate</strong><p>Sample is useful but not deep enough for strong certainty.</p></div>
+          <div class="card"><span class="kicker">Expanded</span><strong id="replayExpanded" class="positive">8</strong><p>Structure broadened after confirmation improved.</p></div>
+          <div class="card"><span class="kicker">Stalled</span><strong id="replayStalled" class="mixed">3</strong><p>Attention rose but participation failed to persist.</p></div>
+          <div class="card"><span class="kicker">Failed</span><strong id="replayFailed" class="negative">1</strong><p>Liquidity weakened and survival deteriorated.</p></div>
+          <div class="card"><span class="kicker">Confidence</span><strong id="replayConfidence">Moderate</strong><p>Sample is useful but not deep enough for strong certainty.</p></div>
         </div>
       </article>
     </section>
 
     <section class="evidence">
-      <article class="card"><h3>Freshness</h3><p>Replay context updates with public session snapshots and indexed observations as available.</p><div class="row"><span>Updated</span><strong>Current session</strong></div></article>
-      <article class="card"><h3>Coverage</h3><p>Replay coverage is developing outside the strongest crypto/perps structures.</p><div class="row"><span>Analogs</span><strong>12</strong></div></article>
-      <article class="card"><h3>Why Similar</h3><p>Matches share participation breadth, pressure context, survival persistence, and liquidity posture.</p><div class="row"><span>Strongest signal</span><strong>Participation breadth</strong></div></article>
-      <article class="card"><h3>Why It Matters</h3><p>Replay tells users what similar structures did historically without claiming the future will repeat.</p><div class="row"><span>Weakest signal</span><strong>Confirmation depth</strong></div></article>
+      <article class="card"><h3>Freshness</h3><p>Replay context updates with public session snapshots and indexed observations as available.</p><div class="row"><span>Updated</span><strong id="replayUpdated">Current session</strong></div></article>
+      <article class="card"><h3>Coverage</h3><p>Replay coverage is developing outside the strongest crypto/perps structures.</p><div class="row"><span>Coverage</span><strong id="replayCoverage">Active</strong></div></article>
+      <article class="card"><h3>Why Similar</h3><p>Matches share participation breadth, pressure context, survival persistence, and liquidity posture.</p><div class="row"><span>Strongest signal</span><strong id="replayStrongestSignal">Participation breadth</strong></div></article>
+      <article class="card"><h3>Why It Matters</h3><p>Replay tells users what similar structures did historically without claiming the future will repeat.</p><div class="row"><span>Weakest signal</span><strong id="replayWeakestSignal">Confirmation depth</strong></div></article>
     </section>
 
     <section class="grid">
@@ -62,7 +62,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Historical Window</th><th>Similarity</th><th>Why Similar</th><th>Outcome</th><th>Failure Condition</th></tr></thead>
-            <tbody>
+            <tbody id="replayAnalogRows">
               <tr><td>May 2026 fresh participation expansion</td><td>82%</td><td>Broad participation, improving survival, manageable pressure.</td><td class="positive">Expanded</td><td>Liquidity concentration rose late.</td></tr>
               <tr><td>March 2026 pressure reset</td><td>76%</td><td>Pressure elevated while confirmation improved.</td><td class="mixed">Stalled</td><td>Participation narrowed after initial attention.</td></tr>
               <tr><td>January 2026 crowded continuation</td><td>71%</td><td>Attention and pressure rose together.</td><td class="positive">Expanded</td><td>Crowding became the main risk.</td></tr>
