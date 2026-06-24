@@ -560,7 +560,7 @@
           </div>
         </div>
         <div class="nav-list" id="marketNav"></div>
-        <div class="nav-foot">Crypto spot and perpetual futures are active. Equities, ETFs, options, and macro are represented as future-ready market categories.</div>
+        <div class="nav-foot">Crypto spot and perpetual futures are active. Top stocks and core ETFs are visible as coverage-developing market context; forex, rates, and traditional futures are held universes.</div>
       </aside>
 
       <article class="panel chart-panel" data-feature="basic_chart">
@@ -733,12 +733,15 @@
         ],
       },
       {
-        label: "Future Markets",
+        label: "Broader Markets",
         items: [
-          ["equities", "Equities preview", "preview"],
-          ["etfs", "ETFs preview", "preview"],
-          ["options", "Options preview", "preview"],
-          ["macro", "Macro preview", "preview"],
+          ["equities", "Top Stocks", "developing"],
+          ["etfs", "Core ETFs", "developing"],
+          ["forex", "Forex", "held"],
+          ["rates", "Rates", "held"],
+          ["futures", "Futures", "held"],
+          ["options", "Options", "held"],
+          ["macro", "Macro", "held"],
         ],
       },
     ];
@@ -753,6 +756,12 @@
       { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: null, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Coverage developing", risk: "Stable", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
+      { asset: "EUR/USD", market: "Forex", category: "forex", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "USD/JPY", market: "Forex", category: "forex", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "US10Y", market: "Rates", category: "rates", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "US02Y", market: "Rates", category: "rates", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "ES", market: "Futures", category: "futures", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "NQ", market: "Futures", category: "futures", lastPrice: null, flowScore: 50, attentionVelocity: 0, participantActivity: "Coverage developing", liquidityPosture: "Coverage developing", risk: "Watch", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
     ];
     let dexRows = [];
     const samplePrices = {
@@ -1040,7 +1049,7 @@
     }
 
     function displayPrice(row) {
-      if (["equities", "etfs", "options", "macro"].includes(row?.category) && row?.isLive !== true) return "Coverage developing";
+      if (["equities", "etfs", "forex", "rates", "futures", "options", "macro"].includes(row?.category) && row?.isLive !== true) return "Coverage developing";
       const price = Number(row?.lastPrice);
       if (!Number.isFinite(price) || price <= 0) return "Coverage developing";
       return money(price);
@@ -1125,7 +1134,7 @@
     }
 
     function isMarketPreviewCategory(category) {
-      return ["equities", "etfs", "options", "macro"].includes(category);
+      return ["equities", "etfs", "forex", "rates", "futures", "options", "macro"].includes(category);
     }
 
     function knownCryptoLikeSymbol(query) {
@@ -1165,7 +1174,7 @@
       if (isCryptoCategory(category)) return filteredCryptoRows(mergeRowsByAsset([...rows.filter((row) => row.category === "crypto_spot"), ...cryptoRows, ...dexRows]), category);
       if (isPerpsCategory(category)) return filteredCryptoRows(mergeRowsByAsset([...rows.filter((row) => row.category === "perpetuals"), ...perpsRows, ...livePerpsRows]), category);
       if (category === "equities" || category === "etfs") return mergeRowsByAsset([...rows, ...marketCatalogRows()]).filter((row) => row.category === category);
-      if (["options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
+      if (["forex", "rates", "futures", "options", "macro"].includes(category)) return rows.filter((row) => row.category === category);
       return flowUniverse();
     }
 
@@ -1328,7 +1337,7 @@
           warning: row.warning || "",
         };
       }
-      if (["equities", "etfs", "options", "macro"].includes(row.category)) {
+      if (["equities", "etfs", "forex", "rates", "futures", "options", "macro"].includes(row.category)) {
         return { provider: "Preview model", coverage: "Limited", isLive: false, isCached: false, isSample: true, lastUpdated: "preview", warning: "Coverage developing" };
       }
       if (row.lastUpdated === "live") return { provider: "Raven indexed", coverage: "Indexed", isLive: true, isCached: false, isSample: false, lastUpdated: "live", warning: "" };
@@ -1843,7 +1852,7 @@
       return source.map((row, index) => ({
         ...row,
         market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
-        lastPrice: ["equities", "etfs", "options", "macro"].includes(row.category) && row.isLive !== true ? null : (row.lastPrice || samplePriceFor(row.asset)),
+        lastPrice: ["equities", "etfs", "forex", "rates", "futures", "options", "macro"].includes(row.category) && row.isLive !== true ? null : (row.lastPrice || samplePriceFor(row.asset)),
         locked: accessTier === "free" && activeMode === "crypto_heatmaps" && row.category === "crypto_spot" && index >= 5,
       }));
     }
