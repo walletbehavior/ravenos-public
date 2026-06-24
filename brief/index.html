@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RavenOS Daily Brief summarizes the current market read, opportunity surface, risk context, and replay history in one evidence-backed page." />
+  <title>RavenOS Daily Brief</title>
+  <style>
+    :root { color-scheme: dark; --bg:#030605; --panel:#07100d; --line:rgba(148,163,184,.18); --line2:rgba(125,211,252,.34); --text:#edf6f1; --muted:#91a69d; --soft:#65786f; --green:#34d399; --cyan:#7dd3fc; --yellow:#facc15; --red:#fb7185; --mono:"IBM Plex Mono","SFMono-Regular",ui-monospace,monospace; --sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:linear-gradient(180deg,rgba(125,211,252,.06),transparent 340px),var(--bg); color:var(--text); font-family:var(--sans); }
+    a { color:inherit; text-decoration:none; }
+    .shell { width:min(1360px,calc(100% - 24px)); margin:0 auto; padding:14px 0 28px; display:grid; gap:12px; }
+    .topbar { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+    .brand { display:grid; gap:3px; }
+    .brand strong { font-size:19px; }
+    .brand span,.kicker,th { color:var(--soft); font-family:var(--mono); font-size:10px; text-transform:uppercase; }
+    nav { display:flex; flex-wrap:wrap; gap:7px; }
+    nav a,.button { border:1px solid var(--line); background:rgba(255,255,255,.03); padding:7px 9px; color:var(--muted); font-size:11px; font-weight:850; text-transform:uppercase; }
+    nav a.active,.button.primary { color:var(--text); border-color:var(--line2); background:rgba(125,211,252,.08); }
+    .hero,.grid,.evidence,.cards { display:grid; gap:10px; }
+    .hero { grid-template-columns:1.2fr .8fr; }
+    .panel { border:1px solid var(--line); background:rgba(7,16,13,.95); }
+    .panel-head { padding:14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:12px; align-items:start; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:clamp(34px,6vw,72px); line-height:.96; max-width:13ch; }
+    h2 { font-size:15px; text-transform:uppercase; }
+    h3 { font-size:13px; text-transform:uppercase; }
+    p { color:var(--muted); line-height:1.55; font-size:13px; }
+    .read { padding:14px; display:grid; gap:12px; }
+    .read strong.big { display:block; color:var(--green); font-size:clamp(30px,5vw,54px); line-height:1; }
+    .evidence { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .evidence-card,.note { border:1px solid var(--line); background:#050b09; padding:12px; display:grid; gap:8px; }
+    .row { display:flex; justify-content:space-between; gap:10px; border-top:1px solid var(--line); padding-top:7px; color:var(--muted); font-size:11px; }
+    .row strong { color:var(--text); font-family:var(--mono); text-align:right; }
+    .grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    ul { margin:0; padding-left:18px; color:var(--muted); line-height:1.55; font-size:13px; }
+    .positive { color:var(--green); } .mixed { color:var(--yellow); } .negative { color:var(--red); }
+    table { width:100%; border-collapse:collapse; min-width:720px; }
+    th,td { border-bottom:1px solid var(--line); padding:9px 10px; text-align:left; font-size:12px; vertical-align:top; }
+    th { color:var(--cyan); }
+    .table-wrap { overflow-x:auto; }
+    .footer { color:var(--soft); font-size:11px; text-align:center; padding:10px; border-top:1px solid var(--line); }
+    @media (max-width:920px){ .topbar,.hero,.grid,.cards,.evidence{grid-template-columns:1fr;} nav{overflow-x:auto;flex-wrap:nowrap;} nav a{flex:0 0 auto;} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><strong>RavenOS</strong><span>Daily Brief</span></div>
+      <nav aria-label="Primary navigation">
+        <a href="/terminal/">Terminal</a><a class="active" href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/replay/">Replay</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/atlas/">Atlas</a>
+      </nav>
+      <a class="button primary" href="/terminal/">Open Terminal</a>
+    </header>
+
+    <section class="hero">
+      <article class="panel read">
+        <span class="kicker">Current Market Read</span>
+        <h1>Participation is improving, but confirmation remains uneven.</h1>
+        <p>Raven&apos;s current public read is strongest in Solana micro-cap structures, with Base small caps improving from thinner sample depth. Majors are stable but not leading the opportunity surface.</p>
+        <strong class="big">Solana Micro</strong>
+        <p>This is a daily research briefing. It summarizes structure, pressure, participation, replay, and risk context without producing trade recommendations.</p>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">One-Minute Summary</span><h2>Today&apos;s Brief</h2></div></div>
+        <div class="read">
+          <div class="row"><span>Best opportunity surface</span><strong>Solana · Micro</strong></div>
+          <div class="row"><span>Biggest risk</span><strong>Liquidity concentration</strong></div>
+          <div class="row"><span>Participation change</span><strong class="positive">Expanding</strong></div>
+          <div class="row"><span>Pressure change</span><strong class="mixed">Elevated but contained</strong></div>
+          <div class="row"><span>Reward change</span><strong class="mixed">Improving selectively</strong></div>
+          <div class="row"><span>Most similar regime</span><strong>Fresh participation expansion</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="evidence" aria-label="Daily brief evidence">
+      <article class="evidence-card"><h3>Freshness</h3><p>Public context is current-session and should be treated as developing where live indexed data is unavailable.</p><div class="row"><span>Updated</span><strong>Current session</strong></div><div class="row"><span>Window</span><strong>Intraday / 24H</strong></div></article>
+      <article class="evidence-card"><h3>Coverage</h3><p>Coverage describes usable context, not certainty or expected outcome.</p><div class="row"><span>Observed assets</span><strong>109</strong></div><div class="row"><span>Usable assets</span><strong>85</strong></div></article>
+      <article class="evidence-card"><h3>Confidence</h3><p>Confidence is moderate because participation is broad in the strongest surface while cross-chain depth is still developing.</p><div class="row"><span>Strongest signal</span><strong>Participation breadth</strong></div><div class="row"><span>Weakest signal</span><strong>Confirmation depth</strong></div></article>
+      <article class="evidence-card"><h3>Validation</h3><p>Replay analogs are descriptive context, not forecasts.</p><div class="row"><span>Historical analogs</span><strong>12</strong></div><div class="row"><span>Would weaken</span><strong>Survival fades</strong></div></article>
+    </section>
+
+    <section class="grid">
+      <article class="note"><h3>Opportunity Summary</h3><ul><li>Solana micro structures have the broadest participation read.</li><li>Base small caps are improving, but evidence depth is thinner.</li><li>Ethereum remains selective rather than broadly improving.</li></ul></article>
+      <article class="note"><h3>Biggest Risk</h3><ul><li>Liquidity concentration can weaken otherwise constructive participation.</li><li>Attention acceleration without breadth would reduce confidence.</li><li>Majors are not confirming the small-cap read yet.</li></ul></article>
+      <article class="note"><h3>Why It Matters</h3><p>Broader participation historically supports more durable structure than narrow attention bursts. Raven tracks whether participation persists, broadens, or fails after attention appears.</p></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><span class="kicker">Daily Change Table</span><h2>What changed</h2></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Area</th><th>Current Read</th><th>Change</th><th>Why Raven Thinks This</th><th>Would Weaken If</th></tr></thead>
+          <tbody>
+            <tr><td>Participation</td><td>Expanding</td><td class="positive">Improving</td><td>More assets show usable participation and repeat activity.</td><td>Breadth narrows into a few names.</td></tr>
+            <tr><td>Pressure</td><td>Elevated but contained</td><td class="mixed">Mixed</td><td>Pressure is present but not yet broadly unstable.</td><td>Liquidity weakens while pressure rises.</td></tr>
+            <tr><td>Reward</td><td>Selective improvement</td><td class="positive">Improving</td><td>Recent outcome quality improved in the strongest surface.</td><td>Survival fades after attention bursts.</td></tr>
+            <tr><td>Replay</td><td>Fresh participation expansion</td><td class="mixed">Similar</td><td>Current structure resembles prior broadening windows.</td><td>Confirmation depth fails to follow.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <footer class="footer">RavenOS provides software and market analytics. Daily Brief is research context and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+  </main>
+</body>
+</html>

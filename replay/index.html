@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RavenOS Replay Lab compares current market structures against prior market tapes and explains historical outcome context." />
+  <title>RavenOS Replay Lab</title>
+  <style>
+    :root { color-scheme:dark; --bg:#030605; --panel:#07100d; --line:rgba(148,163,184,.18); --line2:rgba(125,211,252,.34); --text:#edf6f1; --muted:#91a69d; --soft:#65786f; --green:#34d399; --cyan:#7dd3fc; --yellow:#facc15; --red:#fb7185; --mono:"IBM Plex Mono","SFMono-Regular",ui-monospace,monospace; --sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    *{box-sizing:border-box;} body{margin:0;min-height:100vh;background:linear-gradient(180deg,rgba(125,211,252,.06),transparent 340px),var(--bg);color:var(--text);font-family:var(--sans);} a{color:inherit;text-decoration:none;}
+    .shell{width:min(1360px,calc(100% - 24px));margin:0 auto;padding:14px 0 28px;display:grid;gap:12px;}
+    .topbar{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
+    .brand{display:grid;gap:3px}.brand strong{font-size:19px}.brand span,.kicker,th{color:var(--soft);font-family:var(--mono);font-size:10px;text-transform:uppercase;}
+    nav{display:flex;flex-wrap:wrap;gap:7px} nav a,.button{border:1px solid var(--line);background:rgba(255,255,255,.03);padding:7px 9px;color:var(--muted);font-size:11px;font-weight:850;text-transform:uppercase;} nav a.active,.button.primary{color:var(--text);border-color:var(--line2);background:rgba(125,211,252,.08);}
+    .hero,.grid,.evidence,.outcomes{display:grid;gap:10px}.hero{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1.1fr .9fr}.evidence{grid-template-columns:repeat(4,minmax(0,1fr));}.outcomes{grid-template-columns:repeat(4,minmax(0,1fr));}
+    .panel,.card{border:1px solid var(--line);background:rgba(7,16,13,.95);} .card{padding:12px;display:grid;gap:8px}.panel-head{padding:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:start;}
+    h1,h2,h3,p{margin:0} h1{font-size:clamp(34px,6vw,72px);line-height:.96;max-width:13ch;} h2{font-size:15px;text-transform:uppercase;} h3{font-size:13px;text-transform:uppercase;} p{color:var(--muted);line-height:1.55;font-size:13px;}
+    .read{padding:14px;display:grid;gap:12px}.big{font-size:clamp(30px,5vw,58px);line-height:1;color:var(--green);font-family:var(--mono);}
+    .row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:7px;color:var(--muted);font-size:11px}.row strong{color:var(--text);font-family:var(--mono);text-align:right;}
+    .positive{color:var(--green)}.mixed{color:var(--yellow)}.negative{color:var(--red)}
+    table{width:100%;border-collapse:collapse;min-width:760px} th,td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;font-size:12px;vertical-align:top} th{color:var(--cyan)} .table-wrap{overflow-x:auto}
+    ul{margin:0;padding-left:18px;color:var(--muted);line-height:1.55;font-size:13px}.footer{color:var(--soft);font-size:11px;text-align:center;padding:10px;border-top:1px solid var(--line)}
+    @media(max-width:920px){.topbar,.hero,.grid,.evidence,.outcomes{grid-template-columns:1fr}nav{overflow-x:auto;flex-wrap:nowrap}nav a{flex:0 0 auto}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><strong>RavenOS</strong><span>Replay Lab</span></div>
+      <nav aria-label="Primary navigation"><a href="/terminal/">Terminal</a><a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a class="active" href="/replay/">Replay</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/atlas/">Atlas</a></nav>
+      <a class="button primary" href="/research/">Open Research</a>
+    </header>
+
+    <section class="hero">
+      <article class="panel read">
+        <span class="kicker">Current Structure Snapshot</span>
+        <h1>Have we seen this before?</h1>
+        <p>Replay compares the current structure against prior market tapes using participation breadth, pressure alignment, reward persistence, chain/cap context, liquidity posture, and failure conditions.</p>
+        <strong class="big">12 Similar Structures</strong>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">Historical Outcomes</span><h2>Current replay set</h2></div></div>
+        <div class="outcomes" style="padding:12px;">
+          <div class="card"><span class="kicker">Expanded</span><strong class="positive">8</strong><p>Structure broadened after confirmation improved.</p></div>
+          <div class="card"><span class="kicker">Stalled</span><strong class="mixed">3</strong><p>Attention rose but participation failed to persist.</p></div>
+          <div class="card"><span class="kicker">Failed</span><strong class="negative">1</strong><p>Liquidity weakened and survival deteriorated.</p></div>
+          <div class="card"><span class="kicker">Confidence</span><strong>Moderate</strong><p>Sample is useful but not deep enough for strong certainty.</p></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="evidence">
+      <article class="card"><h3>Freshness</h3><p>Replay context updates with public session snapshots and indexed observations as available.</p><div class="row"><span>Updated</span><strong>Current session</strong></div></article>
+      <article class="card"><h3>Coverage</h3><p>Replay coverage is developing outside the strongest crypto/perps structures.</p><div class="row"><span>Analogs</span><strong>12</strong></div></article>
+      <article class="card"><h3>Why Similar</h3><p>Matches share participation breadth, pressure context, survival persistence, and liquidity posture.</p><div class="row"><span>Strongest signal</span><strong>Participation breadth</strong></div></article>
+      <article class="card"><h3>Why It Matters</h3><p>Replay tells users what similar structures did historically without claiming the future will repeat.</p><div class="row"><span>Weakest signal</span><strong>Confirmation depth</strong></div></article>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">Similar Structures</span><h2>Replay analog ranking</h2></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Historical Window</th><th>Similarity</th><th>Why Similar</th><th>Outcome</th><th>Failure Condition</th></tr></thead>
+            <tbody>
+              <tr><td>May 2026 fresh participation expansion</td><td>82%</td><td>Broad participation, improving survival, manageable pressure.</td><td class="positive">Expanded</td><td>Liquidity concentration rose late.</td></tr>
+              <tr><td>March 2026 pressure reset</td><td>76%</td><td>Pressure elevated while confirmation improved.</td><td class="mixed">Stalled</td><td>Participation narrowed after initial attention.</td></tr>
+              <tr><td>January 2026 crowded continuation</td><td>71%</td><td>Attention and pressure rose together.</td><td class="positive">Expanded</td><td>Crowding became the main risk.</td></tr>
+              <tr><td>November 2025 fragile follow-through</td><td>64%</td><td>Replay quality was moderate but liquidity was thinner.</td><td class="negative">Failed</td><td>Survival weakened before confirmation arrived.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">Replay Breakdown</span><h2>What usually separated outcomes</h2></div></div>
+        <div class="read">
+          <div class="card"><h3>Success Conditions</h3><ul><li>Participation broadened beyond first movers.</li><li>Reward persistence improved after attention appeared.</li><li>Liquidity posture stayed manageable.</li></ul></div>
+          <div class="card"><h3>Failure Conditions</h3><ul><li>Attention accelerated without breadth.</li><li>Liquidity concentration rose.</li><li>Survival faded before confirmation improved.</li></ul></div>
+          <div class="card"><h3>Public Methodology</h3><p>Replay uses participation, pressure, breadth, survival, liquidity, reward persistence, and chain/cap context. Proprietary weights and private sources are not exposed.</p></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><span class="kicker">Outcome Distribution</span><h2>Descriptive context, not a forecast</h2></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Outcome</th><th>Count</th><th>Median Time</th><th>Median Outcome</th><th>Why It Matters</th></tr></thead>
+          <tbody>
+            <tr><td>Expansion</td><td>8</td><td>2.8 days</td><td>Constructive continuation</td><td>Broad participation persisted after confirmation.</td></tr>
+            <tr><td>Stall</td><td>3</td><td>1.4 days</td><td>Flat structure</td><td>Attention rose but participant breadth did not follow.</td></tr>
+            <tr><td>Failure</td><td>1</td><td>0.9 days</td><td>Structure failed</td><td>Liquidity deterioration appeared before confirmation.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <footer class="footer">Replay Lab is research context. Historical similarity does not guarantee future outcomes and does not constitute financial advice or a trading recommendation.</footer>
+  </main>
+</body>
+</html>

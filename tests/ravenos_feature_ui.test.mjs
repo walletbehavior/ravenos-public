@@ -12,6 +12,11 @@ const atlas = fs.readFileSync("atlas/index.html", "utf8");
 const watchlists = fs.readFileSync("watchlists/index.html", "utf8");
 const perps = fs.readFileSync("perps/index.html", "utf8");
 const opportunity = fs.readFileSync("opportunity/index.html", "utf8");
+const brief = fs.readFileSync("brief/index.html", "utf8");
+const replayPage = fs.readFileSync("replay/index.html", "utf8");
+const solanaChain = fs.readFileSync("chains/solana/index.html", "utf8");
+const baseChain = fs.readFileSync("chains/base/index.html", "utf8");
+const ethereumChain = fs.readFileSync("chains/ethereum/index.html", "utf8");
 const faq = fs.readFileSync("faq/index.html", "utf8");
 const disclosures = fs.readFileSync("disclosures/index.html", "utf8");
 
@@ -55,6 +60,8 @@ assert.match(terminal, /github\.com\/walletbehavior\/ravenos-public\/tree\/main\
 assert.match(terminal, /\/faq\//);
 assert.match(terminal, /\/disclosures\//);
 assert.match(terminal, /\/opportunity\//);
+assert.match(terminal, /\/brief\//);
+assert.match(terminal, /\/replay\//);
 assert.match(terminal, /Hot Sector/);
 assert.match(terminal, /id="dexSearchInput"/);
 assert.match(terminal, /Search symbol, token, pair, or contract/);
@@ -113,6 +120,10 @@ assert.match(research, /What Worked/);
 assert.match(research, /Outcome Quality/);
 assert.match(research, /Replay Strength/);
 assert.match(research, /Developer Mode/);
+assert.match(research, /Why Raven Believes This/);
+assert.match(research, /Why It Matters/);
+assert.match(research, /\/brief\//);
+assert.match(research, /\/replay\//);
 
 assert.match(atlas, /data-feature="atlas_context"/);
 assert.match(atlas, /data-coverage-badge/);
@@ -156,6 +167,32 @@ assert.match(opportunity, /Chain x Cap Band Matrix/);
 assert.match(opportunity, /Open Solana Micro Drilldown/);
 assert.match(opportunity, /What&apos;s Working/);
 assert.match(opportunity, /What Would Change The Read/);
+
+assert.match(brief, /RavenOS Daily Brief/);
+assert.match(brief, /Current Market Read/);
+assert.match(brief, /Best opportunity surface/);
+assert.match(brief, /Most similar regime/);
+assert.match(brief, /Why It Matters/);
+assert.match(brief, /Historical analogs/);
+assert.match(brief, /Daily Change Table/);
+
+assert.match(replayPage, /RavenOS Replay Lab/);
+assert.match(replayPage, /Have we seen this before/);
+assert.match(replayPage, /12 Similar Structures/);
+assert.match(replayPage, /Why Similar/);
+assert.match(replayPage, /Outcome Distribution/);
+assert.match(replayPage, /Historical similarity does not guarantee future outcomes/);
+
+assert.match(solanaChain, /RavenOS Solana Intelligence/);
+assert.match(solanaChain, /Micro-cap participation is broadening/);
+assert.match(solanaChain, /Top opportunity surface/);
+assert.match(solanaChain, /Historical Context/);
+assert.match(baseChain, /RavenOS Base Intelligence/);
+assert.match(baseChain, /Small-cap rotation is building/);
+assert.match(baseChain, /Coverage/);
+assert.match(ethereumChain, /RavenOS Ethereum Intelligence/);
+assert.match(ethereumChain, /Liquidity is stable, but breadth is narrow/);
+assert.match(ethereumChain, /Why It Matters/);
 
 assert.match(faq, /What is RavenOS\?/);
 assert.match(faq, /Does RavenOS provide trade signals\?/);
