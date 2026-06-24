@@ -228,7 +228,7 @@ assert.equal(publicResearchPayload.safe_public, true);
 assert.ok(Array.isArray(publicResearchPayload.data.rows));
 assert.ok(publicResearchPayload.data.summary.findings_reviewed >= 1);
 assert.match(JSON.stringify(publicResearchPayload), /Participant Cohort Validation/);
-assert.match(JSON.stringify(publicResearchPayload), /Median post-entry MFE 52\.14%/);
+assert.match(JSON.stringify(publicResearchPayload), /Median post-observation MFE 52\.14%/);
 assert.doesNotMatch(JSON.stringify(publicResearchPayload), /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
 
 const researchStatus = await worker.fetch(new Request("https://ravenos.xyz/api/status"), env);

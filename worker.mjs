@@ -1394,7 +1394,7 @@ function researchRowsFromPublic(outcomes = {}, replay = {}, memory = {}, behavio
     .map((row) => ({
       view: "setup_families",
       finding: "Participant Cohort Validation",
-      structure: "Entry-visible settled cohorts showed post-entry expansion evidence",
+      structure: "Observation-visible settled cohorts showed post-observation expansion evidence",
       status: "Observed",
       confidence: confidenceFromPublicSample(sampleSizeOf(row), row.confidence),
       sample_depth: sampleSizeOf(row),
@@ -1402,8 +1402,8 @@ function researchRowsFromPublic(outcomes = {}, replay = {}, memory = {}, behavio
       replay_strength: "Proof Context",
       supports: [
         `${sampleSizeOf(row).toLocaleString("en-US")} settled cohort rows`,
-        `Median post-entry MFE ${Number(row.median_mfe_pct || 0).toFixed(2)}%`,
-        `P75 post-entry MFE ${Number(row.p75_mfe_pct || 0).toFixed(2)}%`,
+        `Median post-observation MFE ${Number(row.median_mfe_pct || 0).toFixed(2)}%`,
+        `P75 post-observation MFE ${Number(row.p75_mfe_pct || 0).toFixed(2)}%`,
         `Repeat participation ${Number(row.repeat_participation_pct || 0).toFixed(2)}%`,
       ],
       risks: Array.isArray(row.caveats) && row.caveats.length
