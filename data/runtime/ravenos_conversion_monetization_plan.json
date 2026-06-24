@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-06-24T00:00:00Z",
+  "scope": "public_product_conversion",
+  "safety": {
+    "trading_logic_changed": false,
+    "execution_changed": false,
+    "private_artifacts_exposed": false
+  },
+  "tiers": {
+    "free": [
+      "any_token_lookup",
+      "basic_chart",
+      "basic_overlays",
+      "daily_brief",
+      "opportunity_preview",
+      "limited_replay",
+      "limited_outcomes",
+      "limited_behavior"
+    ],
+    "pro": [
+      "full_opportunity",
+      "full_replay_lab",
+      "full_outcome_dashboard",
+      "full_market_memory",
+      "full_behavior_explorer",
+      "full_structure_lab",
+      "full_perps_intelligence",
+      "alerts",
+      "watchlists",
+      "expanded_explanations"
+    ],
+    "desk_atlas": [
+      "market_regime",
+      "liquidity_regime",
+      "cross_asset_context",
+      "institutional_context",
+      "deeper_history",
+      "research_exports"
+    ]
+  },
+  "critical_conversion_moments": [
+    {
+      "moment": "opportunity_cell_drilldown",
+      "user_question": "Why is this chain and cap band working?",
+      "paid_unlock": "full replay, outcomes, and evidence detail"
+    },
+    {
+      "moment": "replay_outcome_detail",
+      "user_question": "What happened when this structure appeared before?",
+      "paid_unlock": "full historical analog set and failure conditions"
+    },
+    {
+      "moment": "structure_change_monitoring",
+      "user_question": "Tell me when this read changes.",
+      "paid_unlock": "alerts and watchlists"
+    },
+    {
+      "moment": "perps_pressure_research",
+      "user_question": "Which pressure structures are developing?",
+      "paid_unlock": "full perps intelligence"
+    }
+  ],
+  "risks": [
+    {
+      "severity": "high",
+      "issue": "scores_without_visible_evidence",
+      "fix": "show score transparency, freshness, confidence, sample depth, and weakening conditions"
+    },
+    {
+      "severity": "high",
+      "issue": "stale_or_sample_states_look_like_failure",
+      "fix": "label sample forming, delayed context, and last verified public artifact clearly"
+    },
+    {
+      "severity": "medium",
+      "issue": "too_many_entry_points",
+      "fix": "make Brief -> Opportunity -> Replay -> Outcomes -> Memory -> Behavior -> Terminal the primary journey"
+    }
+  ]
+}
