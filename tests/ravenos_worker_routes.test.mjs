@@ -202,6 +202,15 @@ async function assertPublicIntelligence(endpoint) {
   assert.equal(response.status, 200, `${endpoint} should return 200`);
   const payload = await response.json();
   assert.equal(payload.safe_public, true, `${endpoint} should be public-safe`);
+  assert.equal(payload.evidence_contract_version, "1.0", `${endpoint} should expose evidence contract v1`);
+  assert.ok(["current_synthesis", "leading", "settled", "historical"].includes(payload.evidence_mode), `${endpoint} should use a valid evidence mode`);
+  assert.equal(payload.evidence_contract.evidence_contract_version, "1.0", `${endpoint} should include normalized evidence contract`);
+  assert.ok(payload.evidence_contract.observation_window, `${endpoint} should declare observation window`);
+  assert.ok(payload.evidence_contract.settlement_window, `${endpoint} should declare settlement window`);
+  assert.equal(typeof payload.evidence_contract.sample.unit, "string", `${endpoint} should declare sample unit`);
+  assert.ok(payload.evidence_contract.freshness, `${endpoint} should include freshness`);
+  assert.ok(payload.evidence_contract.source, `${endpoint} should include source`);
+  assert.ok(payload.evidence_bridge.bridge_text, `${endpoint} should include evidence bridge`);
   assert.equal(typeof payload.intelligence.net_read, "string", `${endpoint} should include net read`);
   assert.equal(typeof payload.intelligence.why, "string", `${endpoint} should include why`);
   assert.ok(Array.isArray(payload.intelligence.supports), `${endpoint} should include supports`);
@@ -218,6 +227,37 @@ await assertPublicIntelligence("/api/outcomes");
 await assertPublicIntelligence("/api/memory");
 await assertPublicIntelligence("/api/behavior");
 
+const evidenceBrief = await worker.fetch(new Request("https://ravenos.xyz/api/brief"), {
+  ...env,
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const evidenceBriefPayload = await evidenceBrief.json();
+assert.equal(evidenceBriefPayload.evidence_mode, "current_synthesis");
+assert.ok(Array.isArray(evidenceBriefPayload.claims));
+assert.ok(evidenceBriefPayload.claims[0].claim_id);
+assert.equal(evidenceBriefPayload.claims[0].status, "pending");
+
+const evidenceOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+  ...env,
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const evidenceOpportunityPayload = await evidenceOpportunity.json();
+assert.equal(evidenceOpportunityPayload.evidence_mode, "leading");
+assert.match(evidenceOpportunityPayload.evidence_bridge.bridge_text, /leading structural context/i);
+assert.ok(evidenceOpportunityPayload.claims[0].claim_id);
+
+const evidenceOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), {
+  ...env,
+  RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+});
+const evidenceOutcomesPayload = await evidenceOutcomes.json();
+assert.equal(evidenceOutcomesPayload.evidence_mode, "settled");
+assert.equal(evidenceOutcomesPayload.evidence_contract.validation_status, "settled");
+assert.ok(Array.isArray(evidenceOutcomesPayload.recent_raven_reads));
+assert.ok(evidenceOutcomesPayload.recent_raven_reads.length >= 1);
+assert.ok(["confirmed", "mixed", "invalidated", "insufficient"].includes(evidenceOutcomesPayload.recent_raven_reads[0].status));
+assert.doesNotMatch(JSON.stringify(evidenceOutcomesPayload.recent_raven_reads), /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
+
 const publicSolana = await worker.fetch(new Request("https://ravenos.xyz/api/chains/solana"), {
   ...env,
   RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
@@ -225,6 +265,7 @@ const publicSolana = await worker.fetch(new Request("https://ravenos.xyz/api/cha
 assert.equal(publicSolana.status, 200);
 const publicSolanaPayload = await publicSolana.json();
 assert.equal(publicSolanaPayload.safe_public, true);
+assert.equal(publicSolanaPayload.evidence_mode, "current_synthesis");
 assert.ok(Array.isArray(publicSolanaPayload.summary.cap_band_rows));
 assert.ok(publicSolanaPayload.summary.cap_band_rows.length >= 1);
 assert.ok(publicSolanaPayload.summary.best_cap_band);
@@ -309,6 +350,11 @@ const researchStatusRow = researchStatusPayload.endpoints.find((row) => row.endp
 assert.ok(researchStatusRow);
 assert.equal(researchStatusRow.leak_guard, "pass");
 assert.equal(researchStatusRow.origin_fetch_failed, false);
+assert.equal(researchStatusPayload.evidence_contract_version, "1.0");
+assert.ok(Array.isArray(researchStatusPayload.endpoints_missing_evidence_contract));
+assert.ok(Array.isArray(researchStatusPayload.cross_surface_consistency.comparisons));
+assert.equal(researchStatusPayload.cross_surface_consistency.comparisons[0].status, "explainable_difference");
+assert.ok(researchStatusPayload.claim_validation_backlog.pending >= 1);
 
 const publicPerpsEvidence = await worker.fetch(new Request("https://ravenos.xyz/api/perps/evidence"), env);
 assert.equal(publicPerpsEvidence.status, 200);

@@ -99,6 +99,42 @@
     if (node) node.textContent = value;
   }
 
+  function setEvidenceField(name, value) {
+    document.querySelectorAll(`[data-evidence-field="${name}"]`).forEach((node) => {
+      node.textContent = value == null || value === "" ? "not declared" : String(value);
+    });
+  }
+
+  function shortDate(value) {
+    if (!value) return "not declared";
+    const ts = Date.parse(value);
+    if (!Number.isFinite(ts)) return String(value);
+    return new Date(ts).toISOString().slice(11, 16) + " UTC";
+  }
+
+  function renderEvidenceContract(payload = {}) {
+    const contract = payload.evidence_contract || {};
+    if (!document.querySelector("[data-evidence-contract-header]")) return;
+    const sample = contract.sample || {};
+    const freshness = contract.freshness || {};
+    const source = contract.source || {};
+    const bridge = payload.evidence_bridge || {};
+    setEvidenceField("role", payload.evidence_role_label || contract.role_label || titleCase(payload.evidence_mode || "current synthesis"));
+    setEvidenceField("as_of", shortDate(contract.as_of || payload.generated_at));
+    setEvidenceField("window", contract.observation_window?.label || "not declared");
+    setEvidenceField("sample", `${fmtNumber(sample.usable || 0)} ${sample.unit || "observations"}`);
+    setEvidenceField("freshness", Number.isFinite(Number(freshness.age_seconds)) ? ageLabel(Number(freshness.age_seconds)) : titleCase(freshness.state || "sample forming"));
+    setEvidenceField("confidence", titleCase(contract.confidence?.label || "developing"));
+    setEvidenceField("bridge", `Evidence bridge: ${bridge.bridge_text || "Current reads, historical context, and settled validation use declared windows so differences can be understood rather than treated as contradictions."}`);
+    setEvidenceField("settlement", contract.settlement_window?.label || "pending");
+    setEvidenceField("population", contract.population?.label || "public aggregate market context");
+    setEvidenceField("weighting", contract.weighting?.mode || "equal row");
+    setEvidenceField("source", source.public_label || payload.source_label || "verified Raven feed");
+    setEvidenceField("observed_settled", `${fmtNumber(sample.observed || 0)} / ${fmtNumber(sample.settled || 0)}`);
+    setEvidenceField("validation", titleCase(contract.validation_status || "pending"));
+    setEvidenceField("artifact", contract.artifact_version || payload.schema_version || "unversioned");
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -334,6 +370,21 @@
         const confidence = titleCase(row.confidence || (sampleOf(row) >= 50 ? "moderate" : "developing"));
         const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
         return `<tr><td>${marketVenueLabel(row.chain || "market")}</td><td>${titleCase(row.cap_band || "all")}</td><td>${fmtNumber(row.observed_sample || row.observed || sampleOf(row))}</td><td>${fmtNumber(row.clean_sample || sampleOf(row))}</td><td class="${stateClass}">${titleCase(read)}</td><td>${confidence}</td><td>${sampleOf(row) < 20 ? "Evidence forming" : "Usable public evidence"}</td></tr>`;
+      }).join("");
+    }
+    const recent = document.getElementById("outRecentReads");
+    if (recent) {
+      const reads = Array.isArray(payload.recent_raven_reads) ? payload.recent_raven_reads : [];
+      recent.innerHTML = (reads.length ? reads : [{
+        headline: "Current public reads are waiting for settlement.",
+        issued_at: payload.generated_at,
+        observation_window: payload.evidence_contract?.observation_window?.label || "declared by read",
+        expected_validation_window: payload.evidence_contract?.settlement_window?.label || "pending",
+        status: "pending",
+        outcome_summary: { settled_result: "Latest settled context still forming", evidence_depth: "sample forming" },
+      }]).slice(0, 10).map((claim) => {
+        const outcome = claim.outcome_summary || {};
+        return `<tr><td>${escapeHtml(claim.headline || "Public read")}</td><td>${escapeHtml(shortDate(claim.issued_at || payload.generated_at))}</td><td>${escapeHtml(claim.observation_window || "declared")}</td><td>${escapeHtml(claim.expected_validation_window || "pending")}</td><td>${escapeHtml(titleCase(claim.status || "pending"))}</td><td>${escapeHtml(outcome.settled_result || "Pending validation")}</td><td>${escapeHtml(outcome.evidence_depth || "sample forming")}</td></tr>`;
       }).join("");
     }
   }
@@ -604,6 +655,7 @@
   }
 
   function applyPagePayload(endpoint, payload) {
+    renderEvidenceContract(payload);
     renderIntelligencePanel(payload);
     if (endpoint === "/api/opportunity") renderOpportunityLive(payload);
     if (endpoint === "/api/brief") renderBriefLive(payload);

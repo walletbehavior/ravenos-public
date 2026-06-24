@@ -1,0 +1,95 @@
+.public-evidence-strip {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(5, 11, 9, 0.94);
+  display: grid;
+  grid-template-columns: 1.15fr repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+}
+
+.public-evidence-cell {
+  background: #050b09;
+  padding: 9px 10px;
+  min-width: 0;
+}
+
+.public-evidence-cell span {
+  display: block;
+  color: #65786f;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.public-evidence-cell strong {
+  display: block;
+  margin-top: 4px;
+  color: #edf6f1;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.public-evidence-bridge {
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  background: rgba(125, 211, 252, 0.045);
+  color: #91a69d;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.public-evidence-bridge strong {
+  color: #edf6f1;
+}
+
+details.public-evidence-details {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(5, 11, 9, 0.72);
+  padding: 9px 10px;
+}
+
+details.public-evidence-details summary {
+  cursor: pointer;
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.public-evidence-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.public-evidence-detail-grid div {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 7px;
+  color: #91a69d;
+  font-size: 11px;
+}
+
+.public-evidence-detail-grid strong {
+  display: block;
+  color: #edf6f1;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  margin-top: 3px;
+}
+
+@media (max-width: 920px) {
+  .public-evidence-strip,
+  .public-evidence-detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .public-evidence-strip,
+  .public-evidence-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

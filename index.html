@@ -85,6 +85,7 @@
     }
   </style>
   <link rel="stylesheet" href="/ravenos-funnel.css" />
+  <link rel="stylesheet" href="/ravenos-evidence.css" />
 </head>
 <body data-ravenos-api="/api/brief">
   <main class="shell">
@@ -95,6 +96,31 @@
       </nav>
       <a class="button primary" href="/pricing/">Plans</a>
     </header>
+    <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
+      <div class="public-evidence-strip">
+        <div class="public-evidence-cell"><span>Evidence Role</span><strong data-evidence-field="role">Current Synthesis</strong></div>
+        <div class="public-evidence-cell"><span>As Of</span><strong data-evidence-field="as_of">awaiting read</strong></div>
+        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">declared by read</strong></div>
+        <div class="public-evidence-cell"><span>Usable Sample</span><strong data-evidence-field="sample">sample forming</strong></div>
+        <div class="public-evidence-cell"><span>Freshness</span><strong data-evidence-field="freshness">checking</strong></div>
+        <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
+      </div>
+      <div class="public-evidence-bridge" data-evidence-field="bridge"><strong>Evidence bridge:</strong> Current reads, historical context, and settled validation use declared windows so differences can be understood rather than treated as contradictions.</div>
+      <details class="public-evidence-details">
+        <summary>Evidence details</summary>
+        <div class="public-evidence-detail-grid">
+          <div>Settlement window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
+          <div>Population<strong data-evidence-field="population">public aggregate market context</strong></div>
+          <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
+          <div>Source<strong data-evidence-field="source">verified Raven feed</strong></div>
+          <div>Observed / settled<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
+          <div>Artifact version<strong data-evidence-field="artifact">unversioned</strong></div>
+          <div>Methodology<strong><a href="/docs/ravenos_public_methodology.md">Public definitions</a></strong></div>
+        </div>
+      </details>
+    </section>
+
 
     <section class="hero" aria-label="Current RavenOS read">
       <article class="panel read">

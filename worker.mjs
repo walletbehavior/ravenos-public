@@ -1130,11 +1130,29 @@ function publicEnvelope(key, config, payload, extra = {}) {
   const rawSource = extraSource || "bundled_artifact";
   const source = normalizePublicSource(rawSource);
   const intelligence = restExtra.intelligence || buildPublicIntelligenceRead(key, payload || {}, { ...restExtra, generated_at: generatedAt, stale });
+  const evidenceContract = buildEvidenceContract(key, config, payload || {}, {
+    ...restExtra,
+    generated_at: generatedAt,
+    age_seconds: age,
+    stale,
+    source,
+    raw_source: rawSource,
+    intelligence,
+  });
+  const claimLineage = buildClaimLineage(key, payload || {}, evidenceContract, intelligence, restExtra);
+  const evidenceBridge = buildEvidenceBridge(key, evidenceContract, intelligence, restExtra);
   return {
     ok: true,
     key,
     endpoint: config.endpoint,
     schema_version: config.schemaVersion,
+    evidence_contract_version: evidenceContract.evidence_contract_version,
+    evidence_mode: evidenceContract.evidence_mode,
+    evidence_role_label: evidenceContract.role_label,
+    evidence_contract: evidenceContract,
+    evidence_bridge: evidenceBridge,
+    claims: claimLineage.claims,
+    recent_raven_reads: claimLineage.recent_raven_reads,
     generated_at: generatedAt,
     updated_at: new Date().toISOString(),
     freshness_target_seconds: config.freshnessTargetSeconds,
@@ -1155,12 +1173,43 @@ function publicEnvelope(key, config, payload, extra = {}) {
 }
 
 function degradedEnvelope(key, config, message = "current read forming") {
+  const generatedAt = "";
+  const intelligence = {
+    net_read: "Current read is forming.",
+    why: "Raven is waiting for enough public-safe evidence before making a stronger read.",
+    supports: ["Public artifact endpoint is available"],
+    risks: ["Fresh evidence is not available yet"],
+    would_confirm: ["A fresh public artifact arrives with usable sample depth"],
+    would_weaken: ["Freshness remains delayed or evidence depth stays thin"],
+    sample_depth: 0,
+    confidence: "Low",
+    strongest_signal: "Endpoint available",
+    weakest_signal: "Evidence depth",
+    proof_status: "sample forming",
+  };
+  const evidenceContract = buildEvidenceContract(key, config, {}, {
+    generated_at: generatedAt,
+    age_seconds: null,
+    stale: true,
+    source: "none",
+    raw_source: "none",
+    intelligence,
+    degraded: true,
+  });
+  const claimLineage = buildClaimLineage(key, {}, evidenceContract, intelligence, {});
   return {
     ok: false,
     key,
     endpoint: config.endpoint,
     schema_version: config.schemaVersion,
-    generated_at: "",
+    evidence_contract_version: evidenceContract.evidence_contract_version,
+    evidence_mode: evidenceContract.evidence_mode,
+    evidence_role_label: evidenceContract.role_label,
+    evidence_contract: evidenceContract,
+    evidence_bridge: buildEvidenceBridge(key, evidenceContract, intelligence, { degraded: true }),
+    claims: claimLineage.claims,
+    recent_raven_reads: claimLineage.recent_raven_reads,
+    generated_at: generatedAt,
     updated_at: new Date().toISOString(),
     freshness_target_seconds: config.freshnessTargetSeconds,
     freshness_age_seconds: null,
@@ -1173,19 +1222,286 @@ function degradedEnvelope(key, config, message = "current read forming") {
     source_label: "current read forming",
     message,
     data: {},
-    intelligence: {
-      net_read: "Current read is forming.",
-      why: "Raven is waiting for enough public-safe evidence before making a stronger read.",
-      supports: ["Public artifact endpoint is available"],
-      risks: ["Fresh evidence is not available yet"],
-      would_confirm: ["A fresh public artifact arrives with usable sample depth"],
-      would_weaken: ["Freshness remains delayed or evidence depth stays thin"],
-      sample_depth: 0,
-      confidence: "Low",
-      strongest_signal: "Endpoint available",
-      weakest_signal: "Evidence depth",
-      proof_status: "sample forming",
+    intelligence,
+  };
+}
+
+function evidenceModeForKey(key = "") {
+  if (key === "opportunity") return ["leading", "Leading Read"];
+  if (key === "outcomes") return ["settled", "Settled Validation"];
+  if (key === "replay") return ["historical", "Historical Analogue"];
+  if (key === "memory") return ["historical", "Market Memory"];
+  if (key === "behavior") return ["leading", "Behavior Context"];
+  if (key === "research") return ["historical", "Research Validation"];
+  if (key === "terminal") return ["current_synthesis", "Live Market Context"];
+  if (key === "brief") return ["current_synthesis", "Current Synthesis"];
+  if (key === "perps/evidence") return ["current_synthesis", "Perps Market Context"];
+  if (key.startsWith("chains/")) return ["current_synthesis", "Chain Synthesis"];
+  return ["current_synthesis", "Current Synthesis"];
+}
+
+function observationWindowForKey(key = "") {
+  if (key === "opportunity") return { label: "1h", seconds: 3600 };
+  if (key === "terminal") return { label: "live", seconds: 60 };
+  if (key === "brief") return { label: "24h", seconds: 86400 };
+  if (key === "outcomes") return { label: "6h settled cohort", seconds: 21600 };
+  if (key === "behavior") return { label: "24h", seconds: 86400 };
+  if (key === "research") return { label: "latest public research snapshot", seconds: null };
+  if (key === "replay") return { label: "historical replay", seconds: null };
+  if (key === "memory") return { label: "historical memory", seconds: null };
+  if (key === "perps/evidence") return { label: "current perps context", seconds: 3600 };
+  if (key.startsWith("chains/")) return { label: "current chain context", seconds: 3600 };
+  return { label: "current", seconds: null };
+}
+
+function settlementWindowForKey(key = "") {
+  if (key === "outcomes") return { label: "6h", seconds: 21600 };
+  if (key === "brief") return { label: "latest settled validation", seconds: 21600 };
+  if (key === "opportunity" || key === "behavior" || key.startsWith("chains/")) return { label: "pending", seconds: null };
+  if (key === "perps/evidence") return { label: "15m / 1h / 4h / 12h where available", seconds: null };
+  if (key === "terminal") return { label: "pending", seconds: null };
+  return { label: "not applicable", seconds: null };
+}
+
+function windowRange(generatedAt = "", window = {}) {
+  const end = Date.parse(generatedAt);
+  if (!Number.isFinite(end) || !Number.isFinite(Number(window.seconds))) return { start: null, end: generatedAt || null };
+  return { start: new Date(end - Number(window.seconds) * 1000).toISOString(), end: new Date(end).toISOString() };
+}
+
+function sampleUnitForKey(key = "") {
+  if (key === "outcomes") return "cohorts";
+  if (key === "replay") return "structures";
+  if (key === "memory") return "records";
+  if (key === "research") return "research rows";
+  if (key === "perps/evidence") return "markets";
+  if (key === "terminal") return "markets";
+  return "observations";
+}
+
+function sampleContractForKey(key = "", payload = {}, rows = [], summary = {}) {
+  const observed = Number(summary.observed_rows || summary.total_observed_rows || rows.length || 0);
+  const usableRows = rows.reduce((sum, row) => sum + (sampleSizeOf(row) > 0 ? 1 : 0), 0);
+  const usable = observed > 0 ? Math.min(observed, usableRows || observed) : Number(summary.usable_rows || summary.live_public_markets || 0);
+  const sampleDepth = rows.reduce((sum, row) => sum + sampleSizeOf(row), 0) || Number(summary.sample_depth || summary.sample_size || 0);
+  const settled = key === "outcomes"
+    ? rows.reduce((sum, row) => sum + (sampleSizeOf(row) > 0 ? 1 : 0), 0)
+    : Number(summary.settled || summary.matured_12h_windows || 0);
+  return {
+    observed,
+    usable: usable || observed || sampleDepth || 0,
+    settled,
+    excluded: Math.max(0, observed - (usable || observed || 0)),
+    unit: sampleUnitForKey(key),
+    sample_depth: sampleDepth,
+  };
+}
+
+function populationContractForKey(key = "", config = {}, payload = {}, rows = []) {
+  const scopes = new Set();
+  const bands = new Set();
+  for (const row of rows) {
+    const chain = String(row.chain || config.chain || "").toLowerCase();
+    if (chain) scopes.add(chain === "hyperliquid" ? "perps" : chain);
+    const band = publicCapBandKey(row.cap_band || "");
+    if (band && band !== "all") bands.add(band);
+  }
+  if (config.chain) scopes.add(config.chain);
+  if (key === "perps/evidence") scopes.add("perps");
+  if (!scopes.size && key === "terminal") ["crypto_spot", "perps", "equity", "etf"].forEach((scope) => scopes.add(scope));
+  return {
+    label: key.startsWith("chains/") ? `${publicVenueLabel(config.chain)} public market context`
+      : key === "perps/evidence" ? "Hyperliquid perps venue context"
+        : key === "opportunity" ? "Spot chain and cap-band opportunity surfaces"
+          : key === "outcomes" ? "Settled public observation cohorts"
+            : "Public aggregate market context",
+    description: "Public-safe aggregate market structures only; private participants, wallets, execution systems, and proprietary thresholds are not exposed.",
+    market_scope: [...scopes].filter(Boolean).slice(0, 12),
+    cap_bands: [...bands].filter(Boolean).slice(0, 12),
+  };
+}
+
+function validationStatusForMode(mode = "", key = "") {
+  if (key === "outcomes") return "settled";
+  if (key === "research") return "partially_settled";
+  if (mode === "leading" || key === "terminal") return "pending";
+  if (mode === "historical") return "settled";
+  return "partially_settled";
+}
+
+function confidenceContractFromIntelligence(intelligence = {}, sample = {}, stale = false) {
+  const raw = String(intelligence.confidence || "").toLowerCase();
+  const label = raw.includes("high") ? "high"
+    : raw.includes("moderate") || raw.includes("medium") ? "medium"
+      : raw.includes("develop") ? "sample_forming"
+        : raw.includes("low") ? "low"
+          : Number(sample.usable || 0) >= 100 ? "medium"
+            : "sample_forming";
+  return {
+    label,
+    reason: stale
+      ? "Freshness is delayed, so confidence is capped until the next verified public artifact arrives."
+      : `${sample.usable || 0} usable ${sample.unit || "observations"} support this public read; strongest signal is ${String(intelligence.strongest_signal || "public evidence").toLowerCase()}.`,
+  };
+}
+
+function buildEvidenceContract(key, config, payload = {}, context = {}) {
+  const [mode, roleLabel] = evidenceModeForKey(key);
+  const rows = publicRowsForIntelligence(key, payload);
+  const summary = context.summary || payload.summary || {};
+  const generatedAt = context.generated_at || generatedAtOf(payload) || "";
+  const obs = observationWindowForKey(key);
+  const settlement = settlementWindowForKey(key);
+  const sample = sampleContractForKey(key, payload, rows, summary);
+  const population = populationContractForKey(key, config, payload, rows);
+  const stale = Boolean(context.stale);
+  return {
+    evidence_contract_version: "1.0",
+    as_of: generatedAt || null,
+    evidence_mode: mode,
+    role_label: roleLabel,
+    observation_window: { label: obs.label, ...windowRange(generatedAt, obs) },
+    settlement_window: { label: settlement.label, ...windowRange(generatedAt, settlement) },
+    population,
+    sample,
+    weighting: {
+      mode: "equal_row",
+      description: "Public rows are summarized equally unless a page explicitly labels a different public-safe weighting.",
     },
+    freshness: {
+      age_seconds: Number.isFinite(Number(context.age_seconds)) ? Number(context.age_seconds) : null,
+      target_seconds: Number(config.freshnessTargetSeconds || 0),
+      state: context.degraded ? "degraded" : stale ? "stale" : Number(context.age_seconds || 0) <= Number(config.freshnessTargetSeconds || 0) ? "fresh" : "last_known_good",
+    },
+    source: {
+      public_label: publicSourceLabel(context.source || "bundled_fallback"),
+      source_type: context.source || "bundled_fallback",
+    },
+    artifact_version: `${config.schemaVersion}:${generatedAt || "unversioned"}`,
+    confidence: confidenceContractFromIntelligence(context.intelligence || {}, sample, stale),
+    validation_status: validationStatusForMode(mode, key),
+    methodology_url: "/docs/ravenos_public_methodology.md",
+  };
+}
+
+function stablePublicClaimId(parts = []) {
+  const input = parts.map((part) => String(part || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")).join(":");
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `rvn-${Math.abs(hash >>> 0).toString(36)}`;
+}
+
+function publicClaimFromRead({ key, surface, claimType, headline, marketScope, population, contract, intelligence, status = "pending", outcomeSummary = null }) {
+  return {
+    claim_id: stablePublicClaimId([surface, claimType, headline, contract.as_of, contract.observation_window?.label]),
+    issued_at: contract.as_of,
+    surface,
+    claim_type: claimType,
+    headline,
+    market_scope: marketScope || contract.population?.label || "Public aggregate market context",
+    population: population || contract.population?.label || "Public aggregate market context",
+    evidence_mode: contract.evidence_mode,
+    observation_window: contract.observation_window?.label || null,
+    supporting_evidence: [
+      { public_metric: "strongest_signal", value: intelligence.strongest_signal || "Public evidence", direction: "support" },
+      { public_metric: "weakest_signal", value: intelligence.weakest_signal || "Confirmation depth", direction: "weaken" },
+      { public_metric: "usable_sample", value: `${contract.sample?.usable || 0} ${contract.sample?.unit || "observations"}`, direction: "support" },
+    ],
+    expected_validation_window: contract.settlement_window?.label || "pending",
+    status,
+    settled_at: status === "pending" ? null : contract.as_of,
+    outcome_summary: outcomeSummary,
+    methodology_version: contract.evidence_contract_version,
+  };
+}
+
+function buildClaimLineage(key, payload = {}, contract = {}, intelligence = {}, extra = {}) {
+  const claims = [];
+  const recent = [];
+  if (["brief", "opportunity", "terminal", "perps/evidence"].includes(key) || key.startsWith("chains/")) {
+    const surface = key.startsWith("chains/") ? "chain" : key === "perps/evidence" ? "perps" : key;
+    claims.push(publicClaimFromRead({
+      key,
+      surface,
+      claimType: key === "opportunity" ? "opportunity_surface_active"
+        : key === "brief" ? "current_market_read"
+          : key === "perps/evidence" ? "perps_pressure_context"
+            : "market_context_active",
+      headline: intelligence.net_read || "Current read is forming.",
+      contract,
+      intelligence,
+      status: contract.validation_status === "settled" ? "partially_settled" : "pending",
+    }));
+  }
+  if (key === "outcomes") {
+    const rows = publicRowsForIntelligence(key, payload).slice(0, 8);
+    for (const row of rows) {
+      const read = publicOutcomeRead(row);
+      const status = /reward|favorable|constructive/i.test(read) ? "confirmed"
+        : /punish|weak|negative/i.test(read) ? "invalidated"
+          : sampleSizeOf(row) < 20 ? "insufficient" : "mixed";
+      recent.push(publicClaimFromRead({
+        key,
+        surface: "outcomes",
+        claimType: "settled_public_outcome",
+        headline: `${publicVenueLabel(row.chain || "Market")} ${publicCapBandLabel(row.cap_band || "All")} settled as ${publicConditionLabel(read).toLowerCase()}.`,
+        marketScope: publicVenueLabel(row.chain || "Market"),
+        population: `${publicVenueLabel(row.chain || "Market")} ${publicCapBandLabel(row.cap_band || "All")}`,
+        contract,
+        intelligence,
+        status,
+        outcomeSummary: {
+          settled_result: publicConditionLabel(read),
+          evidence_depth: `${sampleSizeOf(row).toLocaleString("en-US")} ${contract.sample?.unit || "cohorts"}`,
+          explanation: status === "invalidated"
+            ? "The settled cohort weakened relative to current leading opportunity context."
+            : status === "confirmed"
+              ? "The settled cohort showed constructive followthrough in the declared validation window."
+              : "The settled cohort remains mixed or too thin to classify strongly.",
+        },
+      }));
+    }
+  }
+  return { claims, recent_raven_reads: recent };
+}
+
+function buildEvidenceBridge(key, contract = {}, intelligence = {}, extra = {}) {
+  if (key === "opportunity" || key === "brief" || key.startsWith("chains/")) {
+    return {
+      state: "leading_improving_settled_weak",
+      bridge_text: "Opportunity and chain reads are leading structural context. Outcomes is lagging settled validation, so current improvement may appear before the latest settled cohort confirms it.",
+      current_read: intelligence.net_read || "Current read is forming.",
+      settled_validation: "Check Outcomes for the latest settled cohort status.",
+      status: "explainable_difference",
+    };
+  }
+  if (key === "outcomes") {
+    return {
+      state: "settled_validation",
+      bridge_text: "Outcomes is the proof rail: it records whether earlier public reads became confirmed, mixed, invalidated, or remained insufficient after their validation window.",
+      current_read: intelligence.net_read || "Outcome read is forming.",
+      settled_validation: "Settled public cohorts are shown without removing weak or mixed results.",
+      status: "aligned",
+    };
+  }
+  if (key === "replay" || key === "memory") {
+    return {
+      state: "historical_context",
+      bridge_text: "Replay and Memory provide historical context. They explain precedent and recurrence, not current settled success.",
+      current_read: intelligence.net_read || "Historical read is forming.",
+      settled_validation: "Use Outcomes to compare historical context against settled public validation.",
+      status: "aligned",
+    };
+  }
+  return {
+    state: "current_context",
+    bridge_text: "This page provides current public context and should be validated against Replay, Memory, and Outcomes where relevant.",
+    current_read: intelligence.net_read || "Current read is forming.",
+    settled_validation: "Validation status is declared in the evidence contract.",
+    status: "aligned",
   };
 }
 
@@ -1876,6 +2192,12 @@ async function handlePublicStatus(request, env) {
       return {
         key,
         endpoint: config.endpoint,
+        evidence_contract_version: envelope.evidence_contract_version,
+        evidence_mode: envelope.evidence_mode,
+        validation_status: envelope.evidence_contract?.validation_status || null,
+        sample: envelope.evidence_contract?.sample || null,
+        observation_window: envelope.evidence_contract?.observation_window || null,
+        settlement_window: envelope.evidence_contract?.settlement_window || null,
         artifact_path: "derived:outcomes+replay+memory+behavior",
         source: envelope.source,
         source_detail: envelope.source_detail || envelope.source,
@@ -1904,9 +2226,26 @@ async function handlePublicStatus(request, env) {
     const effectiveGeneratedAt = liveProviderActive ? new Date().toISOString() : generatedAt;
     const effectiveAge = ageSeconds(effectiveGeneratedAt);
     const normalizedSource = normalizePublicSource(artifact.source);
+    const evidenceContract = buildEvidenceContract(key, config, payload || {}, {
+      generated_at: effectiveGeneratedAt || generatedAt || "",
+      age_seconds: effectiveAge,
+      stale: effectiveAge === null ? true : effectiveAge > Number(config.freshnessTargetSeconds || 900),
+      source: liveProviderActive ? `${config.liveProvider}+${normalizedSource}` : normalizedSource,
+      raw_source: artifact.source,
+      intelligence: buildPublicIntelligenceRead(key, payload || {}, {
+        generated_at: effectiveGeneratedAt || generatedAt || "",
+        stale: effectiveAge === null ? true : effectiveAge > Number(config.freshnessTargetSeconds || 900),
+      }),
+    });
     return {
       key,
       endpoint: config.endpoint,
+      evidence_contract_version: evidenceContract.evidence_contract_version,
+      evidence_mode: evidenceContract.evidence_mode,
+      validation_status: evidenceContract.validation_status,
+      sample: evidenceContract.sample,
+      observation_window: evidenceContract.observation_window,
+      settlement_window: evidenceContract.settlement_window,
       artifact_path: config.artifactPath,
       source: liveProviderActive ? `${config.liveProvider}+${normalizedSource}` : normalizedSource,
       source_detail: artifact.source,
@@ -1927,14 +2266,59 @@ async function handlePublicStatus(request, env) {
       error: artifact.error || "",
     };
   }));
+  const consistency = buildPublicEvidenceConsistency(entries);
   return publicJson({
     ok: true,
     generated_at: new Date().toISOString(),
     status: entries.some((entry) => entry.status === "degraded") ? "degraded" : "live_public_api",
     endpoints: entries,
+    evidence_contract_version: "1.0",
+    endpoints_missing_evidence_contract: entries.filter((entry) => !entry.evidence_contract_version).map((entry) => entry.endpoint),
+    stale_contracts: entries.filter((entry) => entry.stale).map((entry) => entry.endpoint),
+    methodology_version_mismatches: [],
+    cross_surface_consistency: consistency,
+    claim_validation_backlog: {
+      pending: entries.filter((entry) => entry.validation_status === "pending").length,
+      partially_settled: entries.filter((entry) => entry.validation_status === "partially_settled").length,
+      settled: entries.filter((entry) => entry.validation_status === "settled").length,
+    },
     private_leak_guard: "public_artifacts_only",
     normal_pages_rebuild_required_for_data: false,
   }, { cacheControl: "public, max-age=30, stale-while-revalidate=120" });
+}
+
+function buildPublicEvidenceConsistency(entries = []) {
+  const byEndpoint = new Map(entries.map((entry) => [entry.endpoint, entry]));
+  const opportunity = byEndpoint.get("/api/opportunity");
+  const outcomes = byEndpoint.get("/api/outcomes");
+  const comparisons = [];
+  if (opportunity && outcomes) {
+    const incompatibleWindows = opportunity.observation_window?.label !== outcomes.observation_window?.label
+      || opportunity.settlement_window?.label !== outcomes.settlement_window?.label;
+    comparisons.push({
+      pages: ["/api/opportunity", "/api/outcomes"],
+      evidence_modes: [opportunity.evidence_mode, outcomes.evidence_mode],
+      windows: {
+        opportunity: opportunity.observation_window?.label || null,
+        outcomes: outcomes.settlement_window?.label || outcomes.observation_window?.label || null,
+      },
+      populations: {
+        opportunity: opportunity.sample?.unit || null,
+        outcomes: outcomes.sample?.unit || null,
+      },
+      status: incompatibleWindows ? "explainable_difference" : "aligned",
+      bridge_text: incompatibleWindows
+        ? "Opportunity is a leading structural read while Outcomes is lagging settled validation. Current improvement can appear before the latest settled cohort confirms it."
+        : "Opportunity and Outcomes are using comparable windows in this status snapshot.",
+      last_checked_at: new Date().toISOString(),
+    });
+  }
+  const conflicts = comparisons.filter((row) => row.status === "true_conflict");
+  return {
+    comparisons,
+    true_contract_conflicts: conflicts,
+    explainable_differences: comparisons.filter((row) => row.status === "explainable_difference"),
+  };
 }
 
 async function routeApi(request, env) {
