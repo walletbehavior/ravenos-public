@@ -154,6 +154,19 @@
       </article>
     </section>
 
+    <section class="panel" aria-label="Observed followthrough">
+      <div class="panel-head">
+        <div><span class="kicker">Observed Followthrough</span><h2>Aggregate cohort validation</h2></div>
+        <a class="button" href="/outcomes/">Outcomes</a>
+      </div>
+      <div class="cards read">
+        <article class="card"><h3>Settled Cohorts</h3><p>Public aggregate participant cohorts checked against later market behavior.</p><div class="row"><span>Usable sample</span><strong id="homeCohortSample">forming</strong></div></article>
+        <article class="card"><h3>Median Expansion</h3><p>Observed maximum favorable movement after Raven&apos;s public observation window.</p><div class="row"><span>Median</span><strong id="homeCohortMedian">forming</strong></div></article>
+        <article class="card"><h3>Upper Quartile</h3><p>Top-quartile followthrough helps show whether stronger cohorts separated from noise.</p><div class="row"><span>P75</span><strong id="homeCohortP75">forming</strong></div></article>
+        <article class="card"><h3>Repeat Participation</h3><p>Private participant identifiers are not published; only aggregate behavior is shown.</p><div class="row"><span>Repeat share</span><strong id="homeCohortRepeat">forming</strong></div></article>
+      </div>
+    </section>
+
     <section class="panel" aria-label="Opportunity now">
       <div class="panel-head">
         <div><span class="kicker">Where Opportunity Is Now</span><h2>Opportunity board</h2></div>
@@ -206,6 +219,11 @@
     function safeCount(value, fallback = "forming") {
       const n = Number(value);
       return Number.isFinite(n) && n > 0 ? new Intl.NumberFormat("en-US").format(n) : fallback;
+    }
+    function fmtPct(value, fallback = "forming") {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return `${n.toFixed(n >= 100 ? 0 : 1)}%`;
     }
     function isConstructiveRead(value) {
       return /constructive|reward|favorable|improv|expand|risk-on/.test(String(value || "").toLowerCase());
@@ -281,6 +299,11 @@
       text("homeFailed", safeCount(outcomeRows.filter((row) => /fail|punish|weak/i.test(JSON.stringify(row))).length || punishing));
       text("homeSurfaceRead", bestRead || "Participation visible, confirmation forming");
       text("homeSurfaceConfidence", `${title(best.confidence || (observed > 20 ? "moderate" : "developing"))} · ${age(Number(opportunity.freshness_age_seconds))}`);
+      const cohort = outcomeRows.find((row) => row.cap_band === "participant_cohorts" || row.source === "jupiter_helius_public_cohort_validation") || {};
+      text("homeCohortSample", safeCount(cohort.clean_sample || cohort.sample_size));
+      text("homeCohortMedian", fmtPct(cohort.median_mfe_pct));
+      text("homeCohortP75", fmtPct(cohort.p75_mfe_pct));
+      text("homeCohortRepeat", fmtPct(cohort.repeat_participation_pct));
       const chainRow = chains[0] || {};
       const cap = capBands[0] || {};
       document.getElementById("homeRegimeMap").innerHTML = [

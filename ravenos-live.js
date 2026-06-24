@@ -82,6 +82,12 @@
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
   }
 
+  function fmtPercent(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "forming";
+    return `${n.toFixed(n >= 100 ? 0 : 1)}%`;
+  }
+
   function titleCase(value) {
     return String(value || "Current")
       .replace(/[_-]+/g, " ")
@@ -132,6 +138,7 @@
       perps_alts: "Perps Alts",
       perps_large_alts: "Perps Large Alts",
       perps_majors: "Perps Majors",
+      participant_cohorts: "Participant Cohort Validation",
     };
     return labels[String(value || "").toLowerCase()] || titleCase(value || "All");
   }
@@ -292,6 +299,7 @@
     const topRewarding = rows.filter(isRewarding).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
     const topPunishing = rows.filter(isPunishing).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
     const topMixed = rows.filter((row) => !isRewarding(row) && !isPunishing(row)).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
+    const cohort = rows.find((row) => row.cap_band === "participant_cohorts" || row.source === "jupiter_helius_public_cohort_validation") || {};
     setText("outGenerated", payload?.generated_at ? new Date(payload.generated_at).toISOString().slice(0, 16).replace("T", " ") : "current read forming");
     setText("outHeroBadge", rewarding > punishing ? "Rewarding / Forming" : punishing > rewarding ? "Punishing / Forming" : "Mixed / Forming");
     setText("outHeroSummary", rows.length
@@ -307,6 +315,10 @@
     setText("out30dText", usable >= 1000 ? "Usable evidence depth is improving, but the public 30D view is still conservative." : "Longer outcome aggregation is not yet complete in the public artifact.");
     setText("out90dStatus", "Coverage limited");
     setText("out90dText", "Deep public outcome history is not presented as live until enough validated aggregate history exists.");
+    setText("outCohortSample", fmtNumber(cohort.clean_sample || cohort.sample_size));
+    setText("outCohortMedian", fmtPercent(cohort.median_mfe_pct));
+    setText("outCohortP75", fmtPercent(cohort.p75_mfe_pct));
+    setText("outCohortRepeat", fmtPercent(cohort.repeat_participation_pct));
     const rowLabel = (row) => `${marketVenueLabel(row.chain || "market")} ${capBandLabel(row.cap_band || "all")}`;
     const listItems = (items, fallback) => (items.length ? items.map((row) => {
       const assets = Array.isArray(row.top_public_symbols) && row.top_public_symbols.length ? ` Assets: ${row.top_public_symbols.slice(0, 3).join(", ")}.` : "";
