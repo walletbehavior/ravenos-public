@@ -169,6 +169,7 @@ const PUBLIC_API_ENDPOINTS = {
     cacheControl: "public, max-age=120, stale-while-revalidate=300",
     schemaVersion: "ravenos_chain_public_v1",
     chain: "solana",
+    liveProvider: "dexscreener_public",
   },
   "chains/base": {
     endpoint: "/api/chains/base",
@@ -177,6 +178,7 @@ const PUBLIC_API_ENDPOINTS = {
     cacheControl: "public, max-age=120, stale-while-revalidate=300",
     schemaVersion: "ravenos_chain_public_v1",
     chain: "base",
+    liveProvider: "dexscreener_public",
   },
   "chains/ethereum": {
     endpoint: "/api/chains/ethereum",
@@ -185,6 +187,7 @@ const PUBLIC_API_ENDPOINTS = {
     cacheControl: "public, max-age=120, stale-while-revalidate=300",
     schemaVersion: "ravenos_chain_public_v1",
     chain: "eth",
+    liveProvider: "dexscreener_public",
   },
 };
 
@@ -1391,7 +1394,7 @@ async function liveOpportunityPayload(request, env, config) {
     }
   }
   return publicEnvelope("opportunity", config, heatmap || {}, {
-    source: artifact.source,
+    source: trending.length ? `${config.liveProvider}+${artifact.source}` : artifact.source,
     generated_at: trending.length ? new Date().toISOString() : generatedAtOf(heatmap || {}),
     summary: {
       ...summary,
@@ -1456,14 +1459,40 @@ async function chainPublicPayload(request, env, key, config) {
   const capBands = aggregateOpportunityRows(rows, "cap_band");
   const best = capBands[0] || null;
   const weakest = [...capBands].sort((a, b) => (b.punishing - b.rewarding) - (a.punishing - a.rewarding))[0] || null;
+  const liveCategory = config.chain === "eth" ? "ethereum" : config.chain;
+  let liveRows = [];
+  let liveProviderChecked = false;
+  if (String(env?.RAVENOS_DISABLE_LIVE_PROVIDER_FETCH || "").toLowerCase() !== "true") {
+    try {
+      liveProviderChecked = true;
+      liveRows = await trendingDex(liveCategory, { limit: 20 });
+    } catch (_) {
+      liveProviderChecked = true;
+      liveRows = [];
+    }
+  }
+  const liveAssets = liveRows
+    .map((row) => row.symbol)
+    .filter(Boolean)
+    .slice(0, 12);
+  const artifactAssets = rows.flatMap((row) => Array.isArray(row.top_public_symbols) ? row.top_public_symbols : []);
   return publicEnvelope(key, config, payload, {
-    source: artifact.source,
+    source: liveProviderChecked ? `${config.liveProvider}+${artifact.source}` : artifact.source,
+    generated_at: liveProviderChecked ? new Date().toISOString() : generatedAtOf(payload),
     summary: {
       ...summary,
       cap_band_rows: capBands,
       best_cap_band: best,
       weakest_cap_band: weakest,
-      top_assets: [...new Set(rows.flatMap((row) => Array.isArray(row.top_public_symbols) ? row.top_public_symbols : []))].slice(0, 12),
+      live_public_markets: liveRows.length,
+      live_top_symbols: liveRows.slice(0, 8).map((row) => ({
+        symbol: row.symbol,
+        chain: row.chainId,
+        liquidity_usd: row.liquidityUsd,
+        volume_24h: row.volume24h,
+        market_cap: row.marketCap || row.fdv,
+      })),
+      top_assets: [...new Set([...liveAssets, ...artifactAssets])].slice(0, 12),
       current_read: best
         ? `${publicVenueLabel(config.chain)} ${best.label} is the clearest current surface; ${weakest?.label || "weaker cohorts"} remains the main caveat.`
         : `${publicVenueLabel(config.chain)} read is forming from public context.`,
