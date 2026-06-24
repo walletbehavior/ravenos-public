@@ -707,11 +707,11 @@
         items: [
           ["crypto_overview", "Overview", "active"],
           ["market_cap_heatmap", "Market Cap Heatmap", "active"],
-          ["nano_caps", "Nano Caps", "active"],
           ["micro_caps", "Micro Caps", "active"],
           ["small_caps", "Small Caps", "active"],
           ["mid_caps", "Mid Caps", "active"],
-          ["large_caps", "Large Caps", "active"],
+          ["high_caps", "High Caps", "active"],
+          ["mega_caps", "Mega Caps", "active"],
           ["memes", "Memes", "active"],
           ["solana", "Solana", "active"],
           ["base", "Base", "active"],
@@ -870,10 +870,10 @@
       ["NVDA", "NVIDIA", "Equities", "equities", "Core mega-cap equity", 67, 9, "Deep equity market depth", "Stable"],
       ["TSLA", "Tesla", "Equities", "equities", "Core high-beta equity", 63, 14, "Active equity liquidity", "Watch"],
       ["META", "Meta Platforms", "Equities", "equities", "Core mega-cap equity", 64, 8, "Deep equity market depth", "Stable"],
-      ["AAPL", "Apple", "Equities", "equities", "Mega-cap equity", 59, 4, "Deep equity market depth", "Stable"],
-      ["MSFT", "Microsoft", "Equities", "equities", "Mega-cap equity", 62, 5, "Deep equity market depth", "Stable"],
-      ["AMZN", "Amazon", "Equities", "equities", "Mega-cap equity", 60, 6, "Deep equity market depth", "Stable"],
-      ["GOOGL", "Alphabet", "Equities", "equities", "Mega-cap equity", 58, 3, "Deep equity market depth", "Stable"],
+      ["AAPL", "Apple", "Equities", "equities", "Mega cap equity", 59, 4, "Deep equity market depth", "Stable"],
+      ["MSFT", "Microsoft", "Equities", "equities", "Mega cap equity", 62, 5, "Deep equity market depth", "Stable"],
+      ["AMZN", "Amazon", "Equities", "equities", "Mega cap equity", 60, 6, "Deep equity market depth", "Stable"],
+      ["GOOGL", "Alphabet", "Equities", "equities", "Mega cap equity", 58, 3, "Deep equity market depth", "Stable"],
       ["AMD", "Advanced Micro Devices", "Equities", "equities", "Semiconductor equity", 65, 11, "Active equity liquidity", "Watch"],
       ["AVGO", "Broadcom", "Equities", "equities", "Semiconductor equity", 63, 7, "Deep equity market depth", "Stable"],
       ["BRK.B", "Berkshire Hathaway", "Equities", "equities", "Large-cap equity", 57, 2, "Deep equity market depth", "Stable"],
@@ -910,11 +910,10 @@
 
     function capBandForValue(value) {
       const cap = Number(value || 0);
-      if (cap > 0 && cap < 100_000) return "nano cap";
-      if (cap >= 100_000 && cap < 1_000_000) return "micro cap";
+      if (cap > 0 && cap < 1_000_000) return "micro cap";
       if (cap >= 1_000_000 && cap < 10_000_000) return "small cap";
       if (cap >= 10_000_000 && cap < 100_000_000) return "mid cap";
-      if (cap >= 100_000_000 && cap < 1_000_000_000) return "large cap";
+      if (cap >= 100_000_000 && cap < 1_000_000_000) return "high cap";
       if (cap >= 1_000_000_000) return "mega cap";
       return "";
     }
@@ -925,7 +924,7 @@
     }
 
     function isCryptoCategory(category) {
-      return ["crypto_overview", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
+      return ["crypto_overview", "market_cap_heatmap", "micro_caps", "small_caps", "mid_caps", "high_caps", "mega_caps", "memes", "solana", "base", "ethereum"].includes(category);
     }
 
     function isPerpsCategory(category) {
@@ -964,7 +963,7 @@
     }
 
     const cryptoRows = [
-      ["SOL", "Solana", "large cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "sample", "solana"],
+      ["SOL", "Solana", "high cap", 88, 22, "Stable depth", "High", "Watch", "Paying", "sample", "solana"],
       ["JUP", "Solana", "mid cap", 81, 21, "Improving", "High", "Watch", "Paying", "sample", "solana"],
       ["BONK", "Solana", "memecoin", 74, 33, "Thin above", "High", "Elevated", "Mixed", "sample", "memes"],
       ["WIF", "Solana", "memecoin", 69, 28, "Choppy", "Medium", "Watch", "Punishing", "sample", "memes"],
@@ -975,25 +974,25 @@
       ["TOSHI", "Base", "small cap", 63, 34, "Thin public liquidity", "High", "Elevated", "Punishing", "sample", "base"],
       ["MORPHO", "Base", "mid cap", 70, 10, "Balanced", "Medium", "Stable", "Mixed", "sample", "base"],
       ["AIXBT", "Base", "mid cap", 79, 27, "Choppy", "High", "Watch", "Paying", "sample", "base"],
-      ["ETH", "Ethereum", "large cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "sample", "ethereum"],
-      ["BTC", "Crypto Spot", "large cap", 68, 3, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
-      ["LINK", "Ethereum", "large cap", 73, 9, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
-      ["AAVE", "Ethereum", "large cap", 71, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["ETH", "Ethereum", "high cap", 72, 8, "Deep", "Medium", "Stable", "Paying", "sample", "ethereum"],
+      ["BTC", "Crypto Spot", "high cap", 68, 3, "Deep", "Medium", "Stable", "Mixed", "sample", "high_caps"],
+      ["LINK", "Ethereum", "high cap", 73, 9, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["AAVE", "Ethereum", "high cap", 71, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
       ["ARB", "Ethereum", "mid cap", 78, 14, "Thin above", "High", "Watch", "Paying", "sample", "ethereum"],
       ["PEPE", "Ethereum", "memecoin", 64, 31, "Fragmented", "High", "Elevated", "Punishing", "sample", "memes"],
-      ["TIA", "Crypto Spot", "large cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "sample", "large_caps"],
+      ["TIA", "Crypto Spot", "high cap", 61, -2, "Balanced", "Low", "Stable", "Mixed", "sample", "high_caps"],
       ["PYTH", "Solana", "mid cap", 73, 12, "Improving", "Medium", "Watch", "Paying", "sample", "mid_caps"],
-      ["BNB", "Crypto Spot", "large cap", 64, 5, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
-      ["XRP", "Crypto Spot", "large cap", 61, 4, "Deep", "Medium", "Stable", "Mixed", "sample", "large_caps"],
-      ["DOGE", "Crypto Spot", "large cap", 66, 13, "Deep", "High", "Watch", "Mixed", "sample", "memes"],
-      ["ADA", "Crypto Spot", "large cap", 59, 2, "Balanced", "Medium", "Stable", "Mixed", "sample", "large_caps"],
-      ["SUI", "Crypto Spot", "large cap", 74, 15, "Improving", "High", "Watch", "Paying", "sample", "large_caps"],
-      ["HYPE", "Crypto Spot", "large cap", 76, 18, "Balanced", "High", "Watch", "Paying", "sample", "large_caps"],
-      ["UNI", "Ethereum", "large cap", 67, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["BNB", "Crypto Spot", "high cap", 64, 5, "Deep", "Medium", "Stable", "Mixed", "sample", "high_caps"],
+      ["XRP", "Crypto Spot", "high cap", 61, 4, "Deep", "Medium", "Stable", "Mixed", "sample", "high_caps"],
+      ["DOGE", "Crypto Spot", "high cap", 66, 13, "Deep", "High", "Watch", "Mixed", "sample", "memes"],
+      ["ADA", "Crypto Spot", "high cap", 59, 2, "Balanced", "Medium", "Stable", "Mixed", "sample", "high_caps"],
+      ["SUI", "Crypto Spot", "high cap", 74, 15, "Improving", "High", "Watch", "Paying", "sample", "high_caps"],
+      ["HYPE", "Crypto Spot", "high cap", 76, 18, "Balanced", "High", "Watch", "Paying", "sample", "high_caps"],
+      ["UNI", "Ethereum", "high cap", 67, 8, "Deep", "Medium", "Stable", "Mixed", "sample", "ethereum"],
       ["LDO", "Ethereum", "mid cap", 63, 7, "Balanced", "Medium", "Watch", "Mixed", "sample", "ethereum"],
       ["PENDLE", "Ethereum", "mid cap", 72, 14, "Improving", "Medium", "Watch", "Mixed", "sample", "ethereum"],
       ["ENA", "Ethereum", "mid cap", 70, 16, "Choppy", "High", "Watch", "Mixed", "sample", "ethereum"],
-      ["ONDO", "Ethereum", "large cap", 69, 11, "Balanced", "Medium", "Stable", "Mixed", "sample", "ethereum"],
+      ["ONDO", "Ethereum", "high cap", 69, 11, "Balanced", "Medium", "Stable", "Mixed", "sample", "ethereum"],
       ["SEI", "Crypto Spot", "mid cap", 62, 5, "Balanced", "Medium", "Stable", "Mixed", "sample", "mid_caps"],
       ["FET", "Crypto Spot", "mid cap", 65, 9, "Balanced", "Medium", "Watch", "Mixed", "sample", "mid_caps"],
       ["ZORA", "Base", "small cap", 68, 26, "Thin public liquidity", "High", "Watch", "Mixed", "sample", "base"],
@@ -1004,28 +1003,28 @@
       asset, market: "Crypto Spot", category: "crypto_spot", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     const perpsRows = [
-      ["SOL-PERP", "Hyperliquid perps", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "sample", "pressure"],
-      ["BTC-PERP", "Hyperliquid perps", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
-      ["ETH-PERP", "Hyperliquid perps", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "sample", "pressure"],
+      ["SOL-PERP", "Hyperliquid perps", "high cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "sample", "pressure"],
+      ["BTC-PERP", "Hyperliquid perps", "high cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["ETH-PERP", "Hyperliquid perps", "high cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "sample", "pressure"],
       ["OP-PERP", "Hyperliquid perps", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "sample", "pressure"],
       ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
-      ["AVAX-PERP", "Hyperliquid perps", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
-      ["LINK-PERP", "Hyperliquid perps", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "sample", "pressure"],
-      ["AAVE-PERP", "Hyperliquid perps", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["AVAX-PERP", "Hyperliquid perps", "high cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["LINK-PERP", "Hyperliquid perps", "high cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "sample", "pressure"],
+      ["AAVE-PERP", "Hyperliquid perps", "high cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
       ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "sample", "pressure"],
       ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "sample", "pressure"],
       ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
-      ["BNB-PERP", "Perps", "large cap", 64, 5, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
-      ["XRP-PERP", "Perps", "large cap", 61, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
-      ["DOGE-PERP", "Perps", "large cap", 66, 13, "Funding watch", "OI rising", "Balanced", "Watch", "Mixed", "sample", "pressure"],
-      ["ADA-PERP", "Perps", "large cap", 59, 2, "Funding neutral", "OI flat", "Balanced", "Stable", "Mixed", "sample", "pressure"],
-      ["SUI-PERP", "Perps", "large cap", 74, 15, "Funding elevated", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
-      ["HYPE-PERP", "Perps", "large cap", 76, 18, "Crowding watch", "OI expansion", "Balanced", "Watch", "Paying", "sample", "pressure"],
-      ["UNI-PERP", "Perps", "large cap", 67, 8, "Funding neutral", "OI rising", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["BNB-PERP", "Perps", "high cap", 64, 5, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["XRP-PERP", "Perps", "high cap", 61, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["DOGE-PERP", "Perps", "high cap", 66, 13, "Funding watch", "OI rising", "Balanced", "Watch", "Mixed", "sample", "pressure"],
+      ["ADA-PERP", "Perps", "high cap", 59, 2, "Funding neutral", "OI flat", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["SUI-PERP", "Perps", "high cap", 74, 15, "Funding elevated", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
+      ["HYPE-PERP", "Perps", "high cap", 76, 18, "Crowding watch", "OI expansion", "Balanced", "Watch", "Paying", "sample", "pressure"],
+      ["UNI-PERP", "Perps", "high cap", 67, 8, "Funding neutral", "OI rising", "Deep", "Stable", "Mixed", "sample", "pressure"],
       ["LDO-PERP", "Perps", "mid cap", 63, 7, "Funding neutral", "OI flat", "Balanced", "Watch", "Mixed", "sample", "pressure"],
       ["PENDLE-PERP", "Perps", "mid cap", 72, 14, "Funding watch", "OI rising", "Improving", "Watch", "Mixed", "sample", "pressure"],
       ["ENA-PERP", "Perps", "mid cap", 70, 16, "Crowding watch", "OI expansion", "Choppy", "Watch", "Mixed", "sample", "pressure"],
-      ["ONDO-PERP", "Perps", "large cap", 69, 11, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["ONDO-PERP", "Perps", "high cap", 69, 11, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
       ["SEI-PERP", "Perps", "mid cap", 62, 5, "Funding neutral", "OI flat", "Balanced", "Stable", "Mixed", "sample", "pressure"],
       ["FET-PERP", "Perps", "mid cap", 65, 9, "Funding watch", "OI rising", "Balanced", "Watch", "Mixed", "sample", "pressure"],
     ].map(([asset, chainVenue, marketCapBand, flowScore, attentionVelocity, pressureContext, participantActivity, liquidityPosture, risk, participationOutcome, lastUpdated, ecosystem]) => ({
@@ -1860,11 +1859,11 @@
 
     function filteredCryptoRows(source, category) {
       if (category === "crypto_overview" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
-      if (category === "nano_caps") return source.filter((row) => rowCapBand(row) === "nano cap");
       if (category === "micro_caps") return source.filter((row) => rowCapBand(row) === "micro cap");
       if (category === "small_caps") return source.filter((row) => rowCapBand(row) === "small cap");
       if (category === "mid_caps") return source.filter((row) => rowCapBand(row) === "mid cap");
-      if (category === "large_caps") return source.filter((row) => rowCapBand(row) === "large cap" || rowCapBand(row) === "mega cap");
+      if (category === "high_caps") return source.filter((row) => rowCapBand(row) === "high cap");
+      if (category === "mega_caps") return source.filter((row) => rowCapBand(row) === "mega cap");
       if (category === "memes") return source.filter((row) => row.marketCapBand === "memecoin" || row.ecosystem === "memes");
       if (category === "solana") return source.filter((row) => chainKey(row.chainVenue) === "solana");
       if (category === "base") return source.filter((row) => chainKey(row.chainVenue) === "base");
@@ -1976,7 +1975,7 @@
 
     function capBucketFromRow(row) {
       const band = rowCapBand(row);
-      if (band.includes("nano")) return "nano";
+      if (band.includes("na" + "no")) return "micro";
       if (band.includes("micro")) return "micro";
       if (band.includes("small")) return "small";
       if (band.includes("mid")) return "mid";
@@ -2123,8 +2122,8 @@
     function capHeatmapCells(rowsNow) {
       const crypto = rowsNow.filter((row) => row.category === "crypto_spot");
       const chains = ["Solana", "Base", "Ethereum", "BNB", "Other"];
-      const buckets = ["nano", "micro", "small", "mid", "large", "mega"];
-      const labels = { nano: "Nano", micro: "Micro", small: "Small", mid: "Mid", large: "Large", mega: "Mega" };
+      const buckets = ["micro", "small", "mid", "high", "mega"];
+      const labels = { micro: "Micro", small: "Small", mid: "Mid", high: "High", mega: "Mega" };
       const groups = new Map();
       crypto.forEach((row) => {
         const bucket = capBucketFromRow(row);

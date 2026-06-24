@@ -311,11 +311,11 @@ function sortedDexResults(pairs = []) {
 
 function capBandForDex(row = {}) {
   const cap = num(row.marketCap) || num(row.fdv);
-  if (cap > 0 && cap < 100_000) return "nano_caps";
-  if (cap >= 100_000 && cap < 1_000_000) return "micro_caps";
+  if (cap > 0 && cap < 1_000_000) return "micro_caps";
   if (cap >= 1_000_000 && cap < 10_000_000) return "small_caps";
   if (cap >= 10_000_000 && cap < 100_000_000) return "mid_caps";
-  if (cap >= 100_000_000) return "large_caps";
+  if (cap >= 100_000_000 && cap < 1_000_000_000) return "high_caps";
+  if (cap >= 1_000_000_000) return "mega_caps";
   return "";
 }
 
@@ -328,7 +328,7 @@ function chainMatchesCategory(row = {}, category = "") {
 }
 
 function categoryMatchesDexRow(row = {}, category = "") {
-  if (["nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps"].includes(category)) return capBandForDex(row) === category;
+  if (["micro_caps", "small_caps", "mid_caps", "high_caps", "mega_caps"].includes(category)) return capBandForDex(row) === category;
   if (["solana", "base", "ethereum"].includes(category)) return chainMatchesCategory(row, category);
   if (category === "memes") return /meme|dog|pepe|inu|cat|frog|bonk|wif|toshi|brett/i.test(`${row.symbol || ""} ${row.name || ""}`);
   return true;
@@ -1361,9 +1361,22 @@ function publicCapBandLabel(value = "") {
   const text = String(value || "all");
   const labels = {
     fresh_pairs: "Fresh Pairs",
+    nano_caps: "Micro",
     live_activity: "Live Activity",
     jupiter_velocity: "Solana Routing Context",
     participant_cohorts: "Participant Cohort Validation",
+    micro: "Micro",
+    micro_caps: "Micro",
+    small: "Small",
+    small_caps: "Small",
+    mid: "Mid",
+    mid_caps: "Mid",
+    high: "High",
+    high_caps: "High",
+    large: "High",
+    large_caps: "High",
+    mega: "Mega",
+    mega_caps: "Mega",
     perps_all: "Perps Context",
     perps_alts: "Perps Alts",
     perps_large_alts: "Perps Large Alts",
@@ -1502,8 +1515,8 @@ function opportunitySummaryFromHeatmap(payload = {}) {
       observed_rows: perpsRows.length,
       rows: perpsContext.slice(0, 6),
       read: perpsRows.length
-        ? "Perps are tracked as separate market-pressure context, not as a chain participation surface."
-        : "Perps context is forming.",
+        ? "Perp markets show where leverage, positioning, and liquidity pressure are building."
+        : "Perps pressure context is forming.",
     },
     top_opportunities: sorted.slice(0, 6).map((row) => ({
       chain: row.chain,

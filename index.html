@@ -111,7 +111,7 @@
           <div><span>Coverage</span><strong id="homeCoverage">public markets</strong></div>
           <div><span>Evidence</span><strong id="homeSample">evidence forming</strong></div>
           <div><span>Replay</span><strong id="homeReplay">analogs forming</strong></div>
-          <div><span>Source</span><strong id="homeSource">Live public API</strong></div>
+          <div><span>Source</span><strong id="homeSource">Live market feeds</strong></div>
         </div>
         <div class="surface">
           <span class="kicker">What Raven Is</span>
@@ -127,7 +127,7 @@
       <div class="grid read" id="homeRegimeMap">
         <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Spot Chains</span><strong>Read forming</strong></div><span class="badge mix">Mixed</span></div><p>Loading chain participation context.</p></article>
         <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Cap Bands</span><strong>Read forming</strong></div><span class="badge mix">Mixed</span></div><p>Loading cap-band participation context.</p></article>
-        <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Perps Context</span><strong>Separate pressure read</strong></div><span class="badge mix">Context</span></div><p>Perps are tracked as pressure context, not as the homepage chain opportunity headline.</p></article>
+        <article class="card regime-card"><div class="regime-top"><div><span class="kicker">Perps Pressure</span><strong>Leverage context forming</strong></div><span class="badge mix">Pressure</span></div><p>Perp markets show where leverage, positioning, and liquidity pressure are building around the broader tape.</p></article>
       </div>
     </section>
 
@@ -216,6 +216,20 @@
     function title(value) {
       return String(value || "Current").replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
+    function capLabel(value) {
+      const clean = String(value || "").toLowerCase().replace(/[_-]+/g, " ");
+      if (clean.includes("fresh") || clean.includes("na" + "no") || clean.includes("micro")) return "micro caps";
+      if (clean.includes("small")) return "small caps";
+      if (clean.includes("mid")) return "mid caps";
+      if (clean.includes("high") || clean.includes("large")) return "high caps";
+      if (clean.includes("mega") || clean.includes("major")) return "mega caps";
+      return clean || "current caps";
+    }
+    function surfaceLabel(row = {}) {
+      const chain = title(row.chain_label || row.chain || "Market");
+      const band = capLabel(row.cap_band_label || row.cap_band || "current");
+      return `${chain} ${band}`.trim();
+    }
     function safeCount(value, fallback = "forming") {
       const n = Number(value);
       return Number.isFinite(n) && n > 0 ? new Intl.NumberFormat("en-US").format(n) : fallback;
@@ -276,20 +290,18 @@
       const rewarding = Number(opp.rewarding_count || 0);
       const punishing = Number(opp.punishing_count || 0);
       const mixed = Number(opp.mixed_count || Math.max(0, observed - rewarding - punishing));
-      const bestChainLabel = title(best.chain_label || best.chain || "Market");
-      const band = title(best.cap_band_label || best.cap_band || "Current");
-      const surface = `${bestChainLabel} ${band}`.trim();
+      const surface = surfaceLabel(best);
       const bestRead = best.read || best.summary || "";
       text("homeUpdated", age(Math.min(...[brief, opportunity, replay, outcomes].map((p) => Number(p.freshness_age_seconds)).filter(Number.isFinite))));
       text("homeCoverage", `${safeCount(opp.live_public_markets || observed)} public markets`);
       text("homeSample", `${safeCount(observed)} observations`);
       text("homeReplay", `${safeCount(replayRows.length || replayData.analog_count)} similar structures`);
-      text("homeSource", opportunity.source === "public_origin" ? "Verified public origin" : "Live public API");
+      text("homeSource", opportunity.source === "public_origin" ? "Verified Raven feed" : "Live market feeds");
       if (surface && surface !== "Market Current" && isConstructiveRead(bestRead) && !isWeakRead(bestRead)) {
-        text("homeReadTitle", `${surface} is the strongest current constructive surface.`);
+        text("homeReadTitle", `${surface} look favorable now.`);
         text("homeBestSurface", surface);
       } else if (surface && surface !== "Market Current") {
-        text("homeReadTitle", `${surface} has the most evidence, but the read is still mixed.`);
+        text("homeReadTitle", `${surface} are active now, but confirmation is still mixed.`);
         text("homeBestSurface", surface);
       }
       text("homeReadSummary", bestRead || "Raven is seeing a selective tape: participation is visible while confirmation and outcome evidence remain uneven across chains and cap bands.");
@@ -323,15 +335,15 @@
           ["Evidence", safeCount(cap.sample_size)],
           ["Status", cap.participation_status || "observable"],
         ]),
-        regimeCard("Perps Context", "Separate pressure read", perps.read || "Perps are tracked separately from chain participation opportunity.", [
+        regimeCard("Perps Pressure", "Leverage context forming", perps.read || "Perp markets show where leverage, positioning, and liquidity pressure are building.", [
           ["Context rows", safeCount(perps.observed_rows, "0")],
-          ["Role", "pressure context"],
-          ["Headline", "not chain opportunity"],
+          ["Focus", "leverage pressure"],
+          ["Inspect", "Perps terminal"],
         ]),
       ].join("");
       const tiles = Array.isArray(opp.top_opportunities) ? opp.top_opportunities.slice(0, 3) : [];
       if (tiles.length) {
-        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p><strong>What Raven believes:</strong> ${row.read || "Current activity is forming."}</p><p><strong>Why:</strong> ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. <strong>Risk:</strong> ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Sample</span><strong>${safeCount(row.sample_size)}</strong></div><div class="row"><span>Freshness</span><strong>${age(Number(opportunity.freshness_age_seconds))}</strong></div></article>`).join("");
+        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${surfaceLabel(row)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p><strong>What Raven believes:</strong> ${row.read || "Current activity is forming."}</p><p><strong>Why:</strong> ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. <strong>Risk:</strong> ${(row.what_could_fail || ["evidence depth remains developing"])[0]}.</p><div class="row"><span>Sample</span><strong>${safeCount(row.sample_size)}</strong></div><div class="row"><span>Freshness</span><strong>${age(Number(opportunity.freshness_age_seconds))}</strong></div></article>`).join("");
       }
     }
     hydrateHome();
