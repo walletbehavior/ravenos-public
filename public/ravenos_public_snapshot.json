@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-24T15:30:02Z",
+  "generated_at": "2026-06-24T15:45:01Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -80,9 +80,9 @@
         "atlas_state": "fresh",
         "raven_truth": "stale",
         "regime": "stale",
-        "system_advisory": "stale"
+        "system_advisory": "fresh"
       },
-      "headline": "Atlas: neutral | low | Mkt=massive ok=4 f=0 fresh=0 cache=0 fb=N | Vol=neutral/stable | Breadth=crypto:neutral/mixed equity:unknown/mixed rates:neutral/mixed fx:neutral/mixed energy:neutral/mixed | OptMacro=risk_off/unstable | Crypto=neutral/mixed/neutral/neutral | Opts=SPY:balanced/neutral QQQ:balanced/neutral IWM:crowded_short/unstable",
+      "headline": "Atlas: caution | low | Mkt=massive ok=4 f=0 fresh=0 cache=0 fb=N | Vol=neutral/stable | Breadth=crypto:risk_on/expanding equity:unknown/mixed rates:risk_off/mixed fx:risk_on/expanding energy:neutral/mixed | OptMacro=neutral/fragile | Crypto=risk_on/expanding/hot/healthy | Opts=SPY:balanced/neutral QQQ:balanced/neutral IWM:balanced/neutral",
       "macro_posture": "risk_context_defensive"
     },
     "raven_summary": {
@@ -253,8 +253,7 @@
       "do_not_overread:source_sample_insufficient",
       "do_not_overread:source_sample_or_freshness_limited",
       "raven_truth_data_stale",
-      "regime_data_stale",
-      "system_advisory_data_stale"
+      "regime_data_stale"
     ]
   },
   "redaction_scan": {
@@ -274,17 +273,17 @@
   "source_health": {
     "aging_count": 3,
     "blocking_warnings": [],
-    "fresh_count": 0,
+    "fresh_count": 2,
     "overall_status": "stale",
-    "stale_count": 6,
+    "stale_count": 4,
     "warning_count": 4
   },
   "source_quality": {
     "label": "degraded",
     "status": "stale",
-    "warning_count": 7
+    "warning_count": 6
   },
-  "source_snapshot_generated_at": "2026-06-24T15:30:02Z",
+  "source_snapshot_generated_at": "2026-06-24T15:45:01Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
@@ -301,7 +300,6 @@
     "do_not_overread:source_sample_insufficient",
     "do_not_overread:source_sample_or_freshness_limited",
     "raven_truth_data_stale",
-    "regime_data_stale",
-    "system_advisory_data_stale"
+    "regime_data_stale"
   ]
 }
