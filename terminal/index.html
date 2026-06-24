@@ -50,10 +50,12 @@
     .brand { grid-area: brand; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
     .brand strong { font-size: 19px; line-height: 1; letter-spacing: 0; white-space: nowrap; }
     .brand span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ticker-strip { grid-area: context; display: grid; grid-template-columns: repeat(6, minmax(72px, 1fr)); border: 1px solid var(--line); background: var(--line); gap: 1px; min-width: 0; }
+    .ticker-strip { grid-area: context; display: grid; grid-template-columns: repeat(7, minmax(72px, 1fr)); border: 1px solid var(--line); background: var(--line); gap: 1px; min-width: 0; }
     .ticker { padding: 6px 8px; background: #050b09; font-family: var(--mono); min-width: 0; }
     .ticker span { display: block; color: var(--soft); font-size: 9px; text-transform: uppercase; }
     .ticker strong { display: block; margin-top: 3px; font-size: 12px; color: var(--text); }
+    .ticker.hot-sector { background: rgba(52, 211, 153, 0.08); border-left: 1px solid rgba(52, 211, 153, 0.22); }
+    .ticker.hot-sector strong { color: var(--green); }
     .wallet-box { grid-area: account; display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; justify-content: end; }
     .main-nav { grid-area: nav; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
     .main-nav a { border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--muted); padding: 7px 9px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
@@ -515,6 +517,7 @@
       </div>
       <nav class="main-nav" aria-label="Primary navigation">
         <a href="/terminal/">Terminal</a>
+        <a href="/opportunity/">Opportunity</a>
         <a href="/research/">Research</a>
         <a href="/perps/">Perps</a>
         <a href="/atlas/">Atlas</a>
@@ -534,6 +537,7 @@
         <div class="ticker"><span>Pressure</span><strong id="tickerPressure">84</strong></div>
         <div class="ticker"><span>Coverage</span><strong id="tickerCoverage">Sample</strong></div>
         <div class="ticker"><span>Updated</span><strong id="tickerUpdated">sample</strong></div>
+        <a class="ticker hot-sector" href="/opportunity/"><span>Hot Sector</span><strong>Solana Micro</strong></a>
       </section>
       <section class="wallet-box" aria-label="Access controls">
         <div class="wallet-state" id="walletState">disconnected</div>
@@ -702,7 +706,6 @@
         label: "Crypto Spot",
         items: [
           ["crypto_overview", "Overview", "active"],
-          ["opportunity_board", "Opportunity Board", "active"],
           ["market_cap_heatmap", "Market Cap Heatmap", "active"],
           ["nano_caps", "Nano Caps", "active"],
           ["micro_caps", "Micro Caps", "active"],
@@ -913,7 +916,7 @@
     }
 
     function isCryptoCategory(category) {
-      return ["crypto_overview", "opportunity_board", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
+      return ["crypto_overview", "market_cap_heatmap", "nano_caps", "micro_caps", "small_caps", "mid_caps", "large_caps", "memes", "solana", "base", "ethereum"].includes(category);
     }
 
     function isPerpsCategory(category) {
@@ -1725,7 +1728,7 @@
     }
 
     function filteredCryptoRows(source, category) {
-      if (category === "crypto_overview" || category === "opportunity_board" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
+      if (category === "crypto_overview" || category === "market_cap_heatmap" || category === "perps_overview" || category === "perps_heatmap") return source;
       if (category === "nano_caps") return source.filter((row) => rowCapBand(row) === "nano cap");
       if (category === "micro_caps") return source.filter((row) => rowCapBand(row) === "micro cap");
       if (category === "small_caps") return source.filter((row) => rowCapBand(row) === "small cap");
@@ -2039,125 +2042,11 @@
       `;
     }
 
-    function renderRotationSnapshot(rowsNow, labels) {
-      const pool = uniqueRows([...dexRows, ...cryptoRows]);
-      const chainRows = rotationGroups(pool, chainBucketFromRow, (key) => key).filter((group) => ["Solana", "Base", "Ethereum", "BNB"].includes(group.key));
-      const bucketRows = rotationGroups(pool, capBucketFromRow, (key) => labels[key] || key);
-      const chainTiles = chainRows.slice(0, 3).map((group) => rotationTile(group, "chain")).join("") || `<div class="rotation-tile mixed"><strong>No chain read</strong><b>--</b><span>Coverage developing</span></div>`;
-      const bucketTiles = bucketRows.slice(0, 3).map((group) => rotationTile(group, "bucket")).join("") || `<div class="rotation-tile mixed"><strong>No cap read</strong><b>--</b><span>Coverage developing</span></div>`;
-      return `
-        <section class="rotation-snapshot" aria-label="Intraday rotation snapshot">
-          <div class="rotation-block">
-            <h3>Chain Opportunity Snapshot</h3>
-            <div class="rotation-strip">${chainTiles}</div>
-          </div>
-          <div class="rotation-block">
-            <h3>Cap Band Snapshot</h3>
-            <div class="rotation-strip">${bucketTiles}</div>
-          </div>
-        </section>
-      `;
-    }
-
     function renderCapOutcomeHeatmap(rowsNow) {
       const panel = document.getElementById("capOutcomeHeatmap");
       if (!panel) return;
-      const show = activeCategory === "opportunity_board";
-      if (!show) {
-        panel.classList.remove("active");
-        panel.innerHTML = "";
-        return;
-      }
-      const { chains, buckets, labels, groups } = capHeatmapCells(uniqueRows([...dexRows, ...cryptoRows]));
-      const visibleChains = chains.filter((chain) => buckets.some((bucket) => groups.has(`${chain}:${bucket}`)));
-      const chainList = visibleChains.length ? visibleChains : ["Solana", "Base", "Ethereum"];
-      if (selectedCapDrilldownKey && !groups.has(selectedCapDrilldownKey)) selectedCapDrilldownKey = "";
-      const cells = [
-        `<div class="cap-cell header">Chain</div>`,
-        ...buckets.map((bucket) => `<div class="cap-cell header">${labels[bucket]}</div>`),
-      ];
-      chainList.forEach((chain) => {
-        cells.push(`<div class="cap-cell header">${chain}</div>`);
-        buckets.forEach((bucket) => {
-          const group = groups.get(`${chain}:${bucket}`);
-          if (!group || !group.rows.length) {
-            cells.push(`<button class="cap-cell empty unresolved" type="button" disabled><strong>--</strong><span>No read</span></button>`);
-            return;
-          }
-          const avg = Math.round(group.score / group.rows.length);
-          const state = outcomeStateForScore(avg, group.rows.length);
-          const top = [...group.rows].sort((a, b) => Math.abs(outcomeScore(b)) - Math.abs(outcomeScore(a)) || Number(b.flowScore || 0) - Number(a.flowScore || 0))[0];
-          const paying = group.rows.filter((row) => row.participationOutcome === "Paying").length;
-          const punishing = group.rows.filter((row) => row.participationOutcome === "Punishing").length;
-          const mixed = Math.max(0, group.rows.length - paying - punishing);
-          const title = `${chain} ${labels[bucket]}: ${outcomeLabelForState(state)} participation context. ${paying} rewarding, ${punishing} punishing, ${mixed} mixed. Leader: ${top.asset}. Flow ${top.flowScore}. Liquidity: ${top.liquidityPosture}. Risk: ${top.risk}.`;
-          cells.push(`
-            <button class="cap-cell ${state}" type="button" data-heatmap-key="${chain}:${bucket}" data-heatmap-asset="${top.asset}" title="${title}">
-              <strong>${avg > 0 ? "+" : ""}${avg}</strong>
-              <span>${outcomeLabelForState(state)} · ${group.rows.length}</span>
-            </button>
-          `);
-        });
-      });
-      panel.classList.add("active");
-      panel.innerHTML = `
-        <div class="cap-heatmap-head">
-          <strong>Opportunity Board</strong>
-          <span>Chain and cap-band reads first; heatmap evidence below explains why.</span>
-        </div>
-        ${renderRotationSnapshot(rowsNow, labels)}
-        <div class="cap-heatmap-grid">${cells.join("")}</div>
-        <div class="cap-heatmap-legend">
-          <span class="rewarding"><i></i>Rewarding</span>
-          <span class="punishing"><i></i>Punishing</span>
-          <span class="mixed"><i></i>Mixed</span>
-          <span><i></i>Unresolved</span>
-        </div>
-        ${renderCapDrilldown(groups.get(selectedCapDrilldownKey), labels)}
-      `;
-      panel.querySelectorAll("[data-heatmap-asset]").forEach((button) => {
-        button.addEventListener("click", () => {
-          selectedCapDrilldownKey = button.getAttribute("data-heatmap-key") || "";
-          const asset = button.getAttribute("data-heatmap-asset");
-          const row = allRows().find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
-          if (!row) return;
-          renderAssetOptions();
-          document.getElementById("assetSelect").value = row.asset;
-          renderChart();
-          renderTable();
-        });
-      });
-      panel.querySelectorAll("[data-drill-asset]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const asset = button.getAttribute("data-drill-asset");
-          const row = allRows().find((item) => item.asset === asset) || displayRows().find((item) => item.asset === asset);
-          if (!row) return;
-          renderAssetOptions();
-          document.getElementById("assetSelect").value = row.asset;
-          renderChart();
-        });
-      });
-      panel.querySelectorAll("[data-rotation-asset]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const type = button.getAttribute("data-rotation-type");
-          const key = button.getAttribute("data-rotation-key");
-          const asset = button.getAttribute("data-rotation-asset");
-          const categoryByBucket = { nano: "nano_caps", micro: "micro_caps", small: "small_caps", mid: "mid_caps", large: "large_caps", mega: "large_caps" };
-          const categoryByChain = { Solana: "solana", Base: "base", Ethereum: "ethereum" };
-          const nextCategory = type === "bucket" ? categoryByBucket[key] : categoryByChain[key];
-          if (nextCategory) {
-            activeCategory = nextCategory;
-            activeMode = "crypto_heatmaps";
-            document.getElementById("modeSelect").value = activeMode;
-          }
-          renderNav();
-          renderAssetOptions();
-          const row = allRows().find((item) => item.asset === asset) || displayRows()[0];
-          if (row) document.getElementById("assetSelect").value = row.asset;
-          renderChart();
-          renderTable();
-        });
-      });
+      panel.classList.remove("active");
+      panel.innerHTML = "";
     }
 
     function renderModeSummary(rowsNow) {
@@ -2524,7 +2413,7 @@
       document.getElementById("assetSelect").addEventListener("change", renderChart);
       document.getElementById("modeSelect").addEventListener("change", () => {
         activeMode = document.getElementById("modeSelect").value;
-        if (activeMode === "crypto_heatmaps" && !isCryptoCategory(activeCategory)) activeCategory = "opportunity_board";
+        if (activeMode === "crypto_heatmaps" && !isCryptoCategory(activeCategory)) activeCategory = "market_cap_heatmap";
         if (activeMode === "perps_pressure" && !isPerpsCategory(activeCategory)) activeCategory = "perps_heatmap";
         renderNav();
         renderAssetOptions();

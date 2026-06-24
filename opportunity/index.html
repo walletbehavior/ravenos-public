@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RavenOS Opportunity Board ranks where participation, survival, and reward conditions are improving across chains and cap bands." />
+  <title>RavenOS Opportunity Board</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23030605'/%3E%3Cpath d='M14 46V14h16c9 0 15 5 15 13 0 5-3 10-8 12l10 7H34l-8-6h-3v6H14Zm9-14h7c4 0 7-2 7-5s-3-5-7-5h-7v10Z' fill='%237dd3fc'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #030605;
+      --panel: #07100d;
+      --panel-2: #0a1512;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(125, 211, 252, 0.34);
+      --text: #edf6f1;
+      --muted: #8da39a;
+      --soft: #60746b;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+      --mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; background: var(--bg); }
+    body { margin: 0; color: var(--text); font-family: var(--sans); letter-spacing: 0; background: linear-gradient(180deg, rgba(125,211,252,0.055), transparent 360px), var(--bg); }
+    a { color: inherit; text-decoration: none; }
+    .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(180px, 0.8fr) minmax(420px, 1.6fr) auto;
+      gap: 10px 14px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(3,6,5,0.95);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .brand strong { font-size: 19px; line-height: 1; white-space: nowrap; }
+    .brand span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .main-nav { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+    .main-nav a { border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--muted); padding: 7px 9px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
+    .main-nav a.active { color: var(--text); border-color: var(--line-strong); background: rgba(125,211,252,0.08); }
+    .access { display: flex; gap: 7px; justify-content: end; align-items: center; }
+    .button { min-height: 32px; border: 1px solid var(--line-strong); background: rgba(125,211,252,0.08); color: var(--text); padding: 7px 10px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
+    .button.secondary { border-color: var(--line); background: rgba(255,255,255,0.03); color: var(--muted); }
+    main { width: min(1440px, calc(100% - 24px)); margin: 0 auto; padding: 14px 0 28px; display: grid; gap: 12px; }
+    .status-strip, .hero-grid, .board-grid, .explain-grid, .matrix { display: grid; gap: 10px; }
+    .status-strip { grid-template-columns: 1.15fr repeat(5, minmax(110px, 1fr)); border: 1px solid var(--line); background: var(--line); gap: 1px; }
+    .status-cell { background: #050b09; padding: 10px 12px; min-width: 0; }
+    .status-cell span, .kicker, th { display: block; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0; }
+    .status-cell strong { display: block; margin-top: 5px; font-family: var(--mono); font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-cell.hot strong { color: var(--green); }
+    .hero-grid { grid-template-columns: 1.15fr 0.85fr; }
+    .panel { border: 1px solid var(--line); background: rgba(7,16,13,0.96); }
+    .panel-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid var(--line); }
+    .title h1, .title h2 { margin: 4px 0 0; letter-spacing: 0; }
+    .title h1 { font-size: clamp(28px, 5vw, 54px); line-height: 0.96; max-width: 13ch; }
+    .title h2 { font-size: 15px; text-transform: uppercase; }
+    .title p { margin: 8px 0 0; max-width: 72ch; color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .badge { display: inline-flex; align-items: center; min-height: 24px; border: 1px solid var(--line); padding: 4px 8px; color: var(--cyan); font-family: var(--mono); font-size: 10px; text-transform: uppercase; white-space: nowrap; }
+    .opportunity-card { padding: 14px; display: grid; gap: 12px; }
+    .hot-read { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+    .hot-read strong { display: block; font-size: clamp(34px, 7vw, 72px); line-height: 0.9; letter-spacing: 0; color: var(--green); }
+    .hot-read span { display: block; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); border: 1px solid var(--line); background: var(--line); gap: 1px; }
+    .metric { background: #050b09; padding: 11px; min-width: 0; }
+    .metric span { display: block; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 5px; font-family: var(--mono); font-size: 16px; }
+    .positive { color: var(--green); }
+    .mixed { color: var(--yellow); }
+    .negative { color: var(--red); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+    td { color: var(--text); font-size: 13px; }
+    td.mono { font-family: var(--mono); }
+    .edge { font-family: var(--mono); font-size: 11px; text-transform: uppercase; }
+    .edge.high { color: var(--green); }
+    .edge.medium { color: var(--yellow); }
+    .edge.low { color: var(--red); }
+    .board-grid { grid-template-columns: 1fr 1fr; }
+    .matrix-panel { padding-bottom: 12px; }
+    .matrix { padding: 12px; grid-template-columns: 92px repeat(6, minmax(92px, 1fr)); overflow-x: auto; }
+    .matrix-cell { min-height: 76px; border: 1px solid var(--line); background: #050b09; padding: 9px; display: grid; align-content: space-between; gap: 8px; }
+    .matrix-cell.header { min-height: auto; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; background: rgba(255,255,255,0.035); }
+    .matrix-cell strong { font-family: var(--mono); font-size: 18px; }
+    .matrix-cell span { color: var(--muted); font-size: 11px; }
+    .matrix-cell.rewarding { border-color: rgba(52,211,153,0.36); background: rgba(52,211,153,0.055); }
+    .matrix-cell.mixed { border-color: rgba(250,204,21,0.3); background: rgba(250,204,21,0.045); }
+    .matrix-cell.punishing { border-color: rgba(251,113,133,0.32); background: rgba(251,113,133,0.045); }
+    .explain-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .note { padding: 14px; }
+    .note h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; }
+    .note ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.65; font-size: 13px; }
+    .footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; padding: 13px 14px; text-align: center; }
+    @media (max-width: 1040px) {
+      .topbar { grid-template-columns: 1fr; }
+      .access { justify-content: start; }
+      .hero-grid, .board-grid, .explain-grid { grid-template-columns: 1fr; }
+      .status-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+    @media (max-width: 640px) {
+      main { width: min(100% - 14px, 1440px); padding-top: 8px; }
+      .main-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+      .main-nav a { flex: 0 0 auto; }
+      .status-strip, .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .hot-read { grid-template-columns: 1fr; }
+      .title h1 { font-size: 34px; }
+      .matrix { grid-template-columns: 76px repeat(6, 86px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <strong>RavenOS</strong>
+        <span>Market intelligence platform</span>
+      </div>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a href="/terminal/">Terminal</a>
+        <a class="active" href="/opportunity/">Opportunity</a>
+        <a href="/degen/">Degen</a>
+        <a href="/research/">Research</a>
+        <a href="/perps/">Perps</a>
+        <a href="/atlas/">Atlas</a>
+        <a href="/pricing/">Pricing</a>
+      </nav>
+      <div class="access">
+        <a class="button secondary" href="/account/">Account</a>
+        <a class="button" href="/upgrade/">Upgrade</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-strip" aria-label="Intraday opportunity status">
+        <div class="status-cell hot"><span>Hot Sector</span><strong>Solana Micro</strong></div>
+        <div class="status-cell"><span>Best Chain</span><strong>Solana</strong></div>
+        <div class="status-cell"><span>Best Cap Band</span><strong>$100k-$1m</strong></div>
+        <div class="status-cell"><span>Rewarding</span><strong class="positive">61</strong></div>
+        <div class="status-cell"><span>Punishing</span><strong class="negative">24</strong></div>
+        <div class="status-cell"><span>Updated</span><strong>Current Session</strong></div>
+      </section>
+
+      <section class="hero-grid">
+        <article class="panel opportunity-card">
+          <div class="panel-head">
+            <div class="title">
+              <span class="kicker">Opportunity Board</span>
+              <h1>Where participation is being rewarded today.</h1>
+              <p>Raven ranks chain and cap-band conditions by participation, survival, attention, liquidity context, and observed outcome quality. The board is a market briefing, not a recommendation engine.</p>
+            </div>
+            <span class="badge">Coverage Developing</span>
+          </div>
+          <div class="hot-read">
+            <div>
+              <strong>Solana Micro</strong>
+              <span>Fresh participation and survival quality are strongest in the micro-cap band, with Base small caps beginning to build.</span>
+            </div>
+            <a class="button" href="/terminal/">Open Chart Workspace</a>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>Participation</span><strong class="positive">Expanding</strong></div>
+            <div class="metric"><span>Confidence</span><strong>High</strong></div>
+            <div class="metric"><span>Median Reward</span><strong class="positive">+172%</strong></div>
+            <div class="metric"><span>What Changed</span><strong>Base Improving</strong></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div class="title">
+              <span class="kicker">Today&apos;s Read</span>
+              <h2>Opportunity Summary</h2>
+              <p>Heatmaps explain the evidence. This board states the read directly.</p>
+            </div>
+          </div>
+          <div class="note">
+            <ul>
+              <li>Solana micro structures are producing the cleanest participation and survival context.</li>
+              <li>Base small caps are improving, but sample depth is thinner than Solana.</li>
+              <li>Majors are not leading the current opportunity read.</li>
+              <li>Ethereum smaller-cap coverage is mixed and still developing.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section class="board-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <div class="title">
+              <span class="kicker">Chain Opportunity Snapshot</span>
+              <h2>Should I care about this chain today?</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Chain</th><th>Edge</th><th>Rewarding</th><th>Punishing</th><th>Top Band</th><th>Read</th></tr></thead>
+              <tbody>
+                <tr><td>Solana</td><td class="edge high">High</td><td class="mono positive">61</td><td class="mono negative">24</td><td>$100k-$1m</td><td>Fresh participation</td></tr>
+                <tr><td>Base</td><td class="edge medium">Medium</td><td class="mono positive">19</td><td class="mono negative">13</td><td>$1m-$10m</td><td>Building</td></tr>
+                <tr><td>Ethereum</td><td class="edge low">Low</td><td class="mono positive">6</td><td class="mono negative">11</td><td>$10m-$100m</td><td>Thin</td></tr>
+                <tr><td>BNB</td><td class="edge medium">Developing</td><td class="mono positive">4</td><td class="mono negative">5</td><td>$250k-$1m</td><td>Sparse</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div class="title">
+              <span class="kicker">Cap Band Snapshot</span>
+              <h2>Which market-cap ecosystem is working?</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Band</th><th>Chain Leader</th><th>Win Rate</th><th>Median Reward</th><th>Activity</th><th>Read</th></tr></thead>
+              <tbody>
+                <tr><td>Nano</td><td>Solana</td><td class="mono positive">82%</td><td class="mono positive">+180%</td><td>High</td><td>Early survival improving</td></tr>
+                <tr><td>Micro</td><td>Solana</td><td class="mono positive">71%</td><td class="mono positive">+65%</td><td>Very High</td><td>Rewarding participation</td></tr>
+                <tr><td>Small</td><td>Base</td><td class="mono mixed">54%</td><td class="mono positive">+28%</td><td>High</td><td>Building</td></tr>
+                <tr><td>Mid</td><td>Ethereum</td><td class="mono mixed">41%</td><td class="mono positive">+11%</td><td>Medium</td><td>Mixed</td></tr>
+                <tr><td>Majors</td><td>Solana</td><td class="mono negative">33%</td><td class="mono positive">+4%</td><td>Low</td><td>Not leading</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel matrix-panel" aria-label="Chain by cap band opportunity matrix">
+        <div class="panel-head">
+          <div class="title">
+            <span class="kicker">Chain x Cap Band Matrix</span>
+            <h2>Where opportunity is concentrated</h2>
+            <p>Cells combine reward context, participation quality, survival, attention, and liquidity posture. Use the Terminal for chart-level inspection.</p>
+          </div>
+          <a class="button secondary" href="/degen/">Open Degen Terminal</a>
+        </div>
+        <div class="matrix">
+          <div class="matrix-cell header">Chain</div>
+          <div class="matrix-cell header">Nano</div>
+          <div class="matrix-cell header">Micro</div>
+          <div class="matrix-cell header">Small</div>
+          <div class="matrix-cell header">Mid</div>
+          <div class="matrix-cell header">Large</div>
+          <div class="matrix-cell header">Mega</div>
+
+          <div class="matrix-cell header">Solana</div>
+          <div class="matrix-cell rewarding"><strong>+18</strong><span>Survival improving</span></div>
+          <div class="matrix-cell rewarding"><strong>+48</strong><span>Best read</span></div>
+          <div class="matrix-cell rewarding"><strong>+28</strong><span>Broadening</span></div>
+          <div class="matrix-cell mixed"><strong>+6</strong><span>Mixed</span></div>
+          <div class="matrix-cell punishing"><strong>-8</strong><span>Leadership thin</span></div>
+          <div class="matrix-cell punishing"><strong>-11</strong><span>Not leading</span></div>
+
+          <div class="matrix-cell header">Base</div>
+          <div class="matrix-cell punishing"><strong>-4</strong><span>Thin survival</span></div>
+          <div class="matrix-cell mixed"><strong>+9</strong><span>Developing</span></div>
+          <div class="matrix-cell rewarding"><strong>+18</strong><span>Building</span></div>
+          <div class="matrix-cell mixed"><strong>+7</strong><span>Selective</span></div>
+          <div class="matrix-cell punishing"><strong>-2</strong><span>Low breadth</span></div>
+          <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
+
+          <div class="matrix-cell header">Ethereum</div>
+          <div class="matrix-cell punishing"><strong>-9</strong><span>Fragile</span></div>
+          <div class="matrix-cell punishing"><strong>-6</strong><span>Narrow</span></div>
+          <div class="matrix-cell mixed"><strong>+3</strong><span>Mixed</span></div>
+          <div class="matrix-cell mixed"><strong>+2</strong><span>Quiet</span></div>
+          <div class="matrix-cell mixed"><strong>+5</strong><span>Stable</span></div>
+          <div class="matrix-cell punishing"><strong>-3</strong><span>Muted</span></div>
+
+          <div class="matrix-cell header">BNB</div>
+          <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
+          <div class="matrix-cell mixed"><strong>+4</strong><span>Developing</span></div>
+          <div class="matrix-cell mixed"><strong>+6</strong><span>Selective</span></div>
+          <div class="matrix-cell punishing"><strong>-1</strong><span>Flat</span></div>
+          <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
+          <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
+        </div>
+      </section>
+
+      <section class="explain-grid">
+        <article class="panel note">
+          <h3>What&apos;s Working</h3>
+          <ul>
+            <li>Participation is broadening in Solana micro-cap structures.</li>
+            <li>Survival quality is improving while attention remains controlled.</li>
+            <li>Base small caps are beginning to show better outcome quality.</li>
+          </ul>
+        </article>
+        <article class="panel note">
+          <h3>What&apos;s Fragile</h3>
+          <ul>
+            <li>Majors are not absorbing the day&apos;s attention cleanly.</li>
+            <li>Ethereum nano and micro reads remain thin.</li>
+            <li>BNB coverage is sparse, so confidence stays developing.</li>
+          </ul>
+        </article>
+        <article class="panel note">
+          <h3>What Would Change The Read</h3>
+          <ul>
+            <li>Participation narrowing inside Solana micro caps.</li>
+            <li>Base small-cap survival failing to persist.</li>
+            <li>Liquidity context weakening while attention accelerates.</li>
+          </ul>
+        </article>
+      </section>
+    </main>
+
+    <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a></footer>
+  </div>
+</body>
+</html>
