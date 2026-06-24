@@ -30,6 +30,7 @@ const baseChain = fs.readFileSync("chains/base/index.html", "utf8");
 const ethereumChain = fs.readFileSync("chains/ethereum/index.html", "utf8");
 const faq = fs.readFileSync("faq/index.html", "utf8");
 const disclosures = fs.readFileSync("disclosures/index.html", "utf8");
+const bundledOutcomes = fs.readFileSync("ravenos_participant_outcomes.json", "utf8");
 
 const githubDocsHref = "https://github.com/walletbehavior/ravenos-public/tree/main/docs";
 const coreResearchPages = [
@@ -83,6 +84,7 @@ assert.match(replayScript, /Outcome distribution/);
 assert.match(participantScript, /ParticipantPanel/);
 assert.match(participantScript, /contribution/);
 assert.match(participantScript, /Distribution risk/);
+assert.doesNotMatch(`${home}\n${terminal}\n${research}\n${outcomes}\n${behavior}\n${faq}\n${participantScript}\n${bundledOutcomes}`, /copyable|copyability|copy-trading|copy trading/i);
 
 assert.match(accessScript, /API unavailable\. Subscription and future token access checks are temporarily unavailable\./);
 assert.match(accessScript, /entitlements/);
@@ -256,7 +258,7 @@ assert.match(research, /Why Raven Believes This/);
 assert.match(research, /Why It Matters/);
 assert.match(research, /Participant Cohort Validation/);
 assert.match(research, /post-entry expansion/);
-assert.match(research, /Proof context, not copy-trading instructions/);
+assert.match(research, /Proof context, not participant replication/);
 assert.match(research, /\/brief\//);
 assert.match(research, /\/replay\//);
 assert.match(research, /\/outcomes\//);
