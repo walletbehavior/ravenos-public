@@ -187,6 +187,36 @@ assert.ok(publicOpportunityPayload.summary.chain_rows.every((row) => row.key !==
 assert.ok(publicOpportunityPayload.summary.top_opportunities.every((row) => row.chain !== "hyperliquid"));
 assert.ok(publicOpportunityPayload.summary.top_opportunities.every((row) => !String(row.cap_band || "").startsWith("perps_")));
 assert.match(publicOpportunityPayload.summary.perps_context.read, /Perps/);
+assert.equal(typeof publicOpportunityPayload.intelligence.net_read, "string");
+assert.ok(Array.isArray(publicOpportunityPayload.intelligence.supports));
+assert.ok(Array.isArray(publicOpportunityPayload.intelligence.risks));
+assert.ok(Array.isArray(publicOpportunityPayload.intelligence.would_confirm));
+assert.ok(Array.isArray(publicOpportunityPayload.intelligence.would_weaken));
+assert.equal(typeof publicOpportunityPayload.intelligence.strongest_signal, "string");
+
+async function assertPublicIntelligence(endpoint) {
+  const response = await worker.fetch(new Request(`https://ravenos.xyz${endpoint}`), {
+    ...env,
+    RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
+  });
+  assert.equal(response.status, 200, `${endpoint} should return 200`);
+  const payload = await response.json();
+  assert.equal(payload.safe_public, true, `${endpoint} should be public-safe`);
+  assert.equal(typeof payload.intelligence.net_read, "string", `${endpoint} should include net read`);
+  assert.equal(typeof payload.intelligence.why, "string", `${endpoint} should include why`);
+  assert.ok(Array.isArray(payload.intelligence.supports), `${endpoint} should include supports`);
+  assert.ok(Array.isArray(payload.intelligence.risks), `${endpoint} should include risks`);
+  assert.ok(Array.isArray(payload.intelligence.would_confirm), `${endpoint} should include confirm conditions`);
+  assert.ok(Array.isArray(payload.intelligence.would_weaken), `${endpoint} should include weaken conditions`);
+  assert.ok(Number.isFinite(Number(payload.intelligence.sample_depth)), `${endpoint} should include sample depth`);
+  assert.match(JSON.stringify(payload.intelligence), /Raven|public|evidence|structure|participation|outcome|Memory|Replay|Behavior|Opportunity/i);
+  assert.doesNotMatch(JSON.stringify(payload.intelligence), /WalletMemory|ShadowMirror|canary|live execution|private wallet|raw trade intent|Turnkey|signer|treasury/i);
+}
+
+await assertPublicIntelligence("/api/replay");
+await assertPublicIntelligence("/api/outcomes");
+await assertPublicIntelligence("/api/memory");
+await assertPublicIntelligence("/api/behavior");
 
 const publicSolana = await worker.fetch(new Request("https://ravenos.xyz/api/chains/solana"), {
   ...env,

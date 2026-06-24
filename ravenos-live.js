@@ -389,6 +389,27 @@
     if (node) node.innerHTML = html;
   }
 
+  function renderIntelList(id, items = [], fallback = "Evidence is forming.") {
+    const safeItems = Array.isArray(items) && items.length ? items : [fallback];
+    setHtml(id, safeItems.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join(""));
+  }
+
+  function renderIntelligencePanel(payload) {
+    const intel = payload?.intelligence || {};
+    setText("intelNetRead", intel.net_read || "Current read is forming.");
+    setText("intelWhy", intel.why || "Raven is waiting for enough public evidence before making a stronger read.");
+    setText("intelConfidence", titleCase(intel.confidence || "developing"));
+    setText("intelSampleDepth", Number(intel.sample_depth) ? fmtNumber(intel.sample_depth) : "forming");
+    setText("intelFreshness", ageLabel(Number(payload?.freshness_age_seconds)));
+    setText("intelProofStatus", titleCase(intel.proof_status || payload?.status || "active"));
+    setText("intelStrongest", intel.strongest_signal || "Public evidence is forming");
+    setText("intelWeakest", intel.weakest_signal || "Confirmation depth is still forming");
+    renderIntelList("intelSupports", intel.supports, "Support evidence is forming.");
+    renderIntelList("intelRisks", intel.risks, "Risk evidence is forming.");
+    renderIntelList("intelConfirm", intel.would_confirm, "More public evidence would confirm the read.");
+    renderIntelList("intelWeaken", intel.would_weaken, "Freshness or sample depth weakening would reduce confidence.");
+  }
+
   function replayOutcomeKind(row = {}) {
     const text = String(row.after_window_summary || row.public_read || row.outcome || row.derived_state || "").toLowerCase();
     if (/favorable|expand|constructive|reward/.test(text)) return "Expansion";
@@ -583,6 +604,7 @@
   }
 
   function applyPagePayload(endpoint, payload) {
+    renderIntelligencePanel(payload);
     if (endpoint === "/api/opportunity") renderOpportunityLive(payload);
     if (endpoint === "/api/brief") renderBriefLive(payload);
     if (endpoint === "/api/replay") renderReplayLive(payload);

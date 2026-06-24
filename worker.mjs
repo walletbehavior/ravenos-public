@@ -1129,6 +1129,7 @@ function publicEnvelope(key, config, payload, extra = {}) {
   const stale = age === null ? true : age > Number(config.freshnessTargetSeconds || 900);
   const rawSource = extraSource || "bundled_artifact";
   const source = normalizePublicSource(rawSource);
+  const intelligence = restExtra.intelligence || buildPublicIntelligenceRead(key, payload || {}, { ...restExtra, generated_at: generatedAt, stale });
   return {
     ok: true,
     key,
@@ -1147,6 +1148,7 @@ function publicEnvelope(key, config, payload, extra = {}) {
     source_detail: rawSource,
     source_label: publicSourceLabel(source),
     artifact_path: config.artifactPath,
+    intelligence,
     data: payload || {},
     ...restExtra,
   };
@@ -1171,12 +1173,165 @@ function degradedEnvelope(key, config, message = "current read forming") {
     source_label: "current read forming",
     message,
     data: {},
+    intelligence: {
+      net_read: "Current read is forming.",
+      why: "Raven is waiting for enough public-safe evidence before making a stronger read.",
+      supports: ["Public artifact endpoint is available"],
+      risks: ["Fresh evidence is not available yet"],
+      would_confirm: ["A fresh public artifact arrives with usable sample depth"],
+      would_weaken: ["Freshness remains delayed or evidence depth stays thin"],
+      sample_depth: 0,
+      confidence: "Low",
+      strongest_signal: "Endpoint available",
+      weakest_signal: "Evidence depth",
+      proof_status: "sample forming",
+    },
   };
 }
 
 function heatmapRows(payload = {}) {
   const rows = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.outcomes) ? payload.outcomes : [];
   return rows.filter((row) => row && typeof row === "object");
+}
+
+function publicRowsForIntelligence(key, payload = {}) {
+  if (Array.isArray(payload.rows)) return payload.rows.filter((row) => row && typeof row === "object");
+  if (Array.isArray(payload.outcomes)) return payload.outcomes.filter((row) => row && typeof row === "object");
+  if (Array.isArray(payload.comparables)) return payload.comparables.filter((row) => row && typeof row === "object");
+  if (Array.isArray(payload.memory)) return payload.memory.filter((row) => row && typeof row === "object");
+  if (payload.frequent_condition_families && typeof payload.frequent_condition_families === "object") {
+    return Object.entries(payload.frequent_condition_families).map(([name, count]) => ({
+      structure: name,
+      condition: name,
+      sample_size: Number(count || 0),
+      count: Number(count || 0),
+      participant_outcome: "observed",
+    }));
+  }
+  if (key === "brief" && payload && typeof payload === "object") return [payload];
+  return [];
+}
+
+function confidenceFromPublicRows(rows = [], stale = false) {
+  const sample = rows.reduce((sum, row) => sum + sampleSizeOf(row), 0);
+  if (stale) return sample >= 1000 ? "Moderate" : "Developing";
+  return confidenceFromPublicSample(sample, rows.find((row) => row.confidence)?.confidence || "");
+}
+
+function strongestPublicSignal(rows = [], fallback = "Public evidence is forming") {
+  const ranked = [...rows].sort((a, b) => rowScore(b) - rowScore(a));
+  const row = ranked[0] || {};
+  if (row.plain_language_summary) return researchLabel(row.plain_language_summary);
+  if (row.match_reasons?.[0]) return researchLabel(row.match_reasons[0]);
+  if (row.structure || row.condition) return `${researchLabel(row.structure || row.condition)} is recurring`;
+  if (row.chain || row.cap_band) return `${publicVenueLabel(row.chain || "Market")} ${publicCapBandLabel(row.cap_band || "current")} has the clearest evidence`;
+  return fallback;
+}
+
+function weakestPublicSignal(rows = [], stale = false) {
+  if (stale) return "Freshness is delayed";
+  const thin = rows.find((row) => sampleSizeOf(row) > 0 && sampleSizeOf(row) < 20);
+  if (thin) return `${publicVenueLabel(thin.chain || "Market")} ${publicCapBandLabel(thin.cap_band || "current")} sample is thin`;
+  const weak = rows.find((row) => /punish|weak|fail|fragile/i.test(publicOutcomeRead(row)));
+  if (weak) return `${publicVenueLabel(weak.chain || "Market")} ${publicCapBandLabel(weak.cap_band || "current")} remains fragile`;
+  return "Confirmation depth is still forming";
+}
+
+function buildPublicIntelligenceRead(key, payload = {}, extra = {}) {
+  const rows = publicRowsForIntelligence(key, payload);
+  const sampleDepth = rows.reduce((sum, row) => sum + sampleSizeOf(row), 0);
+  const stale = Boolean(extra.stale);
+  const confidence = confidenceFromPublicRows(rows, stale);
+  const summary = extra.summary || payload.summary || {};
+  const common = {
+    sample_depth: sampleDepth || Number(summary.sample_depth || summary.observed_rows || rows.length || 0),
+    confidence,
+    strongest_signal: strongestPublicSignal(rows),
+    weakest_signal: weakestPublicSignal(rows, stale),
+    proof_status: stale ? "last verified public read" : "live public evidence",
+  };
+  if (key === "opportunity") {
+    const best = summary.best_surface || rows.sort((a, b) => rowScore(b) - rowScore(a))[0] || {};
+    const surface = `${publicVenueLabel(best.chain || "market")} ${publicCapBandLabel(best.cap_band || "current")}`.trim();
+    return {
+      ...common,
+      net_read: best.chain ? `${surface} is the clearest current opportunity surface.` : "Opportunity evidence is forming.",
+      why: "Raven compares participation, outcome quality, sample depth, and fresh public market context across chain and cap-band surfaces.",
+      supports: [
+        summary.rewarding_count !== undefined ? `${Number(summary.rewarding_count || 0).toLocaleString("en-US")} surfaces show constructive public evidence` : "Constructive surfaces are being tracked",
+        best.sample_size ? `${Number(best.sample_size || 0).toLocaleString("en-US")} observations support the top surface` : "Sample depth is forming",
+        "Perps are separated from chain opportunity so spot participation reads stay clean",
+      ],
+      risks: [
+        summary.punishing_count !== undefined ? `${Number(summary.punishing_count || 0).toLocaleString("en-US")} surfaces remain weak or fragile` : "Weak surfaces can distort broad reads",
+        "Liquidity and survival need continued followthrough",
+        stale ? "Freshness is delayed" : "Confirmation depth is still forming",
+      ],
+      would_confirm: ["Rewarding evidence broadens across more cap bands", "Survival improves across repeat refreshes", "Top public assets keep showing durable participation"],
+      would_weaken: ["Participation narrows into a few assets", "Weak outcome evidence overtakes constructive rows", "Freshness degrades or sample depth thins"],
+    };
+  }
+  if (key === "replay") {
+    const expanded = rows.filter((row) => /expand|constructive|favorable|reward/i.test(`${row.after_window_summary || ""} ${row.public_read || ""} ${row.outcome || ""}`)).length;
+    const failed = rows.filter((row) => /fail|weak|punish|fragile/i.test(`${row.after_window_summary || ""} ${row.public_read || ""} ${row.outcome || ""}`)).length;
+    return {
+      ...common,
+      net_read: rows.length ? `Raven found ${rows.length.toLocaleString("en-US")} similar public structures.` : "Replay evidence is forming.",
+      why: "Replay compares the current tape against prior public structures using participation breadth, pressure context, outcome persistence, and market surface.",
+      supports: [`${expanded.toLocaleString("en-US")} analogues show constructive or expanding context`, common.strongest_signal, "Similarity uses public-safe structure features"],
+      risks: [`${failed.toLocaleString("en-US")} analogues show weak or fragile context`, "Historical similarity is descriptive, not predictive", stale ? "Freshness is delayed" : "Sample depth can be uneven by surface"],
+      would_confirm: ["More analogues cluster around the same outcome family", "Current participation follows the stronger historical path", "Failure conditions remain contained"],
+      would_weaken: ["Analogue set fragments across conflicting outcomes", "Current tape diverges from the matched structures", "Weak outcome evidence becomes more common"],
+    };
+  }
+  if (key === "outcomes") {
+    const rewarding = rows.filter((row) => /reward|favorable|constructive/i.test(publicOutcomeRead(row))).length;
+    const punishing = rows.filter((row) => /punish|weak|negative/i.test(publicOutcomeRead(row))).length;
+    const mixed = Math.max(0, rows.length - rewarding - punishing);
+    return {
+      ...common,
+      net_read: rewarding > punishing ? "Recent public structures are leaning constructive, with caveats." : punishing > rewarding ? "Recent public structures remain fragile." : "Recent outcomes are mixed and still forming.",
+      why: "Outcomes compare observed public structures against whether followthrough was rewarding, weak, mixed, or too thin to judge.",
+      supports: [`${rewarding.toLocaleString("en-US")} rows are constructive`, `${mixed.toLocaleString("en-US")} rows are mixed rather than clearly weak`, common.strongest_signal],
+      risks: [`${punishing.toLocaleString("en-US")} rows remain weak or punishing`, "Some cohorts are aggregate-only", stale ? "Freshness is delayed" : "Longer windows are still building"],
+      would_confirm: ["Constructive outcome rows increase over repeat windows", "Followthrough broadens beyond narrow clusters", "Sample depth improves without outlier dependence"],
+      would_weaken: ["Weak rows increase", "Mixed evidence does not resolve", "Rewarding evidence concentrates in too few markets"],
+    };
+  }
+  if (key === "memory") {
+    const dominant = payload.dominant_condition_family || rows[0]?.structure || rows[0]?.condition || "market memory";
+    return {
+      ...common,
+      net_read: `${researchLabel(dominant)} is the dominant public memory condition.`,
+      why: "Memory tracks which structure families keep recurring and whether they transition into stronger, stalled, or weaker regimes.",
+      supports: [common.strongest_signal, "Recurring conditions are being tracked across public refreshes", "Memory connects current reads to prior observed regimes"],
+      risks: ["Frequent conditions are not automatically useful", "Outcome quality still matters", stale ? "Freshness is delayed" : "Rare structures need more repeat evidence"],
+      would_confirm: ["The dominant condition persists across refreshes", "Outcomes align with the historical transition path", "Related surfaces broaden"],
+      would_weaken: ["The condition disappears quickly", "Outcome evidence conflicts with memory", "The read depends on a narrow cluster"],
+    };
+  }
+  if (key === "behavior") {
+    const constructive = rows.filter((row) => /reward|favorable|constructive/i.test(publicOutcomeRead(row))).length;
+    const weak = rows.filter((row) => /punish|weak|fragile/i.test(publicOutcomeRead(row))).length;
+    return {
+      ...common,
+      net_read: constructive > weak ? "Participation is returning, but confirmation is still selective." : "Participation is observable, but still concentrated or fragile.",
+      why: "Behavior summarizes public-safe aggregate participation, returning activity, breadth, concentration, survival, and followthrough.",
+      supports: [`${constructive.toLocaleString("en-US")} rows show constructive behavior context`, common.strongest_signal, "Aggregate cohort behavior is visible without exposing private identities"],
+      risks: [`${weak.toLocaleString("en-US")} rows remain weak or fragile`, "Concentration can distort the read", stale ? "Freshness is delayed" : "Survival evidence is still forming"],
+      would_confirm: ["New and returning participation broadens", "Survival improves across more chains and cap bands", "Weak concentration fades"],
+      would_weaken: ["Returning participation fades", "Concentration increases", "Followthrough stays isolated"],
+    };
+  }
+  return {
+    ...common,
+    net_read: "Current public read is forming.",
+    why: "Raven is assembling public-safe evidence before making a stronger read.",
+    supports: [common.strongest_signal],
+    risks: [common.weakest_signal],
+    would_confirm: ["Sample depth improves"],
+    would_weaken: ["Freshness or coverage deteriorates"],
+  };
 }
 
 function rowScore(row = {}) {

@@ -92,6 +92,8 @@ assert.match(liveScript, /DEFAULT_INTERVALS/);
 assert.match(liveScript, /document\.hidden/);
 assert.match(liveScript, /data-ravenos-live-strip/);
 assert.match(liveScript, /renderOpportunityLive/);
+assert.match(liveScript, /renderIntelligencePanel/);
+assert.match(liveScript, /intelNetRead/);
 assert.match(liveScript, /renderOpportunityTables/);
 assert.match(liveScript, /renderOpportunityTiles/);
 assert.match(liveScript, /renderOpportunityMatrix/);
@@ -134,6 +136,22 @@ assert.match(conversionAudit, /Free should prove the product quickly/);
 assert.match(conversionAudit, /Do not imply Raven guarantees outcomes/);
 assert.match(conversionPlan, /"full_replay_lab"/);
 assert.match(conversionPlan, /"scores_without_visible_evidence"/);
+
+for (const [name, page] of [
+  ["opportunity", opportunity],
+  ["replay", replayPage],
+  ["outcomes", outcomes],
+  ["memory", memory],
+  ["behavior", behavior],
+]) {
+  assert.match(page, /Raven intelligence layer/i, `${name} should expose the shared intelligence layer`);
+  assert.match(page, /id="intelNetRead"/, `${name} should expose the net read`);
+  assert.match(page, /id="intelWhy"/, `${name} should expose the why`);
+  assert.match(page, /id="intelSupports"/, `${name} should expose supports`);
+  assert.match(page, /id="intelRisks"/, `${name} should expose risks`);
+  assert.match(page, /id="intelConfirm"/, `${name} should expose confirmation conditions`);
+  assert.match(page, /id="intelWeaken"/, `${name} should expose weakening conditions`);
+}
 
 assert.match(home, /Current Market Read/);
 assert.match(home, /Why Raven Thinks This/);
