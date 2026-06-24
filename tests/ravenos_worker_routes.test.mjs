@@ -126,6 +126,10 @@ assert.ok(Array.isArray(publicOpportunityPayload.summary.top_opportunities));
 assert.ok(publicOpportunityPayload.summary.top_opportunities.length >= 1);
 assert.equal(publicOpportunityPayload.summary.chain_rows[0].label, "Solana");
 assert.equal(publicOpportunityPayload.summary.cap_band_rows[0].label, "Micro");
+assert.ok(publicOpportunityPayload.summary.chain_rows.every((row) => row.key !== "hyperliquid"));
+assert.ok(publicOpportunityPayload.summary.top_opportunities.every((row) => row.chain !== "hyperliquid"));
+assert.ok(publicOpportunityPayload.summary.top_opportunities.every((row) => !String(row.cap_band || "").startsWith("perps_")));
+assert.match(publicOpportunityPayload.summary.perps_context.read, /Perps/);
 
 const publicSolana = await worker.fetch(new Request("https://ravenos.xyz/api/chains/solana"), {
   ...env,

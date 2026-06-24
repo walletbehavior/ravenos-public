@@ -1188,12 +1188,34 @@ function publicCapBandLabel(value = "") {
   const text = String(value || "all");
   const labels = {
     fresh_pairs: "Fresh Pairs",
-    perps_all: "Perps",
+    live_activity: "Live Activity",
+    jupiter_velocity: "Solana Routing Context",
+    perps_all: "Perps Context",
     perps_alts: "Perps Alts",
     perps_large_alts: "Perps Large Alts",
     perps_majors: "Perps Majors",
   };
   return labels[text] || researchLabel(text);
+}
+
+function isPerpsOpportunityRow(row = {}) {
+  const chain = String(row.chain || "").toLowerCase();
+  const band = String(row.cap_band || "").toLowerCase();
+  return chain === "hyperliquid" || band.startsWith("perps_");
+}
+
+function isSupportingContextRow(row = {}) {
+  const band = String(row.cap_band || "").toLowerCase();
+  return band === "live_activity" || band === "jupiter_velocity";
+}
+
+function isSpecificSpotSurface(row = {}) {
+  const chain = String(row.chain || "").toLowerCase();
+  const band = String(row.cap_band || "").toLowerCase();
+  if (!chain || chain === "all") return false;
+  if (!band || band === "all") return false;
+  if (isPerpsOpportunityRow(row) || isSupportingContextRow(row)) return false;
+  return true;
 }
 
 function aggregateOpportunityRows(rows = [], groupKey = "chain") {
@@ -1247,15 +1269,20 @@ function aggregateOpportunityRows(rows = [], groupKey = "chain") {
 
 function opportunitySummaryFromHeatmap(payload = {}) {
   const rows = heatmapRows(payload);
-  const sorted = [...rows].sort((a, b) => rowScore(b) - rowScore(a));
+  const spotRows = rows.filter((row) => !isPerpsOpportunityRow(row));
+  const surfaceRows = spotRows.filter(isSpecificSpotSurface);
+  const rankingRows = surfaceRows.length ? surfaceRows : spotRows;
+  const perpsRows = rows.filter(isPerpsOpportunityRow);
+  const sorted = [...rankingRows].sort((a, b) => rowScore(b) - rowScore(a));
   const top = sorted[0] || null;
-  const rewarding = rows.filter((row) => /reward|favorable/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
-  const punishing = rows.filter((row) => /punish|struggling/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
-  const chainRows = aggregateOpportunityRows(rows, "chain");
-  const capRows = aggregateOpportunityRows(rows, "cap_band");
+  const rewarding = spotRows.filter((row) => /reward|favorable/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
+  const punishing = spotRows.filter((row) => /punish|struggling/i.test(`${row.derived_state || ""} ${row.participant_outcome || ""}`)).length;
+  const chainRows = aggregateOpportunityRows(spotRows.filter((row) => String(row.chain || "").toLowerCase() !== "all"), "chain");
+  const capRows = aggregateOpportunityRows(spotRows.filter((row) => !isSupportingContextRow(row)), "cap_band");
+  const perpsContext = aggregateOpportunityRows(perpsRows, "cap_band");
   const matrix = chainRows.slice(0, 8).flatMap((chain) => {
     return capRows.slice(0, 12).map((band) => {
-      const matching = rows.filter((row) => String(row.chain || "").toLowerCase() === chain.key && String(row.cap_band || "").toLowerCase() === band.key);
+      const matching = spotRows.filter((row) => String(row.chain || "").toLowerCase() === chain.key && String(row.cap_band || "").toLowerCase() === band.key);
       const aggregate = aggregateOpportunityRows(matching, "cap_band")[0] || null;
       return aggregate ? {
         chain: chain.key,
@@ -1274,7 +1301,8 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     }).filter(Boolean);
   });
   return {
-    observed_rows: rows.length,
+    observed_rows: spotRows.length,
+    total_observed_rows: rows.length,
     best_surface: top ? {
       chain: top.chain || "all",
       cap_band: top.cap_band || "all",
@@ -1284,10 +1312,17 @@ function opportunitySummaryFromHeatmap(payload = {}) {
     } : null,
     rewarding_count: rewarding,
     punishing_count: punishing,
-    mixed_count: Math.max(0, rows.length - rewarding - punishing),
+    mixed_count: Math.max(0, spotRows.length - rewarding - punishing),
     chain_rows: chainRows,
     cap_band_rows: capRows,
     matrix,
+    perps_context: {
+      observed_rows: perpsRows.length,
+      rows: perpsContext.slice(0, 6),
+      read: perpsRows.length
+        ? "Perps are tracked as separate market-pressure context, not as a chain participation surface."
+        : "Perps context is forming.",
+    },
     top_opportunities: sorted.slice(0, 6).map((row) => ({
       chain: row.chain,
       chain_label: publicVenueLabel(row.chain),

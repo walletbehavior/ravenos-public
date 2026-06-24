@@ -3,24 +3,441 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="refresh" content="0; url=/terminal/" />
-  <title>RavenOS Flow Terminal</title>
+  <meta name="description" content="RavenOS is a market intelligence platform built around structure, pressure, replay, participation, rotation, and market context." />
+  <title>RavenOS Market Intelligence</title>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #040706;
+      --panel: #08100d;
+      --panel-2: #0d1814;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(125, 211, 252, 0.28);
+      --text: #edf6f1;
+      --muted: #98ada4;
+      --soft: #6f837a;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; background: var(--bg); }
     body {
       margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #030605;
-      color: #edf6f1;
+      color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      background: linear-gradient(180deg, rgba(125, 211, 252, 0.06), transparent 340px), var(--bg);
     }
-    a { color: #7dd3fc; }
+    a { color: inherit; text-decoration: none; }
+    .shell { max-width: 1220px; margin: 0 auto; padding: 16px; }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; flex-direction: column; gap: 3px; }
+    .brand strong { font-size: 18px; letter-spacing: 0; }
+    .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .links a, .button {
+      display: inline-flex;
+      min-height: 32px;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: rgba(8, 16, 13, 0.72);
+      padding: 7px 10px;
+      color: #c9dad2;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .links a:hover, .button:hover { border-color: var(--cyan); color: var(--text); }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      gap: 14px;
+      padding: 18px 0 14px;
+    }
+    .read {
+      border: 1px solid var(--line-strong);
+      background: rgba(8, 16, 13, 0.86);
+      padding: 18px;
+    }
+    h1 { margin: 8px 0 10px; font-size: clamp(30px, 4.6vw, 56px); line-height: 0.96; max-width: 900px; }
+    h2 { margin: 0; font-size: 15px; line-height: 1.2; }
+    h3 { margin: 0; font-size: 13px; line-height: 1.25; }
+    p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .thesis { max-width: 780px; color: #c8d8d0; font-size: 15px; }
+    .strip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      border: 1px solid var(--line);
+      background: rgba(125, 211, 252, 0.06);
+      padding: 4px 8px;
+      color: #dceae4;
+      font-size: 11px;
+      font-weight: 820;
+      text-transform: uppercase;
+    }
+    .badge.on { color: var(--green); border-color: rgba(52, 211, 153, 0.32); background: rgba(52, 211, 153, 0.08); }
+    .badge.off { color: var(--red); border-color: rgba(251, 113, 133, 0.32); background: rgba(251, 113, 133, 0.08); }
+    .badge.mixed { color: var(--yellow); border-color: rgba(250, 204, 21, 0.3); background: rgba(250, 204, 21, 0.07); }
+    .evidence {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px;
+      min-height: 86px;
+    }
+    .metric span { display: block; color: var(--soft); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 8px; font-size: 24px; line-height: 1; }
+    .metric p { margin-top: 8px; font-size: 11px; }
+    .section { padding: 8px 0; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 8px 0;
+    }
+    .section-head p { max-width: 660px; }
+    .grid { display: grid; gap: 10px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 13px;
+      min-height: 132px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+    .kicker { color: var(--soft); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .drivers { display: grid; gap: 6px; margin-top: 10px; color: #b8cbc2; font-size: 12px; line-height: 1.4; }
+    .drivers div { border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 6px; }
+    .table-card { border: 1px solid var(--line); background: var(--panel); overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 12px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    th { color: var(--cyan); background: var(--panel-2); font-size: 10px; text-transform: uppercase; }
+    td { color: #bfd0c8; }
+    td strong { color: var(--text); }
+    .footer {
+      border-top: 1px solid var(--line);
+      margin-top: 22px;
+      padding: 16px 0 8px;
+      color: var(--soft);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    @media (max-width: 920px) {
+      .hero, .grid.three, .grid.four { grid-template-columns: 1fr; }
+      .evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 12px; }
+      .nav { align-items: flex-start; flex-direction: column; }
+      .links { justify-content: flex-start; }
+      .evidence { grid-template-columns: 1fr; }
+      h1 { font-size: 34px; }
+    }
   </style>
-  <script>window.location.replace("/terminal/");</script>
 </head>
 <body>
-  <p>Opening <a href="/terminal/">RavenOS Flow Terminal</a>.</p>
+  <main class="shell">
+    <nav class="nav" aria-label="Primary navigation">
+      <div class="brand">
+        <span class="eyebrow">RavenOS</span>
+        <strong>Market Intelligence</strong>
+      </div>
+      <div class="links">
+        <a href="/terminal/">Terminal</a>
+        <a href="/pricing/">Pricing</a>
+        <a href="/account/">Account</a>
+        <a href="https://github.com/walletbehavior/ravenos-public" rel="noreferrer">Docs</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <article class="read">
+        <span class="eyebrow">Current Market Read</span>
+        <h1 id="marketRead">Reading live public market context.</h1>
+        <p class="thesis" id="marketThesis">Raven is loading participation, pressure, replay, and outcome evidence from the public API.</p>
+        <div class="strip">
+          <span class="badge mixed" id="regimeBadge">Regime forming</span>
+          <span class="badge" id="freshnessBadge">Updated now</span>
+          <span class="badge" id="coverageBadge">Coverage active</span>
+          <span class="badge" id="sampleBadge">Evidence forming</span>
+        </div>
+        <div class="strip" style="margin-top:16px">
+          <a class="button" href="/terminal/">Open Terminal</a>
+          <a class="button" href="/pricing/">View Pricing</a>
+        </div>
+      </article>
+
+      <aside class="evidence" aria-label="Evidence summary">
+        <div class="metric">
+          <span>Opportunity Surface</span>
+          <strong id="bestSurface">Forming</strong>
+          <p id="bestSurfaceMeta">Chain and cap-band context is loading.</p>
+        </div>
+        <div class="metric">
+          <span>Replay Context</span>
+          <strong id="replayCount">--</strong>
+          <p id="replayMeta">Similar structures and outcome history.</p>
+        </div>
+        <div class="metric">
+          <span>Observed Markets</span>
+          <strong id="observedMarkets">--</strong>
+          <p id="observedMeta">Public-safe aggregate coverage.</p>
+        </div>
+        <div class="metric">
+          <span>Confidence</span>
+          <strong id="confidenceLabel">Developing</strong>
+          <p id="confidenceMeta">Confidence is based on freshness, coverage, sample depth, and replay support.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="riskMapTitle">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Risk-On / Risk-Off Map</span>
+          <h2 id="riskMapTitle">Follow the market surface, then drill into the evidence.</h2>
+        </div>
+        <p>Raven separates spot participation surfaces from perps pressure context so the homepage does not collapse every market into one trade-style read.</p>
+      </div>
+      <div class="grid three" id="riskCards"></div>
+    </section>
+
+    <section class="section" aria-labelledby="opportunityTitle">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Where Opportunity Is Showing</span>
+          <h2 id="opportunityTitle">Chain and cap-band participation surfaces.</h2>
+        </div>
+        <p>These rows are market-context reads. They describe where participation and outcome evidence are most constructive, not what to buy or sell.</p>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>Regime</th>
+              <th>Read</th>
+              <th>Sample</th>
+              <th>Confidence</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody id="surfaceRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="whyTitle">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Why Raven Believes It</span>
+          <h2 id="whyTitle">Evidence before interpretation.</h2>
+        </div>
+        <p>Every read should answer what Raven sees, why it matters, and what would weaken the read.</p>
+      </div>
+      <div class="grid three">
+        <article class="card">
+          <div class="card-head"><h3>What is working</h3><span class="badge on">Risk-on</span></div>
+          <p id="workingRead">Loading current supporting evidence.</p>
+          <div class="drivers" id="workingDrivers"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h3>What is fragile</h3><span class="badge mixed">Mixed</span></div>
+          <p id="fragileRead">Loading caveats.</p>
+          <div class="drivers" id="fragileDrivers"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h3>What changed</h3><span class="badge">Context</span></div>
+          <p id="changedRead">Loading public API status.</p>
+          <div class="drivers" id="changedDrivers"></div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services.
+    </footer>
+  </main>
+
+  <script>
+    function titleCase(value) {
+      return String(value || "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function ageLabel(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "Updated recently";
+      if (n < 60) return `Updated ${Math.max(1, Math.round(n))}s ago`;
+      if (n < 3600) return `Updated ${Math.round(n / 60)}m ago`;
+      return `Updated ${Math.round(n / 3600)}h ago`;
+    }
+
+    function regimeClass(read = "") {
+      const text = String(read || "").toLowerCase();
+      if (/fragile|weak|punish|risk-off|deterior/i.test(text)) return "off";
+      if (/constructive|improving|reward|favorable|expanding|risk-on/i.test(text)) return "on";
+      return "mixed";
+    }
+
+    function regimeLabel(read = "") {
+      const cls = regimeClass(read);
+      if (cls === "on") return "Risk-on";
+      if (cls === "off") return "Risk-off";
+      return "Mixed";
+    }
+
+    async function fetchJson(path) {
+      const response = await fetch(path, { headers: { accept: "application/json" } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `http_${response.status}`);
+      return payload;
+    }
+
+    function cardTemplate(title, label, read, drivers = []) {
+      const cls = regimeClass(`${label} ${read}`);
+      return `
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <span class="kicker">${title}</span>
+              <h3>${label}</h3>
+            </div>
+            <span class="badge ${cls}">${regimeLabel(`${label} ${read}`)}</span>
+          </div>
+          <p>${read}</p>
+          <div class="drivers">${drivers.slice(0, 3).map((item) => `<div>${item}</div>`).join("")}</div>
+        </article>
+      `;
+    }
+
+    function renderOpportunity(payload) {
+      const summary = payload.summary || {};
+      const best = summary.best_surface || {};
+      const bestLabel = `${titleCase(best.chain || "surface")} ${titleCase(best.cap_band || "")}`.trim();
+      const top = Array.isArray(summary.top_opportunities) ? summary.top_opportunities : [];
+      const chains = Array.isArray(summary.chain_rows) ? summary.chain_rows : [];
+      const capBands = Array.isArray(summary.cap_band_rows) ? summary.cap_band_rows : [];
+      const perps = summary.perps_context || {};
+
+      document.getElementById("bestSurface").textContent = bestLabel || "Forming";
+      document.getElementById("bestSurfaceMeta").textContent = best.read || "Participation evidence is forming.";
+      document.getElementById("observedMarkets").textContent = String(summary.total_observed_rows || summary.observed_rows || "--");
+      document.getElementById("observedMeta").textContent = `${summary.rewarding_count || 0} constructive / ${summary.punishing_count || 0} weak / ${summary.mixed_count || 0} mixed spot surfaces.`;
+      document.getElementById("confidenceLabel").textContent = titleCase(best.confidence || "developing");
+      document.getElementById("regimeBadge").textContent = regimeLabel(best.read);
+      document.getElementById("regimeBadge").className = `badge ${regimeClass(best.read)}`;
+      document.getElementById("sampleBadge").textContent = `Sample ${Number(best.sample_size || 0).toLocaleString("en-US")}`;
+
+      const thesis = bestLabel
+        ? `${bestLabel} is the clearest current participation surface; Raven is separating that spot read from perps pressure context.`
+        : "Raven is building the current market read from public participation and outcome evidence.";
+      document.getElementById("marketRead").textContent = thesis;
+      document.getElementById("marketThesis").textContent = best.read || "Evidence is forming across chains, cap bands, replay, and pressure context.";
+
+      const primaryCards = [
+        cardTemplate("Spot chains", chains[0]?.label || "Chain read forming", chains[0]?.read || "Spot chain participation is forming.", [
+          `${chains[0]?.reward_punishment_status || "Constructive and weak counts forming"}`,
+          `Sample depth: ${Number(chains[0]?.sample_size || 0).toLocaleString("en-US")}`,
+          `Confidence: ${titleCase(chains[0]?.confidence || "developing")}`,
+        ]),
+        cardTemplate("Cap bands", capBands[0]?.label || "Cap-band read forming", capBands[0]?.read || "Cap-band participation is forming.", [
+          `${capBands[0]?.reward_punishment_status || "Constructive and weak counts forming"}`,
+          `Sample depth: ${Number(capBands[0]?.sample_size || 0).toLocaleString("en-US")}`,
+          `Participation: ${capBands[0]?.participation_status || "observable"}`,
+        ]),
+        cardTemplate("Perps context", "Separate pressure read", perps.read || "Perps context is tracked separately from chain participation.", [
+          `${Number(perps.observed_rows || 0).toLocaleString("en-US")} perps context rows`,
+          "Pressure context supports the terminal, not the homepage opportunity headline",
+          "No trade-call language",
+        ]),
+      ];
+      document.getElementById("riskCards").innerHTML = primaryCards.join("");
+
+      document.getElementById("surfaceRows").innerHTML = top.slice(0, 8).map((row) => {
+        const label = `${row.chain_label || titleCase(row.chain)} · ${row.cap_band_label || titleCase(row.cap_band)}`;
+        const cls = regimeClass(`${row.read} ${row.why_now}`);
+        return `
+          <tr>
+            <td><strong>${label}</strong></td>
+            <td><span class="badge ${cls}">${regimeLabel(`${row.read} ${row.why_now}`)}</span></td>
+            <td>${row.why_now || row.read || "Read forming"}</td>
+            <td>${Number(row.sample_size || 0).toLocaleString("en-US")}</td>
+            <td>${titleCase(row.confidence || "developing")}</td>
+            <td>${(row.what_is_working || []).slice(0, 2).join(" · ")}</td>
+          </tr>
+        `;
+      }).join("") || `<tr><td colspan="6">Current opportunity evidence is forming.</td></tr>`;
+
+      const working = top[0];
+      const fragile = top.find((row) => /fragile|weak|punish/i.test(`${row.read} ${row.why_now}`)) || top[top.length - 1];
+      document.getElementById("workingRead").textContent = working?.why_now || "Constructive participation evidence is forming.";
+      document.getElementById("workingDrivers").innerHTML = (working?.what_is_working || ["Participation breadth", "Sample depth", "Current public coverage"]).slice(0, 3).map((item) => `<div>${item}</div>`).join("");
+      document.getElementById("fragileRead").textContent = fragile?.what_could_fail?.[0] || "Confirmation could narrow if participation concentrates or survival weakens.";
+      document.getElementById("fragileDrivers").innerHTML = (fragile?.what_could_fail || ["Concentration risk", "Survival evidence still forming", "Outcome evidence could weaken"]).slice(0, 3).map((item) => `<div>${item}</div>`).join("");
+    }
+
+    function renderStatus(payload) {
+      const endpoints = Array.isArray(payload.endpoints) ? payload.endpoints : [];
+      const freshest = endpoints.find((row) => row.endpoint === "/api/opportunity") || endpoints[0] || {};
+      document.getElementById("freshnessBadge").textContent = ageLabel(freshest.freshness_age_seconds);
+      document.getElementById("coverageBadge").textContent = freshest.stale ? "Coverage delayed" : "Coverage active";
+      document.getElementById("coverageBadge").className = `badge ${freshest.stale ? "mixed" : "on"}`;
+      document.getElementById("changedRead").textContent = `Public API status is ${payload.status || "live_public_api"}. Normal page rebuilds are not required for data freshness.`;
+      document.getElementById("changedDrivers").innerHTML = endpoints.slice(0, 3).map((row) => `<div>${row.endpoint}: ${ageLabel(row.freshness_age_seconds)}</div>`).join("");
+    }
+
+    function renderReplay(payload) {
+      const data = payload.data || payload;
+      const rows = Array.isArray(data.rows) ? data.rows : Array.isArray(data.replay) ? data.replay : [];
+      const count = Number(data.count || rows.length || 0);
+      document.getElementById("replayCount").textContent = count ? count.toLocaleString("en-US") : "Forming";
+      document.getElementById("replayMeta").textContent = count
+        ? "Similar structures are available as research context, not forecasts."
+        : "Replay evidence is forming from public-safe structure history.";
+    }
+
+    async function init() {
+      try {
+        const [opportunity, status, replay] = await Promise.all([
+          fetchJson("/api/opportunity"),
+          fetchJson("/api/status"),
+          fetchJson("/api/replay").catch(() => ({})),
+        ]);
+        renderOpportunity(opportunity);
+        renderStatus(status);
+        renderReplay(replay);
+      } catch (error) {
+        document.getElementById("marketRead").textContent = "Current public read is forming.";
+        document.getElementById("marketThesis").textContent = "Raven kept the page available while live public context refreshes.";
+      }
+    }
+
+    init();
+  </script>
 </body>
 </html>
