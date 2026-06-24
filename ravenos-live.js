@@ -288,15 +288,33 @@
     const punishing = rows.filter(isPunishing).length;
     const mixed = rows.filter((row) => !isRewarding(row) && !isPunishing(row)).length;
     const observed = rows.reduce((sum, row) => sum + sampleOf(row), 0);
+    const usable = rows.reduce((sum, row) => sum + Number(row.clean_sample || row.sample_size || 0), 0);
+    const topRewarding = rows.filter(isRewarding).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
+    const topPunishing = rows.filter(isPunishing).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
+    const topMixed = rows.filter((row) => !isRewarding(row) && !isPunishing(row)).sort((a, b) => sampleOf(b) - sampleOf(a)).slice(0, 4);
     setText("outGenerated", payload?.generated_at ? new Date(payload.generated_at).toISOString().slice(0, 16).replace("T", " ") : "current read forming");
     setText("outHeroBadge", rewarding > punishing ? "Rewarding / Forming" : punishing > rewarding ? "Punishing / Forming" : "Mixed / Forming");
     setText("outHeroSummary", rows.length
-      ? `Current public outcome layer has ${fmtNumber(rows.length)} aggregate rows and ${fmtNumber(observed)} observed samples.`
+      ? `Current public outcome layer has ${fmtNumber(rows.length)} aggregate rows, ${fmtNumber(observed)} observed samples, and ${fmtNumber(usable)} usable samples.`
       : "Outcome sample is forming from public artifacts.");
     setText("outRewardingCount", fmtNumber(rewarding));
     setText("outPunishingCount", fmtNumber(punishing));
     setText("outMixedCount", fmtNumber(mixed));
     setText("outInsufficientCount", rows.length ? fmtNumber(rows.filter((row) => sampleOf(row) < 20).length) : "forming");
+    setText("out7dStatus", rows.length ? `${fmtNumber(rows.length)} current rows` : "Sample forming");
+    setText("out7dText", rows.length ? "Current public rows are refreshing now; 7D interpretation remains a developing aggregate." : "Current public dashboard is waiting for usable rows.");
+    setText("out30dStatus", usable >= 1000 ? "Developing aggregate" : "Insufficient history");
+    setText("out30dText", usable >= 1000 ? "Usable sample depth is improving, but the public 30D view is still conservative." : "Longer outcome aggregation is not yet complete in the public artifact.");
+    setText("out90dStatus", "Coverage limited");
+    setText("out90dText", "Deep public outcome history is not presented as live until enough validated aggregate history exists.");
+    const rowLabel = (row) => `${marketVenueLabel(row.chain || "market")} ${capBandLabel(row.cap_band || "all")}`;
+    const listItems = (items, fallback) => (items.length ? items.map((row) => {
+      const assets = Array.isArray(row.top_public_symbols) && row.top_public_symbols.length ? ` Assets: ${row.top_public_symbols.slice(0, 3).join(", ")}.` : "";
+      return `<li>${escapeHtml(rowLabel(row))}: ${escapeHtml(plainOpportunityRead(rowRead(row)))} with ${fmtNumber(sampleOf(row))} sample.${escapeHtml(assets)}</li>`;
+    }) : [fallback].map((item) => `<li>${escapeHtml(item)}</li>`)).join("");
+    setHtml("outImprovedList", listItems(topRewarding, "No strong rewarding cohort is confirmed in the current public rows."));
+    setHtml("outWeakenedList", listItems(topPunishing, "Weak outcome evidence is not dominant in the current public rows."));
+    setHtml("outMixedList", listItems(topMixed, "Mixed rows are still forming."));
     const tbody = document.getElementById("outBreakdownRows");
     if (tbody && rows.length) {
       tbody.innerHTML = rows.slice(0, 12).map((row) => {
