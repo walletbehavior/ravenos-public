@@ -749,8 +749,8 @@
       { asset: "ETH Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 3410, flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "sample" },
       { asset: "ARB Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 0.92, flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "sample" },
       { asset: "JUP Spot", market: "Crypto Spot", category: "crypto_spot", lastPrice: 1.18, flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "sample" },
-      { asset: "NVDA", market: "Equities", category: "equities", lastPrice: 920.12, flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
-      { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: 548.3, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
+      { asset: "NVDA", market: "Equities", category: "equities", lastPrice: null, flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Coverage developing", risk: "Stable", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
+      { asset: "SPY", market: "ETFs", category: "etfs", lastPrice: null, flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Coverage developing", risk: "Stable", lastUpdated: "preview", provider: "Market provider", coverage: "Developing" },
       { asset: "SPX Vol", market: "Options", category: "options", lastPrice: 17.4, flowScore: 52, attentionVelocity: -2, participantActivity: "Low", liquidityPosture: "Preview", risk: "Watch", lastUpdated: "sample" },
       { asset: "USD Liquidity", market: "Macro", category: "macro", lastPrice: 100.0, flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
     ];
@@ -934,7 +934,7 @@
     function applyMarketPrice(priceRow, targetCategory = "") {
       const symbol = normalizedMarketSymbol(priceRow.symbol);
       const price = Number(priceRow.priceUsd);
-      if (!symbol || !Number.isFinite(price) || price <= 0) return;
+      if (!symbol) return;
       const pools = [rows, cryptoRows, perpsRows, livePerpsRows, dexRows];
       pools.forEach((pool) => {
         pool.forEach((row) => {
@@ -942,7 +942,7 @@
           if (targetCategory === "perpetuals" && row.category !== "perpetuals") return;
           if (targetCategory === "crypto_spot" && row.category !== "crypto_spot") return;
           if (targetCategory === "market_preview" && !["equities", "etfs"].includes(row.category)) return;
-          row.lastPrice = price;
+          if (Number.isFinite(price) && price > 0) row.lastPrice = price;
           row.provider = priceRow.provider || row.provider || "Public market data";
           row.coverage = priceRow.coverage || row.coverage || "Developing";
           row.isLive = priceRow.isLive === true;
@@ -1039,6 +1039,13 @@
       return `$${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 6 })}`;
     }
 
+    function displayPrice(row) {
+      if (["equities", "etfs", "options", "macro"].includes(row?.category) && row?.isLive !== true) return "Coverage developing";
+      const price = Number(row?.lastPrice);
+      if (!Number.isFinite(price) || price <= 0) return "Coverage developing";
+      return money(price);
+    }
+
     function compactUsd(value) {
       const n = Number(value || 0);
       if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
@@ -1102,7 +1109,7 @@
         category,
         chainVenue: sector,
         marketCapBand: market === "ETFs" ? "ETF" : "Equity",
-        lastPrice: samplePriceFor(asset),
+        lastPrice: null,
         flowScore,
         attentionVelocity,
         participantActivity: "Market participation",
@@ -1110,9 +1117,9 @@
         risk,
         participationOutcome: "Mixed",
         lastUpdated: "preview",
-        provider: "Market preview",
-        coverage: "Limited",
-        isSample: true,
+        provider: "Market provider",
+        coverage: "Developing",
+        isSample: false,
         expandedMarket: !FREE_MARKET_SYMBOLS.has(asset),
       }));
     }
@@ -1139,7 +1146,7 @@
         category: isEtf ? "etfs" : "equities",
         chainVenue: isEtf ? "Expanded ETF universe" : "Expanded equity universe",
         marketCapBand: isEtf ? "ETF" : "Equity",
-        lastPrice: samplePriceFor(q),
+        lastPrice: null,
         flowScore: 50,
         attentionVelocity: 0,
         participantActivity: "Market participation",
@@ -1147,9 +1154,9 @@
         risk: "Watch",
         participationOutcome: "Mixed",
         lastUpdated: "preview",
-        provider: "Market preview",
-        coverage: "Limited",
-        isSample: true,
+        provider: "Market provider",
+        coverage: "Developing",
+        isSample: false,
         expandedMarket: true,
       };
     }
@@ -1259,7 +1266,7 @@
       const key = liveCandleKey(row, timeframe);
       const cached = candleCache.get(key);
       if (row.category === "perpetuals" && cached?.candles?.length) return { candles: cached.candles, source: "live", provider: cached.provider || "Hyperliquid" };
-      return { candles: scaledCandles(row, timeframe), source: "proxy", provider: "Raven structure proxy" };
+      return { candles: scaledCandles(row, timeframe), source: "proxy", provider: "Structure Proxy" };
     }
 
     async function fetchLiveCandles(row, timeframe = selectedTimeframe()) {
@@ -1355,17 +1362,17 @@
       }) || [];
       if (isPerpsMode()) overlays.push(...perpsReplayOverlays(row, candleData));
       document.getElementById("chartTitle").textContent = `${row.asset} ${modeLabel(activeMode)}`;
-      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · ${candleResult.source === "live" ? `${candleResult.provider} OHLCV` : "structure proxy OHLCV"} with RavenOS overlays`;
+      document.getElementById("chartSubtitle").textContent = `${row.market || row.chainVenue || "Market"} · ${state.timeframe} · ${candleResult.source === "live" ? `${candleResult.provider} OHLCV` : "Structure Proxy"} with RavenOS overlays`;
       document.getElementById("flowScore").textContent = isPerpsMode() && row.category === "perpetuals" ? pressureScore(row) : row.flowScore;
       document.getElementById("primaryScoreLabel").textContent = isPerpsMode() ? "Pressure Score" : "Flow Score";
-      document.getElementById("lastPrice").textContent = money(row.lastPrice);
+      document.getElementById("lastPrice").textContent = displayPrice(row);
       document.getElementById("timeframeWindow").textContent = `${state.timeframe} ${tfMetrics.label} · ${tfMetrics.count} bars`;
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity} · ${tfMetrics.changePct > 0 ? "+" : ""}${tfMetrics.changePct}%`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
       document.getElementById("liquidityPosture").textContent = `${row.liquidityPosture} · ${tfMetrics.rangePct}% range`;
       document.getElementById("riskRating").textContent = row.risk;
       document.getElementById("tickerInstrument").textContent = row.asset;
-      document.getElementById("tickerPrice").textContent = money(row.lastPrice);
+      document.getElementById("tickerPrice").textContent = displayPrice(row);
       document.getElementById("tickerFlow").textContent = row.flowScore;
       const coverage = state.coverageMeta;
       document.getElementById("tickerPressure").textContent = row.category === "perpetuals" ? pressureScore(row) : "n/a";
@@ -1836,7 +1843,7 @@
       return source.map((row, index) => ({
         ...row,
         market: row.market || (activeMode === "perps_pressure" ? "Perpetual Futures" : "Crypto Spot"),
-        lastPrice: row.lastPrice || samplePriceFor(row.asset),
+        lastPrice: ["equities", "etfs", "options", "macro"].includes(row.category) && row.isLive !== true ? null : (row.lastPrice || samplePriceFor(row.asset)),
         locked: accessTier === "free" && activeMode === "crypto_heatmaps" && row.category === "crypto_spot" && index >= 5,
       }));
     }
@@ -1912,7 +1919,7 @@
 
     function cellValue(row, key) {
       if (row.locked && key !== "asset" && key !== "chainVenue") return `<span class="lock-pill">Pro</span>`;
-      if (key === "lastPrice") return money(row.lastPrice || 0);
+      if (key === "lastPrice") return displayPrice(row);
       if (key === "lastUpdated") return freshnessLabel(row.lastUpdated);
       if (key === "attentionVelocity") return `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       if (key === "risk") return `<span class="${riskClass(row.risk)}">${row.risk}</span>`;
@@ -2324,7 +2331,7 @@
       const requests = [
         perpsSymbols.length ? { target: "perpetuals", promise: fetch(`/api/market/prices?market=perp&symbols=${encodeURIComponent(perpsSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
         spotSymbols.length ? { target: "crypto_spot", promise: fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(spotSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
-        marketSymbols.length ? { target: "market_preview", promise: fetch(`/api/market/prices?market=spot&symbols=${encodeURIComponent(marketSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
+        marketSymbols.length ? { target: "market_preview", promise: fetch(`/api/market/prices?market=equity&symbols=${encodeURIComponent(marketSymbols.join(","))}`, { cache: "no-store" }).then((res) => res.json()).catch(() => null) } : null,
       ].filter(Boolean);
       const payloads = await Promise.all(requests.map((item) => item.promise));
       payloads.forEach((payload, index) => {

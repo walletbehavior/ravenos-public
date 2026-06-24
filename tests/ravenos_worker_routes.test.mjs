@@ -371,6 +371,7 @@ const originalFetch = globalThis.fetch;
 let sawCommaSeparatedCoinGeckoIds = false;
 let forceCoingeckoDown = false;
 let looseSearchCallsForKnownSymbols = 0;
+let looseSearchCallsForMarketSymbols = 0;
 globalThis.fetch = async (url, init) => {
   const href = String(url);
   if (href.includes("api.hyperliquid.xyz/info")) {
@@ -388,6 +389,7 @@ globalThis.fetch = async (url, init) => {
   }
   if (href.includes("api.dexscreener.com/latest/dex/search")) {
     if (href.includes("AERO") || href.includes("WIF") || href.includes("MORPHO")) looseSearchCallsForKnownSymbols += 1;
+    if (href.includes("AAPL") || href.includes("NVDA") || href.includes("SPY")) looseSearchCallsForMarketSymbols += 1;
     return new Response(JSON.stringify({
       pairs: [
         {
@@ -613,6 +615,15 @@ assert.equal(perpCandlePayload.symbol, "BTC");
 assert.equal(perpCandlePayload.timeframe, "1h");
 assert.equal(perpCandlePayload.candles.length, 2);
 assert.equal(perpCandlePayload.candles[0].close, 62400);
+
+const equityPreviewPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=equity&symbols=AAPL,NVDA,SPY"), env);
+assert.equal(equityPreviewPrices.status, 200);
+const equityPreviewPayload = await equityPreviewPrices.json();
+assert.equal(equityPreviewPayload.results.length, 3);
+assert.equal(equityPreviewPayload.results[0].provider, "Market provider");
+assert.equal(equityPreviewPayload.results[0].coverage, "Developing");
+assert.equal(equityPreviewPayload.results[0].priceUsd, null);
+assert.equal(looseSearchCallsForMarketSymbols, 0);
 
 forceCoingeckoDown = true;
 const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO,AIXBT"), env);

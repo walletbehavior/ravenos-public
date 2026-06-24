@@ -96,6 +96,12 @@ const COINGECKO_PRICE_IDS = {
   XRP: "ripple",
   ZORA: "zora",
 };
+const MARKET_PREVIEW_SYMBOLS = new Set([
+  "AAPL", "NVDA", "TSLA", "META", "MSFT", "AMZN", "GOOGL", "AMD", "AVGO", "BRK.B",
+  "JPM", "LLY", "V", "MA", "UNH", "XOM", "ORCL", "NFLX", "COIN", "MSTR",
+  "SPY", "QQQ", "IWM", "DIA", "VOO", "SMH", "XLF", "XLK", "XLE", "TLT", "GLD",
+  "EEM", "EFA",
+]);
 
 const PUBLIC_API_ENDPOINTS = {
   terminal: {
@@ -520,8 +526,24 @@ function preferredDexPriceResult(symbol, results = []) {
 
 async function marketPrices(symbols = [], { market = "mixed" } = {}) {
   const wanted = [...new Set(symbols.map(normalizedMarketSymbol).filter(Boolean))].slice(0, 80);
-  const usePerps = String(market || "mixed").toLowerCase() !== "spot";
-  const useSpotCatalog = String(market || "mixed").toLowerCase() === "spot";
+  const marketKind = String(market || "mixed").toLowerCase();
+  if (["equity", "equities", "etf", "etfs", "market_preview"].includes(marketKind)) {
+    return wanted
+      .filter((symbol) => MARKET_PREVIEW_SYMBOLS.has(symbol) || /^[A-Z][A-Z.]{0,5}$/.test(symbol))
+      .map((symbol) => ({
+        symbol,
+        priceUsd: null,
+        provider: "Market provider",
+        coverage: "Developing",
+        isLive: false,
+        isCached: false,
+        isSample: false,
+        lastUpdated: new Date().toISOString(),
+        warning: "Coverage developing",
+      }));
+  }
+  const usePerps = marketKind !== "spot";
+  const useSpotCatalog = marketKind === "spot";
   const perps = usePerps ? await hyperliquidPerps().catch(() => null) : null;
   const perpsBySymbol = new Map((perps?.results || []).map((row) => [normalizedMarketSymbol(row.asset || row.symbol), row]));
   const catalogPrices = useSpotCatalog ? await coingeckoPrices(wanted).catch(() => new Map()) : new Map();

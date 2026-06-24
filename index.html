@@ -1,26 +1,230 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ravenos-api="/api/brief">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="refresh" content="0; url=/terminal/" />
-  <title>RavenOS Flow Terminal</title>
+  <meta name="description" content="RavenOS is market intelligence built around structure, pressure, replay, participation, outcome persistence, and market memory." />
+  <title>RavenOS | Market Intelligence</title>
   <style>
-    :root { color-scheme: dark; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #030605;
-      color: #edf6f1;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    :root {
+      color-scheme: dark;
+      --bg: #030605;
+      --panel: #07100d;
+      --line: rgba(148, 163, 184, .18);
+      --line2: rgba(125, 211, 252, .34);
+      --text: #edf6f1;
+      --muted: #91a69d;
+      --soft: #65786f;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+      --mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    a { color: #7dd3fc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, rgba(125,211,252,.06), transparent 360px), var(--bg); color: var(--text); font-family: var(--sans); }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(1360px, calc(100% - 24px)); margin: 0 auto; padding: 14px 0 30px; display: grid; gap: 12px; }
+    .topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: grid; gap: 3px; }
+    .brand strong { font-size: 19px; }
+    .brand span, .kicker, th { color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    nav { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+    nav a, .button { border: 1px solid var(--line); background: rgba(255,255,255,.03); padding: 7px 9px; color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; }
+    nav a.active, .button.primary { color: var(--text); border-color: var(--line2); background: rgba(125,211,252,.08); }
+    .hero, .grid, .cards, .evidence, .opps { display: grid; gap: 10px; }
+    .hero { grid-template-columns: 1.12fr .88fr; }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .opps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .panel, .card { border: 1px solid var(--line); background: rgba(7,16,13,.95); }
+    .card { padding: 12px; display: grid; gap: 8px; }
+    .read { padding: 16px; display: grid; gap: 13px; }
+    .panel-head { padding: 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: clamp(32px, 4.5vw, 62px); line-height: .98; max-width: 17ch; letter-spacing: 0; }
+    h2 { font-size: 15px; text-transform: uppercase; }
+    h3 { font-size: 13px; text-transform: uppercase; }
+    p { color: var(--muted); line-height: 1.55; font-size: 13px; }
+    ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .thesis { font-size: 16px; color: var(--text); max-width: 74ch; }
+    .big { font-size: clamp(28px, 5vw, 56px); line-height: 1; color: var(--green); font-family: var(--mono); }
+    .row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 7px; color: var(--muted); font-size: 11px; }
+    .row strong { color: var(--text); font-family: var(--mono); text-align: right; }
+    .positive { color: var(--green); }
+    .mixed { color: var(--yellow); }
+    .negative { color: var(--red); }
+    .trust-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid rgba(52,211,153,.25); background: rgba(52,211,153,.045); }
+    .trust-strip div { padding: 10px; border-right: 1px solid var(--line); display: grid; gap: 3px; }
+    .trust-strip div:last-child { border-right: 0; }
+    .trust-strip span { color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .trust-strip strong { font-family: var(--mono); font-size: 12px; }
+    .terminal-preview { min-height: 260px; display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+    .surface { padding: 14px; display: grid; gap: 8px; border-top: 1px solid var(--line); }
+    .surface strong { font-size: 16px; }
+    .micro-bars { display: grid; gap: 8px; }
+    .bar { display: grid; grid-template-columns: 90px 1fr 50px; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; }
+    .bar-track { height: 8px; background: rgba(148,163,184,.12); border: 1px solid var(--line); }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--cyan)); }
+    .footer { color: var(--soft); font-size: 11px; text-align: center; padding: 10px; border-top: 1px solid var(--line); }
+    @media (max-width: 920px) {
+      .topbar, .hero, .grid, .cards, .evidence, .opps, .trust-strip { grid-template-columns: 1fr; }
+      nav { overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start; }
+      nav a { flex: 0 0 auto; }
+      h1 { font-size: 34px; }
+      .trust-strip div { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
   </style>
-  <script>window.location.replace("/terminal/");</script>
 </head>
-<body>
-  <p>Opening <a href="/terminal/">RavenOS Flow Terminal</a>.</p>
+<body data-ravenos-api="/api/brief">
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><strong>RavenOS</strong><span>Market Intelligence</span></div>
+      <nav aria-label="Primary navigation">
+        <a class="active" href="/">Home</a><a href="/terminal/">Terminal</a><a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+      </nav>
+      <a class="button primary" href="/terminal/">Open Terminal</a>
+    </header>
+
+    <section class="hero" aria-label="Current RavenOS read">
+      <article class="panel read">
+        <span class="kicker">Current Market Read</span>
+        <h1 id="homeReadTitle">Participation is returning, but reward conditions remain concentrated.</h1>
+        <p class="thesis" id="homeReadSummary">Raven is seeing a constructive but still selective tape: participation is visible in current public markets, while confirmation and outcome evidence remain uneven across chains and cap bands.</p>
+        <div class="row"><span>What Raven believes</span><strong id="homeNetRead">Constructive, still selective</strong></div>
+        <div class="row"><span>Would confirm if</span><strong id="homeConfirm">Breadth expands beyond narrow clusters</strong></div>
+        <div class="row"><span>Would weaken if</span><strong id="homeWeaken">Participation fades or concentration rises</strong></div>
+      </article>
+      <article class="panel terminal-preview">
+        <div class="panel-head"><div><span class="kicker">Trust Layer</span><h2>Live public evidence</h2></div><a class="button" href="/brief/">Daily Brief</a></div>
+        <div class="trust-strip" aria-label="Freshness and evidence">
+          <div><span>Updated</span><strong id="homeUpdated">read forming</strong></div>
+          <div><span>Coverage</span><strong id="homeCoverage">public markets</strong></div>
+          <div><span>Sample</span><strong id="homeSample">sample forming</strong></div>
+          <div><span>Replay</span><strong id="homeReplay">analogs forming</strong></div>
+          <div><span>Source</span><strong id="homeSource">Live public API</strong></div>
+        </div>
+        <div class="surface">
+          <span class="kicker">What Raven Is</span>
+          <p>RavenOS studies participation, pressure, structure, outcome persistence, replay similarity, and market memory. It is not a token scanner, a pick list, or a liquidation heatmap clone.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="evidence" aria-label="Evidence and replay">
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">Why Raven Thinks This</span><h2>Evidence behind the read</h2></div></div>
+        <div class="read">
+          <div class="row"><span>Participation</span><strong id="homeParticipation">returning, not broad enough yet</strong></div>
+          <div class="row"><span>Structure condition</span><strong id="homePressure">constructive but fragile</strong></div>
+          <div class="row"><span>Outcome condition</span><strong id="homeOutcome">mixed evidence</strong></div>
+          <div class="row"><span>Strongest signal</span><strong id="homeStrongest">participation breadth</strong></div>
+          <div class="row"><span>Weakest signal</span><strong id="homeWeakest">confirmation depth</strong></div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><div><span class="kicker">What Happened Last Time</span><h2>Replay / outcome context</h2></div><a class="button" href="/replay/">Replay</a></div>
+        <div class="read">
+          <div class="row"><span>Similar structures</span><strong id="homeSimilar">sample forming</strong></div>
+          <div class="row"><span>Expanded</span><strong id="homeExpanded" class="positive">forming</strong></div>
+          <div class="row"><span>Mixed / stalled</span><strong id="homeMixed" class="mixed">forming</strong></div>
+          <div class="row"><span>Failed</span><strong id="homeFailed" class="negative">forming</strong></div>
+          <p>Replay is historical context. It does not predict future outcomes or provide trade recommendations.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" aria-label="Opportunity now">
+      <div class="panel-head">
+        <div><span class="kicker">Where Opportunity Is Now</span><h2>Opportunity board</h2></div>
+        <a class="button" href="/opportunity/">Open Opportunity</a>
+      </div>
+      <div class="read">
+        <div class="row"><span>Best opportunity surface</span><strong id="homeBestSurface">Solana micro caps</strong></div>
+        <div class="row"><span>Read</span><strong id="homeSurfaceRead">Participation visible, confirmation forming</strong></div>
+        <div class="row"><span>Confidence / freshness</span><strong id="homeSurfaceConfidence">Developing · current read</strong></div>
+      </div>
+      <div class="opps" id="homeOpportunityTiles">
+        <article class="card"><span class="kicker">Solana Micro</span><strong>Participation returning</strong><p>Why: public activity is visible. Caveat: concentration remains elevated.</p></article>
+        <article class="card"><span class="kicker">Base Small</span><strong>Rotation building</strong><p>Why: attention is improving. Caveat: survival evidence is still forming.</p></article>
+        <article class="card"><span class="kicker">Ethereum Mid</span><strong>Selective liquidity</strong><p>Why: liquidity is more stable. Caveat: breadth remains narrow.</p></article>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card"><h3>Terminal</h3><p>Inspect current structure, pressure, participation, overlays, and chart context for one instrument.</p><a class="button" href="/terminal/">Open</a></article>
+      <article class="card"><h3>Outcomes</h3><p>Review which observed structures have recently been rewarding, punishing, mixed, or sample-forming.</p><a class="button" href="/outcomes/">Open</a></article>
+      <article class="card"><h3>Market Memory</h3><p>See whether current conditions resemble common, rare, or transitioning historical structures.</p><a class="button" href="/memory/">Open</a></article>
+    </section>
+
+    <footer class="footer">RavenOS provides software and market analytics. It does not provide brokerage, custody, investment management, or trade execution services. <a href="/faq/">FAQ</a> · <a href="/disclosures/">Disclosures</a></footer>
+  </main>
+  <script>
+    function text(id, value) { const node = document.getElementById(id); if (node && value !== undefined && value !== null && value !== "") node.textContent = value; }
+    function age(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "read forming";
+      if (n < 60) return `${Math.max(0, Math.floor(n))}s ago`;
+      if (n < 3600) return `${Math.floor(n / 60)}m ago`;
+      return `${Math.floor(n / 3600)}h ago`;
+    }
+    function title(value) {
+      return String(value || "Current").replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+    function safeCount(value, fallback = "forming") {
+      const n = Number(value);
+      return Number.isFinite(n) && n > 0 ? new Intl.NumberFormat("en-US").format(n) : fallback;
+    }
+    async function hydrateHome() {
+      const [brief, opportunity, replay, outcomes] = await Promise.all([
+        fetch("/api/brief", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/opportunity", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/replay", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/outcomes", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      ]);
+      const opp = opportunity.summary || {};
+      const best = opp.best_surface || {};
+      const rows = Array.isArray(opportunity.rows) ? opportunity.rows : [];
+      const replayRows = Array.isArray(replay.rows) ? replay.rows : [];
+      const outcomeRows = Array.isArray(outcomes.rows) ? outcomes.rows : [];
+      const observed = Number(opp.observed_rows || rows.length || outcomeRows.length || 0);
+      const rewarding = Number(opp.rewarding_count || 0);
+      const punishing = Number(opp.punishing_count || 0);
+      const mixed = Number(opp.mixed_count || Math.max(0, observed - rewarding - punishing));
+      const chain = title(best.chain_label || best.chain || "Market");
+      const band = title(best.cap_band_label || best.cap_band || "Current");
+      const surface = `${chain} ${band}`.trim();
+      text("homeUpdated", age(Math.min(...[brief, opportunity, replay, outcomes].map((p) => Number(p.freshness_age_seconds)).filter(Number.isFinite))));
+      text("homeCoverage", `${safeCount(opp.live_public_markets || observed)} public markets`);
+      text("homeSample", `${safeCount(observed)} observations`);
+      text("homeReplay", `${safeCount(replayRows.length || replay.data?.analog_count)} similar structures`);
+      text("homeSource", opportunity.source === "public_origin" ? "Verified public origin" : "Live public API");
+      if (surface && surface !== "Market Current") {
+        text("homeReadTitle", `${surface} is the clearest current opportunity surface.`);
+        text("homeBestSurface", surface);
+      }
+      text("homeReadSummary", best.read || "Raven is seeing a constructive but still selective tape: participation is visible while confirmation and outcome evidence remain uneven across chains and cap bands.");
+      text("homeNetRead", rewarding > punishing ? "Constructive, still selective" : punishing > rewarding ? "Fragile, evidence forming" : "Mixed, evidence forming");
+      text("homeParticipation", rewarding > punishing ? "participation expanding" : "participation mixed");
+      text("homePressure", best.pressure || "structure context developing");
+      text("homeOutcome", rewarding || punishing ? `${safeCount(rewarding)} rewarding / ${safeCount(punishing)} punishing` : "mixed evidence");
+      text("homeStrongest", best.strongest_signal || "participation breadth");
+      text("homeWeakest", best.weakest_signal || "confirmation depth");
+      text("homeSimilar", safeCount(replayRows.length || replay.data?.analog_count));
+      text("homeExpanded", safeCount(outcomeRows.filter((row) => /reward|expand|continu/i.test(JSON.stringify(row))).length || rewarding));
+      text("homeMixed", safeCount(mixed));
+      text("homeFailed", safeCount(outcomeRows.filter((row) => /fail|punish|weak/i.test(JSON.stringify(row))).length || punishing));
+      text("homeSurfaceRead", best.read || best.summary || "Participation visible, confirmation forming");
+      text("homeSurfaceConfidence", `${title(best.confidence || (observed > 20 ? "moderate" : "developing"))} · ${age(Number(opportunity.freshness_age_seconds))}`);
+      const tiles = Array.isArray(opp.top_opportunities) ? opp.top_opportunities.slice(0, 3) : [];
+      if (tiles.length) {
+        document.getElementById("homeOpportunityTiles").innerHTML = tiles.map((row) => `<article class="card"><span class="kicker">${title(row.chain_label || row.chain)} ${title(row.cap_band_label || row.cap_band)}</span><strong>${row.read || row.why_now || "Current read forming"}</strong><p>Why: ${(row.what_is_working || [row.why_now || "participation evidence forming"])[0]}. Caveat: ${(row.what_could_fail || ["sample depth remains developing"])[0]}.</p><div class="row"><span>Sample</span><strong>${safeCount(row.sample_size)}</strong></div></article>`).join("");
+      }
+    }
+    hydrateHome();
+    setInterval(() => { if (!document.hidden) hydrateHome(); }, 60000);
+  </script>
 </body>
 </html>

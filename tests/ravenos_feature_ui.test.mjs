@@ -13,6 +13,7 @@ const publicOriginBridge = fs.readFileSync("docs/ravenos_public_origin_bridge.md
 const docsReadme = fs.readFileSync("docs/README.md", "utf8");
 const conversionAudit = fs.readFileSync("data/runtime/ravenos_conversion_monetization_audit.md", "utf8");
 const conversionPlan = fs.readFileSync("data/runtime/ravenos_conversion_monetization_plan.json", "utf8");
+const home = fs.readFileSync("index.html", "utf8");
 const terminal = fs.readFileSync("terminal/index.html", "utf8");
 const research = fs.readFileSync("research/index.html", "utf8");
 const atlas = fs.readFileSync("atlas/index.html", "utf8");
@@ -32,6 +33,7 @@ const disclosures = fs.readFileSync("disclosures/index.html", "utf8");
 
 const githubDocsHref = "https://github.com/walletbehavior/ravenos-public/tree/main/docs";
 const coreResearchPages = [
+  ["home", home],
   ["terminal", terminal],
   ["opportunity", opportunity],
   ["brief", brief],
@@ -131,6 +133,21 @@ assert.match(conversionAudit, /Do not imply Raven guarantees outcomes/);
 assert.match(conversionPlan, /"full_replay_lab"/);
 assert.match(conversionPlan, /"scores_without_visible_evidence"/);
 
+assert.match(home, /Current Market Read/);
+assert.match(home, /Why Raven Thinks This/);
+assert.match(home, /What Happened Last Time/);
+assert.match(home, /Where Opportunity Is Now/);
+assert.match(home, /Live public evidence/);
+assert.match(home, /Participation/);
+assert.match(home, /Replay/);
+assert.match(home, /Market Memory/);
+assert.match(home, /\/api\/brief/);
+assert.match(home, /\/api\/opportunity/);
+assert.match(home, /\/api\/replay/);
+assert.match(home, /\/api\/outcomes/);
+assert.match(home, /does not provide brokerage, custody, investment management, or trade execution services/);
+assert.doesNotMatch(home, /http-equiv="refresh"|window\.location\.replace/);
+
 assert.match(terminal, /data-feature="free_token_lookup"/);
 assert.match(terminal, /data-feature="basic_chart"/);
 assert.match(terminal, /data-feature="full_heatmaps"/);
@@ -163,6 +180,10 @@ assert.match(terminal, /refreshMarketPrices/);
 assert.match(terminal, /applyMarketPrice\(priceRow, targetCategory/);
 assert.match(terminal, /targetCategory === "perpetuals"/);
 assert.match(terminal, /targetCategory === "crypto_spot"/);
+assert.match(terminal, /market=equity&symbols=/);
+assert.match(terminal, /function displayPrice/);
+assert.match(terminal, /Coverage developing/);
+assert.match(terminal, /Structure Proxy/);
 assert.match(terminal, /\/api\/hyperliquid\/candles/);
 assert.match(terminal, /fetchLiveCandles/);
 assert.match(terminal, /candlesForRow/);
