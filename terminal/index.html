@@ -992,14 +992,14 @@
       asset, market: "Crypto Spot", category: "crypto_spot", chainVenue, marketCapBand, lastPrice: samplePriceFor(asset), flowScore, attentionVelocity, liquidityPosture, participantActivity, risk, participationOutcome, lastUpdated, ecosystem,
     }));
     const perpsRows = [
-      ["SOL-PERP", "Hyperliquid", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "sample", "pressure"],
-      ["BTC-PERP", "Hyperliquid", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
-      ["ETH-PERP", "Hyperliquid", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "sample", "pressure"],
-      ["OP-PERP", "Hyperliquid", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "sample", "pressure"],
+      ["SOL-PERP", "Hyperliquid perps", "large cap", 84, 18, "Funding elevated", "OI expansion", "Stable depth", "Watch", "Paying", "sample", "pressure"],
+      ["BTC-PERP", "Hyperliquid perps", "large cap", 66, 4, "Funding neutral", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["ETH-PERP", "Hyperliquid perps", "large cap", 71, 9, "Basis firm", "OI expansion", "Deep", "Stable", "Paying", "sample", "pressure"],
+      ["OP-PERP", "Hyperliquid perps", "mid cap", 69, 11, "Funding watch", "OI rising", "Choppy", "Watch", "Mixed", "sample", "pressure"],
       ["JUP-PERP", "Perps", "mid cap", 79, 20, "Crowding watch", "OI expansion", "Improving", "Watch", "Paying", "sample", "pressure"],
-      ["AVAX-PERP", "Hyperliquid", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
-      ["LINK-PERP", "Hyperliquid", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "sample", "pressure"],
-      ["AAVE-PERP", "Hyperliquid", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
+      ["AVAX-PERP", "Hyperliquid perps", "large cap", 67, 8, "Funding neutral", "OI rising", "Balanced", "Stable", "Mixed", "sample", "pressure"],
+      ["LINK-PERP", "Hyperliquid perps", "large cap", 72, 10, "Funding watch", "OI rising", "Deep", "Watch", "Mixed", "sample", "pressure"],
+      ["AAVE-PERP", "Hyperliquid perps", "large cap", 70, 9, "Basis firm", "OI flat", "Deep", "Stable", "Mixed", "sample", "pressure"],
       ["VIRTUAL-PERP", "Perps", "mid cap", 78, 24, "Crowding watch", "OI expansion", "Choppy", "Watch", "Paying", "sample", "pressure"],
       ["AERO-PERP", "Perps", "mid cap", 73, 17, "Funding elevated", "OI expansion", "Balanced", "Watch", "Mixed", "sample", "pressure"],
       ["WIF-PERP", "Perps", "memecoin", 63, 27, "Crowded", "OI expansion", "Thin", "Elevated", "Punishing", "delayed", "liquidation"],
@@ -1680,7 +1680,7 @@
       evidence.push(`Attention velocity ${Number(row.attentionVelocity || 0) > 0 ? "+" : ""}${row.attentionVelocity ?? "n/a"}`);
       evidence.push(`Liquidity posture: ${row.liquidityPosture || "n/a"}`);
       if (row.participationOutcome) evidence.push(`Participation outcome: ${row.participationOutcome}`);
-      if (row.chainVenue) evidence.push(`Chain/venue: ${row.chainVenue}`);
+      if (row.chainVenue) evidence.push(`Market/venue: ${row.chainVenue}`);
       const headline = Number(row.flowScore || 0) >= 80 ? "Constructive structure" : row.risk === "Elevated" ? "Fragile structure" : "Mixed structure";
       const summary = positives.length >= 3
         ? "Constructive structure with broad participation and improving outcomes."
@@ -1853,7 +1853,7 @@
         ];
       }
       return [
-        ["asset", "Asset"], ["chainVenue", pressure ? "Venue" : "Chain/Venue"], ["marketCapBand", "Cap Band"],
+        ["asset", "Asset"], ["chainVenue", pressure ? "Venue" : "Market/Venue"], ["marketCapBand", "Cap Band"],
         ["flowScore", "Flow Score"], ["attentionVelocity", "Attention Velocity"],
         [pressure ? "pressureContext" : "participantActivity", pressure ? "Funding/OI Pressure" : "Participant Activity"],
         ["liquidityPosture", "Liquidity Posture"], ["participationOutcome", "Participation Outcome"],

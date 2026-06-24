@@ -7,6 +7,7 @@
     "/api/outcomes": 900000,
     "/api/memory": 900000,
     "/api/behavior": 900000,
+    "/api/research": 300000,
     "/api/chains/solana": 120000,
     "/api/chains/base": 120000,
     "/api/chains/ethereum": 120000,
@@ -32,6 +33,7 @@
     if (path === "/outcomes") return "/api/outcomes";
     if (path === "/memory") return "/api/memory";
     if (path === "/behavior") return "/api/behavior";
+    if (path === "/research") return "/api/research";
     if (path === "/chains/solana") return "/api/chains/solana";
     if (path === "/chains/base") return "/api/chains/base";
     if (path === "/chains/ethereum") return "/api/chains/ethereum";
@@ -118,6 +120,11 @@
     return String(row?.derived_state || row?.participant_outcome || row?.read || row?.summary || "current read forming");
   }
 
+  function marketVenueLabel(value) {
+    const text = String(value || "market");
+    return /^hyperliquid$/i.test(text) ? "Perps" : titleCase(text);
+  }
+
   function isRewarding(row) {
     return /reward|favorable|improving|constructive/i.test(rowRead(row));
   }
@@ -184,7 +191,7 @@
         const read = rowRead(row);
         const confidence = titleCase(row.confidence || (sampleOf(row) >= 50 ? "moderate" : "developing"));
         const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
-        return `<tr><td>${titleCase(row.chain || "market")}</td><td>${titleCase(row.cap_band || "all")}</td><td>${fmtNumber(row.observed_sample || row.observed || sampleOf(row))}</td><td>${fmtNumber(row.clean_sample || sampleOf(row))}</td><td class="${stateClass}">${titleCase(read)}</td><td>${confidence}</td><td>${sampleOf(row) < 20 ? "Sample forming" : "Usable public sample"}</td></tr>`;
+        return `<tr><td>${marketVenueLabel(row.chain || "market")}</td><td>${titleCase(row.cap_band || "all")}</td><td>${fmtNumber(row.observed_sample || row.observed || sampleOf(row))}</td><td>${fmtNumber(row.clean_sample || sampleOf(row))}</td><td class="${stateClass}">${titleCase(read)}</td><td>${confidence}</td><td>${sampleOf(row) < 20 ? "Sample forming" : "Usable public sample"}</td></tr>`;
       }).join("");
     }
   }
@@ -302,24 +309,26 @@
     const mixed = Math.max(0, rows.length - rewarding - punishing);
     const best = bestRows(payload)[0] || {};
     setText("behaviorReadTitle", rows.length
-      ? `${titleCase(best.chain || "Market")} ${titleCase(best.cap_band || "participation")} is the clearest current behavior read.`
+      ? `${marketVenueLabel(best.chain || "Market")} ${titleCase(best.cap_band || "participation")} has the clearest behavior surface, but confirmation is still thin.`
       : "Behavior read is forming.");
     setText("behaviorReadSummary", rows.length
-      ? `Behavior Explorer is using ${fmtNumber(rows.length)} aggregate public rows across participant outcome context.`
+      ? `What Raven believes: participation is returning in visible pockets, but it remains concentrated until survival and rewarding outcomes broaden across more markets. Evidence comes from ${fmtNumber(rows.length)} aggregate public rows.`
       : "Behavior Explorer is waiting for a usable public participant artifact.");
-    setText("behaviorState", rewarding > punishing ? "Constructive / Observable" : punishing > rewarding ? "Fragile / Observable" : "Mixed / Observable");
-    setText("behaviorNew", best.derived_state ? titleCase(best.derived_state) : "Developing");
+    setText("behaviorState", rewarding > punishing ? "Constructive But Fragile" : punishing > rewarding ? "Early Participation Returning" : "Confirmation Still Thin");
+    setText("behaviorNew", best.derived_state ? titleCase(best.derived_state).replace(/Outcomes Unclear/i, "Mixed Outcome Evidence") : "Early Participation Returning");
     setText("behaviorReturning", rows.length ? `${fmtNumber(rows.length)} aggregate rows` : "Sample forming");
-    setText("behaviorConcentration", punishing > rewarding ? "Elevated" : "Manageable");
-    setText("behaviorBreadth", mixed > rewarding ? "Mixed by chain" : "Broadening selectively");
-    setText("behaviorSurvival", data.metadata?.timeframe ? `${data.metadata.timeframe} context` : "Followthrough forming");
+    setText("behaviorConcentration", punishing > rewarding ? "Concentrated participation risk" : "Concentration manageable");
+    setText("behaviorBreadth", mixed > rewarding ? "Broadening watch" : "Broadening selectively");
+    setText("behaviorSurvival", data.metadata?.timeframe ? "Survival evidence forming" : "Followthrough forming");
     setText("behaviorUpdated", ageLabel(Number(payload?.freshness_age_seconds)));
     const tbody = document.getElementById("behaviorRows");
     if (tbody && rows.length) {
       tbody.innerHTML = bestRows(payload).slice(0, 12).map((row) => {
         const read = rowRead(row);
         const stateClass = isRewarding(row) ? "positive" : isPunishing(row) ? "negative" : "mixed";
-        return `<tr><td>${escapeHtml(titleCase(row.chain || "market"))}</td><td>${escapeHtml(titleCase(row.cap_band || "all"))}</td><td>${escapeHtml(titleCase(row.derived_state || "observable"))}</td><td>${escapeHtml(titleCase(row.score_strength || "developing"))}</td><td>${escapeHtml(titleCase(row.profitability_label || "mixed outcomes"))}</td><td class="${stateClass}">${escapeHtml(titleCase(read))}</td><td>${escapeHtml(sampleOf(row) < 20 ? "Sample forming" : "Public aggregate")}</td></tr>`;
+        const behaviorState = titleCase(row.derived_state || "observable").replace(/Outcomes Unclear/i, "Mixed Outcome Evidence").replace(/Participation Punishing/i, "Participation Fragile").replace(/Participation Rewarding/i, "Participation Constructive");
+        const outcomeLabel = titleCase(row.profitability_label || "mixed outcomes").replace(/Punishing Outcomes/i, "Weak Outcome Evidence").replace(/Rewarding Outcomes/i, "Constructive Outcome Evidence").replace(/Mixed Outcomes/i, "Mixed Outcome Evidence");
+        return `<tr><td>${escapeHtml(marketVenueLabel(row.chain || "market"))}</td><td>${escapeHtml(titleCase(row.cap_band || "all"))}</td><td>${escapeHtml(behaviorState)}</td><td>${escapeHtml(titleCase(row.score_strength || "developing"))}</td><td>${escapeHtml(outcomeLabel)}</td><td class="${stateClass}">${escapeHtml(titleCase(read).replace(/Outcomes Unclear/i, "Mixed Outcome Evidence"))}</td><td>${escapeHtml(sampleOf(row) < 20 ? "Sample forming" : "Public aggregate")}</td></tr>`;
       }).join("");
     }
   }

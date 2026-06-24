@@ -174,8 +174,25 @@ globalThis.fetch = publicArtifactOriginalFetch;
 
 const publicOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), env);
 assert.equal(publicOutcomes.status, 200);
-assert.match(publicOutcomes.headers.get("cache-control") || "", /max-age=900/);
+assert.match(publicOutcomes.headers.get("cache-control") || "", /max-age=60/);
 assert.equal((await publicOutcomes.json()).schema_version, "ravenos_outcomes_public_v1");
+
+const publicResearch = await worker.fetch(new Request("https://ravenos.xyz/api/research"), env);
+assert.equal(publicResearch.status, 200);
+assert.match(publicResearch.headers.get("cache-control") || "", /max-age=60/);
+const publicResearchPayload = await publicResearch.json();
+assert.equal(publicResearchPayload.schema_version, "ravenos_research_public_v1");
+assert.equal(publicResearchPayload.safe_public, true);
+assert.ok(Array.isArray(publicResearchPayload.data.rows));
+assert.ok(publicResearchPayload.data.summary.findings_reviewed >= 1);
+assert.doesNotMatch(JSON.stringify(publicResearchPayload), /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
+
+const researchStatus = await worker.fetch(new Request("https://ravenos.xyz/api/status"), env);
+const researchStatusPayload = await researchStatus.json();
+const researchStatusRow = researchStatusPayload.endpoints.find((row) => row.endpoint === "/api/research");
+assert.ok(researchStatusRow);
+assert.equal(researchStatusRow.leak_guard, "pass");
+assert.equal(researchStatusRow.origin_fetch_failed, false);
 
 const missingAssetEnv = { ...env, ASSETS: { fetch: async () => new Response("missing", { status: 404 }) } };
 const degradedBrief = await worker.fetch(new Request("https://ravenos.xyz/api/brief"), missingAssetEnv);

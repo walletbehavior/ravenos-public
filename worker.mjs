@@ -135,7 +135,7 @@ const PUBLIC_API_ENDPOINTS = {
     artifactPath: "/ravenos_participant_outcomes.json",
     originPath: "/public/ravenos/outcomes.json",
     freshnessTargetSeconds: 3600,
-    cacheControl: "public, max-age=900, stale-while-revalidate=3600",
+    cacheControl: "public, max-age=60, stale-while-revalidate=300",
     schemaVersion: "ravenos_outcomes_public_v1",
   },
   memory: {
@@ -151,8 +151,16 @@ const PUBLIC_API_ENDPOINTS = {
     artifactPath: "/ravenos_participant_heatmap.json",
     originPath: "/public/ravenos/behavior.json",
     freshnessTargetSeconds: 900,
-    cacheControl: "public, max-age=900, stale-while-revalidate=1800",
+    cacheControl: "public, max-age=60, stale-while-revalidate=300",
     schemaVersion: "ravenos_behavior_public_v1",
+  },
+  research: {
+    endpoint: "/api/research",
+    artifactPath: "/ravenos_participant_outcomes.json",
+    freshnessTargetSeconds: 900,
+    cacheControl: "public, max-age=60, stale-while-revalidate=300",
+    schemaVersion: "ravenos_research_public_v1",
+    derivedFrom: ["outcomes", "replay", "memory", "behavior"],
   },
   "chains/solana": {
     endpoint: "/api/chains/solana",
@@ -961,7 +969,8 @@ async function readOriginJson(request, env, key, config) {
         ? payload.data
         : payload;
       const cachedAge = ageSeconds(generatedAtOf(publicPayload));
-      if (cachedAge !== null && cachedAge <= Number(config.freshnessTargetSeconds || 900)) {
+      const cacheFreshSeconds = Math.max(15, Math.min(60, Number(config.freshnessTargetSeconds || 120)));
+      if (cachedAge !== null && cachedAge <= cacheFreshSeconds) {
         return { payload: publicPayload, source: "origin_cache", error: "" };
       }
     }
@@ -977,7 +986,7 @@ async function readOriginJson(request, env, key, config) {
     ? payload.data
     : payload;
   if (cache) {
-    const ttl = Math.max(15, Math.min(900, Number(config.freshnessTargetSeconds || 120)));
+    const ttl = Math.max(15, Math.min(60, Number(config.freshnessTargetSeconds || 120)));
     const cachedResponse = new Response(JSON.stringify(payload), {
       headers: {
         "content-type": "application/json; charset=utf-8",
@@ -1109,6 +1118,154 @@ function opportunitySummaryFromHeatmap(payload = {}) {
   };
 }
 
+function researchLabel(value = "") {
+  return String(value || "current")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function sampleSizeOf(row = {}) {
+  return num(row.sample_size || row.clean_sample || row.observed_sample || row.observed || row.count);
+}
+
+function confidenceFromPublicSample(sample = 0, confidence = "") {
+  const text = String(confidence || "").toLowerCase();
+  if (text === "high" || sample >= 1000) return "High";
+  if (text === "medium" || sample >= 100) return "Moderate";
+  if (sample >= 20) return "Developing";
+  return "Low";
+}
+
+function publicOutcomeRead(row = {}) {
+  const text = String(row.derived_state || row.participant_outcome || row.profitability_label || row.avg_outcome || "mixed outcome evidence");
+  return text.replace(/outcomes unclear/gi, "mixed outcome evidence")
+    .replace(/punishing outcomes/gi, "weak outcome evidence")
+    .replace(/rewarding outcomes/gi, "constructive outcome evidence");
+}
+
+function researchRowsFromPublic(outcomes = {}, replay = {}, memory = {}, behavior = {}) {
+  const outcomeRows = heatmapRows(outcomes);
+  const behaviorRows = heatmapRows(behavior);
+  const comparableRows = Array.isArray(replay.comparables) ? replay.comparables : [];
+  const memoryFamilies = memory.frequent_condition_families && typeof memory.frequent_condition_families === "object"
+    ? Object.entries(memory.frequent_condition_families)
+    : [];
+  const fromOutcomes = outcomeRows.map((row) => ({
+    view: "setup_families",
+    finding: `${researchLabel(row.chain)} ${researchLabel(row.cap_band)}`,
+    structure: publicOutcomeRead(row),
+    status: /reward|favorable|constructive/i.test(publicOutcomeRead(row)) ? "Developing" : /punish|weak/i.test(publicOutcomeRead(row)) ? "Not useful" : "Observed",
+    confidence: confidenceFromPublicSample(sampleSizeOf(row), row.confidence),
+    sample_depth: sampleSizeOf(row),
+    outcome_quality: /reward|favorable|constructive/i.test(publicOutcomeRead(row)) ? "Constructive" : /punish|weak/i.test(publicOutcomeRead(row)) ? "Weak" : "Mixed",
+    replay_strength: "Contextual",
+    supports: [
+      `Participation status: ${researchLabel(row.participation_status || row.derived_state || "observable")}`,
+      `Public sample: ${sampleSizeOf(row).toLocaleString("en-US")} observations`,
+    ],
+    risks: [
+      Number(row.punishing_pct || 0) > Number(row.rewarding_pct || 0) ? "Weak outcome evidence remains visible" : "Confirmation still needs broader followthrough",
+      "Public aggregate only",
+    ],
+    source_module: "outcomes",
+  }));
+  const fromBehavior = behaviorRows.slice(0, 30).map((row) => ({
+    view: "failure_analysis",
+    finding: `${researchLabel(row.chain)} ${researchLabel(row.cap_band)}`,
+    structure: publicOutcomeRead(row),
+    status: /punish|weak|fragile/i.test(publicOutcomeRead(row)) ? "Not useful" : "Observed",
+    confidence: confidenceFromPublicSample(sampleSizeOf(row), row.confidence),
+    sample_depth: sampleSizeOf(row),
+    outcome_quality: /punish|weak|fragile/i.test(publicOutcomeRead(row)) ? "Weak" : "Mixed",
+    replay_strength: "Contextual",
+    supports: [row.plain_language_summary || "Aggregate behavior is observable"],
+    risks: ["Concentration can distort the read", "Survival evidence still forming"],
+    source_module: "behavior",
+  }));
+  const fromReplay = comparableRows.map((row) => ({
+    view: "replay_analysis",
+    finding: `${researchLabel(row.chain)} ${researchLabel(row.cap_band)}`,
+    structure: "Historical analogue",
+    status: "Observed",
+    confidence: Number(row.similarity_score || 0) >= 0.75 ? "Moderate" : "Developing",
+    sample_depth: 1,
+    outcome_quality: "Descriptive",
+    replay_strength: Number(row.similarity_score || 0) >= 0.8 ? "Strong" : "Moderate",
+    supports: Array.isArray(row.match_reasons) ? row.match_reasons.slice(0, 3).map(researchLabel) : ["Comparable structure exists"],
+    risks: ["Historical similarity is descriptive, not predictive"],
+    source_module: "replay",
+  }));
+  const fromMemory = memoryFamilies.map(([family, count]) => ({
+    view: "symbol_concentration",
+    finding: researchLabel(family),
+    structure: "Recurring condition family",
+    status: "Observed",
+    confidence: confidenceFromPublicSample(Number(count || 0), ""),
+    sample_depth: Number(count || 0),
+    outcome_quality: "Contextual",
+    replay_strength: "Memory",
+    supports: ["Condition keeps appearing in public memory"],
+    risks: ["Frequent conditions still need outcome confirmation"],
+    source_module: "memory",
+  }));
+  return [...fromOutcomes, ...fromBehavior, ...fromReplay, ...fromMemory]
+    .filter((row) => row.finding && row.structure)
+    .slice(0, 300);
+}
+
+function newestGeneratedAt(payloads = []) {
+  const parsed = payloads.map(generatedAtOf).filter(Boolean).map((value) => [value, Date.parse(value)]).filter(([, ts]) => Number.isFinite(ts));
+  if (!parsed.length) return "";
+  return parsed.sort((a, b) => b[1] - a[1])[0][0];
+}
+
+async function researchPublicPayload(request, env, config) {
+  const [outcomes, replay, memory, behavior] = await Promise.all([
+    readPublicArtifact(request, env, "outcomes", PUBLIC_API_ENDPOINTS.outcomes),
+    readPublicArtifact(request, env, "replay", PUBLIC_API_ENDPOINTS.replay),
+    readPublicArtifact(request, env, "memory", PUBLIC_API_ENDPOINTS.memory),
+    readPublicArtifact(request, env, "behavior", PUBLIC_API_ENDPOINTS.behavior),
+  ]);
+  const payloads = [outcomes.payload, replay.payload, memory.payload, behavior.payload].filter(Boolean);
+  if (!payloads.length) return degradedEnvelope("research", config, "research read forming");
+  const rows = researchRowsFromPublic(outcomes.payload || {}, replay.payload || {}, memory.payload || {}, behavior.payload || {});
+  const sources = [outcomes.source, replay.source, memory.source, behavior.source].filter(Boolean);
+  const source = sources.some(isOriginSource) ? "public_origin" : sources[0] || "bundled_artifact";
+  const sampleDepth = rows.reduce((sum, row) => sum + num(row.sample_depth), 0);
+  const strongest = rows.find((row) => /constructive|developing|observed/i.test(`${row.outcome_quality} ${row.status}`)) || rows[0] || null;
+  const weakest = rows.find((row) => /weak|not useful/i.test(`${row.outcome_quality} ${row.status}`)) || rows[rows.length - 1] || null;
+  return publicEnvelope("research", config, {
+    generated_at: newestGeneratedAt(payloads) || new Date().toISOString(),
+    source_modules: ["outcomes", "replay", "memory", "behavior"],
+    rows,
+    summary: {
+      findings_reviewed: rows.length,
+      forward_observations: heatmapRows(outcomes.payload || {}).length + (Array.isArray(replay.payload?.comparables) ? replay.payload.comparables.length : 0),
+      sample_depth: sampleDepth,
+      strongest_condition: strongest ? strongest.finding : "Research read forming",
+      weakest_condition: weakest ? weakest.finding : "Weak condition forming",
+      what_raven_learned: "Current public research is strongest where participation and outcome evidence align, and weakest where concentration or thin confirmation dominates.",
+      what_worked: strongest ? strongest.structure : "Constructive evidence is still forming.",
+      what_failed: weakest ? weakest.structure : "Weak evidence is still forming.",
+      what_changed_recently: "Research is now derived from fresh public-origin outcomes, replay, memory, and behavior artifacts.",
+    },
+    modules: {
+      outcomes: { source: normalizePublicSource(outcomes.source), age_seconds: ageSeconds(generatedAtOf(outcomes.payload || {})), stale: false },
+      replay: { source: normalizePublicSource(replay.source), age_seconds: ageSeconds(generatedAtOf(replay.payload || {})), stale: false },
+      memory: { source: normalizePublicSource(memory.source), age_seconds: ageSeconds(generatedAtOf(memory.payload || {})), stale: false },
+      behavior: { source: normalizePublicSource(behavior.source), age_seconds: ageSeconds(generatedAtOf(behavior.payload || {})), stale: false },
+    },
+  }, {
+    source,
+    generated_at: newestGeneratedAt(payloads) || new Date().toISOString(),
+    summary: {
+      findings_reviewed: rows.length,
+      sample_depth: sampleDepth,
+      source_modules: ["outcomes", "replay", "memory", "behavior"],
+    },
+  });
+}
+
 async function liveOpportunityPayload(request, env, config) {
   const artifact = await readPublicArtifact(request, env, "opportunity", config);
   const heatmap = artifact.payload;
@@ -1196,6 +1353,7 @@ async function handlePublicRead(request, env, key) {
   try {
     if (key === "terminal") return publicJson(await liveTerminalPayload(request, env, config), config);
     if (key === "opportunity") return publicJson(await liveOpportunityPayload(request, env, config), config);
+    if (key === "research") return publicJson(await researchPublicPayload(request, env, config), config);
     if (key.startsWith("chains/")) return publicJson(await chainPublicPayload(request, env, key, config), config);
     return publicJson(await staticPublicPayload(request, env, key, config), config);
   } catch (error) {
@@ -1205,6 +1363,33 @@ async function handlePublicRead(request, env, key) {
 
 async function handlePublicStatus(request, env) {
   const entries = await Promise.all(Object.entries(PUBLIC_API_ENDPOINTS).map(async ([key, config]) => {
+    if (key === "research") {
+      const envelope = await researchPublicPayload(request, env, config);
+      const generatedAt = generatedAtOf(envelope);
+      const artifactAge = ageSeconds(generatedAt);
+      return {
+        key,
+        endpoint: config.endpoint,
+        artifact_path: "derived:outcomes+replay+memory+behavior",
+        source: envelope.source,
+        source_detail: envelope.source_detail || envelope.source,
+        source_label: envelope.source_label,
+        freshness_target_seconds: config.freshnessTargetSeconds,
+        last_generated_at: generatedAt || null,
+        artifact_generated_at: generatedAt || null,
+        freshness_age_seconds: artifactAge,
+        artifact_age_seconds: artifactAge,
+        last_known_good_age_seconds: artifactAge,
+        stale: artifactAge === null ? true : artifactAge > Number(config.freshnessTargetSeconds || 900),
+        safe_public: true,
+        leak_guard: envelope.ok ? "pass" : "unavailable",
+        schema_version: config.schemaVersion,
+        redaction_policy: "aggregate_public_market_context_only",
+        status: envelope.ok ? "available" : "degraded",
+        origin_fetch_failed: false,
+        error: envelope.ok ? "" : envelope.message || "research_read_forming",
+      };
+    }
     const artifact = await readPublicArtifact(request, env, key, config);
     const payload = artifact.payload;
     const generatedAt = generatedAtOf(payload || {});

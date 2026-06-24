@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ravenos-api="/api/research">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS Research</title>
-  <meta name="description" content="RavenOS Research explains market structure setup families, candidate lanes, replay analysis, symbol concentration, and failure analysis." />
+  <meta name="description" content="RavenOS Research explains market structure setup families, developing structures, replay analysis, symbol concentration, and failure analysis." />
   <style>
     :root {
       color-scheme: dark;
@@ -179,12 +179,18 @@
     <section>
       <span class="eyebrow">Market structure findings</span>
       <h1>What Raven learned from market structure research.</h1>
-      <p class="lead">Structure Lab explains what strengthened, what weakened, where confidence improved, and which conditions shaped outcome quality. It is research context only and does not generate trade recommendations.</p>
+      <p class="lead">What Raven believes: broad research families can be noisy, so Structure Lab focuses on the conditions that separated from flat or weak outcomes. Structure Lab explains what strengthened, what weakened, where confidence improved, and which conditions shaped outcome quality. It is research context only and does not generate trade recommendations.</p>
       <div class="metric-grid">
-        <div class="metric"><span>Findings reviewed</span><strong id="candidateCount">0</strong></div>
-        <div class="metric"><span>Forward observations</span><strong id="trackingCount">0</strong></div>
+        <div class="metric"><span>Research rows in live public read</span><strong id="candidateCount">0</strong></div>
+        <div class="metric"><span>Forward observations monitored</span><strong id="trackingCount">0</strong></div>
         <div class="metric"><span>Strongest condition</span><strong id="topPositive">Loading</strong></div>
         <div class="metric"><span>Weakest condition</span><strong id="topFailure">Loading</strong></div>
+      </div>
+      <div class="metric-grid" style="margin-top:10px;">
+        <div class="metric"><span>Research Source</span><strong id="researchSource">Loading</strong></div>
+        <div class="metric"><span>Freshness</span><strong id="researchAge">Loading</strong></div>
+        <div class="metric"><span>Sample Depth</span><strong id="researchSampleDepth">Loading</strong></div>
+        <div class="metric"><span>Status</span><strong id="researchStatus">Loading</strong></div>
       </div>
       <div class="report-grid" aria-label="Research evidence summary" style="margin-top:12px;">
         <article class="finding-card">
@@ -206,7 +212,7 @@
         <button class="tab" type="button" data-view="failure_analysis">Failure Analysis</button>
         <button class="tab" type="button" data-view="replay_analysis">Replay Analysis</button>
         <button class="tab" type="button" data-view="symbol_concentration">Symbol Concentration</button>
-        <button class="tab" type="button" data-view="candidate_lanes">Candidate Lanes</button>
+        <button class="tab" type="button" data-view="candidate_lanes">developing structures</button>
       </aside>
 
       <article class="panel" data-feature="full_research">
@@ -227,7 +233,7 @@
       </article>
     </section>
 
-    <footer class="footer">RavenOS provides software and market analytics. Structure Lab is diagnostic research and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+    <footer class="footer">RavenOS provides software and market analytics. Structure Lab is research validation and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
   </main>
 
   <script src="/ravenos-access.js"></script>
@@ -235,6 +241,7 @@
   <script src="/ravenos-explanations.js"></script>
   <script src="/ravenos-replay.js"></script>
   <script src="/ravenos-participants.js"></script>
+  <script src="/ravenos-live.js"></script>
   <script>
     const state = {
       view: "setup_families",
@@ -244,6 +251,8 @@
       forward: {},
       plan: {},
       flatness: {},
+      liveResearch: {},
+      publicRows: [],
     };
 
     const viewMeta = {
@@ -251,7 +260,7 @@
       failure_analysis: ["Failure Analysis", "Which conditions weakened outcomes or diluted the read."],
       replay_analysis: ["Replay Analysis", "How historical similarity changed outcome quality."],
       symbol_concentration: ["Symbol Concentration", "Where outcomes concentrated by instrument or cohort."],
-      candidate_lanes: ["Candidate Lanes", "Developing structures under future forward-observation review."],
+      candidate_lanes: ["developing structures", "Developing structures under future forward-observation review."],
     };
     const viewFeatures = {
       setup_families: "research_preview",
@@ -337,6 +346,22 @@
       };
     }
 
+    function displayPublicResearch(row = {}) {
+      return {
+        setupFamily: titleCase(row.finding || row.structure || "Current Structure"),
+        instrument: titleCase(row.source_module || "public research"),
+        direction: titleCase(row.structure || "Structure"),
+        status: row.status || "Observed",
+        confidence: row.confidence || "Developing",
+        sampleCount: Number(row.sample_depth || 0),
+        profitFactor: row.outcome_quality === "Constructive" ? 1.21 : row.outcome_quality === "Weak" ? 0.82 : 1,
+        replayBand: row.replay_strength || "Contextual",
+        bestConditions: Array.isArray(row.supports) ? row.supports : ["Public evidence supports the read"],
+        worstConditions: Array.isArray(row.risks) ? row.risks : ["Confirmation could weaken the read"],
+        internalId: `public:${row.source_module || "research"}:${row.finding || ""}`,
+      };
+    }
+
     function metricRow(row = {}, label = "Research Cohort") {
       return {
         setupFamily: titleCase(row.dimension || label),
@@ -354,6 +379,11 @@
     }
 
     function rowsForView() {
+      if (state.publicRows.length) {
+        const publicRows = state.publicRows.filter((row) => row.view === state.view);
+        if (publicRows.length) return publicRows.map(displayPublicResearch);
+        if (state.view === "candidate_lanes") return state.publicRows.slice(0, 80).map(displayPublicResearch);
+      }
       const planRows = [
         ...(state.plan.classifications?.high_priority_forward_track || []),
         ...(state.plan.classifications?.forward_track_candidate || []),
@@ -484,7 +514,15 @@
       const [title, summary] = viewMeta[state.view] || viewMeta.setup_families;
       document.getElementById("viewEyebrow").textContent = title;
       document.getElementById("viewTitle").textContent = title;
-      document.getElementById("viewSummary").textContent = summary;
+      const moduleKey = state.view === "setup_families" ? "outcomes"
+        : state.view === "failure_analysis" ? "behavior"
+          : state.view === "replay_analysis" ? "replay"
+            : state.view === "symbol_concentration" ? "memory"
+              : "outcomes";
+      const module = state.liveResearch.data?.modules?.[moduleKey];
+      document.getElementById("viewSummary").textContent = module
+        ? `${summary} Source: ${titleCase(module.source || "public")} · age ${ageLabel(module.age_seconds)}.`
+        : summary;
       renderReport(rows);
       document.getElementById("tableHead").innerHTML = `<tr>
         <th>Finding</th><th>Structure</th><th>Status</th><th>Confidence</th><th>Sample Depth</th>
@@ -554,7 +592,35 @@
       }
     }
 
+    function ageLabel(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "sample forming";
+      if (n < 60) return `${Math.floor(n)}s`;
+      const minutes = Math.floor(n / 60);
+      if (minutes < 60) return `${minutes}m`;
+      return `${Math.floor(minutes / 60)}h`;
+    }
+
+    async function hydrateLiveResearch() {
+      const live = await readJson("/api/research");
+      if (!live || live.ok === false) return false;
+      state.liveResearch = live;
+      state.publicRows = Array.isArray(live.data?.rows) ? live.data.rows : [];
+      const summary = live.data?.summary || live.summary || {};
+      document.getElementById("candidateCount").textContent = fmtNumber(summary.findings_reviewed || state.publicRows.length);
+      document.getElementById("trackingCount").textContent = fmtNumber(summary.forward_observations || 0);
+      document.getElementById("topPositive").textContent = titleCase(summary.strongest_condition || "Current public structure");
+      document.getElementById("topFailure").textContent = titleCase(summary.weakest_condition || "Weak condition forming");
+      document.getElementById("researchSource").textContent = titleCase(live.source || "public research");
+      document.getElementById("researchAge").textContent = live.stale ? `Last known research snapshot · ${ageLabel(live.freshness_age_seconds)}` : `${ageLabel(live.freshness_age_seconds)} ago`;
+      document.getElementById("researchSampleDepth").textContent = fmtNumber(summary.sample_depth || 0);
+      document.getElementById("researchStatus").textContent = live.stale ? "Sample forming" : "Fresh public read";
+      renderTable();
+      return true;
+    }
+
     async function hydrate() {
+      const liveLoaded = await hydrateLiveResearch();
       [state.edge, state.failure, state.forward, state.plan, state.flatness] = await Promise.all([
         readJson("/data/runtime/perps_v2_edge_attribution_report.json"),
         readJson("/data/runtime/perps_v2_failure_mode_analysis.json"),
@@ -567,11 +633,17 @@
         ...(state.plan.classifications?.forward_track_candidate || []),
         ...(state.plan.classifications?.watch || []),
       ];
-      document.getElementById("candidateCount").textContent = fmtNumber(candidates.length);
-      document.getElementById("trackingCount").textContent = fmtNumber((state.forward.ranked_lane_table || []).length);
-      const positive = state.edge.strongest_positive_predictors?.[0];
-      document.getElementById("topPositive").textContent = positive ? `${titleCase(positive.dimension)}: ${titleCase(positive.value)}` : "Unavailable";
-      document.getElementById("topFailure").textContent = titleCase(state.flatness.top_causes_of_flatness?.[0]?.cause || state.edge.strongest_negative_predictors?.[0]?.value || "Unavailable");
+      if (!liveLoaded) {
+        document.getElementById("candidateCount").textContent = fmtNumber(candidates.length);
+        document.getElementById("trackingCount").textContent = fmtNumber((state.forward.ranked_lane_table || []).length);
+        const positive = state.edge.strongest_positive_predictors?.[0];
+        document.getElementById("topPositive").textContent = positive ? `${titleCase(positive.dimension)}: ${titleCase(positive.value)}` : "Unavailable";
+        document.getElementById("topFailure").textContent = titleCase(state.flatness.top_causes_of_flatness?.[0]?.cause || state.edge.strongest_negative_predictors?.[0]?.value || "Unavailable");
+        document.getElementById("researchSource").textContent = "Last known research snapshot";
+        document.getElementById("researchAge").textContent = "sample forming";
+        document.getElementById("researchSampleDepth").textContent = "snapshot";
+        document.getElementById("researchStatus").textContent = "Fallback";
+      }
       renderTable();
     }
 
