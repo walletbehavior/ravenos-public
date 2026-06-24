@@ -935,7 +935,10 @@ async function readOriginJson(request, env, key, config) {
   if (!originPath) return { payload: null, source: "origin_not_allowed", error: "" };
   const originUrl = new URL(`${base}${originPath}`);
   const headers = { accept: "application/json" };
-  if (env?.RAVENOS_PUBLIC_ORIGIN_TOKEN) headers["x-ravenos-public-token"] = env.RAVENOS_PUBLIC_ORIGIN_TOKEN;
+  if (env?.RAVENOS_PUBLIC_ORIGIN_TOKEN) {
+    headers.authorization = `Bearer ${env.RAVENOS_PUBLIC_ORIGIN_TOKEN}`;
+    headers["x-ravenos-public-token"] = env.RAVENOS_PUBLIC_ORIGIN_TOKEN;
+  }
   const cacheKey = new Request(originUrl.toString(), { method: "GET" });
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cached = cache ? await cache.match(cacheKey).catch(() => null) : null;
@@ -1202,11 +1205,14 @@ async function handlePublicStatus(request, env) {
       artifact_generated_at: generatedAt || null,
       freshness_age_seconds: effectiveAge,
       artifact_age_seconds: artifactAge,
+      last_known_good_age_seconds: artifactAge,
       stale: effectiveAge === null ? true : effectiveAge > Number(config.freshnessTargetSeconds || 900),
       safe_public: true,
+      leak_guard: payload ? "pass" : "unavailable",
       schema_version: config.schemaVersion,
       redaction_policy: "aggregate_public_market_context_only",
       status: payload ? "available" : "degraded",
+      origin_fetch_failed: Boolean(config.originPath && artifact.source !== "origin" && artifact.source !== "origin_cache" && artifact.error),
       error: artifact.error || "",
     };
   }));

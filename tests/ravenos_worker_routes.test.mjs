@@ -103,6 +103,9 @@ assert.ok(opportunityStatus);
 assert.equal(opportunityStatus.source, "dexscreener_public+bundled_artifact");
 assert.equal(opportunityStatus.stale, false);
 assert.ok(Number.isFinite(opportunityStatus.artifact_age_seconds));
+assert.equal(opportunityStatus.leak_guard, "pass");
+assert.equal(opportunityStatus.origin_fetch_failed, false);
+assert.ok(Number.isFinite(opportunityStatus.last_known_good_age_seconds));
 
 const publicOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
   ...env,
@@ -115,7 +118,12 @@ assert.equal(publicOpportunityPayload.safe_public, true);
 assert.equal(publicOpportunityPayload.summary.best_surface.chain, "solana");
 
 const publicArtifactOriginalFetch = globalThis.fetch;
-globalThis.fetch = async (url) => new Response(JSON.stringify({
+let sawOriginBearer = false;
+let sawOriginTokenHeader = false;
+globalThis.fetch = async (url, init = {}) => {
+  sawOriginBearer = String(init.headers?.authorization || "").startsWith("Bearer test-token");
+  sawOriginTokenHeader = String(init.headers?.["x-ravenos-public-token"] || "") === "test-token";
+  return new Response(JSON.stringify({
   ok: true,
   safe_public: true,
   generated_at: new Date().toISOString(),
@@ -124,6 +132,7 @@ globalThis.fetch = async (url) => new Response(JSON.stringify({
     outcomes: [{ chain: "base", cap_band: "small", clean_sample: 88, confidence: "high", participant_outcome: "favorable" }],
   },
 }), { status: 200, headers: { "content-type": "application/json" } });
+};
 const originOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), {
   ...env,
   RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
@@ -133,6 +142,8 @@ const originOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/o
 const originOutcomesPayload = await originOutcomes.json();
 assert.equal(originOutcomesPayload.source, "origin");
 assert.equal(originOutcomesPayload.data.outcomes[0].chain, "base");
+assert.equal(sawOriginBearer, true);
+assert.equal(sawOriginTokenHeader, true);
 
 globalThis.fetch = async () => new Response(JSON.stringify({
   generated_at: new Date().toISOString(),
