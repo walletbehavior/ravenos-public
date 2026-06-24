@@ -552,6 +552,20 @@ async function marketPrices(symbols = [], { market = "mixed" } = {}) {
     const catalog = catalogPrices.get(symbol);
     if (catalog) return catalog;
 
+    if (MARKET_PREVIEW_SYMBOLS.has(symbol)) {
+      return {
+        symbol,
+        priceUsd: null,
+        provider: "Market provider",
+        coverage: "Developing",
+        isLive: false,
+        isCached: false,
+        isSample: false,
+        lastUpdated: new Date().toISOString(),
+        warning: "Coverage developing",
+      };
+    }
+
     const perp = perpsBySymbol.get(symbol);
     if (perp && num(perp.lastPrice || perp.markPx)) {
       return {

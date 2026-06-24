@@ -625,6 +625,14 @@ assert.equal(equityPreviewPayload.results[0].coverage, "Developing");
 assert.equal(equityPreviewPayload.results[0].priceUsd, null);
 assert.equal(looseSearchCallsForMarketSymbols, 0);
 
+const mixedEquityPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=mixed&symbols=AAPL,NVDA,SPY"), env);
+assert.equal(mixedEquityPrices.status, 200);
+const mixedEquityPayload = await mixedEquityPrices.json();
+assert.equal(mixedEquityPayload.results.length, 3);
+assert.equal(mixedEquityPayload.results[0].provider, "Market provider");
+assert.equal(mixedEquityPayload.results[0].priceUsd, null);
+assert.equal(looseSearchCallsForMarketSymbols, 0);
+
 forceCoingeckoDown = true;
 const canonicalFallbackPrices = await worker.fetch(new Request("https://ravenos.xyz/api/market/prices?market=spot&symbols=AERO,WIF,MORPHO,AIXBT"), env);
 assert.equal(canonicalFallbackPrices.status, 200);
