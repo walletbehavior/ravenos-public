@@ -117,6 +117,7 @@ const PUBLIC_API_ENDPOINTS = {
   brief: {
     endpoint: "/api/brief",
     artifactPath: "/public/data/ravenos_summary.json",
+    originPath: "/public/ravenos/brief.json",
     freshnessTargetSeconds: 900,
     cacheControl: "public, max-age=300, stale-while-revalidate=900",
     schemaVersion: "ravenos_brief_public_v1",
@@ -124,6 +125,7 @@ const PUBLIC_API_ENDPOINTS = {
   replay: {
     endpoint: "/api/replay",
     artifactPath: "/ravenos_historical_replay.json",
+    originPath: "/public/ravenos/replay.json",
     freshnessTargetSeconds: 3600,
     cacheControl: "public, max-age=900, stale-while-revalidate=3600",
     schemaVersion: "ravenos_replay_public_v1",
@@ -131,6 +133,7 @@ const PUBLIC_API_ENDPOINTS = {
   outcomes: {
     endpoint: "/api/outcomes",
     artifactPath: "/ravenos_participant_outcomes.json",
+    originPath: "/public/ravenos/outcomes.json",
     freshnessTargetSeconds: 3600,
     cacheControl: "public, max-age=900, stale-while-revalidate=3600",
     schemaVersion: "ravenos_outcomes_public_v1",
@@ -138,6 +141,7 @@ const PUBLIC_API_ENDPOINTS = {
   memory: {
     endpoint: "/api/memory",
     artifactPath: "/ravenos_recent_memory.json",
+    originPath: "/public/ravenos/memory.json",
     freshnessTargetSeconds: 3600,
     cacheControl: "public, max-age=900, stale-while-revalidate=3600",
     schemaVersion: "ravenos_memory_public_v1",
@@ -145,6 +149,7 @@ const PUBLIC_API_ENDPOINTS = {
   behavior: {
     endpoint: "/api/behavior",
     artifactPath: "/ravenos_participant_heatmap.json",
+    originPath: "/public/ravenos/behavior.json",
     freshnessTargetSeconds: 900,
     cacheControl: "public, max-age=900, stale-while-revalidate=1800",
     schemaVersion: "ravenos_behavior_public_v1",
@@ -919,15 +924,16 @@ function publicTextSafe(payload) {
 }
 
 function originPathForKey(key, config = {}) {
-  const cleanKey = String(key || "").replace(/[^a-z0-9/_-]/gi, "");
   if (config.originPath) return config.originPath;
-  return `/public-data/${cleanKey}.json`;
+  return "";
 }
 
 async function readOriginJson(request, env, key, config) {
   const base = String(env?.RAVENOS_PUBLIC_ORIGIN_URL || env?.RAVENOS_PUBLIC_ARTIFACT_ORIGIN || "").replace(/\/+$/, "");
   if (!base) return { payload: null, source: "origin_not_configured", error: "" };
-  const originUrl = new URL(`${base}${originPathForKey(key, config)}`);
+  const originPath = originPathForKey(key, config);
+  if (!originPath) return { payload: null, source: "origin_not_allowed", error: "" };
+  const originUrl = new URL(`${base}${originPath}`);
   const headers = { accept: "application/json" };
   if (env?.RAVENOS_PUBLIC_ORIGIN_TOKEN) headers["x-ravenos-public-token"] = env.RAVENOS_PUBLIC_ORIGIN_TOKEN;
   const cacheKey = new Request(originUrl.toString(), { method: "GET" });
@@ -935,7 +941,12 @@ async function readOriginJson(request, env, key, config) {
   const cached = cache ? await cache.match(cacheKey).catch(() => null) : null;
   if (cached) {
     const payload = await cached.clone().json().catch(() => null);
-    if (payload && validatePublicPayload(payload).ok) return { payload, source: "origin_cache", error: "" };
+    if (payload && validatePublicPayload(payload).ok) {
+      const publicPayload = payload.safe_public === true && payload.data && typeof payload.data === "object"
+        ? payload.data
+        : payload;
+      return { payload: publicPayload, source: "origin_cache", error: "" };
+    }
   }
   const response = await fetch(originUrl.toString(), { headers });
   if (!response.ok) return { payload: null, source: "origin", error: `origin_http_${response.status}` };
@@ -944,6 +955,9 @@ async function readOriginJson(request, env, key, config) {
   if (!payload || typeof payload !== "object" || !validation.ok) {
     return { payload: null, source: "origin", error: validation.reason || "origin_invalid_json" };
   }
+  const publicPayload = payload.safe_public === true && payload.data && typeof payload.data === "object"
+    ? payload.data
+    : payload;
   if (cache) {
     const ttl = Math.max(15, Math.min(900, Number(config.freshnessTargetSeconds || 120)));
     const cachedResponse = new Response(JSON.stringify(payload), {
@@ -954,7 +968,7 @@ async function readOriginJson(request, env, key, config) {
     });
     await cache.put(cacheKey, cachedResponse).catch(() => {});
   }
-  return { payload, source: "origin", error: "" };
+  return { payload: publicPayload, source: "origin", error: "" };
 }
 
 async function readAssetJson(request, env, path) {

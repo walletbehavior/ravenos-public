@@ -116,31 +116,36 @@ assert.equal(publicOpportunityPayload.summary.best_surface.chain, "solana");
 
 const publicArtifactOriginalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => new Response(JSON.stringify({
+  ok: true,
+  safe_public: true,
   generated_at: new Date().toISOString(),
-  rows: [{ chain: "base", cap_band: "small", sample_size: 88, confidence: "high", derived_state: "participation rewarding" }],
+  data: {
+    generated_at: new Date().toISOString(),
+    outcomes: [{ chain: "base", cap_band: "small", clean_sample: 88, confidence: "high", participant_outcome: "favorable" }],
+  },
 }), { status: 200, headers: { "content-type": "application/json" } });
-const originOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+const originOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), {
   ...env,
   RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
   RAVENOS_PUBLIC_ORIGIN_TOKEN: "test-token",
   RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
 });
-const originOpportunityPayload = await originOpportunity.json();
-assert.equal(originOpportunityPayload.source, "origin");
-assert.equal(originOpportunityPayload.summary.best_surface.chain, "base");
+const originOutcomesPayload = await originOutcomes.json();
+assert.equal(originOutcomesPayload.source, "origin");
+assert.equal(originOutcomesPayload.data.outcomes[0].chain, "base");
 
 globalThis.fetch = async () => new Response(JSON.stringify({
   generated_at: new Date().toISOString(),
-  rows: [{ chain: "base", cap_band: "small", derived_state: "WalletMemory should not publish" }],
+  outcomes: [{ chain: "base", cap_band: "small", participant_outcome: "WalletMemory should not publish" }],
 }), { status: 200, headers: { "content-type": "application/json" } });
-const guardedOpportunity = await worker.fetch(new Request("https://ravenos.xyz/api/opportunity"), {
+const guardedOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), {
   ...env,
   RAVENOS_PUBLIC_ORIGIN_URL: "https://origin.example",
   RAVENOS_DISABLE_LIVE_PROVIDER_FETCH: "true",
 });
-const guardedOpportunityPayload = await guardedOpportunity.json();
-assert.equal(guardedOpportunityPayload.source, "bundled_artifact");
-assert.equal(guardedOpportunityPayload.summary.best_surface.chain, "solana");
+const guardedOutcomesPayload = await guardedOutcomes.json();
+assert.equal(guardedOutcomesPayload.source, "bundled_artifact");
+assert.equal(guardedOutcomesPayload.data.outcomes[0].chain, "solana");
 globalThis.fetch = publicArtifactOriginalFetch;
 
 const publicOutcomes = await worker.fetch(new Request("https://ravenos.xyz/api/outcomes"), env);
