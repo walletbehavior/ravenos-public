@@ -1,6 +1,6 @@
 {
   "count": 83,
-  "generated_at": "2026-06-24T09:45:16Z",
+  "generated_at": "2026-06-24T10:00:18Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -87,7 +87,7 @@
       "plain_language_summary": "Fresh Pairs participation on All chains is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_size": 109,
+      "sample_size": 110,
       "score_strength": "strong",
       "search_terms": [
         "rewarding",
@@ -120,7 +120,7 @@
       "plain_language_summary": "Large-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 155,
+      "sample_size": 157,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -153,7 +153,7 @@
       "plain_language_summary": "Mega-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 42,
+      "sample_size": 40,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -186,7 +186,7 @@
       "plain_language_summary": "Micro-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 103,
+      "sample_size": 104,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -219,7 +219,7 @@
       "plain_language_summary": "Mid-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 36,
+      "sample_size": 38,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -252,7 +252,7 @@
       "plain_language_summary": "Nano-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 219,
+      "sample_size": 218,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -285,7 +285,7 @@
       "plain_language_summary": "Small-Cap participation on All chains is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 71,
+      "sample_size": 70,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -549,7 +549,7 @@
       "plain_language_summary": "Broad Market participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 82,
+      "sample_size": 84,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -582,7 +582,7 @@
       "plain_language_summary": "Fresh Pairs participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 2,
+      "sample_size": 4,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -648,7 +648,7 @@
       "plain_language_summary": "Micro-Cap participation on Base is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 15,
+      "sample_size": 17,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -846,7 +846,7 @@
       "plain_language_summary": "Broad Market participation on BNB Chain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 54,
+      "sample_size": 53,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -978,7 +978,7 @@
       "plain_language_summary": "Nano-Cap participation on BNB Chain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 22,
+      "sample_size": 21,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2166,7 +2166,7 @@
       "plain_language_summary": "Fresh Pairs participation on Solana is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_size": 100,
+      "sample_size": 99,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2199,7 +2199,7 @@
       "plain_language_summary": "Large-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 65,
+      "sample_size": 67,
       "score_strength": "moderate",
       "search_terms": [
         "rewarding",
@@ -2232,7 +2232,7 @@
       "plain_language_summary": "Mega-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 34,
+      "sample_size": 32,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2265,7 +2265,7 @@
       "plain_language_summary": "Micro-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 37,
+      "sample_size": 36,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2298,7 +2298,7 @@
       "plain_language_summary": "Mid-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 18,
+      "sample_size": 20,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
@@ -2364,7 +2364,7 @@
       "plain_language_summary": "Small-Cap participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_size": 39,
+      "sample_size": 38,
       "score_strength": "weak",
       "search_terms": [
         "rewarding",
