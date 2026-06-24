@@ -1693,7 +1693,36 @@
     function renderExplanation(row) {
       if (window.RavenOSExplanations?.explanationForRow) {
         const type = isPerpsMode() && row.category === "perpetuals" ? "pressure_score" : "flow_score";
-        window.RavenOSExplanations.render("#explanationPanel", window.RavenOSExplanations.explanationForRow(row, type));
+        const coverage = coverageMeta(row);
+        const visible = displayRows();
+        const chains = [...new Set(visible.map((item) => item.chainVenue || item.ecosystem || item.market).filter(Boolean))].slice(0, 5);
+        const capBands = [...new Set(visible.map((item) => item.marketCapBand).filter(Boolean))].slice(0, 5);
+        const enriched = {
+          ...row,
+          coverage: coverageDisplayLabel(coverage.coverage),
+          provider: coverage.provider,
+          isLive: coverage.isLive,
+          isSample: coverage.isSample,
+          warning: coverage.warning,
+          lastUpdated: coverage.lastUpdated || row.lastUpdated,
+          sampleCount: row.sampleCount || visible.length,
+          observedAssets: allRows().length,
+          usableAssets: visible.length,
+          chains,
+          capBands,
+          historicalAnalogCount: isPerpsMode() && row.category === "perpetuals" ? replayMatches(row).length : Math.max(6, Math.min(24, Math.round(Number(row.flowScore || 50) / 5))),
+          priorSimilarOutcomes: "Raven compares current participation, pressure, breadth, and liquidity context against prior observed structures. Public output is descriptive context, not a forecast.",
+          whatWouldConfirm: row.participationOutcome === "Paying"
+            ? "Participation remains broad while liquidity posture stays manageable across the selected timeframe."
+            : "Fresh participation broadens and confirmation depth improves without a deterioration in liquidity posture.",
+          whatWouldWeaken: row.risk === "Elevated"
+            ? "Risk stays elevated while participation narrows or liquidity becomes more concentrated."
+            : "Attention accelerates without broader participation, or replay similarity weakens in the next observed window.",
+          whyItMatters: type === "pressure_score"
+            ? "Pressure shows whether leveraged positioning, liquidity attraction, and participation are aligning or becoming fragile."
+            : "Flow helps summarize whether participation, attention, liquidity, and confirmation are broad enough to support the current read.",
+        };
+        window.RavenOSExplanations.render("#explanationPanel", window.RavenOSExplanations.explanationForRow(enriched, type));
         return;
       }
       const explanation = explanationFor(row);

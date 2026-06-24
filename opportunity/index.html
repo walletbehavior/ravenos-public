@@ -51,7 +51,7 @@
     .button { min-height: 32px; border: 1px solid var(--line-strong); background: rgba(125,211,252,0.08); color: var(--text); padding: 7px 10px; font-size: 11px; font-weight: 850; text-transform: uppercase; }
     .button.secondary { border-color: var(--line); background: rgba(255,255,255,0.03); color: var(--muted); }
     main { width: min(1440px, calc(100% - 24px)); margin: 0 auto; padding: 14px 0 28px; display: grid; gap: 12px; }
-    .status-strip, .hero-grid, .board-grid, .explain-grid, .matrix { display: grid; gap: 10px; }
+    .status-strip, .hero-grid, .board-grid, .explain-grid, .matrix, .evidence-grid, .tile-grid, .rotation-grid { display: grid; gap: 10px; }
     .status-strip { grid-template-columns: 1.15fr repeat(5, minmax(110px, 1fr)); border: 1px solid var(--line); background: var(--line); gap: 1px; }
     .status-cell { background: #050b09; padding: 10px 12px; min-width: 0; }
     .status-cell span, .kicker, th { display: block; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0; }
@@ -73,9 +73,25 @@
     .metric { background: #050b09; padding: 11px; min-width: 0; }
     .metric span { display: block; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
     .metric strong { display: block; margin-top: 5px; font-family: var(--mono); font-size: 16px; }
+    .evidence-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .evidence-card { border: 1px solid var(--line); background: #050b09; padding: 12px; display: grid; gap: 8px; min-width: 0; }
+    .evidence-card h3, .evidence-card h4 { margin: 0; font-size: 12px; text-transform: uppercase; }
+    .evidence-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .evidence-row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 7px; color: var(--muted); font-size: 11px; }
+    .evidence-row strong { color: var(--text); font-family: var(--mono); text-align: right; }
+    .score-drivers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .score-drivers ul { margin: 6px 0 0; padding-left: 16px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .opportunity-tile { border: 1px solid var(--line); background: rgba(5,11,9,.84); padding: 12px; display: grid; gap: 9px; }
+    .opportunity-tile strong { font-size: 16px; }
+    .opportunity-tile span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .rotation-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    .rotation-window { border: 1px solid var(--line); background: #050b09; padding: 11px; }
+    .rotation-window strong { display: block; margin-top: 5px; font-family: var(--mono); }
     .positive { color: var(--green); }
     .mixed { color: var(--yellow); }
     .negative { color: var(--red); }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 700px; }
     th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
@@ -92,6 +108,7 @@
     .matrix-cell.header { min-height: auto; color: var(--soft); font-family: var(--mono); font-size: 10px; text-transform: uppercase; background: rgba(255,255,255,0.035); }
     .matrix-cell strong { font-family: var(--mono); font-size: 18px; }
     .matrix-cell span { color: var(--muted); font-size: 11px; }
+    .matrix-cell em { color: var(--soft); font-style: normal; font-size: 10px; }
     .matrix-cell.rewarding { border-color: rgba(52,211,153,0.36); background: rgba(52,211,153,0.055); }
     .matrix-cell.mixed { border-color: rgba(250,204,21,0.3); background: rgba(250,204,21,0.045); }
     .matrix-cell.punishing { border-color: rgba(251,113,133,0.32); background: rgba(251,113,133,0.045); }
@@ -99,11 +116,13 @@
     .note { padding: 14px; }
     .note h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; }
     .note ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.65; font-size: 13px; }
+    details.drilldown { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+    details.drilldown summary { cursor: pointer; color: var(--cyan); font-size: 11px; font-weight: 850; text-transform: uppercase; }
     .footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; padding: 13px 14px; text-align: center; }
     @media (max-width: 1040px) {
       .topbar { grid-template-columns: 1fr; }
       .access { justify-content: start; }
-      .hero-grid, .board-grid, .explain-grid { grid-template-columns: 1fr; }
+      .hero-grid, .board-grid, .explain-grid, .evidence-grid, .tile-grid, .rotation-grid { grid-template-columns: 1fr; }
       .status-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
     }
     @media (max-width: 640px) {
@@ -154,7 +173,7 @@
           <div class="panel-head">
             <div class="title">
               <span class="kicker">Opportunity Board</span>
-              <h1>Where participation is being rewarded today.</h1>
+              <h1>Where participation is improving today.</h1>
               <p>Raven ranks chain and cap-band conditions by participation, survival, attention, liquidity context, and observed outcome quality. The board is a market briefing, not a recommendation engine.</p>
             </div>
             <span class="badge">Coverage Developing</span>
@@ -162,14 +181,14 @@
           <div class="hot-read">
             <div>
               <strong>Solana Micro</strong>
-              <span>Fresh participation and survival quality are strongest in the micro-cap band, with Base small caps beginning to build.</span>
+              <span>Fresh participation and survival quality are strongest in the micro-cap band, with Base small caps beginning to build. This is a research read with visible evidence, not a trade call.</span>
             </div>
             <a class="button" href="/terminal/">Open Chart Workspace</a>
           </div>
           <div class="metric-grid">
             <div class="metric"><span>Participation</span><strong class="positive">Expanding</strong></div>
-            <div class="metric"><span>Confidence</span><strong>High</strong></div>
-            <div class="metric"><span>Median Reward</span><strong class="positive">+172%</strong></div>
+            <div class="metric"><span>Confidence</span><strong>Moderate</strong></div>
+            <div class="metric"><span>Usable Sample</span><strong>85 / 109</strong></div>
             <div class="metric"><span>What Changed</span><strong>Base Improving</strong></div>
           </div>
         </article>
@@ -191,6 +210,129 @@
             </ul>
           </div>
         </article>
+      </section>
+
+      <section class="evidence-grid" aria-label="Opportunity evidence and provenance">
+        <article class="evidence-card">
+          <h3>Freshness</h3>
+          <p>Opportunity reads use the current public session snapshot and should be treated as developing when live indexed context is unavailable.</p>
+          <div class="evidence-row"><span>Updated age</span><strong>Current session</strong></div>
+          <div class="evidence-row"><span>Sample window</span><strong>Intraday</strong></div>
+        </article>
+        <article class="evidence-card">
+          <h3>Coverage</h3>
+          <p>Coverage describes how much usable context Raven has for the current chain and cap-band read.</p>
+          <div class="evidence-row"><span>Observed assets</span><strong>109</strong></div>
+          <div class="evidence-row"><span>Usable assets</span><strong>85</strong></div>
+        </article>
+        <article class="evidence-card">
+          <h3>Confidence Provenance</h3>
+          <p>Confidence is moderate because Solana micro participation is broad, while Base and Ethereum sample depth is still thinner.</p>
+          <div class="evidence-row"><span>Strongest signal</span><strong>Participation breadth</strong></div>
+          <div class="evidence-row"><span>Weakest signal</span><strong>Cross-chain depth</strong></div>
+        </article>
+        <article class="evidence-card">
+          <h3>Validation Context</h3>
+          <p>Raven compares similar participation, pressure, survival, and liquidity structures as context only. These are not forecasts.</p>
+          <div class="evidence-row"><span>Historical analogs</span><strong>12</strong></div>
+          <div class="evidence-row"><span>Would weaken</span><strong>Survival fades</strong></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="title">
+            <span class="kicker">Top Opportunity Tiles</span>
+            <h2>Strongest current surfaces to investigate</h2>
+            <p>Each tile shows why the surface is elevated and what would change Raven&apos;s read.</p>
+          </div>
+        </div>
+        <div class="tile-grid" style="padding:12px;">
+          <article class="opportunity-tile">
+            <span class="kicker">Solana · Micro</span>
+            <strong>Participation broadening</strong>
+            <span>Why now: new and returning activity are both expanding while survival remains stable.</span>
+            <div class="score-drivers">
+              <div><span class="kicker">Positive</span><ul><li>Participation breadth expanding</li><li>Survival persistence improving</li><li>Replay context constructive</li></ul></div>
+              <div><span class="kicker">Negative</span><ul><li>Liquidity concentration elevated</li><li>Confirmation still forming</li></ul></div>
+            </div>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Base · Small</span>
+            <strong>Rotation building</strong>
+            <span>Why now: attention is rising from a lower base and participation is less crowded than Solana.</span>
+            <div class="score-drivers">
+              <div><span class="kicker">Positive</span><ul><li>Attention velocity rising</li><li>Reward persistence stabilizing</li></ul></div>
+              <div><span class="kicker">Negative</span><ul><li>Sample depth thinner</li><li>Survival remains uneven</li></ul></div>
+            </div>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Ethereum · Mid</span>
+            <strong>Selective improvement</strong>
+            <span>Why now: larger-cap liquidity is stable, but participation is not broad enough for a stronger read.</span>
+            <div class="score-drivers">
+              <div><span class="kicker">Positive</span><ul><li>Liquidity context stable</li><li>Risk posture contained</li></ul></div>
+              <div><span class="kicker">Negative</span><ul><li>Breadth is narrow</li><li>Attention is muted</li></ul></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="title">
+            <span class="kicker">Rotation / What Changed</span>
+            <h2>How the read is moving</h2>
+          </div>
+        </div>
+        <div class="rotation-grid" style="padding:12px;">
+          <div class="rotation-window"><span class="kicker">1H</span><strong class="positive">Solana micro improving</strong><p class="muted">Participation remains broad; liquidity context still needs monitoring.</p></div>
+          <div class="rotation-window"><span class="kicker">6H</span><strong class="positive">Base small caps building</strong><p class="muted">Attention and survival are improving from a thinner sample.</p></div>
+          <div class="rotation-window"><span class="kicker">24H</span><strong class="mixed">Majors fading</strong><p class="muted">Large-cap reads are stable but not leading opportunity.</p></div>
+          <div class="rotation-window"><span class="kicker">7D</span><strong class="mixed">ETH remains selective</strong><p class="muted">Liquidity is manageable, breadth remains narrow.</p></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="title">
+            <span class="kicker">Raven Intelligence Stack</span>
+            <h2>Why Raven can form this read</h2>
+            <p>Raven combines public-safe behavioral memory, replay history, pressure context, and validation evidence. Private sources, wallet identities, proprietary thresholds, and internal rules are not exposed.</p>
+          </div>
+        </div>
+        <div class="tile-grid" style="padding:12px;">
+          <article class="opportunity-tile">
+            <span class="kicker">Participation Memory</span>
+            <strong>Behavior over time</strong>
+            <span>Raven studies repeat participation patterns, cohort reappearance, breadth, and new-vs-returning activity.</span>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Replay Intelligence</span>
+            <strong>Have we seen this before?</strong>
+            <span>Raven compares current structures against prior market tapes and separates broadening, stalling, and failing examples.</span>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Validation Layer</span>
+            <strong>Strong read versus usable read</strong>
+            <span>Raven distinguishes promising observed structures from contexts that still need more evidence before being treated as durable.</span>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Emergence Detection</span>
+            <strong>Behavior forming early</strong>
+            <span>Raven watches for new cohort activity, fresh survival, pressure change, and confirmation depth before they become obvious in price.</span>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Structure Archetypes</span>
+            <strong>Common market forms</strong>
+            <span>Examples include broadening participation, absorption, liquidation magnets, crowded positioning, and fragile follow-through.</span>
+          </article>
+          <article class="opportunity-tile">
+            <span class="kicker">Failure Conditions</span>
+            <strong>What could break the read?</strong>
+            <span>Every strong read should expose the conditions that would weaken it, not only the evidence that supports it.</span>
+          </article>
+        </div>
       </section>
 
       <section class="board-grid">
@@ -223,13 +365,13 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Band</th><th>Chain Leader</th><th>Win Rate</th><th>Median Reward</th><th>Activity</th><th>Read</th></tr></thead>
+              <thead><tr><th>Band</th><th>Chain Leader</th><th>Rewarding</th><th>Punishing</th><th>Activity</th><th>Read</th></tr></thead>
               <tbody>
-                <tr><td>Nano</td><td>Solana</td><td class="mono positive">82%</td><td class="mono positive">+180%</td><td>High</td><td>Early survival improving</td></tr>
-                <tr><td>Micro</td><td>Solana</td><td class="mono positive">71%</td><td class="mono positive">+65%</td><td>Very High</td><td>Rewarding participation</td></tr>
-                <tr><td>Small</td><td>Base</td><td class="mono mixed">54%</td><td class="mono positive">+28%</td><td>High</td><td>Building</td></tr>
-                <tr><td>Mid</td><td>Ethereum</td><td class="mono mixed">41%</td><td class="mono positive">+11%</td><td>Medium</td><td>Mixed</td></tr>
-                <tr><td>Majors</td><td>Solana</td><td class="mono negative">33%</td><td class="mono positive">+4%</td><td>Low</td><td>Not leading</td></tr>
+                <tr><td>Nano</td><td>Solana</td><td class="mono positive">18</td><td class="mono negative">9</td><td>High</td><td>Early survival improving</td></tr>
+                <tr><td>Micro</td><td>Solana</td><td class="mono positive">43</td><td class="mono negative">15</td><td>Very High</td><td>Rewarding participation</td></tr>
+                <tr><td>Small</td><td>Base</td><td class="mono positive">19</td><td class="mono negative">13</td><td>High</td><td>Building</td></tr>
+                <tr><td>Mid</td><td>Ethereum</td><td class="mono positive">7</td><td class="mono negative">8</td><td>Medium</td><td>Mixed</td></tr>
+                <tr><td>Majors</td><td>Solana</td><td class="mono positive">4</td><td class="mono negative">11</td><td>Low</td><td>Not leading</td></tr>
               </tbody>
             </table>
           </div>
@@ -255,12 +397,12 @@
           <div class="matrix-cell header">Mega</div>
 
           <div class="matrix-cell header">Solana</div>
-          <div class="matrix-cell rewarding"><strong>+18</strong><span>Survival improving</span></div>
-          <div class="matrix-cell rewarding"><strong>+48</strong><span>Best read</span></div>
-          <div class="matrix-cell rewarding"><strong>+28</strong><span>Broadening</span></div>
-          <div class="matrix-cell mixed"><strong>+6</strong><span>Mixed</span></div>
-          <div class="matrix-cell punishing"><strong>-8</strong><span>Leadership thin</span></div>
-          <div class="matrix-cell punishing"><strong>-11</strong><span>Not leading</span></div>
+          <div class="matrix-cell rewarding"><strong>Improving</strong><span>18 rewarding / 9 punishing</span><em>Confidence moderate · current</em></div>
+          <div class="matrix-cell rewarding"><strong>Strongest</strong><span>43 rewarding / 15 punishing</span><em>Participation expanding</em></div>
+          <div class="matrix-cell rewarding"><strong>Broadening</strong><span>28 rewarding / 12 punishing</span><em>Survival stable</em></div>
+          <div class="matrix-cell mixed"><strong>Mixed</strong><span>7 rewarding / 8 punishing</span><em>Confirmation forming</em></div>
+          <div class="matrix-cell punishing"><strong>Thin</strong><span>4 rewarding / 11 punishing</span><em>Leadership muted</em></div>
+          <div class="matrix-cell punishing"><strong>Muted</strong><span>3 rewarding / 10 punishing</span><em>Not leading</em></div>
 
           <div class="matrix-cell header">Base</div>
           <div class="matrix-cell punishing"><strong>-4</strong><span>Thin survival</span></div>
@@ -286,6 +428,15 @@
           <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
           <div class="matrix-cell mixed"><strong>--</strong><span>No read</span></div>
         </div>
+        <details class="drilldown" style="margin:0 12px 0;">
+          <summary>Open Solana Micro Drilldown</summary>
+          <div class="evidence-grid" style="margin-top:10px;">
+            <article class="evidence-card"><h4>Active Sample</h4><p>Solana micro structures show the cleanest current read.</p><div class="evidence-row"><span>Rewarding / punishing / mixed</span><strong>43 / 15 / 8</strong></div></article>
+            <article class="evidence-card"><h4>Top Contributors</h4><p>Public-safe leaders are grouped by liquidity, attention, and survival context rather than exposed proprietary sources.</p><div class="evidence-row"><span>Liquidity leader</span><strong>SOL ecosystem micro</strong></div></article>
+            <article class="evidence-card"><h4>Weakest Context</h4><p>Liquidity concentration and thin confirmation remain the main failure conditions.</p><div class="evidence-row"><span>Would weaken</span><strong>Survival fades</strong></div></article>
+            <article class="evidence-card"><h4>Why This Reads This Way</h4><p>Participation is broadening, survival is improving, and replay context is constructive, but confirmation depth is still forming.</p><div class="evidence-row"><span>Confidence</span><strong>Moderate</strong></div></article>
+          </div>
+        </details>
       </section>
 
       <section class="explain-grid">
