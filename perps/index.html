@@ -88,6 +88,18 @@
       <p class="muted" id="perpsEvidenceRead" style="margin-top:10px;">Perps evidence is loading from the public RavenOS artifact layer.</p>
     </section>
 
+    <section class="panel" style="margin-top:14px;" aria-label="Perps outcomes">
+      <div class="panel-head"><div><span class="eyebrow">Perps Outcomes</span><h2>What worked, what failed, what is still forming</h2></div><span class="pill" id="perpsOutcomeSample">Sample forming</span></div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+        <article class="panel" style="padding:12px;"><h3>Current Strength</h3><div class="list" id="perpsStrongestGroups"><div class="muted">Loading strongest groups.</div></div></article>
+        <article class="panel" style="padding:12px;"><h3>Current Weakness</h3><div class="list" id="perpsWeakestGroups"><div class="muted">Loading weakest groups.</div></div></article>
+      </div>
+      <div class="table-wrap" style="margin-top:12px;overflow-x:auto;">
+        <table><thead><tr><th>Dimension</th><th>Group</th><th>Sample</th><th>Rewarding</th><th>Punishing</th><th>Median Outcome</th><th>Confidence</th></tr></thead><tbody id="perpsOutcomeRows"><tr><td colspan="7">Loading outcome attribution.</td></tr></tbody></table>
+      </div>
+      <p class="muted" id="perpsOutcomeCaveat" style="margin-top:10px;">Outcome attribution is aggregate validation context. It is not a trading recommendation.</p>
+    </section>
+
     <section class="layout">
       <aside class="panel">
         <div class="panel-head"><div><span class="eyebrow">Instruments</span><h2>Perps universe</h2></div><span class="pill" id="accessPill">Free preview</span></div>
@@ -165,6 +177,12 @@
     function fmt(value) {
       const n = Number(value);
       return Number.isFinite(n) ? n.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "n/a";
+    }
+    function fmtPct(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "forming";
+      const sign = n > 0 ? "+" : "";
+      return `${sign}${n.toFixed(Math.abs(n) >= 10 ? 1 : 2)}%`;
     }
     function ageLabel(seconds) {
       const n = Number(seconds);
@@ -244,6 +262,23 @@
       document.getElementById("perpsEvidenceSupports").innerHTML = supports.length ? supports.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>Support evidence is forming.</li>";
       document.getElementById("perpsEvidenceCaveats").innerHTML = caveats.length ? caveats.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>Caveats are forming with the sample.</li>";
     }
+    function outcomeCard(row) {
+      return `<div class="instrument"><strong>${escapeHtml(row.group || "Current group")}</strong><br><span class="muted">${escapeHtml(row.label || "Outcome")} · ${escapeHtml(row.read || "sample forming")} · ${fmt(row.sample_size)} observations · median ${fmtPct(row.median_observed_change_pct)}</span></div>`;
+    }
+    function renderPerpsOutcomes() {
+      const envelope = state.artifacts.evidence || {};
+      const data = envelope.data || envelope;
+      const attribution = data.outcome_attribution || {};
+      const grouped = attribution.grouped || {};
+      const allRows = Object.values(grouped).flat().filter(Boolean);
+      const strongest = Array.isArray(attribution.strongest_groups) ? attribution.strongest_groups : [];
+      const weakest = Array.isArray(attribution.weakest_groups) ? attribution.weakest_groups : [];
+      setText("perpsOutcomeSample", attribution.sample_size ? `${fmt(attribution.sample_size)} observations` : "Sample forming");
+      document.getElementById("perpsStrongestGroups").innerHTML = strongest.length ? strongest.slice(0, 4).map(outcomeCard).join("") : "<div class=\"muted\">Strength groups are forming.</div>";
+      document.getElementById("perpsWeakestGroups").innerHTML = weakest.length ? weakest.slice(0, 4).map(outcomeCard).join("") : "<div class=\"muted\">Weakness groups are forming.</div>";
+      document.getElementById("perpsOutcomeRows").innerHTML = allRows.length ? allRows.slice(0, 18).map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.group)}</td><td>${fmt(row.sample_size)}</td><td>${fmt(row.rewarding)}</td><td>${fmt(row.punishing)}</td><td>${fmtPct(row.median_observed_change_pct)}</td><td>${escapeHtml(row.confidence || "developing")}</td></tr>`).join("") : "<tr><td colspan=\"7\">Outcome attribution is forming.</td></tr>";
+      setText("perpsOutcomeCaveat", attribution.public_caveat || "Outcome attribution is aggregate validation context. It is not a trading recommendation.");
+    }
     function render() {
       const row = activeRow();
       const liquidity = liquidityAttraction(row);
@@ -268,6 +303,7 @@
       renderInstruments();
       renderTable();
       renderPerpsEvidence();
+      renderPerpsOutcomes();
       window.RavenOSFeatures?.applyFeatureGates?.();
     }
     async function readJson(path) {

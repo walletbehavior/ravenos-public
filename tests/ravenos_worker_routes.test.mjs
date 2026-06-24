@@ -62,6 +62,28 @@ const publicAssetPayloads = {
       observations: 14,
       matured_windows: { "15m": 14, "1h": 14, "4h": 14, "12h": 14 },
     },
+    outcome_attribution: {
+      sample_size: 14,
+      classification: "rewarding >= +0.25%, punishing <= -0.25%, otherwise mixed",
+      grouped: {
+        pressure_bucket: [
+          {
+            label: "Pressure State",
+            group: "Constructive pressure",
+            sample_size: 8,
+            rewarding: 5,
+            punishing: 2,
+            mixed: 1,
+            median_observed_change_pct: 0.42,
+            confidence: "developing",
+            read: "rewarding in current forward observation",
+          },
+        ],
+      },
+      strongest_groups: [{ label: "Pressure State", group: "Constructive pressure", sample_size: 8, rewarding: 5, punishing: 2, median_observed_change_pct: 0.42 }],
+      weakest_groups: [{ label: "Liquidity Attraction", group: "Weak", sample_size: 6, rewarding: 1, punishing: 4, median_observed_change_pct: -0.31 }],
+      public_caveat: "Outcome attribution is aggregate validation context. It is not a trading recommendation.",
+    },
   },
   "/public/data/ravenos_summary.json": { generated_at: new Date().toISOString(), public_read: "Current read forming." },
 };
@@ -266,6 +288,8 @@ assert.equal(publicPerpsEvidencePayload.schema_version, "ravenos_perps_evidence_
 assert.equal(publicPerpsEvidencePayload.safe_public, true);
 assert.equal(publicPerpsEvidencePayload.data.summary.markets_observed, 100);
 assert.equal(publicPerpsEvidencePayload.data.summary.forward_observations, 14);
+assert.equal(publicPerpsEvidencePayload.data.outcome_attribution.sample_size, 14);
+assert.equal(publicPerpsEvidencePayload.data.outcome_attribution.grouped.pressure_bucket[0].group, "Constructive pressure");
 assert.match(JSON.stringify(publicPerpsEvidencePayload), /Hyperliquid perp markets observed/);
 assert.doesNotMatch(JSON.stringify(publicPerpsEvidencePayload), /WalletMemory|ShadowMirror|canary|live execution|private wallet|raw trade intent/i);
 
