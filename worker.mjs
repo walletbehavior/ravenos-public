@@ -1190,6 +1190,7 @@ function publicCapBandLabel(value = "") {
     fresh_pairs: "Fresh Pairs",
     live_activity: "Live Activity",
     jupiter_velocity: "Solana Routing Context",
+    participant_cohorts: "Participant Cohort Validation",
     perps_all: "Perps Context",
     perps_alts: "Perps Alts",
     perps_large_alts: "Perps Large Alts",
@@ -1388,6 +1389,28 @@ function researchRowsFromPublic(outcomes = {}, replay = {}, memory = {}, behavio
   const memoryFamilies = memory.frequent_condition_families && typeof memory.frequent_condition_families === "object"
     ? Object.entries(memory.frequent_condition_families)
     : [];
+  const fromCohortValidation = outcomeRows
+    .filter((row) => String(row.source || "") === "jupiter_helius_public_cohort_validation" || String(row.cap_band || "") === "participant_cohorts")
+    .map((row) => ({
+      view: "setup_families",
+      finding: "Participant Cohort Validation",
+      structure: "Entry-visible settled cohorts showed post-entry expansion evidence",
+      status: "Observed",
+      confidence: confidenceFromPublicSample(sampleSizeOf(row), row.confidence),
+      sample_depth: sampleSizeOf(row),
+      outcome_quality: Number(row.median_mfe_pct || 0) > 0 ? "Constructive" : "Mixed",
+      replay_strength: "Proof Context",
+      supports: [
+        `${sampleSizeOf(row).toLocaleString("en-US")} settled cohort rows`,
+        `Median post-entry MFE ${Number(row.median_mfe_pct || 0).toFixed(2)}%`,
+        `P75 post-entry MFE ${Number(row.p75_mfe_pct || 0).toFixed(2)}%`,
+        `Repeat participation ${Number(row.repeat_participation_pct || 0).toFixed(2)}%`,
+      ],
+      risks: Array.isArray(row.caveats) && row.caveats.length
+        ? row.caveats.slice(0, 3).map(researchLabel)
+        : ["Aggregate cohort evidence only", "Post-entry MFE is descriptive research", "Thin liquidity can distort extreme rows"],
+      source_module: "cohort_validation",
+    }));
   const fromOutcomes = outcomeRows.map((row) => ({
     view: "setup_families",
     finding: `${researchLabel(row.chain)} ${researchLabel(row.cap_band)}`,
@@ -1446,7 +1469,7 @@ function researchRowsFromPublic(outcomes = {}, replay = {}, memory = {}, behavio
     risks: ["Frequent conditions still need outcome confirmation"],
     source_module: "memory",
   }));
-  return [...fromOutcomes, ...fromBehavior, ...fromReplay, ...fromMemory]
+  return [...fromCohortValidation, ...fromOutcomes, ...fromBehavior, ...fromReplay, ...fromMemory]
     .filter((row) => row.finding && row.structure)
     .slice(0, 300);
 }

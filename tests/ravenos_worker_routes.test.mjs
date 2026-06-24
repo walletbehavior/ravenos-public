@@ -24,7 +24,22 @@ const publicAssetPayloads = {
   },
   "/ravenos_participant_outcomes.json": {
     generated_at: new Date().toISOString(),
-    outcomes: [{ chain: "solana", cap_band: "micro", clean_sample: 42, participant_outcome: "favorable" }],
+    outcomes: [
+      { chain: "solana", cap_band: "micro", clean_sample: 42, participant_outcome: "favorable" },
+      {
+        chain: "solana",
+        cap_band: "participant_cohorts",
+        clean_sample: 1029,
+        sample_size: 1029,
+        participant_outcome: "favorable",
+        confidence: "high",
+        source: "jupiter_helius_public_cohort_validation",
+        median_mfe_pct: 52.14,
+        p75_mfe_pct: 231.01,
+        repeat_participation_pct: 34.3,
+        caveats: ["Aggregate participant cohorts only", "No private identifiers are published"],
+      },
+    ],
   },
   "/ravenos_historical_replay.json": { generated_at: new Date().toISOString(), comparables: [] },
   "/ravenos_recent_memory.json": { generated_at: new Date().toISOString(), memory: [] },
@@ -212,6 +227,8 @@ assert.equal(publicResearchPayload.schema_version, "ravenos_research_public_v1")
 assert.equal(publicResearchPayload.safe_public, true);
 assert.ok(Array.isArray(publicResearchPayload.data.rows));
 assert.ok(publicResearchPayload.data.summary.findings_reviewed >= 1);
+assert.match(JSON.stringify(publicResearchPayload), /Participant Cohort Validation/);
+assert.match(JSON.stringify(publicResearchPayload), /Median post-entry MFE 52\.14%/);
 assert.doesNotMatch(JSON.stringify(publicResearchPayload), /WalletMemory|ShadowMirror|canary|live execution|0x[a-fA-F0-9]{40}/i);
 
 const researchStatus = await worker.fetch(new Request("https://ravenos.xyz/api/status"), env);
