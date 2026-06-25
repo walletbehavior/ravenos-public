@@ -1,6 +1,6 @@
 {
-  "count": 98,
-  "generated_at": "2026-06-25T21:45:37Z",
+  "count": 99,
+  "generated_at": "2026-06-25T22:00:35Z",
   "metadata": {
     "public_safe": true,
     "source_artifact": "ravenos_participant_outcomes.json",
@@ -98,7 +98,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "all_fresh_pairs_24h",
-      "observed_sample": 181,
+      "observed_sample": 178,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -106,11 +106,11 @@
       "plain_language_summary": "Fresh Pairs participation on All chains is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_gap": 129,
-      "sample_size": 181,
+      "sample_gap": 126,
+      "sample_size": 178,
       "sample_summary": {
-        "excluded_or_unusable": 129,
-        "observed": 181,
+        "excluded_or_unusable": 126,
+        "observed": 178,
         "unit": "market rows",
         "usable": 52
       },
@@ -140,7 +140,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "all_large_24h",
-      "observed_sample": 252,
+      "observed_sample": 250,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -149,12 +149,12 @@
       "profitability_label": "punishing outcomes",
       "public_safe": true,
       "sample_gap": 15,
-      "sample_size": 252,
+      "sample_size": 250,
       "sample_summary": {
         "excluded_or_unusable": 15,
-        "observed": 252,
+        "observed": 250,
         "unit": "market rows",
-        "usable": 237
+        "usable": 235
       },
       "score_strength": "strong",
       "search_terms": [
@@ -171,7 +171,7 @@
       ],
       "timeframe": "24h",
       "trend": "weakening",
-      "usable_sample": 237,
+      "usable_sample": 235,
       "win_rate_band": "low",
       "window": "24h"
     },
@@ -182,7 +182,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "all_mega_24h",
-      "observed_sample": 104,
+      "observed_sample": 102,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -191,12 +191,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 24,
-      "sample_size": 104,
+      "sample_size": 102,
       "sample_summary": {
         "excluded_or_unusable": 24,
-        "observed": 104,
+        "observed": 102,
         "unit": "market rows",
-        "usable": 80
+        "usable": 78
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -213,7 +213,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 80,
+      "usable_sample": 78,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -224,7 +224,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "all_micro_24h",
-      "observed_sample": 561,
+      "observed_sample": 557,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -232,11 +232,11 @@
       "plain_language_summary": "Micro-Cap participation on All chains is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_gap": 315,
-      "sample_size": 561,
+      "sample_gap": 311,
+      "sample_size": 557,
       "sample_summary": {
-        "excluded_or_unusable": 315,
-        "observed": 561,
+        "excluded_or_unusable": 311,
+        "observed": 557,
         "unit": "market rows",
         "usable": 246
       },
@@ -266,7 +266,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "all_mid_24h",
-      "observed_sample": 193,
+      "observed_sample": 194,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -275,12 +275,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 65,
-      "sample_size": 193,
+      "sample_size": 194,
       "sample_summary": {
         "excluded_or_unusable": 65,
-        "observed": 193,
+        "observed": 194,
         "unit": "market rows",
-        "usable": 128
+        "usable": 129
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -297,7 +297,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 128,
+      "usable_sample": 129,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -308,7 +308,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "all_small_24h",
-      "observed_sample": 154,
+      "observed_sample": 156,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -317,12 +317,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 29,
-      "sample_size": 154,
+      "sample_size": 156,
       "sample_summary": {
         "excluded_or_unusable": 29,
-        "observed": 154,
+        "observed": 156,
         "unit": "market rows",
-        "usable": 125
+        "usable": 127
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -339,7 +339,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 125,
+      "usable_sample": 127,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -1022,7 +1022,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "bnb_all_24h",
-      "observed_sample": 126,
+      "observed_sample": 124,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -1030,11 +1030,11 @@
       "plain_language_summary": "Broad Market participation on BNB Chain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 50,
-      "sample_size": 126,
+      "sample_gap": 48,
+      "sample_size": 124,
       "sample_summary": {
-        "excluded_or_unusable": 50,
-        "observed": 126,
+        "excluded_or_unusable": 48,
+        "observed": 124,
         "unit": "market rows",
         "usable": 76
       },
@@ -1148,7 +1148,7 @@
       "confidence": "medium",
       "derived_state": "outcomes unclear",
       "heatmap_id": "bnb_micro_24h",
-      "observed_sample": 70,
+      "observed_sample": 68,
       "outcome_score": 0.3,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -1156,11 +1156,11 @@
       "plain_language_summary": "Micro-Cap participation on BNB Chain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 45,
-      "sample_size": 70,
+      "sample_gap": 43,
+      "sample_size": 68,
       "sample_summary": {
-        "excluded_or_unusable": 45,
-        "observed": 70,
+        "excluded_or_unusable": 43,
+        "observed": 68,
         "unit": "market rows",
         "usable": 25
       },
@@ -1400,7 +1400,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "eth_all_24h",
-      "observed_sample": 88,
+      "observed_sample": 87,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -1409,12 +1409,12 @@
       "profitability_label": "punishing outcomes",
       "public_safe": true,
       "sample_gap": 13,
-      "sample_size": 88,
+      "sample_size": 87,
       "sample_summary": {
         "excluded_or_unusable": 13,
-        "observed": 88,
+        "observed": 87,
         "unit": "market rows",
-        "usable": 75
+        "usable": 74
       },
       "score_strength": "strong",
       "search_terms": [
@@ -1431,7 +1431,7 @@
       ],
       "timeframe": "24h",
       "trend": "weakening",
-      "usable_sample": 75,
+      "usable_sample": 74,
       "win_rate_band": "low",
       "window": "24h"
     },
@@ -1484,7 +1484,7 @@
       "confidence": "medium",
       "derived_state": "participation punishing",
       "heatmap_id": "eth_large_24h",
-      "observed_sample": 34,
+      "observed_sample": 33,
       "outcome_score": 0.612,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -1493,12 +1493,12 @@
       "profitability_label": "punishing outcomes",
       "public_safe": true,
       "sample_gap": 5,
-      "sample_size": 34,
+      "sample_size": 33,
       "sample_summary": {
         "excluded_or_unusable": 5,
-        "observed": 34,
+        "observed": 33,
         "unit": "market rows",
-        "usable": 29
+        "usable": 28
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -1515,7 +1515,7 @@
       ],
       "timeframe": "24h",
       "trend": "weakening",
-      "usable_sample": 29,
+      "usable_sample": 28,
       "win_rate_band": "low",
       "window": "24h"
     },
@@ -1523,24 +1523,24 @@
       "avg_outcome": "mixed",
       "cap_band": "live_activity",
       "chain": "eth",
-      "confidence": "medium",
+      "confidence": "low",
       "derived_state": "outcomes unclear",
       "heatmap_id": "eth_live_activity_live",
-      "observed_sample": 12,
-      "outcome_score": 0.3,
-      "outcome_strength": "mixed",
+      "observed_sample": 0,
+      "outcome_score": 0.18,
+      "outcome_strength": "building",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
       "participant_success_rate": 0.5,
       "plain_language_summary": "Live Activity participation on Ethereum is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 0,
-      "sample_size": 12,
+      "sample_size": 8,
       "sample_summary": {
         "excluded_or_unusable": 0,
-        "observed": 12,
+        "observed": 0,
         "unit": "market rows",
-        "usable": 12
+        "usable": 8
       },
       "score_strength": "weak",
       "search_terms": [
@@ -1557,7 +1557,7 @@
       ],
       "timeframe": "live",
       "trend": "stable",
-      "usable_sample": 12,
+      "usable_sample": 8,
       "win_rate_band": "medium",
       "window": "live"
     },
@@ -1691,11 +1691,11 @@
       "avg_outcome": "mixed",
       "cap_band": "participant_cohorts",
       "chain": "eth",
-      "confidence": "medium",
+      "confidence": "low",
       "derived_state": "outcomes unclear",
       "heatmap_id": "eth_participant_cohorts_live",
       "observed_sample": 37,
-      "outcome_score": 0.3,
+      "outcome_score": 0.18,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
       "participant_success_rate": 0.5,
@@ -2867,26 +2867,26 @@
       "avg_outcome": "mixed",
       "cap_band": "all",
       "chain": "pulsechain",
-      "confidence": "medium",
+      "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "pulsechain_all_24h",
-      "observed_sample": 81,
-      "outcome_score": 0.3,
+      "observed_sample": 87,
+      "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
       "participant_success_rate": 0.5,
       "plain_language_summary": "Broad Market participation on Pulsechain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 42,
-      "sample_size": 81,
+      "sample_gap": 45,
+      "sample_size": 87,
       "sample_summary": {
-        "excluded_or_unusable": 42,
-        "observed": 81,
+        "excluded_or_unusable": 45,
+        "observed": 87,
         "unit": "market rows",
-        "usable": 39
+        "usable": 42
       },
-      "score_strength": "weak",
+      "score_strength": "moderate",
       "search_terms": [
         "rewarding",
         "punishing",
@@ -2901,7 +2901,49 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 39,
+      "usable_sample": 42,
+      "win_rate_band": "medium",
+      "window": "24h"
+    },
+    {
+      "avg_outcome": "mixed",
+      "cap_band": "fresh_pairs",
+      "chain": "pulsechain",
+      "confidence": "low",
+      "derived_state": "outcomes unclear",
+      "heatmap_id": "pulsechain_fresh_pairs_24h",
+      "observed_sample": 5,
+      "outcome_score": 0.204,
+      "outcome_strength": "building",
+      "participant_outcome_context": "This condition appears while mixed outcomes.",
+      "participant_success_rate": 0.52,
+      "plain_language_summary": "Fresh Pairs participation on Pulsechain is mixed or still unclear.",
+      "profitability_label": "mixed outcomes",
+      "public_safe": true,
+      "sample_gap": 2,
+      "sample_size": 5,
+      "sample_summary": {
+        "excluded_or_unusable": 2,
+        "observed": 5,
+        "unit": "market rows",
+        "usable": 3
+      },
+      "score_strength": "weak",
+      "search_terms": [
+        "rewarding",
+        "punishing",
+        "outcome quality",
+        "participants",
+        "outcomes unclear",
+        "mixed outcomes",
+        "improving",
+        "pulsechain",
+        "fresh_pairs",
+        "24h"
+      ],
+      "timeframe": "24h",
+      "trend": "improving",
+      "usable_sample": 3,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -2996,7 +3038,7 @@
       "confidence": "medium",
       "derived_state": "outcomes unclear",
       "heatmap_id": "pulsechain_micro_24h",
-      "observed_sample": 38,
+      "observed_sample": 42,
       "outcome_score": 0.3,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3004,13 +3046,13 @@
       "plain_language_summary": "Micro-Cap participation on Pulsechain is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 20,
-      "sample_size": 38,
+      "sample_gap": 21,
+      "sample_size": 42,
       "sample_summary": {
-        "excluded_or_unusable": 20,
-        "observed": 38,
+        "excluded_or_unusable": 21,
+        "observed": 42,
         "unit": "market rows",
-        "usable": 18
+        "usable": 21
       },
       "score_strength": "weak",
       "search_terms": [
@@ -3027,7 +3069,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 18,
+      "usable_sample": 21,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3122,7 +3164,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_all_24h",
-      "observed_sample": 526,
+      "observed_sample": 520,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3130,13 +3172,13 @@
       "plain_language_summary": "Broad Market participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 196,
-      "sample_size": 526,
+      "sample_gap": 193,
+      "sample_size": 520,
       "sample_summary": {
-        "excluded_or_unusable": 196,
-        "observed": 526,
+        "excluded_or_unusable": 193,
+        "observed": 520,
         "unit": "market rows",
-        "usable": 330
+        "usable": 327
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3153,7 +3195,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 330,
+      "usable_sample": 327,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3164,7 +3206,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "solana_fresh_pairs_24h",
-      "observed_sample": 166,
+      "observed_sample": 159,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -3172,13 +3214,13 @@
       "plain_language_summary": "Fresh Pairs participation on Solana is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_gap": 123,
-      "sample_size": 166,
+      "sample_gap": 119,
+      "sample_size": 159,
       "sample_summary": {
-        "excluded_or_unusable": 123,
-        "observed": 166,
+        "excluded_or_unusable": 119,
+        "observed": 159,
         "unit": "market rows",
-        "usable": 43
+        "usable": 40
       },
       "score_strength": "strong",
       "search_terms": [
@@ -3195,32 +3237,32 @@
       ],
       "timeframe": "24h",
       "trend": "weakening",
-      "usable_sample": 43,
+      "usable_sample": 40,
       "win_rate_band": "low",
       "window": "24h"
     },
     {
-      "avg_outcome": "mixed",
+      "avg_outcome": "positive",
       "cap_band": "jupiter_velocity",
       "chain": "solana",
-      "confidence": "high",
-      "derived_state": "outcomes unclear",
+      "confidence": "medium",
+      "derived_state": "participation rewarding",
       "heatmap_id": "solana_jupiter_velocity_live",
-      "observed_sample": 185,
-      "outcome_score": 0.4,
-      "outcome_strength": "mixed",
-      "participant_outcome_context": "This condition appears while mixed outcomes.",
-      "participant_success_rate": 0.5,
-      "plain_language_summary": "Jupiter Velocity participation on Solana is mixed or still unclear.",
-      "profitability_label": "mixed outcomes",
+      "observed_sample": 194,
+      "outcome_score": 0.516,
+      "outcome_strength": "strong",
+      "participant_outcome_context": "This condition appears while rewarding outcomes.",
+      "participant_success_rate": 0.68,
+      "plain_language_summary": "Jupiter Velocity participation on Solana is producing stronger public outcomes than most rows.",
+      "profitability_label": "rewarding outcomes",
       "public_safe": true,
-      "sample_gap": 153,
-      "sample_size": 185,
+      "sample_gap": 176,
+      "sample_size": 194,
       "sample_summary": {
-        "excluded_or_unusable": 153,
-        "observed": 185,
+        "excluded_or_unusable": 176,
+        "observed": 194,
         "unit": "market rows",
-        "usable": 32
+        "usable": 18
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3228,17 +3270,17 @@
         "punishing",
         "outcome quality",
         "participants",
-        "outcomes unclear",
-        "mixed outcomes",
-        "stable",
+        "participation rewarding",
+        "rewarding outcomes",
+        "improving",
         "solana",
         "jupiter_velocity",
         "live"
       ],
       "timeframe": "live",
-      "trend": "stable",
-      "usable_sample": 32,
-      "win_rate_band": "medium",
+      "trend": "improving",
+      "usable_sample": 18,
+      "win_rate_band": "high",
       "window": "live"
     },
     {
@@ -3248,7 +3290,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_large_24h",
-      "observed_sample": 94,
+      "observed_sample": 93,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3257,12 +3299,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 2,
-      "sample_size": 94,
+      "sample_size": 93,
       "sample_summary": {
         "excluded_or_unusable": 2,
-        "observed": 94,
+        "observed": 93,
         "unit": "market rows",
-        "usable": 92
+        "usable": 91
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3279,7 +3321,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 92,
+      "usable_sample": 91,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3290,7 +3332,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_live_activity_live",
-      "observed_sample": 3960106,
+      "observed_sample": 4227315,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3298,13 +3340,13 @@
       "plain_language_summary": "Live Activity participation on Solana is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
-      "sample_gap": 2049774,
-      "sample_size": 3960106,
+      "sample_gap": 2218788,
+      "sample_size": 4227315,
       "sample_summary": {
-        "excluded_or_unusable": 2049774,
-        "observed": 3960106,
+        "excluded_or_unusable": 2218788,
+        "observed": 4227315,
         "unit": "market rows",
-        "usable": 1910332
+        "usable": 2008527
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3321,7 +3363,7 @@
       ],
       "timeframe": "live",
       "trend": "stable",
-      "usable_sample": 1910332,
+      "usable_sample": 2008527,
       "win_rate_band": "medium",
       "window": "live"
     },
@@ -3332,7 +3374,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_mega_24h",
-      "observed_sample": 66,
+      "observed_sample": 64,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3341,12 +3383,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 10,
-      "sample_size": 66,
+      "sample_size": 64,
       "sample_summary": {
         "excluded_or_unusable": 10,
-        "observed": 66,
+        "observed": 64,
         "unit": "market rows",
-        "usable": 56
+        "usable": 54
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3363,7 +3405,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 56,
+      "usable_sample": 54,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3374,7 +3416,7 @@
       "confidence": "high",
       "derived_state": "participation punishing",
       "heatmap_id": "solana_micro_24h",
-      "observed_sample": 269,
+      "observed_sample": 263,
       "outcome_score": 0.712,
       "outcome_strength": "weak",
       "participant_outcome_context": "This condition appears while punishing outcomes.",
@@ -3382,13 +3424,13 @@
       "plain_language_summary": "Micro-Cap participation on Solana is producing weaker public outcomes in the current sample.",
       "profitability_label": "punishing outcomes",
       "public_safe": true,
-      "sample_gap": 170,
-      "sample_size": 269,
+      "sample_gap": 167,
+      "sample_size": 263,
       "sample_summary": {
-        "excluded_or_unusable": 170,
-        "observed": 269,
+        "excluded_or_unusable": 167,
+        "observed": 263,
         "unit": "market rows",
-        "usable": 99
+        "usable": 96
       },
       "score_strength": "strong",
       "search_terms": [
@@ -3405,7 +3447,7 @@
       ],
       "timeframe": "24h",
       "trend": "weakening",
-      "usable_sample": 99,
+      "usable_sample": 96,
       "win_rate_band": "low",
       "window": "24h"
     },
@@ -3416,7 +3458,7 @@
       "confidence": "medium",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_mid_24h",
-      "observed_sample": 30,
+      "observed_sample": 31,
       "outcome_score": 0.3,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3425,12 +3467,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 1,
-      "sample_size": 30,
+      "sample_size": 31,
       "sample_summary": {
         "excluded_or_unusable": 1,
-        "observed": 30,
+        "observed": 31,
         "unit": "market rows",
-        "usable": 29
+        "usable": 30
       },
       "score_strength": "weak",
       "search_terms": [
@@ -3447,7 +3489,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 29,
+      "usable_sample": 30,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3458,7 +3500,7 @@
       "confidence": "medium",
       "derived_state": "participation rewarding",
       "heatmap_id": "solana_participant_cohorts_live",
-      "observed_sample": 1950,
+      "observed_sample": 1934,
       "outcome_score": 0.516,
       "outcome_strength": "strong",
       "participant_outcome_context": "This condition appears while rewarding outcomes.",
@@ -3466,13 +3508,13 @@
       "plain_language_summary": "Participant Cohorts participation on Solana is producing stronger public outcomes than most rows.",
       "profitability_label": "rewarding outcomes",
       "public_safe": true,
-      "sample_gap": 1217,
-      "sample_size": 1950,
+      "sample_gap": 1195,
+      "sample_size": 1934,
       "sample_summary": {
-        "excluded_or_unusable": 1217,
-        "observed": 1950,
+        "excluded_or_unusable": 1195,
+        "observed": 1934,
         "unit": "market rows",
-        "usable": 733
+        "usable": 739
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3489,7 +3531,7 @@
       ],
       "timeframe": "live",
       "trend": "improving",
-      "usable_sample": 733,
+      "usable_sample": 739,
       "win_rate_band": "high",
       "window": "live"
     },
@@ -3500,7 +3542,7 @@
       "confidence": "high",
       "derived_state": "outcomes unclear",
       "heatmap_id": "solana_small_24h",
-      "observed_sample": 61,
+      "observed_sample": 63,
       "outcome_score": 0.4,
       "outcome_strength": "mixed",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
@@ -3509,12 +3551,12 @@
       "profitability_label": "mixed outcomes",
       "public_safe": true,
       "sample_gap": 7,
-      "sample_size": 61,
+      "sample_size": 63,
       "sample_summary": {
         "excluded_or_unusable": 7,
-        "observed": 61,
+        "observed": 63,
         "unit": "market rows",
-        "usable": 54
+        "usable": 56
       },
       "score_strength": "moderate",
       "search_terms": [
@@ -3531,7 +3573,7 @@
       ],
       "timeframe": "24h",
       "trend": "stable",
-      "usable_sample": 54,
+      "usable_sample": 56,
       "win_rate_band": "medium",
       "window": "24h"
     },
@@ -3795,10 +3837,10 @@
       "derived_state": "outcomes unclear",
       "heatmap_id": "ton_micro_24h",
       "observed_sample": 6,
-      "outcome_score": 0.18,
+      "outcome_score": 0.42,
       "outcome_strength": "building",
       "participant_outcome_context": "This condition appears while mixed outcomes.",
-      "participant_success_rate": 0.5,
+      "participant_success_rate": 0.3,
       "plain_language_summary": "Micro-Cap participation on Ton is mixed or still unclear.",
       "profitability_label": "mixed outcomes",
       "public_safe": true,
@@ -3810,7 +3852,7 @@
         "unit": "market rows",
         "usable": 5
       },
-      "score_strength": "weak",
+      "score_strength": "moderate",
       "search_terms": [
         "rewarding",
         "punishing",
@@ -3818,15 +3860,15 @@
         "participants",
         "outcomes unclear",
         "mixed outcomes",
-        "stable",
+        "weakening",
         "ton",
         "micro",
         "24h"
       ],
       "timeframe": "24h",
-      "trend": "stable",
+      "trend": "weakening",
       "usable_sample": 5,
-      "win_rate_band": "medium",
+      "win_rate_band": "low",
       "window": "24h"
     },
     {
