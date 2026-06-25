@@ -1,19 +1,19 @@
 {
   "chain_lane_freshness": {
     "base": {
-      "age_s": 0,
+      "age_s": 1,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-06-25T13:45:02Z"
+      "updated_at": "2026-06-25T14:00:03Z"
     },
     "eth": {
-      "age_s": 0,
+      "age_s": 1,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-06-25T13:45:02Z"
+      "updated_at": "2026-06-25T14:00:03Z"
     },
     "sol": {
-      "age_s": 0,
+      "age_s": 1,
       "source": "ravenos_public_snapshot.json",
-      "updated_at": "2026-06-25T13:45:02Z"
+      "updated_at": "2026-06-25T14:00:03Z"
     }
   },
   "chains": [
@@ -80,10 +80,10 @@
     }
   ],
   "freshness": {
-    "age_seconds": 0,
+    "age_seconds": 1,
     "status": "fresh"
   },
-  "generated_at": "2026-06-25T13:45:02Z",
+  "generated_at": "2026-06-25T14:00:04Z",
   "public_read": "Latest read is flat; longer-window confirmation is confirming. This is a system-quality summary, not financial advice.",
   "regime": {
     "confirmation": "confirming",
@@ -92,7 +92,7 @@
     "outlier_dependency": "unknown"
   },
   "source_artifact_mtimes": {
-    "ravenos_public_snapshot.json": 1782395102
+    "ravenos_public_snapshot.json": 1782396003
   },
   "source_quality": {
     "label": "degraded",
