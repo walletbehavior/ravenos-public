@@ -16,3 +16,17 @@ atlas_research_permission.json
 telegram*
 *.key
 *.pem
+.deploy-public/
+playwright-report/
+test-results/
+node_modules/
+.netlify/
+scripts/__pycache__/
+ravenos_build.json
+public/ravenos_build.json
+public/public_routes.json
+public_routes.json
+ravenos/
+public/ravenos/
+public/data/
+public/ravenos_research_snapshot.json

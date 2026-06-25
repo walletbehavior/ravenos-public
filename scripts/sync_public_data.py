@@ -99,7 +99,7 @@ def placeholder_summary() -> dict:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Sync public-safe RavenOS summary into the Pages repo.")
-    parser.add_argument("--repo-root", default="/srv/raven/ravenos-public")
+    parser.add_argument("--repo-root", default="/srv/raven/app/ravenos-public")
     parser.add_argument("--source-root", default="/srv/raven/app")
     args = parser.parse_args(argv[1:])
 
@@ -145,6 +145,7 @@ def _copy_browser_facing_artifacts(repo_root, source_root):
     repo_root = Path(repo_root)
     source_root = Path(source_root)
     public_root = repo_root / "public"
+    mirror_root = repo_root
 
     copies = [
         (
@@ -156,6 +157,24 @@ def _copy_browser_facing_artifacts(repo_root, source_root):
             public_root / "ravenos_public_snapshot.json",
         ),
     ]
+
+    origin_root = source_root / "data/ravenos_public_origin/public/ravenos"
+    if origin_root.exists():
+        for name in [
+            "brief.json",
+            "replay.json",
+            "outcomes.json",
+            "memory.json",
+            "behavior.json",
+            "research.json",
+            "perps.json",
+            "claims.json",
+            "status.json",
+            "manifest.json",
+            "terminal_health.json",
+        ]:
+            copies.append((origin_root / name, public_root / "ravenos" / name))
+            copies.append((origin_root / name, mirror_root / "ravenos" / name))
 
     for src, dst in copies:
         if not src.exists():

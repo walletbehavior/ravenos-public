@@ -3,18 +3,29 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
     "build": "node scripts/cloudflare-build-check.mjs",
-    "pages:build": "node scripts/cloudflare-build-check.mjs",
-    "build:pages": "node scripts/cloudflare-build-check.mjs",
-    "cf:build": "node scripts/cloudflare-build-check.mjs",
-    "export": "node scripts/cloudflare-build-check.mjs",
-    "generate": "node scripts/cloudflare-build-check.mjs"
+    "test:browser": "playwright test",
+    "test:browser:terminal": "playwright test tests/browser/terminal-chart.spec.mjs",
+    "pages:build": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
+    "build:pages": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
+    "cf:build": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
+    "export": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
+    "generate": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
+    "generate:routes": "node scripts/generate-public-routes.mjs",
+    "verify:production": "node scripts/verify_ravenos_production.mjs",
+    "deploy:whoami": "npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs whoami",
+    "deploy:dry-run": "npm run build && npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs deploy --dry-run"
   },
   "engines": {
-    "node": ">=18.19.0"
+    "node": "22.x"
   },
   "dependencies": {
     "bs58": "^6.0.0",
     "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "wrangler": "4.104.0"
   }
 }

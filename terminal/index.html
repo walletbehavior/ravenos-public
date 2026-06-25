@@ -55,6 +55,27 @@
     .brand h1 { margin: 0; font-size: 20px; line-height: 1; }
     .eyebrow { color: var(--cyan); font-size: 10px; line-height: 1; font-weight: 850; text-transform: uppercase; }
     .muted { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .main-nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .main-nav a {
+      border: 1px solid var(--line);
+      background: #0c1815;
+      color: var(--text);
+      min-height: 32px;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 850;
+      text-align: center;
+    }
+    .main-nav a.active {
+      border-color: var(--line-strong);
+      background: rgba(125, 211, 252, 0.12);
+      color: var(--cyan);
+    }
     .controls {
       display: grid;
       grid-template-columns: 180px 200px 140px;
@@ -82,19 +103,82 @@
     select:focus, input:focus { border-color: var(--cyan); }
     .main {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 330px;
-      grid-template-rows: minmax(420px, 1fr) minmax(260px, 34vh);
+      grid-template-columns: 260px minmax(0, 1fr) 360px;
+      grid-template-rows: minmax(460px, 56vh) auto minmax(380px, 42vh);
+      grid-template-areas:
+        "rail chart intel"
+        "rail evidence evidence"
+        "rail table table";
       gap: 12px;
       padding: 12px;
       min-height: 0;
+      align-items: stretch;
     }
+    .main > * { min-height: 0; }
     .panel {
       border: 1px solid var(--line);
       background: var(--panel);
       min-width: 0;
       min-height: 0;
     }
-    .chart-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .chart-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+    .chart-panel { grid-area: chart; }
+    .rail {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+      background: var(--panel);
+      grid-area: rail;
+    }
+    .rail-body {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px 12px;
+      min-height: 0;
+      overflow: auto;
+    }
+    .rail-section {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .rail-section h3 {
+      margin: 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .rail-group {
+      display: grid;
+      gap: 6px;
+    }
+    .rail-group strong {
+      color: var(--text);
+      font-size: 12px;
+    }
+    .rail-nav {
+      display: grid;
+      gap: 6px;
+    }
+    .rail-nav button {
+      border: 1px solid var(--line);
+      background: #0c1815;
+      color: var(--text);
+      padding: 8px 10px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .rail-nav button.active {
+      border-color: var(--line-strong);
+      background: rgba(125, 211, 252, 0.12);
+      color: var(--cyan);
+    }
     .panel-head {
       display: flex;
       justify-content: space-between;
@@ -121,8 +205,10 @@
     .chart-host { min-height: 0; height: 100%; }
     .intel {
       display: grid;
-      grid-template-rows: auto repeat(5, auto) minmax(0, 1fr);
+      grid-template-rows: auto repeat(5, auto) auto;
       gap: 0;
+      grid-area: intel;
+      overflow: auto;
     }
     .score {
       padding: 14px;
@@ -142,10 +228,148 @@
     }
     .intel-row strong { color: var(--text); }
     .brief { padding: 14px; color: #b9c9c2; font-size: 12px; line-height: 1.5; }
+    .intel .trade-shell { margin: 10px 12px 12px; }
+    .trade-shell {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .trade-shell > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+    }
+    .trade-shell > summary::-webkit-details-marker { display: none; }
+    .trade-stack {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      background: rgba(12, 24, 21, 0.35);
+    }
+    .trade-banner {
+      border: 1px solid var(--line-strong);
+      background: rgba(125, 211, 252, 0.08);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .trade-section {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .trade-section h3 {
+      margin: 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .trade-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .trade-grid.single {
+      grid-template-columns: 1fr;
+    }
+    .trade-field {
+      display: grid;
+      gap: 4px;
+    }
+    .trade-field label {
+      color: var(--soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 850;
+    }
+    .trade-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .trade-button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      background: #0c1815;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .trade-button[disabled] {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    .trade-kv {
+      display: grid;
+      gap: 6px;
+    }
+    .trade-kv div {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .trade-kv strong { color: var(--text); }
+    .trade-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .trade-live {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .status-good { color: var(--green); }
+    .status-warn { color: var(--yellow); }
+    .status-bad { color: var(--red); }
+    .proof-box {
+      border: 1px dashed var(--line-strong);
+      background: rgba(125, 211, 252, 0.04);
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
     .table-panel {
-      grid-column: 1 / -1;
+      grid-area: table;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
+      min-height: 380px;
+    }
+    .evidence-band {
+      grid-area: evidence;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      min-height: 0;
+    }
+    .evidence-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 10px 12px;
+      display: grid;
+      gap: 6px;
+    }
+    .evidence-card span {
+      color: var(--soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 850;
+    }
+    .evidence-card strong {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.4;
     }
     .table-tools {
       display: flex;
@@ -154,7 +378,10 @@
       align-items: center;
     }
     .table-tools input { width: min(280px, 100%); }
-    .table-wrap { overflow: auto; }
+    .table-wrap {
+      overflow: auto;
+      min-height: 300px;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -184,16 +411,57 @@
     .risk-stable { color: var(--green); font-weight: 850; }
     .risk-watch { color: var(--yellow); font-weight: 850; }
     .risk-elevated { color: var(--red); font-weight: 850; }
+    .state-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 12px;
+    }
+    .state-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 10px 12px;
+    }
+    .state-card span {
+      display: block;
+      color: var(--soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 850;
+    }
+    .state-card strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 12px;
+    }
+    .build-mark {
+      padding: 0 12px 14px;
+      color: var(--soft);
+      font-size: 11px;
+    }
     @media (max-width: 1100px) {
       .topbar { grid-template-columns: 1fr; }
       .controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+      .state-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto auto;
+        grid-template-areas:
+          "chart"
+          "intel"
+          "rail"
+          "evidence"
+          "table";
+      }
+      .evidence-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .chart-host { height: 520px; }
     }
     @media (max-width: 680px) {
       .controls { grid-template-columns: 1fr; }
+      .state-strip { grid-template-columns: 1fr; padding: 0 8px; }
       .main { padding: 8px; gap: 8px; }
       .panel-head { align-items: flex-start; flex-direction: column; }
+      .evidence-band { grid-template-columns: 1fr; }
       .chart-host { height: 430px; }
       .score strong { font-size: 46px; }
     }
@@ -206,14 +474,26 @@
         <span class="eyebrow">RavenOS Flow Terminal</span>
         <h1>Market Intelligence</h1>
         <p class="muted">TradingView-style charting, Bloomberg-density panels, and Nansen-style participant context.</p>
+        <nav class="main-nav" aria-label="Primary navigation">
+          <a href="/">Home</a>
+          <a href="/brief/">Brief</a>
+          <a href="/opportunity/">Opportunity</a>
+          <a class="active" href="/terminal/">Terminal</a>
+          <a href="/replay/">Replay</a>
+          <a href="/outcomes/">Outcomes</a>
+          <a href="/memory/">Memory</a>
+          <a href="/behavior/">Behavior</a>
+          <a href="/research/">Research</a>
+          <a href="/perps/">Perps</a>
+        </nav>
       </div>
       <section class="controls" aria-label="Terminal selectors">
         <div class="control">
           <label for="marketSelect">Market</label>
           <select id="marketSelect">
             <option value="crypto_spot">Crypto Spot</option>
-            <option value="perpetuals">Perpetual Futures</option>
-            <option value="macro">Macro Watch</option>
+            <option value="perpetuals" selected>Perpetual Futures</option>
+            <option value="equities">Equities / ETFs</option>
           </select>
         </div>
         <div class="control">
@@ -232,17 +512,56 @@
       </section>
     </header>
 
+    <section class="state-strip" aria-label="Terminal state">
+      <div class="state-card"><span>Market Feed</span><strong id="marketFeedState">Structure Proxy</strong></div>
+      <div class="state-card"><span>Chart Provider</span><strong id="chartProviderState">Structure Proxy</strong></div>
+      <div class="state-card"><span>Instrument Coverage</span><strong id="instrumentCoverageState">Coverage Developing</strong></div>
+      <div class="state-card"><span>Wallet Connection</span><strong id="walletConnectionState">Not connected</strong></div>
+      <div class="state-card"><span>Trading Account</span><strong>Not connected</strong></div>
+      <div class="state-card"><span>Trade Feature State</span><strong id="tradeFeatureState">Quote-only preview</strong></div>
+    </section>
+
     <section class="main">
+      <aside class="panel rail" aria-label="Instrument navigation">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="eyebrow">Navigate</span>
+            <h2>Instrument Navigation</h2>
+          </div>
+        </div>
+        <div class="rail-body">
+          <section class="rail-section">
+            <h3>Market</h3>
+            <div class="rail-group">
+              <strong id="instrumentRailMarket">Perpetual Futures</strong>
+              <div class="muted" id="instrumentRailMarketDetail">Select the market category to change the instrument set.</div>
+            </div>
+          </section>
+          <section class="rail-section">
+            <h3>Instruments</h3>
+            <div class="rail-nav" id="instrumentRailNav"></div>
+          </section>
+        </div>
+      </aside>
+
       <article class="panel chart-panel">
         <div class="panel-head">
           <div class="panel-title">
             <span class="eyebrow">Chart</span>
             <h2 id="chartTitle">SOL-PERP Flow Chart</h2>
-            <p class="muted" id="chartSubtitle">Mock OHLCV with RavenOS overlays.</p>
+            <p class="muted" id="chartSubtitle">Provider-backed candles when available. Structure Proxy otherwise.</p>
           </div>
-          <div class="pills"><span class="pill">Candles</span><span class="pill">Volume</span><span class="pill">Flow overlays</span></div>
+          <div class="pills">
+            <span class="pill" id="chartFreshnessPill">Loading</span>
+            <span class="pill" id="chartModePill">Candles</span>
+            <span class="pill">Flow overlays</span>
+          </div>
         </div>
         <div class="chart-host" id="flowChart"></div>
+        <details class="build-mark" id="chartDiagnostics">
+          <summary>Data info</summary>
+          <div id="chartDataInfo">Source pending.</div>
+        </details>
       </article>
 
       <aside class="panel intel" aria-label="RavenOS intelligence panel">
@@ -256,7 +575,117 @@
         <div class="intel-row"><span>Risk Rating</span><strong id="riskRating">Watch</strong></div>
         <div class="intel-row"><span>Last Updated</span><strong id="lastUpdated">2m ago</strong></div>
         <div class="brief" id="terminalBrief">Flow is expanding while participant activity remains high. Risk posture is watch-level because liquidity depth is stable but attention velocity is elevated.</div>
+        <details class="trade-shell" aria-label="Quote-only terminal">
+          <summary>Quote Review</summary>
+          <section class="trade-stack">
+            <div class="trade-banner">
+              <strong>Quote-only preview.</strong> Signing disabled. Submission disabled. No transaction will be broadcast from this terminal path.
+            </div>
+
+            <div class="trade-section">
+              <h3>Quote</h3>
+              <div class="trade-grid">
+                <div class="trade-field">
+                  <label for="tradeDirectionSelect">Pair</label>
+                  <select id="tradeDirectionSelect">
+                    <option value="SOL_USDC">SOL → USDC</option>
+                    <option value="USDC_SOL">USDC → SOL</option>
+                  </select>
+                </div>
+                <div class="trade-field">
+                  <label for="tradeAmountInput">Amount</label>
+                  <input id="tradeAmountInput" type="text" inputmode="decimal" value="0.10" />
+                </div>
+                <div class="trade-field">
+                  <label for="tradeSlippageInput">Slippage (bps)</label>
+                  <input id="tradeSlippageInput" type="number" min="5" max="500" step="5" value="50" />
+                </div>
+                <div class="trade-field">
+                  <label for="tradeQuoteState">Quote state</label>
+                  <input id="tradeQuoteState" type="text" value="Awaiting request" readonly />
+                </div>
+              </div>
+              <div class="trade-actions">
+                <button class="trade-button" type="button" id="getQuoteButton">Get quote</button>
+                <button class="trade-button" type="button" id="refreshQuoteButton" disabled>Refresh quote</button>
+              </div>
+              <div class="trade-live" id="quoteStatusLive" aria-live="polite"></div>
+              <div class="trade-kv">
+                <div><span>Expected output</span><strong id="quoteExpectedOutput">Pending</strong></div>
+                <div><span>Minimum output</span><strong id="quoteMinimumOutput">Pending</strong></div>
+                <div><span>Price impact</span><strong id="quotePriceImpact">Pending</strong></div>
+                <div><span>Quote expiry</span><strong id="quoteExpiry">Pending</strong></div>
+              </div>
+            </div>
+
+            <div class="trade-section">
+              <h3>Wallet compatibility</h3>
+              <div class="trade-note" id="walletCapabilityDetail">Detect a supported Solana wallet for compatibility review. Connection is explicit and read-only.</div>
+              <div class="trade-actions">
+                <button class="trade-button" type="button" id="detectWalletButton">Detect wallets</button>
+                <button class="trade-button" type="button" id="connectPhantomButton">Connect Phantom</button>
+                <button class="trade-button" type="button" id="connectSolflareButton">Connect Solflare</button>
+                <button class="trade-button" type="button" id="disconnectWalletButton" disabled>Disconnect</button>
+              </div>
+              <div class="trade-kv">
+                <div><span>Wallet state</span><strong id="walletReviewState">Capability unknown</strong></div>
+                <div><span>Wallet family</span><strong id="walletReviewFamily">Pending</strong></div>
+                <div><span>Versioned transactions</span><strong id="walletVersionedState">Pending</strong></div>
+                <div><span>Public address</span><strong id="walletPublicAddress">Not connected</strong></div>
+              </div>
+            </div>
+
+            <div class="trade-section">
+              <h3>Route inspection</h3>
+              <div class="trade-actions">
+                <button class="trade-button" type="button" id="inspectRouteButton" disabled>Inspect route</button>
+              </div>
+              <div class="trade-kv">
+                <div><span>Inspection state</span><strong id="inspectionState">Not requested</strong></div>
+                <div><span>Route venues</span><strong id="inspectionVenues">Pending</strong></div>
+                <div><span>Transaction preview</span><strong id="inspectionPreviewHash">Pending</strong></div>
+                <div><span>Warnings</span><strong id="inspectionWarnings">None</strong></div>
+              </div>
+              <div class="trade-note" id="inspectionSummary">Inspection checks will validate route consistency, signer requirements, lookup tables, and unknown instructions before review.</div>
+            </div>
+
+            <div class="trade-section">
+              <h3>Review</h3>
+              <div class="trade-actions">
+                <button class="trade-button" type="button" id="createReviewButton" disabled>Create review</button>
+                <button class="trade-button" type="button" id="viewEvidenceButton" disabled>View evidence</button>
+                <button class="trade-button" type="button" id="exportReviewButton" disabled>Export JSON</button>
+              </div>
+              <div class="trade-kv">
+                <div><span>Review state</span><strong id="reviewState">Draft</strong></div>
+                <div><span>Evidence ID</span><strong id="reviewEvidenceId">Pending</strong></div>
+                <div><span>Persistence</span><strong id="reviewPersistenceState">Pending</strong></div>
+                <div><span>Blocking reasons</span><strong id="reviewBlockingReasons">None</strong></div>
+              </div>
+              <div class="proof-box" id="reviewProofBox">Immutable review packet pending. The proof record will remain quote-only and redacted.</div>
+            </div>
+          </section>
+        </details>
       </aside>
+
+      <section class="evidence-band" aria-label="Evidence and validation summary">
+        <article class="evidence-card">
+          <span>Confidence</span>
+          <strong id="confidenceSummary">Developing confidence with live provider-backed charting and quote-only review.</strong>
+        </article>
+        <article class="evidence-card">
+          <span>Provenance</span>
+          <strong id="provenanceSummary">Market context, chart data, and review packets are provenance-aware and build-stamped.</strong>
+        </article>
+        <article class="evidence-card">
+          <span>Evidence</span>
+          <strong id="evidenceSummary">Immutable review packets and proof lookup remain quote-only and redacted.</strong>
+        </article>
+        <article class="evidence-card">
+          <span>Validation</span>
+          <strong id="validationSummary">Live chart, quote, inspection, and review flows are validated independently.</strong>
+        </article>
+      </section>
 
       <article class="panel table-panel">
         <div class="panel-head">
@@ -293,10 +722,16 @@
         </div>
       </article>
     </section>
+    <div class="build-mark" id="ravenosBuildMark">UI build 541724fb0311-dirty-44d7beda · artifact 2026-06-25T10:18:51.690Z · public evidence shell</div>
   </main>
 
-  <script src="/vendor/lightweight-charts.standalone.production.js"></script>
-  <script src="/raven-price-chart.js"></script>
+  <script>
+    window.__RAVENOS_BUILD_ID__ = "541724fb0311-dirty-44d7beda";
+  </script>
+  <script src="/vendor/lightweight-charts.standalone.production.js?v=541724fb0311-dirty-44d7beda"></script>
+  <script src="/raven-chart-overlays.js?v=541724fb0311-dirty-44d7beda"></script>
+  <script src="/raven-price-chart.js?v=541724fb0311-dirty-44d7beda"></script>
+  <script type="module" src="/ravenos-terminal-trade.js?v=541724fb0311-dirty-44d7beda"></script>
   <script>
     const baseCandles = [
       { time: "2026-06-23", open: 162.1, high: 166.4, low: 159.8, close: 165.2, volume: 1420000 },
@@ -321,26 +756,50 @@
     ];
     const rows = [
       { asset: "SOL-PERP", market: "Perpetual Futures", flowScore: 84, attentionVelocity: 18, participantActivity: "High", liquidityPosture: "Stable depth", risk: "Watch", lastUpdated: "2m ago" },
+      { asset: "BTC Spot", market: "Crypto Spot", flowScore: 73, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
       { asset: "ETH Spot", market: "Crypto Spot", flowScore: 71, attentionVelocity: 9, participantActivity: "Medium", liquidityPosture: "Deep", risk: "Stable", lastUpdated: "4m ago" },
       { asset: "BTC-PERP", market: "Perpetual Futures", flowScore: 66, attentionVelocity: 4, participantActivity: "Medium", liquidityPosture: "Balanced", risk: "Stable", lastUpdated: "1m ago" },
       { asset: "ARB Spot", market: "Crypto Spot", flowScore: 78, attentionVelocity: 14, participantActivity: "High", liquidityPosture: "Thin above", risk: "Watch", lastUpdated: "6m ago" },
-      { asset: "NVDA Watch", market: "Equity Preview", flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Preview", risk: "Stable", lastUpdated: "sample" },
-      { asset: "USD Liquidity", market: "Macro Watch", flowScore: 55, attentionVelocity: -3, participantActivity: "Low", liquidityPosture: "Mixed", risk: "Elevated", lastUpdated: "sample" },
+      { asset: "AAPL", market: "Equities / ETFs", flowScore: 61, attentionVelocity: 6, participantActivity: "Medium", liquidityPosture: "Provider backed", risk: "Stable", lastUpdated: "provider" },
+      { asset: "NVDA", market: "Equities / ETFs", flowScore: 62, attentionVelocity: 7, participantActivity: "Medium", liquidityPosture: "Provider backed", risk: "Stable", lastUpdated: "provider" },
+      { asset: "SPY", market: "Equities / ETFs", flowScore: 58, attentionVelocity: 3, participantActivity: "Medium", liquidityPosture: "Provider backed", risk: "Stable", lastUpdated: "provider" },
+      { asset: "QQQ", market: "Equities / ETFs", flowScore: 59, attentionVelocity: 5, participantActivity: "Medium", liquidityPosture: "Provider backed", risk: "Stable", lastUpdated: "provider" },
       { asset: "OP-PERP", market: "Perpetual Futures", flowScore: 69, attentionVelocity: 11, participantActivity: "Medium", liquidityPosture: "Choppy", risk: "Watch", lastUpdated: "8m ago" },
       { asset: "JUP Spot", market: "Crypto Spot", flowScore: 81, attentionVelocity: 21, participantActivity: "High", liquidityPosture: "Improving", risk: "Watch", lastUpdated: "5m ago" },
     ];
     const assetByMarket = {
-      crypto_spot: ["ETH Spot", "ARB Spot", "JUP Spot"],
+      crypto_spot: ["BTC Spot", "ETH Spot", "ARB Spot", "JUP Spot"],
       perpetuals: ["SOL-PERP", "BTC-PERP", "OP-PERP"],
-      macro: ["USD Liquidity", "NVDA Watch"],
+      equities: ["AAPL", "NVDA", "SPY", "QQQ"],
+    };
+    const marketLabels = {
+      crypto_spot: "Crypto Spot",
+      perpetuals: "Perpetual Futures",
+      equities: "Equities / ETFs",
     };
     let chartHandle;
     let sortKey = "flowScore";
     let sortDir = -1;
+    let chartRequestVersion = 0;
+    let chartAbortController = null;
+    const supportedTimeframes = new Set(["15m", "1h", "4h", "1d"]);
+
+    function clampChartTimeframe(value) {
+      const clean = String(value || "1h").trim();
+      return supportedTimeframes.has(clean) ? clean : "1h";
+    }
 
     function selectedRow() {
       const asset = document.getElementById("assetSelect").value;
       return rows.find((row) => row.asset === asset) || rows[0];
+    }
+
+    function ensureFreshChartHost() {
+      const current = document.getElementById("flowChart");
+      if (!current) return null;
+      const replacement = current.cloneNode(false);
+      current.replaceWith(replacement);
+      return replacement;
     }
 
     function renderAssetOptions() {
@@ -349,36 +808,343 @@
       document.getElementById("assetSelect").innerHTML = options.map((asset) => `<option>${asset}</option>`).join("");
     }
 
-    function scaledCandles(row) {
-      const anchor = row.asset.includes("BTC") ? 64000 : row.asset.includes("ETH") ? 3400 : row.asset.includes("USD") ? 100 : row.asset.includes("NVDA") ? 920 : 1;
-      if (anchor === 1) return baseCandles;
-      const base = baseCandles[0].open;
-      return baseCandles.map((candle) => ({
-        ...candle,
-        open: Number((candle.open / base * anchor).toFixed(2)),
-        high: Number((candle.high / base * anchor).toFixed(2)),
-        low: Number((candle.low / base * anchor).toFixed(2)),
-        close: Number((candle.close / base * anchor).toFixed(2)),
-      }));
+    function renderInstrumentRail() {
+      const market = document.getElementById("marketSelect").value;
+      const options = assetByMarket[market] || assetByMarket.perpetuals;
+      const currentAsset = document.getElementById("assetSelect").value;
+      document.getElementById("instrumentRailMarket").textContent = marketLabels[market] || market;
+      document.getElementById("instrumentRailMarketDetail").textContent = `Showing ${options.length} instruments in the ${marketLabels[market] || market} rail.`;
+      document.getElementById("instrumentRailNav").innerHTML = options.map((asset) => {
+        const row = rows.find((entry) => entry.asset === asset);
+        const active = asset === currentAsset ? "active" : "";
+        return `
+          <button type="button" class="${active}" data-asset="${asset}">
+            <strong style="display:block">${asset}</strong>
+            <span style="display:block;color:var(--muted);font-size:11px;margin-top:2px">${row ? `${row.flowScore} flow · ${row.risk}` : "Flow context"}</span>
+          </button>
+        `;
+      }).join("");
+      document.querySelectorAll("#instrumentRailNav button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextAsset = button.dataset.asset;
+          if (!nextAsset) return;
+          document.getElementById("assetSelect").value = nextAsset;
+          renderInstrumentRail();
+          renderChart();
+        });
+      });
     }
 
-    function renderChart() {
+    function hashSeed(text) {
+      return Array.from(String(text || "asset")).reduce((sum, ch, idx) => sum + ch.charCodeAt(0) * (idx + 3), 0);
+    }
+
+    function timeframeConfig() {
+      const timeframe = clampChartTimeframe(document.getElementById("timeframeSelect").value);
+      return ({
+        "15m": { amplitude: 1.65, drift: 0.55, volume: 1.45 },
+        "1h": { amplitude: 1.15, drift: 0.28, volume: 1.0 },
+        "4h": { amplitude: 0.82, drift: 0.12, volume: 0.74 },
+        "1d": { amplitude: 0.54, drift: 0.06, volume: 0.58 },
+      })[timeframe] || { amplitude: 1.0, drift: 0.2, volume: 1.0 };
+    }
+
+    function marketAnchor(row) {
+      if (row.asset.includes("BTC")) return 62656;
+      if (row.asset.includes("ETH")) return 3475;
+      if (row.asset.includes("SOL")) return 162;
+      if (row.asset.includes("OP")) return 2.42;
+      if (row.asset.includes("ARB")) return 1.18;
+      if (row.asset.includes("JUP")) return 0.96;
+      if (row.asset.includes("USD")) return 100;
+      if (row.asset.includes("NVDA")) return 134.8;
+      return 10;
+    }
+
+    function scaledCandles(row) {
+      const anchor = marketAnchor(row);
+      const tf = timeframeConfig();
+      const seed = hashSeed(`${row.asset}:${row.market}:${clampChartTimeframe(document.getElementById("timeframeSelect").value)}`);
+      const base = baseCandles[0].open;
+      const volatilityBias = ((seed % 11) - 5) / 100;
+      const directionBias = (((Math.floor(seed / 7) % 9) - 4) / 100) * tf.drift;
+      let previousClose = anchor * (1 + volatilityBias * 0.6);
+      return baseCandles.map((candle, index) => {
+        const normalizedOpen = candle.open / base;
+        const normalizedClose = candle.close / base;
+        const normalizedHigh = candle.high / base;
+        const normalizedLow = candle.low / base;
+        const swing = Math.sin((index + 1) * ((seed % 5) + 2) * 0.37) * tf.amplitude * 0.018;
+        const drift = directionBias * index;
+        const open = index === 0
+          ? anchor * normalizedOpen * (1 + drift + swing * 0.35)
+          : previousClose * (1 + swing * 0.18);
+        const close = anchor * normalizedClose * (1 + drift + swing + volatilityBias);
+        const high = Math.max(open, close, anchor * normalizedHigh * (1 + drift + Math.abs(swing) * 0.45));
+        const low = Math.min(open, close, anchor * normalizedLow * (1 + drift - Math.abs(swing) * 0.42));
+        previousClose = close;
+        return {
+          ...candle,
+          open: Number(open.toFixed(anchor > 20 ? 2 : 4)),
+          high: Number(high.toFixed(anchor > 20 ? 2 : 4)),
+          low: Number(Math.max(0.0001, low).toFixed(anchor > 20 ? 2 : 4)),
+          close: Number(close.toFixed(anchor > 20 ? 2 : 4)),
+          volume: Math.round(candle.volume * tf.volume * (1 + Math.abs(swing) * 1.8 + ((seed + index) % 5) * 0.06)),
+        };
+      });
+    }
+
+    function chartEventsForRow(row, candles) {
+      if (!Array.isArray(candles) || !candles.length) return [];
+      const seed = hashSeed(row.asset);
+      const highIndex = Math.min(candles.length - 1, 2 + (seed % Math.max(1, candles.length - 4)));
+      const warnIndex = Math.min(candles.length - 1, highIndex + 2);
+      const exitIndex = Math.min(candles.length - 1, warnIndex + 2);
+      return [
+        { time: candles[Math.max(1, highIndex - 1)].time, type: "entry-zone", label: `${row.asset} setup forming`, price: candles[Math.max(1, highIndex - 1)].close, severity: "info" },
+        { time: candles[warnIndex].time, type: "liquidity-warning", label: `${row.asset} liquidity posture watch`, price: candles[warnIndex].low, severity: row.risk === "Stable" ? "info" : "warning" },
+        { time: candles[highIndex].time, type: "smart-wallet-accumulation", label: `${row.asset} participant cluster`, severity: row.participantActivity === "High" ? "success" : "info" },
+        { time: candles[exitIndex].time, type: "toxicity-risk", label: `${row.asset} risk posture ${row.risk.toLowerCase()}`, price: candles[exitIndex].high, severity: row.risk === "Elevated" ? "danger" : "warning" },
+        { time: candles[candles.length - 1].time, type: "exit-zone", label: `${row.asset} exhaustion zone`, price: candles[candles.length - 1].close, severity: "info" },
+      ];
+    }
+
+    async function loadChartPayload(row) {
+      const market = document.getElementById("marketSelect").value;
+      const timeframe = clampChartTimeframe(document.getElementById("timeframeSelect").value);
+      const url = new URL("/api/terminal/chart", window.location.origin);
+      url.searchParams.set("market", market);
+      url.searchParams.set("asset", row.asset);
+      url.searchParams.set("timeframe", timeframe);
+      if (chartAbortController) chartAbortController.abort();
+      chartAbortController = new AbortController();
+      try {
+        const response = await fetch(url, { cache: "no-store", signal: chartAbortController.signal });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          if (payload && typeof payload === "object") return payload;
+          throw new Error(`chart_${response.status}`);
+        }
+        return payload;
+      } catch (error) {
+        if (error?.name === "AbortError") return null;
+        console.warn("RavenOS terminal chart hydration failed:", error);
+        return null;
+      }
+    }
+
+    function chartFreshnessState(payload) {
+      if (!payload) return "unavailable";
+      if (payload.freshness_state) return String(payload.freshness_state);
+      if (payload.ok === false && (!Array.isArray(payload.candles) || !payload.candles.length)) return "unavailable";
+      if (payload.stale) return "stale";
+      return "fresh";
+    }
+
+    function chartStateLabel(state) {
+      if (state === "recovering") return "Recovering";
+      if (state === "stale") return "Stale";
+      if (state === "degraded") return "Degraded";
+      if (state === "unavailable") return "Unavailable";
+      return "Fresh";
+    }
+
+    function chartAgeSeconds(payload) {
+      if (Number.isFinite(Number(payload?.age_seconds))) return Math.max(0, Number(payload.age_seconds));
+      const updatedAt = payload?.observed_at || payload?.updated_at || null;
+      if (!updatedAt) return null;
+      const dt = new Date(updatedAt);
+      if (Number.isNaN(dt.getTime())) return null;
+      return Math.max(0, Math.round((Date.now() - dt.getTime()) / 1000));
+    }
+
+    function chartObservedAt(payload) {
+      return payload?.observed_at || payload?.updated_at || null;
+    }
+
+    function normalizeChartCandles(candles, timeframe) {
+      const normalized = [];
+      const seen = new Set();
+      for (const raw of Array.isArray(candles) ? candles : []) {
+        if (!raw || raw.time === null || raw.time === undefined) continue;
+        const open = Number(raw.open);
+        const high = Number(raw.high);
+        const low = Number(raw.low);
+        const close = Number(raw.close);
+        const volume = Number(raw.volume);
+        if (![open, high, low, close].every(Number.isFinite)) continue;
+        if ([open, high, low, close].some((value) => value <= 0)) continue;
+        const boundedHigh = Math.max(high, open, close, low);
+        const boundedLow = Math.min(low, open, close, high);
+        const time = typeof raw.time === "number" ? Math.trunc(raw.time) : String(raw.time);
+        const dedupeKey = `${time}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        normalized.push({
+          time,
+          open,
+          high: boundedHigh,
+          low: boundedLow,
+          close,
+          volume: Number.isFinite(volume) && volume >= 0 ? volume : 0,
+        });
+      }
+      normalized.sort((left, right) => {
+        const l = typeof left.time === "number" ? left.time : Date.parse(left.time);
+        const r = typeof right.time === "number" ? right.time : Date.parse(right.time);
+        return l - r;
+      });
+      const limit = timeframe === "15m" ? 480 : timeframe === "1h" ? 360 : timeframe === "4h" ? 240 : 220;
+      return normalized.slice(-limit);
+    }
+
+    function normalizeChartPayload(row, payload, timeframe) {
+      const freshnessState = chartFreshnessState(payload);
+      const sourceType = payload?.source_type || (payload?.ok === false ? "unavailable" : "provider");
+      const candles = normalizeChartCandles(payload?.candles, timeframe);
+      const observedAt = chartObservedAt(payload);
+      const ageSeconds = chartAgeSeconds(payload);
+      const buildId = payload?.build_id || window.__RAVENOS_BUILD_ID__ || "unknown";
+      return {
+        ok: Boolean(payload?.ok),
+        asset: row.asset,
+        timeframe,
+        source: payload?.source || "Coverage Developing",
+        sourceLabel: payload?.source_label || (sourceType === "structure_proxy" ? "Structure Proxy" : "Coverage Developing"),
+        sourceType,
+        coverage: payload?.coverage || (candles.length ? "Live" : "Coverage Developing"),
+        freshnessState,
+        candles,
+        observedAt,
+        ageSeconds,
+        message: payload?.message || "",
+        providerAsset: payload?.provider_asset || null,
+        buildId,
+      };
+    }
+
+    function formatChartAge(ageSeconds) {
+      if (!Number.isFinite(ageSeconds)) return "unknown";
+      if (ageSeconds < 60) return `${ageSeconds}s`;
+      if (ageSeconds < 3600) return `${Math.round(ageSeconds / 60)}m`;
+      return `${Math.round(ageSeconds / 3600)}h`;
+    }
+
+    function formatObservedAt(value) {
+      if (!value) return "unknown";
+      const dt = new Date(value);
+      if (Number.isNaN(dt.getTime())) return String(value);
+      return `${dt.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    }
+
+    function updateChartDiagnostics(context) {
+      document.getElementById("chartFreshnessPill").textContent = chartStateLabel(context.freshnessState);
+      document.getElementById("chartModePill").textContent = context.sourceType === "provider"
+        ? "Live Candles"
+        : context.sourceType === "structure_proxy"
+          ? "Structure Proxy"
+          : "Unavailable";
+      document.getElementById("chartDataInfo").innerHTML = [
+        `<div><strong>Source:</strong> ${context.sourceLabel}</div>`,
+        `<div><strong>Observed:</strong> ${formatObservedAt(context.observedAt)}</div>`,
+        `<div><strong>Age:</strong> ${formatChartAge(context.ageSeconds)}</div>`,
+        `<div><strong>Freshness:</strong> ${chartStateLabel(context.freshnessState)}</div>`,
+        `<div><strong>Timeframe:</strong> ${context.timeframe}</div>`,
+        `<div><strong>Candles:</strong> ${context.candles.length}</div>`,
+        `<div><strong>Build:</strong> ${context.buildId}</div>`,
+      ].join("");
+      window.__RAVENOS_TERMINAL_LAST_CHART_CONTEXT__ = {
+        asset: context.asset,
+        timeframe: context.timeframe,
+        phase: context.phase || "ready",
+        freshnessState: context.freshnessState,
+        candleCount: context.candles.length,
+        chartSignature: context.chartSignature || "none",
+        sourceLabel: context.sourceLabel,
+        sourceType: context.sourceType,
+        buildId: context.buildId,
+      };
+    }
+
+    async function renderChart() {
+      const requestVersion = ++chartRequestVersion;
       const row = selectedRow();
+      const selectedTimeframe = clampChartTimeframe(document.getElementById("timeframeSelect").value);
+      const selectedMarket = document.getElementById("marketSelect").value;
       document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
-      document.getElementById("chartSubtitle").textContent = `${row.market} · ${document.getElementById("timeframeSelect").value} · mock OHLCV`;
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${selectedTimeframe} · loading chart context`;
+      updateChartDiagnostics({
+        asset: row.asset,
+        timeframe: selectedTimeframe,
+        phase: "loading",
+        sourceLabel: "Loading",
+        sourceType: "loading",
+        freshnessState: "degraded",
+        candles: [],
+        observedAt: null,
+        ageSeconds: null,
+        buildId: window.__RAVENOS_BUILD_ID__ || "unknown",
+        chartSignature: "loading",
+      });
+      const liveChart = await loadChartPayload(row);
+      if (requestVersion !== chartRequestVersion) return;
+      const normalized = normalizeChartPayload(row, liveChart, selectedTimeframe);
+      const shouldUseStructureProxy = normalized.sourceType === "structure_proxy";
+      const candleData = normalized.candles.length
+        ? normalized.candles
+        : shouldUseStructureProxy
+          ? scaledCandles(row)
+          : [];
+      const chartEvents = chartEventsForRow(row, candleData);
+      const marketKind = selectedMarket === "perpetuals" ? "perp" : selectedMarket === "crypto_spot" ? "spot" : "macro";
+      const overlays = window.RavenChartOverlays?.getOverlays?.({
+        symbol: row.asset,
+        market: marketKind,
+        candles: candleData,
+        tier: "pro",
+      }) || [];
+      const chartSourceLabel = normalized.sourceLabel;
+      const chartCoverageLabel = normalized.coverage;
+      document.getElementById("chartTitle").textContent = `${row.asset} Flow Chart`;
+      document.getElementById("chartSubtitle").textContent = `${row.market} · ${selectedTimeframe} · ${chartSourceLabel}`;
       document.getElementById("flowScore").textContent = row.flowScore;
       document.getElementById("attentionVelocity").textContent = `${row.attentionVelocity > 0 ? "+" : ""}${row.attentionVelocity}`;
       document.getElementById("participantActivity").textContent = row.participantActivity;
       document.getElementById("liquidityPosture").textContent = row.liquidityPosture;
       document.getElementById("riskRating").textContent = row.risk;
-      document.getElementById("lastUpdated").textContent = row.lastUpdated;
+      document.getElementById("lastUpdated").textContent = normalized.observedAt ? new Date(normalized.observedAt).toISOString().slice(11, 16) + " UTC" : row.lastUpdated;
       document.getElementById("terminalBrief").textContent = `${row.asset} flow score is ${row.flowScore}. Participant activity is ${row.participantActivity.toLowerCase()}, liquidity posture is ${row.liquidityPosture.toLowerCase()}, and risk is ${row.risk.toLowerCase()}.`;
-      if (chartHandle) chartHandle.destroy();
-      chartHandle = window.RavenPriceChart(document.getElementById("flowChart"), {
-        candles: scaledCandles(row),
+      document.getElementById("marketFeedState").textContent = normalized.freshnessState === "recovering"
+        ? "Recovering Market Data"
+        : normalized.freshnessState === "stale"
+          ? "Stale Market Data"
+          : chartSourceLabel === "Live market price" || chartSourceLabel === "Live perps market price"
+            ? "Live Market Data"
+            : chartSourceLabel;
+      document.getElementById("chartProviderState").textContent = normalized.source;
+      document.getElementById("instrumentCoverageState").textContent = chartCoverageLabel;
+      if (chartHandle) {
+        chartHandle.destroy();
+        chartHandle = null;
+      }
+      const chartHost = ensureFreshChartHost();
+      chartHandle = window.RavenPriceChart(chartHost, {
+        candles: candleData,
         events: chartEvents,
+        overlays,
         showVolume: true,
-        height: document.getElementById("flowChart").clientHeight || 520,
+        height: chartHost?.clientHeight || 520,
+        error: !candleData.length && normalized.message ? normalized.message : "",
+        emptyLabel: normalized.message || "No chart data available.",
+      });
+      const chartSignature = candleData.length
+        ? `${candleData.length}:${candleData[0].time}:${candleData[0].close}:${candleData[candleData.length - 1].time}:${candleData[candleData.length - 1].close}`
+        : "empty";
+      updateChartDiagnostics({
+        ...normalized,
+        phase: "ready",
+        candles: candleData,
+        chartSignature,
       });
     }
 
@@ -405,6 +1171,7 @@
     }
 
     function renderTable() {
+      renderInstrumentRail();
       document.getElementById("flowRows").innerHTML = visibleRows().map((row) => `
         <tr data-asset="${row.asset}">
           <td><strong>${row.asset}</strong></td>
@@ -432,10 +1199,11 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       renderAssetOptions();
+      renderInstrumentRail();
       renderChart();
       renderTable();
-      document.getElementById("marketSelect").addEventListener("change", () => { renderAssetOptions(); renderChart(); });
-      document.getElementById("assetSelect").addEventListener("change", renderChart);
+      document.getElementById("marketSelect").addEventListener("change", () => { renderAssetOptions(); renderInstrumentRail(); renderChart(); });
+      document.getElementById("assetSelect").addEventListener("change", () => { renderInstrumentRail(); renderChart(); });
       document.getElementById("timeframeSelect").addEventListener("change", renderChart);
       document.getElementById("searchInput").addEventListener("input", renderTable);
       document.getElementById("riskFilter").addEventListener("change", renderTable);

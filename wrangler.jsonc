@@ -1,12 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ravenos-public",
+  "main": "worker.mjs",
   "compatibility_date": "2026-06-23",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "binding": "ASSETS",
+    "directory": ".deploy-public"
   },
   "routes": [
     {

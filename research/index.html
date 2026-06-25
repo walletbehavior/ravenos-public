@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en" data-ravenos-api="/api/research">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RavenOS Research</title>
+  <meta name="description" content="RavenOS Research explains market structure setup families, developing structures, replay analysis, symbol concentration, and failure analysis." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050706;
+      --panel: #09100e;
+      --panel-2: #0d1714;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(125, 211, 252, 0.34);
+      --text: #edf6f1;
+      --muted: #91a69d;
+      --soft: #65786f;
+      --green: #34d399;
+      --cyan: #7dd3fc;
+      --yellow: #facc15;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, rgba(125, 211, 252, 0.06), transparent 320px), var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { max-width: 1360px; margin: 0 auto; padding: 18px; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: grid; gap: 4px; }
+    .main-nav, .tabs, .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .button, .tab {
+      border: 1px solid var(--line);
+      background: #0c1815;
+      color: var(--text);
+      min-height: 36px;
+      padding: 8px 11px;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      text-align: center;
+    }
+    .button.primary, .tab.active { border-color: var(--line-strong); background: rgba(125, 211, 252, 0.12); color: var(--cyan); }
+    .eyebrow {
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { max-width: 960px; margin-top: 28px; font-size: clamp(30px, 4vw, 48px); line-height: 1.02; }
+    h2 { font-size: 16px; text-transform: uppercase; }
+    h3 { font-size: 14px; }
+    .lead { max-width: 800px; margin-top: 14px; color: #bbcbc4; font-size: 15px; line-height: 1.55; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .metric, .panel {
+      border: 1px solid var(--line);
+      background: rgba(9, 16, 14, 0.92);
+      padding: 12px;
+    }
+    .metric span { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; font-weight: 850; }
+    .metric strong { display: block; margin-top: 8px; font-size: 18px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .side { align-self: start; display: grid; gap: 8px; }
+    .side button { width: 100%; text-align: left; }
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 7px;
+      vertical-align: top;
+    }
+    th { color: var(--cyan); text-transform: uppercase; font-size: 10px; white-space: nowrap; }
+    td strong { font-size: 13px; }
+    .pill {
+      display: inline-flex;
+      min-height: 22px;
+      align-items: center;
+      border: 1px solid var(--line);
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .status-candidate { color: var(--green); }
+    .status-developing { color: var(--yellow); }
+    .status-rejected { color: var(--red); }
+    .list { margin: 0; padding-left: 16px; color: #c5d3cd; line-height: 1.45; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .detail-card { border: 1px solid var(--line); background: var(--panel-2); padding: 11px; }
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .finding-card { border: 1px solid var(--line); background: var(--panel-2); padding: 12px; display: grid; gap: 8px; }
+    .finding-card h3 { margin: 0; font-size: 13px; color: var(--text); }
+    .finding-card p { margin: 0; }
+    .finding-card strong { color: var(--cyan); }
+    .developer-only { display: none; }
+    body.dev-mode .developer-only { display: table-cell; }
+    .footer { margin-top: 18px; color: var(--soft); font-size: 11px; line-height: 1.45; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { display: flex; overflow-x: auto; }
+      .side button { flex: 0 0 180px; }
+      .metric-grid, .detail-grid, .report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 12px; }
+      .topbar { align-items: flex-start; }
+      .main-nav { overflow-x: auto; flex-wrap: nowrap; width: 100%; }
+      .main-nav a { flex: 0 0 auto; }
+      .metric-grid, .detail-grid, .report-grid { grid-template-columns: 1fr; }
+      .panel { overflow-x: auto; }
+    }
+  </style>
+  <link rel="stylesheet" href="/ravenos-funnel.css" />
+  <link rel="stylesheet" href="/ravenos-evidence.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="eyebrow">RavenOS Research</span>
+        <strong>Structure Lab</strong>
+      </div>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a class="button" href="/terminal/">Terminal</a>
+        <a class="button" href="/brief/">Brief</a>
+        <a class="button" href="/opportunity/">Opportunity</a>
+        <a class="button" href="/replay/">Replay</a>
+        <a class="button" href="/outcomes/">Outcomes</a>
+        <a class="button" href="/memory/">Memory</a>
+        <a class="button" href="/behavior/">Behavior</a>
+        <a class="button primary" href="/research/">Research</a>
+        <a class="button" href="/faq/">FAQ</a>
+        <a class="button" href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+      </nav>
+    </header>
+    <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
+      <div class="public-evidence-strip">
+        <div class="public-evidence-cell"><span>Evidence Role</span><strong data-evidence-field="role">Current Synthesis</strong></div>
+        <div class="public-evidence-cell"><span>As Of</span><strong data-evidence-field="as_of">awaiting read</strong></div>
+        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">declared by read</strong></div>
+        <div class="public-evidence-cell"><span>Usable Sample</span><strong data-evidence-field="sample">sample forming</strong></div>
+        <div class="public-evidence-cell"><span>Freshness</span><strong data-evidence-field="freshness">checking</strong></div>
+        <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
+      </div>
+      <div class="public-evidence-bridge" data-evidence-field="bridge"><strong>Evidence bridge:</strong> Current reads, historical context, and settled validation use declared windows so differences can be understood rather than treated as contradictions.</div>
+      <details class="public-evidence-details">
+        <summary>Evidence details</summary>
+        <div class="public-evidence-detail-grid">
+          <div>Settlement window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
+          <div>Population<strong data-evidence-field="population">public aggregate market context</strong></div>
+          <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
+          <div>Source<strong data-evidence-field="source">verified Raven feed</strong></div>
+          <div>Observed / settled<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
+          <div>Artifact version<strong data-evidence-field="artifact">unversioned</strong></div>
+          <div>Methodology<strong><a href="/docs/ravenos_public_methodology.md">Public definitions</a></strong></div>
+        </div>
+      </details>
+    </section>
+
+
+    <section>
+      <span class="eyebrow">Market structure findings</span>
+      <h1>What Raven learned from market structure research.</h1>
+      <p class="lead">What Raven believes: broad research families can be noisy, so Structure Lab focuses on the conditions that separated from flat or weak outcomes. Structure Lab explains what strengthened, what weakened, where confidence improved, and which conditions shaped outcome quality. It is research context only and does not generate trade recommendations.</p>
+      <div class="metric-grid">
+        <div class="metric"><span>Live public research validation</span><strong id="candidateCount">Snapshot unavailable</strong></div>
+        <div class="metric"><span>Forward observations monitored</span><strong id="trackingCount">Sample forming</strong></div>
+        <div class="metric"><span>Strongest condition</span><strong id="topPositive">Awaiting verified snapshot</strong></div>
+        <div class="metric"><span>Weakest condition</span><strong id="topFailure">Awaiting verified snapshot</strong></div>
+      </div>
+      <div class="metric-grid" style="margin-top:10px;">
+        <div class="metric"><span>Research Source</span><strong id="researchSource">Current public research snapshot unavailable</strong></div>
+        <div class="metric"><span>Freshness</span><strong id="researchAge">Evidence forming</strong></div>
+        <div class="metric"><span>Evidence Depth</span><strong id="researchSampleDepth">No zero should be interpreted as measured evidence</strong></div>
+        <div class="metric"><span>Status</span><strong id="researchStatus">Last verified cohort unavailable</strong></div>
+      </div>
+      <div class="report-grid" aria-label="Research evidence summary" style="margin-top:12px;">
+        <article class="finding-card">
+          <h3>Why Raven Believes This</h3>
+          <p class="muted">Research findings are evaluated through participation breadth, pressure alignment, replay similarity, outcome quality, and failure conditions.</p>
+          <strong>Evidence first, recommendation never.</strong>
+        </article>
+        <article class="finding-card">
+          <h3>Why It Matters</h3>
+          <p class="muted">The strongest research rows explain what worked, what failed, what evidence depth supports the read, and what would invalidate the structure.</p>
+          <strong>Designed for review and monitoring.</strong>
+        </article>
+        <article class="finding-card">
+          <h3>Participant Cohort Validation</h3>
+          <p class="muted">Raven tracks aggregate routing cohorts and checks whether observed behavior had measurable post-observation expansion. Private participant identifiers are not published.</p>
+          <strong>Proof context, not participant replication.</strong>
+        </article>
+      </div>
+      <div class="report-grid" aria-label="Research product state" style="margin-top:12px;">
+        <article class="finding-card"><h3>Latest Completed Research Cohort</h3><p class="muted">Completed public cohorts remain visible when available, while current observations stay labeled until validation settles.</p><strong>Historical Research Snapshot</strong></article>
+        <article class="finding-card"><h3>Current Forward Observations</h3><p class="muted">Open observations are research context only. They are not promotion, execution, or a trading instruction.</p><strong>Research Sample Forming</strong></article>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="side" aria-label="Research navigation">
+        <button class="tab active" type="button" data-view="setup_families">Setup Families</button>
+        <button class="tab" type="button" data-view="failure_analysis">Failure Analysis</button>
+        <button class="tab" type="button" data-view="replay_analysis">Replay Analysis</button>
+        <button class="tab" type="button" data-view="symbol_concentration">Symbol Concentration</button>
+        <button class="tab" type="button" data-view="candidate_lanes">developing structures</button>
+      </aside>
+
+      <article class="panel" data-feature="full_research">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow" id="viewEyebrow">Setup Families</span>
+            <h2 id="viewTitle">Research cohorts</h2>
+            <p class="muted" id="viewSummary">Current public research snapshot is forming while the latest completed cohort remains available.</p>
+          </div>
+          <button class="button" type="button" id="developerToggle">Research Details</button>
+        </div>
+        <section class="report-grid" id="reportGrid" aria-label="Research findings report"></section>
+        <table>
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="detail-grid" id="detailGrid"></div>
+      </article>
+    </section>
+
+<section class="raven-funnel" aria-label="Raven intelligence funnel">
+      <div class="raven-funnel-head">
+        <div>
+          <span class="raven-funnel-eyebrow">Understand → Validate → Investigate → Future Act</span>
+          <h2>Research answers: why does Raven think this?</h2>
+          <p>Research turns findings, failure modes, and evidence into a readable market note.</p>
+        </div>
+        <div class="raven-funnel-actions">
+          <a class="primary" href="/opportunity/">Apply To Opportunity</a>
+          <a href="/outcomes/">Check Outcomes</a>
+          <span>Future Trade Layer</span>
+        </div>
+      </div>
+      <div class="raven-funnel-grid">
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Understand</span><h3>Raven&apos;s Read</h3><p>What Raven believes and why the current read matters.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Freshness, coverage, sample depth, strongest support, and weakest caveat.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>What Happened Before</h3><p>Replay, Memory, and Outcomes show precedent and followthrough context.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>What To Investigate Next</h3><p>Apply research context to current Opportunity surfaces.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Future Act</span><h3>Future Connected Venues</h3><p>Connected venues may come later. RavenOS remains market intelligence today.</p></article>
+      </div>
+    </section>
+<footer class="footer">RavenOS provides software and market analytics. Structure Lab is research validation and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
+<div class="footer" id="ravenosBuildMark">UI build 541724fb0311-dirty-44d7beda · artifact 2026-06-25T10:18:51.690Z · public evidence shell</div>
+  </main>
+
+  <script src="/ravenos-access.js"></script>
+  <script src="/ravenos-features.js"></script>
+  <script src="/ravenos-explanations.js"></script>
+  <script src="/ravenos-replay.js"></script>
+  <script src="/ravenos-participants.js"></script>
+  <script src="/ravenos-live.js"></script>
+  <script>
+    const state = {
+      view: "setup_families",
+      dev: new URLSearchParams(location.search).get("dev") === "1",
+      edge: {},
+      failure: {},
+      forward: {},
+      plan: {},
+      flatness: {},
+      liveResearch: {},
+      publicRows: [],
+    };
+
+    const viewMeta = {
+      setup_families: ["Setup Families", "Which behavioral structures showed useful separation from broad noise."],
+      failure_analysis: ["Failure Analysis", "Which conditions weakened outcomes or diluted the read."],
+      replay_analysis: ["Replay Analysis", "How historical similarity changed outcome quality."],
+      symbol_concentration: ["Symbol Concentration", "Where outcomes concentrated by instrument or cohort."],
+      candidate_lanes: ["developing structures", "Developing structures under future forward-observation review."],
+    };
+    const viewFeatures = {
+      setup_families: "research_preview",
+      failure_analysis: "failure_analysis",
+      replay_analysis: "full_replay_engine",
+      symbol_concentration: "attribution",
+      candidate_lanes: "candidate_lanes",
+    };
+
+    function titleCase(value = "") {
+      return String(value || "unknown").replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function parseLane(key = "") {
+      const parts = String(key || "").split(":");
+      return {
+        family: parts[0] || "unknown",
+        direction: parts[1] || "structure",
+        instrument: parts.find((part) => part.endsWith("-PERP")) || "",
+        window: parts.find((part) => ["15m", "1h", "4h", "12h", "24h"].includes(part)) || "",
+        internalId: key,
+      };
+    }
+
+    function confidence(row = {}) {
+      const count = Number(row.count || row.sampleCount || 0);
+      const pf = Number(row.profit_factor || row.profitFactor || 0);
+      if (count >= 100 && pf >= 1.25) return "High";
+      if (count >= 40 && pf >= 1.15) return "Moderate";
+      if (count >= 20) return "Developing";
+      return "Low";
+    }
+
+    function status(row = {}) {
+      const text = String(row.status || row.classification || "").toLowerCase();
+      if (text.includes("reject")) return "Rejected";
+      if (text.includes("candidate") || text.includes("high_priority")) return "Candidate";
+      if (text.includes("tracking")) return "Forward Tracking";
+      return "Developing";
+    }
+
+    function statusClass(value = "") {
+      const text = String(value).toLowerCase();
+      if (text.includes("reject")) return "status-rejected";
+      if (text.includes("candidate") || text.includes("tracking")) return "status-candidate";
+      return "status-developing";
+    }
+
+    function replayBand(row = {}) {
+      if (row.replay_similarity_band) return row.replay_similarity_band;
+      const key = String(row.key || "");
+      if (key.includes("24h")) return "65-80";
+      if (key.includes("12h")) return "50-65";
+      return "50-65";
+    }
+
+    function bestConditions(row = {}) {
+      const family = String(row.setup_family || parseLane(row.key).family || "");
+      const conditions = ["Moderate liquidity attraction", "Constructive pressure"];
+      if (family.includes("compression")) conditions.push("Compressed regime");
+      if (family.includes("participant")) conditions.push("Participant rotation visible");
+      return conditions.slice(0, 3);
+    }
+
+    function worstConditions() {
+      return ["Crowded pressure", "Weak participation"];
+    }
+
+    function displayLane(row = {}) {
+      const parsed = parseLane(row.key || row.lane || row.internalId || "");
+      return {
+        setupFamily: titleCase(row.setup_family || parsed.family),
+        instrument: row.symbol || parsed.instrument || row.best_symbol || row.value || "Cross-market cohort",
+        direction: titleCase(row.direction || parsed.direction),
+        status: status(row),
+        confidence: confidence(row),
+        sampleCount: Number(row.count || row.forward_samples || 0),
+        profitFactor: Number(row.profit_factor || 0),
+        replayBand: replayBand(row),
+        bestConditions: bestConditions(row),
+        worstConditions: worstConditions(row),
+        internalId: row.key || row.lane || "",
+      };
+    }
+
+    function displayPublicResearch(row = {}) {
+      return {
+        setupFamily: titleCase(row.finding || row.structure || "Current Structure"),
+        instrument: titleCase(row.source_module || "public research"),
+        direction: titleCase(row.structure || "Structure"),
+        status: row.status || "Observed",
+        confidence: row.confidence || "Developing",
+        sampleCount: Number(row.sample_depth || 0),
+        profitFactor: row.outcome_quality === "Constructive" ? 1.21 : row.outcome_quality === "Weak" ? 0.82 : 1,
+        replayBand: row.replay_strength || "Contextual",
+        bestConditions: Array.isArray(row.supports) ? row.supports : ["Public evidence supports the read"],
+        worstConditions: Array.isArray(row.risks) ? row.risks : ["Confirmation could weaken the read"],
+        internalId: `public:${row.source_module || "research"}:${row.finding || ""}`,
+      };
+    }
+
+    function metricRow(row = {}, label = "Research Cohort") {
+      return {
+        setupFamily: titleCase(row.dimension || label),
+        instrument: titleCase(row.value || row.key || "Cross-market cohort"),
+        direction: "Structure",
+        status: Number(row.weighted_avg_net_pct || 0) < 0 ? "Rejected" : "Developing",
+        confidence: Number(row.count || 0) > 100000 ? "High" : "Moderate",
+        sampleCount: Number(row.count || 0),
+        profitFactor: Number(row.profit_factor || 0),
+        replayBand: row.dimension === "replay_similarity_band" ? String(row.value || "50-65") : "Context",
+        bestConditions: [row.read || "Positive separation observed"].filter(Boolean),
+        worstConditions: ["Weak sample transfer", "Broad-family dilution"],
+        internalId: `${row.dimension || label}:${row.value || ""}`,
+      };
+    }
+
+    function rowsForView() {
+      if (state.publicRows.length) {
+        const publicRows = state.publicRows.filter((row) => row.view === state.view);
+        if (publicRows.length) return publicRows.map(displayPublicResearch);
+        if (state.view === "candidate_lanes") return state.publicRows.slice(0, 80).map(displayPublicResearch);
+      }
+      const planRows = [
+        ...(state.plan.classifications?.high_priority_forward_track || []),
+        ...(state.plan.classifications?.forward_track_candidate || []),
+        ...(state.plan.classifications?.watch || []),
+      ];
+      if (state.view === "candidate_lanes") return planRows.slice(0, 80).map(displayLane);
+      if (state.view === "setup_families") {
+        const families = state.edge.setup_clusters?.positive || state.failure.family_clustering?.top_positive || planRows;
+        return families.slice(0, 80).map((row) => row.key ? displayLane(row) : metricRow(row, "Setup Family"));
+      }
+      if (state.view === "failure_analysis") {
+        const flat = state.flatness.top_causes_of_flatness || [];
+        const negative = state.edge.strongest_negative_predictors || [];
+        return [
+          ...flat.map((row) => ({
+            setupFamily: titleCase(row.cause),
+            instrument: "PerpSim cohort",
+            direction: "Structure",
+            status: "Rejected",
+            confidence: "Moderate",
+            sampleCount: Number(state.flatness.closed_trade_summary?.count || 0),
+            profitFactor: 0,
+            replayBand: "Context",
+            bestConditions: ["Narrow filters required"],
+            worstConditions: [row.evidence],
+            internalId: row.cause,
+          })),
+          ...negative.slice(0, 20).map((row) => metricRow(row, "Failure Predictor")),
+        ];
+      }
+      if (state.view === "replay_analysis") {
+        const replay = (state.failure.explanatory_findings?.replay_similarity || state.edge.strongest_positive_predictors || [])
+          .filter((row) => row.dimension === "replay_similarity_band");
+        return replay.map((row) => metricRow(row, "Replay Band"));
+      }
+      if (state.view === "symbol_concentration") {
+        const positive = state.edge.symbol_clusters?.positive || [];
+        const negative = state.edge.symbol_clusters?.negative || [];
+        return [
+          ...positive.slice(0, 30).map((row) => metricRow(row, "Symbol Concentration")),
+          ...negative.slice(0, 20).map((row) => ({ ...metricRow(row, "Weak Symbol Concentration"), status: "Rejected" })),
+        ];
+      }
+      return [];
+    }
+
+    function fmtNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n.toLocaleString("en-US") : "0";
+    }
+
+    function fmtPf(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return "n/a";
+      if (n > 50) return ">50.00";
+      return n.toFixed(2);
+    }
+
+    function replayStrength(value = "") {
+      const nums = String(value || "").match(/\d+/g)?.map(Number) || [];
+      const score = nums.length ? Math.max(...nums) : 0;
+      if (score >= 80) return "Exceptional";
+      if (score >= 65) return "Strong";
+      if (score >= 50) return "Moderate";
+      if (score > 0) return "Developing";
+      return "Contextual";
+    }
+
+    function outcomeQuality(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return "Unproven";
+      if (n > 50) return "Exceptional";
+      if (n >= 1.35) return "Strong";
+      if (n >= 1.2) return "Constructive";
+      if (n >= 1.0) return "Mixed";
+      return "Weak";
+    }
+
+    function sampleDepth(value) {
+      const n = Number(value || 0);
+      if (n >= 1000) return "Very deep";
+      if (n >= 100) return "Deep";
+      if (n >= 50) return "Sufficient";
+      if (n >= 20) return "Developing";
+      return "Thin";
+    }
+
+    function researchStatus(value = "") {
+      const text = String(value).toLowerCase();
+      if (text.includes("reject")) return "Not useful";
+      if (text.includes("forward")) return "Forward tracking";
+      if (text.includes("candidate")) return "Developing";
+      if (text.includes("validated")) return "Validated";
+      return "Developing";
+    }
+
+    function renderReport(rows = []) {
+      const worked = rows.filter((row) => row.status !== "Rejected" && Number(row.profitFactor || 0) >= 1.15);
+      const failed = rows.filter((row) => row.status === "Rejected" || Number(row.profitFactor || 0) < 1);
+      const high = [...rows].sort((a, b) => {
+        const rank = { High: 4, Moderate: 3, Developing: 2, Low: 1 };
+        return (rank[b.confidence] || 0) - (rank[a.confidence] || 0) || Number(b.sampleCount || 0) - Number(a.sampleCount || 0);
+      });
+      const low = [...rows].sort((a, b) => Number(a.sampleCount || 0) - Number(b.sampleCount || 0));
+      const card = (title, body, items = []) => `
+        <article class="finding-card">
+          <span class="eyebrow">${title}</span>
+          <p class="muted">${body}</p>
+          ${items.length ? `<ul class="list">${items.slice(0, 4).map((item) => `<li>${item}</li>`).join("")}</ul>` : ""}
+        </article>`;
+      document.getElementById("reportGrid").innerHTML = [
+        card("Key Findings This Week", `${worked.length || rows.length} structures showed usable separation while ${failed.length} structures explained failure or dilution.`, [
+          `Top research focus: ${rows[0]?.setupFamily || "Setup families"}`,
+          `Best visible outcome quality: ${outcomeQuality(Math.max(...rows.map((row) => Number(row.profitFactor || 0)), 0))}`,
+          `Primary evidence depth: ${sampleDepth(rows[0]?.sampleCount || 0)}`,
+        ]),
+        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} evidence depth.` : "No completed live cohort yet; current observations remain in research sample forming state.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
+        card("What Failed", failed[0] ? `${failed[0].setupFamily} is best read as a failure or dilution explanation.` : "No dominant failure row is visible in this view.", failed.slice(0, 3).map((row) => `${row.setupFamily}: ${(row.worstConditions || []).slice(0, 1).join("") || "weak transfer"}`)),
+        card("Highest Confidence Structures", high[0] ? `${high[0].setupFamily} has ${String(high[0].confidence).toLowerCase()} confidence and ${sampleDepth(high[0].sampleCount).toLowerCase()} evidence depth.` : "Confidence is still developing.", high.slice(0, 3).map((row) => `${row.setupFamily}: ${row.confidence} confidence`)),
+        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "Research sample forming; latest completed cohort remains visible when available.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} evidence depth`)),
+      ].join("");
+    }
+
+    function renderTable() {
+      const featureKey = viewFeatures[state.view] || "research_preview";
+      const allowed = window.RavenOSFeatures?.canAccess?.(featureKey) ?? featureKey === "research_preview";
+      const rows = allowed ? rowsForView() : rowsForView().slice(0, state.view === "setup_families" ? 8 : 3);
+      const [title, summary] = viewMeta[state.view] || viewMeta.setup_families;
+      document.getElementById("viewEyebrow").textContent = title;
+      document.getElementById("viewTitle").textContent = title;
+      const moduleKey = state.view === "setup_families" ? "outcomes"
+        : state.view === "failure_analysis" ? "behavior"
+          : state.view === "replay_analysis" ? "replay"
+            : state.view === "symbol_concentration" ? "memory"
+              : "outcomes";
+      const module = state.liveResearch.data?.modules?.[moduleKey];
+      document.getElementById("viewSummary").textContent = module
+        ? `${summary} Source: ${titleCase(module.source || "public")} · age ${ageLabel(module.age_seconds)}.`
+        : summary;
+      renderReport(rows);
+      document.getElementById("tableHead").innerHTML = `<tr>
+        <th>Finding</th><th>Structure</th><th>Status</th><th>Confidence</th><th>Evidence Depth</th>
+        <th>Outcome Quality</th><th>Replay Strength</th><th>Supporting Conditions</th><th>Failure Conditions</th><th class="developer-only">Raw Metrics</th><th class="developer-only">Internal ID</th>
+      </tr>`;
+      document.getElementById("tableBody").innerHTML = rows.map((row) => `<tr>
+        <td><strong>${row.setupFamily}</strong><br><span class="muted">${row.instrument}</span></td>
+        <td>${row.direction}</td>
+        <td><span class="${statusClass(row.status)}">${researchStatus(row.status)}</span></td>
+        <td>${row.confidence}</td>
+        <td>${sampleDepth(row.sampleCount)}<br><span class="muted">${fmtNumber(row.sampleCount)} observations</span></td>
+        <td>${outcomeQuality(row.profitFactor)}</td>
+        <td>${replayStrength(row.replayBand)}</td>
+        <td><ul class="list">${row.bestConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
+        <td><ul class="list">${row.worstConditions.map((item) => `<li>${item}</li>`).join("")}</ul></td>
+        <td class="developer-only">PF ${fmtPf(row.profitFactor)} · Replay ${row.replayBand}</td>
+        <td class="developer-only">${row.internalId || "n/a"}</td>
+      </tr>`).join("");
+      document.querySelector(".panel")?.setAttribute("data-feature", featureKey);
+      window.RavenOSFeatures?.applyFeatureGates?.();
+      const top = rows[0] || {};
+      document.getElementById("detailGrid").innerHTML = [
+        ["Current Read", `${top.setupFamily || "Research"} is ${String(top.status || "developing").toLowerCase()} with ${String(top.confidence || "moderate").toLowerCase()} confidence.`],
+        ["Best Conditions", (top.bestConditions || []).join(", ") || "No condition data available."],
+        ["Worst Conditions", (top.worstConditions || []).join(", ") || "No failure condition data available."],
+        ["Research Boundary", "No live rules, no automatic promotion, and no trade recommendations."],
+      ].map(([k, v]) => `<div class="detail-card"><span class="eyebrow">${k}</span><p class="muted" style="margin-top:8px;">${v}</p></div>`).join("");
+      if (window.RavenOSExplanations?.ExplanationPanel) {
+        const explanation = window.RavenOSExplanations.explanationForRow({
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          replaySimilarity: top.replayBand,
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
+          coverage: "Research",
+          lastUpdated: "research",
+        }, "replay_similarity");
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;">${window.RavenOSExplanations.ExplanationPanel(explanation)}</div>`;
+      }
+      if (window.RavenOSReplay?.ReplayOutcomePanel) {
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;" data-feature="full_replay_engine">${window.RavenOSReplay.ReplayOutcomePanel({
+          instrument: top.instrument,
+          setupFamily: top.setupFamily,
+          replaySimilarity: Number(String(top.replayBand || "55").match(/\d+/)?.[0] || 55),
+          sampleCount: top.sampleCount,
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
+          coverage: "Research",
+        })}</div>`;
+      }
+      if (window.RavenOSParticipants?.ParticipantPanel) {
+        document.getElementById("detailGrid").innerHTML += `<div style="grid-column:1/-1;" data-feature="participant_intelligence">${window.RavenOSParticipants.ParticipantPanel({
+          instrument: top.instrument,
+          market: "Research",
+          flowScore: top.profitFactor ? Math.round(Math.min(100, Number(top.profitFactor) * 50)) : 55,
+          attentionVelocity: top.sampleCount > 50 ? 12 : 3,
+          liquidityPosture: top.status === "Rejected" ? "Thin" : "Stable",
+          risk: top.status === "Rejected" ? "Elevated" : "Watch",
+        })}</div>`;
+      }
+    }
+
+    async function readJson(url) {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        return response.ok ? response.json() : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function ageLabel(seconds) {
+      const n = Number(seconds);
+      if (!Number.isFinite(n)) return "evidence forming";
+      if (n < 60) return `${Math.floor(n)}s`;
+      const minutes = Math.floor(n / 60);
+      if (minutes < 60) return `${minutes}m`;
+      return `${Math.floor(minutes / 60)}h`;
+    }
+
+    async function hydrateLiveResearch() {
+      const live = await readJson("/api/research");
+      if (!live || live.ok === false) return false;
+      state.liveResearch = live;
+      state.publicRows = Array.isArray(live.data?.rows) ? live.data.rows : [];
+      const summary = live.data?.summary || live.summary || {};
+      document.getElementById("candidateCount").textContent = fmtNumber(summary.findings_reviewed || state.publicRows.length);
+      document.getElementById("trackingCount").textContent = fmtNumber(summary.forward_observations || 0);
+      document.getElementById("topPositive").textContent = titleCase(summary.strongest_condition || "Current public structure");
+      document.getElementById("topFailure").textContent = titleCase(summary.weakest_condition || "Weak condition forming");
+      document.getElementById("researchSource").textContent = titleCase(live.source || "public research");
+      document.getElementById("researchAge").textContent = live.stale ? `Last known research snapshot · ${ageLabel(live.freshness_age_seconds)}` : `${ageLabel(live.freshness_age_seconds)} ago`;
+      document.getElementById("researchSampleDepth").textContent = fmtNumber(summary.sample_depth || 0);
+      document.getElementById("researchStatus").textContent = live.stale ? "Evidence forming" : "Fresh public read";
+      renderTable();
+      return true;
+    }
+
+    async function hydrate() {
+      const liveLoaded = await hydrateLiveResearch();
+      [state.edge, state.failure, state.forward, state.plan, state.flatness] = await Promise.all([
+        readJson("/data/runtime/perps_v2_edge_attribution_report.json"),
+        readJson("/data/runtime/perps_v2_failure_mode_analysis.json"),
+        readJson("/data/runtime/perps_v2_forward_paper_report.json"),
+        readJson("/data/runtime/perps_v2_candidate_promotion_plan.json"),
+        readJson("/data/runtime/perps_v2_perpsim_flatness_report.json"),
+      ]);
+      const candidates = [
+        ...(state.plan.classifications?.high_priority_forward_track || []),
+        ...(state.plan.classifications?.forward_track_candidate || []),
+        ...(state.plan.classifications?.watch || []),
+      ];
+      if (!liveLoaded) {
+        document.getElementById("candidateCount").textContent = fmtNumber(candidates.length);
+        document.getElementById("trackingCount").textContent = fmtNumber((state.forward.ranked_lane_table || []).length);
+        const positive = state.edge.strongest_positive_predictors?.[0];
+        document.getElementById("topPositive").textContent = positive ? `${titleCase(positive.dimension)}: ${titleCase(positive.value)}` : "Unavailable";
+        document.getElementById("topFailure").textContent = titleCase(state.flatness.top_causes_of_flatness?.[0]?.cause || state.edge.strongest_negative_predictors?.[0]?.value || "Unavailable");
+        document.getElementById("researchSource").textContent = "Last known research snapshot";
+        document.getElementById("researchAge").textContent = "evidence forming";
+        document.getElementById("researchSampleDepth").textContent = "snapshot";
+        document.getElementById("researchStatus").textContent = "Fallback";
+      }
+      renderTable();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (state.dev) document.body.classList.add("dev-mode");
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.view = button.getAttribute("data-view");
+          document.querySelectorAll("[data-view]").forEach((item) => item.classList.toggle("active", item === button));
+          renderTable();
+        });
+      });
+      document.getElementById("developerToggle").addEventListener("click", () => {
+        state.dev = !state.dev;
+        document.body.classList.toggle("dev-mode", state.dev);
+      });
+      hydrate();
+      window.addEventListener("ravenos:access", renderTable);
+    });
+  </script>
+</body>
+</html>
