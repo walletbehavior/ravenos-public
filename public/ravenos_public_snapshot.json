@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-25T02:15:01Z",
+  "generated_at": "2026-06-25T02:30:02Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -104,7 +104,7 @@
         "deferred": true,
         "eligible_clusters": 0,
         "entries_suppressed_same_token": 0,
-        "null_reason": "budget_exceeded",
+        "null_reason": "recovery_runtime_pressure",
         "rapid_fail_cooldowns": 0,
         "window_sec": 86400
       },
@@ -112,7 +112,7 @@
         "1h": {
           "degraded": true,
           "followthrough_learning": {
-            "sample_size": 865,
+            "sample_size": 642,
             "sources_with_followthrough_score_gt_0": 0,
             "sources_with_regret_or_save_metrics": 0
           },
@@ -125,7 +125,7 @@
         "24h": {
           "degraded": true,
           "followthrough_learning": {
-            "sample_size": 793,
+            "sample_size": null,
             "sources_with_followthrough_score_gt_0": null,
             "sources_with_regret_or_save_metrics": null
           },
@@ -151,7 +151,7 @@
         "6h": {
           "degraded": true,
           "followthrough_learning": {
-            "sample_size": 865,
+            "sample_size": 642,
             "sources_with_followthrough_score_gt_0": 0,
             "sources_with_regret_or_save_metrics": 0
           },
@@ -270,9 +270,9 @@
   "schema_version": "ravenos.public_snapshot.v02",
   "snapshot_version": "0.3",
   "source_health": {
-    "aging_count": 6,
+    "aging_count": 5,
     "blocking_warnings": [],
-    "fresh_count": 0,
+    "fresh_count": 1,
     "overall_status": "stale",
     "stale_count": 3,
     "warning_count": 4
@@ -282,7 +282,7 @@
     "status": "stale",
     "warning_count": 5
   },
-  "source_snapshot_generated_at": "2026-06-25T02:15:01Z",
+  "source_snapshot_generated_at": "2026-06-25T02:30:02Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
