@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-25T15:30:02Z",
+  "generated_at": "2026-06-25T15:45:03Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -80,7 +80,7 @@
         "atlas_state": "fresh",
         "raven_truth": "fresh",
         "regime": "stale",
-        "system_advisory": "fresh"
+        "system_advisory": "stale"
       },
       "headline": "Atlas: caution | low | Mkt=massive ok=4 f=0 fresh=0 cache=0 fb=N | Vol=neutral/stable | Breadth=crypto:risk_on/expanding equity:unknown/mixed rates:risk_off/mixed fx:risk_on/expanding energy:neutral/mixed | OptMacro=neutral/fragile | Crypto=risk_on/expanding/hot/healthy | Opts=SPY:balanced/neutral QQQ:balanced/neutral IWM:balanced/neutral",
       "macro_posture": "risk_context_defensive"
@@ -252,7 +252,8 @@
       "do_not_overread:flow_confirmation_not_established",
       "do_not_overread:source_sample_insufficient",
       "do_not_overread:source_sample_or_freshness_limited",
-      "regime_data_stale"
+      "regime_data_stale",
+      "system_advisory_data_stale"
     ]
   },
   "redaction_scan": {
@@ -270,19 +271,19 @@
   "schema_version": "ravenos.public_snapshot.v02",
   "snapshot_version": "0.3",
   "source_health": {
-    "aging_count": 6,
+    "aging_count": 4,
     "blocking_warnings": [],
     "fresh_count": 0,
     "overall_status": "stale",
-    "stale_count": 3,
+    "stale_count": 5,
     "warning_count": 4
   },
   "source_quality": {
     "label": "degraded",
     "status": "stale",
-    "warning_count": 5
+    "warning_count": 6
   },
-  "source_snapshot_generated_at": "2026-06-25T15:30:02Z",
+  "source_snapshot_generated_at": "2026-06-25T15:45:02Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
@@ -298,6 +299,7 @@
     "do_not_overread:flow_confirmation_not_established",
     "do_not_overread:source_sample_insufficient",
     "do_not_overread:source_sample_or_freshness_limited",
-    "regime_data_stale"
+    "regime_data_stale",
+    "system_advisory_data_stale"
   ]
 }
