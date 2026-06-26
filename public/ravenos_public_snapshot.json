@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-26T11:45:02Z",
+  "generated_at": "2026-06-26T12:00:01Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -78,7 +78,7 @@
       "crypto_trend": "unknown",
       "data_freshness": {
         "atlas_state": "stale",
-        "raven_truth": "stale",
+        "raven_truth": "fresh",
         "regime": "stale",
         "system_advisory": "stale"
       },
@@ -104,7 +104,7 @@
         "deferred": true,
         "eligible_clusters": 0,
         "entries_suppressed_same_token": 0,
-        "null_reason": "recovery_runtime_pressure",
+        "null_reason": "budget_exceeded",
         "rapid_fail_cooldowns": 0,
         "window_sec": 86400
       },
@@ -112,7 +112,7 @@
         "1h": {
           "degraded": true,
           "followthrough_learning": {
-            "sample_size": 548,
+            "sample_size": 1299,
             "sources_with_followthrough_score_gt_0": 0,
             "sources_with_regret_or_save_metrics": 0
           },
@@ -151,7 +151,7 @@
         "6h": {
           "degraded": true,
           "followthrough_learning": {
-            "sample_size": 548,
+            "sample_size": 1299,
             "sources_with_followthrough_score_gt_0": 0,
             "sources_with_regret_or_save_metrics": 0
           },
@@ -252,7 +252,6 @@
       "do_not_overread:flow_confirmation_not_established",
       "do_not_overread:source_sample_insufficient",
       "do_not_overread:source_sample_or_freshness_limited",
-      "raven_truth_data_stale",
       "regime_data_stale",
       "system_advisory_data_stale"
     ]
@@ -274,17 +273,17 @@
   "source_health": {
     "aging_count": 2,
     "blocking_warnings": [],
-    "fresh_count": 0,
+    "fresh_count": 2,
     "overall_status": "stale",
-    "stale_count": 7,
+    "stale_count": 5,
     "warning_count": 4
   },
   "source_quality": {
     "label": "degraded",
     "status": "stale",
-    "warning_count": 7
+    "warning_count": 6
   },
-  "source_snapshot_generated_at": "2026-06-26T11:45:01Z",
+  "source_snapshot_generated_at": "2026-06-26T12:00:01Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
@@ -300,7 +299,6 @@
     "do_not_overread:flow_confirmation_not_established",
     "do_not_overread:source_sample_insufficient",
     "do_not_overread:source_sample_or_freshness_limited",
-    "raven_truth_data_stale",
     "regime_data_stale",
     "system_advisory_data_stale"
   ]
