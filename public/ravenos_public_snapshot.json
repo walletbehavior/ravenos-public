@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-26T03:00:01Z",
+  "generated_at": "2026-06-26T03:15:01Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -78,7 +78,7 @@
       "crypto_trend": "unknown",
       "data_freshness": {
         "atlas_state": "fresh",
-        "raven_truth": "fresh",
+        "raven_truth": "stale",
         "regime": "stale",
         "system_advisory": "stale"
       },
@@ -252,6 +252,7 @@
       "do_not_overread:flow_confirmation_not_established",
       "do_not_overread:source_sample_insufficient",
       "do_not_overread:source_sample_or_freshness_limited",
+      "raven_truth_data_stale",
       "regime_data_stale",
       "system_advisory_data_stale"
     ]
@@ -271,19 +272,19 @@
   "schema_version": "ravenos.public_snapshot.v02",
   "snapshot_version": "0.3",
   "source_health": {
-    "aging_count": 4,
+    "aging_count": 2,
     "blocking_warnings": [],
-    "fresh_count": 0,
+    "fresh_count": 1,
     "overall_status": "stale",
-    "stale_count": 5,
+    "stale_count": 6,
     "warning_count": 4
   },
   "source_quality": {
     "label": "degraded",
     "status": "stale",
-    "warning_count": 6
+    "warning_count": 7
   },
-  "source_snapshot_generated_at": "2026-06-26T03:00:01Z",
+  "source_snapshot_generated_at": "2026-06-26T03:15:01Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
@@ -299,6 +300,7 @@
     "do_not_overread:flow_confirmation_not_established",
     "do_not_overread:source_sample_insufficient",
     "do_not_overread:source_sample_or_freshness_limited",
+    "raven_truth_data_stale",
     "regime_data_stale",
     "system_advisory_data_stale"
   ]
