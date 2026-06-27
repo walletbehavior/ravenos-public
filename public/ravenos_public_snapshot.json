@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-06-27T01:00:01Z",
+  "generated_at": "2026-06-27T01:15:02Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -283,7 +283,7 @@
     "status": "stale",
     "warning_count": 6
   },
-  "source_snapshot_generated_at": "2026-06-27T01:00:01Z",
+  "source_snapshot_generated_at": "2026-06-27T01:15:02Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
