@@ -13,7 +13,7 @@
   "desk_risks": [
     "premature_strategy_validation"
   ],
-  "generated_at": "2026-07-01T21:45:02Z",
+  "generated_at": "2026-07-01T22:00:02Z",
   "lane_quality": [
     {
       "chain": "solana",
@@ -272,9 +272,9 @@
   "schema_version": "ravenos.public_snapshot.v02",
   "snapshot_version": "0.3",
   "source_health": {
-    "aging_count": 2,
+    "aging_count": 3,
     "blocking_warnings": [],
-    "fresh_count": 1,
+    "fresh_count": 0,
     "overall_status": "stale",
     "stale_count": 6,
     "warning_count": 4
@@ -284,7 +284,7 @@
     "status": "stale",
     "warning_count": 7
   },
-  "source_snapshot_generated_at": "2026-07-01T21:45:01Z",
+  "source_snapshot_generated_at": "2026-07-01T22:00:02Z",
   "system_state": {
     "confidence": "low",
     "public_read": "RavenOS cannot classify the current system state with enough source quality.",
