@@ -43,6 +43,8 @@ No unversioned JavaScript or CSS file may remain in the deploy surface.
 6. Staging verifies package checksums and the names of required server-only secret bindings, uploads one Cloudflare Worker Version with the release ID as its version tag, and does not shift production traffic.
 7. The version-specific preview verifies `/api/build`, every public HTML route, every referenced asset hash and cache policy, health, and current-origin opportunity delivery.
 
+The production Worker's main `workers.dev` route remains disabled. Staging enables only Cloudflare version previews when necessary and records that state in the stage receipt. Preview URLs contain the same public-safe surface intended for `ravenos.xyz`; private Raven routes and origin credentials remain inaccessible.
+
 The parent `.env` is read only for Cloudflare credentials. It is never copied, printed, or modified. Existing remote variables and secrets are retained with Wrangler's keep-vars behavior.
 
 ## Promotion

@@ -10,6 +10,7 @@ if (!bundleRoot || !existsSync(join(bundleRoot, "release-package.json"))) {
 }
 const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-package.json"), "utf8"));
 if (packageManifest.source_tree_state !== "clean") throw new Error("Only a clean release package may be uploaded to staging");
+const previewAlias = "ravenos-stage";
 
 const checksumLines = readFileSync(join(bundleRoot, "SHA256SUMS"), "utf8").trim().split(/\r?\n/);
 const crypto = await import("node:crypto");
@@ -22,6 +23,22 @@ for (const line of checksumLines) {
 }
 
 const cloudflareEnv = cloudflareReleaseEnv(repoRoot);
+
+async function cloudflare(path, init = {}) {
+  const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${cloudflareEnv.CLOUDFLARE_API_TOKEN}`,
+      ...(init.body ? { "content-type": "application/json" } : {}),
+      ...(init.headers || {}),
+    },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.success !== true) {
+    throw new Error(`Cloudflare API ${init.method || "GET"} ${path} failed (${response.status})`);
+  }
+  return payload.result;
+}
 
 function wrangler(args) {
   const result = spawnSync(process.execPath, [join(repoRoot, "scripts/run-local-wrangler.mjs"), ...args], {
@@ -47,25 +64,54 @@ if (missingSecrets.length) {
 }
 
 const configPath = join(bundleRoot, "wrangler.release.jsonc");
-const uploadOutput = wrangler([
-  "versions", "upload",
-  "--config", configPath,
-  "--tag", packageManifest.release_id,
-  "--message", `RavenOS immutable staged release ${packageManifest.release_id}`,
-  "--preview-alias", "ravenos-stage",
-  "--keep-vars",
-]);
-const versionsText = wrangler(["versions", "list", "--name", packageManifest.worker_name, "--json"]);
-const parsedVersions = JSON.parse(versionsText);
-const versions = Array.isArray(parsedVersions) ? parsedVersions : (parsedVersions.items || parsedVersions.versions || []);
-const version = versions.find((entry) =>
+function versionList() {
+  const parsed = JSON.parse(wrangler(["versions", "list", "--name", packageManifest.worker_name, "--json"]));
+  return Array.isArray(parsed) ? parsed : (parsed.items || parsed.versions || []);
+}
+
+function taggedVersion(versions) {
+  return versions.find((entry) =>
   entry.tag === packageManifest.release_id
   || entry.annotations?.["workers/tag"] === packageManifest.release_id
   || entry.metadata?.tag === packageManifest.release_id
-);
+  );
+}
+
+let version = taggedVersion(versionList());
+let versionReused = Boolean(version?.id && version.annotations?.["workers/alias"] === previewAlias);
+if (!versionReused) {
+  wrangler([
+    "versions", "upload",
+    "--config", configPath,
+    "--tag", packageManifest.release_id,
+    "--message", `RavenOS immutable staged release ${packageManifest.release_id}`,
+    "--preview-alias", previewAlias,
+    "--keep-vars",
+  ]);
+  version = taggedVersion(versionList());
+}
 if (!version?.id) throw new Error("Uploaded Worker version could not be reconciled by release tag");
-const previewUrl = (uploadOutput.match(/https:\/\/[^\s]+\.workers\.dev\/?/g) || []).at(-1);
-if (!previewUrl) throw new Error("Wrangler did not return a version preview URL");
+
+const accountId = encodeURIComponent(cloudflareEnv.CLOUDFLARE_ACCOUNT_ID);
+const scriptName = encodeURIComponent(packageManifest.worker_name);
+const accountSubdomain = await cloudflare(`/accounts/${accountId}/workers/subdomain`);
+if (!accountSubdomain?.subdomain) throw new Error("Cloudflare Workers account subdomain is unavailable");
+const previousSubdomainState = await cloudflare(`/accounts/${accountId}/workers/scripts/${scriptName}/subdomain`);
+let currentSubdomainState = previousSubdomainState;
+if (previousSubdomainState?.previews_enabled !== true) {
+  currentSubdomainState = await cloudflare(`/accounts/${accountId}/workers/scripts/${scriptName}/subdomain`, {
+    method: "POST",
+    body: JSON.stringify({
+      enabled: Boolean(previousSubdomainState?.enabled),
+      previews_enabled: true,
+    }),
+  });
+}
+if (Boolean(currentSubdomainState?.enabled) !== Boolean(previousSubdomainState?.enabled)) {
+  throw new Error("Staging changed the main workers.dev route state");
+}
+if (currentSubdomainState?.previews_enabled !== true) throw new Error("Cloudflare version previews remain disabled");
+const previewUrl = `https://${previewAlias}-${packageManifest.worker_name}.${accountSubdomain.subdomain}.workers.dev`;
 
 const receipt = {
   schema_version: "ravenos.release_stage_receipt.v1",
@@ -74,9 +120,15 @@ const receipt = {
   worker_name: packageManifest.worker_name,
   worker_version_id: version.id,
   worker_version_tag: packageManifest.release_id,
-  preview_url: previewUrl.replace(/\/$/, ""),
+  preview_url: previewUrl,
   package_content_sha256: packageManifest.package_content_sha256,
   required_server_secret_bindings_verified: packageManifest.required_server_secret_bindings || [],
+  worker_version_reused: versionReused,
+  preview_configuration: {
+    main_workers_dev_enabled: Boolean(currentSubdomainState.enabled),
+    version_previews_enabled: Boolean(currentSubdomainState.previews_enabled),
+    version_previews_changed: previousSubdomainState?.previews_enabled !== currentSubdomainState?.previews_enabled,
+  },
   staged_at: new Date().toISOString(),
   production_traffic_changed: false,
   verified: false,
