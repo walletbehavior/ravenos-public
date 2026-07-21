@@ -46,10 +46,16 @@ async function fetchJson(path) {
   return { res, json };
 }
 
+function hasBuildMarker(text) {
+  return text.includes("Public artifact verified")
+    || text.includes("UI build")
+    || text.includes("data-ravenos-build-id");
+}
+
 for (const route of pageRoutes) {
   const { res, text } = await fetchText(route);
   if (!res.ok) throw new Error(`${route} returned ${res.status}`);
-  if (!text.includes("UI build")) throw new Error(`${route} missing build marker`);
+  if (!hasBuildMarker(text)) throw new Error(`${route} missing build marker`);
   if (/Developer Mode|Loading Structure Lab|WalletMemory|ShadowMirror|Turnkey|treasury/.test(text)) {
     throw new Error(`${route} contains stale developer or private strings`);
   }
@@ -72,11 +78,11 @@ const { res: claimRes, json: claimJson } = await fetchJson(`/api/claims/${encode
 if (!claimRes.ok || !claimJson?.claim?.claim_id) throw new Error("Claim detail endpoint did not resolve");
 
 const { res: claimPageRes, text: claimPageText } = await fetchText(`/claims/?id=${encodeURIComponent(claimId)}`);
-if (!claimPageRes.ok || !claimPageText.includes("UI build")) throw new Error("Claim detail route did not resolve");
+if (!claimPageRes.ok || !hasBuildMarker(claimPageText)) throw new Error("Claim detail route did not resolve");
 
 const { text: outcomesHtml } = await fetchText("/outcomes/");
-if (!/Claim-To-Outcome Loop|What happened after Raven's earlier reads\?/.test(outcomesHtml)) {
-  throw new Error("/outcomes/ missing proof-rail UI");
+if (!/Followthrough check|Outcomes tracks whether earlier Raven reads followed through/i.test(outcomesHtml)) {
+  throw new Error("/outcomes/ missing followthrough UI");
 }
 
 const { text: researchHtml } = await fetchText("/research/");

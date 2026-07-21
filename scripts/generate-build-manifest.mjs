@@ -23,9 +23,22 @@ const files = [
   "public_routes.json",
   "ravenos-route.css",
   "ravenos-route-app.js",
+  "ravenos-shell.css",
+  "ravenos-shell.js",
+  "ravenos-context-store.js",
+  "ravenos-intelligence-contract.js",
+  "ravenos-chart-data-plane.js",
+  "ravenos-perps-workspace.css",
+  "ravenos-perps-workspace.js",
+  "ravenos-price-workspace.css",
+  "ravenos-price-workspace.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
+  "ravenos-terminal-review-foundation.js",
   "ravenos-terminal-trade.js",
+  "raven-chart-overlays.js",
+  "raven-reads.js",
+  "raven-price-chart.js",
 ];
 
 function sha256(path) {
@@ -58,11 +71,16 @@ function safeGitFile(path) {
 
 function normalizeBuildStampedContent(source) {
   return source
-    .replace(/UI build[^<\n]*· artifact[^<\n]*· public evidence shell/g, "UI build __RAVENOS_BUILD_ID__ · artifact __RAVENOS_BUILT_AT__ · public evidence shell")
+    .replace(/UI build[^<\n]*· artifact[^<\n]*· public evidence shell/g, "Public artifact verified")
+    .replace(/Public artifact (?:loading|verified)/g, "Public artifact verified")
     .replace(/window\.__RAVENOS_BUILD_ID__ = "(?:__RAVENOS_BUILD_ID__|[^"]+)";/g, 'window.__RAVENOS_BUILD_ID__ = "__RAVENOS_BUILD_ID__";')
     .replace(/(lightweight-charts\.standalone\.production\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
     .replace(/(raven-chart-overlays\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
+    .replace(/(raven-reads\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
     .replace(/(raven-price-chart\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
+    .replace(/(ravenos-access\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
+    .replace(/(ravenos-price-workspace\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
+    .replace(/(ravenos-terminal-review-foundation\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__")
     .replace(/(ravenos-terminal-trade\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, "$1__RAVENOS_BUILD_ID__");
 }
 
@@ -123,6 +141,9 @@ const manifest = {
   api_schema_versions: {
     evidence_contract: "1.0",
     claim_lineage: "2.0",
+    intelligence_contract: "ravenos.intelligence.v1",
+    selected_context: "ravenos.context.v1",
+    price_workspace: "ravenos.price_workspace.v1",
   },
   evidence_contract_version: "1.0",
   claim_lineage_version: "2.0",
@@ -137,7 +158,7 @@ for (const output of ["ravenos_build.json", "public/ravenos_build.json"]) {
   writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
-const buildMarker = `UI build ${buildId} · artifact ${builtAt} · public evidence shell`;
+const buildMarker = "Public artifact verified";
 const routeFiles = routeList.map((route) => {
   const trimmed = route.replace(/^\/+|\/+$/g, "");
   return trimmed ? `${trimmed}/index.html` : "index.html";
@@ -147,10 +168,15 @@ for (const file of [...routeFiles, ...routeFiles.map((file) => `public/${file}`)
   const source = readFileSync(file, "utf8");
   const updated = source
     .replace(/UI build[^<\n]*· artifact[^<\n]*· public evidence shell/g, buildMarker)
+    .replace(/Public artifact (?:loading|verified)/g, buildMarker)
     .replace(/window\.__RAVENOS_BUILD_ID__ = "(?:__RAVENOS_BUILD_ID__|[^"]+)";/g, `window.__RAVENOS_BUILD_ID__ = "${buildId}";`)
     .replace(/(lightweight-charts\.standalone\.production\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
     .replace(/(raven-chart-overlays\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
+    .replace(/(raven-reads\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
     .replace(/(raven-price-chart\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
+    .replace(/(ravenos-access\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
+    .replace(/(ravenos-price-workspace\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
+    .replace(/(ravenos-terminal-review-foundation\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
     .replace(/(ravenos-terminal-trade\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`);
   writeFileSync(file, updated, "utf8");
 }

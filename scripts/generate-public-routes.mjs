@@ -20,41 +20,41 @@ function routeToPath(route) {
 
 function navLinks(activeSlug) {
   return routes
-    .filter((route) => route.public && route.slug !== "home")
+    .filter((route) => route.public && route.nav_group === "primary" && route.slug !== "home")
     .map((route) => `<a class="${route.slug === activeSlug ? "active" : ""}" href="${route.route}">${route.title}</a>`)
     .join("");
 }
 
 function buildMarkerPlaceholder() {
-  return "UI build pending · artifact pending · public evidence shell";
+  return "Public artifact loading";
 }
 
-function fallbackPayload(route) {
-  if (!route.fallback_artifact) return null;
+function fallbackArtifactExists(route) {
+  if (!route.fallback_artifact) return false;
   const relativePath = route.fallback_artifact.replace(/^\/+/, "");
-  const candidates = [
+  return [
     join(repoRoot, "public", relativePath),
     join(repoRoot, relativePath),
-  ];
-  for (const candidate of candidates) {
-    const text = readIfExists(candidate);
-    if (!text) continue;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  ].some((candidate) => readIfExists(candidate) !== null);
+}
+
+function routePrompt(route) {
+  if (route.slug === "opportunity") return "Current opportunity";
+  if (route.slug === "memory") return "Similar conditions remain mixed";
+  if (route.slug === "replay") return "Historical context";
+  if (route.slug === "outcomes") return "Followthrough check";
+  return route.question;
 }
 
 function renderGeneratedRoute(route) {
-  const payload = fallbackPayload(route);
+  const hasFallbackArtifact = fallbackArtifactExists(route);
+  const prompt = routePrompt(route);
   const configPayload = {
     ...route,
+    question: prompt,
     route_manifest_version: config.route_manifest_version,
-    fallback_payload: payload,
-    fallback_message: payload ? null : "Current read forming. Verified fallback data is not yet available for this route.",
+    fallback_message: hasFallbackArtifact ? null : "Current read forming. Verified fallback data is not yet available for this route.",
+    surface_state: "report_view_pending_workspace_migration",
   };
   return `<!doctype html>
 <html lang="en">
@@ -62,50 +62,53 @@ function renderGeneratedRoute(route) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS ${route.title}</title>
-  <meta name="description" content="${route.question}" />
+  <meta name="description" content="${prompt}" />
   <link rel="stylesheet" href="/ravenos-route.css" />
   <link rel="stylesheet" href="/ravenos-evidence.css" />
   <link rel="stylesheet" href="/ravenos-funnel.css" />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
 </head>
 <body>
   <main class="route-shell" data-route-slug="${route.slug}">
     <header class="route-topbar">
       <div class="route-brand">
         <span class="route-eyebrow">RavenOS ${route.title}</span>
-        <strong>${route.question}</strong>
+        <strong>${prompt}</strong>
       </div>
       <nav class="route-nav" aria-label="Primary navigation">${navLinks(route.slug)}</nav>
     </header>
 
     <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
       <div class="public-evidence-strip">
-        <div class="public-evidence-cell"><span>Evidence Role</span><strong data-evidence-field="role">${route.evidence_role}</strong></div>
-        <div class="public-evidence-cell"><span>As Of</span><strong data-evidence-field="as_of">awaiting read</strong></div>
-        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">declared by read</strong></div>
-        <div class="public-evidence-cell"><span>Usable Sample</span><strong data-evidence-field="sample">sample forming</strong></div>
-        <div class="public-evidence-cell"><span>Freshness</span><strong data-evidence-field="freshness">checking</strong></div>
+        <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
+        <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
+        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">read-defined window</strong></div>
+        <div class="public-evidence-cell"><span>Observations</span><strong data-evidence-field="sample">see totals below</strong></div>
+        <div class="public-evidence-cell"><span>Status</span><strong data-evidence-field="freshness">checking</strong></div>
         <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
       </div>
-      <div class="public-evidence-bridge" data-evidence-field="bridge"><strong>Evidence bridge:</strong> Current reads, historical context, and settled validation use declared windows so differences can be understood rather than treated as contradictions.</div>
       <details class="public-evidence-details">
         <summary>Evidence details</summary>
+        <p class="public-evidence-bridge" data-evidence-field="bridge"><strong>Why reads can differ:</strong> Live reads can move before outcomes settle. We separate current opportunity from later followthrough checks.</p>
         <div class="public-evidence-detail-grid">
-          <div>Settlement window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
-          <div>Population<strong data-evidence-field="population">public aggregate market context</strong></div>
+          <div>Evidence role<strong data-evidence-field="raw_role">${route.evidence_role}</strong></div>
+          <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
+          <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
           <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
-          <div>Source<strong data-evidence-field="source">verified Raven feed</strong></div>
-          <div>Observed / settled<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Source<strong data-evidence-field="source">Raven feed</strong></div>
+          <div>Observed / outcomes<strong data-evidence-field="observed_settled">0 / 0</strong></div>
           <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
-          <div>Artifact version<strong data-evidence-field="artifact">unversioned</strong></div>
+          <div>Evidence version<strong data-evidence-field="artifact">unversioned</strong></div>
           <div>Methodology<strong><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Public definitions</a></strong></div>
         </div>
       </details>
     </section>
 
     <section class="route-hero">
-      <span class="route-eyebrow">${route.funnel_stage}</span>
-      <h1 id="routeHeadline">${route.question}</h1>
+      <span class="route-eyebrow">Current read</span>
+      <h1 id="routeHeadline">${prompt}</h1>
       <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
+      <div class="route-migration-state">Report view · interactive workspace migration pending</div>
       <div class="route-state-strip" id="routeStateStrip">${route.title}</div>
     </section>
 
@@ -115,9 +118,9 @@ function renderGeneratedRoute(route) {
     </section>
 
     <section class="raven-funnel-grid" aria-label="RavenOS intelligence funnel" style="margin-top:16px;">
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">${route.funnel_stage}</span><h3>${route.question}</h3><p>Conclusion first, evidence second, methodology expandable.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>Outcomes Proof Rail</h3><p>Every material public read should link to later validation, mixed results, or insufficient evidence.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>Next Step</h3><p>Open ${route.next_route === "/terminal/" ? "Terminal" : "Opportunity"} as the next investigative surface.</p></article>
+      <article class="raven-funnel-card"><span class="raven-funnel-stage">Current read</span><h3>${prompt}</h3><p>Raven shows the market read first, then what confirms or weakens it.</p></article>
+      <article class="raven-funnel-card"><span class="raven-funnel-stage">Followthrough</span><h3>Followthrough check</h3><p>We track whether earlier reads followed through, failed, or need more evidence.</p></article>
+      <article class="raven-funnel-card"><span class="raven-funnel-stage">Next watch</span><h3>What to watch next</h3><p>${route.next_route === "/terminal/" ? "Open Terminal to inspect the active workspace." : "Check the current opportunity page for the strongest active market."}</p></article>
     </section>
 
     <footer class="route-build">
@@ -146,15 +149,29 @@ for (const route of routes) {
   if (route.template === "existing") {
     const sourcePath = join(repoRoot, route.source_path || htmlPath);
     const content = readFileSync(sourcePath, "utf8");
-    const publicTarget = join(repoRoot, "public", htmlPath);
-    mkdirSync(dirname(publicTarget), { recursive: true });
-    writeFileSync(publicTarget, content, "utf8");
+    writeMirrored(htmlPath, content);
     continue;
   }
   writeMirrored(htmlPath, renderGeneratedRoute(route));
 }
 
-for (const asset of ["ravenos-route.css", "ravenos-route-app.js", "ravenos-evidence.css", "ravenos-funnel.css"]) {
+for (const asset of [
+  "ravenos-route.css",
+  "ravenos-route-app.js",
+  "ravenos-evidence.css",
+  "ravenos-funnel.css",
+  "ravenos-shell.css",
+  "ravenos-shell.js",
+  "ravenos-context-store.js",
+  "ravenos-intelligence-contract.js",
+  "ravenos-chart-data-plane.js",
+  "ravenos-perps-workspace.css",
+  "ravenos-perps-workspace.js",
+  "ravenos-price-workspace.css",
+  "ravenos-price-workspace.js",
+  "raven-chart-overlays.js",
+  "raven-price-chart.js",
+]) {
   const source = join(repoRoot, asset);
   const content = readFileSync(source, "utf8");
   writeMirrored(asset, content);

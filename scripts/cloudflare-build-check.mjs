@@ -6,18 +6,49 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const wranglerConfig = readFileSync("wrangler.jsonc", "utf8");
 const routes = (routeConfig.routes || []).filter((route) => route.public);
 const deployManifestPath = ".deploy-public/ravenos_deploy_manifest.json";
+const narratorAssets = [
+  "ravenos_narrator_brief.json",
+  "ravenos_narrator_opportunity.json",
+  "ravenos_narrator_terminal.json",
+  "ravenos_narrator_atlas.json",
+  "ravenos_narrator_replay.json",
+  "ravenos_narrator_outcomes.json",
+  "ravenos_narrator_behavior.json",
+  "ravenos_narrator_research.json",
+  "ravenos_narrator_perps.json",
+];
 
 const requiredAssets = [
   "ravenos-route.css",
   "ravenos-route-app.js",
+  "ravenos-shell.css",
+  "ravenos-shell.js",
+  "ravenos-context-store.js",
+  "ravenos-intelligence-contract.js",
+  "ravenos-chart-data-plane.js",
+  "ravenos-perps-workspace.css",
+  "ravenos-perps-workspace.js",
+  "ravenos-price-workspace.css",
+  "ravenos-price-workspace.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
+  "ravenos-terminal-review-foundation.js",
   "ravenos-terminal-trade.js",
   "ravenos_build.json",
   "public/ravenos-route.css",
   "public/ravenos-route-app.js",
+  "public/ravenos-shell.css",
+  "public/ravenos-shell.js",
+  "public/ravenos-context-store.js",
+  "public/ravenos-intelligence-contract.js",
+  "public/ravenos-chart-data-plane.js",
+  "public/ravenos-perps-workspace.css",
+  "public/ravenos-perps-workspace.js",
+  "public/ravenos-price-workspace.css",
+  "public/ravenos-price-workspace.js",
   "public/ravenos-evidence.css",
   "public/ravenos-funnel.css",
+  "public/ravenos-terminal-review-foundation.js",
   "public/ravenos-terminal-trade.js",
   "public/ravenos_build.json",
   "functions/api/access.js",
@@ -32,6 +63,7 @@ const requiredAssets = [
   "public/ravenos/status.json",
   "public/ravenos/manifest.json",
   "public/ravenos/terminal_health.json",
+  ...narratorAssets.map((asset) => `public/ravenos/${asset}`),
   "ravenos/brief.json",
   "ravenos/replay.json",
   "ravenos/outcomes.json",
@@ -43,13 +75,25 @@ const requiredAssets = [
   "ravenos/status.json",
   "ravenos/manifest.json",
   "ravenos/terminal_health.json",
+  ...narratorAssets.map((asset) => `ravenos/${asset}`),
   ".deploy-public/ravenos-route.css",
   ".deploy-public/ravenos-route-app.js",
+  ".deploy-public/ravenos-shell.css",
+  ".deploy-public/ravenos-shell.js",
+  ".deploy-public/ravenos-context-store.js",
+  ".deploy-public/ravenos-intelligence-contract.js",
+  ".deploy-public/ravenos-chart-data-plane.js",
+  ".deploy-public/ravenos-perps-workspace.css",
+  ".deploy-public/ravenos-perps-workspace.js",
+  ".deploy-public/ravenos-price-workspace.css",
+  ".deploy-public/ravenos-price-workspace.js",
   ".deploy-public/ravenos-evidence.css",
   ".deploy-public/ravenos-funnel.css",
+  ".deploy-public/ravenos-terminal-review-foundation.js",
   ".deploy-public/ravenos-terminal-trade.js",
   ".deploy-public/ravenos-access.js",
   ".deploy-public/raven-chart-overlays.js",
+  ".deploy-public/raven-reads.js",
   ".deploy-public/raven-price-chart.js",
   ".deploy-public/vendor/lightweight-charts.standalone.production.js",
   ".deploy-public/ravenos_build.json",
@@ -70,6 +114,7 @@ const requiredAssets = [
   ".deploy-public/ravenos/status.json",
   ".deploy-public/ravenos/manifest.json",
   ".deploy-public/ravenos/terminal_health.json",
+  ...narratorAssets.map((asset) => `.deploy-public/ravenos/${asset}`),
   deployManifestPath,
 ];
 
@@ -131,7 +176,7 @@ for (const route of routes) {
     console.error(`Route mismatch: ${file} does not match public/${file}`);
     process.exit(1);
   }
-  if (!rootHtml.includes("UI build") && !rootHtml.includes("public evidence shell")) {
+  if (route.template !== "existing" && !rootHtml.includes("Public artifact verified")) {
     console.error(`Route shell missing build marker placeholder: ${file}`);
     process.exit(1);
   }
@@ -142,7 +187,7 @@ for (const route of routes) {
   }
 }
 
-for (const asset of ["ravenos-route.css", "ravenos-route-app.js", "ravenos-evidence.css", "ravenos-funnel.css", "ravenos-terminal-trade.js", "raven-chart-overlays.js", "raven-price-chart.js", "ravenos_build.json"]) {
+for (const asset of ["ravenos-route.css", "ravenos-route-app.js", "ravenos-shell.css", "ravenos-shell.js", "ravenos-context-store.js", "ravenos-intelligence-contract.js", "ravenos-chart-data-plane.js", "ravenos-perps-workspace.css", "ravenos-perps-workspace.js", "ravenos-price-workspace.css", "ravenos-price-workspace.js", "ravenos-evidence.css", "ravenos-funnel.css", "ravenos-terminal-review-foundation.js", "ravenos-terminal-trade.js", "raven-chart-overlays.js", "raven-reads.js", "raven-price-chart.js", "ravenos_build.json"]) {
   const root = readFileSync(asset, "utf8");
   const pub = readFileSync(`public/${asset}`, "utf8");
   if (root !== pub) {
@@ -206,8 +251,8 @@ for (const route of routes.map((entry) => entry.route)) {
 }
 
 const outcomesHtml = readFileSync("outcomes/index.html", "utf8");
-if (!outcomesHtml.includes("What happened after Raven's earlier reads?") || !outcomesHtml.includes('"slug":"outcomes"')) {
-  console.error("Outcomes route shell missing proof-rail hooks");
+if (!outcomesHtml.includes("Followthrough check") || !outcomesHtml.includes('"slug":"outcomes"')) {
+  console.error("Outcomes route shell missing followthrough hooks");
   process.exit(1);
 }
 

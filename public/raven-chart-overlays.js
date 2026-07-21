@@ -1,175 +1,183 @@
 (function () {
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+  function finite(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function seedFor(symbol, market) {
-    return Array.from(String(symbol || "ASSET").toUpperCase()).reduce((sum, char) => sum + char.charCodeAt(0), String(market || "spot").length * 17);
+  function observedAt(source) {
+    return source?.source_event_time
+      || source?.event_time
+      || source?.observed_at
+      || source?.observedAt
+      || source?.lastUpdated
+      || null;
   }
 
-  function times(candles) {
-    const usable = (Array.isArray(candles) ? candles : []).filter((candle) => candle && candle.time);
+  function timestampMs(value) {
+    if (typeof value === "number") return value > 10_000_000_000 ? value : value * 1000;
+    const parsed = Date.parse(value || "");
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function chartTimeFor(value, candles) {
+    const target = timestampMs(value);
+    if (target === null) return null;
+    const chartTimes = (Array.isArray(candles) ? candles : [])
+      .map((candle) => timestampMs(candle?.time))
+      .filter((time) => time !== null)
+      .sort((left, right) => left - right);
+    if (!chartTimes.length) return null;
+    const intervals = chartTimes.slice(1).map((time, index) => time - chartTimes[index]).filter((value) => value > 0).sort((left, right) => left - right);
+    const interval = intervals.length ? intervals[Math.floor(intervals.length / 2)] : 300_000;
+    const tolerance = Math.max(60_000, interval * 1.25);
+    if (target < chartTimes[0] - tolerance || target > chartTimes[chartTimes.length - 1] + tolerance) return null;
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const candle of Array.isArray(candles) ? candles : []) {
+      const current = timestampMs(candle?.time);
+      if (current === null) continue;
+      const distance = Math.abs(current - target);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = candle.time;
+      }
+    }
+    return nearestDistance <= tolerance ? nearest : null;
+  }
+
+  function freshness(source) {
+    const declared = String(source?.freshness_state || "").toLowerCase();
+    if (declared) return declared;
+    const value = timestampMs(observedAt(source));
+    if (value === null) return "unknown";
+    const age = (Date.now() - value) / 1000;
+    if (age > 900) return "stale";
+    if (age > 180) return "delayed";
+    return "live";
+  }
+
+  function identityMatches(annotation, { symbol, market, chartContext }) {
+    const annotationSymbol = String(annotation?.symbol || annotation?.asset || annotation?.instrument || "").toUpperCase();
+    const selectedSymbol = String(symbol || "").toUpperCase();
+    if (!annotationSymbol || annotationSymbol !== selectedSymbol) return false;
+    if (annotation.market && String(annotation.market).toLowerCase() !== String(market || "").toLowerCase()) return false;
+    if (annotation.market_identity && chartContext?.marketIdentity && annotation.market_identity !== chartContext.marketIdentity) return false;
+    return true;
+  }
+
+  function lineagePresent(annotation) {
+    return Boolean(
+      annotation?.evidence_id
+      || annotation?.source_evidence_id
+      || annotation?.execution_observation_id
+      || annotation?.lineage_id
+      || annotation?.source_lineage,
+    );
+  }
+
+  function annotationRows(evidenceContext) {
+    const candidates = [
+      evidenceContext?.chartAnnotations,
+      evidenceContext?.chart_annotations,
+      evidenceContext?.annotations,
+      evidenceContext?.data?.chart_annotations,
+    ];
+    return candidates.find(Array.isArray) || [];
+  }
+
+  function annotationOverlay(annotation, context) {
+    if (!identityMatches(annotation, context) || !lineagePresent(annotation)) return null;
+    const exactObservedAt = observedAt(annotation);
+    const time = chartTimeFor(exactObservedAt, context.candles);
+    if (!time) return null;
+    const type = String(annotation.type || annotation.event_type || "regime-marker").replace(/_/g, "-");
+    const mode = ["pressure", "structure", "participation", "replay", "risk"].includes(annotation.mode) ? annotation.mode : "structure";
     return {
-      first: usable[0]?.time,
-      third: usable[Math.min(2, Math.max(0, usable.length - 1))]?.time,
-      mid: usable[Math.floor(usable.length / 2)]?.time,
-      late: usable[Math.max(0, usable.length - 3)]?.time,
-      last: usable[Math.max(0, usable.length - 1)]?.time,
+      id: annotation.id || annotation.annotation_id || annotation.evidence_id,
+      type,
+      time,
+      label: annotation.label || annotation.event_label || "Raven detection",
+      value: finite(annotation.value ?? annotation.score),
+      severity: annotation.severity || "info",
+      source: annotation.source || annotation.producer || "Raven evidence",
+      observed_at: exactObservedAt,
+      freshness_state: freshness(annotation),
+      summary: annotation.summary || "Timestamped Raven evidence attached to this market candle.",
+      metadata: {
+        evidence_id: annotation.evidence_id || annotation.source_evidence_id,
+        execution_observation_id: annotation.execution_observation_id,
+        lineage_id: annotation.lineage_id,
+        source_lineage: annotation.source_lineage,
+        exact_event_time: exactObservedAt,
+        chart_candle_time: time,
+      },
+      raven_read: {
+        schema_version: "ravenos.chart_annotation.v1",
+        mode,
+        title: annotation.label || annotation.event_label || "Raven detection",
+        summary: annotation.summary || "Timestamped Raven evidence attached to this market candle.",
+        evidence: [{ source: annotation.source || annotation.producer || "Raven evidence", observed_at: exactObservedAt }],
+        confidence: annotation.confidence || "unrated",
+      },
     };
   }
 
-  function priceRange(candles) {
-    const lows = (Array.isArray(candles) ? candles : []).map((candle) => Number(candle.low)).filter(Number.isFinite);
-    const highs = (Array.isArray(candles) ? candles : []).map((candle) => Number(candle.high)).filter(Number.isFinite);
-    const min = lows.length ? Math.min(...lows) : 0;
-    const max = highs.length ? Math.max(...highs) : 1;
-    return { min, max, span: Math.max(max - min, max * 0.01, 1) };
+  function currentPressureOverlay(symbol, market, candles, pressureContext) {
+    if (!pressureContext || !Array.isArray(candles) || !candles.length) return null;
+    const exactObservedAt = observedAt(pressureContext);
+    if (!exactObservedAt) return null;
+    const score = finite(pressureContext.pressureScore);
+    const availableFields = ["funding", "openInterest", "markPx", "oraclePx", "dayNtlVlm"]
+      .filter((key) => finite(pressureContext[key]) !== null);
+    if (score === null || availableFields.length < 2) return null;
+    const time = candles[candles.length - 1]?.time;
+    const label = pressureContext.pressureState && pressureContext.pressureState !== "Unknown"
+      ? `${pressureContext.pressureState} pressure snapshot`
+      : "Current pressure snapshot";
+    return {
+      id: `${String(symbol || "asset").toUpperCase()}-current-pressure-${exactObservedAt}`,
+      type: "regime-marker",
+      time,
+      label,
+      value: score,
+      severity: score >= 75 ? "warning" : "info",
+      source: pressureContext.provider || "Hyperliquid",
+      observed_at: exactObservedAt,
+      freshness_state: freshness(pressureContext),
+      summary: `Current decision-time snapshot from ${availableFields.join(", ")}. This is not a reconstructed historical signal.`,
+      metadata: {
+        pressureScore: score,
+        pressure_state: pressureContext.pressureState,
+        pressure_context: pressureContext.pressureContext,
+        funding: finite(pressureContext.funding),
+        open_interest: finite(pressureContext.openInterest),
+        mark_px: finite(pressureContext.markPx),
+        oracle_px: finite(pressureContext.oraclePx),
+        day_ntl_vlm: finite(pressureContext.dayNtlVlm),
+        exact_observed_at: exactObservedAt,
+        chart_candle_time: time,
+        market,
+      },
+      raven_read: {
+        schema_version: "ravenos.current_pressure_snapshot.v1",
+        mode: "pressure",
+        title: label,
+        summary: `Current decision-time snapshot from ${availableFields.join(", ")}.`,
+        evidence: [{ source: pressureContext.provider || "Hyperliquid", observed_at: exactObservedAt }],
+        confidence: availableFields.length >= 4 ? "measured" : "partial",
+      },
+    };
   }
 
-  function score(pool, seed, fallback) {
-    return clamp(pool.length ? pool[seed % pool.length] : fallback, 0, 100);
-  }
-
-  function getOverlays({ symbol, market = "spot", candles = [], tier = "free" } = {}) {
-    const upper = String(symbol || "ASSET").toUpperCase();
-    const marketName = String(market || "spot").toLowerCase();
-    const t = times(candles);
-    const range = priceRange(candles);
-    const seed = seedFor(upper, marketName);
-    const pressure = score([62, 74, 56, 81, 68], seed, 64);
-    const compression = score([71, 58, 83, 66, 77], seed + 2, 70);
-    const breadth = score([54, 63, 47, 72, 59], seed + 4, 58);
-    const delayed = tier === "free";
-
-    const overlays = [
-      {
-        id: `${upper}-perps-pressure`,
-        type: "pressure-zone",
-        label: delayed ? "Delayed perps pressure" : "Perps pressure zone",
-        startTime: t.third || t.first,
-        endTime: t.late || t.last,
-        priceMin: range.min + range.span * 0.54,
-        priceMax: range.min + range.span * 0.82,
-        value: pressure,
-        severity: pressure >= 75 ? "danger" : pressure >= 65 ? "warning" : "info",
-        source: "perps",
-        summary: "Funding, open interest, basis, and liquidation-proximity context normalized for this instrument.",
-        metadata: { pressureScore: pressure, market: marketName },
-      },
-      {
-        id: `${upper}-compression`,
-        type: "compression-band",
-        label: delayed ? "Delayed compression" : "Compression band",
-        startTime: t.mid || t.first,
-        endTime: t.last,
-        priceMin: range.min + range.span * 0.28,
-        priceMax: range.min + range.span * 0.48,
-        value: compression,
-        severity: compression >= 75 ? "warning" : "info",
-        source: "liquidity",
-        summary: "Range, realized volatility, activity, and liquidity posture compressed into one chart band.",
-        metadata: { compressionScore: compression },
-      },
-      {
-        id: `${upper}-breadth`,
-        type: "breadth-line",
-        label: delayed ? "Delayed market breadth" : "Market breadth",
-        values: (Array.isArray(candles) ? candles : []).map((candle, index) => ({
-          time: candle.time,
-          value: clamp(breadth + Math.sin((index + seed) / 2) * 12 + index * 1.2, 5, 95),
-        })),
-        value: breadth,
-        severity: breadth >= 65 ? "success" : breadth <= 40 ? "warning" : "info",
-        source: "market-breadth",
-        summary: "Participation breadth for the asset's tracked market group.",
-        metadata: { breadthPercentile: breadth },
-      },
-      {
-        id: `${upper}-history`,
-        type: "history-window",
-        label: delayed ? "Delayed similar window" : "Historical similar window",
-        startTime: t.first,
-        endTime: t.third || t.mid,
-        value: score([68, 73, 61, 79, 57], seed + 7, 67),
-        severity: "info",
-        source: "history",
-        summary: "Prior market windows with similar pressure, breadth, and compression structure.",
-      },
-      {
-        id: `${upper}-liquidity-zone`,
-        type: "liquidity-zone",
-        label: delayed ? "Delayed liquidity zone" : "Liquidity zone",
-        startTime: t.first,
-        endTime: t.last,
-        priceMin: range.min + range.span * 0.08,
-        priceMax: range.min + range.span * 0.18,
-        value: score([49, 58, 64, 53, 61], seed + 8, 55),
-        severity: "info",
-        source: "liquidity",
-        summary: "Price-region context where liquidity depth, resting flow, or repeated acceptance is visible.",
-      },
-      {
-        id: `${upper}-participant-accumulation`,
-        type: "participant-shift",
-        label: delayed ? "Delayed participant accumulation" : "Smart money accumulation",
-        time: t.mid,
-        value: score([64, 72, 59, 78, 68], seed + 9, 66),
-        severity: "success",
-        source: "history",
-        summary: "Behavior signal: higher-quality participants became more active while concentration stayed controlled.",
-        metadata: { participantShiftType: "smart_money_accumulation" },
-      },
-      {
-        id: `${upper}-retail-expansion`,
-        type: "participant-shift",
-        label: delayed ? "Delayed retail expansion" : "Retail expansion",
-        time: t.late || t.last,
-        value: score([52, 61, 69, 57, 73], seed + 10, 58),
-        severity: "info",
-        source: "history",
-        summary: "Behavior signal: participation broadened into smaller, faster accounts.",
-        metadata: { participantShiftType: "retail_expansion" },
-      },
-      {
-        id: `${upper}-concentration-increase`,
-        type: "participant-shift",
-        label: "Concentration increase",
-        time: t.third || t.mid,
-        value: score([48, 66, 74, 55, 71], seed + 11, 62),
-        severity: score([48, 66, 74, 55, 71], seed + 11, 62) >= 70 ? "warning" : "info",
-        source: "history",
-        summary: "Behavior signal: activity became more concentrated among fewer participants.",
-        metadata: { participantShiftType: "concentration_increase" },
-      },
-      {
-        id: `${upper}-distribution-risk`,
-        type: "participant-shift",
-        label: "Distribution risk",
-        time: t.last,
-        value: score([44, 63, 76, 58, 69], seed + 12, 60),
-        severity: score([44, 63, 76, 58, 69], seed + 12, 60) >= 70 ? "danger" : "warning",
-        source: "history",
-        summary: "Behavior signal: prior active participants reduced exposure while activity stayed elevated.",
-        metadata: { participantShiftType: "distribution_risk" },
-      },
-    ];
-
-    if (tier === "founder") {
-      overlays.push({
-        id: `${upper}-rotation-event`,
-        type: "participant-shift",
-        label: "Rotation event",
-        time: t.last,
-        value: score([52, 69, 76, 58, 71], seed + 9, 63),
-        severity: "success",
-        source: "history",
-        summary: "Experimental behavior signal: activity rotated from one participant group or market sleeve to another.",
-        metadata: { participantShiftType: "rotation_event", experimental: true },
-      });
-    }
-
+  function getOverlays({ symbol, market = "spot", candles = [], pressureContext = null, evidenceContext = {}, chartContext = null } = {}) {
+    const context = { symbol, market, candles, chartContext };
+    const overlays = annotationRows(evidenceContext)
+      .map((annotation) => annotationOverlay(annotation, context))
+      .filter(Boolean);
+    const pressure = currentPressureOverlay(symbol, market, candles, pressureContext);
+    if (pressure) overlays.push(pressure);
     return overlays;
   }
 
-  window.RavenChartOverlays = { getOverlays };
+  window.RavenChartOverlays = Object.freeze({ getOverlays });
 })();

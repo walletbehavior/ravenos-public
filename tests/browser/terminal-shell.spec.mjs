@@ -1,0 +1,88 @@
+import { test, expect } from "@playwright/test";
+
+async function waitForTerminal(page) {
+  await page.waitForFunction(() => {
+    const chart = window.__RAVENOS_TERMINAL_LAST_CHART_CONTEXT__;
+    return window.RavenOSShell?.mounted && chart?.phase === "ready" && document.querySelector("#flowChart canvas");
+  });
+}
+
+test("desktop shell wraps the Terminal without replacing the analytical workspace", async ({ page }) => {
+  await page.goto("/terminal/");
+  await waitForTerminal(page);
+
+  await expect(page.locator(".ros-topbar")).toBeVisible();
+  await expect(page.locator(".ros-left-nav")).toBeVisible();
+  await expect(page.locator("#flowChart canvas").first()).toBeVisible();
+  await expect(page.locator(".terminal > .topbar")).toBeVisible();
+  await expect(page.locator(".terminal > .topbar .brand")).toBeHidden();
+  await expect(page.locator("#tickerInstrument")).toBeVisible();
+  await expect(page.locator("#walletState")).toBeVisible();
+  await expect(page.locator("#rosContextSubject")).toHaveText("SOL-PERP");
+  const dataState = ((await page.locator("#rosFreshness strong").textContent()) || "").trim();
+  expect(["Live", "Delayed", "Data unavailable"]).toContain(dataState);
+  if (dataState === "Live") await expect(page.locator("#rosFreshness time")).toContainText("UTC");
+
+  await page.keyboard.press("Control+K");
+  await expect(page.locator("#rosCommandPalette")).toBeVisible();
+  await page.locator("#rosCommandInput").fill("Replay");
+  await expect(page.locator("#rosCommandResults")).toContainText("Open Replay");
+  await page.keyboard.press("Escape");
+});
+
+test("selected market context survives navigation into an investigative route", async ({ page }) => {
+  await page.goto("/terminal/");
+  await waitForTerminal(page);
+  await page.selectOption("#assetSelect", "BTC-PERP");
+  await expect(page.locator("#rosContextSubject")).toHaveText("BTC-PERP");
+  await page.selectOption("#timeframeSelect", "4h");
+  await expect(page.locator("#rosTimeframe")).toHaveValue("4h");
+  await page.locator('.ros-left-nav a[href^="/opportunity/"]').click();
+  await expect(page).toHaveURL(/\/opportunity\/.*asset=BTC-PERP/);
+  await expect(page.locator("#rosContextSubject")).toHaveText("BTC-PERP");
+  await expect(page.locator("#rosTimeframe")).toHaveValue("4h");
+});
+
+test("old narrator timestamps are exposed as delayed rather than live", async ({ page }) => {
+  await page.goto("/opportunity/");
+  await expect(page.locator(".ros-topbar")).toBeVisible();
+  await expect.poll(async () => (await page.locator("#rosFreshness strong").textContent())?.trim()).toBe("Delayed");
+  await expect(page.locator("#rosFreshness time")).toContainText("UTC");
+});
+
+test("mobile preserves terminal depth, context access, and narrow-screen containment", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/terminal/");
+  await waitForTerminal(page);
+
+  await expect(page.locator(".ros-topbar")).toBeVisible();
+  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+  await expect(page.locator("#flowChart canvas").first()).toBeVisible();
+  await expect(page.locator("body")).not.toHaveClass(/ros-context-open/);
+  await page.locator("#rosContextTrigger").click();
+  await expect(page.locator("#rosContextRail")).toBeVisible();
+  await expect(page.locator("#rosContextRail")).toContainText("SOL-PERP");
+  await expect(page.locator("#rosContextRail")).toContainText("Confirmation");
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  const topbar = await page.locator(".ros-topbar").boundingBox();
+  const bottomNav = await page.locator(".mobile-bottom-nav").boundingBox();
+  expect(topbar.y).toBe(0);
+  expect(bottomNav.y + bottomNav.height).toBeLessThanOrEqual(845);
+});
+
+test("generated routes use the mobile primary navigation and context sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/outcomes/");
+  await expect(page.locator(".ros-mobile-nav")).toBeVisible();
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Pulse");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Opportunities");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Terminal");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Watchlist");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Outcomes");
+  await page.locator("#rosContextTrigger").click();
+  await expect(page.locator("#rosContextRail")).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+});

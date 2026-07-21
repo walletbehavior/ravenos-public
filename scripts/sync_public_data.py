@@ -172,6 +172,15 @@ def _copy_browser_facing_artifacts(repo_root, source_root):
             "status.json",
             "manifest.json",
             "terminal_health.json",
+            "ravenos_narrator_brief.json",
+            "ravenos_narrator_opportunity.json",
+            "ravenos_narrator_terminal.json",
+            "ravenos_narrator_atlas.json",
+            "ravenos_narrator_replay.json",
+            "ravenos_narrator_outcomes.json",
+            "ravenos_narrator_behavior.json",
+            "ravenos_narrator_research.json",
+            "ravenos_narrator_perps.json",
         ]:
             copies.append((origin_root / name, public_root / "ravenos" / name))
             copies.append((origin_root / name, mirror_root / "ravenos" / name))

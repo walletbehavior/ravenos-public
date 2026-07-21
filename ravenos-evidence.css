@@ -1,5 +1,5 @@
 .public-evidence {
-  margin: 14px 0;
+  margin: 10px 0 14px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(9, 16, 14, 0.86);
 }
@@ -10,8 +10,8 @@
   background: rgba(148, 163, 184, 0.14);
 }
 .public-evidence-cell {
-  min-height: 58px;
-  padding: 10px;
+  min-height: 48px;
+  padding: 8px 9px;
   background: rgba(7, 12, 10, 0.96);
 }
 .public-evidence-cell span,
@@ -25,27 +25,30 @@
 .public-evidence-cell strong,
 .public-evidence-detail-grid strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   color: #edf6f1;
   font-size: 12px;
   text-transform: none;
 }
 .public-evidence-bridge {
-  padding: 10px 12px;
+  margin: 10px 0 0;
+  padding: 9px 10px;
   color: #bbcbc4;
   font-size: 12px;
   line-height: 1.45;
-  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(125, 211, 252, 0.035);
 }
 .public-evidence-details {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 .public-evidence-details summary {
   color: #7dd3fc;
   cursor: pointer;
   font-size: 12px;
   font-weight: 850;
+  width: fit-content;
 }
 .public-evidence-detail-grid {
   display: grid;
@@ -60,8 +63,22 @@
   }
 }
 @media (max-width: 520px) {
-  .public-evidence-strip,
   .public-evidence-detail-grid {
     grid-template-columns: 1fr;
+  }
+  .public-evidence {
+    margin: 8px 0 10px;
+  }
+  .public-evidence-strip {
+    display: none;
+  }
+  .public-evidence-details {
+    border-top: 0;
+    padding: 7px 8px;
+  }
+  .public-evidence-details summary {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
   }
 }

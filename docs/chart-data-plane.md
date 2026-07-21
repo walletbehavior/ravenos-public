@@ -1,0 +1,121 @@
+# RavenOS chart data plane
+
+## Boundary
+
+The chart data plane is a disposable, read-only presentation path. It may read
+provider market data and Raven evidence, but it does not create or mutate
+ExecutionObservations, Behavioral Atoms, forecasts, positions, outcomes, or
+calibration artifacts. Chart failure must degrade the user interface before it
+affects Raven's evidence runtime.
+
+## Canonical identity
+
+`ravenos.chart_instrument.v1` represents three scopes:
+
+- `spot_token`: aggregate token identity. It is never presented as an exact pool.
+- `spot_pool`: chain-native exact pool or pair identity.
+- `perpetual`: venue-specific perpetual market identity.
+
+The contract preserves chain, venue, base and quote assets, token/pool/market
+addresses, precision, coverage state, market status, and provider routing. Chain
+normalization does not erase chain-native addresses or venue identifiers.
+
+## History and backfill
+
+`GET /api/terminal/chart` is the bounded history gateway. The initial request is
+limited to the visible chart window. The workspace sends `before` only when the
+user approaches the left edge after initial rendering. Prepending older candles
+preserves the visible time range.
+
+Current adapters are:
+
+- Hyperliquid candle snapshots for perpetuals.
+- Raven's bounded spot projection for Solana exact-pair snapshots, Solana
+  token-aggregate observed swaps, and exact-pool Base/Ethereum/Robinhood swaps.
+- GeckoTerminal exact-pool OHLCV, with DexScreener pair state enrichment, for
+  supported spot pools.
+- Yahoo-backed aggregate proxy history for explicitly mapped broad markets.
+
+Every response identifies its source, freshness, capabilities, lineage, and
+canonical instrument. Provider failures remain unavailable or degraded; the
+frontend does not generate replacement candles.
+
+Successful exact-pool responses are also stored in two bounded Cloudflare edge
+cache entries: a short-lived normal entry and a six-hour rescue entry. The rescue
+entry is read only after provider failure and is always relabeled delayed and
+degraded with its original observation time. It can prevent a throttled provider
+from blanking a chart, but it cannot present cached history as current market
+truth.
+
+## Live subscriptions
+
+Hyperliquid active markets use one shared browser WebSocket subscription per
+canonical instrument and timeframe. The feed normalizes candles, trades, order
+book snapshots, last/mark/oracle prices, funding, and open interest. A 30-second
+heartbeat keeps active connections alive. The client detects disconnect gaps,
+reconnects with bounded exponential backoff, and reconciles against the history
+gateway after recovery.
+
+Exact-pool spot markets use active-view bounded polling where supported. Polling
+stops when the final viewer leaves. The shared subscription hub permits at most
+12 active instrument feeds and drops chart updates before allowing unbounded
+memory or queue growth.
+
+`ravenos-spot-chart-projection.service` tails only new bytes from Raven's existing
+append-only price registries. It writes a disposable SQLite projection with a
+48-hour retention window and a one-million-row hard cap. The authenticated public
+origin serves bounded per-instrument queries from that projection; chart requests
+never scan the source JSONL files. Solana observed-swap tape uses five-second
+active-view polling and emits every projected source event once per browser feed.
+The service runs at low CPU and IO weight and is not a dependency of core Raven
+capture.
+
+Raven registries may be published through atomic file replacement. Projection
+continuity therefore uses byte position and opened-file size rather than treating
+every inode change as rotation. A smaller source is the deterministic reset
+signal. Dedicated chain/time and chain/scope indexes keep diagnostics bounded,
+and aggregate diagnostics run less often than chart freshness updates.
+
+## Candle updates
+
+Provider candles update the current chart bar incrementally. The chart does not
+recreate its canvas or reset its viewport for each market update. A bounded
+`FormingCandleAccumulator` is available for providers that expose trades without
+forming candles; it handles rollover, duplicate suppression, and older-bucket
+refusal.
+
+## Raven overlays
+
+Raven chart markers are read-only references to existing evidence. A marker is
+admitted only when instrument identity, event time, and lineage are exact. Marker
+queries are filtered to the visible instrument and time range. Distant evidence
+is not snapped onto the nearest candle.
+
+## Diagnostics
+
+`window.RavenOSChartDataPlane.diagnostics()` reports active instruments, active
+viewers, shared subscriptions, dropped updates, rejected subscriptions, feed
+age, event counts, and connection state. `window.__RAVENOS_PERPS_WORKSPACE__`
+exposes bounded page diagnostics for validation without logging every event.
+The authenticated origin endpoint
+`/public/ravenos/chart_diagnostics.json` reports projection rows by chain and
+scope, source cursor lag, database size, latest observations, cycle duration,
+and resource bounds.
+
+## Coverage limitations
+
+- Hyperliquid does not currently expose a dedicated public liquidation stream in
+  this adapter. No liquidation markers are synthesized.
+- Public GeckoTerminal capacity can rate-limit exact-pool history. A 429 is shown
+  as degraded data. A previously verified exact-pool response may be shown as an
+  explicitly stale rescue; generated candles are never used.
+- Solana exact provider-pool snapshots do not prove that a Yellowstone vault-pair
+  swap occurred in the same public pair. The terminal therefore exposes those
+  swaps only in a separately labeled token-aggregate view. Exact-pool snapshots
+  never claim a trade tape.
+- Base and Ethereum trade tapes are exact-pool but only as current as Raven's
+  configured observation cadence. Sparse pools can remain delayed or historical.
+- The bounded Raven projection supplies recent history. Provider adapters remain
+  responsible for older visible-range backfill.
+- Aggregate-token history and exact-pool history remain separate identities and
+  may have different coverage.

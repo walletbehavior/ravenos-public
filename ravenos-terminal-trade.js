@@ -126,6 +126,15 @@ function currentPair() {
   return PAIRS[$("tradeDirectionSelect").value] || PAIRS.SOL_USDC;
 }
 
+function evidenceFreshnessForWorkspaceState(value) {
+  const state = String(value || "unknown").toLowerCase();
+  if (state === "live" || state === "fresh") return "fresh";
+  if (state === "delayed" || state === "recovering") return "recovering";
+  if (state === "stale" || state === "historical") return "stale";
+  if (["error", "empty", "data_unavailable", "unavailable"].includes(state)) return "unavailable";
+  return "unknown";
+}
+
 function currentMarketContext() {
   const chart = window.__RAVENOS_TERMINAL_LAST_CHART_CONTEXT__ || {};
   return {
@@ -134,7 +143,7 @@ function currentMarketContext() {
     asset: $("assetSelect")?.value || chart.asset || null,
     source: chart.sourceLabel || "terminal_chart_context",
     observed_at: chart.observedAt || null,
-    freshness_state: chart.freshnessState || "unknown",
+    freshness_state: evidenceFreshnessForWorkspaceState(chart.freshnessState),
     age_seconds: null,
     warnings: [],
   };
@@ -240,9 +249,9 @@ function renderReview() {
     : state.reviewProof
       ? JSON.stringify(state.reviewProof, null, 2)
       : review
-        ? `Evidence ${review.evidence_id} created. Quote-only: ${review.packet.quote_only ? "yes" : "no"}. Signing disabled: ${review.packet.signing_disabled ? "yes" : "no"}.`
-        : "Immutable review packet pending. The proof record will remain quote-only and redacted.";
-  $("tradeFeatureState").textContent = review?.state === "blocked" ? "Quote-only review blocked" : "Quote-only preview";
+        ? `Evidence ${review.evidence_id} created. Preview only: ${review.packet.quote_only ? "yes" : "no"}. Signing disabled: ${review.packet.signing_disabled ? "yes" : "no"}.`
+        : "Preview details pending. The proof record will remain preview-only and redacted.";
+  $("tradeFeatureState").textContent = review?.state === "blocked" ? "Preview blocked" : "Preview only";
 }
 
 function renderAll() {
@@ -449,7 +458,7 @@ async function createReview() {
   if (!payload) return;
   state.review = payload;
   state.reviewPhase = payload.state || (payload.ok ? "ready" : "blocked");
-  state.reviewError = payload.ok ? null : (payload.message || "Review packet unavailable.");
+  state.reviewError = payload.ok ? null : (payload.message || "Preview unavailable.");
   if (!response.ok && !payload.ok) {
     renderAll();
     return;

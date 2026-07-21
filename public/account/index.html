@@ -36,6 +36,22 @@
       flex-wrap: wrap;
     }
     .topbar { padding: 10px 0 16px; border-bottom: 1px solid var(--line); }
+    .main-nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .main-nav a {
+      border: 1px solid var(--line-strong);
+      background: #0c1a15;
+      color: var(--text);
+      min-height: 36px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .main-nav a.active { border-color: rgba(52, 211, 153, 0.48); color: var(--green); }
     h1, h2, h3, p { margin: 0; }
     h1 { font-size: clamp(24px, 3vw, 40px); line-height: 1.02; }
     h2 { font-size: 14px; line-height: 1.2; text-transform: uppercase; }
@@ -136,9 +152,11 @@
       <div>
         <span class="eyebrow">RavenOS Account</span>
         <h1>Access Management</h1>
-        <p class="muted">Manage RavenOS Pro access through a subscription or a qualifying Solana SPL token balance.</p>
+        <p class="muted">Manage RavenOS access, read-only wallet context, and subscription status. Signing and submission are disabled.</p>
       </div>
-      <a class="button" href="/pro/">Pro Modules</a>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/terminal/">Terminal</a><a href="/atlas/">Atlas</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/docs/">Docs</a><a href="/faq/">FAQ</a><a class="active" href="/account/">Account</a>
+      </nav>
     </header>
 
     <section class="grid">
@@ -157,7 +175,7 @@
 
         <article class="panel">
           <h2>Connect Wallet</h2>
-          <p class="muted" id="walletAccessDetail">Connect a Solana wallet to resolve product access.</p>
+          <p class="muted" id="walletAccessDetail">Connect wallet for read-only account context and compatibility checks. Quote preview remains optional; signing is disabled.</p>
           <p class="muted" id="walletPublicKey"></p>
           <div class="actions" style="justify-content:flex-start; margin-top:12px;">
             <button class="button" type="button" id="connectPhantom">Phantom</button>
@@ -170,7 +188,7 @@
 
         <article class="panel">
           <h2>Subscription</h2>
-          <p class="muted">Use Stripe to activate RavenOS Pro access, or manage an existing subscription.</p>
+          <p class="muted">Use Stripe to activate RavenOS Pro access, or manage an existing subscription. Execution is not included.</p>
           <div class="actions" style="justify-content:flex-start; margin-top:12px;">
             <button class="button primary" type="button" data-stripe-checkout="monthly">Start Monthly Pro</button>
             <button class="button primary" type="button" data-stripe-checkout="annual">Start Annual Pro</button>
@@ -198,6 +216,7 @@
         </article>
       </aside>
     </section>
+    <template id="ravenosBuildMark">Public artifact verified</template>
   </main>
   <script src="/ravenos-access.js"></script>
 </body>

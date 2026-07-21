@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
-import worker from "../../worker.mjs";
+import worker from "../worker.mjs";
 
 const root = process.cwd();
 const port = Number(process.env.PORT || 4173);

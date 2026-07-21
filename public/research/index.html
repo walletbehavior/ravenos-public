@@ -166,38 +166,42 @@
         <strong>Structure Lab</strong>
       </div>
       <nav class="main-nav" aria-label="Primary navigation">
-        <a class="button" href="/terminal/">Terminal</a>
         <a class="button" href="/brief/">Brief</a>
         <a class="button" href="/opportunity/">Opportunity</a>
+        <a class="button" href="/terminal/">Terminal</a>
+        <a class="button" href="/atlas/">Atlas</a>
         <a class="button" href="/replay/">Replay</a>
         <a class="button" href="/outcomes/">Outcomes</a>
         <a class="button" href="/memory/">Memory</a>
         <a class="button" href="/behavior/">Behavior</a>
         <a class="button primary" href="/research/">Research</a>
+        <a class="button" href="/perps/">Perps</a>
+        <a class="button" href="/docs/">Docs</a>
         <a class="button" href="/faq/">FAQ</a>
-        <a class="button" href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+        <a class="button" href="/account/">Account</a>
       </nav>
     </header>
     <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
       <div class="public-evidence-strip">
-        <div class="public-evidence-cell"><span>Evidence Role</span><strong data-evidence-field="role">Current Synthesis</strong></div>
-        <div class="public-evidence-cell"><span>As Of</span><strong data-evidence-field="as_of">awaiting read</strong></div>
-        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">declared by read</strong></div>
-        <div class="public-evidence-cell"><span>Usable Sample</span><strong data-evidence-field="sample">sample forming</strong></div>
-        <div class="public-evidence-cell"><span>Freshness</span><strong data-evidence-field="freshness">checking</strong></div>
+        <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
+        <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
+        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">read-defined window</strong></div>
+        <div class="public-evidence-cell"><span>Observations</span><strong data-evidence-field="sample">see totals below</strong></div>
+        <div class="public-evidence-cell"><span>Status</span><strong data-evidence-field="freshness">checking</strong></div>
         <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
       </div>
-      <div class="public-evidence-bridge" data-evidence-field="bridge"><strong>Evidence bridge:</strong> Current reads, historical context, and settled validation use declared windows so differences can be understood rather than treated as contradictions.</div>
       <details class="public-evidence-details">
         <summary>Evidence details</summary>
+        <p class="public-evidence-bridge" data-evidence-field="bridge"><strong>Why reads can differ:</strong> Live reads can move before outcomes settle. Raven separates current opportunity from later followthrough checks.</p>
         <div class="public-evidence-detail-grid">
-          <div>Settlement window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
-          <div>Population<strong data-evidence-field="population">public aggregate market context</strong></div>
+          <div>Evidence role<strong data-evidence-field="raw_role">current synthesis</strong></div>
+          <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
+          <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
           <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
           <div>Source<strong data-evidence-field="source">verified Raven feed</strong></div>
           <div>Observed / settled<strong data-evidence-field="observed_settled">0 / 0</strong></div>
           <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
-          <div>Artifact version<strong data-evidence-field="artifact">unversioned</strong></div>
+          <div>Evidence version<strong data-evidence-field="artifact">unversioned</strong></div>
           <div>Methodology<strong><a href="/docs/ravenos_public_methodology.md">Public definitions</a></strong></div>
         </div>
       </details>
@@ -206,25 +210,25 @@
 
     <section>
       <span class="eyebrow">Market structure findings</span>
-      <h1>What Raven learned from market structure research.</h1>
-      <p class="lead">What Raven believes: broad research families can be noisy, so Structure Lab focuses on the conditions that separated from flat or weak outcomes. Structure Lab explains what strengthened, what weakened, where confidence improved, and which conditions shaped outcome quality. It is research context only and does not generate trade recommendations.</p>
+      <h1 id="researchHeroTitle">Research workspace forming.</h1>
+      <p class="lead" id="researchHeroLead">Public research observations appear here when Raven has enough evidence to describe a resolved lesson. Until then, the workspace shows current blockers, missing evidence, and what Raven is waiting for.</p>
       <div class="metric-grid">
-        <div class="metric"><span>Live public research validation</span><strong id="candidateCount">Snapshot unavailable</strong></div>
-        <div class="metric"><span>Forward observations monitored</span><strong id="trackingCount">Sample forming</strong></div>
+        <div class="metric"><span>Live research validation</span><strong id="candidateCount">Snapshot unavailable</strong></div>
+        <div class="metric"><span>Open observations monitored</span><strong id="trackingCount">Evidence forming</strong></div>
         <div class="metric"><span>Strongest condition</span><strong id="topPositive">Awaiting verified snapshot</strong></div>
         <div class="metric"><span>Weakest condition</span><strong id="topFailure">Awaiting verified snapshot</strong></div>
       </div>
       <div class="metric-grid" style="margin-top:10px;">
-        <div class="metric"><span>Research Source</span><strong id="researchSource">Current public research snapshot unavailable</strong></div>
-        <div class="metric"><span>Freshness</span><strong id="researchAge">Evidence forming</strong></div>
-        <div class="metric"><span>Evidence Depth</span><strong id="researchSampleDepth">No zero should be interpreted as measured evidence</strong></div>
+        <div class="metric"><span>Evidence</span><strong id="researchSource">Current research snapshot unavailable</strong></div>
+        <div class="metric"><span>Status</span><strong id="researchAge">Evidence forming</strong></div>
+        <div class="metric"><span>Sample depth</span><strong id="researchSampleDepth">No zero should be interpreted as measured evidence</strong></div>
         <div class="metric"><span>Status</span><strong id="researchStatus">Last verified cohort unavailable</strong></div>
       </div>
       <div class="report-grid" aria-label="Research evidence summary" style="margin-top:12px;">
         <article class="finding-card">
           <h3>Why Raven Believes This</h3>
           <p class="muted">Research findings are evaluated through participation breadth, pressure alignment, replay similarity, outcome quality, and failure conditions.</p>
-          <strong>Evidence first, recommendation never.</strong>
+          <strong>Evidence first, action language never.</strong>
         </article>
         <article class="finding-card">
           <h3>Why It Matters</h3>
@@ -239,8 +243,24 @@
       </div>
       <div class="report-grid" aria-label="Research product state" style="margin-top:12px;">
         <article class="finding-card"><h3>Latest Completed Research Cohort</h3><p class="muted">Completed public cohorts remain visible when available, while current observations stay labeled until validation settles.</p><strong>Historical Research Snapshot</strong></article>
-        <article class="finding-card"><h3>Current Forward Observations</h3><p class="muted">Open observations are research context only. They are not promotion, execution, or a trading instruction.</p><strong>Research Sample Forming</strong></article>
+        <article class="finding-card"><h3>Open observations</h3><p class="muted">Open observations are research context only. They are not promotion, execution, or a trading instruction.</p><strong>Research Evidence Forming</strong></article>
       </div>
+      <article class="panel" id="researchNarratorPanel" aria-label="What Raven learned" style="margin-top:14px;">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow" id="researchNarratorLabel">Research status</span>
+            <h2 id="researchNarratorHeadline">Research observation forming</h2>
+          </div>
+          <span class="pill" id="researchNarratorStatus">keep researching</span>
+        </div>
+        <p class="muted" id="researchNarratorSummary">Raven is checking authority evidence, missing path evidence, and management validation before making the research state stronger.</p>
+        <div class="detail-grid">
+          <div class="detail-card"><span class="eyebrow">Path evidence</span><p class="muted" id="researchNarratorPath">path capture forming</p></div>
+          <div class="detail-card"><span class="eyebrow">Management path</span><p class="muted" id="researchNarratorManagement">not validated</p></div>
+          <div class="detail-card"><span class="eyebrow">Missing evidence</span><p class="muted" id="researchNarratorMissing">timestamped post-decision path evidence</p></div>
+          <div class="detail-card"><span class="eyebrow">Next research step</span><p class="muted" id="researchNarratorNext">keep researching until path-backed observations exist</p></div>
+        </div>
+      </article>
     </section>
 
     <section class="layout">
@@ -257,7 +277,7 @@
           <div>
             <span class="eyebrow" id="viewEyebrow">Setup Families</span>
             <h2 id="viewTitle">Research cohorts</h2>
-            <p class="muted" id="viewSummary">Current public research snapshot is forming while the latest completed cohort remains available.</p>
+            <p class="muted" id="viewSummary">Current research evidence is forming while the latest completed cohort remains available.</p>
           </div>
           <button class="button" type="button" id="developerToggle">Research Details</button>
         </div>
@@ -285,14 +305,14 @@
       </div>
       <div class="raven-funnel-grid">
         <article class="raven-funnel-card"><span class="raven-funnel-stage">Understand</span><h3>Raven&apos;s Read</h3><p>What Raven believes and why the current read matters.</p></article>
-        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Freshness, coverage, sample depth, strongest support, and weakest caveat.</p></article>
+        <article class="raven-funnel-card"><span class="raven-funnel-stage">Evidence</span><h3>Why Raven Believes This</h3><p>Coverage, sample depth, strongest support, and weakest caveat.</p></article>
         <article class="raven-funnel-card"><span class="raven-funnel-stage">Validate</span><h3>What Happened Before</h3><p>Replay, Memory, and Outcomes show precedent and followthrough context.</p></article>
         <article class="raven-funnel-card"><span class="raven-funnel-stage">Investigate</span><h3>What To Investigate Next</h3><p>Apply research context to current Opportunity surfaces.</p></article>
         <article class="raven-funnel-card"><span class="raven-funnel-stage">Future Act</span><h3>Future Connected Venues</h3><p>Connected venues may come later. RavenOS remains market intelligence today.</p></article>
       </div>
     </section>
-<footer class="footer">RavenOS provides software and market analytics. Structure Lab is research validation and does not provide brokerage, custody, investment management, trade execution, or trade recommendations.</footer>
-<div class="footer" id="ravenosBuildMark">UI build pending · artifact pending · public evidence shell</div>
+<footer class="footer">RavenOS provides software and market analytics. Structure Lab is research validation and does not provide brokerage, custody, investment management, or action instructions.</footer>
+<div class="footer" id="ravenosBuildMark">Public artifact verified</div>
   </main>
 
   <script src="/ravenos-access.js"></script>
@@ -559,10 +579,10 @@
           `Best visible outcome quality: ${outcomeQuality(Math.max(...rows.map((row) => Number(row.profitFactor || 0)), 0))}`,
           `Primary evidence depth: ${sampleDepth(rows[0]?.sampleCount || 0)}`,
         ]),
-        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} evidence depth.` : "No completed live cohort yet; current observations remain in research sample forming state.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
+        card("What Worked", worked[0] ? `${worked[0].setupFamily} had ${outcomeQuality(worked[0].profitFactor).toLowerCase()} outcome quality with ${sampleDepth(worked[0].sampleCount).toLowerCase()} evidence depth.` : "No completed live cohort yet; current observations remain in an evidence-forming research state.", worked.slice(0, 3).map((row) => `${row.setupFamily}: ${outcomeQuality(row.profitFactor)} outcome quality`)),
         card("What Failed", failed[0] ? `${failed[0].setupFamily} is best read as a failure or dilution explanation.` : "No dominant failure row is visible in this view.", failed.slice(0, 3).map((row) => `${row.setupFamily}: ${(row.worstConditions || []).slice(0, 1).join("") || "weak transfer"}`)),
         card("Highest Confidence Structures", high[0] ? `${high[0].setupFamily} has ${String(high[0].confidence).toLowerCase()} confidence and ${sampleDepth(high[0].sampleCount).toLowerCase()} evidence depth.` : "Confidence is still developing.", high.slice(0, 3).map((row) => `${row.setupFamily}: ${row.confidence} confidence`)),
-        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "Research sample forming; latest completed cohort remains visible when available.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} evidence depth`)),
+        card("Lowest Confidence Structures", low[0] ? `${low[0].setupFamily} needs more sample before the read is reliable.` : "Research evidence is still forming; the latest completed cohort remains visible when available.", low.slice(0, 3).map((row) => `${row.setupFamily}: ${sampleDepth(row.sampleCount)} evidence depth`)),
       ].join("");
     }
 
@@ -607,7 +627,7 @@
         ["Current Read", `${top.setupFamily || "Research"} is ${String(top.status || "developing").toLowerCase()} with ${String(top.confidence || "moderate").toLowerCase()} confidence.`],
         ["Best Conditions", (top.bestConditions || []).join(", ") || "No condition data available."],
         ["Worst Conditions", (top.worstConditions || []).join(", ") || "No failure condition data available."],
-        ["Research Boundary", "No live rules, no automatic promotion, and no trade recommendations."],
+        ["Research Boundary", "No live rules, no automatic promotion, and no action instructions."],
       ].map(([k, v]) => `<div class="detail-card"><span class="eyebrow">${k}</span><p class="muted" style="margin-top:8px;">${v}</p></div>`).join("");
       if (window.RavenOSExplanations?.ExplanationPanel) {
         const explanation = window.RavenOSExplanations.explanationForRow({
@@ -651,6 +671,36 @@
       }
     }
 
+    function cleanLabel(value, fallback = "forming") {
+      return String(value || fallback).replace(/_/g, " ");
+    }
+
+    async function hydrateNarrator() {
+      const narrator = await readJson("/ravenos/ravenos_narrator_research.json");
+      if (!narrator || !Object.keys(narrator).length) return;
+      const ctx = narrator.behavioral_authority_context || {};
+      document.getElementById("researchNarratorLabel").textContent = narrator.narrator_label || "Research status";
+      document.getElementById("researchNarratorHeadline").textContent = narrator.headline || "Research observation forming";
+      document.getElementById("researchNarratorStatus").textContent = cleanLabel(ctx.research_status || narrator.research_status, "keep researching");
+      document.getElementById("researchNarratorSummary").textContent = narrator.current_read || narrator.what_that_means || ctx.public_summary || "Research observation is forming.";
+      if (/forming|not yet deep enough|not ready/i.test(`${narrator.headline || ""} ${narrator.current_read || ""}`)) {
+        document.getElementById("researchHeroTitle").textContent = "Research workspace forming.";
+        document.getElementById("researchHeroLead").textContent = "Raven has internal research candidates, but public observations are not yet deep enough to publish a resolved lesson. This page shows the evidence gap and what Raven is waiting for next.";
+      } else {
+        document.getElementById("researchHeroTitle").textContent = "Public research observations are active.";
+        document.getElementById("researchHeroLead").textContent = narrator.current_read || "Raven is surfacing public research observations with supporting and weakening evidence.";
+      }
+      document.getElementById("researchNarratorPath").textContent = cleanLabel(ctx.path_evidence_status, "path capture forming");
+      document.getElementById("researchNarratorManagement").textContent = cleanLabel(ctx.management_validation_status, "not validated");
+      const missing = Array.isArray(narrator.what_is_missing) && narrator.what_is_missing.length
+        ? narrator.what_is_missing
+        : Array.isArray(ctx.missing_evidence) && ctx.missing_evidence.length ? ctx.missing_evidence : narrator.missing_evidence || ["timestamped post-decision path evidence"];
+      document.getElementById("researchNarratorMissing").textContent = missing.slice(0, 3).join("; ");
+      document.getElementById("researchNarratorNext").textContent = (Array.isArray(narrator.what_would_improve_confidence) && narrator.what_would_improve_confidence.length)
+        ? narrator.what_would_improve_confidence.slice(0, 2).join("; ")
+        : ctx.research_next_step || "keep researching until path-backed observations exist";
+    }
+
     function ageLabel(seconds) {
       const n = Number(seconds);
       if (!Number.isFinite(n)) return "evidence forming";
@@ -668,10 +718,11 @@
       const summary = live.data?.summary || live.summary || {};
       document.getElementById("candidateCount").textContent = fmtNumber(summary.findings_reviewed || state.publicRows.length);
       document.getElementById("trackingCount").textContent = fmtNumber(summary.forward_observations || 0);
-      document.getElementById("topPositive").textContent = titleCase(summary.strongest_condition || "Current public structure");
+      document.getElementById("topPositive").textContent = titleCase(summary.strongest_condition || "Current structure");
       document.getElementById("topFailure").textContent = titleCase(summary.weakest_condition || "Weak condition forming");
       document.getElementById("researchSource").textContent = titleCase(live.source || "public research");
-      document.getElementById("researchAge").textContent = live.stale ? `Last known research snapshot · ${ageLabel(live.freshness_age_seconds)}` : `${ageLabel(live.freshness_age_seconds)} ago`;
+      const age = ageLabel(live.freshness_age_seconds);
+      document.getElementById("researchAge").textContent = age === "evidence forming" ? age : live.stale ? `Last known research snapshot · ${age}` : `${age} ago`;
       document.getElementById("researchSampleDepth").textContent = fmtNumber(summary.sample_depth || 0);
       document.getElementById("researchStatus").textContent = live.stale ? "Evidence forming" : "Fresh public read";
       renderTable();
@@ -679,6 +730,7 @@
     }
 
     async function hydrate() {
+      hydrateNarrator();
       const liveLoaded = await hydrateLiveResearch();
       [state.edge, state.failure, state.forward, state.plan, state.flatness] = await Promise.all([
         readJson("/data/runtime/perps_v2_edge_attribution_report.json"),

@@ -1,0 +1,698 @@
+import {
+  BoundedEventBuffer,
+  CHART_INSTRUMENT_TYPES,
+  HyperliquidChartFeed,
+  PollingChartFeed,
+  normalizeChartCandle,
+  normalizeChartInstrument,
+  sharedChartSubscriptions,
+} from "./ravenos-chart-data-plane.js";
+
+export const RAVENOS_PRICE_WORKSPACE_SCHEMA = "ravenos.price_workspace.v1";
+
+export const PRICE_WORKSPACE_STATES = Object.freeze({
+  LIVE: "live",
+  DELAYED: "delayed",
+  DEMO: "demo",
+  HISTORICAL: "historical",
+  SIMULATED: "simulated",
+  PAPER: "paper",
+  LOADING: "loading",
+  EMPTY: "empty",
+  ERROR: "error",
+  DATA_UNAVAILABLE: "data_unavailable",
+});
+
+const STATE_LABELS = Object.freeze({
+  live: "Live",
+  delayed: "Delayed",
+  demo: "Demo",
+  historical: "Historical",
+  simulated: "Simulated",
+  paper: "Paper",
+  loading: "Loading",
+  empty: "No data",
+  error: "Provider error",
+  data_unavailable: "Data unavailable",
+});
+
+const TIMEFRAMES = Object.freeze(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
+
+function cleanState(value, fallback = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["fresh", "current"].includes(normalized)) return PRICE_WORKSPACE_STATES.LIVE;
+  if (["stale", "cached", "degraded"].includes(normalized)) return PRICE_WORKSPACE_STATES.DELAYED;
+  if (["unavailable", "coverage_developing", "unknown"].includes(normalized)) return PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE;
+  return Object.values(PRICE_WORKSPACE_STATES).includes(normalized) ? normalized : fallback;
+}
+
+function finite(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCandles(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((row) => ({
+      time: row?.time,
+      open: finite(row?.open),
+      high: finite(row?.high),
+      low: finite(row?.low),
+      close: finite(row?.close),
+      volume: finite(row?.volume) || 0,
+    }))
+    .filter((row) => row.time !== null && row.time !== undefined && row.open > 0 && row.high > 0 && row.low > 0 && row.close > 0);
+}
+
+function timestampLabel(value) {
+  const parsed = Date.parse(value || "");
+  if (!Number.isFinite(parsed)) return "Timestamp unavailable";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(parsed) + " UTC";
+}
+
+function priceLabel(value) {
+  const parsed = finite(value);
+  if (parsed === null) return "--";
+  if (parsed >= 1000) return parsed.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (parsed >= 1) return parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+  return parsed.toLocaleString(undefined, { minimumSignificantDigits: 3, maximumSignificantDigits: 8 });
+}
+
+function payloadData(payload) {
+  return payload?.data && typeof payload.data === "object" ? payload.data : payload;
+}
+
+function createMarkup() {
+  return `
+    <section class="rpw" data-price-workspace-state="data_unavailable">
+      <header class="rpw-provenance" aria-live="polite">
+        <strong data-rpw-state>Data unavailable</strong>
+        <span data-rpw-source>No provider selected</span>
+        <span data-rpw-market>Market identity unavailable</span>
+        <span data-rpw-coverage hidden></span>
+        <span data-rpw-connection>Disconnected</span>
+        <time data-rpw-time>Timestamp unavailable</time>
+        <button type="button" data-rpw-follow aria-pressed="true">Follow live</button>
+        <button type="button" data-rpw-focus aria-pressed="false" aria-label="Open chart focus mode">Focus</button>
+        <button type="button" data-rpw-overlays aria-expanded="false" aria-label="Open Raven overlay controls">Raven</button>
+      </header>
+      <div class="rpw-scope-control" data-rpw-scopes hidden aria-label="Spot chart identity scope">
+        <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
+        <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
+      </div>
+      <div class="rpw-mobile-timeframes" data-rpw-timeframes aria-label="Chart timeframe"></div>
+      <div class="rpw-stage">
+        <div class="rpw-chart" data-rpw-chart></div>
+        <div class="rpw-watermark" data-rpw-watermark>Data unavailable</div>
+        <div class="rpw-crosshair" data-rpw-crosshair hidden></div>
+        <div class="rpw-state-panel" data-rpw-state-panel>
+          <strong>Market data unavailable</strong>
+          <span>Select a provider-backed market or retry the current feed.</span>
+        </div>
+      </div>
+      <div class="rpw-activity" data-rpw-activity aria-live="polite">
+        <strong>Market activity</strong>
+        <div data-rpw-trades>Trade-level feed unavailable for this source.</div>
+      </div>
+      <div class="rpw-resize-handle" data-rpw-resize role="separator" aria-label="Resize chart" aria-orientation="horizontal" tabindex="0"></div>
+    </section>`;
+}
+
+export class PriceWorkspace {
+  constructor(container, options = {}) {
+    if (!container) throw new Error("PriceWorkspace requires a container");
+    this.container = container;
+    this.options = options;
+    this.chartHandle = null;
+    this.liveRelease = null;
+    this.requestSequence = 0;
+    this.liveGeneration = 0;
+    this.paintFrame = null;
+    this.lastRequest = null;
+    this.backfillPending = false;
+    this.backfillArmed = false;
+    this.backfillArmTimer = null;
+    this.followLive = true;
+    this.tradeBuffer = new BoundedEventBuffer(options.tradeLimit || 60);
+    this.renderInput = {};
+    this.state = {
+      schemaVersion: RAVENOS_PRICE_WORKSPACE_SCHEMA,
+      state: PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE,
+      source: "",
+      observedAt: null,
+      marketIdentity: "",
+      timeframe: options.timeframe || "1h",
+      candles: [],
+      message: "Select a provider-backed market.",
+      lineage: null,
+      instrument: null,
+      capabilities: {},
+      connectionState: "disconnected",
+      marketState: {},
+      orderBook: null,
+      backfillCount: 0,
+      instrumentScope: "exact_pool",
+      availableScopes: {},
+    };
+    container.innerHTML = createMarkup();
+    this.root = container.querySelector(".rpw");
+    this.chartHost = container.querySelector("[data-rpw-chart]");
+    this.bindTimeframes();
+    this.bindScopes();
+    this.bindResize();
+    this.bindFollowLive();
+    this.bindFocusMode();
+    this.bindOverlayMenu();
+    this.paintState();
+  }
+
+  bindTimeframes() {
+    const host = this.container.querySelector("[data-rpw-timeframes]");
+    for (const timeframe of TIMEFRAMES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = timeframe;
+      button.dataset.timeframe = timeframe;
+      button.setAttribute("aria-pressed", timeframe === this.state.timeframe ? "true" : "false");
+      button.addEventListener("click", () => this.options.onTimeframeChange?.(timeframe));
+      host.append(button);
+    }
+  }
+
+  bindScopes() {
+    this.container.querySelector("[data-rpw-scopes]")?.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-rpw-scope]");
+      const scope = button?.dataset?.rpwScope;
+      if (!scope || scope === this.state.instrumentScope || this.state.availableScopes?.[scope] !== true || !this.lastRequest) return;
+      this.load({ ...this.lastRequest, instrumentScope: scope });
+    });
+  }
+
+  bindResize() {
+    const handle = this.container.querySelector("[data-rpw-resize]");
+    let startY = 0;
+    let startHeight = 0;
+    const move = (event) => {
+      const next = Math.max(320, Math.min(900, startHeight + event.clientY - startY));
+      this.root.style.setProperty("--rpw-height", `${next}px`);
+    };
+    const stop = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", stop);
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (window.matchMedia?.("(max-width: 820px)")?.matches) return;
+      startY = event.clientY;
+      startHeight = this.root.getBoundingClientRect().height;
+      handle.setPointerCapture?.(event.pointerId);
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", stop, { once: true });
+    });
+  }
+
+  bindFollowLive() {
+    const button = this.container.querySelector("[data-rpw-follow]");
+    button.addEventListener("click", () => {
+      this.followLive = !this.followLive;
+      button.setAttribute("aria-pressed", this.followLive ? "true" : "false");
+      button.textContent = this.followLive ? "Following live" : "Follow live";
+      if (this.followLive) this.chartHandle?.scrollToRealTime?.();
+    });
+  }
+
+  bindFocusMode() {
+    const button = this.container.querySelector("[data-rpw-focus]");
+    if (!button) return;
+    const setFocus = (active) => {
+      this.root.classList.toggle("rpw-focus-mode", active);
+      document.body.classList.toggle("raven-chart-focus", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.textContent = active ? "Exit focus" : "Focus";
+      this.chartHandle?.resize?.();
+      requestAnimationFrame(() => this.publishGeometry?.());
+      this.options.onFocusChange?.(active);
+    };
+    button.addEventListener("click", () => setFocus(!this.root.classList.contains("rpw-focus-mode")));
+    this._clearFocus = () => setFocus(false);
+  }
+
+  bindOverlayMenu() {
+    const button = this.container.querySelector("[data-rpw-overlays]");
+    if (!button) return;
+    button.addEventListener("click", () => {
+      const open = !this.root.classList.contains("rpw-overlays-open");
+      this.root.classList.toggle("rpw-overlays-open", open);
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+
+  setTimeframe(timeframe) {
+    this.state.timeframe = TIMEFRAMES.includes(timeframe) ? timeframe : "1h";
+    this.container.querySelectorAll("[data-timeframe]").forEach((button) => {
+      button.setAttribute("aria-pressed", button.dataset.timeframe === this.state.timeframe ? "true" : "false");
+    });
+  }
+
+  setState(next = {}) {
+    this.state = {
+      ...this.state,
+      ...next,
+      schemaVersion: RAVENOS_PRICE_WORKSPACE_SCHEMA,
+      state: cleanState(next.state ?? this.state.state),
+      candles: normalizeCandles(next.candles ?? this.state.candles),
+    };
+    this.setTimeframe(this.state.timeframe);
+    this.paintState();
+    this.options.onStateChange?.({ ...this.state });
+    document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
+    return this.state;
+  }
+
+  paintState() {
+    const label = STATE_LABELS[this.state.state] || "Data unavailable";
+    this.root.dataset.priceWorkspaceState = this.state.state;
+    this.container.querySelector("[data-rpw-state]").textContent = label;
+    this.container.querySelector("[data-rpw-source]").textContent = this.state.source || "No provider selected";
+    this.container.querySelector("[data-rpw-market]").textContent = this.state.marketIdentity || "Market identity unavailable";
+    const coverage = this.container.querySelector("[data-rpw-coverage]");
+    const returnedBars = Number(this.state.returnedBars ?? this.state.candles.length);
+    const sparse = returnedBars > 0 && returnedBars < 40;
+    coverage.hidden = !sparse;
+    coverage.textContent = sparse ? `Limited history · ${returnedBars} bars` : "";
+    this.container.querySelector("[data-rpw-connection]").textContent = String(this.state.connectionState || "disconnected").replaceAll("_", " ");
+    this.container.querySelector("[data-rpw-time]").textContent = timestampLabel(this.state.observedAt);
+    this.container.querySelector("[data-rpw-watermark]").textContent = label;
+    const scopeHost = this.container.querySelector("[data-rpw-scopes]");
+    const hasBothScopes = this.state.availableScopes?.exact_pool === true && this.state.availableScopes?.token_aggregate === true;
+    if (scopeHost) scopeHost.hidden = !hasBothScopes;
+    scopeHost?.querySelectorAll("[data-rpw-scope]").forEach((button) => {
+      const active = button.dataset.rpwScope === this.state.instrumentScope;
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.disabled = this.state.availableScopes?.[button.dataset.rpwScope] !== true;
+    });
+    const panel = this.container.querySelector("[data-rpw-state-panel]");
+    const showPanel = ["loading", "empty", "error", "data_unavailable"].includes(this.state.state);
+    panel.hidden = !showPanel;
+    panel.querySelector("strong").textContent = label === "Loading" ? "Loading market data" : label;
+    panel.querySelector("span").textContent = this.state.message || "No provider-backed candles are available for this market.";
+    this.paintTrades();
+  }
+
+  paintTrades() {
+    const host = this.container.querySelector("[data-rpw-trades]");
+    const trades = this.tradeBuffer.values().slice(-12).reverse();
+    if (!trades.length) {
+      host.textContent = this.state.capabilities?.live_trades
+        ? "Waiting for the first venue trade."
+        : "Trade-level feed unavailable for this source; price and market state still update.";
+      return;
+    }
+    host.replaceChildren(...trades.map((trade) => {
+      const row = document.createElement("span");
+      row.className = `rpw-trade rpw-trade-${trade.side || "unknown"}`;
+      const time = Number(trade.time);
+      const timeLabel = Number.isFinite(time) ? new Date(time > 10_000_000_000 ? time : time * 1000).toISOString().slice(11, 19) : "--:--:--";
+      const fields = [timeLabel, String(trade.side || "trade").toUpperCase(), priceLabel(trade.price), finite(trade.size) ?? "--"];
+      row.replaceChildren(...fields.map((value) => {
+        const field = document.createElement("span");
+        field.textContent = String(value);
+        return field;
+      }));
+      return row;
+    }));
+  }
+
+  schedulePaint() {
+    if (this.paintFrame !== null) return;
+    const schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (callback) => setTimeout(callback, 16);
+    this.paintFrame = schedule(() => {
+      this.paintFrame = null;
+      this.paintState();
+    });
+  }
+
+  requestParams(request = {}, extra = {}) {
+    const params = new URLSearchParams({
+      market: request.market || "",
+      asset: request.asset || "",
+      timeframe: extra.timeframe || request.timeframe || this.state.timeframe || "1h",
+      limit: String(extra.limit || request.limit || 240),
+    });
+    if (request.chain) params.set("chain", request.chain);
+    if (request.pairAddress) params.set("pair_address", request.pairAddress);
+    if (request.tokenAddress) params.set("token_address", request.tokenAddress);
+    if (request.quoteAddress) params.set("quote_address", request.quoteAddress);
+    if (request.instrumentScope) params.set("instrument_scope", request.instrumentScope);
+    if (extra.before) params.set("before", String(extra.before));
+    return params;
+  }
+
+  async fetchPayload(request = {}, extra = {}) {
+    const response = await fetch(`${request.endpoint || "/api/terminal/chart"}?${this.requestParams(request, extra).toString()}`, { headers: { accept: "application/json" } });
+    const body = await response.json().catch(() => ({}));
+    return { response, payload: payloadData(body) || {} };
+  }
+
+  async load(request = {}) {
+    const sequence = ++this.requestSequence;
+    this.stopLive();
+    this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
+    this.lastRequest = { ...request };
+    this.backfillArmed = false;
+    if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
+    this.backfillArmTimer = null;
+    const timeframe = request.timeframe || this.state.timeframe || "1h";
+    this.setState({
+      state: PRICE_WORKSPACE_STATES.LOADING,
+      timeframe,
+      source: request.source || "Market provider",
+      marketIdentity: request.marketIdentity || request.asset || "",
+      observedAt: null,
+      candles: [],
+      message: "Requesting provider-backed candles.",
+      instrument: null,
+      capabilities: {},
+      marketState: {},
+      orderBook: null,
+      connectionState: "disconnected",
+      instrumentScope: request.instrumentScope || "exact_pool",
+      availableScopes: {},
+    });
+    if (request.demo === true) {
+      const candles = normalizeCandles(request.demoCandles);
+        const state = this.setState({
+        state: candles.length ? PRICE_WORKSPACE_STATES.DEMO : PRICE_WORKSPACE_STATES.EMPTY,
+        source: "Explicit demo dataset",
+        marketIdentity: request.marketIdentity || request.asset || "Demo market",
+        observedAt: request.observedAt || null,
+          candles,
+          returnedBars: candles.length,
+        message: candles.length ? "Explicit demo data. Not a live market feed." : "No demo candles were supplied.",
+        lineage: { mode: "explicit_demo" },
+      });
+      this.render(this.renderInput);
+      return state;
+    }
+    try {
+      const { response, payload } = await this.fetchPayload({ ...request, timeframe }, { limit: request.limit || 240 });
+      if (sequence !== this.requestSequence) return this.state;
+      const candles = normalizeCandles(payload.candles);
+      if (!response.ok || !payload.ok || !candles.length) {
+        this.destroyChart();
+        return this.setState({
+          state: response.ok ? PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE : PRICE_WORKSPACE_STATES.ERROR,
+          source: payload.source_label || payload.source || "Market provider",
+          observedAt: payload.observed_at || null,
+          marketIdentity: payload.market_identity || request.marketIdentity || request.asset || "",
+          candles: [],
+          message: payload.message || payload.error || `Market provider returned ${response.status}.`,
+          lineage: payload.lineage || null,
+          connectionState: "disconnected",
+        });
+      }
+      const instrument = normalizeChartInstrument(payload.instrument || {
+        marketType: request.market === "perpetuals" || String(request.asset || "").endsWith("-PERP") ? "perp" : "spot",
+        instrumentType: request.pairAddress ? CHART_INSTRUMENT_TYPES.SPOT_POOL : undefined,
+        chain: request.chain,
+        venue: payload.source,
+        symbol: request.asset,
+        tokenAddress: request.tokenAddress,
+        pairAddress: request.pairAddress,
+      });
+      const state = this.setState({
+        state: cleanState(payload.freshness_state, payload.stale ? PRICE_WORKSPACE_STATES.DELAYED : PRICE_WORKSPACE_STATES.LIVE),
+        source: payload.source_label || payload.source || "Market provider",
+        observedAt: payload.observed_at || payload.updated_at || null,
+        marketIdentity: payload.market_identity || request.marketIdentity || payload.asset || request.asset || "",
+        candles,
+        message: "",
+        lineage: payload.lineage || null,
+        providerAsset: payload.provider_asset || payload.asset || null,
+        ageSeconds: finite(payload.age_seconds),
+        instrument,
+        capabilities: payload.capabilities || {},
+        marketState: payload.market_state || {},
+        connectionState: payload.capabilities?.live_bars ? "connecting" : "snapshot_only",
+        instrumentScope: payload.instrument_scope || request.instrumentScope || "exact_pool",
+        availableScopes: payload.available_scopes || {},
+      });
+      for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);
+      this.paintState();
+      this.render(this.renderInput);
+      this.startLive({ ...request, timeframe }, payload);
+      return state;
+    } catch (error) {
+      if (sequence !== this.requestSequence) return this.state;
+      this.destroyChart();
+      return this.setState({
+        state: PRICE_WORKSPACE_STATES.ERROR,
+        source: request.source || "Market provider",
+        observedAt: null,
+        candles: [],
+        message: error instanceof Error ? error.message : "Market provider request failed.",
+      });
+    }
+  }
+
+  render(input = {}) {
+    this.renderInput = { ...this.renderInput, ...input };
+    this.destroyChart();
+    if (!this.state.candles.length || ["loading", "empty", "error", "data_unavailable"].includes(this.state.state)) {
+      this.paintState();
+      return null;
+    }
+    if (typeof window.RavenPriceChart !== "function") {
+      this.setState({ state: PRICE_WORKSPACE_STATES.ERROR, message: "Chart runtime unavailable." });
+      return null;
+    }
+    const mobile = window.matchMedia?.("(max-width: 820px)")?.matches;
+    const height = Math.max(mobile ? 300 : 420, this.chartHost.clientHeight || this.root.getBoundingClientRect().height - (mobile ? 116 : 42));
+    this.chartHandle = window.RavenPriceChart(this.chartHost, {
+      ...this.renderInput,
+      candles: this.state.candles,
+      timeframe: this.state.timeframe,
+      height,
+      compact: mobile,
+      chartDataSource: this.state.state === "demo" ? "explicit_demo" : "terminal_chart_api",
+      indicatorSourceState: this.state.state === "demo" ? "demo" : "provider_backed",
+      onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
+      onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
+    });
+    const publishGeometry = () => {
+      const geometry = this.chartHandle?.measure?.() || null;
+      if (!geometry) return;
+      this.state.chartGeometry = geometry;
+      window.__RAVENOS_CHART_GEOMETRY__ = {
+        instrument_id: this.state.instrument?.canonical_id || null,
+        timeframe: this.state.timeframe,
+        ...geometry,
+      };
+    };
+    this.publishGeometry = publishGeometry;
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(publishGeometry);
+    else setTimeout(publishGeometry, 0);
+    if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
+    this.backfillArmTimer = setTimeout(() => {
+      this.backfillArmTimer = null;
+      this.backfillArmed = true;
+    }, 750);
+    return this.chartHandle;
+  }
+
+  renderCrosshair(crosshair) {
+    const host = this.container.querySelector("[data-rpw-crosshair]");
+    if (!crosshair?.time || crosshair.close === null || crosshair.close === undefined) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    host.textContent = `${String(crosshair.time)}  O ${priceLabel(crosshair.open)}  H ${priceLabel(crosshair.high)}  L ${priceLabel(crosshair.low)}  C ${priceLabel(crosshair.close)}`;
+  }
+
+  attachIntelligence({ evidence = null, narrator = null } = {}) {
+    this.state.evidence = evidence;
+    this.state.narrator = narrator;
+    return this;
+  }
+
+  handleVisibleRange(range) {
+    if (!range || !Number.isFinite(Number(range.from))) return;
+    const nearLeftEdge = Number(range.from) <= 12;
+    if (nearLeftEdge && this.backfillArmed) this.backfill();
+    if (Number(range.to) < this.state.candles.length - 2) {
+      this.followLive = false;
+      const button = this.container.querySelector("[data-rpw-follow]");
+      button?.setAttribute("aria-pressed", "false");
+      if (button) button.textContent = "Follow live";
+    }
+  }
+
+  async backfill() {
+    if (this.backfillPending || !this.lastRequest || this.state.capabilities?.older_bar_backfill !== true || !this.state.candles.length) return;
+    const before = this.state.candles[0]?.time;
+    if (!before) return;
+    this.backfillPending = true;
+    try {
+      const { response, payload } = await this.fetchPayload(this.lastRequest, { before, limit: 240 });
+      if (!response.ok || !payload?.ok) return;
+      const candles = normalizeCandles(payload.candles).filter((row) => Number(row.time) < Number(before));
+      if (!candles.length) return;
+      const merged = new Map([...candles, ...this.state.candles].map((row) => [String(row.time), row]));
+      this.state.candles = [...merged.values()].sort((left, right) => Number(left.time) - Number(right.time));
+      this.state.backfillCount = Number(this.state.backfillCount || 0) + 1;
+      this.chartHandle?.prependCandles?.(candles);
+      document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));
+    } finally {
+      this.backfillPending = false;
+    }
+  }
+
+  startLive(request, payload) {
+    if (!this.state.instrument || payload?.capabilities?.live_bars !== true) return;
+    const generation = ++this.liveGeneration;
+    const key = `${this.state.instrument.canonical_id}:${this.state.timeframe}`;
+    const createFeed = () => {
+      if (this.state.instrument.instrument_type === CHART_INSTRUMENT_TYPES.PERPETUAL && this.state.instrument.venue === "hyperliquid") {
+        return new HyperliquidChartFeed({ instrument: this.state.instrument, timeframe: this.state.timeframe });
+      }
+      return new PollingChartFeed({
+        source: `${this.state.source} active-view polling`,
+        intervalMs: payload?.capabilities?.live_poll_interval_ms || this.options.spotPollMs || 15_000,
+        seenTradeIds: (Array.isArray(payload?.recent_trades) ? payload.recent_trades : []).map((trade) => trade?.id).filter(Boolean),
+        poll: async () => {
+          const result = await this.fetchPayload(request, { limit: 3 });
+          if (!result.response.ok || !result.payload?.ok) throw new Error(result.payload?.error || `chart_poll_${result.response.status}`);
+          return result.payload;
+        },
+      });
+    };
+    try {
+      this.liveRelease = sharedChartSubscriptions.subscribe(key, createFeed, {
+        onEvent: (event) => {
+          if (generation === this.liveGeneration) this.handleLiveEvent(event);
+        },
+        onStatus: (status) => {
+          if (generation !== this.liveGeneration) return;
+          const prior = this.state.connectionState;
+          this.state.connectionState = status?.state || "unknown";
+          if (status?.source && ["live", "polling"].includes(status.state)) this.state.source = status.source;
+          this.paintState();
+          if (status?.state === "live" && ["reconnecting", "degraded"].includes(prior)) this.reconcileAfterReconnect(request);
+        },
+      });
+    } catch (error) {
+      this.state.connectionState = "degraded";
+      this.state.message = error instanceof Error ? error.message : "Live chart subscription unavailable.";
+      this.paintState();
+    }
+  }
+
+  async reconcileAfterReconnect(request) {
+    try {
+      const { response, payload } = await this.fetchPayload(request, { limit: 3 });
+      if (!response.ok || !payload?.ok) return;
+      for (const candle of normalizeCandles(payload.candles)) this.applyCandle(candle);
+      this.state.marketState = { ...this.state.marketState, ...(payload.market_state || {}) };
+      document.dispatchEvent(new CustomEvent("ravenos:chartresync", { detail: { instrumentId: this.state.instrument?.canonical_id, state: "completed" } }));
+    } catch {
+      this.state.connectionState = "degraded";
+      this.paintState();
+    }
+  }
+
+  applyCandle(value) {
+    const candle = normalizeChartCandle(value);
+    if (!candle) return;
+    const index = this.state.candles.findIndex((row) => Number(row.time) === Number(candle.time));
+    if (index >= 0) this.state.candles[index] = candle;
+    else this.state.candles.push(candle);
+    this.state.candles.sort((left, right) => Number(left.time) - Number(right.time));
+    if (this.state.candles.length > 1200) this.state.candles.splice(0, this.state.candles.length - 1200);
+    this.chartHandle?.updateCandle?.(candle);
+    if (this.followLive) this.chartHandle?.scrollToRealTime?.();
+  }
+
+  handleLiveEvent(event) {
+    if (!event || event.instrument_id && event.instrument_id !== this.state.instrument?.canonical_id) return;
+    const payload = event.payload || {};
+    if (event.type === "bar.upsert") this.applyCandle(payload.candle);
+    if (event.type === "trade.append") {
+      this.tradeBuffer.append(payload);
+    }
+    if (event.type === "price.update") this.state.marketState = { ...this.state.marketState, ...payload };
+    if (event.type === "funding.update") this.state.marketState = { ...this.state.marketState, funding: payload.funding };
+    if (event.type === "open_interest.update") this.state.marketState = { ...this.state.marketState, open_interest: payload.open_interest };
+    if (event.type === "orderbook.snapshot") this.state.orderBook = payload;
+    if (event.type === "gap.detected") this.state.connectionState = "reconnecting";
+    this.state.observedAt = event.observed_at || new Date().toISOString();
+    this.schedulePaint();
+    document.dispatchEvent(new CustomEvent("ravenos:chartevent", { detail: event }));
+    if (["price.update", "orderbook.snapshot"].includes(event.type)) {
+      document.dispatchEvent(new CustomEvent("ravenos:chartmarket", {
+        detail: {
+          instrument: this.state.instrument,
+          marketState: { ...this.state.marketState },
+          orderBook: this.state.orderBook,
+          source: event.source,
+          observedAt: this.state.observedAt,
+        },
+      }));
+    }
+  }
+
+  stopLive() {
+    this.liveGeneration += 1;
+    this.liveRelease?.();
+    this.liveRelease = null;
+    this.state.connectionState = "disconnected";
+  }
+
+  destroyChart() {
+    this.chartHandle?.destroy?.();
+    this.chartHandle = null;
+    this.chartHost.replaceChildren();
+  }
+
+  diagnostics() {
+    return {
+      instrument_id: this.state.instrument?.canonical_id || null,
+      instrument_scope: this.state.instrumentScope,
+      timeframe: this.state.timeframe,
+      source: this.state.source,
+      connection_state: this.state.connectionState,
+      returned_bars: this.state.candles.length,
+      backfill_count: this.state.backfillCount,
+      dropped_chart_updates: this.tradeBuffer.dropped,
+      chart: this.chartHandle?.measure?.() || null,
+    };
+  }
+
+  destroy() {
+    this.requestSequence += 1;
+    this.stopLive();
+    if (this.paintFrame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.paintFrame);
+    this.paintFrame = null;
+    if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
+    this.backfillArmTimer = null;
+    this.destroyChart();
+    this.container.replaceChildren();
+  }
+}
+
+export function createPriceWorkspace(container, options = {}) {
+  return new PriceWorkspace(container, options);
+}
+
+window.RavenOSPriceWorkspace = Object.freeze({
+  schemaVersion: RAVENOS_PRICE_WORKSPACE_SCHEMA,
+  states: PRICE_WORKSPACE_STATES,
+  create: createPriceWorkspace,
+});

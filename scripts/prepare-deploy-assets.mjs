@@ -19,11 +19,22 @@ const runtimeAssets = [
   "ravenos_build.json",
   "ravenos-route.css",
   "ravenos-route-app.js",
+  "ravenos-shell.css",
+  "ravenos-shell.js",
+  "ravenos-context-store.js",
+  "ravenos-intelligence-contract.js",
+  "ravenos-chart-data-plane.js",
+  "ravenos-perps-workspace.css",
+  "ravenos-perps-workspace.js",
+  "ravenos-price-workspace.css",
+  "ravenos-price-workspace.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
+  "ravenos-terminal-review-foundation.js",
   "ravenos-terminal-trade.js",
   "ravenos-access.js",
   "raven-chart-overlays.js",
+  "raven-reads.js",
   "raven-price-chart.js",
   "vendor/lightweight-charts.standalone.production.js",
 ];
@@ -51,6 +62,47 @@ function copyDirectory(relativePath) {
   }
   const target = join(deployRoot, relativePath);
   cpSync(source, target, { recursive: true });
+}
+
+function writeBoundedClaimsProjection(relativePath, copiedFiles) {
+  const source = join(repoRoot, relativePath);
+  const target = join(deployRoot, relativePath);
+  const payload = JSON.parse(readFileSync(source, "utf8"));
+  const data = payload.data || {};
+  const currentClaimIds = new Set((data.current_claims || []).map((claim) => claim.claim_id).filter(Boolean));
+  const recentClaimIds = new Set((data.recent_raven_reads || []).map((claim) => claim.claim_id).filter(Boolean));
+  const keepClaim = (row) => row && (currentClaimIds.has(row.claim_id) || recentClaimIds.has(row.claim_id));
+  const cap = (rows, limit) => (Array.isArray(rows) ? rows.slice(0, limit) : []);
+  const bounded = {
+    ...payload,
+    deploy_projection: "bounded_claims_public_asset_v1",
+    data: {
+      ...data,
+      claim_history: [
+        ...cap(data.claim_history, 80),
+        ...cap(data.claim_history, 500).filter(keepClaim),
+      ].filter((row, index, arr) => row?.claim_id && arr.findIndex((item) => item.claim_id === row.claim_id) === index),
+      claim_observations: [
+        ...cap(data.claim_observations, 500),
+        ...cap(data.claim_observations, 2000).filter(keepClaim),
+      ],
+      claim_settlements: [
+        ...cap(data.claim_settlements, 500),
+        ...cap(data.claim_settlements, 2000).filter(keepClaim),
+      ],
+      legacy_unlinked: cap(data.legacy_unlinked, 80),
+      deploy_projection_limits: {
+        claim_history: 80,
+        claim_observations: 500,
+        claim_settlements: 500,
+        legacy_unlinked: 80,
+        note: "Full append-only lineage remains in origin/runtime artifacts; deploy asset is bounded for Cloudflare Workers asset limits.",
+      },
+    },
+  };
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, `${JSON.stringify(bounded)}\n`, "utf8");
+  copiedFiles.add(relativePath);
 }
 
 function listFiles(root, prefix = "") {
@@ -86,6 +138,7 @@ for (const file of [...canonicalRouteFiles, ...legacyRouteFiles, ...runtimeAsset
 for (const dir of ["ravenos", "vendor"]) {
   copyDirectory(dir);
 }
+writeBoundedClaimsProjection("ravenos/claims.json", copiedFiles);
 
 const deployManifest = {
   public_build_id: build.public_build_id,
