@@ -43,6 +43,10 @@ import {
   runProviderOperation,
   withOperationBudget,
 } from "./lib/customer_trade/terminal_runtime.mjs";
+import {
+  evaluateReleaseCohesion,
+  expectedReleaseFromEnv,
+} from "./lib/release_contract.mjs";
 
 const dexCache = new Map();
 const hyperliquidCache = new Map();
@@ -122,6 +126,119 @@ async function readAssetPayload(env, request, assetPath) {
   if (!assetResponse.ok) return null;
   const payload = await assetResponse.json().catch(() => null);
   return payload && typeof payload === "object" ? payload : null;
+}
+
+async function resolveReleaseState(env, request, { force = false } = {}) {
+  const expected = expectedReleaseFromEnv(env);
+  if (!expected.enforced && !force) {
+    return {
+      release: null,
+      build: null,
+      deploy: null,
+      cohesion: evaluateReleaseCohesion({ expected, version: env?.CF_VERSION_METADATA }),
+    };
+  }
+  const [release, build, deploy] = await Promise.all([
+    readAssetPayload(env, request, "/ravenos_release.json"),
+    readAssetPayload(env, request, "/ravenos_build.json"),
+    readAssetPayload(env, request, "/ravenos_deploy_manifest.json"),
+  ]);
+  return {
+    release,
+    build,
+    deploy,
+    cohesion: evaluateReleaseCohesion({
+      expected,
+      release,
+      build,
+      deploy,
+      version: env?.CF_VERSION_METADATA,
+    }),
+  };
+}
+
+function attachReleaseHeaders(response, releaseState, pathname = "") {
+  const headers = new Headers(response.headers);
+  const releaseId = String(releaseState?.release?.release_id || releaseState?.cohesion?.expected?.release_id || "").trim();
+  const workerVersionId = String(releaseState?.cohesion?.worker_version?.id || "").trim();
+  if (releaseId) headers.set("x-ravenos-release-id", releaseId);
+  if (workerVersionId) headers.set("x-ravenos-worker-version", workerVersionId);
+  if (pathname.startsWith("/assets/")) {
+    headers.set("cache-control", "public, max-age=31536000, immutable");
+  } else if ([
+    "/ravenos_release.json",
+    "/ravenos_asset_manifest.json",
+    "/ravenos_build.json",
+    "/ravenos_deploy_manifest.json",
+  ].includes(pathname)) {
+    headers.set("cache-control", "no-store");
+  } else if (String(headers.get("content-type") || "").toLowerCase().includes("text/html")) {
+    headers.set("cache-control", "public, max-age=0, must-revalidate");
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function releaseUnavailable(releaseState) {
+  return json({
+    ok: false,
+    error: "release_incoherent",
+    state: "unavailable",
+    release_id: releaseState?.cohesion?.expected?.release_id || null,
+    worker_version_id: releaseState?.cohesion?.worker_version?.id || null,
+    reasons: releaseState?.cohesion?.reasons || ["release_state_unavailable"],
+    fail_closed: true,
+  }, { status: 503, headers: { "cache-control": "no-store" } });
+}
+
+function handleBuildIdentity(releaseState) {
+  const { release, build, deploy, cohesion } = releaseState;
+  return json({
+    ok: Boolean(cohesion?.ok),
+    schema_version: "ravenos.build_identity.v1",
+    generated_at: new Date().toISOString(),
+    release: release ? {
+      schema_version: release.schema_version,
+      release_id: release.release_id,
+      source_commit: release.source_commit,
+      public_build_id: release.public_build_id,
+      built_at: release.built_at,
+      release_content_seed_sha256: release.release_content_seed_sha256,
+      static_asset_manifest_sha256: release.static_asset_manifest_sha256,
+    } : null,
+    worker: {
+      version_id: cohesion?.worker_version?.id || null,
+      version_tag: cohesion?.worker_version?.tag || null,
+      version_created_at: cohesion?.worker_version?.timestamp || null,
+    },
+    assets: deploy ? {
+      release_id: deploy.release_id,
+      artifact_content_sha256: deploy.artifact_content_sha256,
+      static_asset_manifest_sha256: deploy.static_asset_manifest_sha256,
+      file_count: Array.isArray(deploy.files) ? deploy.files.length : null,
+    } : null,
+    public_origin: release ? {
+      contract_version: release.public_origin_contract_version,
+      endpoint_contract_sha256: release.public_origin_endpoint_contract_sha256,
+    } : null,
+    build: build ? {
+      release_id: build.release_id,
+      public_build_id: build.public_build_id,
+      source_commit: build.source_commit,
+    } : null,
+    cohesion: {
+      enforced: Boolean(cohesion?.enforced),
+      state: cohesion?.state || "incoherent",
+      reasons: cohesion?.reasons || ["release_state_unavailable"],
+      fail_closed: true,
+    },
+  }, {
+    status: cohesion?.ok ? 200 : 503,
+    headers: { "cache-control": "no-store" },
+  });
 }
 
 async function readPublicProjection(env, request, key, assetPath = `/ravenos/${key}.json`) {
@@ -2616,7 +2733,19 @@ export default {
     if (url.pathname.startsWith("/.git") || url.pathname.startsWith("/.wrangler")) {
       return new Response("Not found", { status: 404 });
     }
-    if (url.pathname.startsWith("/api/")) return routeApi(request, env || {});
+    const releaseState = await resolveReleaseState(env || {}, request, {
+      force: url.pathname === "/api/build",
+    });
+    if (url.pathname === "/api/build" && request.method === "GET") {
+      return attachReleaseHeaders(handleBuildIdentity(releaseState), releaseState, url.pathname);
+    }
+    if (releaseState.cohesion.enforced && !releaseState.cohesion.ok) {
+      return attachReleaseHeaders(releaseUnavailable(releaseState), releaseState, url.pathname);
+    }
+    if (url.pathname.startsWith("/api/")) {
+      const response = await routeApi(request, env || {});
+      return attachReleaseHeaders(response, releaseState, url.pathname);
+    }
     if (["GET", "HEAD"].includes(request.method)) {
       const legacyRedirects = {
         "/pro": "/pricing/",
@@ -2627,9 +2756,15 @@ export default {
         "/token/": "/terminal/",
       };
       const target = legacyRedirects[url.pathname];
-      if (target) return applyAssetSecurityHeaders(Response.redirect(new URL(target, url), 308), url.pathname);
+      if (target) {
+        return attachReleaseHeaders(
+          applyAssetSecurityHeaders(Response.redirect(new URL(target, url), 308), url.pathname),
+          releaseState,
+          url.pathname,
+        );
+      }
     }
     const assetResponse = await env.ASSETS.fetch(request);
-    return applyAssetSecurityHeaders(assetResponse, url.pathname);
+    return attachReleaseHeaders(applyAssetSecurityHeaders(assetResponse, url.pathname), releaseState, url.pathname);
   },
 };

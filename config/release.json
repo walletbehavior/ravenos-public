@@ -1,0 +1,20 @@
+{
+  "release_contract_version": "ravenos.release.v1",
+  "asset_manifest_version": "ravenos.static_assets.v1",
+  "deploy_manifest_version": "ravenos.deploy.v2",
+  "public_origin": {
+    "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
+    "contract_version": "ravenos_public_origin_manifest_v1",
+    "required_endpoints": {
+      "brief": "ravenos_brief_public_origin_v1",
+      "replay": "ravenos_replay_public_origin_v1",
+      "outcomes": "ravenos_outcomes_public_origin_v1",
+      "memory": "ravenos_memory_public_origin_v1",
+      "behavior": "ravenos_behavior_public_origin_v1",
+      "research": "ravenos_research_public_origin_v1",
+      "perps": "ravenos_perps_public_origin_v1",
+      "opportunities": "ravenos_opportunity_census_public_origin_v1",
+      "claims": "ravenos_claims_public_origin_v2"
+    }
+  }
+}

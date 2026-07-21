@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 
 const routeConfig = JSON.parse(readFileSync("config/public_routes.json", "utf8"));
+const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
 const routeList = (routeConfig.routes || []).filter((route) => route.public).map((route) => route.route);
 const files = [
   "index.html",
@@ -128,14 +129,17 @@ const buildId = cleanBuildInputs
 const manifest = {
   public_build_id: buildId,
   public_commit: gitIdentity.shortCommit,
+  source_commit: gitIdentity.commit,
   worker_version: process.env.RAVENOS_WORKER_VERSION || null,
   built_at: builtAt,
   deployed_at: null,
   build_identity_mode: cleanBuildInputs ? "git_commit" : "dirty_tree_fingerprint",
-  source_tree_state: cleanBuildInputs ? "clean" : "dirty",
+  source_tree_state: gitIdentity.prebuildClean ? "clean" : "dirty",
   dirty_tree_fingerprint: cleanBuildInputs ? null : dirtyFingerprint,
   asset_manifest_version: "1.0",
   route_manifest_version: routeConfig.route_manifest_version || "1.0",
+  release_contract_version: releaseConfig.release_contract_version || "ravenos.release.v1",
+  public_origin_contract_version: releaseConfig.public_origin?.contract_version || "unknown",
   assets: assetHashes,
   routes: routeList,
   api_schema_versions: {
@@ -156,29 +160,6 @@ for (const output of ["ravenos_build.json", "public/ravenos_build.json"]) {
   const target = join(process.cwd(), output);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-}
-
-const buildMarker = "Public artifact verified";
-const routeFiles = routeList.map((route) => {
-  const trimmed = route.replace(/^\/+|\/+$/g, "");
-  return trimmed ? `${trimmed}/index.html` : "index.html";
-});
-
-for (const file of [...routeFiles, ...routeFiles.map((file) => `public/${file}`)]) {
-  const source = readFileSync(file, "utf8");
-  const updated = source
-    .replace(/UI build[^<\n]*· artifact[^<\n]*· public evidence shell/g, buildMarker)
-    .replace(/Public artifact (?:loading|verified)/g, buildMarker)
-    .replace(/window\.__RAVENOS_BUILD_ID__ = "(?:__RAVENOS_BUILD_ID__|[^"]+)";/g, `window.__RAVENOS_BUILD_ID__ = "${buildId}";`)
-    .replace(/(lightweight-charts\.standalone\.production\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(raven-chart-overlays\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(raven-reads\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(raven-price-chart\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(ravenos-access\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(ravenos-price-workspace\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(ravenos-terminal-review-foundation\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`)
-    .replace(/(ravenos-terminal-trade\.js\?v=)(?:__RAVENOS_BUILD_ID__|[^"'&]+)/g, `$1${buildId}`);
-  writeFileSync(file, updated, "utf8");
 }
 
 console.log(`Generated ravenos_build.json ${buildId}`);

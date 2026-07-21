@@ -17,6 +17,7 @@ telegram*
 *.key
 *.pem
 .deploy-public/
+.releases/
 playwright-report/
 test-results/
 node_modules/
@@ -25,7 +26,8 @@ scripts/__pycache__/
 ravenos_build.json
 public/ravenos_build.json
 public/public_routes.json
-public_routes.json
+/public_routes.json
+/public/public_routes.json
 ravenos/
 public/ravenos/
 public/data/

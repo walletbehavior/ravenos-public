@@ -30,7 +30,7 @@ function navLinks(activeSlug) {
 }
 
 function buildMarkerPlaceholder() {
-  return "Public artifact loading";
+  return "Public artifact verified";
 }
 
 function fallbackArtifactExists(route) {
