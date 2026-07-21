@@ -241,7 +241,7 @@ test("customer account and billing endpoints fail closed when no authenticated c
   const access = await worker.fetch(new Request("https://ravenos.xyz/api/access?wallet=private-wallet-value"), env);
   assert.equal(access.status, 503);
   const accessBody = await access.json();
-  assert.equal(accessBody.error, "customer_accounts_not_configured");
+  assert.equal(accessBody.error, "legacy_customer_access_quarantined");
   assert.equal(accessBody.customer_system.wallet_role, "optional_market_context_only");
   assert.equal(JSON.stringify(accessBody).includes("private-wallet-value"), false);
   assert.equal(JSON.stringify(accessBody).includes("threshold"), false);
@@ -254,7 +254,7 @@ test("customer account and billing endpoints fail closed when no authenticated c
     }), env);
     assert.equal(response.status, 503);
     const body = await response.json();
-    assert.equal(body.error, "billing_not_configured");
+    assert.equal(body.error, "legacy_billing_quarantined");
   }
 });
 

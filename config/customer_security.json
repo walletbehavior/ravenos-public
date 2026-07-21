@@ -1,0 +1,110 @@
+{
+  "schema_version": "ravenos.customer_security_architecture.v1",
+  "verification_baseline": {
+    "standard": "OWASP ASVS",
+    "version": "5.0.0",
+    "minimum_level": 2,
+    "level_3_overlays": [
+      "administrative access",
+      "account recovery",
+      "wallet ownership changes",
+      "billing and entitlement changes",
+      "transaction authorization",
+      "public signing and submission"
+    ]
+  },
+  "current_stage": "architecture_only",
+  "customer_capabilities_enabled": false,
+  "origins": {
+    "public": "https://ravenos.xyz",
+    "authenticated_candidate": "https://app.ravenos.xyz",
+    "administrative": "separate_non_public_origin_required"
+  },
+  "session_policy": {
+    "kind": "opaque_revocable_server_side",
+    "cookie_name": "__Host-ravenos_session",
+    "cookie_attributes": ["Secure", "HttpOnly", "SameSite=Lax", "Path=/"],
+    "domain_attribute_permitted": false,
+    "minimum_entropy_bits": 256,
+    "idle_timeout_seconds": 1800,
+    "absolute_timeout_seconds": 43200,
+    "recent_reauthentication_seconds": 300,
+    "browser_storage_tokens_permitted": false
+  },
+  "wallet_challenge_policy": {
+    "evm_standard": "ERC-4361",
+    "solana_standard": "Wallet Standard SIWS",
+    "single_use": true,
+    "minimum_nonce_entropy_bits": 128,
+    "maximum_lifetime_seconds": 300,
+    "server_side_verification": true,
+    "wallet_connect_is_authentication": false
+  },
+  "blocked_capabilities": [
+    "account_creation",
+    "customer_authentication",
+    "customer_sessions",
+    "wallet_linking",
+    "persistent_portfolio",
+    "persistent_watchlists",
+    "persistent_alerts",
+    "subscription_checkout",
+    "subscription_entitlements",
+    "broker_account_linking",
+    "customer_signing",
+    "transaction_submission",
+    "customer_position_monitoring"
+  ],
+  "legacy_quarantine": {
+    "routes": [
+      "/api/access",
+      "/api/stripe/checkout",
+      "/api/stripe/portal",
+      "/api/stripe/webhook"
+    ],
+    "client_assets_excluded_from_release": [
+      "ravenos-access.js",
+      "ravenos-terminal-trade.js",
+      "ravenos-terminal-review-foundation.js"
+    ],
+    "reason": "Address-centric scaffolding predates account, session, nonce, entitlement, and transaction-authorization contracts and cannot be enabled by environment flags."
+  },
+  "required_documents": [
+    "docs/ravenos_security_architecture_v1.md",
+    "docs/ravenos_identity_and_session_contract_v1.md",
+    "docs/ravenos_wallet_linking_contract_v1.md",
+    "docs/ravenos_transaction_authorization_v1.md",
+    "docs/ravenos_threat_model_v1.md",
+    "docs/ravenos_security_verification_v1.md"
+  ],
+  "verification_scenarios": [
+    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-004", "name": "expired wallet challenge", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-005", "name": "duplicate wallet linking", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-WAL-006", "name": "link or unlink without recent reauthentication", "gate": "stage_b", "status": "required_not_implemented" },
+    { "id": "SEC-BIL-001", "name": "forged Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
+    { "id": "SEC-BIL-002", "name": "replayed or duplicate Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
+    { "id": "SEC-BIL-003", "name": "out-of-order Stripe events", "gate": "stage_c", "status": "required_not_implemented" },
+    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-EDGE-001", "name": "WAF and endpoint rate-limit behavior", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-LEAK-001", "name": "secrets absent from assets and responses", "gate": "current", "status": "verified_current" },
+    { "id": "SEC-TX-001", "name": "transaction and reviewed-quote mismatch", "gate": "stage_d", "status": "required_not_implemented" },
+    { "id": "SEC-TX-002", "name": "stale quote signing", "gate": "stage_d", "status": "required_not_implemented" },
+    { "id": "SEC-TX-003", "name": "altered route or fee recipient", "gate": "stage_d", "status": "required_not_implemented" },
+    { "id": "SEC-TX-004", "name": "wrong transaction wallet", "gate": "stage_d", "status": "required_not_implemented" },
+    { "id": "SEC-TX-005", "name": "wrong transaction chain", "gate": "stage_d", "status": "required_not_implemented" },
+    { "id": "SEC-TX-006", "name": "duplicate broadcast", "gate": "stage_e", "status": "required_not_implemented" },
+    { "id": "SEC-TX-007", "name": "signing disabled while flags are off", "gate": "current", "status": "verified_current" },
+    { "id": "SEC-REL-001", "name": "cohesive release and rollback identity", "gate": "current", "status": "verified_current" }
+  ]
+}
