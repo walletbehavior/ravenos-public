@@ -40,14 +40,14 @@ async function cloudflare(path, init = {}) {
   return payload.result;
 }
 
-function wrangler(args) {
+function wrangler(args, { echo = true } = {}) {
   const result = spawnSync(process.execPath, [join(repoRoot, "scripts/run-local-wrangler.mjs"), ...args], {
     cwd: repoRoot,
     env: cloudflareEnv,
     encoding: "utf8",
   });
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
+  if (echo && result.stdout) process.stdout.write(result.stdout);
+  if (echo && result.stderr) process.stderr.write(result.stderr);
   if (result.status !== 0) throw new Error(`Wrangler command failed with status ${result.status}`);
   return result.stdout || "";
 }
@@ -56,7 +56,7 @@ const secretList = JSON.parse(wrangler([
   "secret", "list",
   "--name", packageManifest.worker_name,
   "--format", "json",
-]));
+], { echo: false }));
 const configuredSecrets = new Set((Array.isArray(secretList) ? secretList : []).map((entry) => entry?.name).filter(Boolean));
 const missingSecrets = (packageManifest.required_server_secret_bindings || []).filter((name) => !configuredSecrets.has(name));
 if (missingSecrets.length) {
@@ -65,7 +65,7 @@ if (missingSecrets.length) {
 
 const configPath = join(bundleRoot, "wrangler.release.jsonc");
 function versionList() {
-  const parsed = JSON.parse(wrangler(["versions", "list", "--name", packageManifest.worker_name, "--json"]));
+  const parsed = JSON.parse(wrangler(["versions", "list", "--name", packageManifest.worker_name, "--json"], { echo: false }));
   return Array.isArray(parsed) ? parsed : (parsed.items || parsed.versions || []);
 }
 
@@ -111,7 +111,11 @@ if (Boolean(currentSubdomainState?.enabled) !== Boolean(previousSubdomainState?.
   throw new Error("Staging changed the main workers.dev route state");
 }
 if (currentSubdomainState?.previews_enabled !== true) throw new Error("Cloudflare version previews remain disabled");
-const previewUrl = `https://${previewAlias}-${packageManifest.worker_name}.${accountSubdomain.subdomain}.workers.dev`;
+const versionDetail = await cloudflare(`/accounts/${accountId}/workers/workers/${scriptName}/versions/${encodeURIComponent(version.id)}`);
+const previewUrl = (Array.isArray(versionDetail?.urls) ? versionDetail.urls : [])
+  .find((value) => String(value).startsWith("https://"));
+if (!previewUrl) throw new Error("Cloudflare did not return the exact version preview URL");
+const previewAliasUrl = `https://${previewAlias}-${packageManifest.worker_name}.${accountSubdomain.subdomain}.workers.dev`;
 
 const receipt = {
   schema_version: "ravenos.release_stage_receipt.v1",
@@ -121,6 +125,7 @@ const receipt = {
   worker_version_id: version.id,
   worker_version_tag: packageManifest.release_id,
   preview_url: previewUrl,
+  preview_alias_url: previewAliasUrl,
   package_content_sha256: packageManifest.package_content_sha256,
   required_server_secret_bindings_verified: packageManifest.required_server_secret_bindings || [],
   worker_version_reused: versionReused,

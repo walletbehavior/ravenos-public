@@ -212,6 +212,8 @@ function handleBuildIdentity(releaseState) {
     worker: {
       version_id: cohesion?.worker_version?.id || null,
       version_tag: cohesion?.worker_version?.tag || null,
+      expected_version_tag: cohesion?.expected?.release_id || null,
+      version_tag_visibility: cohesion?.worker_version_tag_visibility || "external_verification_required",
       version_created_at: cohesion?.worker_version?.timestamp || null,
     },
     assets: deploy ? {

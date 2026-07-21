@@ -17,7 +17,7 @@ A RavenOS release is one immutable tuple:
 
 The Worker, HTML, JavaScript, CSS, release controls, and public-origin contract must agree. A packaged Worker sets `RAVENOS_RELEASE_ENFORCE=1`; an identity mismatch then returns HTTP 503 before any API or static asset is served.
 
-`GET /api/build` is public-safe and non-cacheable. It reports the release ID, source commit, Worker version, static manifest digest, deploy digest, public-origin contract, and cohesion state. It never reports secret values.
+`GET /api/build` is public-safe and non-cacheable. It reports the release ID, source commit, Worker version ID, static manifest digest, deploy digest, public-origin contract, and cohesion state. It never reports secret values. Cloudflare's runtime version metadata may omit the Wrangler annotation tag; staging therefore verifies that tag independently through the Cloudflare Versions API and joins it to the runtime version ID.
 
 ## Static asset behavior
 

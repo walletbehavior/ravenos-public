@@ -97,6 +97,14 @@ test("release cohesion rejects a Worker version carrying another release tag", (
   assert.ok(result.reasons.includes("worker_version_tag_mismatch"));
 });
 
+test("release cohesion accepts runtime metadata without a tag when the version ID is present", () => {
+  const result = evaluateReleaseCohesion(fixtures({
+    version: { id: "11111111-2222-3333-4444-555555555555", timestamp: "2026-07-21T20:00:00Z" },
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.worker_version_tag_visibility, "external_verification_required");
+});
+
 test("release cohesion is explicitly non-enforcing outside a packaged release", () => {
   const expected = expectedReleaseFromEnv({});
   const result = evaluateReleaseCohesion({ expected });
@@ -123,6 +131,7 @@ test("/api/build reports the runtime Worker version and matching release tuple",
   assert.equal(response.headers.get("x-ravenos-release-id"), RELEASE_ID);
   assert.equal(payload.cohesion.state, "coherent");
   assert.equal(payload.worker.version_id, base.version.id);
+  assert.equal(payload.worker.expected_version_tag, RELEASE_ID);
 });
 
 test("an incoherent release fails closed before intelligence routes execute", async () => {

@@ -11,6 +11,7 @@ if (!baseUrl.startsWith("https://") || !bundleRoot) {
 const release = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_release.json"), "utf8"));
 const assetManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_asset_manifest.json"), "utf8"));
 const routeManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/public_routes.json"), "utf8"));
+const stageReceipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), "utf8"));
 const results = [];
 
 function sha256(value) {
@@ -34,16 +35,30 @@ async function capture(path, { expectedStatus = 200 } = {}) {
     sha256: sha256(bytes),
   };
   results.push(record);
-  if (response.status !== expectedStatus) throw new Error(`${path} returned ${response.status}, expected ${expectedStatus}`);
+  if (expectedStatus !== null && response.status !== expectedStatus) throw new Error(`${path} returned ${response.status}, expected ${expectedStatus}`);
   return { response, bytes, text: bytes.toString("utf8"), record };
 }
 
-const buildCapture = await capture("/api/build");
+async function captureReady(path, { attempts = 30, delayMs = 1000 } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const captured = await capture(path, { expectedStatus: null });
+    if (captured.response.status === 200) return captured;
+    if (![404, 522, 523, 530].includes(captured.response.status) || attempt === attempts) {
+      throw new Error(`${path} returned ${captured.response.status} during preview readiness`);
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+  }
+  throw new Error(`${path} did not become ready`);
+}
+
+const buildCapture = await captureReady("/api/build");
 const buildIdentity = JSON.parse(buildCapture.text);
 if (!buildIdentity.ok || buildIdentity.cohesion?.state !== "coherent") throw new Error("/api/build did not report a coherent release");
 if (buildIdentity.release?.release_id !== release.release_id) throw new Error("/api/build release ID mismatch");
-if (buildIdentity.worker?.version_tag !== release.release_id) throw new Error("Worker version tag does not match release ID");
-if (!buildIdentity.worker?.version_id) throw new Error("Worker version ID is missing");
+if (stageReceipt.worker_version_tag !== release.release_id) throw new Error("Cloudflare API version tag does not match release ID");
+if (buildIdentity.worker?.version_id !== stageReceipt.worker_version_id) throw new Error("Runtime Worker version ID does not match the staged version");
+if (buildIdentity.worker?.expected_version_tag !== release.release_id) throw new Error("Runtime expected version tag does not match release ID");
+if (buildIdentity.worker?.version_tag && buildIdentity.worker.version_tag !== release.release_id) throw new Error("Runtime Worker version tag conflicts with release ID");
 if (!/no-store/i.test(buildCapture.record.cache_control || "")) throw new Error("/api/build must be no-store");
 
 for (const controlPath of ["/ravenos_release.json", "/ravenos_asset_manifest.json", "/ravenos_deploy_manifest.json"]) {
