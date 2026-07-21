@@ -2170,6 +2170,100 @@ async function handleStatus(request, env) {
   });
 }
 
+const CURRENT_OPPORTUNITY_SCHEMA = "ravenos_opportunity_census_public_origin_v1";
+const CURRENT_OPPORTUNITY_DATA_SCHEMA = "ravenos_opportunity_census_public_v1";
+const CURRENT_OPPORTUNITY_SOURCE = "raven_opportunity_projection";
+const CURRENT_OPPORTUNITY_MAX_AGE_SECONDS = 3_600;
+
+function validateCurrentOpportunityProjection(result, nowMs = Date.now()) {
+  const payload = result?.payload;
+  const delivery = result?.delivery;
+  if (!result?.available || !payload?.data) {
+    return { ok: false, reason: delivery?.reason || "current_opportunity_unavailable" };
+  }
+  if (
+    delivery?.source !== "current_public_origin"
+    || delivery?.fallback === true
+    || delivery?.freshness_state !== "fresh"
+  ) {
+    return { ok: false, reason: delivery?.reason || "current_opportunity_delivery_rejected" };
+  }
+  if (
+    payload.fallback === true
+    || payload.source === "embedded_snapshot"
+    || payload.delivery?.fallback === true
+    || payload.delivery?.source === "embedded_snapshot"
+  ) {
+    return { ok: false, reason: "current_opportunity_fallback_rejected" };
+  }
+  if (
+    payload.ok !== true
+    || payload.safe_public !== true
+    || payload.key !== "opportunities"
+    || payload.schema_version !== CURRENT_OPPORTUNITY_SCHEMA
+    || payload.redaction_policy !== "aggregate_public_market_context_only"
+    || payload.source_artifact !== CURRENT_OPPORTUNITY_SOURCE
+  ) {
+    return { ok: false, reason: "current_opportunity_contract_rejected" };
+  }
+  const freshnessTargetSeconds = Number(payload.freshness_target_seconds);
+  const generatedAt = String(payload.generated_at || "");
+  const generatedMs = Date.parse(generatedAt);
+  if (
+    freshnessTargetSeconds !== CURRENT_OPPORTUNITY_MAX_AGE_SECONDS
+    || !Number.isFinite(generatedMs)
+    || generatedMs > nowMs + 300_000
+    || nowMs - generatedMs > CURRENT_OPPORTUNITY_MAX_AGE_SECONDS * 1_000
+  ) {
+    return { ok: false, reason: "current_opportunity_freshness_rejected" };
+  }
+  const census = payload.data;
+  if (
+    census.schema_version !== CURRENT_OPPORTUNITY_DATA_SCHEMA
+    || census.source_state !== "current"
+    || String(census.generated_at || "") !== generatedAt
+    || !census.opportunities
+    || !Array.isArray(census.opportunities.rows)
+  ) {
+    return { ok: false, reason: "current_opportunity_schema_rejected" };
+  }
+  return { ok: true, payload, census };
+}
+
+function currentOnlyContext(result) {
+  const delivery = result?.delivery;
+  if (
+    !result?.available
+    || !result?.payload
+    || delivery?.source !== "current_public_origin"
+    || delivery?.fallback === true
+    || delivery?.freshness_state !== "fresh"
+  ) return null;
+  return result.payload;
+}
+
+function requestedOpportunityIdentity(request) {
+  const url = new URL(request.url);
+  const instrumentId = String(url.searchParams.get("instrument_id") || "").trim().slice(0, 128);
+  const instrument = String(url.searchParams.get("instrument") || "").trim().slice(0, 128);
+  if (!instrumentId && !instrument) return null;
+  return {
+    instrument_id: instrumentId || null,
+    instrument: instrument || null,
+  };
+}
+
+function selectOpportunityRow(rows, requested) {
+  if (!requested) return rows[0] || null;
+  const requestedId = String(requested.instrument_id || "").toLowerCase();
+  const requestedInstrument = String(requested.instrument || "").toUpperCase();
+  return rows.find((row) => {
+    const idMatches = !requestedId || String(row?.instrument_id || "").toLowerCase() === requestedId;
+    const instrumentMatches = !requestedInstrument || String(row?.instrument || "").toUpperCase() === requestedInstrument;
+    return idMatches && instrumentMatches;
+  }) || null;
+}
+
 async function handleOpportunity(request, env) {
   const [opportunitiesResult, claimsResult, outcomesResult, behaviorResult] = await Promise.all([
     readPublicProjection(env, request, "opportunities"),
@@ -2177,39 +2271,64 @@ async function handleOpportunity(request, env) {
     readPublicProjection(env, request, "outcomes"),
     readPublicProjection(env, request, "behavior"),
   ]);
-  const opportunitiesPayload = opportunitiesResult.payload;
-  const claimsPayload = claimsResult.payload;
-  const outcomesPayload = outcomesResult.payload;
-  const behaviorPayload = behaviorResult.payload;
-  const delivery = aggregateDeliveries([opportunitiesResult, claimsResult, outcomesResult, behaviorResult]);
-  if (!opportunitiesPayload?.data) {
+  const currentProjection = validateCurrentOpportunityProjection(opportunitiesResult);
+  const delivery = opportunitiesResult.delivery;
+  if (!currentProjection.ok) {
+    const unavailableDelivery = {
+      ...delivery,
+      source: "unavailable",
+      freshness_state: "unavailable",
+      fallback: false,
+      reason: currentProjection.reason,
+      rejected_source: delivery?.source || "unavailable",
+      rejected_freshness_state: delivery?.freshness_state || "unavailable",
+    };
     return json({
       ok: false,
       error: "opportunity_census_projection_unavailable",
-      status: "degraded",
+      status: "unavailable",
       message: "The current Raven opportunity projection is unavailable; older claims are not substituted as current opportunities.",
       census: null,
-      legacy_context: {
-        current_claims: (claimsPayload?.data?.current_claims || []).filter((row) => row.surface === "opportunity").slice(0, 1),
-        behavior_available: Boolean(behaviorPayload?.data),
-        outcomes_available: Boolean(outcomesPayload?.data),
+      current_opportunity: null,
+      selected_opportunity: null,
+      historical_context: {
+        current_data_substituted: false,
+        replay_contract: "/api/replay",
       },
-      delivery,
-    }, { status: 503, headers: projectionRouteHeaders("/api/opportunity", delivery) });
+      rejection_reason: currentProjection.reason,
+      delivery: unavailableDelivery,
+    }, { status: 503, headers: projectionRouteHeaders("/api/opportunity", unavailableDelivery) });
   }
+  const claimsPayload = currentOnlyContext(claimsResult);
+  const outcomesPayload = currentOnlyContext(outcomesResult);
+  const behaviorPayload = currentOnlyContext(behaviorResult);
+  const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
+  const rows = currentProjection.census.opportunities.rows;
+  const requested = requestedOpportunityIdentity(request);
+  const selected = selectOpportunityRow(rows, requested);
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
   return json({
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
-    generated_at: opportunitiesPayload.generated_at || opportunitiesPayload.updated_at || null,
+    generated_at: currentProjection.payload.generated_at,
+    source_updated_at: currentProjection.payload.updated_at || null,
+    source_artifact: currentProjection.payload.source_artifact,
     evidence_contract_version: "1.0",
-    claim_lineage_version: (claimsPayload?.data || {}).lineage_version || "2.0",
-    census: opportunitiesPayload.data,
+    claim_lineage_version: (claimsPayload?.data || {}).lineage_version || null,
+    census: currentProjection.census,
     current_claim_context: current,
-    current_opportunity: current,
+    current_opportunity: selected,
+    selected_opportunity: selected,
+    selection: {
+      requested: Boolean(requested),
+      requested_identity: requested,
+      state: requested ? (selected ? "matched" : "not_present") : (selected ? "default_current_row" : "no_current_rows"),
+      silently_replaced: false,
+    },
     recent_raven_reads: (claimsPayload?.data || {}).recent_raven_reads || [],
     outcomes_context: outcomesPayload?.data?.recent_raven_reads?.slice(0, 12) || [],
     behavior_context: behaviorPayload?.data || null,
+    context_delivery: contextDelivery,
     delivery,
   }, { headers: projectionRouteHeaders("/api/opportunity", delivery) });
 }

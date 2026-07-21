@@ -127,7 +127,7 @@ const buildId = cleanBuildInputs
 
 const manifest = {
   public_build_id: buildId,
-  public_commit: gitIdentity.commit,
+  public_commit: gitIdentity.shortCommit,
   worker_version: process.env.RAVENOS_WORKER_VERSION || null,
   built_at: builtAt,
   deployed_at: null,

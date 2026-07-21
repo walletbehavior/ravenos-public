@@ -51,6 +51,7 @@ test("loads a valid current public projection through the protected origin", asy
   });
   assert.equal(observed.url, "https://origin.example/public/ravenos/brief.json");
   assert.equal(observed.init.headers["x-ravenos-public-token"], "test-token");
+  assert.equal(observed.init.redirect, "manual");
   assert.equal(result.available, true);
   assert.equal(result.delivery.source, "current_public_origin");
   assert.equal(result.delivery.freshness_state, "fresh");
@@ -60,6 +61,21 @@ test("loads a valid current public projection through the protected origin", asy
     "x-ravenos-freshness": "fresh",
   });
   assert.equal(attachDelivery(result.payload, result.delivery).delivery.key, "brief");
+});
+
+test("rejects protected-origin redirects without following them", async () => {
+  const result = await loadPublicProjection({
+    env: ENV,
+    key: "brief",
+    nowMs: NOW,
+    fetchImpl: async () => new Response(null, {
+      status: 302,
+      headers: { location: "https://untrusted.example/brief.json" },
+    }),
+  });
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.source, "unavailable");
+  assert.equal(result.delivery.reason, "origin_redirect_rejected");
 });
 
 test("preserves a stale origin payload and labels its source timestamp honestly", async () => {

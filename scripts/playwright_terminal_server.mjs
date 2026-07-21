@@ -1,11 +1,13 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import worker from "../worker.mjs";
 
 const root = process.cwd();
 const port = Number(process.env.PORT || 4173);
+const originToken = randomBytes(32).toString("hex");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -50,10 +52,43 @@ const env = {
   RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE: "1",
   RAVENOS_CUSTOMER_TRADE_SOLANA_ENABLE: "1",
   RAVENOS_CUSTOMER_TRADE_FIXTURE_MODE: "1",
+  RAVENOS_PUBLIC_ORIGIN_URL: `http://127.0.0.1:${port}/__playwright_public_origin`,
+  RAVENOS_PUBLIC_ORIGIN_TOKEN: originToken,
 };
+
+async function servePublicOriginFixture(req, res) {
+  const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+  if (!url.pathname.startsWith("/__playwright_public_origin/")) return false;
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.setHeader("cache-control", "no-store");
+  if (req.method !== "GET") {
+    res.statusCode = 405;
+    res.end(JSON.stringify({ ok: false, error: "method_not_allowed" }));
+    return true;
+  }
+  if (req.headers["x-ravenos-public-token"] !== originToken) {
+    res.statusCode = 401;
+    res.end(JSON.stringify({ ok: false, error: "unauthorized" }));
+    return true;
+  }
+  if (url.pathname !== "/__playwright_public_origin/opportunities.json") {
+    res.statusCode = 404;
+    res.end(JSON.stringify({ ok: false, error: "fixture_not_found" }));
+    return true;
+  }
+  const payload = JSON.parse(await readFile(join(root, "ravenos", "opportunities.json"), "utf8"));
+  const generatedAt = new Date().toISOString();
+  payload.generated_at = generatedAt;
+  payload.updated_at = generatedAt;
+  payload.data = { ...payload.data, generated_at: generatedAt };
+  res.statusCode = 200;
+  res.end(JSON.stringify(payload));
+  return true;
+}
 
 const server = createServer(async (req, res) => {
   try {
+    if (await servePublicOriginFixture(req, res)) return;
     const request = new Request(`http://127.0.0.1:${port}${req.url || "/"}`, {
       method: req.method,
       headers: req.headers,

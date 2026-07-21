@@ -3,6 +3,7 @@
   "name": "ravenos-public",
   "main": "worker.mjs",
   "compatibility_date": "2026-06-23",
+  "preview_urls": false,
   "observability": {
     "enabled": true
   },
@@ -17,6 +18,7 @@
     }
   ],
   "compatibility_flags": [
-    "nodejs_compat"
+    "nodejs_compat",
+    "global_fetch_strictly_public"
   ]
 }

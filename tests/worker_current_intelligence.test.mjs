@@ -20,7 +20,8 @@ function projection(key, schema, data = {}, generatedAt = isoAgo(10), freshnessT
     updated_at: isoAgo(2),
     freshness_target_seconds: freshnessTargetSeconds,
     redaction_policy: "aggregate_public_market_context_only",
-    data,
+    ...(key === "opportunities" ? { source_artifact: "raven_opportunity_projection" } : {}),
+    data: key === "opportunities" ? { generated_at: generatedAt, ...data } : data,
   };
 }
 
@@ -119,7 +120,10 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.census.opportunities.rows[0].instrument_id, "hyperliquid:perp:SOL");
     assert.equal(body.census.opportunities.rows[0].execution_available, false);
     assert.equal(body.current_claim_context.headline, "Older claim context");
-    assert.equal(body.delivery.endpoints.opportunities.source, "current_public_origin");
+    assert.equal(body.current_opportunity.instrument_id, "hyperliquid:perp:SOL");
+    assert.equal(body.selection.state, "default_current_row");
+    assert.equal(body.delivery.source, "current_public_origin");
+    assert.equal(body.delivery.fallback, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -140,7 +144,11 @@ test("Worker does not relabel an older claim as a current opportunity when Censu
     const body = await response.json();
     assert.equal(body.error, "opportunity_census_projection_unavailable");
     assert.equal(body.census, null);
-    assert.equal(body.legacy_context.current_claims[0].headline, "Older claim context");
+    assert.equal(body.current_opportunity, null);
+    assert.equal(body.selected_opportunity, null);
+    assert.equal("legacy_context" in body, false);
+    assert.equal(body.historical_context.current_data_substituted, false);
+    assert.equal(body.historical_context.replay_contract, "/api/replay");
     assert.match(body.message, /not substituted as current opportunities/);
   } finally {
     globalThis.fetch = previousFetch;
