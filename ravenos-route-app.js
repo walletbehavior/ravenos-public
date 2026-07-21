@@ -1,4 +1,5 @@
 import { mountRavenOSShell } from "/ravenos-shell.js";
+import { ravenOSContext } from "/ravenos-context-store.js";
 
 const routeConfigNode = document.getElementById("ravenosRouteConfig");
 const routeConfig = routeConfigNode ? JSON.parse(routeConfigNode.textContent) : null;
@@ -381,6 +382,28 @@ async function hydrateOpportunitySpecificity(current, data = {}) {
 
 function getEvidenceContract(payload) {
   const data = payload?.data || payload || {};
+  const census = censusFromPayload(payload);
+  if (census) {
+    return {
+      evidence_mode: "decision-time observations",
+      as_of: census.generated_at,
+      observation_window: { label: "bounded current projection" },
+      sample: {
+        observed: census.population?.decision_observations || 0,
+        usable: census.population?.paths_with_evidence || 0,
+        settled: census.population?.matured_path_windows || 0,
+        unit: "decision observations",
+      },
+      freshness: { state: census.source_state || "unavailable" },
+      confidence: { label: "research only" },
+      settlement_window: { label: "declared future-only windows" },
+      population: { label: "observed Raven decision population" },
+      weighting: { description: "independence-adjusted upstream" },
+      source: { public_label: "Raven Opportunity Census projection" },
+      validation_status: "research only",
+      artifact_version: census.contract?.public_projection_version || "1.0",
+    };
+  }
   return (
     data.evidence_contract ||
     data.current_opportunity?.evidence_contract ||
@@ -559,11 +582,10 @@ function narratorPageSlug(slug) {
 }
 
 async function fetchNarratorPayload() {
-  const pageSlug = narratorPageSlug(routeConfig?.slug || "");
-  if (!pageSlug) return null;
-  const response = await boundedFetch(`/ravenos/ravenos_narrator_${encodeURIComponent(pageSlug)}.json`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`narrator_${pageSlug}_${response.status}`);
-  return await response.json();
+  // The legacy static narrator files are not part of the deployable artifact
+  // and are materially older than the current projection. Route-specific,
+  // deterministic language is rendered from the live structured contract.
+  return null;
 }
 
 function renderNarratorPanel() {
@@ -621,36 +643,161 @@ function renderNarratorPanel() {
 
 function renderBrief(payload) {
   const data = payload?.data || {};
-  document.getElementById("routeHeadline").textContent = traderText(data.one_sentence_read, "Current read forming.");
-  document.getElementById("routeHeroSummary").textContent = `Current read: ${traderText(data.one_sentence_read)}`;
+  const read = traderText(data.one_sentence_read, "Current market evidence is forming.");
+  const actorEvidence = data.actor_evidence || {};
+  document.getElementById("routeHeadline").textContent = read;
+  document.getElementById("routeHeroSummary").textContent = traderText(
+    data.public_read_label || actorEvidence.public_read_label,
+    "Raven is preserving the current market state while followthrough evidence matures.",
+  );
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Leading market", traderSurfaceLabel(data.best_surface || data.best_opportunity_surface)),
-    routeStateCard("Participation", traderText(data.participation_change)),
-    routeStateCard("Reward", traderText(data.reward_change)),
-    routeStateCard("Replay", `${fmtNumber(data.historical_analog_count)} similar structures`)
+    routeStateCard("Updated", fmtWhen(data.generated_at || payload.generated_at)),
+    routeStateCard("Actors observed", fmtNumber(data.actor_count)),
+    routeStateCard("Cohorts", fmtNumber(data.cohort_count)),
+    routeStateCard("Repeat actors", fmtNumber(data.repeat_actor_count)),
+    routeStateCard("Participation", titleCase(data.participation_quality || "forming")),
+    routeStateCard("Outcome state", titleCase(data.outcome_status || "unproven")),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Current read</div><h2>Current read</h2></div></div>
-    <p class="route-summary">${escapeHtml(traderText(data.one_sentence_read, "Current market read is forming."))}</p>
-    <div class="route-metric-row" style="margin-top:12px;">
-      ${summaryMetric("Leading market", traderSurfaceLabel(data.best_surface))}
-      ${summaryMetric("What Changed", traderText(data.reward_change))}
-      ${summaryMetric("Pressure", traderText(data.pressure_change))}
-      ${summaryMetric("Most Similar Regime", traderText(data.most_similar_regime))}
+    <div class="route-panel-head"><div><div class="route-chip-label">Raven read</div><h2>Decision context, not a signal feed</h2></div><span class="route-pill ${statusClass(data.outcome_status)}">${escapeHtml(titleCase(data.outcome_status || "unproven"))}</span></div>
+    <p class="route-summary">${escapeHtml(read)}</p>
+    <div class="route-card-grid dense route-ledger-grid" style="margin-top:12px;">
+      ${summaryMetric("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label, "Actor evidence is forming."))}
+      ${summaryMetric("Participation quality", titleCase(data.participation_quality || "forming"))}
+      ${summaryMetric("Outlier dependence", titleCase(data.outlier_dependency || "not measured"))}
+      ${summaryMetric("Actor-backed moves", fmtNumber(data.actor_backed_big_moves))}
+      ${summaryMetric("10% path events", fmtNumber(data.actual_mfe10_count))}
+      ${summaryMetric("25% path events", fmtNumber(data.actual_mfe25_count))}
     </div>
-    <div class="route-next"><a class="primary" href="/opportunity/">Open Opportunity</a><a href="/outcomes/">View outcome status</a></div>
+    <div class="route-next"><a class="primary" href="/opportunity/">Open current opportunities</a><a href="/perps/">Open live Perps</a><a href="/outcomes/">Audit outcomes</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Why Raven Believes This</div><h2>Evidence and Caveats</h2></div></div>
-    <div class="route-card-grid">
-      ${summaryMetric("Participation change", traderText(data.participation_change))}
-      ${summaryMetric("Reward condition", traderText(data.reward_change))}
-      ${summaryMetric("Pressure context", traderText(data.pressure_change))}
+    <div class="route-panel-head"><div><div class="route-chip-label">Evidence pulse</div><h2>What is actually connected</h2></div></div>
+    <div class="route-continuity-list">
+      <div><span>Observation</span><strong>Timestamped market state</strong><small>${escapeHtml(fmtWhen(data.generated_at || payload.generated_at))}</small></div>
+      <div><span>Participation</span><strong>${escapeHtml(`${fmtNumber(data.actor_count)} actors / ${fmtNumber(data.cohort_count)} cohorts`)}</strong><small>Aggregate identities only</small></div>
+      <div><span>Independence</span><strong>Adjusted upstream</strong><small>Raw relationship graphs remain private</small></div>
+      <div><span>Outcome</span><strong>${escapeHtml(titleCase(data.outcome_status || "unproven"))}</strong><small>Open evidence is not relabeled as settled</small></div>
     </div>
+    <p class="route-caveat">${escapeHtml((data.warnings || []).length ? `${data.warnings.length} source or maturity limitations remain attached to this read.` : "No public warning is attached to this read.")}</p>
+  `;
+}
+
+function censusFromPayload(payload = {}) {
+  if (payload.census && typeof payload.census === "object") return payload.census;
+  if (payload.data?.schema_version === "ravenos_opportunity_census_public_v1") return payload.data;
+  if (payload.schema_version === "ravenos_opportunity_census_public_v1") return payload;
+  return null;
+}
+
+function opportunityEvidenceLabel(row = {}) {
+  const comparable = row.matured_comparables || {};
+  const sample = Number(comparable.sample_size || 0);
+  if (!sample) return "No attached comparable sample";
+  return `${fmtNumber(sample)} same-instrument paths · ${titleCase(comparable.evidence_maturity || "forming")}`;
+}
+
+function opportunityReviewLabel(row = {}) {
+  const comparable = row.matured_comparables || {};
+  if (!Number(comparable.sample_size || 0)) return "Exact outcome join unclaimed";
+  const favorable = Number(comparable.median_favorable_excursion_pct);
+  const adverse = Number(comparable.median_adverse_excursion_pct);
+  if (!Number.isFinite(favorable) || !Number.isFinite(adverse)) return "Outcome distribution forming";
+  return `${fmtNumber(favorable)}% favorable / ${fmtNumber(adverse)}% adverse`;
+}
+
+function renderOpportunityCensus(payload, census) {
+  const population = census.population || {};
+  const cycle = census.current_cycle || {};
+  const opportunitySet = census.opportunities || {};
+  const rows = Array.isArray(opportunitySet.rows) ? opportunitySet.rows : [];
+  const top = rows[0] || null;
+  const topFamily = top?.raven_atoms?.[0] || "decision context";
+  const exactJoinCount = rows.filter((row) => row.source_join?.census_row_joined === true).length;
+  const headline = top
+    ? `${top.instrument} · ${topFamily}`
+    : "Current opportunity rows are unavailable.";
+  const summary = top
+    ? top.why_raven_noticed || `Raven preserved a ${String(topFamily).toLowerCase()} observation on ${top.instrument}.`
+    : "The connected Opportunity Census is visible at aggregate level, but no current exact-instrument row is safe to publish.";
+  document.getElementById("routeHeadline").textContent = headline;
+  document.getElementById("routeHeroSummary").textContent = summary;
+  document.getElementById("routeStateStrip").innerHTML = [
+    routeStateCard("Census", titleCase(census.source_state || "unavailable")),
+    routeStateCard("Decision observations", fmtNumber(population.decision_observations)),
+    routeStateCard("Tracked paths", fmtNumber(population.tracked_forward_paths)),
+    routeStateCard("Matured windows", fmtNumber(population.matured_path_windows)),
+    routeStateCard("Public rows", fmtNumber(rows.length)),
+    routeStateCard("Exact admission joins", fmtNumber(exactJoinCount)),
+  ].join("");
+
+  const rowMarkup = rows.map((row) => {
+    const instrument = text(row.instrument, "Unavailable");
+    const direction = titleCase(row.observed_direction || "unavailable");
+    const pressure = text(row.pressure_state, "Pressure unavailable");
+    const family = row.raven_atoms?.[0] || "Behavior forming";
+    const context = titleCase(row.context_state || "unavailable");
+    const join = row.source_join?.census_row_joined === true ? "Exact decision join" : "Instrument context";
+    const href = `/perps/?asset=${encodeURIComponent(instrument)}`;
+    return `<tr>
+      <td><a class="route-market-link" href="${href}"><strong>${escapeHtml(instrument)}</strong><span>${escapeHtml(fmtWhen(row.decision_at))}</span></a></td>
+      <td><span class="route-pill ${statusClass(row.context_state)}">${escapeHtml(context)}</span><small>${escapeHtml(join)}</small></td>
+      <td><strong>${escapeHtml(family)}</strong><span>${escapeHtml(text(row.why_raven_noticed, "Decision context preserved."))}</span></td>
+      <td><strong>${escapeHtml(direction)}</strong><span>${escapeHtml(pressure)}</span></td>
+      <td><strong>${escapeHtml(opportunityEvidenceLabel(row))}</strong><span>${escapeHtml(opportunityReviewLabel(row))}</span></td>
+      <td><a class="route-open-link" href="${href}">Inspect →</a></td>
+    </tr>`;
+  }).join("");
+  const mobileCard = (row) => {
+    const instrument = text(row.instrument, "Unavailable");
+    const href = `/perps/?asset=${encodeURIComponent(instrument)}`;
+    return `<article class="route-mobile-card route-opportunity-card">
+      <header><div><span>${escapeHtml(titleCase(row.context_state || "unavailable"))}</span><h3>${escapeHtml(instrument)}</h3></div><a href="${href}">Inspect →</a></header>
+      <p>${escapeHtml(text(row.why_raven_noticed, "Decision context preserved."))}</p>
+      <dl><div><dt>Behavior</dt><dd>${escapeHtml(row.raven_atoms?.[0] || "Forming")}</dd></div><div><dt>Pressure</dt><dd>${escapeHtml(text(row.pressure_state, "Unavailable"))}</dd></div><div><dt>Evidence</dt><dd>${escapeHtml(opportunityEvidenceLabel(row))}</dd></div></dl>
+    </article>`;
+  };
+  const mobileRows = rows.slice(0, 5).map(mobileCard).join("");
+  const mobileMore = rows.length > 5
+    ? `<details class="route-mobile-more"><summary>Show ${escapeHtml(fmtNumber(rows.length - 5))} more observed instruments</summary><div>${rows.slice(5).map(mobileCard).join("")}</div></details>`
+    : "";
+
+  document.getElementById("routePrimaryPanel").innerHTML = `
+    <div class="route-panel-head"><div><div class="route-chip-label">Raven Opportunities</div><h2>Current exact-instrument review queue</h2></div><span class="route-pill ${statusClass(census.source_state)}">${escapeHtml(titleCase(census.source_state || "unavailable"))}</span></div>
+    <p class="route-copy">This is a bounded research projection. Rows are current Raven decision contexts; they are not ranked trades, orders, or personalized plans.</p>
+    ${rows.length ? `<div class="route-table-wrap route-opportunity-table"><table class="route-table"><thead><tr><th>Instrument</th><th>State</th><th>Why Raven noticed</th><th>Direction / pressure</th><th>Comparable evidence</th><th></th></tr></thead><tbody>${rowMarkup}</tbody></table></div><div class="route-mobile-card-list">${mobileRows}${mobileMore}</div>` : `<div class="route-unavailable"><strong>No public opportunity rows</strong><p>The aggregate Census remains visible below. Raven will not fill this queue with synthetic instruments.</p></div>`}
+  `;
+
+  const coverage = Array.isArray(census.coverage) ? census.coverage : [];
+  document.getElementById("routeSecondaryPanel").innerHTML = `
+    <div class="route-panel-head"><div><div class="route-chip-label">Connected Census</div><h2>Decision → path → outcome continuity</h2></div></div>
+    <div class="route-card-grid dense route-ledger-grid">
+      ${summaryMetric("Decision observations", fmtNumber(population.decision_observations))}
+      ${summaryMetric("Market samples", fmtNumber(population.market_samples))}
+      ${summaryMetric("Paths with evidence", fmtNumber(population.paths_with_evidence))}
+      ${summaryMetric("Matured path windows", fmtNumber(population.matured_path_windows))}
+      ${summaryMetric("Complete matured paths", fmtNumber(population.complete_matured_paths))}
+      ${summaryMetric("Behavior-linked outcomes", fmtNumber(population.behavior_linked_outcomes))}
+    </div>
+    <div class="route-cycle-strip">
+      <span>Current cycle</span>
+      <strong>+${escapeHtml(fmtNumber(cycle.new_decision_observations))} decisions</strong>
+      <strong>+${escapeHtml(fmtNumber(cycle.new_market_samples))} samples</strong>
+      <strong>+${escapeHtml(fmtNumber(cycle.new_matured_path_windows))} matured windows</strong>
+      <strong>${escapeHtml(fmtNumber(cycle.independently_admitted_observations))} independently admitted</strong>
+    </div>
+    <div class="route-coverage-list">${coverage.map((item) => `<div><span>${escapeHtml(item.market_mode)}</span><strong>${escapeHtml(fmtNumber(item.decision_observations))}</strong><small>${escapeHtml(item.public_row_state || item.coverage_state || "Coverage developing")}</small></div>`).join("")}</div>
+    <div class="route-boundary"><span>Execution boundary</span><strong>Research only · signing off · submission off · monitoring off</strong></div>
+    <ul class="route-limitations">${(census.limitations || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
   `;
 }
 
 function renderOpportunity(payload) {
+  const census = censusFromPayload(payload);
+  if (census) {
+    renderOpportunityCensus(payload, census);
+    return;
+  }
   const data = payload?.data && typeof payload.data === "object" ? payload.data : payload || {};
   const current = opportunityCurrent(payload);
   const preferredChain = current?.market_scope?.chain || current?.chain || "";
@@ -661,6 +808,32 @@ function renderOpportunity(payload) {
 function renderReplay(payload) {
   const data = payload?.data || {};
   const comparables = Array.isArray(data.comparables) ? data.comparables.slice(0, 6) : [];
+  if (!comparables.length && (data.availability?.state === "unavailable" || data.status === "historical_comparables_unavailable")) {
+    document.getElementById("routeHeadline").textContent = "Historical comparable lineage is not yet projected.";
+    document.getElementById("routeHeroSummary").textContent = text(
+      data.availability?.reason,
+      "Replay remains unavailable until current as-of lineage can be projected without substituting present-day outcomes.",
+    );
+    document.getElementById("routeStateStrip").innerHTML = [
+      routeStateCard("Replay", "Unavailable"),
+      routeStateCard("Synthetic similarity", data.availability?.synthetic_similarity_generated === false ? "None" : "Unknown"),
+      routeStateCard("Current outcomes substituted", data.availability?.current_outcomes_substituted === false ? "No" : "Unknown"),
+      routeStateCard("Available analogues", "0"),
+    ].join("");
+    document.getElementById("routePrimaryPanel").innerHTML = `
+      <div class="route-panel-head"><div><div class="route-chip-label">Replay unavailable</div><h2>No fabricated analogue rows</h2></div><span class="route-pill unavailable">Unavailable</span></div>
+      <div class="route-unavailable"><strong>As-of comparable projection is still missing</strong><p>${escapeHtml(text(data.availability?.reason, "Current historical comparable lineage is not available."))}</p></div>
+      <div class="route-next"><a class="primary" href="/outcomes/">Inspect measured outcomes</a><a href="/opportunity/">Return to current opportunities</a></div>`;
+    document.getElementById("routeSecondaryPanel").innerHTML = `
+      <div class="route-panel-head"><div><div class="route-chip-label">Required contract</div><h2>What must exist before Replay turns on</h2></div></div>
+      <div class="route-continuity-list">
+        <div><span>Identity</span><strong>Same market and decision boundary</strong><small>No present-day backfill</small></div>
+        <div><span>Time</span><strong>As-of evidence reconstruction</strong><small>Only evidence available then</small></div>
+        <div><span>Outcome</span><strong>Future-only matured path</strong><small>Declared window and sample quality</small></div>
+        <div><span>Safety</span><strong>Bounded lineage</strong><small>No private evidence IDs or proprietary thresholds</small></div>
+      </div>`;
+    return;
+  }
   const comparableLabel = (row) => traderSurfaceLabel([titleCase(row?.chain), titleCase(row?.cap_band)].filter(Boolean).join(" · "));
   const top = comparables[0] || null;
   const matchReasons = top ? (top.match_reasons || []).map((reason) => traderText(reason)).filter(Boolean) : [];
@@ -860,6 +1033,29 @@ function renderOutcomes(payload) {
   const validationStatus = confirmedFollowthrough > 0
     ? titleCase(data.aggregate_validation_state || "sample forming")
     : "Validation sample forming";
+  const recentRow = (row) => {
+    const status = row.current_validation_status || row.settled_result || row.status || "pending";
+    const claimHref = row.claim_id ? claimLink(row.claim_id) : "";
+    const sourceHref = sourceRouteForSurface(row.surface, row);
+    return `<tr>
+      <td><strong>${escapeHtml(traderText(row.headline || row.public_read || "Read forming"))}</strong><span>${escapeHtml(titleCase(row.surface || "read"))}</span></td>
+      <td><span class="route-pill ${statusClass(status)}">${escapeHtml(titleCase(status))}</span><small>${escapeHtml(traderText(row.plain_language_status || row.public_summary, "Validation context is forming."))}</small></td>
+      <td><strong>${escapeHtml(traderText(row.expected_validation_window || row.observation_window?.label || "pending"))}</strong><span>${escapeHtml(fmtWhen(row.issued_at))}</span></td>
+      <td><strong>${escapeHtml(traderText(sampleLabel(row.sample), "evidence forming"))}</strong><span>${escapeHtml(titleCase(row.settled_result || status))}</span></td>
+      <td><a class="route-open-link" href="${claimHref || sourceHref}">${claimHref ? "Evidence" : "Context"} →</a></td>
+    </tr>`;
+  };
+  const recentMobileCard = (row) => {
+    const status = row.current_validation_status || row.settled_result || row.status || "pending";
+    const href = row.claim_id ? claimLink(row.claim_id) : sourceRouteForSurface(row.surface, row);
+    return `<article class="route-mobile-card route-outcome-card">
+      <header><div><span>${escapeHtml(titleCase(row.surface || "read"))}</span><h3>${escapeHtml(traderText(row.headline || row.public_read || "Read forming"))}</h3></div><a href="${href}">Inspect →</a></header>
+      <p>${escapeHtml(traderText(row.plain_language_status || row.public_summary, "Validation context is forming."))}</p>
+      <dl><div><dt>Status</dt><dd>${escapeHtml(titleCase(status))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(traderText(row.expected_validation_window || row.observation_window?.label || "pending"))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(traderText(sampleLabel(row.sample), "evidence forming"))}</dd></div></dl>
+    </article>`;
+  };
+  const initialMobileReads = recent.slice(0, 4);
+  const moreMobileReads = recent.slice(4);
   document.getElementById("routeHeadline").textContent = "Did earlier Raven reads follow through?";
   document.getElementById("routeHeroSummary").textContent = "Outcomes tracks whether earlier Raven reads followed through after their validation window. Live observations are not outcomes; they are the evidence base Raven uses to form reads.";
   document.getElementById("routeStateStrip").innerHTML = [
@@ -883,7 +1079,7 @@ function renderOutcomes(payload) {
       ${summaryMetric("Validation status", validationStatus)}
     </div>
     <div class="route-panel-head"><div><div class="route-chip-label">Recent reads</div><h2>Recent reads</h2></div></div>
-    <div class="route-proof-grid">${recent.map((row) => proofCard(row)).join("") || `<p class="route-caveat">No current reads are available.</p>`}</div>
+    ${recent.length ? `<div class="route-table-wrap route-outcome-table"><table class="route-table"><thead><tr><th>Read</th><th>Validation</th><th>Window</th><th>Sample</th><th></th></tr></thead><tbody>${recent.slice(0, 12).map(recentRow).join("")}</tbody></table></div><div class="route-mobile-card-list">${initialMobileReads.map(recentMobileCard).join("")}${moreMobileReads.length ? `<details class="route-mobile-more"><summary>Show ${escapeHtml(fmtNumber(moreMobileReads.length))} more reads</summary><div>${moreMobileReads.map(recentMobileCard).join("")}</div></details>` : ""}</div>` : `<p class="route-caveat">No current reads are available.</p>`}
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Settled checks</div><h2>Followthrough context</h2></div></div>
@@ -1008,7 +1204,110 @@ function renderGeneric(payload) {
   document.getElementById("routeSecondaryPanel").innerHTML = "";
 }
 
+function renderDeliveryState(payload = {}) {
+  const host = document.getElementById("routeDeliveryState");
+  if (!host) return;
+  const delivery = payload.delivery || {};
+  const state = delivery.freshness_state || payload.data?.source_state || payload.source_state || "unavailable";
+  const source = delivery.source || (payload.safe_public === true ? "embedded_snapshot" : "unavailable");
+  const fallback = delivery.fallback === true || source === "embedded_snapshot";
+  host.dataset.state = state;
+  host.dataset.fallback = String(fallback);
+  host.innerHTML = `<span>${escapeHtml(titleCase(state))}</span><strong>${escapeHtml(
+    source === "current_public_origin"
+      ? "Current protected projection"
+      : fallback
+        ? "Verified embedded snapshot"
+        : "Projection unavailable",
+  )}</strong><small>${escapeHtml(
+    fallback
+      ? "Fallback is labeled and never presented as current."
+      : delivery.source_generated_at
+        ? `Source ${fmtWhen(delivery.source_generated_at)}`
+        : "Source timestamp unavailable",
+  )}</small>`;
+}
+
+function syncShellFromRoute(payload = {}) {
+  const census = censusFromPayload(payload);
+  const rows = Array.isArray(census?.opportunities?.rows) ? census.opportunities.rows : [];
+  const retainedSubject = ravenOSContext.getState().subject;
+  const hasRetainedSubject = retainedSubject?.id !== "unselected" && retainedSubject?.label !== "No market selected";
+  const selectedRow = hasRetainedSubject
+    ? rows.find((row) => (
+        row?.instrument_id === retainedSubject.id
+        || String(row?.instrument || "").toUpperCase() === String(retainedSubject.label || retainedSubject.symbol || "").toUpperCase()
+      )) || null
+    : null;
+  const activeRow = selectedRow || (hasRetainedSubject ? null : rows[0] || null);
+  const observedAt = census?.generated_at || payload.generated_at || payload.updated_at || payload.data?.generated_at || null;
+  const delivery = payload.delivery || {};
+  const fallback = delivery.fallback === true || (!payload.delivery && payload.safe_public === true);
+  const headline = document.getElementById("routeHeadline")?.textContent?.trim() || routeConfig.title;
+  const summary = document.getElementById("routeHeroSummary")?.textContent?.trim() || "Current evidence is forming.";
+  const subject = activeRow
+    ? {
+        id: activeRow.instrument_id,
+        label: activeRow.instrument,
+        symbol: activeRow.instrument,
+        chain: "hyperliquid",
+        venue: "hyperliquid",
+        marketType: "perp",
+      }
+    : retainedSubject;
+  if (activeRow) ravenOSContext.setSelection({ subject, detectionId: activeRow.public_opportunity_id || null });
+  ravenShell?.setIntelligence?.({
+    subject,
+    marketState: {
+      label: headline,
+      direction: activeRow?.observed_direction || "neutral",
+      regime: activeRow?.raven_atoms?.[0] || routeConfig.evidence_role || "current evidence",
+    },
+    setupState: {
+      state: census ? "research observation" : routeConfig.funnel_stage || "forming",
+      confirmation: census?.source_state || "forming",
+    },
+    thesis: summary,
+    supportingEvidence: census
+      ? [
+          activeRow?.why_raven_noticed,
+          `${fmtNumber(census.population?.paths_with_evidence)} tracked paths have evidence.`,
+          `${fmtNumber(census.population?.matured_path_windows)} future-only windows have matured.`,
+        ].filter(Boolean)
+      : [summary],
+    contradictingEvidence: census?.limitations || [],
+    invalidation: census
+      ? ["An exact public outcome join is not claimed for a row unless the contract says it is joined."]
+      : [],
+    timeHorizon: census ? "declared future-only windows" : routeConfig.funnel_stage === "validate" ? "settled window" : "current window",
+    confidence: census ? { label: "research only", sampleSize: census.population?.paths_with_evidence } : { label: "developing" },
+    evidenceQuality: {
+      state: census?.source_state || (payload.ok === false ? "unavailable" : "forming"),
+      lineageComplete: Boolean(activeRow?.source_join?.census_row_joined),
+    },
+    freshness: {
+      state: fallback ? "delayed" : delivery.freshness_state || census?.source_state || "unavailable",
+      observedAt,
+      liveMaxAgeSeconds: census ? 3600 : 900,
+      delayedMaxAgeSeconds: census ? 14400 : 3600,
+    },
+    generatedAt: observedAt,
+    nextExpectedTransition: census
+      ? "Review current instrument context, then compare only matured future-only outcomes."
+      : "Wait for the next timestamped projection update.",
+  });
+  ravenShell?.setCapabilities?.({
+    market: fallback ? "Labeled fallback" : delivery.freshness_state ? `${titleCase(delivery.freshness_state)} projection` : "Projection available",
+    wallet: "No session",
+    mode: "Read only",
+    signing: "Sign off",
+    broadcast: "Broadcast off",
+    evidence: census ? "Census linked" : "Evidence linked",
+  });
+}
+
 function renderRoute(payload) {
+  renderDeliveryState(payload);
   renderEvidenceStrip(payload);
   const slug = routeConfig.slug;
   if (slug === "brief" || slug === "home") renderBrief(payload);
@@ -1023,6 +1322,7 @@ function renderRoute(payload) {
   else if (slug.startsWith("chain-")) renderChain(payload);
   else renderGeneric(payload);
   renderNarratorPanel();
+  syncShellFromRoute(payload);
 }
 
 async function fetchLivePayload() {
@@ -1086,7 +1386,7 @@ async function initRoute() {
     fetchLivePayload(),
   ]);
 
-  if (narratorResult.status === "fulfilled") {
+  if (narratorResult.status === "fulfilled" && narratorResult.value) {
     routeNarratorPayload = narratorResult.value;
     ravenShell?.adaptLegacyNarrator?.(routeNarratorPayload, {
       evidenceRole: routeConfig.evidence_role,
@@ -1094,13 +1394,21 @@ async function initRoute() {
     });
   } else {
     routeNarratorPayload = null;
-    console.warn(`RavenOS narrator hydration failed for ${routeConfig.slug}:`, narratorResult.reason);
+    if (narratorResult.status === "rejected") {
+      console.warn(`RavenOS narrator hydration failed for ${routeConfig.slug}:`, narratorResult.reason);
+    }
   }
 
   if (liveResult.status === "fulfilled") {
     const payload = liveResult.value;
     renderRoute(payload);
-    renderHydrationState("Live public API");
+    renderHydrationState(
+      payload.delivery?.source === "current_public_origin"
+        ? "Current protected projection"
+        : payload.delivery?.fallback
+          ? "Labeled verified fallback"
+          : "Public API",
+    );
     if (routeConfig.slug === "claims" && new URL(window.location.href).searchParams.get("id")) {
       renderClaimDetail(payload);
     }

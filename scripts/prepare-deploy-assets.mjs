@@ -28,11 +28,10 @@ const runtimeAssets = [
   "ravenos-perps-workspace.js",
   "ravenos-price-workspace.css",
   "ravenos-price-workspace.js",
+  "ravenos-terminal-live.css",
+  "ravenos-terminal-live.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
-  "ravenos-terminal-review-foundation.js",
-  "ravenos-terminal-trade.js",
-  "ravenos-access.js",
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
@@ -123,21 +122,31 @@ const canonicalRouteFiles = (routeConfig.routes || [])
   .filter((route) => route.public)
   .map((route) => routeToPath(route.route));
 
-const topLevelRuntimeJson = readdirSync(repoRoot)
-  .filter((name) => /^ravenos(?:_|$).+\.json$/.test(name))
-  .sort();
+const publicFallbackArtifacts = [
+  "brief.json",
+  "replay.json",
+  "outcomes.json",
+  "memory.json",
+  "behavior.json",
+  "research.json",
+  "perps.json",
+  "opportunities.json",
+  "status.json",
+  "terminal_health.json",
+];
 
 const copiedFiles = new Set();
 rmSync(deployRoot, { recursive: true, force: true });
 mkdirSync(deployRoot, { recursive: true });
 
-for (const file of [...canonicalRouteFiles, ...legacyRouteFiles, ...runtimeAssets, ...topLevelRuntimeJson]) {
+for (const file of [...canonicalRouteFiles, ...legacyRouteFiles, ...runtimeAssets]) {
   copyFile(file, copiedFiles);
 }
 
-for (const dir of ["ravenos", "vendor"]) {
-  copyDirectory(dir);
+for (const file of publicFallbackArtifacts) {
+  copyFile(`ravenos/${file}`, copiedFiles);
 }
+copyDirectory("vendor");
 writeBoundedClaimsProjection("ravenos/claims.json", copiedFiles);
 
 const deployManifest = {

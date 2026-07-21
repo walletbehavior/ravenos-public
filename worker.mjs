@@ -8,6 +8,20 @@ import { processStripeWebhookEvent } from "./lib/ravenos_stripe_webhooks.mjs";
 import { verifyWalletSignature, walletAuthMessage } from "./lib/solana_wallet_auth.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 import {
+  normalizeHyperliquidBook,
+  normalizeHyperliquidCoin,
+  normalizeHyperliquidTrades,
+} from "./lib/hyperliquid_market.mjs";
+import { buildPerpTerminalContext } from "./lib/perp_terminal_context.mjs";
+import {
+  attachDelivery,
+  loadOriginControlDocument,
+  loadPublicProjection,
+  projectionFreshness,
+  projectionHeaders,
+  sanitizeOriginControlDocument,
+} from "./lib/ravenos_public_origin.mjs";
+import {
   CHART_INSTRUMENT_TYPES,
   normalizeChartInstrument,
 } from "./ravenos-chart-data-plane.js";
@@ -103,13 +117,71 @@ async function assetJson(env, request, assetPath, fallback = {}) {
 }
 
 async function readAssetPayload(env, request, assetPath) {
+  if (!env?.ASSETS || typeof env.ASSETS.fetch !== "function") return null;
   const assetResponse = await env.ASSETS.fetch(new Request(new URL(assetPath, request.url).toString(), { method: "GET" }));
   if (!assetResponse.ok) return null;
   const payload = await assetResponse.json().catch(() => null);
   return payload && typeof payload === "object" ? payload : null;
 }
 
+async function readPublicProjection(env, request, key, assetPath = `/ravenos/${key}.json`) {
+  const fallbackPayload = await readAssetPayload(env, request, assetPath);
+  return loadPublicProjection({ env, key, fallbackPayload });
+}
+
+function aggregateDeliveries(results = []) {
+  const deliveries = results.map((result) => result?.delivery).filter(Boolean);
+  const rank = { fresh: 0, delayed: 1, stale: 2, unavailable: 3 };
+  const freshnessState = deliveries.reduce((worst, delivery) => (
+    (rank[delivery.freshness_state] ?? 3) > (rank[worst] ?? 3) ? delivery.freshness_state : worst
+  ), deliveries.length ? "fresh" : "unavailable");
+  const sources = [...new Set(deliveries.map((delivery) => delivery.source))];
+  return {
+    schema_version: "ravenos.delivery-set.v1",
+    source: sources.length === 1 ? sources[0] : sources.length ? "mixed" : "unavailable",
+    freshness_state: freshnessState,
+    fallback: deliveries.some((delivery) => delivery.fallback),
+    endpoints: Object.fromEntries(deliveries.map((delivery) => [delivery.key, delivery])),
+  };
+}
+
+function controlDelivery(key, payload, { source = "current_public_origin", reason = null, targetSeconds = 900 } = {}) {
+  const nowMs = Date.now();
+  const freshness = projectionFreshness({
+    generated_at: payload?.generated_at,
+    freshness_target_seconds: targetSeconds,
+  }, { nowMs, defaultTargetSeconds: targetSeconds });
+  return {
+    schema_version: "ravenos.delivery.v1",
+    source: payload ? source : "unavailable",
+    key,
+    fetched_at: new Date(nowMs).toISOString(),
+    source_generated_at: freshness.generated_at,
+    origin_updated_at: null,
+    age_seconds: freshness.age_seconds,
+    freshness_target_seconds: freshness.target_seconds,
+    freshness_state: payload ? freshness.state : "unavailable",
+    fallback: source !== "current_public_origin",
+    reason: reason || freshness.reason || null,
+  };
+}
+
+function projectionRouteHeaders(pathname, delivery) {
+  const base = routeCacheHeaders(pathname);
+  const freshness = delivery?.freshness_state || "unavailable";
+  const cacheControl = (delivery?.fallback || freshness === "stale" || freshness === "unavailable")
+    ? "public, max-age=15, stale-while-revalidate=30"
+    : base["cache-control"];
+  return {
+    ...base,
+    "cache-control": cacheControl,
+    ...projectionHeaders(delivery),
+  };
+}
+
 function routeCacheHeaders(pathname) {
+  if (pathname === "/api/hyperliquid/instrument") return { "cache-control": "public, max-age=2, stale-while-revalidate=5" };
+  if (pathname === "/api/perps/instrument") return { "cache-control": "public, max-age=2, stale-while-revalidate=10" };
   if (pathname === "/api/terminal/chart") return { "cache-control": "public, max-age=2, stale-while-revalidate=10" };
   if (pathname === "/api/terminal") return { "cache-control": "public, max-age=15, stale-while-revalidate=60" };
   if (pathname === "/api/opportunity") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
@@ -262,25 +334,104 @@ async function hyperliquidPerps() {
   const now = Date.now();
   const hit = hyperliquidCache.get(key);
   if (hit && hit.expires > now) return hit.payload;
-  const response = await fetch(HYPERLIQUID_INFO_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ type: "metaAndAssetCtxs" }),
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(`hyperliquid_http_${response.status}`);
+  const payload = await hyperliquidInfo({ type: "metaAndAssetCtxs" }, { maxBytes: 2 * 1024 * 1024 });
   const rows = normalizeHyperliquidPerps(payload);
   const result = {
     ok: true,
+    schema_version: "ravenos.hyperliquid.markets.v2",
     provider: "Hyperliquid",
     coverage: "Live",
     isLive: true,
     lastUpdated: new Date().toISOString(),
     count: rows.length,
+    contract_notes: {
+      observed_market_facts_only: true,
+      synthetic_actor_composition: false,
+      synthetic_historical_replay: false,
+      raven_evidence_join: "separate_selected_instrument_context",
+    },
     results: rows,
   };
   hyperliquidCache.set(key, { payload: result, expires: now + 15_000 });
   return result;
+}
+
+async function hyperliquidInfo(body, { maxBytes = 512 * 1024, timeoutMs = 4_000 } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(HYPERLIQUID_INFO_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`hyperliquid_http_${response.status}`);
+    const declared = Number(response.headers.get("content-length") || 0);
+    if (declared > maxBytes) throw new Error("hyperliquid_payload_too_large");
+    const text = await response.text();
+    if (byteLengthUtf8(text) > maxBytes) throw new Error("hyperliquid_payload_too_large");
+    const payload = JSON.parse(text);
+    if (payload === null || typeof payload !== "object") throw new Error("hyperliquid_invalid_payload");
+    return payload;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("hyperliquid_timeout");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function hyperliquidInstrument(coinInput) {
+  const coin = normalizeHyperliquidCoin(coinInput);
+  if (!coin) return { ok: false, error: "invalid_instrument", status: 400 };
+  const markets = await hyperliquidPerps();
+  const market = markets.results.find((row) => row.symbol === coin || row.coin === coin);
+  if (!market) return { ok: false, error: "instrument_not_found", status: 404 };
+  const cacheKey = `instrument:${coin}`;
+  const cached = cacheGet(hyperliquidCache, cacheKey);
+  if (cached) return { ...cached, cache_state: "edge_memory_hit" };
+
+  const [bookResult, tradesResult] = await Promise.allSettled([
+    hyperliquidInfo({ type: "l2Book", coin }, { maxBytes: 512 * 1024, timeoutMs: 3_500 }),
+    hyperliquidInfo({ type: "recentTrades", coin }, { maxBytes: 512 * 1024, timeoutMs: 3_500 }),
+  ]);
+  const book = bookResult.status === "fulfilled" ? normalizeHyperliquidBook(bookResult.value) : null;
+  const tape = tradesResult.status === "fulfilled" ? normalizeHyperliquidTrades(tradesResult.value) : null;
+  const payload = {
+    ok: Boolean(book || tape),
+    schema_version: "ravenos.hyperliquid.instrument.v1",
+    generated_at: new Date().toISOString(),
+    instrument: {
+      instrument_id: market.instrument_id,
+      instrument_scope: market.instrument_scope,
+      symbol: market.symbol,
+      asset: market.asset,
+      venue: "hyperliquid",
+      market_type: "perpetual",
+    },
+    market,
+    book,
+    tape,
+    components: {
+      market: "fresh",
+      book: book ? "fresh" : "unavailable",
+      tape: tape ? "fresh" : "unavailable",
+    },
+    privacy: {
+      participant_addresses_exposed: false,
+      transaction_hashes_exposed: false,
+      provider_trade_ids_exposed: false,
+    },
+    execution: {
+      signing_available: false,
+      submission_available: false,
+      position_monitoring_available: false,
+    },
+    cache_state: "provider_read",
+  };
+  cacheSet(hyperliquidCache, cacheKey, payload, 2_000);
+  return payload;
 }
 
 function timeframeSpec(timeframe = "1h") {
@@ -764,6 +915,8 @@ async function fetchHyperliquidCandles(symbol, timeframe, { before = null, limit
       const result = {
         ok: candles.length > 0,
         asset: `${coin}-PERP`,
+        instrument_scope: "exact_instrument",
+        available_scopes: { exact_instrument: true },
         source: "Hyperliquid",
         source_type: "provider",
         source_label: "Live perps market price",
@@ -1106,6 +1259,35 @@ async function readJson(request) {
   return request.json().catch(() => ({}));
 }
 
+function featureEnabled(env = {}, name) {
+  return String(env[name] || "").trim() === "1";
+}
+
+function customerAccountsEnabled(env = {}) {
+  return featureEnabled(env, "RAVENOS_CUSTOMER_ACCOUNTS_ENABLE")
+    && featureEnabled(env, "RAVENOS_AUTH_ENABLE");
+}
+
+function customerBillingEnabled(env = {}) {
+  return customerAccountsEnabled(env) && featureEnabled(env, "RAVENOS_BILLING_ENABLE");
+}
+
+function customerFoundationUnavailable(error) {
+  return json({
+    ok: false,
+    error,
+    customer_system: {
+      authentication: "not_configured",
+      session: "not_configured",
+      billing: "not_configured",
+      entitlements: "not_enforced",
+      wallet_role: "optional_market_context_only",
+      signing: "disabled",
+      submission: "disabled",
+    },
+  }, { status: 503, headers: { "cache-control": "no-store" } });
+}
+
 function freeAccess(env = {}, extra = {}) {
   const config = accessConfig(env);
   return {
@@ -1340,36 +1522,147 @@ async function handleWebhook(request, env) {
   }
 }
 
-function handleHealth(env = {}) {
+function manifestEndpointHealth(row) {
+  const ageSeconds = Number(row?.payload_age_seconds);
+  const targetSeconds = Number(row?.freshness_target_seconds);
+  let state = "unavailable";
+  if (Number.isFinite(ageSeconds) && Number.isFinite(targetSeconds) && targetSeconds > 0) {
+    state = ageSeconds <= targetSeconds
+      ? "fresh"
+      : ageSeconds <= Math.max(targetSeconds * 4, targetSeconds + 300)
+        ? "delayed"
+        : "stale";
+  }
+  return {
+    key: row?.key || null,
+    state,
+    age_seconds: Number.isFinite(ageSeconds) ? ageSeconds : null,
+    freshness_target_seconds: Number.isFinite(targetSeconds) ? targetSeconds : null,
+    generated_at: row?.generated_at || null,
+  };
+}
+
+function worstFreshness(states = []) {
+  const rank = { fresh: 0, delayed: 1, stale: 2, unavailable: 3, unknown: 3 };
+  return states.reduce((worst, state) => (
+    (rank[state] ?? 3) > (rank[worst] ?? 3) ? state : worst
+  ), states.length ? "fresh" : "unavailable");
+}
+
+async function handleHealth(request, env = {}) {
   const context = createTerminalRequestContext({
+    request,
     route: "health",
     buildId: String(env.RAVENOS_PUBLIC_BUILD_ID || ""),
     schemaVersion: "customer_trade_terminal_health_snapshot.v1",
     clientOperationType: "health_check",
   });
-  const stripeConfigured = Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
-  const tokenConfigured = Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
-  const dbConfigured = Boolean(env.RAVENOS_DB);
+  const accountsEnabled = customerAccountsEnabled(env);
+  const billingEnabled = customerBillingEnabled(env);
+  const stripeConfigured = billingEnabled && Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
+  const tokenConfigured = accountsEnabled && Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
+  const dbConfigured = accountsEnabled && Boolean(env.RAVENOS_DB);
+  const [manifestResult, statusResult, terminalHealthResult, narratorPayload] = await Promise.all([
+    loadOriginControlDocument({ env, key: "manifest" }),
+    loadOriginControlDocument({ env, key: "status" }),
+    loadOriginControlDocument({ env, key: "terminal_health" }),
+    readAssetPayload(env, request, "/ravenos/ravenos_narrator_terminal.json"),
+  ]);
+  const manifest = manifestResult.ok ? sanitizeOriginControlDocument("manifest", manifestResult.payload) : null;
+  const projectionStatus = statusResult.ok ? sanitizeOriginControlDocument("status", statusResult.payload) : null;
+  const terminalHealth = terminalHealthResult.ok ? sanitizeOriginControlDocument("terminal_health", terminalHealthResult.payload) : null;
+  const endpointHealth = (manifest?.endpoints || []).map(manifestEndpointHealth);
+  const coreKeys = new Set(["brief", "replay", "outcomes", "memory", "behavior", "perps", "opportunities", "claims"]);
+  const coreEndpointHealth = endpointHealth.filter((row) => coreKeys.has(row.key));
+  const researchEndpoint = endpointHealth.find((row) => row.key === "research") || {
+    key: "research",
+    state: "unavailable",
+    age_seconds: null,
+    freshness_target_seconds: null,
+    generated_at: null,
+  };
+  const intelligenceState = coreEndpointHealth.length === coreKeys.size
+    ? worstFreshness(coreEndpointHealth.map((row) => row.state))
+    : "unavailable";
+  const narratorFreshness = projectionFreshness({
+    generated_at: narratorPayload?.generated_at || narratorPayload?.updated_at,
+    freshness_target_seconds: 3600,
+  }, { defaultTargetSeconds: 3600 });
+  const marketState = String(terminalHealth?.market_data_availability || "unavailable");
+  const projectionState = manifestResult.ok
+    && statusResult.ok
+    && projectionStatus?.private_leak_guard_passed
+    && Number(projectionStatus.endpoints_failed || 0) === 0
+      ? "operational"
+      : manifestResult.ok || statusResult.ok
+        ? "degraded"
+        : "unavailable";
   const checks = {
     worker: "ok",
     assets: env.ASSETS ? "ok" : "unavailable",
-    accessApi: "ok",
+    customerAccounts: accountsEnabled ? "enabled" : "not_configured",
+    accessApi: accountsEnabled ? "enabled" : "not_configured",
     hyperliquid: "configured_public_endpoint",
     dexscreener: "configured_public_endpoint",
     stripe: stripeConfigured ? "configured" : "not_configured",
     tokenAccess: tokenConfigured ? "configured" : "not_configured",
     database: dbConfigured ? "configured" : "not_configured",
   };
-  const requiredHealthy = checks.worker === "ok" && checks.assets === "ok" && checks.accessApi === "ok";
+  const requiredHealthy = checks.worker === "ok" && checks.assets === "ok";
+  const status = !requiredHealthy
+    ? "unavailable"
+    : intelligenceState === "fresh" && marketState === "fresh" && narratorFreshness.state === "fresh" && projectionState === "operational"
+      ? "ok"
+      : "degraded";
   return terminalJson(context, {
     ok: requiredHealthy,
-    status: requiredHealthy ? "ok" : "degraded",
+    status,
     service: "ravenos-public",
     timestamp: new Date().toISOString(),
+    health_contract_version: "ravenos.health.v2",
+    process_health: {
+      state: requiredHealthy ? "operational" : "unavailable",
+      checks,
+    },
+    market_data_health: {
+      state: marketState,
+      generated_at: terminalHealth?.generated_at || null,
+      terminal_availability: terminalHealth?.terminal_availability || "unknown",
+      component_states: Array.isArray(terminalHealth?.components)
+        ? Object.fromEntries(terminalHealth.components.map((row) => [String(row?.component || "unknown"), String(row?.state || "unknown")]))
+        : {},
+    },
+    intelligence_freshness: {
+      state: intelligenceState,
+      core_endpoints: coreEndpointHealth,
+      research: researchEndpoint,
+      note: researchEndpoint.state === "stale" ? "Research is historical and is not counted as current intelligence." : null,
+    },
+    narrator_freshness: {
+      state: narratorFreshness.state,
+      generated_at: narratorFreshness.generated_at,
+      age_seconds: narratorFreshness.age_seconds,
+      freshness_target_seconds: narratorFreshness.target_seconds,
+      reason: narratorFreshness.reason,
+    },
+    projection_health: {
+      state: projectionState,
+      generated_at: projectionStatus?.generated_at || manifest?.generated_at || null,
+      endpoints_published: projectionStatus?.endpoints_published ?? endpointHealth.length,
+      endpoints_failed: projectionStatus?.endpoints_failed ?? null,
+      private_leak_guard_passed: projectionStatus?.private_leak_guard_passed ?? false,
+      source_status: statusResult.ok ? "current_public_origin" : "unavailable",
+      manifest_status: manifestResult.ok ? "current_public_origin" : "unavailable",
+    },
+    publisher_health: {
+      state: "unknown",
+      reason: "repository_publisher_state_not_exposed_to_worker",
+      note: "The protected public-origin projection is authoritative for current Worker intelligence.",
+    },
     checks,
     terminal_diagnostics: getTerminalDiagnosticsSummary(),
-  }, { status: requiredHealthy ? 200 : 503 }, {
-    resultCategory: requiredHealthy ? "ok" : "degraded",
+  }, { status: requiredHealthy ? 200 : 503, headers: { "cache-control": "no-store" } }, {
+    resultCategory: status === "ok" ? "ok" : "degraded",
     degradedReason: requiredHealthy ? null : "required_health_checks_failed",
   });
 }
@@ -1704,10 +1997,17 @@ async function handleTradeReview(request, env = {}) {
   });
 }
 
-async function handlePublicArtifact(env, request, pathname, assetPath, fallback) {
-  const payload = await readAssetPayload(env, request, assetPath);
-  if (!payload) return json({ ok: false, error: "asset_unavailable", ...fallback }, { status: 503, headers: routeCacheHeaders(pathname) });
-  return json(payload, { headers: routeCacheHeaders(pathname) });
+async function handlePublicArtifact(env, request, pathname, key, assetPath, fallback) {
+  const result = await readPublicProjection(env, request, key, assetPath);
+  if (!result.available) {
+    return json({ ok: false, error: "projection_unavailable", ...fallback, delivery: result.delivery }, {
+      status: 503,
+      headers: projectionRouteHeaders(pathname, result.delivery),
+    });
+  }
+  return json(attachDelivery(result.payload, result.delivery), {
+    headers: projectionRouteHeaders(pathname, result.delivery),
+  });
 }
 
 function researchFallback() {
@@ -1744,20 +2044,37 @@ function researchFallback() {
 }
 
 async function handleResearch(request, env) {
-  const payload = await readAssetPayload(env, request, "/ravenos/research.json");
-  if (payload) return json(payload, { headers: routeCacheHeaders("/api/research") });
-  return json({ ok: false, error: "asset_unavailable", ...researchFallback() }, { status: 503, headers: routeCacheHeaders("/api/research") });
+  const result = await readPublicProjection(env, request, "research");
+  if (result.available) {
+    return json(attachDelivery(result.payload, result.delivery), {
+      headers: projectionRouteHeaders("/api/research", result.delivery),
+    });
+  }
+  return json({ ok: false, error: "projection_unavailable", ...researchFallback(), delivery: result.delivery }, {
+    status: 503,
+    headers: projectionRouteHeaders("/api/research", result.delivery),
+  });
 }
 
 async function handleClaims(request, env, claimId = "") {
-  const payload = await readAssetPayload(env, request, "/ravenos/claims.json");
-  if (!payload) {
-    return json({ ok: false, error: "asset_unavailable", data: { current_claims: [], claim_history: [], claim_observations: [], claim_settlements: [] } }, { status: 503, headers: routeCacheHeaders("/api/claims") });
+  const result = await readPublicProjection(env, request, "claims");
+  const payload = result.payload;
+  if (!result.available || !payload) {
+    return json({
+      ok: false,
+      error: "projection_unavailable",
+      data: { current_claims: [], claim_history: [], claim_observations: [], claim_settlements: [] },
+      delivery: result.delivery,
+    }, { status: 503, headers: projectionRouteHeaders("/api/claims", result.delivery) });
   }
-  if (!claimId) return json(payload, { headers: routeCacheHeaders("/api/claims") });
+  if (!claimId) {
+    return json(attachDelivery(payload, result.delivery), {
+      headers: projectionRouteHeaders("/api/claims", result.delivery),
+    });
+  }
   const data = payload.data || {};
   const claim = (data.claim_history || []).find((row) => row.claim_id === claimId) || (data.current_claims || []).find((row) => row.claim_id === claimId);
-  if (!claim) return json({ ok: false, error: "claim_not_found" }, { status: 404, headers: routeCacheHeaders("/api/claims") });
+  if (!claim) return json({ ok: false, error: "claim_not_found", delivery: result.delivery }, { status: 404, headers: projectionRouteHeaders("/api/claims", result.delivery) });
   const observations = (data.claim_observations || []).filter((row) => row.claim_id === claimId);
   const settlements = (data.claim_settlements || []).filter((row) => row.claim_id === claimId);
   return json({
@@ -1767,7 +2084,8 @@ async function handleClaims(request, env, claimId = "") {
     observations,
     settlements,
     related_recent_reads: (data.recent_raven_reads || []).filter((row) => row.claim_id === claimId),
-  }, { headers: routeCacheHeaders("/api/claims") });
+    delivery: result.delivery,
+  }, { headers: projectionRouteHeaders("/api/claims", result.delivery) });
 }
 
 async function handleStatus(request, env) {
@@ -1780,17 +2098,36 @@ async function handleStatus(request, env) {
     clientOperationType: "status_snapshot",
   });
   return withOperationBudget(async () => {
-    const [statusPayload, claimsPayload, buildPayload, terminalHealthPayload] = await Promise.all([
-      readAssetPayload(env, request, "/ravenos/status.json"),
-      readAssetPayload(env, request, "/ravenos/claims.json"),
+    const [originStatus, originTerminalHealth, claimsResult, buildPayload, embeddedStatus, embeddedTerminalHealth] = await Promise.all([
+      loadOriginControlDocument({ env, key: "status" }),
+      loadOriginControlDocument({ env, key: "terminal_health" }),
+      readPublicProjection(env, request, "claims"),
       readAssetPayload(env, request, "/ravenos_build.json"),
+      readAssetPayload(env, request, "/ravenos/status.json"),
       readAssetPayload(env, request, "/ravenos/terminal_health.json"),
     ]);
+    const statusSource = originStatus.ok ? originStatus.payload : embeddedStatus;
+    const statusPayload = sanitizeOriginControlDocument("status", statusSource);
+    const terminalHealthPayload = originTerminalHealth.ok ? originTerminalHealth.payload : embeddedTerminalHealth;
+    const statusDelivery = controlDelivery("projection_status", statusPayload, {
+      source: originStatus.ok ? "current_public_origin" : statusPayload ? "embedded_snapshot" : "unavailable",
+      reason: originStatus.ok ? null : originStatus.reason,
+    });
+    const terminalHealthDelivery = controlDelivery("terminal_health", terminalHealthPayload, {
+      source: originTerminalHealth.ok ? "current_public_origin" : terminalHealthPayload ? "embedded_snapshot" : "unavailable",
+      reason: originTerminalHealth.ok ? null : originTerminalHealth.reason,
+      targetSeconds: 300,
+    });
+    const delivery = aggregateDeliveries([
+      claimsResult,
+      { delivery: statusDelivery },
+      { delivery: terminalHealthDelivery },
+    ]);
     if (!statusPayload) {
-      return terminalJson(context, { ok: false, error: "asset_unavailable", status: "degraded" }, {
+      return terminalJson(context, { ok: false, error: "projection_unavailable", status: "degraded", delivery }, {
         status: 503,
-        headers: routeCacheHeaders("/api/status"),
-      }, { resultCategory: "asset_unavailable", degradedReason: "status_asset_unavailable" });
+        headers: projectionRouteHeaders("/api/status", delivery),
+      }, { resultCategory: "projection_unavailable", degradedReason: "status_projection_unavailable" });
     }
     const healthProjection = buildTerminalHealthProjection(terminalHealthPayload);
     const out = {
@@ -1806,16 +2143,17 @@ async function handleStatus(request, env) {
       public_warnings: healthProjection.public_warnings,
       degraded_reasons: healthProjection.degraded_reasons,
       recovery_state: healthProjection.recovery_state,
+      delivery,
     };
-    if (claimsPayload?.data) {
-      out.current_claim_heads = (claimsPayload.data.current_claims || []).map((row) => ({
+    if (claimsResult.payload?.data) {
+      out.current_claim_heads = (claimsResult.payload.data.current_claims || []).map((row) => ({
         claim_id: row.claim_id,
         headline: row.headline,
         surface: row.surface,
         validation_status: row.validation_status,
       }));
     }
-    return terminalJson(context, out, { headers: routeCacheHeaders("/api/status") }, {
+    return terminalJson(context, out, { headers: projectionRouteHeaders("/api/status", delivery) }, {
       resultCategory: out.terminal_availability === "fresh" ? "ok" : "degraded",
       degradedReason: out.degraded_reasons?.[0] || null,
     });
@@ -1825,7 +2163,7 @@ async function handleStatus(request, env) {
       ok: false,
       error: "status_route_timeout",
       status: "degraded",
-    }, { status: 504, headers: routeCacheHeaders("/api/status") }, {
+    }, { status: 504, headers: { ...routeCacheHeaders("/api/status"), "x-ravenos-freshness": "unavailable" } }, {
       resultCategory: "timeout",
       degradedReason: "status_route_timeout",
     }),
@@ -1833,41 +2171,97 @@ async function handleStatus(request, env) {
 }
 
 async function handleOpportunity(request, env) {
-  const [claimsPayload, outcomesPayload, behaviorPayload] = await Promise.all([
-    readAssetPayload(env, request, "/ravenos/claims.json"),
-    readAssetPayload(env, request, "/ravenos/outcomes.json"),
-    readAssetPayload(env, request, "/ravenos/behavior.json"),
+  const [opportunitiesResult, claimsResult, outcomesResult, behaviorResult] = await Promise.all([
+    readPublicProjection(env, request, "opportunities"),
+    readPublicProjection(env, request, "claims"),
+    readPublicProjection(env, request, "outcomes"),
+    readPublicProjection(env, request, "behavior"),
   ]);
-  if (!claimsPayload) {
-    return json({ ok: false, error: "asset_unavailable", status: "degraded", message: "Current opportunity surface forming." }, { status: 503, headers: routeCacheHeaders("/api/opportunity") });
+  const opportunitiesPayload = opportunitiesResult.payload;
+  const claimsPayload = claimsResult.payload;
+  const outcomesPayload = outcomesResult.payload;
+  const behaviorPayload = behaviorResult.payload;
+  const delivery = aggregateDeliveries([opportunitiesResult, claimsResult, outcomesResult, behaviorResult]);
+  if (!opportunitiesPayload?.data) {
+    return json({
+      ok: false,
+      error: "opportunity_census_projection_unavailable",
+      status: "degraded",
+      message: "The current Raven opportunity projection is unavailable; older claims are not substituted as current opportunities.",
+      census: null,
+      legacy_context: {
+        current_claims: (claimsPayload?.data?.current_claims || []).filter((row) => row.surface === "opportunity").slice(0, 1),
+        behavior_available: Boolean(behaviorPayload?.data),
+        outcomes_available: Boolean(outcomesPayload?.data),
+      },
+      delivery,
+    }, { status: 503, headers: projectionRouteHeaders("/api/opportunity", delivery) });
   }
-  const current = ((claimsPayload.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
+  const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
   return json({
     ok: true,
-    generated_at: claimsPayload.generated_at || claimsPayload.updated_at || null,
+    schema_version: "ravenos.opportunity_workspace.v2",
+    generated_at: opportunitiesPayload.generated_at || opportunitiesPayload.updated_at || null,
     evidence_contract_version: "1.0",
-    claim_lineage_version: (claimsPayload.data || {}).lineage_version || "2.0",
+    claim_lineage_version: (claimsPayload?.data || {}).lineage_version || "2.0",
+    census: opportunitiesPayload.data,
+    current_claim_context: current,
     current_opportunity: current,
-    recent_raven_reads: (claimsPayload.data || {}).recent_raven_reads || [],
+    recent_raven_reads: (claimsPayload?.data || {}).recent_raven_reads || [],
     outcomes_context: outcomesPayload?.data?.recent_raven_reads?.slice(0, 12) || [],
     behavior_context: behaviorPayload?.data || null,
-  }, { headers: routeCacheHeaders("/api/opportunity") });
+    delivery,
+  }, { headers: projectionRouteHeaders("/api/opportunity", delivery) });
 }
 
 async function handleTerminal(request, env) {
-  const [briefPayload, perpsPayload, claimsPayload] = await Promise.all([
-    readAssetPayload(env, request, "/ravenos/brief.json"),
-    readAssetPayload(env, request, "/ravenos/perps.json"),
-    readAssetPayload(env, request, "/ravenos/claims.json"),
+  const [briefResult, perpsResult, opportunitiesResult, claimsResult] = await Promise.all([
+    readPublicProjection(env, request, "brief"),
+    readPublicProjection(env, request, "perps"),
+    readPublicProjection(env, request, "opportunities"),
+    readPublicProjection(env, request, "claims"),
   ]);
+  const briefPayload = briefResult.payload;
+  const perpsPayload = perpsResult.payload;
+  const opportunitiesPayload = opportunitiesResult.payload;
+  const claimsPayload = claimsResult.payload;
+  const delivery = aggregateDeliveries([briefResult, perpsResult, opportunitiesResult, claimsResult]);
   return json({
-    ok: true,
+    ok: Boolean(briefPayload || perpsPayload || opportunitiesPayload || claimsPayload),
     evidence_contract_version: "1.0",
     claim_lineage_version: (claimsPayload?.data || {}).lineage_version || "2.0",
     brief: briefPayload?.data || null,
     perps_context: perpsPayload?.data || null,
+    opportunity_census: opportunitiesPayload?.data || null,
     current_claims: (claimsPayload?.data || {}).current_claims || [],
-  }, { headers: routeCacheHeaders("/api/terminal") });
+    delivery,
+  }, { status: (briefPayload || perpsPayload || opportunitiesPayload || claimsPayload) ? 200 : 503, headers: projectionRouteHeaders("/api/terminal", delivery) });
+}
+
+async function handlePerpInstrumentContext(request, env) {
+  const url = new URL(request.url);
+  const symbol = url.searchParams.get("symbol") || url.searchParams.get("coin") || "";
+  const coin = normalizeHyperliquidCoin(symbol);
+  if (!coin) return json({ ok: false, error: "invalid_instrument" }, { status: 400 });
+  const [perpsResult, marketResult] = await Promise.all([
+    readPublicProjection(env, request, "perps"),
+    hyperliquidInstrument(coin).catch(() => ({
+      ok: false,
+      error: "hyperliquid_instrument_unavailable",
+      components: { market: "unavailable", book: "unavailable", tape: "unavailable" },
+    })),
+  ]);
+  const payload = buildPerpTerminalContext({
+    publicPerpsPayload: perpsResult.payload,
+    marketPayload: marketResult,
+    symbol: coin,
+  });
+  payload.delivery = perpsResult.delivery;
+  const status = payload.ok ? 200 : perpsResult.available ? 503 : 502;
+  return json(payload, {
+    status,
+    headers: projectionRouteHeaders("/api/perps/instrument", perpsResult.delivery),
+  });
 }
 
 async function handleTerminalChart(request, env = {}) {
@@ -1928,13 +2322,19 @@ async function handleTerminalChart(request, env = {}) {
 async function handleChain(request, env, slug) {
   const info = chainRouteInfo(slug);
   if (!info) return json({ ok: false, error: "chain_not_supported" }, { status: 404 });
-  const [claimsPayload, outcomesPayload, behaviorPayload, replayPayload, memoryPayload] = await Promise.all([
-    readAssetPayload(env, request, "/ravenos/claims.json"),
-    readAssetPayload(env, request, "/ravenos/outcomes.json"),
-    readAssetPayload(env, request, "/ravenos/behavior.json"),
-    readAssetPayload(env, request, "/ravenos/replay.json"),
-    readAssetPayload(env, request, "/ravenos/memory.json"),
+  const [claimsResult, outcomesResult, behaviorResult, replayResult, memoryResult] = await Promise.all([
+    readPublicProjection(env, request, "claims"),
+    readPublicProjection(env, request, "outcomes"),
+    readPublicProjection(env, request, "behavior"),
+    readPublicProjection(env, request, "replay"),
+    readPublicProjection(env, request, "memory"),
   ]);
+  const claimsPayload = claimsResult.payload;
+  const outcomesPayload = outcomesResult.payload;
+  const behaviorPayload = behaviorResult.payload;
+  const replayPayload = replayResult.payload;
+  const memoryPayload = memoryResult.payload;
+  const delivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult, replayResult, memoryResult]);
   const claimsData = claimsPayload?.data || {};
   const outcomesData = outcomesPayload?.data || {};
   const behaviorData = behaviorPayload?.data || {};
@@ -1964,7 +2364,8 @@ async function handleChain(request, env, slug) {
       coverage: "developing",
       current_summary: `${info.label} coverage is developing.`,
       current_read: "Verified public chain context is still forming.",
-    }, { status: 503, headers: routeCacheHeaders(`/api/chains/${slug}`) });
+      delivery,
+    }, { status: 503, headers: projectionRouteHeaders(`/api/chains/${slug}`, delivery) });
   }
 
   return json({
@@ -1997,31 +2398,33 @@ async function handleChain(request, env, slug) {
     behavior_rows: behaviorRows,
     outcome_rows: outcomeRows,
     replay_rows: replayRows,
-  }, { headers: routeCacheHeaders(`/api/chains/${slug}`) });
+    delivery,
+  }, { headers: projectionRouteHeaders(`/api/chains/${slug}`, delivery) });
 }
 
 async function routeApi(request, env) {
   const url = new URL(request.url);
-  if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(env);
+  if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
   if (url.pathname === "/api/status" && request.method === "GET") return handleStatus(request, env);
   if (url.pathname === "/api/brief" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/brief.json", { status: "degraded", message: "Current brief forming." });
+    return handlePublicArtifact(env, request, url.pathname, "brief", "/ravenos/brief.json", { status: "degraded", message: "Current brief forming." });
   }
   if (url.pathname === "/api/replay" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/replay.json", { status: "degraded", message: "Current replay context forming." });
+    return handlePublicArtifact(env, request, url.pathname, "replay", "/ravenos/replay.json", { status: "degraded", message: "Current replay context forming." });
   }
   if (url.pathname === "/api/outcomes" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/outcomes.json", { status: "degraded", message: "Current outcomes context forming." });
+    return handlePublicArtifact(env, request, url.pathname, "outcomes", "/ravenos/outcomes.json", { status: "degraded", message: "Current outcomes context forming." });
   }
   if (url.pathname === "/api/memory" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/memory.json", { status: "degraded", message: "Current memory context forming." });
+    return handlePublicArtifact(env, request, url.pathname, "memory", "/ravenos/memory.json", { status: "degraded", message: "Current memory context forming." });
   }
   if (url.pathname === "/api/behavior" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/behavior.json", { status: "degraded", message: "Current behavior context forming." });
+    return handlePublicArtifact(env, request, url.pathname, "behavior", "/ravenos/behavior.json", { status: "degraded", message: "Current behavior context forming." });
   }
   if (url.pathname === "/api/perps" && request.method === "GET") {
-    return handlePublicArtifact(env, request, url.pathname, "/ravenos/perps.json", { status: "degraded", message: "Current perps context forming." });
+    return handlePublicArtifact(env, request, url.pathname, "perps", "/ravenos/perps.json", { status: "degraded", message: "Current perps context forming." });
   }
+  if (url.pathname === "/api/perps/instrument" && request.method === "GET") return handlePerpInstrumentContext(request, env);
   if (url.pathname === "/api/research" && request.method === "GET") return handleResearch(request, env);
   if (url.pathname === "/api/claims" && request.method === "GET") return handleClaims(request, env);
   if (url.pathname.startsWith("/api/claims/") && request.method === "GET") return handleClaims(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
@@ -2033,10 +2436,18 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/trade/quote" && request.method === "POST") return handleTradeQuote(request, env);
   if (url.pathname === "/api/trade/inspect" && request.method === "POST") return handleTradeInspect(request, env);
   if (url.pathname === "/api/trade/review" && (request.method === "POST" || request.method === "GET")) return handleTradeReview(request, env);
-  if (url.pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) return handleAccess(request, env);
-  if (url.pathname === "/api/stripe/checkout" && request.method === "POST") return handleCheckout(request, env);
-  if (url.pathname === "/api/stripe/portal" && request.method === "POST") return handlePortal(request, env);
-  if (url.pathname === "/api/stripe/webhook" && request.method === "POST") return handleWebhook(request, env);
+  if (url.pathname === "/api/access" && (request.method === "GET" || request.method === "POST")) {
+    return customerAccountsEnabled(env) ? handleAccess(request, env) : customerFoundationUnavailable("customer_accounts_not_configured");
+  }
+  if (url.pathname === "/api/stripe/checkout" && request.method === "POST") {
+    return customerBillingEnabled(env) ? handleCheckout(request, env) : customerFoundationUnavailable("billing_not_configured");
+  }
+  if (url.pathname === "/api/stripe/portal" && request.method === "POST") {
+    return customerBillingEnabled(env) ? handlePortal(request, env) : customerFoundationUnavailable("billing_not_configured");
+  }
+  if (url.pathname === "/api/stripe/webhook" && request.method === "POST") {
+    return customerBillingEnabled(env) ? handleWebhook(request, env) : customerFoundationUnavailable("billing_not_configured");
+  }
   if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {
       return json({ ok: true, results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30) });
@@ -2061,8 +2472,20 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/hyperliquid/perps" && request.method === "GET") {
     try {
       return json(await hyperliquidPerps());
-    } catch (error) {
-      return json({ ok: false, provider: "Hyperliquid", coverage: "Unavailable", isLive: false, warning: "Hyperliquid unavailable", error: error instanceof Error ? error.message : "hyperliquid_perps_failed", results: [] }, { status: 502 });
+    } catch {
+      return json({ ok: false, provider: "Hyperliquid", coverage: "Unavailable", isLive: false, warning: "Hyperliquid unavailable", error: "hyperliquid_perps_unavailable", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/hyperliquid/instrument" && request.method === "GET") {
+    try {
+      const payload = await hyperliquidInstrument(url.searchParams.get("symbol") || url.searchParams.get("coin") || "");
+      return json(payload, { status: payload.status || (payload.ok ? 200 : 503), headers: routeCacheHeaders(url.pathname) });
+    } catch {
+      return json({
+        ok: false,
+        error: "hyperliquid_instrument_unavailable",
+        components: { market: "unavailable", book: "unavailable", tape: "unavailable" },
+      }, { status: 502, headers: routeCacheHeaders(url.pathname) });
     }
   }
   return json({ ok: false, error: "not_found" }, { status: 404 });
@@ -2075,6 +2498,18 @@ export default {
       return new Response("Not found", { status: 404 });
     }
     if (url.pathname.startsWith("/api/")) return routeApi(request, env || {});
+    if (["GET", "HEAD"].includes(request.method)) {
+      const legacyRedirects = {
+        "/pro": "/pricing/",
+        "/pro/": "/pricing/",
+        "/upgrade": "/pricing/",
+        "/upgrade/": "/pricing/",
+        "/token": "/terminal/",
+        "/token/": "/terminal/",
+      };
+      const target = legacyRedirects[url.pathname];
+      if (target) return applyAssetSecurityHeaders(Response.redirect(new URL(target, url), 308), url.pathname);
+    }
     const assetResponse = await env.ASSETS.fetch(request);
     return applyAssetSecurityHeaders(assetResponse, url.pathname);
   },

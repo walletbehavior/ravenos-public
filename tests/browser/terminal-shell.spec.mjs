@@ -1,23 +1,22 @@
 import { test, expect } from "@playwright/test";
+import { mockTerminalLiveApis, waitForTerminalLive } from "./terminal-live-fixtures.mjs";
 
 async function waitForTerminal(page) {
-  await page.waitForFunction(() => {
-    const chart = window.__RAVENOS_TERMINAL_LAST_CHART_CONTEXT__;
-    return window.RavenOSShell?.mounted && chart?.phase === "ready" && document.querySelector("#flowChart canvas");
-  });
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
 }
 
 test("desktop shell wraps the Terminal without replacing the analytical workspace", async ({ page }) => {
+  await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminal(page);
 
   await expect(page.locator(".ros-topbar")).toBeVisible();
   await expect(page.locator(".ros-left-nav")).toBeVisible();
-  await expect(page.locator("#flowChart canvas").first()).toBeVisible();
-  await expect(page.locator(".terminal > .topbar")).toBeVisible();
-  await expect(page.locator(".terminal > .topbar .brand")).toBeHidden();
-  await expect(page.locator("#tickerInstrument")).toBeVisible();
-  await expect(page.locator("#walletState")).toBeVisible();
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator(".terminal-live")).toBeVisible();
+  await expect(page.locator("#terminalInstrument")).toHaveText("SOL-PERP");
+  await expect(page.locator(".terminal-continuity")).toContainText("Customer session");
+  await expect(page.locator(".terminal-continuity")).toContainText("Not configured");
   await expect(page.locator("#rosContextSubject")).toHaveText("SOL-PERP");
   const dataState = ((await page.locator("#rosFreshness strong").textContent()) || "").trim();
   expect(["Live", "Delayed", "Data unavailable"]).toContain(dataState);
@@ -31,6 +30,7 @@ test("desktop shell wraps the Terminal without replacing the analytical workspac
 });
 
 test("selected market context survives navigation into an investigative route", async ({ page }) => {
+  await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminal(page);
   await page.selectOption("#assetSelect", "BTC-PERP");
@@ -52,12 +52,13 @@ test("old narrator timestamps are exposed as delayed rather than live", async ({
 
 test("mobile preserves terminal depth, context access, and narrow-screen containment", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminal(page);
 
   await expect(page.locator(".ros-topbar")).toBeVisible();
-  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
-  await expect(page.locator("#flowChart canvas").first()).toBeVisible();
+  await expect(page.locator(".ros-mobile-nav")).toBeVisible();
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("body")).not.toHaveClass(/ros-context-open/);
   await page.locator("#rosContextTrigger").click();
   await expect(page.locator("#rosContextRail")).toBeVisible();
@@ -67,7 +68,7 @@ test("mobile preserves terminal depth, context access, and narrow-screen contain
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
   const topbar = await page.locator(".ros-topbar").boundingBox();
-  const bottomNav = await page.locator(".mobile-bottom-nav").boundingBox();
+  const bottomNav = await page.locator(".ros-mobile-nav").boundingBox();
   expect(topbar.y).toBe(0);
   expect(bottomNav.y + bottomNav.height).toBeLessThanOrEqual(845);
 });
@@ -76,10 +77,10 @@ test("generated routes use the mobile primary navigation and context sheet", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/outcomes/");
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
-  await expect(page.locator(".ros-mobile-nav")).toContainText("Pulse");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Brief");
   await expect(page.locator(".ros-mobile-nav")).toContainText("Opportunities");
+  await expect(page.locator(".ros-mobile-nav")).toContainText("Perps");
   await expect(page.locator(".ros-mobile-nav")).toContainText("Terminal");
-  await expect(page.locator(".ros-mobile-nav")).toContainText("Watchlist");
   await expect(page.locator(".ros-mobile-nav")).toContainText("Outcomes");
   await page.locator("#rosContextTrigger").click();
   await expect(page.locator("#rosContextRail")).toBeVisible();

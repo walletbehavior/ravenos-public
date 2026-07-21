@@ -9,6 +9,9 @@
   background: #040806;
   color: #dbe8e1;
 }
+@media (min-width: 821px) {
+  .rpw.rpw-fluid { height: 100%; min-height: 0; }
+}
 .rpw-provenance {
   min-width: 0;
   display: grid;

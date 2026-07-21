@@ -168,6 +168,7 @@ def _copy_browser_facing_artifacts(repo_root, source_root):
             "behavior.json",
             "research.json",
             "perps.json",
+            "opportunities.json",
             "claims.json",
             "status.json",
             "manifest.json",

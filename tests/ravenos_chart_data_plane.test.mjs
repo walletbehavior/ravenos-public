@@ -148,8 +148,12 @@ test("Hyperliquid adapter separates candle, trade, book, mark, oracle, funding, 
   const types = events.map((event) => event.type);
   for (const type of ["bar.upsert", "trade.append", "orderbook.snapshot", "funding.update", "open_interest.update"]) assert.ok(types.includes(type), type);
   const priceUpdate = events.filter((event) => event.type === "price.update").at(-1);
+  const tradeUpdate = events.find((event) => event.type === "trade.append");
   assert.equal(priceUpdate.payload.mark, 103.05);
   assert.equal(priceUpdate.payload.oracle, 103);
+  assert.equal("hash" in tradeUpdate.payload, false);
+  assert.equal("id" in tradeUpdate.payload, false);
+  assert.doesNotMatch(tradeUpdate.source_event_id, /0xabc|:7(?:$|:)/);
   assert.equal(events.find((event) => event.type === "orderbook.snapshot").payload.bids[0].orders, 2);
   assert.ok(statuses.some((status) => status.state === "live"));
   feed.stop();
@@ -164,6 +168,7 @@ test("deployed chart contract supports bounded history, backfill, provenance, an
   assert.match(worker, /before_timestamp/);
   assert.match(worker, /history_window/);
   assert.match(worker, /canonicalChartInstrument/);
+  assert.match(worker, /instrument_scope: "exact_instrument"/);
   assert.match(workspace, /backfill\(\)/);
   assert.match(workspace, /sharedChartSubscriptions\.subscribe/);
   assert.match(renderer, /updateCandle\(value\)/);

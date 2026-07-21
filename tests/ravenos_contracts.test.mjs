@@ -15,6 +15,7 @@ import {
   contextFromSearch,
   createRavenOSContextStore,
 } from "../ravenos-context-store.js";
+import { scanHighRiskText } from "../scripts/validate-public-no-leak.mjs";
 
 function createWindowFixture(search = "") {
   const values = new Map();
@@ -142,4 +143,19 @@ test("missing evidence remains explicit in the intelligence contract", () => {
   assert.deepEqual(record.evidenceQuality.missingFields, ["liquidity", "direction"]);
   assert.equal(record.supportingEvidence.length, 0);
   assert.match(renderIntelligence(record, "chartAnnotation"), /No confirming evidence/);
+});
+
+test("public build gate rejects known synthetic Terminal payload signatures", () => {
+  for (const payload of [
+    "const samplePrices = [1, 2, 3]",
+    "Raven Paper Candidates",
+    "May 2026 compression",
+    "smart-wallet-distribution",
+  ]) {
+    assert.ok(
+      scanHighRiskText(payload, "terminal.js").some((finding) => finding.term === "synthetic_terminal_payload"),
+      `expected synthetic Terminal payload finding for ${payload}`,
+    );
+  }
+  assert.deepEqual(scanHighRiskText("No synthetic fallback is used.", "terminal.js"), []);
 });

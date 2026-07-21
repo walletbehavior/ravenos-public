@@ -17,7 +17,7 @@
         <span class="route-eyebrow">RavenOS Brief</span>
         <strong>What is happening?</strong>
       </div>
-      <nav class="route-nav" aria-label="Primary navigation"><a class="active" href="/brief/">Brief</a><a class="" href="/opportunity/">Opportunity</a><a class="" href="/terminal/">Terminal</a><a class="" href="/atlas/">Atlas</a><a class="" href="/replay/">Replay</a><a class="" href="/outcomes/">Outcomes</a><a class="" href="/memory/">Memory</a><a class="" href="/behavior/">Behavior</a><a class="" href="/research/">Research</a><a class="" href="/perps/">Perps</a><a class="" href="/docs/">Docs</a><a class="" href="/faq/">FAQ</a><a class="" href="/account/">Account</a></nav>
+      <nav class="route-nav" aria-label="Primary navigation"><a class="active" href="/brief/">Brief</a><a class="" href="/opportunity/">Opportunities</a><a class="" href="/terminal/">Terminal</a><a class="" href="/atlas/">Atlas</a><a class="" href="/replay/">Replay</a><a class="" href="/outcomes/">Outcomes</a><a class="" href="/memory/">Memory</a><a class="" href="/behavior/">Behavior</a><a class="" href="/research/">Research</a><a class="" href="/perps/">Perps</a><a class="" href="/docs/">Docs</a><a class="" href="/faq/">FAQ</a><a class="" href="/account/">Account</a></nav>
     </header>
 
     <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
@@ -47,10 +47,9 @@
     </section>
 
     <section class="route-hero">
-      <span class="route-eyebrow">Current read</span>
+      <div class="route-hero-meta"><span class="route-eyebrow">Raven intelligence / Brief</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Projection loading</strong><small>Source timestamp pending</small></div></div>
       <h1 id="routeHeadline">What is happening?</h1>
       <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
-      <div class="route-migration-state">Report view · interactive workspace migration pending</div>
       <div class="route-state-strip" id="routeStateStrip">Brief</div>
     </section>
 
@@ -59,18 +58,19 @@
       <article class="route-panel" id="routeSecondaryPanel"></article>
     </section>
 
-    <section class="raven-funnel-grid" aria-label="RavenOS intelligence funnel" style="margin-top:16px;">
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Current read</span><h3>What is happening?</h3><p>Raven shows the market read first, then what confirms or weakens it.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Followthrough</span><h3>Followthrough check</h3><p>We track whether earlier reads followed through, failed, or need more evidence.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Next watch</span><h3>What to watch next</h3><p>Check the current opportunity page for the strongest active market.</p></article>
-    </section>
+    <nav class="route-flow" aria-label="Raven evidence workflow">
+      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
+      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
+      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
+      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
+    </nav>
 
     <footer class="route-build">
       <div id="routeHydrationState">Fallback shell loaded</div>
       <div id="ravenosBuildMark">Public artifact verified</div>
     </footer>
   </main>
-  <script id="ravenosRouteConfig" type="application/json">{"route":"/brief/","slug":"brief","title":"Brief","question":"What is happening?","funnel_stage":"understand","evidence_role":"current_synthesis","api_endpoint":"/api/brief","fallback_artifact":"/ravenos/brief.json","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"1.0","fallback_message":null,"surface_state":"report_view_pending_workspace_migration"}</script>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/brief/","slug":"brief","title":"Brief","question":"What is happening?","funnel_stage":"understand","evidence_role":"current_synthesis","api_endpoint":"/api/brief","fallback_artifact":"/ravenos/brief.json","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"2.0","fallback_message":null,"surface_state":"live_intelligence_workspace"}</script>
   <script type="module" src="/ravenos-route-app.js"></script>
 </body>
 </html>

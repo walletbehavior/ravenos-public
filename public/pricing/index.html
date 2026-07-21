@@ -3,328 +3,106 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Pricing</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #050706;
-      --panel: #090f0d;
-      --panel-2: #0c1512;
-      --panel-3: #101b17;
-      --line: rgba(148, 163, 184, 0.18);
-      --line-strong: rgba(125, 211, 252, 0.34);
-      --text: #edf6f1;
-      --muted: #8da39a;
-      --soft: #60746b;
-      --green: #34d399;
-      --cyan: #7dd3fc;
-      --yellow: #facc15;
-      --red: #fb7185;
-    }
-    * { box-sizing: border-box; }
-    html { background: var(--bg); }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background:
-        linear-gradient(180deg, rgba(125, 211, 252, 0.06), transparent 360px),
-        var(--bg);
-      color: var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      letter-spacing: 0;
-    }
-    a { color: inherit; text-decoration: none; }
-    .shell { max-width: 1240px; margin: 0 auto; padding: 18px; }
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 8px 0 18px;
-      border-bottom: 1px solid var(--line);
-    }
-    .brand { display: flex; flex-direction: column; gap: 4px; }
-    .nav { display: flex; gap: 8px; flex-wrap: wrap; }
-    .eyebrow {
-      color: var(--cyan);
-      font-size: 11px;
-      font-weight: 850;
-      line-height: 1;
-      text-transform: uppercase;
-    }
-    h1, h2, h3, p { margin: 0; }
-    h1 { max-width: 860px; font-size: clamp(36px, 7vw, 82px); line-height: 0.96; margin-top: 42px; }
-    h2 { font-size: 18px; line-height: 1.1; }
-    h3 { font-size: 14px; line-height: 1.2; }
-    .lead { max-width: 760px; margin-top: 16px; color: #b9c9c2; font-size: 16px; line-height: 1.55; }
-    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .button {
-      border: 1px solid var(--line-strong);
-      background: #0d1814;
-      color: var(--text);
-      min-height: 38px;
-      padding: 9px 12px;
-      font-size: 12px;
-      font-weight: 850;
-      cursor: pointer;
-      text-align: center;
-    }
-    .button.primary { background: rgba(52, 211, 153, 0.13); border-color: rgba(52, 211, 153, 0.48); }
-    .hero-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-      gap: 18px;
-      align-items: end;
-      padding-bottom: 22px;
-    }
-    .ticker {
-      border: 1px solid var(--line);
-      background: rgba(9, 15, 13, 0.9);
-      margin-top: 24px;
-    }
-    .ticker-row {
-      display: grid;
-      grid-template-columns: 1.1fr 0.7fr 0.7fr 0.7fr;
-      gap: 8px;
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .ticker-row:last-child { border-bottom: 0; }
-    .ticker-row strong { color: var(--text); }
-    .status-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 18px;
-    }
-    .metric {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      padding: 11px;
-      min-height: 72px;
-    }
-    .metric span { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; font-weight: 850; }
-    .metric strong { display: block; margin-top: 8px; font-size: 17px; overflow-wrap: anywhere; }
-    .plans {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 20px;
-    }
-    .plan {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      padding: 15px;
-      min-height: 430px;
-      display: flex;
-      flex-direction: column;
-      gap: 13px;
-    }
-    .plan.primary-plan {
-      background: linear-gradient(180deg, rgba(52, 211, 153, 0.1), var(--panel) 48%);
-      border-color: rgba(52, 211, 153, 0.42);
-    }
-    .price { font-size: 42px; line-height: 1; font-weight: 900; }
-    .price small { color: var(--muted); font-size: 13px; font-weight: 750; }
-    .feature-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; color: #b8c8c1; font-size: 13px; line-height: 1.42; }
-    .feature-list li { border-top: 1px solid var(--line); padding-top: 8px; }
-    .plan-actions { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
-    .section { margin-top: 28px; }
-    .section-head {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 14px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--line);
-    }
-    .module-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .module {
-      border: 1px solid var(--line);
-      background: var(--panel-2);
-      min-height: 132px;
-      padding: 12px;
-    }
-    .module p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-    .comparison {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      font-size: 13px;
-    }
-    .comparison th, .comparison td {
-      text-align: left;
-      padding: 12px;
-      border-bottom: 1px solid var(--line);
-      vertical-align: top;
-    }
-    .comparison th { color: var(--cyan); font-size: 11px; text-transform: uppercase; }
-    .comparison td { color: #c2d2ca; }
-    .comparison td:first-child { color: var(--text); font-weight: 800; }
-    .good { color: var(--green); font-weight: 850; }
-    .limited { color: var(--yellow); font-weight: 850; }
-    @media (max-width: 980px) {
-      .hero-grid, .plans, .module-grid { grid-template-columns: 1fr; }
-      .status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      h1 { margin-top: 30px; }
-    }
-    @media (max-width: 620px) {
-      .shell { padding: 12px; }
-      .topbar { align-items: flex-start; }
-      .nav { width: 100%; }
-      .button { flex: 1 1 auto; }
-      .ticker-row, .status-strip { grid-template-columns: 1fr; }
-      .comparison { display: block; overflow-x: auto; white-space: nowrap; }
-    }
-  </style>
+  <title>RavenOS · Commercial access status</title>
+  <meta name="description" content="Truthful status of RavenOS public access, future commercial foundations, and execution boundaries." />
+  <link rel="stylesheet" href="/ravenos-route.css" />
+  <link rel="stylesheet" href="/ravenos-evidence.css" />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
 </head>
-<body data-access-tier="disconnected">
-  <main class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <span class="eyebrow">RavenOS</span>
-        <strong>Market Intelligence</strong>
+<body>
+  <main class="route-shell" data-route-slug="pricing">
+    <section class="public-evidence" aria-label="Commercial access status">
+      <div class="public-evidence-strip">
+        <div class="public-evidence-cell"><span>Public access</span><strong>Open preview</strong></div>
+        <div class="public-evidence-cell"><span>Paid plans</span><strong>Not on sale</strong></div>
+        <div class="public-evidence-cell"><span>Checkout</span><strong>Disabled</strong></div>
+        <div class="public-evidence-cell"><span>Subscriptions</span><strong>Not configured</strong></div>
+        <div class="public-evidence-cell"><span>Token access</span><strong>Not active</strong></div>
+        <div class="public-evidence-cell"><span>Execution</span><strong>Read only</strong></div>
       </div>
-      <nav class="nav" aria-label="Primary navigation">
-        <a class="button" href="/brief/">Brief</a>
-        <a class="button" href="/opportunity/">Opportunity</a>
-        <a class="button" href="/terminal/">Terminal</a>
-        <a class="button" href="/atlas/">Atlas</a>
-        <a class="button" href="/replay/">Replay</a>
-        <a class="button" href="/outcomes/">Outcomes</a>
-        <a class="button" href="/memory/">Memory</a>
-        <a class="button" href="/behavior/">Behavior</a>
-        <a class="button" href="/research/">Research</a>
-        <a class="button" href="/perps/">Perps</a>
-        <a class="button" href="/docs/">Docs</a>
-        <a class="button" href="/faq/">FAQ</a>
-        <a class="button" href="/account/">Account</a>
-      </nav>
-    </header>
+      <details class="public-evidence-details">
+        <summary>Commercial boundary</summary>
+        <p class="public-evidence-bridge"><strong>No offer is being made:</strong> RavenOS has no active public price, checkout, subscription, founder gate, or entitlement tier. Product scaffolding is not customer availability.</p>
+      </details>
+    </section>
 
-    <section class="hero-grid">
-      <div>
-        <span class="eyebrow">Professional market intelligence</span>
-        <h1>Flow, posture, and participant intelligence for active markets.</h1>
-        <p class="lead">RavenOS brings public Raven Reads, flow terminal views, participant behavior, perps context, proof rails, watchlists, and historical research into one dense operating layer.</p>
+    <section class="route-hero">
+      <div class="route-hero-meta">
+        <span class="route-eyebrow">RavenOS / Commercial status</span>
+        <div class="route-delivery-state" data-state="unavailable"><span>Not open</span><strong>Commercial plans unavailable</strong><small>No price or checkout is active</small></div>
       </div>
-      <aside class="ticker" aria-label="RavenOS product telemetry">
-        <div class="ticker-row"><strong>Terminal</strong><span>Flow Score</span><span>Velocity</span><span>Risk</span></div>
-        <div class="ticker-row"><strong>SOL-PERP</strong><span class="good">84</span><span>+18</span><span>Watch</span></div>
-        <div class="ticker-row"><strong>ETH Spot</strong><span>71</span><span>+9</span><span>Stable</span></div>
-        <div class="ticker-row"><strong>Macro Risk</strong><span>58</span><span>-3</span><span>Elevated</span></div>
+      <h1>Commercial access is not open yet.</h1>
+      <p class="route-summary">Use the current RavenOS public preview to evaluate the intelligence spine. Paid access, persistent customer features, and execution will be introduced only after their server-side contracts and safety controls are real.</p>
+      <div class="route-state-strip">
+        <div class="route-state-card"><span>Preview</span><b>Public and read only</b></div>
+        <div class="route-state-card"><span>Price</span><b>Not published</b></div>
+        <div class="route-state-card"><span>Checkout</span><b>Unavailable</b></div>
+        <div class="route-state-card"><span>Plan tiers</span><b>Not enforced</b></div>
+        <div class="route-state-card"><span>Saved tools</span><b>Not available</b></div>
+        <div class="route-state-card"><span>Trades</span><b>Preview only</b></div>
+      </div>
+    </section>
+
+    <section class="route-grid">
+      <article class="route-panel">
+        <div class="route-panel-head"><div><div class="route-chip-label">Available now</div><h2>The public read-only product</h2></div><span class="route-pill current">Current scope</span></div>
+        <div class="route-table-wrap"><table class="route-table"><thead><tr><th>Surface</th><th>What is real</th><th>Boundary</th><th></th></tr></thead><tbody>
+          <tr><td><strong>Brief</strong></td><td>Current aggregate Raven read with actor and cohort context</td><td>Current origin or explicitly labeled fallback</td><td><a class="route-open-link" href="/brief/">Open →</a></td></tr>
+          <tr><td><strong>Opportunities</strong></td><td>Current Census continuity and exact Hyperliquid decision contexts</td><td>Research queue, not ranked trades</td><td><a class="route-open-link" href="/opportunity/">Open →</a></td></tr>
+          <tr><td><strong>Perps</strong></td><td>Live Hyperliquid candles, book, tape, funding, OI, and exact Raven context</td><td>No signing, submission, or monitoring</td><td><a class="route-open-link" href="/perps/">Open →</a></td></tr>
+          <tr><td><strong>Terminal</strong></td><td>Real chart data plane and read-only quote review contracts</td><td>Quote preview is not execution</td><td><a class="route-open-link" href="/terminal/">Open →</a></td></tr>
+          <tr><td><strong>Behavior</strong></td><td>Privacy-preserving aggregate participation and cohort evidence</td><td>No raw wallet identities or relationship graphs</td><td><a class="route-open-link" href="/behavior/">Open →</a></td></tr>
+          <tr><td><strong>Outcomes</strong></td><td>Future-only validation and public claim lineage</td><td>Evidence maturity and sample remain visible</td><td><a class="route-open-link" href="/outcomes/">Open →</a></td></tr>
+        </tbody></table></div>
+        <div class="route-next"><a class="primary" href="/perps/">Evaluate live Perps</a><a href="/opportunity/">Inspect Opportunities</a></div>
+      </article>
+
+      <aside class="route-panel">
+        <div class="route-panel-head"><div><div class="route-chip-label">Not customer-ready</div><h2>Foundations that remain separate</h2></div></div>
+        <div class="route-coverage-list">
+          <div><span>Accounts</span><strong>Authentication and sessions</strong><small>Not implemented</small></div>
+          <div><span>Billing</span><strong>Products, prices, checkout, portal, webhooks</strong><small>Not configured</small></div>
+          <div><span>Access</span><strong>Subscriber, Pro, founder, or token entitlements</strong><small>Not enforced</small></div>
+          <div><span>Persistence</span><strong>Alerts, watchlists, saved reviews, portfolio</strong><small>Not available</small></div>
+          <div><span>Plans</span><strong>Personalized entry, TP, SL, and management policy</strong><small>Research-only preview where evidence exists</small></div>
+          <div><span>Execution</span><strong>Customer signing, submission, and position monitoring</strong><small>Separate authorization required</small></div>
+        </div>
+        <div class="route-boundary"><span>Commercial boundary</span><strong>No prices · no checkout · no entitlement claims · no customer execution</strong></div>
+        <div class="route-next"><a href="/account/">Account foundation status</a></div>
       </aside>
     </section>
 
-    <section class="status-strip">
-      <div class="metric"><span>Current tier</span><strong id="resolvedTier">disconnected</strong></div>
-      <div class="metric"><span>Access source</span><strong id="accessReason">not connected</strong></div>
-      <div class="metric"><span>Subscription</span><strong id="subscriptionStatus">not active</strong></div>
-      <div class="metric"><span>Plan type</span><strong id="planType">none</strong></div>
-    </section>
-
-    <section class="plans" aria-label="RavenOS pricing plans">
-      <article class="plan primary-plan">
-        <span class="eyebrow">Monthly Pro</span>
-        <h2>RavenOS Pro</h2>
-        <div class="price">$149 <small>/ month</small></div>
-        <p class="muted">Full Pro access for market operators who need persistent intelligence across instruments and venues.</p>
-        <ul class="feature-list">
-          <li>Flow Terminal and market heatmaps</li>
-          <li>Perpetual futures intelligence</li>
-          <li>Deeper Raven Reads and participant intelligence</li>
-          <li>Watchlists, quote-only review, proof export, and research archive</li>
-        </ul>
-        <div class="plan-actions"><button class="button primary" type="button" data-stripe-checkout="monthly">Upgrade Monthly</button></div>
-      </article>
-
-      <article class="plan">
-        <span class="eyebrow">Annual Pro</span>
-        <h2>RavenOS Pro</h2>
-        <div class="price">$999 <small>/ year</small></div>
-        <p class="muted">Annual Pro access for continuous research, monitoring, and team workflows.</p>
-        <ul class="feature-list">
-          <li>Same Pro module access as monthly</li>
-          <li>Customer portal management through Stripe</li>
-          <li>Unified permissions across subscription and token access</li>
-          <li>Designed for professional review cadence</li>
-        </ul>
-        <div class="plan-actions"><button class="button primary" type="button" data-stripe-checkout="annual">Upgrade Annual</button></div>
-      </article>
-
-      <article class="plan">
-        <span class="eyebrow">Token Holder Access</span>
-        <h2>SPL Access Gate</h2>
-        <div class="price">Pro <small>or Founder</small></div>
-        <p class="muted">Connect a supported Solana wallet holding the configured RavenOS access balance.</p>
-        <ul class="feature-list">
-          <li>Pro threshold: <span id="proRequiredBalance">1,000,000</span></li>
-          <li>Founder threshold: <span id="founderRequiredBalance">10,000,000</span></li>
-          <li>Founder access unlocks all Pro modules and experimental intelligence overlays</li>
-          <li>Token access is product access only</li>
-        </ul>
-        <div class="plan-actions">
-          <button class="button" type="button" id="connectPhantom">Phantom</button>
-          <button class="button" type="button" id="connectSolflare">Solflare</button>
-          <button class="button" type="button" id="connectBackpack">Backpack</button>
-        </div>
-      </article>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <span class="eyebrow">Pro modules</span>
-          <h2>Built for market desks, analysts, and operators.</h2>
-        </div>
-        <a class="button" href="/upgrade/">Upgrade</a>
-      </div>
-      <div class="module-grid">
-        <article class="module"><h3>Flow Terminal</h3><p>Chart, score, and flow context in one terminal-grade workspace.</p></article>
-        <article class="module"><h3>Market Heatmaps</h3><p>Dense heatmap views across markets, assets, venues, and instruments.</p></article>
-        <article class="module"><h3>Perpetual Futures Intelligence</h3><p>Leverage pressure, crowding, confirmation, and risk posture lanes.</p></article>
-        <article class="module"><h3>Wallet & Participant Intelligence</h3><p>Participant activity, concentration, repeat behavior, and posture shifts.</p></article>
-        <article class="module"><h3>Historical Research</h3><p>Replay prior market structures and compare current conditions.</p></article>
-        <article class="module"><h3>Alerts & Monitoring</h3><p>Monitor flow changes, risk flags, candidate conditions, and watchlists.</p></article>
-        <article class="module"><h3>Watchlists</h3><p>Save instruments, venues, and market conditions for repeated review.</p></article>
-        <article class="module"><h3>Capital Flow Analysis</h3><p>Track market-level flow, venue posture, liquidity quality, and pressure.</p></article>
-        <article class="module"><h3>Emerging Opportunity Detection</h3><p>Identify conditions where attention, flow, and participant posture are changing.</p></article>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <span class="eyebrow">Comparison</span>
-          <h2>Free vs Pro</h2>
-        </div>
-      </div>
-      <table class="comparison">
-        <thead>
-          <tr><th>Capability</th><th>Free</th><th>Pro</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Flow Terminal</td><td><span class="limited">Sample views</span></td><td><span class="good">Full terminal</span></td></tr>
-          <tr><td>Market Heatmaps</td><td>Delayed rows</td><td>Full table, sorting, filters, detail panels</td></tr>
-          <tr><td>Perpetual Futures Intelligence</td><td>Public posture summaries</td><td>Expanded leverage pressure and risk lanes</td></tr>
-          <tr><td>Participant Intelligence</td><td>Aggregate preview</td><td>Behavior feed, concentration, activity context</td></tr>
-          <tr><td>Historical Research</td><td>Limited samples</td><td>Signal archive and replay context</td></tr>
-          <tr><td>Alerts & Monitoring</td><td>Unavailable</td><td>Pro monitoring modules and watchlists</td></tr>
-          <tr><td>Experimental overlays</td><td>Unavailable</td><td>Founder access</td></tr>
-        </tbody>
-      </table>
-    </section>
-    <template id="ravenosBuildMark">Public artifact verified</template>
+    <nav class="route-flow" aria-label="Raven evidence workflow">
+      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
+      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
+      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
+      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
+    </nav>
+    <footer class="route-build"><div>Commercial status only</div><div id="ravenosBuildMark">Public artifact verified</div></footer>
   </main>
-  <script src="/ravenos-access.js"></script>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/pricing/","slug":"pricing","title":"Commercial status","surface_state":"not_configured"}</script>
+  <script type="module">
+    import { ravenOSContext } from "/ravenos-context-store.js";
+    import { mountRavenOSShell } from "/ravenos-shell.js";
+    ravenOSContext.setSelection({ subject: { id: "commercial-foundation", label: "Commercial foundation", type: "product", chain: "all", venue: "all", marketType: "all" } });
+    const shell = mountRavenOSShell({ slug: "pricing" });
+    shell.setCapabilities({ market: "Public preview", wallet: "No customer session", mode: "Read only", signing: "Sign off", broadcast: "Broadcast off", evidence: "Scope verified" });
+    shell.setIntelligence({
+      subject: ravenOSContext.getState().subject,
+      evidenceRole: "product_status",
+      marketState: { label: "Commercial access not open", regime: "public preview" },
+      setupState: { state: "not configured", confirmation: "inactive" },
+      thesis: "Current RavenOS access is public and read only. No paid plan, token tier, or customer execution path is active.",
+      supportingEvidence: ["Live market and current Raven intelligence surfaces can be evaluated without an account."],
+      contradictingEvidence: ["Checkout, entitlements, saved customer tools, and execution are unavailable."],
+      invalidation: ["Do not infer a paid offer from dormant scaffolding."],
+      timeHorizon: "separate product milestones",
+      confidence: { label: "verified boundary" },
+      evidenceQuality: { state: "verified", lineageComplete: true },
+      freshness: { state: "data_unavailable" },
+      nextExpectedTransition: "Commercial packaging follows authenticated accounts and server-side entitlement enforcement."
+    });
+    document.getElementById("rosActivityDetail")?.replaceChildren("Static commercial boundary; no market freshness implied.");
+  </script>
 </body>
 </html>

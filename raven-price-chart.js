@@ -146,7 +146,7 @@
   }
 
   function markerFor(event) {
-    const above = event.type === "liquidity-warning" || event.type === "toxicity-risk" || event.type === "smart-wallet-distribution";
+    const above = event.type === "liquidity-warning" || event.type === "toxicity-risk";
     return {
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
@@ -786,6 +786,7 @@
           width: rect.width,
           height: rect.height,
           canvas_count: chartHost.querySelectorAll("canvas").length,
+          marker_count: markers.length,
         };
       },
       resize() {

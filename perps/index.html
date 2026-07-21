@@ -3,82 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Perpetual Markets</title>
-  <meta name="description" content="Live perpetual-market structure with Raven behavioral context and evidence." />
+  <title>RavenOS · Hyperliquid Intelligence Terminal</title>
+  <meta name="description" content="Live Hyperliquid market structure joined to exact, public-safe Raven decision context." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-perps-workspace.css" />
 </head>
 <body>
   <main class="perps-workspace" data-route-slug="perps">
+    <section class="perps-continuity" aria-live="polite">
+      <div><span>Market</span><strong id="perpsMarketFreshness">Connecting</strong></div>
+      <div><span>Raven context</span><strong id="perpsContextState">Checking</strong></div>
+      <div><span>Projection</span><strong id="perpsDeliveryState">Checking</strong></div>
+      <div><span>Observed</span><strong id="perpsObservedAt">Awaiting timestamp</strong></div>
+      <p id="perpsContinuityMessage">Loading live venue facts and exact public Raven context independently.</p>
+    </section>
+
     <header class="perps-market-head">
       <div class="perps-identity">
-        <select id="perpsInstrument" aria-label="Perpetual market"><option value="SOL-PERP">SOL-PERP</option></select>
+        <label for="perpsInstrument">Instrument</label>
+        <select id="perpsInstrument" aria-label="Hyperliquid perpetual market"><option value="SOL-PERP">SOL-PERP</option></select>
         <div><strong id="perpsInstrumentTitle">SOL-PERP</strong><span id="perpsVenueState">Hyperliquid · connecting</span></div>
       </div>
       <div class="perps-metric"><span>Last</span><strong id="perpsLast">--</strong></div>
       <div class="perps-metric"><span>Mark</span><strong id="perpsMark">--</strong></div>
       <div class="perps-metric"><span>Oracle</span><strong id="perpsOracle">--</strong></div>
       <div class="perps-metric"><span>Funding</span><strong id="perpsFunding">--</strong></div>
-      <div class="perps-metric"><span>Funding in</span><strong id="perpsFundingCountdown">--</strong></div>
       <div class="perps-metric"><span>Open interest</span><strong id="perpsOpenInterest">--</strong></div>
       <div class="perps-metric"><span>24h volume</span><strong id="perpsVolume">--</strong></div>
+      <div class="perps-metric"><span>24h change</span><strong id="perpsChange">--</strong></div>
     </header>
 
     <div class="perps-main">
-      <section class="perps-chart-column" aria-label="Perpetual market chart">
+      <section class="perps-chart-column" aria-label="Hyperliquid chart">
         <div class="perps-chart-tools">
           <div class="perps-timeframes" id="perpsTimeframes" aria-label="Chart timeframe"></div>
-          <div class="perps-overlay-modes" aria-label="Chart layers">
-            <button type="button" aria-pressed="true">Market</button>
-            <button type="button" aria-pressed="true">Raven</button>
-            <button type="button" aria-pressed="false" disabled title="No exact model markers for the visible range">Models</button>
-            <button type="button" aria-pressed="false" disabled title="No attributed position markers for the visible range">Positions</button>
-            <button type="button" aria-pressed="false" disabled title="No matured outcome markers for the visible range">Outcomes</button>
+          <div class="perps-chart-actions">
+            <button id="perpsRavenMarker" type="button" aria-pressed="false" disabled>Raven event unavailable</button>
+            <span id="perpsChartEventState">Exact event check pending</span>
           </div>
         </div>
-        <nav class="perps-mobile-panes" aria-label="Perpetual workspace view">
+        <nav class="perps-mobile-panes" aria-label="Terminal pane">
           <button type="button" data-perps-mobile-pane="chart" aria-pressed="true">Chart</button>
-          <button type="button" data-perps-mobile-pane="book" aria-pressed="false">Book</button>
+          <button type="button" data-perps-mobile-pane="market" aria-pressed="false">Book + tape</button>
           <button type="button" data-perps-mobile-pane="raven" aria-pressed="false">Raven</button>
         </nav>
         <div id="perpsChart"></div>
       </section>
 
-      <aside class="perps-market-rail" aria-label="Perpetual market detail">
-        <section class="perps-rail-section">
-          <header><h2>Order book</h2><span id="perpsBookState">Waiting for venue stream</span></header>
-          <div class="perps-book" id="perpsBook"><div class="perps-empty">Order-book snapshot pending.</div></div>
-        </section>
-        <section class="perps-rail-section">
-          <header><h2>Market structure</h2><span>Venue data</span></header>
-          <div class="perps-stats">
-            <div><span>Basis</span><strong id="perpsBasis">--</strong></div>
-            <div><span>24h change</span><strong id="perpsChange">--</strong></div>
-            <div><span>Max leverage</span><strong id="perpsLeverage">--</strong></div>
-            <div><span>Spread</span><strong id="perpsSpread">--</strong></div>
+      <aside class="perps-market-rail" aria-label="Selected instrument detail">
+        <section class="perps-rail-section perps-raven-panel" data-perps-pane="raven">
+          <header><div><span>Exact decision context</span><h2 id="perpsReadHeadline">Raven Read forming</h2></div><span id="perpsEvidenceState">Checking evidence</span></header>
+          <div class="perps-raven-read" id="perpsRavenRead">
+            <p id="perpsReadSummary">Waiting for a public-safe context matched to this exact instrument.</p>
+            <div class="perps-why"><span>Why Raven noticed this</span><strong id="perpsWhy">Current context unavailable until verified.</strong></div>
+            <dl class="perps-path-grid">
+              <div><dt>Behavior</dt><dd id="perpsPathFamily">--</dd></div>
+              <div><dt>Pressure</dt><dd id="perpsPathPressure">--</dd></div>
+              <div><dt>Observed side</dt><dd id="perpsPathSide">--</dd></div>
+              <div><dt>Observed friction</dt><dd id="perpsPathFriction">--</dd></div>
+            </dl>
+            <div class="perps-read-columns">
+              <div><span>Would strengthen</span><ul id="perpsStrengthen"><li>Awaiting exact context.</li></ul></div>
+              <div><span>Would weaken</span><ul id="perpsWeaken"><li>Awaiting exact context.</li></ul></div>
+            </div>
           </div>
         </section>
-        <section class="perps-rail-section">
-          <header><h2>Raven interpretation</h2><span id="perpsEvidenceState">Insufficient evidence</span></header>
-          <div class="perps-raven-read" id="perpsRavenRead"><div class="perps-empty">Behavioral context loading.</div></div>
+
+        <section class="perps-rail-section" data-perps-pane="market">
+          <header><div><span>Live venue depth</span><h2>Order book</h2></div><span id="perpsBookState">Waiting for snapshot</span></header>
+          <div class="perps-book-head"><span>Price</span><span>Size</span><span>Orders</span></div>
+          <div class="perps-book" id="perpsBook"><div class="perps-empty">Order-book snapshot unavailable.</div></div>
+        </section>
+
+        <section class="perps-rail-section" data-perps-pane="market">
+          <header><div><span>Privacy-bounded flow</span><h2>Recent tape</h2></div><span id="perpsTapeState">Waiting for trades</span></header>
+          <div class="perps-tape-head"><span>Time</span><span>Price</span><span>Notional</span></div>
+          <div class="perps-tape" id="perpsTape"><div class="perps-empty">Recent public trades unavailable.</div></div>
         </section>
       </aside>
     </div>
 
-    <div class="perps-lower">
-      <section><h2>Forward evidence</h2><div class="perps-state-list"><div><span>Observations</span><strong id="perpsForwardN">--</strong></div><div><span>Matured 1h</span><strong id="perpsMatured1h">--</strong></div><div><span>Matured 12h</span><strong id="perpsMatured12h">--</strong></div></div></section>
-      <section><h2>Model and position overlays</h2><p>Forecasts, model states, virtual positions, paper positions, and outcomes remain separate from objective market data. Only exact instrument-time artifacts appear on the chart.</p></section>
-      <section><h2>Execution capability</h2><p>Read-only market terminal. Signing, submission, broadcast, and capital assignment remain disabled. Market feeds may degrade without affecting Raven evidence capture.</p><span data-ravenos-build-id hidden>pending</span></section>
-    </div>
+    <section class="perps-evidence-deck" aria-label="Raven research evidence">
+      <article>
+        <header><div><span>Future-only validation</span><h2>Matured comparables</h2></div><strong id="perpsComparableMaturity">Forming</strong></header>
+        <div class="perps-evidence-metrics">
+          <div><span>Same-instrument paths</span><strong id="perpsComparableN">0</strong></div>
+          <div><span>Median observed change</span><strong id="perpsMedianChange">--</strong></div>
+          <div><span>Median favorable excursion</span><strong id="perpsMedianFavorable">--</strong></div>
+          <div><span>Median adverse excursion</span><strong id="perpsMedianAdverse">--</strong></div>
+          <div><span>Positive followthrough</span><strong id="perpsPositiveRate">--</strong></div>
+        </div>
+        <p id="perpsComparableNote">No matured same-instrument public sample is available yet.</p>
+      </article>
+
+      <article>
+        <header><div><span>Evidence-bounded</span><h2>Plan Preview</h2></div><strong id="perpsPlanState">Unavailable</strong></header>
+        <div class="perps-evidence-metrics perps-plan-metrics">
+          <div><span>Directional context</span><strong id="perpsPlanDirection">--</strong></div>
+          <div><span>Frozen reference</span><strong id="perpsPlanReference">--</strong></div>
+          <div><span>Review horizon</span><strong id="perpsPlanHorizon">--</strong></div>
+          <div><span>Evidence sample</span><strong id="perpsPlanSample">0</strong></div>
+        </div>
+        <p id="perpsPlanNote">Not personalized. Not production-qualified. No entry, target, stop, signing, or order is available.</p>
+      </article>
+
+      <article class="perps-proof-panel">
+        <header><div><span>Contract boundary</span><h2>What is live</h2></div><strong>Read only</strong></header>
+        <dl>
+          <div><dt>Candles</dt><dd id="perpsProofCandles">Provider check pending</dd></div>
+          <div><dt>Book + tape</dt><dd id="perpsProofMarket">Provider check pending</dd></div>
+          <div><dt>Raven context</dt><dd id="perpsProofContext">Projection check pending</dd></div>
+          <div><dt>Execution</dt><dd>Signing, submission, and position monitoring off</dd></div>
+        </dl>
+        <p>Participant addresses, transaction hashes, provider trade identifiers, private evidence, and proprietary parameters are not exposed.</p>
+        <span data-ravenos-build-id hidden>pending</span>
+      </article>
+    </section>
   </main>
-  <script id="ravenosRouteConfig" type="application/json">{"route":"/perps/","slug":"perps","title":"Perps","template":"existing","surface_state":"live_market_workspace"}</script>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/perps/","slug":"perps","title":"Perps","template":"existing","surface_state":"live_read_only_hyperliquid_workspace"}</script>
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>
   <script src="/raven-chart-overlays.js"></script>
   <script src="/raven-reads.js"></script>
   <script src="/raven-price-chart.js"></script>
   <script>
-    window.__RAVENOS_BUILD_ID__ = "d8b5bc3050c6-dirty-a15485af";
+    window.__RAVENOS_BUILD_ID__ = "7ff7b3c7c7e4-dirty-322e2ede";
     const buildMarker = document.querySelector("[data-ravenos-build-id]");
     if (buildMarker) buildMarker.textContent = window.__RAVENOS_BUILD_ID__;
   </script>

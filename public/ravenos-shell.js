@@ -8,21 +8,22 @@ import {
 import { ravenOSContext } from "/ravenos-context-store.js";
 
 const NAV_ITEMS = Object.freeze([
-  { label: "Terminal", href: "/terminal/", match: ["terminal"] },
+  { label: "Brief", href: "/brief/", match: ["home", "brief"] },
   { label: "Opportunities", href: "/opportunity/", match: ["opportunity"] },
-  { label: "Markets", href: "/chains/solana/", match: ["chain-solana", "chain-base", "chain-ethereum", "atlas"] },
-  { label: "Wallets", href: "/behavior/", match: ["behavior"] },
-  { label: "Replay", href: "/replay/", match: ["replay", "memory"] },
-  { label: "Outcomes", href: "/outcomes/", match: ["outcomes", "claims"] },
   { label: "Perps", href: "/perps/", match: ["perps"] },
+  { label: "Terminal", href: "/terminal/", match: ["terminal"] },
+  { label: "Behavior", href: "/behavior/", match: ["behavior"] },
+  { label: "Outcomes", href: "/outcomes/", match: ["outcomes", "claims"] },
+  { label: "Replay", href: "/replay/", match: ["replay", "memory"] },
+  { label: "Markets", href: "/chains/solana/", match: ["chain-solana", "chain-base", "chain-ethereum", "atlas"] },
   { label: "Research", href: "/research/", match: ["research"] },
 ]);
 
 const MOBILE_NAV = Object.freeze([
-  { label: "Pulse", href: "/" },
+  { label: "Brief", href: "/brief/" },
   { label: "Opportunities", href: "/opportunity/" },
+  { label: "Perps", href: "/perps/" },
   { label: "Terminal", href: "/terminal/" },
-  { label: "Watchlist", href: "/terminal/?workspace=watchlist" },
   { label: "Outcomes", href: "/outcomes/" },
 ]);
 
@@ -69,25 +70,24 @@ function createShellMarkup(slug) {
   }).join("");
   return `
     <header class="ros-topbar" data-ros-shell>
-      <a class="ros-brand" href="${ravenOSContext.decorateHref("/terminal/")}" data-ros-context-link aria-label="RavenOS Terminal">
-        <strong>RavenOS</strong><span>Behavioral markets</span>
+      <a class="ros-brand" href="${ravenOSContext.decorateHref("/brief/")}" data-ros-context-link data-ros-base-href="/brief/" aria-label="RavenOS Brief">
+        <strong>RavenOS</strong><span>Evidence terminal</span>
       </a>
       <select class="ros-workspace-select" id="rosWorkspace" aria-label="Workspace">
         <option value="market-monitor">Market Monitor</option>
         <option value="opportunity-review">Opportunity Review</option>
-        <option value="watchlist">Watchlist</option>
         <option value="outcome-review">Outcome Review</option>
         <option value="research-lab">Research Lab</option>
       </select>
       <button class="ros-command-trigger" id="rosCommandTrigger" type="button" aria-haspopup="dialog" aria-controls="rosCommandPalette">
-        <span>Search markets, wallets, setups, outcomes</span><kbd>Ctrl K</kbd>
+        <span>Search markets, behavior, evidence, outcomes</span><kbd>Ctrl K</kbd>
       </button>
       <div class="ros-global-selectors">
         <select id="rosChain" aria-label="Chain selector">
           <option value="all">All chains</option><option value="solana">Solana</option><option value="base">Base</option><option value="ethereum">Ethereum</option><option value="hyperliquid">Hyperliquid</option>
         </select>
         <select id="rosMarketType" aria-label="Market type selector">
-          <option value="all">All markets</option><option value="spot">Spot</option><option value="perp">Perps</option><option value="paper">Paper</option>
+          <option value="all">All markets</option><option value="spot">Spot</option><option value="perp">Perps</option>
         </select>
         <select id="rosTimeframe" aria-label="Timeframe selector">
           <option value="5m">5m</option><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option><option value="1w">1w</option>
@@ -95,7 +95,7 @@ function createShellMarkup(slug) {
       </div>
       <div class="ros-capability-status" id="rosCapabilityStatus" aria-label="Terminal capability status">
         <span data-ros-capability="market">Data unavailable</span>
-        <span data-ros-capability="wallet">Wallet off</span>
+        <span data-ros-capability="wallet">No session</span>
         <span data-ros-capability="mode">Preview</span>
         <span data-ros-capability="signing">Sign off</span>
         <span data-ros-capability="broadcast">Broadcast off</span>
@@ -163,7 +163,7 @@ function routeCommands() {
 export function mountRavenOSShell(options = {}) {
   if (window.RavenOSShell?.mounted) return window.RavenOSShell;
   const slug = options.slug || currentSlug();
-  const isTerminal = location.pathname === "/" || location.pathname.startsWith("/terminal/");
+  const isTerminal = location.pathname.startsWith("/terminal/") || location.pathname.startsWith("/perps/");
   document.body.classList.add("ros-shell-active", isTerminal ? "ros-shell-terminal" : "ros-shell-route");
   document.body.insertAdjacentHTML("afterbegin", createShellMarkup(slug));
 
@@ -216,7 +216,7 @@ export function mountRavenOSShell(options = {}) {
   function setCapabilities(next = {}) {
     const defaults = {
       market: "Data unavailable",
-      wallet: "Wallet off",
+      wallet: "No session",
       mode: "Preview",
       signing: "Sign off",
       broadcast: "Broadcast off",
@@ -274,9 +274,6 @@ export function mountRavenOSShell(options = {}) {
 
   document.getElementById("rosCommandTrigger").addEventListener("click", openPalette);
   document.querySelector("[data-ros-command]").addEventListener("click", openPalette);
-  document.querySelector(".ros-brand")?.addEventListener("click", (event) => {
-    if (isTerminal) event.preventDefault();
-  });
   commandInput.addEventListener("input", () => renderCommands(commandInput.value));
   document.getElementById("rosContextTrigger").addEventListener("click", () => document.body.classList.contains("ros-context-open") ? closeContext() : openContext());
   document.getElementById("rosContextClose").addEventListener("click", closeContext);

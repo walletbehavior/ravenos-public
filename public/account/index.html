@@ -3,221 +3,104 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Account</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #050907;
-      --panel: #08110e;
-      --panel-2: #0b1713;
-      --line: rgba(148, 163, 184, 0.18);
-      --line-strong: rgba(125, 211, 252, 0.26);
-      --text: #e5f0eb;
-      --muted: #8da39a;
-      --green: #34d399;
-      --cyan: #7dd3fc;
-      --yellow: #facc15;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      letter-spacing: 0;
-    }
-    .shell { max-width: 1180px; margin: 0 auto; padding: 18px; }
-    .topbar, .actions, .metric-grid {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .topbar { padding: 10px 0 16px; border-bottom: 1px solid var(--line); }
-    .main-nav {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .main-nav a {
-      border: 1px solid var(--line-strong);
-      background: #0c1a15;
-      color: var(--text);
-      min-height: 36px;
-      padding: 8px 10px;
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .main-nav a.active { border-color: rgba(52, 211, 153, 0.48); color: var(--green); }
-    h1, h2, h3, p { margin: 0; }
-    h1 { font-size: clamp(24px, 3vw, 40px); line-height: 1.02; }
-    h2 { font-size: 14px; line-height: 1.2; text-transform: uppercase; }
-    .eyebrow {
-      color: var(--cyan);
-      font-size: 11px;
-      line-height: 1;
-      text-transform: uppercase;
-      font-weight: 800;
-    }
-    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
-      gap: 14px;
-      margin-top: 14px;
-    }
-    .panel {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      padding: 14px;
-    }
-    .panel + .panel { margin-top: 14px; }
-    .button {
-      border: 1px solid var(--line-strong);
-      background: #0c1a15;
-      color: var(--text);
-      min-height: 36px;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 800;
-      cursor: pointer;
-    }
-    .button:hover { border-color: var(--cyan); }
-    .button.primary { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.45); }
-    .metric-grid { align-items: stretch; margin-top: 12px; }
-    .metric {
-      flex: 1 1 170px;
-      border: 1px solid var(--line);
-      background: var(--panel-2);
-      padding: 10px;
-      min-height: 72px;
-    }
-    .metric span {
-      display: block;
-      color: var(--muted);
-      font-size: 10px;
-      text-transform: uppercase;
-      font-weight: 800;
-    }
-    .metric strong {
-      display: block;
-      margin-top: 7px;
-      font-size: 17px;
-      line-height: 1.1;
-      overflow-wrap: anywhere;
-    }
-    .status-line {
-      display: grid;
-      grid-template-columns: 150px minmax(0, 1fr);
-      gap: 8px;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-    }
-    .status-line:last-child { border-bottom: 0; }
-    .status-line span { color: var(--muted); }
-    .pill {
-      display: inline-flex;
-      min-height: 22px;
-      align-items: center;
-      border: 1px solid var(--line);
-      padding: 3px 8px;
-      background: rgba(125, 211, 252, 0.06);
-      color: var(--cyan);
-      font-size: 11px;
-      text-transform: uppercase;
-      font-weight: 800;
-    }
-    .note {
-      margin-top: 10px;
-      border: 1px solid rgba(250, 204, 21, 0.3);
-      background: rgba(250, 204, 21, 0.08);
-      color: #fde68a;
-      padding: 10px;
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    @media (max-width: 880px) {
-      .grid { grid-template-columns: 1fr; }
-      .status-line { grid-template-columns: 1fr; }
-    }
-  </style>
+  <title>RavenOS · Account foundation status</title>
+  <meta name="description" content="Current RavenOS customer account, billing, entitlement, wallet, and execution boundary." />
+  <link rel="stylesheet" href="/ravenos-route.css" />
+  <link rel="stylesheet" href="/ravenos-evidence.css" />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
 </head>
-<body data-access-tier="disconnected">
-  <main class="shell">
-    <header class="topbar">
-      <div>
-        <span class="eyebrow">RavenOS Account</span>
-        <h1>Access Management</h1>
-        <p class="muted">Manage RavenOS access, read-only wallet context, and subscription status. Signing and submission are disabled.</p>
+<body>
+  <main class="route-shell" data-route-slug="account">
+    <section class="public-evidence" aria-label="Account foundation status">
+      <div class="public-evidence-strip">
+        <div class="public-evidence-cell"><span>Customer account</span><strong>Not configured</strong></div>
+        <div class="public-evidence-cell"><span>Authenticated session</span><strong>None</strong></div>
+        <div class="public-evidence-cell"><span>Billing checkout</span><strong>Off</strong></div>
+        <div class="public-evidence-cell"><span>Entitlements</span><strong>Not enforced</strong></div>
+        <div class="public-evidence-cell"><span>Wallet role</span><strong>Optional market context</strong></div>
+        <div class="public-evidence-cell"><span>Execution</span><strong>Read only</strong></div>
       </div>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/terminal/">Terminal</a><a href="/atlas/">Atlas</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/docs/">Docs</a><a href="/faq/">FAQ</a><a class="active" href="/account/">Account</a>
-      </nav>
-    </header>
+      <details class="public-evidence-details">
+        <summary>Boundary details</summary>
+        <p class="public-evidence-bridge"><strong>No hidden account:</strong> connecting a wallet does not authenticate a customer, unlock a tier, start a subscription, or authorize a transaction.</p>
+      </details>
+    </section>
 
-    <section class="grid">
-      <div>
-        <article class="panel">
-          <h2>Current Access</h2>
-          <div class="metric-grid">
-            <div class="metric"><span>Tier</span><strong id="resolvedTier">disconnected</strong></div>
-            <div class="metric"><span>Reason</span><strong id="accessReason">not connected</strong></div>
-            <div class="metric"><span>Wallet balance</span><strong id="walletBalance">not connected</strong></div>
-            <div class="metric"><span>Subscription</span><strong id="subscriptionStatus">not active</strong></div>
-            <div class="metric"><span>Plan type</span><strong id="planType">none</strong></div>
-            <div class="metric"><span>Renewal date</span><strong id="renewalDate">none</strong></div>
-          </div>
-        </article>
-
-        <article class="panel">
-          <h2>Connect Wallet</h2>
-          <p class="muted" id="walletAccessDetail">Connect wallet for read-only account context and compatibility checks. Quote preview remains optional; signing is disabled.</p>
-          <p class="muted" id="walletPublicKey"></p>
-          <div class="actions" style="justify-content:flex-start; margin-top:12px;">
-            <button class="button" type="button" id="connectPhantom">Phantom</button>
-            <button class="button" type="button" id="connectSolflare">Solflare</button>
-            <button class="button" type="button" id="connectBackpack">Backpack</button>
-            <button class="button" type="button" id="disconnectWallet">Disconnect</button>
-            <button class="button" type="button" data-access-check>Check Access</button>
-          </div>
-        </article>
-
-        <article class="panel">
-          <h2>Subscription</h2>
-          <p class="muted">Use Stripe to activate RavenOS Pro access, or manage an existing subscription. Execution is not included.</p>
-          <div class="actions" style="justify-content:flex-start; margin-top:12px;">
-            <button class="button primary" type="button" data-stripe-checkout="monthly">Start Monthly Pro</button>
-            <button class="button primary" type="button" data-stripe-checkout="annual">Start Annual Pro</button>
-            <button class="button" type="button" data-stripe-portal>Manage Subscription</button>
-          </div>
-          <div class="note">Subscription access resolves to Pro. Founder access is reserved for wallets holding the configured Founder SPL token balance.</div>
-        </article>
+    <section class="route-hero">
+      <div class="route-hero-meta">
+        <span class="route-eyebrow">RavenOS / Product foundation</span>
+        <div class="route-delivery-state" data-state="unavailable"><span>Unavailable</span><strong>No customer account system</strong><small>No access can be purchased or unlocked</small></div>
       </div>
+      <h1>Customer accounts are not available yet.</h1>
+      <p class="route-summary">RavenOS currently operates as a public, read-only intelligence product. There is no production login, session, subscription, token gate, saved customer state, or customer execution account.</p>
+      <div class="route-state-strip">
+        <div class="route-state-card"><span>Login</span><b>Not implemented</b></div>
+        <div class="route-state-card"><span>Session</span><b>Not implemented</b></div>
+        <div class="route-state-card"><span>Stripe</span><b>Not configured</b></div>
+        <div class="route-state-card"><span>Token gating</span><b>Not active</b></div>
+        <div class="route-state-card"><span>Saved state</span><b>Unavailable</b></div>
+        <div class="route-state-card"><span>Signing</span><b>Disabled</b></div>
+      </div>
+    </section>
 
-      <aside>
-        <article class="panel">
-          <h2>Access Rules</h2>
-          <div class="status-line"><span>Status</span><strong id="walletState">disconnected</strong></div>
-          <div class="status-line"><span>Pro token balance</span><strong><span id="proRequiredBalance">1,000,000</span> tokens</strong></div>
-          <div class="status-line"><span>Founder token balance</span><strong><span id="founderRequiredBalance">10,000,000</span> tokens</strong></div>
-          <div class="status-line"><span>Subscription reason</span><strong>Subscription</strong></div>
-          <div class="status-line"><span>Token reason</span><strong>Token Holder</strong></div>
-          <div class="status-line"><span>Founder reason</span><strong>Founder</strong></div>
-        </article>
+    <section class="route-grid">
+      <article class="route-panel">
+        <div class="route-panel-head"><div><div class="route-chip-label">Current boundary</div><h2>What exists now</h2></div><span class="route-pill current">Verified</span></div>
+        <div class="route-continuity-list">
+          <div><span>Public product</span><strong>Brief, Opportunities, Perps, Terminal, Behavior, and Outcomes</strong><small>Read-only intelligence with explicit freshness</small></div>
+          <div><span>Wallet context</span><strong>Optional compatibility state inside the Terminal</strong><small>Not identity, authentication, entitlement, or custody</small></div>
+          <div><span>Quote review</span><strong>Preview contracts only</strong><small>No public signing, submission, confirmed trade, or position monitoring</small></div>
+          <div><span>Persistence</span><strong>No customer record is claimed</strong><small>No production watchlist, alert, portfolio, or saved review packet</small></div>
+        </div>
+        <div class="route-boundary"><span>Execution boundary</span><strong>Wallet optional · signing off · submission off · monitoring off</strong></div>
+        <div class="route-next"><a class="primary" href="/perps/">Open read-only Perps</a><a href="/terminal/">Open Terminal</a></div>
+      </article>
 
-        <article class="panel">
-          <h2>Unified Permissions</h2>
-          <p class="muted">RavenOS modules read one resolved tier: Free, Pro, or Founder. Wallet and subscription checks feed the same resolver.</p>
-          <div style="margin-top:10px;"><span class="pill">Solana SPL</span> <span class="pill">Stripe</span> <span class="pill">One tier system</span></div>
-        </article>
+      <aside class="route-panel">
+        <div class="route-panel-head"><div><div class="route-chip-label">Separate milestone</div><h2>Required before accounts can launch</h2></div></div>
+        <div class="route-coverage-list">
+          <div><span>Identity</span><strong>Server-side authentication and recovery</strong><small>Missing</small></div>
+          <div><span>Session</span><strong>Authenticated session creation, expiry, and revocation</strong><small>Missing</small></div>
+          <div><span>Billing</span><strong>Configured products, checkout, portal, and verified webhooks</strong><small>Inactive</small></div>
+          <div><span>Entitlement</span><strong>Server-side route and data enforcement</strong><small>Missing</small></div>
+          <div><span>Storage</span><strong>Qualified customer and subscription store</strong><small>Missing</small></div>
+          <div><span>Audit</span><strong>Authorization tests, privacy review, and operational controls</strong><small>Required</small></div>
+        </div>
+        <p class="route-caveat">Dormant code is not presented as a live customer system. Activation requires an explicit product and security milestone.</p>
       </aside>
     </section>
-    <template id="ravenosBuildMark">Public artifact verified</template>
+
+    <nav class="route-flow" aria-label="Raven evidence workflow">
+      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
+      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
+      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
+      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
+    </nav>
+    <footer class="route-build"><div>Foundation status only</div><div id="ravenosBuildMark">Public artifact verified</div></footer>
   </main>
-  <script src="/ravenos-access.js"></script>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/account/","slug":"account","title":"Account foundation","surface_state":"not_configured"}</script>
+  <script type="module">
+    import { ravenOSContext } from "/ravenos-context-store.js";
+    import { mountRavenOSShell } from "/ravenos-shell.js";
+    ravenOSContext.setSelection({ subject: { id: "account-foundation", label: "Account foundation", type: "product", chain: "all", venue: "all", marketType: "all" } });
+    const shell = mountRavenOSShell({ slug: "account" });
+    shell.setCapabilities({ market: "Product status", wallet: "No customer session", mode: "Read only", signing: "Sign off", broadcast: "Broadcast off", evidence: "Boundary verified" });
+    shell.setIntelligence({
+      subject: ravenOSContext.getState().subject,
+      evidenceRole: "product_status",
+      marketState: { label: "Customer account system not configured", regime: "product foundation" },
+      setupState: { state: "not configured", confirmation: "inactive" },
+      thesis: "RavenOS is public and read only. Wallet state is optional context, not customer identity.",
+      supportingEvidence: ["No production login, subscription, token gate, or saved customer state is claimed."],
+      contradictingEvidence: ["Dormant scaffolding is not a live account system."],
+      invalidation: ["Do not infer access from a connected wallet."],
+      timeHorizon: "separate authorization milestone",
+      confidence: { label: "verified boundary" },
+      evidenceQuality: { state: "verified", lineageComplete: true },
+      freshness: { state: "data_unavailable" },
+      nextExpectedTransition: "Build authenticated accounts only after the live intelligence spine is proven."
+    });
+    document.getElementById("rosActivityDetail")?.replaceChildren("Static account boundary; no market freshness implied.");
+  </script>
 </body>
 </html>

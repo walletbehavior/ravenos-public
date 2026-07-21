@@ -1,36 +1,34 @@
-.raven-funnel {
+.raven-funnel,
+.raven-funnel-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin: 14px 0;
+  gap: 1px;
+  margin: 12px 0;
+  border: 1px solid var(--route-line, #252b31);
+  background: var(--route-line, #252b31);
 }
+
 .raven-funnel-card {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(13, 23, 20, 0.82);
-  padding: 12px;
+  min-width: 0;
+  padding: 10px;
+  background: #090d10;
 }
+
 .raven-funnel-stage {
-  color: #7dd3fc;
-  font-size: 10px;
-  font-weight: 850;
+  color: var(--route-cyan, #77b7c9);
+  font: 800 8px var(--route-mono, monospace);
   text-transform: uppercase;
 }
-.raven-funnel-card h3 {
-  margin-top: 6px;
+
+.raven-funnel-card h3 { margin: 5px 0 0; color: #dce2e6; font-size: 11px; }
+.raven-funnel-card p { margin: 5px 0 0; color: var(--route-muted, #8b969f); font-size: 10px; line-height: 1.4; }
+
+@media (max-width: 820px) {
+  .raven-funnel,
+  .raven-funnel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.raven-funnel-card p {
-  margin-top: 6px;
-  color: #91a69d;
-  font-size: 12px;
-  line-height: 1.45;
-}
-@media (max-width: 900px) {
-  .raven-funnel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 520px) {
-  .raven-funnel {
-    grid-template-columns: 1fr;
-  }
+
+@media (max-width: 430px) {
+  .raven-funnel,
+  .raven-funnel-grid { grid-template-columns: 1fr; }
 }

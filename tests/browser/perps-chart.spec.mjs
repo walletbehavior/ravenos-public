@@ -40,9 +40,10 @@ async function installPerpsMocks(page, { chartRequests = [] } = {}) {
   });
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
     ok: true,
+    schema_version: "ravenos.hyperliquid.markets.v2",
     provider: "Hyperliquid",
     coverage: "Live",
-    results: [{ asset: "SOL-PERP", symbol: "SOL", pressureState: "Elevated", participantActivity: "OI expansion", liquidityPosture: "Deep", risk: "Watch", lastPrice: 149.15, markPx: 149.16, oraclePx: 149.10, midPx: 149.14, funding: 0.00001, openInterest: 1_200_000, dayNtlVlm: 80_000_000, prevDayPx: 147, maxLeverage: 20 }],
+    results: [{ instrument_id: "hyperliquid:perp:SOL", asset: "SOL-PERP", symbol: "SOL", last_price: 149.15, mark_price: 149.16, oracle_price: 149.10, mid_price: 149.14, funding_rate: 0.00001, open_interest_base: 1_200_000, open_interest_usd: 179_000_000, day_notional_volume_usd: 80_000_000, previous_day_price: 147, max_leverage: 20 }],
   }) }));
   await page.route("**/api/terminal/chart**", (route) => {
     chartRequests.push(route.request().url());
@@ -72,19 +73,58 @@ async function installPerpsMocks(page, { chartRequests = [] } = {}) {
       candles,
     }) });
   });
-  await page.route("**/api/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generated_at: new Date().toISOString(), data: { forward_observation: { observations: 38, matured_windows: { "1h": 30, "12h": 12 } } } }) }));
+  await page.route("**/api/perps/instrument**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+    ok: true,
+    schema_version: "ravenos.perp_terminal_context.v1",
+    instrument: { instrument_id: "hyperliquid:perp:SOL", instrument: "SOL-PERP", symbol: "SOL", venue: "hyperliquid", market_type: "perpetual", instrument_scope: "exact_instrument" },
+    market_data: {
+      ok: true,
+      generated_at: new Date().toISOString(),
+      market: { mark_price: 149.16, oracle_price: 149.10, funding_rate: 0.00001, open_interest_usd: 179_000_000, day_notional_volume_usd: 80_000_000, previous_day_price: 147 },
+      book: { bids: [{ price: 150.10, size: 18, order_count: 5 }, { price: 150.05, size: 30, order_count: 8 }], asks: [{ price: 150.14, size: 12, order_count: 4 }, { price: 150.20, size: 25, order_count: 7 }], summary: { best_bid: 150.10, best_ask: 150.14, spread_bps: 2.664 } },
+      tape: { trades: [{ observed_at: new Date().toISOString(), book_side: "bid", price: 150.12, size: 4.2, notional_usd: 630.5 }], privacy: { participant_addresses_removed: true, transaction_hashes_removed: true, provider_trade_ids_removed: true } },
+      components: { market: "fresh", book: "fresh", tape: "fresh" },
+    },
+    raven_context: {
+      public_context_id: "perpctx_public_fixture",
+      instrument_id: "hyperliquid:perp:SOL",
+      instrument: "SOL-PERP",
+      context_available: true,
+      context_state: "fresh",
+      observed_at: new Date(1_800_100_000 * 1000).toISOString(),
+      observed_side: "long",
+      behavior_family: "Compression release",
+      pressure_state: "Bid-side pressure visible",
+      entry_reference: { price: 146.4, observed_at: new Date(1_800_100_000 * 1000).toISOString(), source: "decision-time mark" },
+      friction_context: { state: "observed", roundtrip_bps: 7.2, measurement_only: true },
+      why_raven_noticed: "Raven froze a compression release observation while bid-side pressure was present.",
+      outcomes: { sample_size: 12, evidence_maturity: "forming", median_observed_change_pct: 1.1, median_favorable_excursion_pct: 2.4, median_adverse_excursion_pct: -0.9, positive_followthrough_rate: 0.5833, matured_through: new Date().toISOString() },
+      plan_preview: { state: "research_only", directional_context: "long", reference_price: 146.4, review_horizon: "24h research window", sample_size: 12, evidence_maturity: "forming", production_qualified: false, personalized: false, executable: false, note: "Historical excursions are context, not target or stop instructions." },
+    },
+    raven_read: { state: "fresh", headline: "SOL-PERP · Compression release", summary: "Bid-side pressure accompanied a frozen upside research observation. 12 matured comparable paths are available.", why_raven_noticed: "Raven froze a compression release observation while bid-side pressure was present.", what_would_strengthen: ["Pressure persists while market depth remains usable."], what_would_weaken: ["The decision-time structure fades or reverses."] },
+    matured_comparables: { sample_size: 12, evidence_maturity: "forming", median_observed_change_pct: 1.1, median_favorable_excursion_pct: 2.4, median_adverse_excursion_pct: -0.9, positive_followthrough_rate: 0.5833, matured_through: new Date().toISOString() },
+    plan_preview: { state: "research_only", directional_context: "long", reference_price: 146.4, review_horizon: "24h research window", sample_size: 12, evidence_maturity: "forming", production_qualified: false, personalized: false, executable: false, execution_available: false, note: "Historical excursions are context, not target or stop instructions." },
+    chart_event: { event_id: "perpctx_public_fixture", instrument_id: "hyperliquid:perp:SOL", observed_at: new Date(1_800_100_000 * 1000).toISOString(), lineage: { public_context_id: "perpctx_public_fixture" } },
+    execution: { mode: "read_only", signing_available: false, submission_available: false, position_monitoring_available: false },
+    delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+  }) }));
+  await page.route("**/api/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generated_at: new Date().toISOString(), data: { instrument_context: { rows: [{ instrument: "SOL-PERP", context_available: true, context_state: "fresh", context_age_seconds: 120, outcomes: { sample_size: 12 } }] } } }) }));
 }
 
 test("perps workspace forms a live candle and keeps market truth separate", async ({ page }) => {
   const chartRequests = [];
   await installPerpsMocks(page, { chartRequests });
   await page.goto("/perps/");
-  await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().tradeCount > 0 && window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().hasOrderBook);
+  await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().tapeCount > 0 && window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().hasOrderBook);
   const workspace = await page.evaluate(() => window.__RAVENOS_PERPS_WORKSPACE__.getState());
   expect(workspace.instrument).toBe("SOL-PERP");
   expect(workspace.candleCount).toBeGreaterThan(79);
   expect(workspace.connectionState).toBe("live");
-  expect(workspace.tradeCount).toBe(1);
+  expect(workspace.tapeCount).toBeGreaterThan(0);
+  expect(workspace.contextState).toBe("fresh");
+  expect(workspace.deliveryState).toBe("fresh");
+  expect(workspace.comparableSample).toBe(12);
+  expect(workspace.planExecutable).toBe(false);
   expect(workspace.backfillCount).toBe(0);
   expect(chartRequests).toHaveLength(1);
   expect(chartRequests[0]).not.toContain("before=");
@@ -93,23 +133,27 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   await expect(page.locator("#perpsMark")).toContainText("150.13");
   await expect(page.locator("#perpsOracle")).toContainText("150.02");
   await expect(page.locator("#perpsFunding")).toContainText("0.0012%");
-  await expect(page.locator("#perpsBookState")).toHaveText("Live venue snapshot");
+  await expect(page.locator("#perpsBookState")).toHaveText("2 levels / side");
   await expect(page.locator(".rpw-trade-buy")).toContainText("BUY");
-  await expect(page.getByText("Read-only market terminal", { exact: false })).toBeVisible();
+  await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Compression release");
+  await expect(page.locator("#perpsComparableN")).toHaveText("12");
+  await expect(page.locator("#perpsPlanState")).toHaveText("Research only");
+  await expect(page.getByText("Signing, submission, and position monitoring off", { exact: true })).toBeVisible();
   await expect(page.locator("[data-ravenos-build-id]")).not.toHaveText("pending");
-  await expect(page.getByRole("button", { name: "Models" })).toBeDisabled();
+  await expect(page.locator("#perpsRavenMarker")).toBeEnabled();
+  await expect(page.locator("#perpsRavenMarker")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("perps workspace remains usable on a narrow mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installPerpsMocks(page);
   await page.goto("/perps/");
-  await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().tradeCount > 0);
+  await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().tapeCount > 0);
   await expect(page.locator("#perpsChart canvas").first()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(page.locator("#perpsInstrument")).toBeVisible();
   await expect(page.locator("#perpsBook")).toBeHidden();
-  await page.getByRole("button", { name: "Book", exact: true }).click();
+  await page.getByRole("button", { name: "Book + tape", exact: true }).click();
   await expect(page.locator("#perpsBook")).toBeVisible();
 });

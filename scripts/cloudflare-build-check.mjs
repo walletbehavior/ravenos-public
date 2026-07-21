@@ -6,18 +6,6 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const wranglerConfig = readFileSync("wrangler.jsonc", "utf8");
 const routes = (routeConfig.routes || []).filter((route) => route.public);
 const deployManifestPath = ".deploy-public/ravenos_deploy_manifest.json";
-const narratorAssets = [
-  "ravenos_narrator_brief.json",
-  "ravenos_narrator_opportunity.json",
-  "ravenos_narrator_terminal.json",
-  "ravenos_narrator_atlas.json",
-  "ravenos_narrator_replay.json",
-  "ravenos_narrator_outcomes.json",
-  "ravenos_narrator_behavior.json",
-  "ravenos_narrator_research.json",
-  "ravenos_narrator_perps.json",
-];
-
 const requiredAssets = [
   "ravenos-route.css",
   "ravenos-route-app.js",
@@ -30,10 +18,10 @@ const requiredAssets = [
   "ravenos-perps-workspace.js",
   "ravenos-price-workspace.css",
   "ravenos-price-workspace.js",
+  "ravenos-terminal-live.css",
+  "ravenos-terminal-live.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
-  "ravenos-terminal-review-foundation.js",
-  "ravenos-terminal-trade.js",
   "ravenos_build.json",
   "public/ravenos-route.css",
   "public/ravenos-route-app.js",
@@ -46,10 +34,10 @@ const requiredAssets = [
   "public/ravenos-perps-workspace.js",
   "public/ravenos-price-workspace.css",
   "public/ravenos-price-workspace.js",
+  "public/ravenos-terminal-live.css",
+  "public/ravenos-terminal-live.js",
   "public/ravenos-evidence.css",
   "public/ravenos-funnel.css",
-  "public/ravenos-terminal-review-foundation.js",
-  "public/ravenos-terminal-trade.js",
   "public/ravenos_build.json",
   "functions/api/access.js",
   "public/ravenos/brief.json",
@@ -61,9 +49,7 @@ const requiredAssets = [
   "public/ravenos/perps.json",
   "public/ravenos/claims.json",
   "public/ravenos/status.json",
-  "public/ravenos/manifest.json",
   "public/ravenos/terminal_health.json",
-  ...narratorAssets.map((asset) => `public/ravenos/${asset}`),
   "ravenos/brief.json",
   "ravenos/replay.json",
   "ravenos/outcomes.json",
@@ -73,9 +59,7 @@ const requiredAssets = [
   "ravenos/perps.json",
   "ravenos/claims.json",
   "ravenos/status.json",
-  "ravenos/manifest.json",
   "ravenos/terminal_health.json",
-  ...narratorAssets.map((asset) => `ravenos/${asset}`),
   ".deploy-public/ravenos-route.css",
   ".deploy-public/ravenos-route-app.js",
   ".deploy-public/ravenos-shell.css",
@@ -87,11 +71,10 @@ const requiredAssets = [
   ".deploy-public/ravenos-perps-workspace.js",
   ".deploy-public/ravenos-price-workspace.css",
   ".deploy-public/ravenos-price-workspace.js",
+  ".deploy-public/ravenos-terminal-live.css",
+  ".deploy-public/ravenos-terminal-live.js",
   ".deploy-public/ravenos-evidence.css",
   ".deploy-public/ravenos-funnel.css",
-  ".deploy-public/ravenos-terminal-review-foundation.js",
-  ".deploy-public/ravenos-terminal-trade.js",
-  ".deploy-public/ravenos-access.js",
   ".deploy-public/raven-chart-overlays.js",
   ".deploy-public/raven-reads.js",
   ".deploy-public/raven-price-chart.js",
@@ -112,9 +95,7 @@ const requiredAssets = [
   ".deploy-public/ravenos/perps.json",
   ".deploy-public/ravenos/claims.json",
   ".deploy-public/ravenos/status.json",
-  ".deploy-public/ravenos/manifest.json",
   ".deploy-public/ravenos/terminal_health.json",
-  ...narratorAssets.map((asset) => `.deploy-public/ravenos/${asset}`),
   deployManifestPath,
 ];
 
@@ -187,7 +168,7 @@ for (const route of routes) {
   }
 }
 
-for (const asset of ["ravenos-route.css", "ravenos-route-app.js", "ravenos-shell.css", "ravenos-shell.js", "ravenos-context-store.js", "ravenos-intelligence-contract.js", "ravenos-chart-data-plane.js", "ravenos-perps-workspace.css", "ravenos-perps-workspace.js", "ravenos-price-workspace.css", "ravenos-price-workspace.js", "ravenos-evidence.css", "ravenos-funnel.css", "ravenos-terminal-review-foundation.js", "ravenos-terminal-trade.js", "raven-chart-overlays.js", "raven-reads.js", "raven-price-chart.js", "ravenos_build.json"]) {
+for (const asset of ["ravenos-route.css", "ravenos-route-app.js", "ravenos-shell.css", "ravenos-shell.js", "ravenos-context-store.js", "ravenos-intelligence-contract.js", "ravenos-chart-data-plane.js", "ravenos-perps-workspace.css", "ravenos-perps-workspace.js", "ravenos-price-workspace.css", "ravenos-price-workspace.js", "ravenos-terminal-live.css", "ravenos-terminal-live.js", "ravenos-evidence.css", "ravenos-funnel.css", "raven-chart-overlays.js", "raven-reads.js", "raven-price-chart.js", "ravenos_build.json"]) {
   const root = readFileSync(asset, "utf8");
   const pub = readFileSync(`public/${asset}`, "utf8");
   if (root !== pub) {

@@ -164,6 +164,7 @@ export class PriceWorkspace {
     };
     container.innerHTML = createMarkup();
     this.root = container.querySelector(".rpw");
+    this.root.classList.toggle("rpw-fluid", options.fluidHeight === true);
     this.chartHost = container.querySelector("[data-rpw-chart]");
     this.bindTimeframes();
     this.bindScopes();
@@ -198,6 +199,10 @@ export class PriceWorkspace {
 
   bindResize() {
     const handle = this.container.querySelector("[data-rpw-resize]");
+    if (this.options.fluidHeight === true) {
+      handle.hidden = true;
+      return;
+    }
     let startY = 0;
     let startHeight = 0;
     const move = (event) => {
@@ -441,7 +446,7 @@ export class PriceWorkspace {
         capabilities: payload.capabilities || {},
         marketState: payload.market_state || {},
         connectionState: payload.capabilities?.live_bars ? "connecting" : "snapshot_only",
-        instrumentScope: payload.instrument_scope || request.instrumentScope || "exact_pool",
+        instrumentScope: payload.instrument_scope || payload.instrument?.identity_scope || request.instrumentScope || "exact_pool",
         availableScopes: payload.available_scopes || {},
       });
       for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);

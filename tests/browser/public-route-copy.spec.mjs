@@ -71,7 +71,6 @@ const badPrimaryCopy = [
   /\bOutcomes Unclear\b/i,
   /\bForward Observation\b/i,
   /\bGenerated\b/i,
-  /\bComparable\b/i,
   /\bAfter Window\b/i,
   /\bObserved surfaces\b/i,
 ];
@@ -94,7 +93,8 @@ test("/perps/ renders a trader-facing live market workspace", async ({ page }) =
   await expect(page.locator("#perpsInstrument")).toBeVisible();
   await expect(page.locator("#perpsChart")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Order book" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Market structure" })).toBeVisible();
+  await expect(page.locator("#perpsReadHeadline")).toBeVisible();
+  await expect(page.locator("#perpsWhy")).not.toHaveText("Current context unavailable until verified.");
 
   const rendered = await visibleBodyText(page);
   for (const pattern of badPrimaryCopy) {
@@ -122,74 +122,89 @@ for (const route of ["/faq/", "/research/"]) {
   });
 }
 
-test("/opportunity/ renders Solana opportunity language without source labels", async ({ page }) => {
+test("/opportunity/ renders the current Census with exact perp identity and aggregate-only spot coverage", async ({ page }) => {
   await page.goto("/opportunity/");
-  await expect(page.locator("#routeHeadline")).toContainText(/clearest backed behavioral surface right now|chain-level leadership/i);
-  await expect(page.locator("#routeHeroSummary")).toContainText(/narrows the broader Solana read|cap-band detail is coverage developing|Participation is expanding on Solana/i);
+  await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/Raven froze|Raven preserved/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/Specific surface|Surface detail/i);
-  expect(primary).toMatch(/fresh pairs|micro|mid|participant cohorts|perps/i);
-  expect(primary).toMatch(/Behavioral Opportunity/i);
-  expect(primary).not.toMatch(/cohorts is/i);
-  expect(primary).not.toMatch(/Participant Cohorts participation/i);
-  expect(primary).toMatch(/Solana participant cohorts are|surface detail is coverage developing|Participation is expanding on Solana/i);
-  expect(primary).not.toMatch(/Surface-backed observation|Chain-level observation/);
-  expect(primary).toMatch(/Missing evidence/i);
-  expect(primary).toMatch(/Broader context/i);
-  expect(primary).toMatch(/Evidence depth/i);
-  expect(primary).toMatch(/Followthrough/i);
-  expect(primary).toMatch(/Next inspection/i);
-  expect(primary).toContain("View evidence");
-  expect(primary).toContain("Open Behavior");
-  expect(primary).toMatch(/observations|observed/);
-  expect(primary).not.toMatch(/Solana Live Activity|Current Raven Read|View claim details|View settlement status|Where Raven Would Investigate|Where should I investigate|Issue Sample|market rows|original public claim/i);
-  expect(primary).not.toMatch(/\bCurrent Surface\b/);
-  const headline = ((await page.locator("#routeHeadline").textContent()) || "").trim();
-  if (/clearest backed behavioral surface right now/i.test(headline)) {
-    const primaryPanel = await page.locator("#routePrimaryPanel").innerText();
-    expect((primaryPanel.match(new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length).toBe(0);
-  }
+  expect(primary).toMatch(/Current exact-instrument review queue/i);
+  expect(primary).toMatch(/Decision → path → outcome continuity/i);
+  expect(primary).toMatch(/Hyperliquid perpetuals/i);
+  expect(primary).toMatch(/Solana spot[\s\S]*aggregate coverage only/i);
+  expect(primary).toMatch(/EVM spot[\s\S]*aggregate coverage only/i);
+  expect(primary).toMatch(/Research only · signing off · submission off · monitoring off/i);
+  expect(primary).toMatch(/not ranked trades, orders, or personalized plans/i);
+  expect(primary).not.toMatch(/buy now|sell now|guaranteed/i);
+  expect(primary).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
+  expect(await page.locator("#routePrimaryPanel tbody tr").count()).toBeGreaterThan(0);
 });
 
-test("/replay/ explains similarity score in trader-readable context", async ({ page }) => {
+test("/replay/ refuses to fabricate similarity without as-of comparable lineage", async ({ page }) => {
   await page.goto("/replay/");
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/What this means/i);
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/Replay supports context, not conviction/i);
+  await expect(page.locator("#routeHeadline")).toContainText(/Historical comparable lineage is not yet projected/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/No fabricated analogue rows/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/matched .* on|Similarity basis/i);
-  expect(primary).toMatch(/Prior outcome|Prior followthrough/i);
-  expect(primary).toMatch(/context, not conviction|context, not a forecast/i);
-  expect(primary).toMatch(/Similarity does not validate outcome or management path|management path/i);
-  expect(primary).not.toMatch(/97% similarity\s*$/i);
+  expect(primary).toMatch(/Synthetic similarity[\s\S]*None/i);
+  expect(primary).toMatch(/Current outcomes substituted[\s\S]*No/i);
+  expect(primary).toMatch(/Same market and decision boundary/i);
+  expect(primary).toMatch(/As-of evidence reconstruction/i);
+  expect(primary).not.toMatch(/\b\d{1,3}% similarity\b|Closest analogue/i);
 });
 
-test("/replay/ wraps similarity context on mobile", async ({ page }) => {
+test("/replay/ explicit unavailable state stays contained on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/replay/");
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/Similarity basis/i);
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/context, not a forecast/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/As-of comparable projection is still missing/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/What must exist before Replay turns on/i);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
-  const basisItems = await page.locator("#routePrimaryPanel .route-compact-list li").count();
-  expect(basisItems).toBeGreaterThan(0);
 });
 
-test("research narrator surfaces missing path evidence without readiness language", async ({ page }) => {
+test("research surfaces its stale unavailable contract without a cached narrator", async ({ page }) => {
   await page.goto("/research/");
-  await expect(page.locator("#researchNarratorPanel")).toContainText(/Research status|Public research observations|Research workspace/i);
-  const primary = await page.locator("#researchNarratorPanel, h1, .lead").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
+  await expect(page.locator("#routeHeadline")).toContainText(/Current research snapshot unavailable/i);
+  await expect(page.locator("#routeStateStrip")).toContainText(/Research state[\s\S]*Unavailable/i);
+  await expect(page.locator(".narrator-panel, #researchNarratorPanel")).toHaveCount(0);
+  const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(primary).not.toMatch(/evidence forming ago/i);
-  expect(primary).toMatch(/Research workspace forming|Public research observations are active|not yet deep enough/i);
-  expect(primary).toMatch(/Missing path evidence|Path evidence|post-decision path/i);
-  expect(primary).toMatch(/Management path\s+(Not Validated|Under Review)|Management path.*(not validated|under review)/i);
-  expect(primary).toMatch(/Keep Researching|research observation/i);
   expect(primary).not.toMatch(/validated trade|ready to trade|internal PnL lift|expectancy lift|drawdown improvement|promotion gate/i);
 });
 
-test("/outcomes/ narrator explains validation counts", async ({ page }) => {
+test("account status exposes no synthetic session, entitlement, or billing controls", async ({ page }) => {
+  await page.goto("/account/");
+  await expect(page.getByRole("heading", { name: "Customer accounts are not available yet." })).toBeVisible();
+  await expect(page.locator("#rosActivityDetail")).toContainText(/Static account boundary/i);
+  await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
+  await expect(page.locator("[data-stripe-checkout], [data-stripe-portal], [data-access-check]")).toHaveCount(0);
+  const text = await visibleBodyText(page);
+  expect(text).toMatch(/no production login, session, subscription, token gate/i);
+  expect(text).not.toMatch(/\$149|\$999|upgrade to pro|connect wallet to unlock|founder token balance/i);
+});
+
+test("commercial status publishes no price, checkout, or invented tier", async ({ page }) => {
+  await page.goto("/pricing/");
+  await expect(page.getByRole("heading", { name: "Commercial access is not open yet." })).toBeVisible();
+  await expect(page.locator("#rosActivityDetail")).toContainText(/Static commercial boundary/i);
+  await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
+  const text = await visibleBodyText(page);
+  expect(text).toMatch(/No prices · no checkout · no entitlement claims · no customer execution/i);
+  expect(text).not.toMatch(/\$149|\$999|buy pro|start monthly|start annual|token threshold/i);
+});
+
+test("Terminal keeps wallet context separate from customer access", async ({ page }) => {
+  await page.goto("/terminal/");
+  await expect(page.locator(".terminal-continuity")).toContainText(/Customer session[\s\S]*Not configured/i);
+  await expect(page.locator(".terminal-intelligence")).toContainText(/Wallet[\s\S]*Optional context only/i);
+  await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="ravenos-terminal-trade"]')).toHaveCount(0);
+  const text = await visibleBodyText(page);
+  expect(text).not.toMatch(/upgrade to pro|token access|connect account/i);
+});
+
+test("/outcomes/ explains validation counts from structured evidence without a narrator dependency", async ({ page }) => {
   await page.goto("/outcomes/");
-  await expect(page.locator(".narrator-panel")).toContainText(/What outcomes show|Confirmed followthrough/i);
-  const text = await page.locator(".narrator-panel, #routePrimaryPanel, #routeStateStrip").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
+  await expect(page.locator(".narrator-panel")).toHaveCount(0);
+  const text = await page.locator("#routePrimaryPanel, #routeStateStrip").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(text).toMatch(/Confirmed followthrough/i);
   expect(text).toMatch(/Mixed \/ insufficient|Mixed or insufficient/i);
   expect(text).toMatch(/Reads under validation|Settled outcomes/i);
@@ -214,7 +229,7 @@ test("/perps/ keeps live market context and chart controls contained on mobile",
   await expect(page.locator("#perpsChart")).toBeVisible();
   await expect(page.locator("#perpsTimeframes")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Order book" })).toBeHidden();
-  await page.getByRole("button", { name: "Book", exact: true }).click();
+  await page.getByRole("button", { name: "Book + tape", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Order book" })).toBeVisible();
   await expect(page.locator(".route-perps-cards")).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -272,10 +287,11 @@ test("primary evidence strip uses trader-facing totals and window labels", async
   expect(bridge).not.toMatch(/Evidence bridge|Current reads, historical context, and settled validation use declared windows/i);
 });
 
-test("dynamic market labels are capitalized in primary UI", async ({ page }) => {
+test("opportunity identity stays exact for perps while spot identities stay aggregate", async ({ page }) => {
   await page.goto("/opportunity/");
-  await expect(page.locator("#routeHeadline")).toContainText(/Solana/i);
+  await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/\bSolana\b/);
-  expect(primary).not.toMatch(/\bsolana\b/);
+  expect(primary).toMatch(/Solana spot[\s\S]*aggregate coverage only/i);
+  expect(primary).toMatch(/EVM spot[\s\S]*aggregate coverage only/i);
+  expect(primary).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 });

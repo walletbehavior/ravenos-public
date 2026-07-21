@@ -4,6 +4,10 @@ import { dirname, join, relative } from "node:path";
 const repoRoot = process.cwd();
 const config = JSON.parse(readFileSync(join(repoRoot, "config/public_routes.json"), "utf8"));
 const routes = config.routes || [];
+const clientRouteConfig = {
+  route_manifest_version: config.route_manifest_version || "1.0",
+  routes: routes.filter((route) => route.public).map(({ source_path: _sourcePath, template: _template, ...route }) => route),
+};
 
 function readIfExists(path) {
   try {
@@ -39,7 +43,7 @@ function fallbackArtifactExists(route) {
 }
 
 function routePrompt(route) {
-  if (route.slug === "opportunity") return "Current opportunity";
+  if (route.slug === "opportunity") return "What is Raven watching now?";
   if (route.slug === "memory") return "Similar conditions remain mixed";
   if (route.slug === "replay") return "Historical context";
   if (route.slug === "outcomes") return "Followthrough check";
@@ -54,7 +58,7 @@ function renderGeneratedRoute(route) {
     question: prompt,
     route_manifest_version: config.route_manifest_version,
     fallback_message: hasFallbackArtifact ? null : "Current read forming. Verified fallback data is not yet available for this route.",
-    surface_state: "report_view_pending_workspace_migration",
+    surface_state: "live_intelligence_workspace",
   };
   return `<!doctype html>
 <html lang="en">
@@ -105,10 +109,9 @@ function renderGeneratedRoute(route) {
     </section>
 
     <section class="route-hero">
-      <span class="route-eyebrow">Current read</span>
+      <div class="route-hero-meta"><span class="route-eyebrow">Raven intelligence / ${route.title}</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Projection loading</strong><small>Source timestamp pending</small></div></div>
       <h1 id="routeHeadline">${prompt}</h1>
       <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
-      <div class="route-migration-state">Report view · interactive workspace migration pending</div>
       <div class="route-state-strip" id="routeStateStrip">${route.title}</div>
     </section>
 
@@ -117,11 +120,12 @@ function renderGeneratedRoute(route) {
       <article class="route-panel" id="routeSecondaryPanel"></article>
     </section>
 
-    <section class="raven-funnel-grid" aria-label="RavenOS intelligence funnel" style="margin-top:16px;">
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Current read</span><h3>${prompt}</h3><p>Raven shows the market read first, then what confirms or weakens it.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Followthrough</span><h3>Followthrough check</h3><p>We track whether earlier reads followed through, failed, or need more evidence.</p></article>
-      <article class="raven-funnel-card"><span class="raven-funnel-stage">Next watch</span><h3>What to watch next</h3><p>${route.next_route === "/terminal/" ? "Open Terminal to inspect the active workspace." : "Check the current opportunity page for the strongest active market."}</p></article>
-    </section>
+    <nav class="route-flow" aria-label="Raven evidence workflow">
+      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
+      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
+      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
+      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
+    </nav>
 
     <footer class="route-build">
       <div id="routeHydrationState">Fallback shell loaded</div>
@@ -155,6 +159,17 @@ for (const route of routes) {
   writeMirrored(htmlPath, renderGeneratedRoute(route));
 }
 
+for (const legacyPath of [
+  "account/index.html",
+  "pricing/index.html",
+  "pro/index.html",
+  "token/index.html",
+  "upgrade/index.html",
+]) {
+  const content = readFileSync(join(repoRoot, legacyPath), "utf8");
+  writeMirrored(legacyPath, content);
+}
+
 for (const asset of [
   "ravenos-route.css",
   "ravenos-route-app.js",
@@ -169,6 +184,8 @@ for (const asset of [
   "ravenos-perps-workspace.js",
   "ravenos-price-workspace.css",
   "ravenos-price-workspace.js",
+  "ravenos-terminal-live.css",
+  "ravenos-terminal-live.js",
   "raven-chart-overlays.js",
   "raven-price-chart.js",
 ]) {
@@ -191,6 +208,6 @@ try {
   // Trust artifacts are copied by sync_public_data.py; the build check will fail if they are absent.
 }
 
-writeMirrored("public_routes.json", JSON.stringify(config, null, 2) + "\n");
+writeMirrored("public_routes.json", JSON.stringify(clientRouteConfig, null, 2) + "\n");
 
 console.log(`Generated ${routes.filter((route) => route.public).length} public routes from ${relative(repoRoot, join(repoRoot, "config/public_routes.json"))}`);

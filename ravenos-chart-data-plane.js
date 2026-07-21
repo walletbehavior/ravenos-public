@@ -491,23 +491,23 @@ export class HyperliquidChartFeed {
       return;
     }
     if (channel === "trades") {
-      for (const row of Array.isArray(data) ? data : []) {
-        const id = `${row?.time || ""}:${this.coin()}:${row?.tid ?? row?.hash ?? ""}`;
-        if (this.seenTrades.has(id)) continue;
-        this.seenTrades.set(id, true);
+      for (const [batchIndex, row] of (Array.isArray(data) ? data : []).entries()) {
+        // Provider transaction hashes, participant fields, and provider trade IDs
+        // are intentionally not retained or emitted into the public chart plane.
+        const eventKey = [row?.time || "", this.coin(), row?.side || "", row?.px || "", row?.sz || "", batchIndex].join(":");
+        if (this.seenTrades.has(eventKey)) continue;
+        this.seenTrades.set(eventKey, true);
         if (this.seenTrades.size > 2048) this.seenTrades.delete(this.seenTrades.keys().next().value);
         const trade = {
-          id,
           coin: this.coin(),
           side: row?.side === "B" ? "buy" : row?.side === "A" ? "sell" : "unknown",
           price: finite(row?.px),
           size: finite(row?.sz),
           time: finite(row?.time),
-          hash: text(row?.hash) || null,
         };
         if (trade.price !== null && trade.size !== null && trade.time !== null) {
-          this.emit("trade.append", trade, id);
-          this.emit("price.update", { last: trade.price, time: trade.time }, id);
+          this.emit("trade.append", trade, eventKey);
+          this.emit("price.update", { last: trade.price, time: trade.time }, eventKey);
         }
       }
       return;
