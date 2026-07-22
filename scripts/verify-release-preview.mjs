@@ -157,6 +157,9 @@ if (
   || chart?.provider_selection?.fallback !== false
   || chart?.lineage?.provider_plan !== "demo"
   || chart?.lineage?.empty_interval_policy !== "provider_previous_close_zero_volume"
+  || chart?.attribution?.required !== true
+  || chart?.attribution?.label !== "Data provided by CoinGecko"
+  || chart?.attribution?.url !== "https://www.coingecko.com/"
   || chart?.chart_readiness?.state !== "verified_current"
   || chart?.chart_readiness?.one_minute_requirement !== "verified"
   || !Array.isArray(chart?.candles)
@@ -187,6 +190,7 @@ const report = {
   opportunity_fallback: opportunity.delivery.fallback,
   opportunity_freshness: opportunity.delivery.freshness_state,
   exact_instrument_verified: selectedRow.instrument_id,
+  provider_attribution_verified: true,
   onchain_chart: {
     market_identity: chart.market_identity,
     provider: chart.candle_series.provider,

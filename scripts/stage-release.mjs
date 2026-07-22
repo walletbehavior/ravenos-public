@@ -127,6 +127,7 @@ const receipt = {
   preview_url: previewUrl,
   preview_alias_url: previewAliasUrl,
   package_content_sha256: packageManifest.package_content_sha256,
+  deployment_class: packageManifest.deployment_class,
   required_server_secret_bindings_verified: packageManifest.required_server_secret_bindings || [],
   worker_version_reused: versionReused,
   preview_configuration: {

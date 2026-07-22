@@ -11,6 +11,14 @@
     "preview_provider": "coingecko",
     "preview_provider_plan": "demo",
     "preview_provider_commercial": false,
+    "public_evaluation_provider": "coingecko",
+    "public_evaluation_provider_plan": "demo",
+    "public_evaluation_provider_commercial": false,
+    "public_evaluation_promotion_eligible": true,
+    "public_evaluation_scope": "testing_and_exploration",
+    "public_evaluation_attribution_required": true,
+    "public_evaluation_commercial_features_allowed": false,
+    "public_evaluation_customer_execution_allowed": false,
     "provider_secret_binding": "ONCHAIN_CHART_PROVIDER_SECRET",
     "keyless_application_fallback_allowed": false,
     "required_intervals": [
@@ -29,8 +37,6 @@
     "production_promotion_eligible": false,
     "production_blockers": [
       "commercial_rights_unverified",
-      "exact_pool_anchor_matrix_incomplete",
-      "one_minute_anchor_matrix_incomplete",
       "rate_behavior_not_production_qualified",
       "production_provider_binding_not_selected"
     ]

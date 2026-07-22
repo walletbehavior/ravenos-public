@@ -541,7 +541,7 @@ test("provider attribution stays visible and opens a bounded source ledger", asy
   await page.goto("/discover/");
   await expect(page.locator(".ros-provider-credit")).toHaveCount(1);
   const credit = page.locator(".ros-provider-credit > summary");
-  await expect(credit).toContainText("Powered by DexPaprika");
+  await expect(credit).toContainText("Data by DexPaprika + CoinGecko");
   const fontSize = await credit.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   expect(fontSize).toBeGreaterThanOrEqual(10);
   await credit.click();
