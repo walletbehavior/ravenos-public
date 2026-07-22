@@ -101,6 +101,12 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   assert.equal(robinhoodViaCoinGecko.chart_request_supported, false);
   assert.equal(robinhoodViaCoinGecko.history_provider, "coingecko_onchain");
   assert.equal(robinhoodViaCoinGecko.provider_network, null);
+  const listed = resolveChartCapability({ market: "equities", instrumentType: "etf", timeframe: "1h" });
+  assert.equal(listed.chart_ready, false);
+  assert.equal(listed.chart_request_supported, false);
+  assert.equal(listed.historical_candles_supported, false);
+  assert.equal(listed.history_provider, null);
+  assert.match(listed.refusal_reason, /commercial_public_display_rights/);
 });
 
 test("on-chain provider selection is explicit and not inferred from a CoinGecko key", () => {
@@ -695,74 +701,33 @@ test("exact EVM contract search discovers provider-listed chains without substit
   }
 });
 
-test("exact ETF chart identity survives the provider adapter and mismatches fail closed", async () => {
+test("exact ETF identity survives while unqualified public chart data fails closed before provider access", async () => {
   const originalFetch = globalThis.fetch;
   const providerRequests = [];
   const origin = "https://origin.example/public/ravenos";
   const token = "server-only-chart-test-token";
   const env = { RAVENOS_PUBLIC_ORIGIN_URL: origin, RAVENOS_PUBLIC_ORIGIN_TOKEN: token };
   try {
-    globalThis.fetch = async (input, init = {}) => {
+    globalThis.fetch = async (input) => {
       const url = String(input?.url || input);
       providerRequests.push(url);
-      assert.equal(url, `${origin}/instrument_chart.json?q=SPY&instrument_id=etf%3Anyse-arca%3Aspy&timeframe=1h&limit=360`);
-      assert.equal(init.headers?.["x-ravenos-public-token"], token);
-      const lastTime = Math.floor(Date.now() / 1_000) - 60;
-      return new Response(JSON.stringify({
-        ok: true,
-        safe_public: true,
-        redaction_policy: "aggregate_public_market_context_only",
-        schema_version: "ravenos.instrument_chart.v1",
-        generated_at: new Date().toISOString(),
-        freshness_target_seconds: 300,
-        query: "SPY",
-        instrument_id: "etf:nyse-arca:spy",
-        timeframe: "1h",
-        provider: "Yahoo Finance",
-        identity_provider: "Tradier",
-        instrument: {
-          schema_version: "ravenos.instrument.v1",
-          instrument_id: "etf:nyse-arca:spy",
-          symbol: "SPY",
-          display_name: "SPDR S&P 500 ETF Trust",
-          asset_class: "etf",
-          instrument_type: "etf",
-          identity_scope: "exact_instrument",
-          venue: "nyse-arca",
-          chain: "none",
-          market_identity: { market_id: "SPY", listing: "NYSE Arca" },
-          base_asset: { symbol: "SPY", asset_id: "SPY" },
-          quote_asset: { symbol: "USD", asset_id: "USD" },
-          settlement_asset: { symbol: "USD", asset_id: "USD" },
-          preferred_cash_asset: { symbol: "USD", asset_id: "USD" },
-          economic_numeraire: "USDC",
-          chart_source: "ravenos_terminal_chart",
-          market_session: { state: "unknown", timezone: "America/New_York", observed_at: null },
-          capabilities: { chart: true, live_price: true, atlas_intelligence: true, raven_intelligence: false, options_summary: true, quote_preview: false, execution: false },
-          route_compatibility: ["inspect"],
-          account_compatibility: [],
-        },
-        candles: [
-          { time: lastTime - 3600, open: 700, high: 702, low: 699, close: 701, volume: 100 },
-          { time: lastTime, open: 701, high: 703, low: 700, close: 702, volume: 120 },
-        ],
-        market_data_observed_at: new Date(lastTime * 1_000).toISOString(),
-        execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false, position_monitoring_available: false },
-      }), { status: 200, headers: { "content-type": "application/json" } });
+      throw new Error(`listed provider must not be called: ${url}`);
     };
     const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=SPY&timeframe=1h&instrument_id=etf%3Anyse-arca%3Aspy"), env);
     assert.equal(response.status, 200);
     const body = await response.json();
     const payload = body.data || body;
-    assert.equal(payload.ok, true);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.source_type, "display_restricted");
+    assert.equal(payload.provider_state, "display_restricted");
     assert.equal(payload.market_identity, "etf:nyse-arca:spy");
     assert.equal(payload.instrument.canonical_id, "etf:nyse-arca:spy");
     assert.equal(payload.instrument.instrument_type, CHART_INSTRUMENT_TYPES.ETF);
     assert.equal(payload.instrument.venue, "nyse-arca");
-    assert.equal(payload.candles.length, 2);
-    assert.equal(providerRequests.length, 1);
+    assert.equal(payload.candles.length, 0);
+    assert.match(payload.message, /commercially qualified data license/i);
+    assert.equal(providerRequests.length, 0);
 
-    providerRequests.length = 0;
     const mismatch = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=SPY&timeframe=1h&instrument_id=etf%3Anasdaq%3Aqqq"), env);
     assert.equal(mismatch.status, 200);
     const mismatchBody = await mismatch.json();

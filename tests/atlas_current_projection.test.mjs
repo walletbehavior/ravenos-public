@@ -293,7 +293,7 @@ for (const [name, originResponse] of [
   });
 }
 
-test("dynamic equity chart re-verifies exact listing identity before requesting protected origin candles", async () => {
+test("dynamic equity chart re-verifies exact listing identity but does not request display-restricted candles", async () => {
   const previous = globalThis.fetch;
   const calls = [];
   try {
@@ -304,24 +304,20 @@ test("dynamic equity chart re-verifies exact listing identity before requesting 
         assert.equal(init.headers?.["x-ravenos-public-token"], TOKEN);
         return response(instrumentLookup());
       }
-      if (url === `${ORIGIN}/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360`) {
-        assert.equal(init.headers?.["x-ravenos-public-token"], TOKEN);
-        return response(instrumentChart());
-      }
       throw new Error(`Unexpected request: ${url}`);
     };
     const result = await worker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"), env());
     assert.equal(result.status, 200);
     const body = await result.json();
     const payload = body.data || body;
-    assert.equal(payload.ok, true);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.source_type, "display_restricted");
     assert.equal(payload.market_identity, "equity:nasdaq:aapl");
     assert.equal(payload.instrument.canonical_id, "equity:nasdaq:aapl");
     assert.equal(payload.instrument.venue, "nasdaq");
-    assert.equal(payload.candles.length, 2);
-    assert.equal(payload.delivery.source, "current_public_origin");
-    assert.equal(payload.delivery.fallback, false);
-    assert.equal(calls.length, 2);
+    assert.equal(payload.candles.length, 0);
+    assert.match(payload.message, /commercially qualified data license/i);
+    assert.deepEqual(calls, [`${ORIGIN}/instrument_lookup.json?q=AAPL`]);
   } finally {
     globalThis.fetch = previous;
   }

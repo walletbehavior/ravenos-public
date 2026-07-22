@@ -102,6 +102,7 @@ const anchors = [
     intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
     minimum_bars: { "15m": 100, "4h": 40 },
     requires_public_origin: true,
+    expected_unavailable: true,
   },
 ];
 
@@ -176,7 +177,8 @@ for (const anchor of anchors) {
         selectedProvider.toLowerCase(),
         selectedProvider.toLowerCase() === "coingecko" ? "coingecko_onchain" : "",
       ].filter(Boolean));
-      const expectedUnavailable = (anchor.expected_unavailable_for || []).some((provider) => selectedAliases.has(provider));
+      const expectedUnavailable = anchor.expected_unavailable === true
+        || (anchor.expected_unavailable_for || []).some((provider) => selectedAliases.has(provider));
       if (
         expectedUnavailable
         && !payload?.ok

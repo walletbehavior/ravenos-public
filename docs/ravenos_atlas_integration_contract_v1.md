@@ -24,7 +24,7 @@ The bounded continuity refresh proved these current paths:
 | Public origin source | `/srv/raven/app/tools/build_ravenos_public_origin.py` and `serve_ravenos_public_origin.py` | Atlas is the ninth fixed source endpoint. The protected origin was loaded with the bounded listed lookup and chart contracts on 2026-07-22; unrelated Raven services were not restarted. |
 | Exact public instrument registry | `/srv/raven/app/config/atlas_public_instrument_registry.json` | SPY, QQQ, and IWM retain fixed verified identities for Atlas projection admission. |
 | Bounded listed-market lookup | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_lookup.json?q=` -> `/api/instruments/search` | Exact US equity/ETF identities are sanitized from Tradier server-side. Query, response size, result count, exchange codes, freshness, and execution state are bounded. Active on the protected origin. |
-| Bounded listed-market charts | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_chart.json` -> `/api/terminal/chart` | The origin re-verifies the exact Tradier identity, retrieves provider history server-side, and emits only bounded, sorted, deduplicated OHLCV. Provider payloads and credentials never cross the projection. Active on the protected origin; Worker promotion pending. |
+| Bounded listed-market charts | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_chart.json` -> `/api/terminal/chart` | Exact identity remains implemented, but public candles fail closed as `display_restricted`. The former Yahoo diagnostic source is not a commercially qualified redistribution feed, and Tradier public display rights are not configured. |
 | RavenOS Worker adapter | `/api/atlas` in `worker.mjs` | Current-origin-only, schema/size/freshness validated, no embedded fallback; implemented and tested but not deployed. |
 | Product consumers | `ravenos-shell.js`, `ravenos-atlas.js`, `ravenos-terminal-live.js` | Exact ETF search, Atlas research table, and exact-listing Terminal slice implemented and browser-tested. |
 
@@ -41,7 +41,7 @@ Current verified Atlas output can support:
 - provider health and explicit degraded/stale state;
 - cross-market context for Raven perps and token reads.
 
-The undeployed Worker branch now supports exact listed-instrument discovery and provider-backed price-chart inspection through the protected origin. This provides identity and chart coverage; it does not create Atlas intelligence for each returned listing.
+The undeployed Worker branch supports exact listed-instrument discovery through the protected origin. Listed chart identity remains resolved, but candle display is explicitly unavailable until a commercially qualified public-display provider is configured. Searchability does not imply price or chart rights.
 
 It does not yet publicly support:
 

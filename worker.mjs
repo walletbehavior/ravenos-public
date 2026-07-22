@@ -68,6 +68,7 @@ const terminalChartCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+const LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED = false;
 const DEFAULT_RAVENOS_SPOT_CHART_ORIGIN_URL = "https://ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -2366,15 +2367,26 @@ async function resolveTraditionalExactInstrument(env, ticker, instrumentId = "")
   };
 }
 
-function unresolvedChart(asset, message, { source = "Coverage Developing", sourceType = "coverage_developing", timeframe = "", providerAsset = null } = {}) {
+function unresolvedChart(asset, message, {
+  source = "Coverage Developing",
+  sourceType = "coverage_developing",
+  timeframe = "",
+  providerAsset = null,
+  marketIdentity = null,
+  instrument = null,
+  providerState = null,
+} = {}) {
   return {
     ok: false,
     asset,
     provider_asset: providerAsset,
+    market_identity: marketIdentity,
+    instrument,
+    provider_state: providerState,
     source,
     source_type: sourceType,
-    source_label: sourceType === "structure_proxy" ? "Structure Proxy" : "Coverage Developing",
-    coverage: "Coverage Developing",
+    source_label: sourceType === "structure_proxy" ? "Structure Proxy" : sourceType === "display_restricted" ? "Display restricted" : "Coverage Developing",
+    coverage: sourceType === "display_restricted" ? "Display restricted" : "Coverage Developing",
     stale: false,
     freshness_state: sourceType === "structure_proxy" ? "degraded" : "unavailable",
     timeframe,
@@ -2450,6 +2462,34 @@ async function terminalChartPayload({
         timeframe,
       });
     }
+    if (!LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED) {
+      const listedInstrument = normalizeChartInstrument({
+        canonicalId: exact.instrument_id,
+        instrumentType: exact.instrument_type === "etf" ? CHART_INSTRUMENT_TYPES.ETF : CHART_INSTRUMENT_TYPES.EQUITY,
+        chain: "none",
+        venue: exact.venue,
+        symbol: ticker,
+        baseAsset: ticker,
+        quoteAsset: "USD",
+        marketStatus: "unknown",
+        ravenCoverageState: "atlas_context",
+        providerRouting: {
+          history: null,
+          live: null,
+          providerAsset: ticker,
+          providerNetwork: exact.listing || exact.venue,
+        },
+      });
+      return unresolvedChart(cleanAsset, "This exact listed market is searchable, but public chart display is unavailable until a commercially qualified data license is configured.", {
+        source: "Listed-market data rights",
+        sourceType: "display_restricted",
+        timeframe,
+        providerAsset: ticker,
+        marketIdentity: exact.instrument_id,
+        instrument: listedInstrument,
+        providerState: "display_restricted",
+      });
+    }
     return fetchPublicListedCandles(env, ticker, timeframe, {
       assetLabel: cleanAsset,
       assetType: exact.instrument_type,
@@ -2466,7 +2506,11 @@ async function terminalChartPayload({
     "ARB Spot": "ARB-USD",
   };
   if (cleanMarket === "crypto_spot" && spotMap[cleanAsset]) {
-    return fetchYahooCandles(spotMap[cleanAsset], timeframe, { assetLabel: cleanAsset, assetType: "crypto_spot", limit });
+    return unresolvedChart(cleanAsset, "Select an exact provider-supported market. The aggregate proxy chart is unavailable because its public display rights are not qualified.", {
+      source: "Aggregate market-data rights",
+      sourceType: "display_restricted",
+      timeframe,
+    });
   }
   if (cleanMarket === "crypto_spot") {
     const requestedScope = instrumentScope === "token_aggregate" ? "token_aggregate" : "exact_pool";

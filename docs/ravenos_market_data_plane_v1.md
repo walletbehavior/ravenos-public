@@ -13,7 +13,7 @@ RavenOS keeps one Lightweight Charts renderer and normalizes multiple authoritat
 The base-chart precedence is:
 
 1. venue-native OHLCV for an exact venue market, currently Hyperliquid;
-2. exact-listing Atlas market history for equities and ETFs;
+2. commercially qualified exact-listing market history for equities and ETFs; no such public-display feed is currently configured;
 3. direct OHLCV from the first commercially qualified exact-pool provider in `RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER`;
 4. deterministic aggregation from that provider's bake-off-qualified lower interval;
 5. a commercially qualified secondary provider for the same exact pool;
@@ -44,7 +44,7 @@ The implementation is in:
 | On-chain discovery | DexPaprika plus DexScreener, normalized server-side | Discovery does not prove chart readiness or execution support |
 | On-chain base candles | Versioned exact-pool provider selection | Raven observations never substitute as candles |
 | Perpetual market data | Hyperliquid native APIs and WebSocket | Does not establish spot-market identity |
-| Listed instruments | Atlas/Tradier protected projection | RavenOS does not expose provider secrets or raw broker payloads |
+| Listed instruments | Atlas/Tradier protected identity projection | Identity search does not authorize public quote or candle redistribution |
 | Wallet and holder facts | Existing private Moralis enrichment, where enabled and supported | Moralis does not define Raven cohorts, evidence, independence, or opportunities |
 | Intelligence | Constant-K/Raven public-safe projection | Does not rewrite provider OHLCV or silently choose another market |
 | Edge delivery | Cloudflare Worker and bounded caches | Cloudflare is not authorization or market-data authority |
@@ -56,7 +56,8 @@ Published claims and live RavenOS probes are deliberately separated. Pricing and
 | Source | Exact identity and coverage | History and live path | Limits / cost observed | Commercial and attribution state | RavenOS decision |
 |---|---|---|---|---|---|
 | Hyperliquid native | Exact venue contract for supported perps | Native history plus WebSocket candles, tape, book, funding, and OI | Existing venue-specific adapter | Venue terms govern | Authoritative perp feed |
-| Atlas listed-market projection | Exact listing/instrument ID | Protected provider-backed equity/ETF history | Existing bounded current-origin contract | Existing Atlas/Tradier server-side boundary | Authoritative listed-market feed |
+| Atlas listed-market projection | Exact listing/instrument ID | Searchable metadata; public candles withheld | Existing bounded current-origin identity contract | Tradier values and the former Yahoo diagnostic history lack proven public redistribution rights | Identity authority only until a commercial public-display feed is configured |
+| [Yahoo Finance diagnostic](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) | Exact symbol only after separate Tradier listing verification | Technically exercised OHLCV endpoint | Uncredentialed diagnostic endpoint | Yahoo's terms do not grant default commercial reuse or redistribution; no RavenOS license is configured | Dormant and fail-closed before network access |
 | [DexPaprika](https://docs.dexpaprika.com/introduction) | Network plus exact pool; published coverage includes Solana, Base, Ethereum, and Robinhood | Up to 366 rows per request; native `1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `6h`, `12h`, `24h`; RavenOS derives `4h` from `1h` and maps `1d` to `24h`; bounded polling for active views | Current pricing page advertises 200k anonymous requests/month at 30/min, 500k registered Free, and Pro at $99/month for 5M requests; response headers and 429s remain runtime authority | [Terms effective 2026-07-14](https://dexpaprika.com/api/terms) restrict Free to development, testing, and support; commercial use requires a non-Free plan. Visible exact `Powered by DexPaprika` attribution is required | Integrated first in the development bake-off; not production-qualified |
 | [CoinGecko Onchain](https://docs.coingecko.com/reference/pool-ohlcv-contract-address) | Network plus exact pool and base/quote orientation; Basic was verified on the selected Solana, Base, and Ethereum pools | Up to 1,000 bars/call; backward pagination; all required RavenOS intervals exercised; provider-defined empty intervals requested explicitly | Pro authentication uses `pro-api.coingecko.com` and the server-only `x-cg-pro-api-key`; anonymous GeckoTerminal remains diagnostic-only | Paid Basic commercial product use with visible `Data provided by CoinGecko` attribution, as confirmed by the owner | Selected production exact-pool provider; full anchor matrix passed |
 | [Codex](https://docs.codex.io/api-reference/queries/getbars) | Exact pair plus network ID | Up to 1,500 points; GraphQL bar subscription | Growth advertises high request and WebSocket limits; SLA is plan-dependent | Executed product and redistribution rights must be confirmed | Strong challenger; not integrated in this pass |
@@ -113,11 +114,11 @@ The original Demo evaluation matrix completed at `2026-07-22T17:00:36Z` with zer
 | WETH/USDC, Ethereum pool `0x88e6…5640` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
 | RUNNER/WETH, Robinhood Chain pool `0x6026…E6a9` | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | Expected unavailable: selected provider has no Robinhood network route; no alternate pool or provider was substituted |
 | SOL-PERP, Hyperliquid | 480 | 480 | 289 | 337 | 127 | 181 | Native venue matrix passed |
-| SPY, exact NYSE Arca ETF | 480 | 355 | 119 | 148 | 42 | 125 | Protected listed-market matrix passed |
+| SPY, exact NYSE Arca ETF | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | Exact identity passed; public candles fail closed because no commercially qualified listed-data display license is configured |
 
 CoinGecko's `include_empty_intervals=true` semantics are explicit in lineage: when a provider interval has no trade, CoinGecko may return the previous close with zero volume. RavenOS does not invent or interpolate those bars. An inactive exact pool can therefore render a truthful dense but flat chart rather than sparse Raven observation dots.
 
-The listed-market source appends a flat, zero-volume live quote at provider observation time. The public adapter now deterministically folds that quote into the current interval, or aligns it to the immediately following interval when appropriate. It does not fill intermediate history. That repair made SPY's full `1m` through `1d` matrix pass while retaining exact listing identity and observation time.
+An isolated diagnostic previously proved that the listed adapter could normalize dense SPY intervals and fold a provider trailing quote without inventing intermediate history. That technical proof is not a redistribution license. The public capability registry and Worker now retain exact SPY identity while returning an explicit display-restricted chart state before any listed candle provider is called.
 
 Chart readiness is now per exact market. Search reports `probe_required` when the selected provider has a viable 1m and 1h request route, and `unavailable` when it does not. Only a validated candle response may report `verified_current` or `verified_with_visible_staleness`; a static chain mapping is not advertised as proof.
 
@@ -146,7 +147,7 @@ The earlier evaluation run at 2026-07-22 16:10 UTC added `1m` to every applicabl
 | RUNNER/WETH Robinhood Chain | DexPaprika returned fewer than 120 usable `1m` bars and some rows omitted required volume; CoinGecko has no registered Robinhood adapter | Failed closed |
 | SPY Atlas | Not exercised by the public validator process because its server-only origin binding was intentionally absent | Source and contract tests pass; production-equivalent origin probe remains required |
 
-The listed-market adapter also had a casing defect that collapsed `1m` and `1M`. The source preserves `1m` as Yahoo's one-minute/5-day request and `1M` as a monthly/10-year request. The public-origin consumer additionally normalizes the provider's trailing zero-volume live quote and validates the resulting candle spacing against the requested interval. Validation used an isolated current-source origin; no production service was restarted.
+The dormant listed-market adapter preserves `1m` and `1M` as distinct contracts and retains its continuity tests for a future licensed source. Yahoo diagnostic history is no longer an active public RavenOS capability: the protected origin refuses the request and the Worker does not call it. Exact listing identity remains searchable independently of chart rights.
 
 DexPaprika requires lowercase EVM pool addresses on the OHLCV path in current live behavior; the adapter normalizes those requests. Pool detail accepts broader casing. That provider-specific quirk never changes canonical identity.
 

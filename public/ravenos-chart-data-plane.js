@@ -87,10 +87,12 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       live_mechanism: "venue_websocket",
     },
     atlas_listed_market: {
-      responsibilities: ["exact_listing_identity", "historical_ohlcv", "market_session"],
-      base_candles: true,
+      responsibilities: ["exact_listing_identity", "market_session"],
+      base_candles: false,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"],
       live_mechanism: "bounded_server_refresh",
+      public_display_state: "restricted",
+      production_state: "blocked_pending_commercial_public_display_rights",
     },
     raven_exact_observations: {
       responsibilities: ["annotations", "events", "overlays", "intelligence"],
@@ -187,18 +189,19 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     const provider = RAVENOS_CHART_CAPABILITY_REGISTRY.providers.atlas_listed_market;
     return {
       schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
-      chart_ready: provider.intervals.includes(cleanTimeframe),
-      chart_request_supported: provider.intervals.includes(cleanTimeframe),
+      chart_ready: false,
+      chart_request_supported: false,
       exact_market_verification: "exact_listing",
       exact_identity_required: true,
-      historical_candles_supported: true,
+      historical_candles_supported: false,
       live_candles_supported: false,
-      intervals: provider.intervals,
-      history_provider: "atlas_listed_market",
-      live_provider: "atlas_listed_market",
-      raven_overlay_support: true,
+      intervals: [],
+      history_provider: null,
+      live_provider: null,
+      raven_overlay_support: false,
       route_preview_support: false,
       execution_support: false,
+      refusal_reason: provider.production_state,
     };
   }
   const cleanNetwork = cleanChain(chain);
