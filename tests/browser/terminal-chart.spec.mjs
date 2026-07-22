@@ -47,6 +47,21 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalWhy")).toContainText("Behavior changed");
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
   await expect(page.locator("#terminalEvidenceState")).toContainText(/Current observation · current feed/i);
+  await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Open interest");
+  await expect(page.locator("#terminalAnatomy1")).toContainText("192M");
+  await expect(page.locator("#terminalAnatomy4")).toContainText("2.66 bps");
+  await expect(page.locator("#terminalFingerprint")).toHaveText("hyperliquid:perp:SOL");
+  await page.locator("#terminalSourceDetail > summary").click();
+  await expect(page.locator("#terminalSourceProvider")).toHaveText("Hyperliquid");
+  await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
+  await expect(page.getByRole("link", { name: /Lightweight Charts.*TradingView/i })).toBeVisible();
+  await page.locator(".rpw-marker-index button", { hasText: "Behavioral setup" }).click();
+  await expect(page.locator("#terminalMarkerDetail")).toBeVisible();
+  await expect(page.locator("#terminalMarkerSource")).toContainText("Timestamped Raven observation");
+  await expect(page.locator("#terminalMarkerMaturity")).toHaveText("Matured");
+  await expect(page.locator("#terminalMarkerSupport")).toContainText("Pressure broadens");
+  await page.locator("#terminalMarkerClose").click();
+  await expect(page.locator("#terminalMarkerDetail")).toBeHidden();
   await expect(page.locator(".ros-capability-status, .terminal-continuity")).toHaveCount(0);
   await expect(page.locator("#terminalBoundary")).toContainText("No order can be signed or sent");
   await expect(page.locator("#assetSelect option")).toHaveCount(2);
@@ -203,6 +218,16 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
+  await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Liquidity");
+  await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
+  await expect(page.locator("#terminalAnatomy2")).toContainText("16.5M");
+  await expect(page.locator("#terminalAnatomy3")).toContainText("12.4K");
+  await expect(page.locator("#terminalAnatomy5")).toContainText("Not projected");
+  await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token:fixture-quote");
+  await page.locator("#terminalSourceDetail > summary").click();
+  await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
+  await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
+  await expect(page.locator("#terminalSourceContinuity")).toContainText(/Verified/i);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address")).toBe(true);
 

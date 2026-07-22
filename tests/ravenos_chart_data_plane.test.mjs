@@ -16,6 +16,32 @@ import {
   timeframeSeconds,
 } from "../ravenos-chart-data-plane.js";
 import ravenosWorker from "../worker.mjs";
+import {
+  RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY,
+  onchainChartProviderOrder,
+  onchainProviderRuntime,
+} from "../lib/onchain_chart_providers.mjs";
+import {
+  PRIMARY_PROVIDER_DERIVATIONS,
+  auditCandleContinuity,
+  compareDirectAndDerivedCandles,
+  deriveCompleteCandleInterval,
+  validateExactCandleIdentity,
+} from "../lib/chart_continuity.mjs";
+
+function geckoPoolIdentity({ network, pairAddress, baseAddress, quoteAddress }) {
+  return {
+    data: {
+      id: `${network}_${pairAddress}`,
+      type: "pool",
+      attributes: { address: pairAddress },
+      relationships: {
+        base_token: { data: { id: `${network}_${baseAddress}` } },
+        quote_token: { data: { id: `${network}_${quoteAddress}` } },
+      },
+    },
+  };
+}
 
 test("canonical chart identity preserves exact-pool, aggregate-token, and perp scope", () => {
   const aggregate = normalizeChartInstrument({ chain: "solana", venue: "jupiter", symbol: "RAVEN", tokenAddress: "MintA" });
@@ -50,15 +76,479 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   const retire = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", pairAddress: "ExactPool", timeframe: "15m" });
   assert.equal(retire.chart_ready, true);
   assert.equal(retire.exact_market_id, "solana:ExactPool");
-  assert.equal(retire.history_provider, "coingecko_onchain");
+  assert.equal(retire.history_provider, "dexpaprika");
   assert.equal(retire.raven_overlay_support, true);
   const unresolved = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", timeframe: "15m" });
   assert.equal(unresolved.chart_ready, false);
   assert.match(unresolved.unavailable_reason, /exact pool/i);
   const robinhood = resolveChartCapability({ market: "crypto_spot", chain: "robinhood", instrumentType: "spot_pool", pairAddress: "0xPool", timeframe: "15m" });
   assert.equal(robinhood.discovery_supported, true);
-  assert.equal(robinhood.chart_ready, false);
-  assert.match(robinhood.unavailable_reason, /no exact-pool ohlcv provider/i);
+  assert.equal(robinhood.chart_ready, true);
+  assert.equal(robinhood.history_provider, "dexpaprika");
+  assert.equal(robinhood.provider_network, "robinhood");
+});
+
+test("on-chain provider selection is explicit and not inferred from a CoinGecko key", () => {
+  assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.schema_version, "ravenos.onchain_chart_provider_registry.v1");
+  assert.deepEqual(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.required_release_intervals, ["1m", "5m", "15m", "1h", "4h", "1d"]);
+  assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.required_for_every_advertised_chart_ready_market, true);
+  assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.subminute_derivation, false);
+  assert.deepEqual(onchainChartProviderOrder({ COINGECKO_PRO_API_KEY: "present-but-not-authoritative" }), ["dexpaprika", "coingecko_onchain"]);
+  assert.deepEqual(onchainChartProviderOrder({ RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain,dexpaprika" }), ["coingecko_onchain", "dexpaprika"]);
+  assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.production_promotion_eligible, false);
+});
+
+test("only bake-off-qualified same-provider interval derivations are enabled", () => {
+  assert.deepEqual(PRIMARY_PROVIDER_DERIVATIONS, {
+    "15m": { source_interval: "5m", expected_source_bars: 3 },
+    "1h": { source_interval: "15m", expected_source_bars: 4 },
+    "4h": { source_interval: "1h", expected_source_bars: 4 },
+    "1d": { source_interval: "1h", expected_source_bars: 24 },
+  });
+  assert.equal(PRIMARY_PROVIDER_DERIVATIONS["5m"], undefined);
+  assert.throws(() => deriveCompleteCandleInterval([], { sourceInterval: "1m", targetInterval: "5m" }), /unsupported_candle_derivation/);
+});
+
+test("deterministic aggregation uses complete buckets, sums volume, and never fills history gaps", () => {
+  const start = 1_800_000_000;
+  const rows = Array.from({ length: 6 }, (_, index) => ({
+    time: start + index * 300,
+    open: 10 + index,
+    high: 11 + index,
+    low: 9 + index,
+    close: 11 + index,
+    volume: 100 + index,
+  }));
+  const derived = deriveCompleteCandleInterval(rows, {
+    sourceInterval: "5m",
+    targetInterval: "15m",
+    maxItems: 20,
+    windowEndSeconds: start + 3_600,
+    allowFormingCurrentBucket: false,
+  });
+  assert.equal(derived.state, "verified");
+  assert.equal(derived.candles.length, 2);
+  assert.deepEqual(derived.candles[0], {
+    time: start,
+    open: 10,
+    high: 13,
+    low: 9,
+    close: 13,
+    volume: 303,
+    forming: false,
+    source_bar_count: 3,
+  });
+  const incomplete = deriveCompleteCandleInterval(rows.filter((_, index) => index !== 1), {
+    sourceInterval: "5m",
+    targetInterval: "15m",
+    maxItems: 20,
+    windowEndSeconds: start + 3_600,
+    allowFormingCurrentBucket: false,
+  });
+  assert.equal(incomplete.candles.length, 1);
+  assert.equal(incomplete.dropped_incomplete_buckets, 1);
+  assert.equal(incomplete.missing_buckets_filled, 0);
+  assert.equal(incomplete.interpolation_used, false);
+});
+
+test("forming derived buckets require contiguous source bars from the bucket boundary", () => {
+  const currentBucket = Math.floor(1_800_003_700 / 3_600) * 3_600;
+  const contiguous = Array.from({ length: 2 }, (_, index) => ({
+    time: currentBucket + index * 900,
+    open: 20 + index,
+    high: 21 + index,
+    low: 19 + index,
+    close: 20.5 + index,
+    volume: 10,
+  }));
+  const accepted = deriveCompleteCandleInterval(contiguous, {
+    sourceInterval: "15m",
+    targetInterval: "1h",
+    windowEndSeconds: currentBucket + 1_900,
+  });
+  assert.equal(accepted.forming_buckets, 1);
+  assert.equal(accepted.candles[0].forming, true);
+  const rejected = deriveCompleteCandleInterval(contiguous.slice(1), {
+    sourceInterval: "15m",
+    targetInterval: "1h",
+    windowEndSeconds: currentBucket + 1_900,
+  });
+  assert.equal(rejected.candles.length, 0);
+  assert.equal(rejected.dropped_incomplete_buckets, 1);
+});
+
+test("candle and exact-market continuity reject conflicting duplicates, orientation, decimals, and volume drift", () => {
+  const candle = { time: 1_800_000_000, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 };
+  const audit = auditCandleContinuity([candle, { ...candle, close: 1.6 }], { interval: "15m" });
+  assert.equal(audit.state, "rejected");
+  assert.equal(audit.conflicting_duplicates, 1);
+  const expected = { chain: "base", pool_address: "0xPool", selected_token_address: "0xBase", quote_token_address: "0xQuote", orientation: "selected_token_usd", selected_token_decimals: 18, quote_token_decimals: 6 };
+  assert.equal(validateExactCandleIdentity({ expected, actual: { ...expected } }).state, "verified");
+  assert.equal(validateExactCandleIdentity({ expected, actual: { ...expected, orientation: "quote_token_usd" } }).state, "rejected");
+  assert.equal(validateExactCandleIdentity({ expected, actual: { ...expected, selected_token_decimals: 8 } }).state, "identity_verified_decimals_unavailable");
+  assert.equal(compareDirectAndDerivedCandles([candle], [{ ...candle }], { interval: "15m" }).state, "verified");
+  assert.equal(compareDirectAndDerivedCandles([candle], [{ ...candle, volume: 20 }], { interval: "15m" }).state, "rejected");
+});
+
+test("release-enforced on-chain chart capacity forbids the keyless GeckoTerminal runtime", () => {
+  const blocked = onchainProviderRuntime("coingecko_onchain", { RAVENOS_RELEASE_ENFORCE: "1" });
+  assert.equal(blocked.runtime_allowed, false);
+  assert.equal(blocked.runtime_block_reason, "keyless_geckoterminal_forbidden_in_release");
+  assert.equal(blocked.base_url, "https://api.geckoterminal.com/api/v2");
+  const qualified = onchainProviderRuntime("coingecko_onchain", {
+    RAVENOS_RELEASE_ENFORCE: "1",
+    COINGECKO_PRO_API_KEY: "server-only-test-value",
+  });
+  assert.equal(qualified.runtime_allowed, true);
+  assert.equal(qualified.provider_tier, "coingecko_pro");
+  assert.equal(qualified.base_url, "https://pro-api.coingecko.com/api/v3/onchain");
+});
+
+test("DexPaprika normalizes exact EVM pool identity and emits bounded USD candles without raw payload leakage", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x4E962BB3889Bf030368F56810A9c96B83CB3E778";
+  const normalizedPair = pairAddress.toLowerCase();
+  const tokenAddress = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
+  const quoteAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  const latest = Math.floor(Date.now() / 900_000) * 900;
+  const rows = Array.from({ length: 120 }, (_, index) => ({
+    time_open: new Date((latest - ((119 - index) * 900)) * 1_000).toISOString(),
+    time_close: new Date((latest - ((118 - index) * 900)) * 1_000).toISOString(),
+    open: 60_000 + index,
+    high: 60_020 + index,
+    low: 59_980 + index,
+    close: 60_010 + index,
+    volume: 100 + index,
+  }));
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "api.dexpaprika.com" && url.pathname.endsWith("/ohlcv")) {
+        assert.ok(url.pathname.includes(normalizedPair));
+        assert.equal(url.searchParams.get("interval"), "15m");
+        assert.equal(url.searchParams.get("inversed"), "false");
+        return new Response(JSON.stringify(rows), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname === "api.dexpaprika.com") {
+        assert.ok(url.pathname.endsWith(normalizedPair));
+        return new Response(JSON.stringify({
+          id: normalizedPair,
+          chain: "base",
+          dex_id: "aerodrome_v3",
+          dex_name: "Aerodrome SlipStream",
+          created_at: "2024-09-04T21:14:23Z",
+          base_token_id: tokenAddress.toLowerCase(),
+          quote_token_id: quoteAddress.toLowerCase(),
+          liquidity_usd: 9_000_000,
+          price_time: new Date().toISOString(),
+          tokens: [
+            { id: quoteAddress.toLowerCase(), symbol: "USDC", description: "must not leak" },
+            { id: tokenAddress.toLowerCase(), symbol: "cbBTC", description: "must not leak" },
+          ],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=cbBTC%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "dexpaprika",
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(responseText, /must not leak/i);
+    const body = JSON.parse(responseText);
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.source, "DexPaprika");
+    assert.equal(payload.market_identity, `base:${normalizedPair}`);
+    assert.equal(payload.pair_address, normalizedPair);
+    assert.equal(payload.candles.length, 120);
+    assert.equal(payload.candle_series.provider, "dexpaprika");
+    assert.equal(payload.candle_series.price_currency, "USD");
+    assert.equal(payload.candle_series.raven_observations_are_candles, false);
+    assert.equal(payload.provider_selection.selected, "dexpaprika");
+    assert.equal(payload.provider_selection.fallback, false);
+    assert.equal(payload.commercial_state, "free_development_only");
+    assert.equal(payload.attribution.label, "Powered by DexPaprika");
+    assert.deepEqual(payload.provider_usage, {
+      schema_version: "ravenos.provider_usage.v1",
+      provider: "dexpaprika",
+      pool: `base:${normalizedPair}`,
+      interval: "15m",
+      source_interval: "15m",
+      cache_hit: false,
+      cache_state: "miss",
+      candle_mode: "direct",
+      provider_request_count: 1,
+      fallback_event: false,
+      active_viewer_signal: 1,
+      active_viewer_measurement: "request_signal_only",
+      projected_cost_state: "unpriced_evaluation",
+      projected_provider_requests_per_active_refresh: 1,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("DexPaprika derives a complete requested interval before attempting a secondary provider", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x1010101010101010101010101010101010101010";
+  const tokenAddress = "0x2020202020202020202020202020202020202020";
+  const quoteAddress = "0x3030303030303030303030303030303030303030";
+  const latest = Math.floor(Date.now() / 900_000) * 900;
+  const fiveMinuteStart = latest - 359 * 300;
+  const sourceRows = Array.from({ length: 360 }, (_, index) => {
+    const open = 1 + index / 10_000;
+    const close = 1 + (index + 1) / 10_000;
+    return {
+      time_open: new Date((fiveMinuteStart + index * 300) * 1_000).toISOString(),
+      time_close: new Date((fiveMinuteStart + (index + 1) * 300) * 1_000).toISOString(),
+      open,
+      high: close + 0.0001,
+      low: open - 0.0001,
+      close,
+      volume: 10 + index,
+    };
+  });
+  let secondaryRequests = 0;
+  const requestedIntervals = [];
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "api.dexpaprika.com" && url.pathname.endsWith("/ohlcv")) {
+        const interval = url.searchParams.get("interval");
+        requestedIntervals.push(interval);
+        return new Response(JSON.stringify(interval === "5m" ? sourceRows : sourceRows.slice(-20)), { status: 200 });
+      }
+      if (url.hostname === "api.dexpaprika.com") return new Response(JSON.stringify({
+        id: pairAddress,
+        chain: "base",
+        created_at: "2024-01-01T00:00:00Z",
+        base_token_id: tokenAddress,
+        quote_token_id: quoteAddress,
+        tokens: [
+          { id: quoteAddress, symbol: "USDC", decimals: 6 },
+          { id: tokenAddress, symbol: "TEST", decimals: 18 },
+        ],
+      }), { status: 200 });
+      if (url.hostname.includes("gecko")) {
+        secondaryRequests += 1;
+        return new Response(JSON.stringify({ error: "must_not_be_called" }), { status: 503 });
+      }
+      if (url.hostname.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "dexpaprika,coingecko_onchain",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.candle_series.provider, "dexpaprika");
+    assert.equal(payload.derivation.state, "derived");
+    assert.equal(payload.derivation.source_interval, "5m");
+    assert.equal(payload.derivation.target_interval, "15m");
+    assert.equal(payload.derivation.interpolation_used, false);
+    assert.equal(payload.derivation.missing_buckets_filled, 0);
+    assert.ok(payload.candles.length >= 100);
+    assert.deepEqual(requestedIntervals, ["15m", "5m"]);
+    assert.equal(secondaryRequests, 0);
+    assert.equal(payload.provider_selection.fallback, false);
+    assert.equal(payload.provider_usage.provider, "dexpaprika");
+    assert.equal(payload.provider_usage.interval, "15m");
+    assert.equal(payload.provider_usage.source_interval, "5m");
+    assert.equal(payload.provider_usage.candle_mode, "derived");
+    assert.equal(payload.provider_usage.provider_request_count, 2);
+    assert.equal(payload.provider_usage.fallback_event, false);
+    assert.equal(payload.provider_usage.active_viewer_measurement, "request_signal_only");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("missing required provider volume is a candle-continuity failure, never an identity failure", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x4141414141414141414141414141414141414141";
+  const tokenAddress = "0x4242424242424242424242424242424242424242";
+  const quoteAddress = "0x4343434343434343434343434343434343434343";
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "api.dexpaprika.com" && url.pathname.endsWith("/ohlcv")) {
+        return new Response(JSON.stringify([{
+          time_open: new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString(),
+          time_close: new Date((Math.floor(Date.now() / 60_000) + 1) * 60_000).toISOString(),
+          open: 1,
+          high: 1,
+          low: 1,
+          close: 1,
+        }]), { status: 200 });
+      }
+      if (url.hostname === "api.dexpaprika.com") return new Response(JSON.stringify({
+        id: pairAddress,
+        chain: "base",
+        base_token_id: tokenAddress,
+        quote_token_id: quoteAddress,
+        tokens: [
+          { id: tokenAddress, symbol: "TEST", decimals: 18 },
+          { id: quoteAddress, symbol: "USDC", decimals: 6 },
+        ],
+      }), { status: 200 });
+      if (url.hostname.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=1m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "dexpaprika",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(payload.ok, false);
+    assert.equal(payload.provider_state, "candle_continuity_rejected");
+    assert.deepEqual(payload.provider_attempts, [{ provider: "dexpaprika", state: "candle_continuity_rejected" }]);
+    assert.notEqual(payload.source_type, "identity_mismatch");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("insufficient DexPaprika history falls through to the next exact-pool provider without changing identity", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x5555555555555555555555555555555555555555";
+  const tokenAddress = "0x6666666666666666666666666666666666666666";
+  const quoteAddress = "0x7777777777777777777777777777777777777777";
+  const latest = Math.floor(Date.now() / 900_000) * 900;
+  const paprikaRows = Array.from({ length: 20 }, (_, index) => ({
+    time_open: new Date((latest - ((19 - index) * 900)) * 1_000).toISOString(),
+    open: 1,
+    high: 1.1,
+    low: 0.9,
+    close: 1,
+    volume: 1,
+  }));
+  const geckoRows = Array.from({ length: 120 }, (_, index) => [latest - ((119 - index) * 900), 1, 1.1, 0.9, 1, 1]);
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("api.dexpaprika.com") && url.includes("/ohlcv?")) return new Response(JSON.stringify(paprikaRows), { status: 200 });
+      if (url.includes("api.dexpaprika.com")) return new Response(JSON.stringify({
+        id: pairAddress,
+        chain: "base",
+        created_at: "2024-01-01T00:00:00Z",
+        base_token_id: tokenAddress,
+        quote_token_id: quoteAddress,
+        tokens: [{ id: quoteAddress, symbol: "USDC" }, { id: tokenAddress, symbol: "TEST" }],
+      }), { status: 200 });
+      if (url.includes("geckoterminal.com") && url.includes("/ohlcv/")) return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: geckoRows } } }), { status: 200 });
+      if (url.includes("geckoterminal.com")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "base", pairAddress, baseAddress: tokenAddress, quoteAddress })), { status: 200 });
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {});
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.candle_series.provider, "coingecko_onchain");
+    assert.equal(payload.pair_address, pairAddress);
+    assert.equal(payload.provider_selection.fallback, true);
+    assert.deepEqual(payload.provider_selection.attempted, [
+      { provider: "dexpaprika", state: "insufficient_history" },
+      { provider: "coingecko_onchain", state: "selected" },
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("CoinGecko fallback verifies the selected token and quote before requesting exact-pool candles", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x1212121212121212121212121212121212121212";
+  const baseAddress = "0x3434343434343434343434343434343434343434";
+  const quoteAddress = "0x5656565656565656565656565656565656565656";
+  let candleRequests = 0;
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("geckoterminal.com") && url.includes("/ohlcv/")) {
+        candleRequests += 1;
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [] } } }), { status: 200 });
+      }
+      if (url.includes("geckoterminal.com")) {
+        return new Response(JSON.stringify(geckoPoolIdentity({ network: "base", pairAddress, baseAddress, quoteAddress })), { status: 200 });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=WRONG%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=0x7878787878787878787878787878787878787878&quote_address=${quoteAddress}`), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(payload.ok, false);
+    assert.equal(payload.source_type, "identity_mismatch");
+    assert.equal(payload.provider_state, "identity_rejected");
+    assert.equal(candleRequests, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("DexPaprika discovery resolves the supplied Robinhood Chain contract when DexScreener has no result", async () => {
+  const originalFetch = globalThis.fetch;
+  const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
+  const pairAddress = "0x602633428507bbaa848e6d0c3127cda15eeae6a9";
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("api.dexpaprika.com/search")) return new Response(JSON.stringify({
+        pools: [{
+          id: pairAddress,
+          chain: "robinhood",
+          dex_id: "uniswap_v3",
+          dex_name: "Uniswap V3",
+          created_at: "2026-07-21T01:55:16Z",
+          volume_usd: 135_000,
+          transactions: 837,
+          tokens: [
+            { id: "0x0bd7d308f8e1639fab988df18a8011f41eacad73", name: "WETH", symbol: "WETH" },
+            { id: tokenAddress, name: "The Runner", symbol: "RUNNER" },
+          ],
+        }],
+      }), { status: 200 });
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify(url.includes("/tokens/v1/") ? [] : { pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].chainId, "robinhood");
+    assert.equal(body.results[0].pairAddress, pairAddress);
+    assert.equal(body.results[0].tokenAddress, tokenAddress);
+    assert.equal(body.results[0].provider, "DexPaprika");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("one-minute and one-month intervals remain distinct", () => {
@@ -101,7 +591,7 @@ test("exact EVM contract search discovers provider-listed chains without substit
     assert.equal(body.results.length, 1);
     assert.equal(body.results[0].chainId, "robinhood");
     assert.equal(body.results[0].tokenAddress.toLowerCase(), tokenAddress);
-    assert.equal(body.results[0].pairAddress, pair.pairAddress);
+    assert.equal(body.results[0].pairAddress.toLowerCase(), pair.pairAddress.toLowerCase());
     assert.equal(body.results[0].symbol, "RUNNER");
   } finally {
     globalThis.fetch = originalFetch;
@@ -416,7 +906,7 @@ test("exact-pool provider throttling uses only an explicitly degraded verified r
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=ExactPool&token_address=ExactMint"), {});
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=ExactPool&token_address=ExactMint"), { RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain" });
     assert.equal(response.status, 200);
     const body = await response.json();
     const payload = body.data || body;
@@ -450,13 +940,14 @@ test("exact-pool freshness separates provider observation time from candle bucke
     };
     globalThis.fetch = async (input) => {
       const url = String(input?.url || input);
-      if (url.includes("geckoterminal.com")) {
+      if (url.includes("geckoterminal.com") && url.includes("/ohlcv/")) {
         return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [[bucketSeconds, 1, 1.1, 0.9, 1.05, 10]] } } }), { status: 200 });
       }
+      if (url.includes("geckoterminal.com")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "solana", pairAddress: "FreshPool", baseAddress: "FreshMint", quoteAddress: "FreshQuote" })), { status: 200 });
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=FRESH%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=FreshPool&token_address=FreshMint"), {});
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=FRESH%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=FreshPool&token_address=FreshMint"), { RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain" });
     assert.equal(response.status, 200);
     const body = await response.json();
     const payload = body.data || body;
@@ -490,6 +981,7 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
       const url = String(input?.url || input);
       if (url.includes("pro-api.coingecko.com")) {
         assert.equal(init.headers["x-cg-pro-api-key"], secret);
+        if (!url.includes("/ohlcv/")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "eth", pairAddress, baseAddress: tokenAddress, quoteAddress: "0xcccccccccccccccccccccccccccccccccccccccc" })), { status: 200 });
         return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [
           [now, 2, 2.2, 1.9, 2.1, 12],
           [now - 60, 1.9, 2.1, 1.8, 2, 10],
@@ -502,6 +994,7 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=1m&limit=240&chain=ethereum&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
       COINGECKO_PRO_API_KEY: secret,
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
     });
     const responseText = await response.text();
     assert.doesNotMatch(responseText, new RegExp(secret));
@@ -555,14 +1048,16 @@ test("dense provider OHLCV remains the base series while Raven observations atta
           recent_trades: [{ id: "raven-event", time: providerRows[120][0] + 100, price: 999, size: 1, side: "buy" }],
         }), { status: 200, headers: { "content-type": "application/json" } });
       }
-      if (url.includes("geckoterminal.com")) {
+      if (url.includes("geckoterminal.com") && url.includes("/ohlcv/")) {
         return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: providerRows } } }), { status: 200, headers: { "content-type": "application/json" } });
       }
+      if (url.includes("geckoterminal.com")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "base", pairAddress, baseAddress: tokenAddress, quoteAddress: "0x3333333333333333333333333333333333333333" })), { status: 200 });
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FUSDC&timeframe=15m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
     });
     const body = await response.json();
     const payload = body.data || body;
@@ -625,6 +1120,7 @@ test("Raven-native token aggregate remains distinct from exact-pool identity", a
     };
     const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=5m&limit=240&chain=solana&pair_address=ExactPool&token_address=MintA&quote_address=QuoteA&instrument_scope=token_aggregate"), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
     });
     assert.equal(response.status, 200);
     const body = await response.json();
@@ -672,6 +1168,7 @@ test("provider-history failure rejects Raven observations as substitute candles"
     };
     const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FWETH&timeframe=5m&limit=240&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222&quote_address=0x3333333333333333333333333333333333333333"), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
     });
     const body = await response.json();
     const payload = body.data || body;

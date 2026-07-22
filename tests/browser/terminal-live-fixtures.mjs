@@ -157,10 +157,23 @@ function contextPayload(asset) {
     chart_event: {
       event_id: `event:${coin}:fixture`,
       instrument_id: `hyperliquid:perp:${coin}`,
+      label: asset === "BTC-PERP" ? "Pressure reset" : "Behavioral setup",
       observed_at: "2026-07-20T12:00:00Z",
       lineage: { public_context_id: `context:${coin}:fixture` },
+      inspection: {
+        source_evidence: { label: "Timestamped Raven observation", observed_at: "2026-07-20T12:00:00Z", public_reference: `context:${coin}:fixture` },
+        evidence_maturity: "matured",
+        path_transition: { behavior: asset === "BTC-PERP" ? "Pressure reset" : "Behavioral setup", pressure: asset === "BTC-PERP" ? "Balanced pressure" : "Mixed pressure", observed_side: "long", state: "fresh" },
+        historical_outcome: { sample_size: asset === "BTC-PERP" ? 84 : 128, median_change_pct: 1.4, matured_through: "2026-07-20T12:00:00Z" },
+        support: ["Pressure broadens without immediate fade."],
+        contradiction: ["The observed path loses confirmation."],
+      },
     },
-    market_data: { generated_at: "2026-07-21T12:20:00Z", components: { market: "fresh", book: "fresh", tape: "fresh" } },
+    market_data: {
+      generated_at: "2026-07-21T12:20:00Z",
+      book: { summary: { best_bid: 148.23, best_ask: 148.27, spread_bps: 2.664 } },
+      components: { market: "fresh", book: "fresh", tape: "fresh" },
+    },
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
   };
 }
@@ -192,33 +205,62 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const chain = url.searchParams.get("chain");
     calls.push({ asset, timeframe, market, pairAddress, instrumentId });
     if (chartFailure) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "provider_unavailable", freshness_state: "data_unavailable", candles: [] }) });
-    if (chain === "robinhood") return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: false, asset, source: "Coverage Developing", source_type: "identity_unavailable", source_label: "Coverage Developing", freshness_state: "unavailable", timeframe, market_identity: instrumentId, instrument_scope: "exact_pool", message: "Provider-backed chart coverage is unavailable for this exact Robinhood Chain pool.", candles: [] }),
-    });
     const perp = asset.endsWith("-PERP");
     const traditional = market === "equities";
+    const spotChain = chain || "solana";
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
         asset,
-        source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "CoinGecko Onchain",
+        source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "DexPaprika",
         source_label: perp ? "Live perps market price" : traditional ? "Live market price" : "Exact public pool",
         freshness_state: "fresh",
         timeframe,
         observed_at: "2026-07-21T12:20:00Z",
-        market_identity: traditional ? instrumentId : pairAddress ? `solana:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
+        market_identity: traditional ? instrumentId : pairAddress ? `${spotChain}:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
         instrument_scope: pairAddress ? "exact_pool" : "exact_instrument",
         instrument: traditional
           ? { canonical_id: instrumentId, instrument_type: String(instrumentId || "").startsWith("etf:") ? "etf" : "equity", identity_scope: "exact_instrument", chain: "none", venue: String(instrumentId || "").split(":")[1] || "traditional", symbol: asset, quote_asset: "USD" }
           : perp
           ? { instrument_type: "perpetual", chain: "hyperliquid", venue: "hyperliquid", symbol: asset }
-          : { instrument_type: "spot_pool", chain: "solana", venue: "fixture-dex", symbol: "JUP", quote_asset: "USDC", pair_address: pairAddress, token_address: "fixture-token" },
+          : { instrument_type: "spot_pool", chain: spotChain, venue: "fixture-dex", symbol: asset.split("/")[0], quote_asset: asset.split("/")[1] || "USDC", pair_address: pairAddress, token_address: "fixture-token" },
         capabilities: { live_bars: liveBars, older_bar_backfill: false, live_trades: liveBars && perp },
-        raven_annotations: pairAddress ? {
+        candle_series: {
+          schema_version: "ravenos.chart_candle_series.v1",
+          role: "base_ohlcv",
+          provider: perp ? "hyperliquid_native" : traditional ? "atlas_listed_market" : "dexpaprika",
+          provider_market_id: traditional ? instrumentId : pairAddress || `hyperliquid:${asset.replace(/-PERP$/, "")}`,
+          timeframe,
+          source_interval: timeframe,
+          freshness_state: "fresh",
+          derivation: { state: "direct", source_interval: timeframe, target_interval: timeframe, interpolation_used: false, missing_buckets_filled: 0 },
+          raven_observations_are_candles: false,
+        },
+        continuity: pairAddress ? {
+          schema_version: "ravenos.chart_continuity.v1",
+          state: "verified",
+          exact_pool_fingerprint: `${spotChain}:${pairAddress}:fixture-token:fixture-quote`,
+          token_orientation: "selected_token_usd",
+          selected_token_decimals: 9,
+          quote_token_decimals: 6,
+          candles: { state: "verified", missing_source_buckets: 0, conflicting_duplicates: 0, freshness_state: "fresh", age_seconds: 0 },
+        } : null,
+        derivation: { state: "direct", source_interval: timeframe, target_interval: timeframe, interpolation_used: false, missing_buckets_filled: 0 },
+        provider_usage: { provider: perp ? "hyperliquid_native" : traditional ? "atlas_listed_market" : "dexpaprika", interval: timeframe, source_interval: timeframe, cache_hit: false, candle_mode: "direct", fallback_event: false },
+        market_anatomy: pairAddress ? {
+          schema_version: "ravenos.market_anatomy.v1",
+          exact_identity: true,
+          pool_fingerprint: `${spotChain}:${pairAddress}:fixture-token:fixture-quote`,
+          liquidity_usd: 4_200_000,
+          volume_24h_usd: 16_500_000,
+          transactions_24h: 12_400,
+          pool_age_ms: 180 * 86_400_000,
+          holder_distribution: { state: "unavailable", reason: "Private enrichment is not projected." },
+          route: { state: spotChain === "solana" ? "review_capability_check_required" : "unavailable", signing_available: false, submission_available: false },
+        } : null,
+        raven_annotations: pairAddress && spotChain === "solana" ? {
           schema_version: "ravenos.chart_annotations.v1",
           role: "annotation_only",
           identity_scope: "exact_pool",

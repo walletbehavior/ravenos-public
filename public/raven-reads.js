@@ -11,11 +11,11 @@
     risk: "Risk",
   };
   const MODE_COLORS = {
-    structure: "#7dd3fc",
-    pressure: "#fb7185",
-    participation: "#34d399",
-    replay: "#a78bfa",
-    risk: "#facc15",
+    structure: "#8da6b8",
+    pressure: "#c47a72",
+    participation: "#68a585",
+    replay: "#998bad",
+    risk: "#c4a05c",
   };
   const BANNED = [/\balpha\b/i, /\bbuy\b/i, /\bsell\b/i, /\blong\s+now\b/i, /\bshort\s+now\b/i, /\bguaranteed\b/i, /\bsafe\s+trade\b/i, /\bfinancial\s+advice\b/i, /\bentry\b/i, /\bexit\b/i];
 

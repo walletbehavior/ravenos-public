@@ -105,6 +105,23 @@ function append(node, tag, className, value) {
   return child;
 }
 
+function actualOpportunityDelta(row = {}) {
+  if (row.source_type === "atlas_context") return text(row.what_changed, "Current Atlas context is available.");
+  const market = row.market_snapshot || state.markets.get(row.instrument_id) || {};
+  const current = finite(market.last_price ?? market.mark_price);
+  const observed = finite(row.market_context?.entry_reference_price);
+  const sinceObservation = current !== null && current > 0 && observed !== null && observed > 0
+    ? ((current / observed) - 1) * 100
+    : null;
+  const dayChange = finite(market.day_change_pct);
+  const parts = [];
+  if (sinceObservation !== null) parts.push(`${percent(sinceObservation)} since Raven observed it`);
+  if (dayChange !== null) parts.push(`${percent(dayChange)} over 24h`);
+  if (finite(row.context_age_seconds) !== null) parts.push(`observation ${Math.max(1, Math.round(Number(row.context_age_seconds) / 60))}m old`);
+  if (parts.length) return parts.join(" · ");
+  return customerFacingText(row.why_raven_noticed, "No current instrument delta is available.");
+}
+
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
   const anchor = document.createElement("a");
@@ -125,8 +142,8 @@ function createOpportunityRow(row) {
 
   const thesis = append(anchor, "div", "discover-thesis", "");
   thesis.textContent = "";
-  append(thesis, "span", "", atlas ? "What changed" : "Why now");
-  append(thesis, "strong", "", customerFacingText(atlas ? row.what_changed : row.why_raven_noticed, atlas ? "Current Atlas context is available." : "No public explanation is available."));
+  append(thesis, "span", "", "What changed");
+  append(thesis, "strong", "", actualOpportunityDelta(row));
 
   const evidence = append(anchor, "div", "discover-evidence", "");
   evidence.textContent = "";
@@ -140,7 +157,7 @@ function createOpportunityRow(row) {
   append(market, "strong", "", atlas ? text(row.market_state) : text(row.pressure_state));
   append(market, "small", "", atlas
     ? text(row.market_detail, "Current exact listing")
-    : `OI ${compact(row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_context?.funding_rate) === null ? null : Number(row.market_context.funding_rate) * 100)}`);
+    : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);
 
   append(anchor, "span", "discover-open", "Inspect");
   return anchor;
@@ -307,13 +324,27 @@ async function refresh({ manual = false } = {}) {
     json("/api/atlas"),
   ]);
 
+  if (markets.status === "fulfilled" && markets.value.response.ok && Array.isArray(markets.value.payload?.results)) {
+    state.markets.clear();
+    markets.value.payload.results.forEach((row) => state.markets.set(row.instrument_id, row));
+    renderMarkets(markets.value.payload.results);
+  } else {
+    state.markets.clear();
+    setState("discoverMarketState", "unavailable", "Unavailable");
+    document.getElementById("discoverPulse").replaceChildren();
+  }
+
   let ravenRows = [];
   let ravenGeneratedAt = null;
   let ravenFailure = "";
   if (opportunities.status === "fulfilled" && opportunities.value.response.ok) {
     try {
       const current = currentOpportunityPayload(opportunities.value.payload);
-      ravenRows = current.rows.map((row) => ({ ...row, source_type: "raven_opportunity" }));
+      ravenRows = current.rows.map((row) => ({
+        ...row,
+        source_type: "raven_opportunity",
+        market_snapshot: state.markets.get(row.instrument_id) || null,
+      }));
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", "fresh", "Current");
     } catch {
@@ -391,14 +422,6 @@ async function refresh({ manual = false } = {}) {
       heading: "No current opportunities can be shown",
       detail: "Raven and Atlas did not return current exact markets. Older observations were not substituted; live venue prices may still be available.",
     });
-  }
-
-  if (markets.status === "fulfilled" && markets.value.response.ok && Array.isArray(markets.value.payload?.results)) {
-    markets.value.payload.results.forEach((row) => state.markets.set(row.instrument_id, row));
-    renderMarkets(markets.value.payload.results);
-  } else {
-    setState("discoverMarketState", "unavailable", "Unavailable");
-    document.getElementById("discoverPulse").replaceChildren();
   }
 
   state.lastRefresh = new Date().toISOString();

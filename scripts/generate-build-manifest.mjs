@@ -52,6 +52,7 @@ const files = [
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
+  "assets/providers/dexpaprika-symbol.svg",
 ];
 
 function sha256(path) {
@@ -152,6 +153,8 @@ const manifest = {
   route_manifest_version: routeConfig.route_manifest_version || "1.0",
   release_contract_version: releaseConfig.release_contract_version || "ravenos.release.v1",
   public_origin_contract_version: releaseConfig.public_origin?.contract_version || "unknown",
+  onchain_chart_provider_contract_version: releaseConfig.onchain_chart_provider?.contract_version || "unknown",
+  onchain_chart_provider_production_state: releaseConfig.onchain_chart_provider?.production_promotion_eligible === true ? "qualified" : "blocked",
   assets: assetHashes,
   routes: routeList,
   api_schema_versions: {
@@ -162,6 +165,7 @@ const manifest = {
     price_workspace: "ravenos.price_workspace.v1",
     chart_candle_series: "ravenos.chart_candle_series.v1",
     chart_capability_registry: "ravenos.chart_capability_registry.v1",
+    onchain_chart_provider_registry: "ravenos.onchain_chart_provider_registry.v1",
   },
   evidence_contract_version: "1.0",
   claim_lineage_version: "2.0",

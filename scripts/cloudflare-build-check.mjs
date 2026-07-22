@@ -42,6 +42,7 @@ const sourceAssets = [
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
+  "assets/providers/dexpaprika-symbol.svg",
   "vendor/lightweight-charts.standalone.production.js",
 ];
 
@@ -160,7 +161,7 @@ if (sha256(stableJson(staticAssetCore)) !== assetManifest.static_asset_manifest_
 const manifestUrls = new Set();
 for (const [logicalPath, entry] of Object.entries(assetManifest.assets || {})) {
   if (logicalPath !== entry.logical_path) fail(`Static asset logical path mismatch: ${logicalPath}`);
-  if (!/^assets\/.+\.[0-9a-f]{16}\.(?:js|css)$/.test(entry.path || "")) {
+  if (!/^assets\/.+\.[0-9a-f]{16}\.(?:js|css|svg)$/.test(entry.path || "")) {
     fail(`Static asset is not content-addressed: ${entry.path || logicalPath}`);
   }
   const target = `.deploy-public/${entry.path}`;
@@ -173,8 +174,8 @@ for (const [logicalPath, entry] of Object.entries(assetManifest.assets || {})) {
 
 const deployFiles = listFiles(".deploy-public").sort();
 for (const file of deployFiles) {
-  if (/\.(?:js|css)$/.test(file) && !file.startsWith("assets/")) {
-    fail(`Unhashed JavaScript or CSS is deployable: ${file}`);
+  if (/\.(?:js|css|svg)$/.test(file) && !/^assets\/.+\.[0-9a-f]{16}\.(?:js|css|svg)$/.test(file)) {
+    fail(`Unhashed runtime asset is deployable: ${file}`);
   }
 }
 
@@ -193,7 +194,7 @@ for (const route of routes) {
   if (!deployHtml.includes(`data-ravenos-release-id="${release.release_id}"`)) {
     fail(`Deploy route missing release data attribute: ${file}`);
   }
-  const references = [...deployHtml.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css))(?:\?[^"']*)?["']/g)].map((match) => match[1]);
+  const references = [...deployHtml.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css|svg))(?:\?[^"']*)?["']/g)].map((match) => match[1]);
   for (const reference of references) {
     if (!manifestUrls.has(reference)) fail(`Route references an unmanifested asset (${reference}): ${file}`);
   }

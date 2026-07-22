@@ -173,10 +173,18 @@ test("coherent HTML revalidates while fingerprinted assets are immutable", async
   assert.equal(asset.headers.get("cache-control"), "public, max-age=31536000, immutable");
 });
 
-test("generated deploy surface contains no unhashed JavaScript or CSS", () => {
+test("generated deploy surface contains no unhashed JavaScript, CSS, or provider artwork", () => {
   const deploy = JSON.parse(readFileSync(".deploy-public/ravenos_deploy_manifest.json", "utf8"));
-  const unhashed = (deploy.files || []).filter((file) => /\.(?:js|css)$/.test(file) && !/^assets\/.+\.[0-9a-f]{16}\.(?:js|css)$/.test(file));
+  const unhashed = (deploy.files || []).filter((file) => /\.(?:js|css|svg)$/.test(file) && !/^assets\/.+\.[0-9a-f]{16}\.(?:js|css|svg)$/.test(file));
   assert.deepEqual(unhashed, []);
+
+  const assets = JSON.parse(readFileSync(".deploy-public/ravenos_asset_manifest.json", "utf8")).assets;
+  const logo = assets["assets/providers/dexpaprika-symbol.svg"];
+  const shell = assets["ravenos-shell.js"];
+  assert.equal(logo.type, "image");
+  assert.match(logo.path, /^assets\/.+\.[0-9a-f]{16}\.svg$/);
+  assert.equal(shell.dependencies.includes("assets/providers/dexpaprika-symbol.svg"), true);
+  assert.match(readFileSync(`.deploy-public/${shell.path}`, "utf8"), new RegExp(`/${logo.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 });
 
 test("origin connectivity preflight resolves its probes from the immutable asset manifest", () => {
@@ -189,9 +197,21 @@ test("origin connectivity preflight resolves its probes from the immutable asset
   assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
 });
 
-test("release packaging requires the server-only on-chain provider credential", () => {
+test("release packaging carries the versioned on-chain provider gate without hard-wiring CoinGecko", () => {
   const source = readFileSync("scripts/package-release.mjs", "utf8");
-  assert.match(source, /required_server_secret_bindings:[\s\S]*COINGECKO_PRO_API_KEY/);
+  assert.match(source, /onchain_chart_provider: releaseConfig\.onchain_chart_provider/);
+  assert.match(source, /RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER/);
+  assert.doesNotMatch(source, /required_server_secret_bindings:[\s\S]{0,200}COINGECKO_PRO_API_KEY/);
+  const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
+  assert.equal(releaseConfig.onchain_chart_provider.contract_version, "ravenos.onchain_chart_provider_registry.v1");
+  assert.deepEqual(releaseConfig.onchain_chart_provider.evaluation_provider_order, ["dexpaprika", "coingecko_onchain"]);
+  assert.equal(releaseConfig.onchain_chart_provider.production_promotion_eligible, false);
+  assert.ok(releaseConfig.onchain_chart_provider.production_blockers.includes("one_minute_anchor_matrix_incomplete"));
+  assert.ok(releaseConfig.onchain_chart_provider.required_intervals.includes("1m"));
+  assert.equal(releaseConfig.onchain_chart_provider.one_minute_minimum_useful_bars, 120);
+  assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
+  const promote = readFileSync("scripts/promote-release.mjs", "utf8");
+  assert.match(promote, /Production promotion blocked by on-chain chart-provider gate/);
 });
 
 test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {
@@ -212,4 +232,5 @@ test("generated build manifest advertises the browser context contract actually 
   assert.equal(build.api_schema_versions?.selected_context, RAVENOS_CONTEXT_SCHEMA);
   assert.equal(build.api_schema_versions?.chart_candle_series, "ravenos.chart_candle_series.v1");
   assert.equal(build.api_schema_versions?.chart_capability_registry, "ravenos.chart_capability_registry.v1");
+  assert.equal(build.api_schema_versions?.onchain_chart_provider_registry, "ravenos.onchain_chart_provider_registry.v1");
 });

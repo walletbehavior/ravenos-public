@@ -9,6 +9,17 @@ const receipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), 
 const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-package.json"), "utf8"));
 if (!receipt.verified) throw new Error("Refusing to promote an unverified staged release");
 if (receipt.release_id !== packageManifest.release_id) throw new Error("Stage receipt and package release identities differ");
+if (packageManifest.onchain_chart_provider?.production_promotion_eligible !== true) {
+  const blockers = packageManifest.onchain_chart_provider?.production_blockers || ["onchain_chart_provider_not_qualified"];
+  throw new Error(`Production promotion blocked by on-chain chart-provider gate: ${blockers.join(", ")}`);
+}
+const requiredChartIntervals = packageManifest.onchain_chart_provider?.required_intervals || [];
+if (!requiredChartIntervals.includes("1m") || Number(packageManifest.onchain_chart_provider?.one_minute_minimum_useful_bars) < 120) {
+  throw new Error("Production promotion requires a qualified one-minute chart contract with at least 120 useful bars per advertised chart-ready anchor");
+}
+if (packageManifest.onchain_chart_provider?.subminute_candles_required !== false) {
+  throw new Error("Production promotion chart policy must explicitly keep sub-minute candles out of the required matrix");
+}
 if (process.env.RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION !== receipt.release_id) {
   throw new Error("Explicit production authorization is absent or does not name this exact release ID");
 }

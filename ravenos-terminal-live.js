@@ -107,6 +107,171 @@ function durationLabel(seconds) {
   return `${Math.max(1, Math.round(value / 86_400))}d ago`;
 }
 
+function ageLabel(milliseconds) {
+  const value = finite(milliseconds);
+  if (value === null || value < 0) return "Unavailable";
+  const days = value / 86_400_000;
+  if (days < 1) return `${Math.max(1, Math.round(value / 3_600_000))}h`;
+  if (days < 90) return `${Math.round(days)}d`;
+  if (days < 730) return `${(days / 365).toFixed(1)}y`;
+  return `${Math.round(days / 365)}y`;
+}
+
+function readableProvider(value) {
+  const provider = String(value || "").trim().toLowerCase();
+  const labels = {
+    atlas_listed_market: "Atlas listed market",
+    coingecko_onchain: "CoinGecko Onchain",
+    dexpaprika: "DexPaprika",
+    hyperliquid_native: "Hyperliquid",
+    yahoo_finance: "Listed-market provider",
+  };
+  return labels[provider] || titleCase(value, "Provider unavailable");
+}
+
+function operatorList(value, fallback = "Unavailable") {
+  if (Array.isArray(value)) {
+    const rows = value.map((item) => customerFacingText(item, "")).filter(Boolean);
+    return rows.length ? rows.join(" · ") : fallback;
+  }
+  if (value && typeof value === "object") {
+    if (value.label) return customerFacingText(value.label, fallback);
+    if (value.summary) return customerFacingText(value.summary, fallback);
+  }
+  return customerFacingText(value, fallback);
+}
+
+function setAnatomySlot(index, label, value) {
+  setText(`terminalAnatomy${index}Label`, label);
+  setText(`terminalAnatomy${index}`, value, "Unavailable");
+}
+
+function renderSourceDetails(workspace = state.workspace?.state || {}) {
+  const series = workspace?.candleSeries || {};
+  const derivation = workspace?.derivation || series.derivation || {};
+  const continuity = workspace?.continuity || {};
+  const candleAudit = continuity.candles || {};
+  const provider = readableProvider(series.provider || workspace?.source);
+  const requestedInterval = series.timeframe || workspace?.timeframe || state.timeframe;
+  const sourceInterval = series.source_interval || derivation.source_interval || requestedInterval;
+  const mode = derivation.state === "derived" ? "Derived" : "Direct";
+  const gaps = finite(candleAudit.missing_source_buckets);
+  const duplicates = finite(candleAudit.conflicting_duplicates);
+  const continuityLabel = continuity.state
+    ? `${titleCase(continuity.state)}${gaps ? ` · ${gaps} missing source bucket${gaps === 1 ? "" : "s"}` : ""}${duplicates ? ` · ${duplicates} conflicting duplicate${duplicates === 1 ? "" : "s"}` : ""}`
+    : "Not reported by this venue";
+  const age = finite(workspace?.ageSeconds ?? candleAudit.age_seconds);
+  const freshness = workspace?.state || series.freshness_state || candleAudit.freshness_state || "unavailable";
+
+  setText("terminalSourceSummary", "Source details");
+  setText("terminalSourceProvider", provider);
+  setText("terminalSourceInterval", derivation.state === "derived"
+    ? `${requestedInterval} from complete ${sourceInterval} bars`
+    : `${mode} ${sourceInterval} bars`);
+  setText("terminalSourceContinuity", continuityLabel);
+  setText("terminalSourceFreshness", `${titleCase(freshness)}${age !== null ? ` · ${durationLabel(age)}` : workspace?.observedAt ? ` · ${timestamp(workspace.observedAt)}` : ""}`);
+}
+
+function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
+  const anatomy = workspace?.marketAnatomy || {};
+  const chartProvider = readableProvider(workspace?.candleSeries?.provider || workspace?.source);
+  if (state.lane === "perps") {
+    const market = selectedPerpSnapshot();
+    const spread = finite(
+      state.context?.market_data?.book?.summary?.spread_bps
+      ?? workspace?.orderBook?.summary?.spread_bps,
+    );
+    setAnatomySlot(1, "Open interest", compact(market.openInterestUsd, { currency: true }));
+    setAnatomySlot(2, "24h volume", compact(market.volume, { currency: true }));
+    setAnatomySlot(3, "Funding", percent(market.funding, { ratio: true }));
+    setAnatomySlot(4, "Book spread", spread === null ? "Unavailable" : `${spread.toFixed(spread < 1 ? 3 : 2)} bps`);
+    setAnatomySlot(5, "Collateral", "USDC · venue custody");
+    setAnatomySlot(6, "Route", "Read only · no order review");
+    setText("terminalFingerprint", state.selected?.instrument_id, "Exact contract unavailable");
+    setText("terminalAnatomyState", `${chartProvider} · exact contract`);
+    return;
+  }
+
+  if (state.lane === "spot") {
+    const holderState = anatomy.holder_distribution?.state === "available"
+      ? operatorList(anatomy.holder_distribution?.summary)
+      : "Not projected";
+    setAnatomySlot(1, "Liquidity", compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }));
+    setAnatomySlot(2, "24h volume", compact(anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }));
+    setAnatomySlot(3, "24h transactions", compact(anatomy.transactions_24h ?? state.selected?.txns24h));
+    setAnatomySlot(4, "Pool age", ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs));
+    setAnatomySlot(5, "Holder distribution", holderState);
+    setAnatomySlot(6, "Route", titleCase(anatomy.route?.state, "Unavailable"));
+    setText("terminalFingerprint", anatomy.pool_fingerprint || `${state.selected?.chainId || "unknown"}:pool:${state.selected?.pairAddress || "unresolved"}`);
+    setText("terminalAnatomyState", anatomy.exact_identity === false ? "Identity unavailable" : `${chartProvider} · exact pool`);
+    return;
+  }
+
+  const subject = atlasSubject(state.selected || {});
+  const instrument = state.selected?.instrument?.schema_version === "ravenos.instrument.v1" ? state.selected.instrument : state.selected || {};
+  const options = atlasOptionsFor(state.selected);
+  setAnatomySlot(1, "Session", titleCase(instrument.market_session?.state));
+  setAnatomySlot(2, "5d move", percent(state.selected?.change_5d, { ratio: true }));
+  setAnatomySlot(3, "Options context", options ? titleCase(options.regime) : "Unavailable");
+  setAnatomySlot(4, "Settlement", `${subject.settlementAsset || "USD"} · broker custody`);
+  setAnatomySlot(5, "Atlas context", state.context?.atlas_context?.context_available ? "Available" : "Unavailable");
+  setAnatomySlot(6, "Route", "Broker order review unavailable");
+  setText("terminalFingerprint", subject.instrumentId, "Exact listing unavailable");
+  setText("terminalAnatomyState", `${chartProvider} · exact listing`);
+}
+
+function renderTradeConsequences() {
+  if (state.lane === "perps") {
+    setText("terminalSettlementConsequence", "USDC margin remains at Hyperliquid; no order is prepared");
+    setText("terminalPortfolioConsequence", "No customer venue account or exposure is connected");
+    return;
+  }
+  if (state.lane === "spot") {
+    const quote = String(state.selected?.quoteSymbol || "quote asset").toUpperCase();
+    setText("terminalSettlementConsequence", `${quote} pool settlement; USDC intent requires an exact reviewed route`);
+    setText("terminalPortfolioConsequence", "No wallet balance, custody, or resulting holding is inferred");
+    return;
+  }
+  const subject = atlasSubject(state.selected || {});
+  setText("terminalSettlementConsequence", `${subject.settlementAsset || "USD"} settles at the broker; RavenOS does not hold funds`);
+  setText("terminalPortfolioConsequence", "No broker account, buying power, or resulting position is connected");
+}
+
+function historicalOutcomeText(value = {}) {
+  const outcome = value && typeof value === "object" ? value : {};
+  const sample = Math.max(0, Math.trunc(finite(outcome.sample_size) || 0));
+  if (!sample) return "No matured comparable outcome is projected for this marker";
+  const change = percent(outcome.median_change_pct);
+  return `${sample} matured path${sample === 1 ? "" : "s"} · median ${change}${outcome.matured_through ? ` · through ${timestamp(outcome.matured_through)}` : ""}`;
+}
+
+function pathTransitionText(value = {}) {
+  if (!value || typeof value !== "object") return operatorList(value);
+  const parts = [value.behavior, value.pressure, value.observed_side, value.state]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .map((item) => titleCase(item));
+  return parts.length ? parts.join(" · ") : "Unavailable";
+}
+
+function renderMarkerDetail(marker = {}) {
+  const detail = document.getElementById("terminalMarkerDetail");
+  if (!detail) return;
+  const inspection = marker.inspection || {};
+  const read = marker.raven_read || {};
+  const source = inspection.source_evidence || read.evidence?.[0] || marker.metadata || {};
+  const sourceLabel = source.label || source.source || marker.source || "Public Raven evidence unavailable";
+  const sourceTime = source.observed_at || marker.exact_observed_at || marker.observed_at;
+  setText("terminalMarkerTitle", marker.label || read.title || "Raven decision detail");
+  setText("terminalMarkerSource", `${customerFacingText(sourceLabel, "Public Raven evidence unavailable")}${sourceTime ? ` · ${timestamp(sourceTime)}` : ""}`);
+  setText("terminalMarkerMaturity", titleCase(inspection.evidence_maturity || read.confidence, "Unavailable"));
+  setText("terminalMarkerPath", pathTransitionText(inspection.path_transition));
+  setText("terminalMarkerOutcome", historicalOutcomeText(inspection.historical_outcome));
+  setText("terminalMarkerSupport", operatorList(inspection.support, "No public supporting detail is projected"));
+  setText("terminalMarkerContradiction", operatorList(inspection.contradiction, "No public contradiction detail is projected"));
+  detail.hidden = false;
+}
+
 function unwrap(payload) {
   return payload?.data && typeof payload.data === "object" ? payload.data : payload;
 }
@@ -252,6 +417,8 @@ function renderPerpFacts() {
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", market.change !== null && market.change >= 0);
   changeNode?.classList.toggle("terminal-negative", market.change !== null && market.change < 0);
+  renderMarketAnatomy();
+  renderTradeConsequences();
 }
 
 function renderSpotFacts(row = state.selected) {
@@ -278,6 +445,8 @@ function renderSpotFacts(row = state.selected) {
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", change !== null && change >= 0);
   changeNode?.classList.toggle("terminal-negative", change !== null && change < 0);
+  renderMarketAnatomy();
+  renderTradeConsequences();
 }
 
 function atlasOptionsFor(row = state.selected) {
@@ -313,6 +482,8 @@ function renderAtlasFacts(row = state.selected) {
   setText("terminalMetric6", titleCase(session));
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.remove("terminal-positive", "terminal-negative");
+  renderMarketAnatomy();
+  renderTradeConsequences();
 }
 
 function renderListedFacts(row = state.selected) {
@@ -339,6 +510,8 @@ function renderListedFacts(row = state.selected) {
   setText("terminalMetric6Label", "Execution");
   setText("terminalMetric6", "Read only");
   document.getElementById("terminalMetric6")?.classList.remove("terminal-positive", "terminal-negative");
+  renderMarketAnatomy();
+  renderTradeConsequences();
 }
 
 function resetComparableEvidence() {
@@ -402,11 +575,13 @@ function contextChartEvent(payload) {
   return {
     type: "opportunity-marker",
     severity: "info",
+    label: event.label || "Raven observation",
     time: nearest.time,
     exact_observed_at: event.observed_at,
     event_id: event.event_id,
     instrument_id: event.instrument_id,
     lineage: event.lineage,
+    inspection: event.inspection || null,
   };
 }
 
@@ -450,6 +625,7 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderComparables(payload?.matured_comparables || {});
   applyContextChartEvent(payload);
+  renderMarketAnatomy();
   updateShell({
     subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
     marketLabel: read.headline || `${state.selected?.asset} market`,
@@ -507,6 +683,7 @@ function updateQuoteBoundary() {
     : enabled
       ? "Quote review is available only for supported Solana pairs. No order can be signed or sent."
       : "RavenOS cannot review a current route for this exact market. No transaction is prepared, signed, or sent.");
+  renderTradeConsequences();
 }
 
 async function loadTradeFlags() {
@@ -1146,6 +1323,9 @@ function bindControls() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#terminalSpotControl, #terminalSpotResults")) document.getElementById("terminalSpotResults").hidden = true;
   });
+  document.getElementById("terminalMarkerClose")?.addEventListener("click", () => {
+    document.getElementById("terminalMarkerDetail").hidden = true;
+  });
 }
 
 function renderWorkspaceState(workspace = {}) {
@@ -1154,6 +1334,9 @@ function renderWorkspaceState(workspace = {}) {
   setText("terminalChartStatus", workspace?.candles?.length
     ? `${workspace.candles.length.toLocaleString()} provider-backed bars · ${titleCase(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState));
+  renderSourceDetails(workspace);
+  renderMarketAnatomy(workspace);
+  renderTradeConsequences();
   const boundary = document.getElementById("terminalBoundary");
   if (!boundary) return;
   const connection = String(workspace?.connectionState || "").toLowerCase();
@@ -1203,6 +1386,7 @@ async function boot() {
       document.getElementById("timeframeSelect").value = timeframe;
       document.getElementById("timeframeSelect").dispatchEvent(new Event("change", { bubbles: true }));
     },
+    onMarkerSelect: (marker) => renderMarkerDetail(marker),
   });
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   bindControls();
@@ -1273,6 +1457,12 @@ async function boot() {
       candleCount: state.workspace?.state?.candles?.length || 0,
       chartState: state.workspace?.state?.state || "unavailable",
       connectionState: state.workspace?.state?.connectionState || "disconnected",
+      candleSource: state.workspace?.state?.candleSeries?.provider || null,
+      sourceInterval: state.workspace?.state?.candleSeries?.source_interval || null,
+      derivationState: state.workspace?.state?.derivation?.state || null,
+      continuityState: state.workspace?.state?.continuity?.state || null,
+      marketAnatomy: state.workspace?.state?.marketAnatomy || null,
+      providerTransitionCount: state.workspace?.state?.providerTransitionCount || 0,
       contextState: state.context?.raven_context?.context_state || (state.context?.atlas_context?.context_available ? "atlas_context" : "unavailable"),
       quoteOnly: state.flags?.quote_only === true,
       signingAvailable: false,

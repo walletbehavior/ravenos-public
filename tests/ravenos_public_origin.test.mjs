@@ -79,7 +79,7 @@ function instrumentLookupEnvelope(overrides = {}) {
 }
 
 function instrumentChartEnvelope(overrides = {}) {
-  const lastTime = 1_753_000_600;
+  const lastTime = 1_753_003_600;
   return {
     ok: true,
     safe_public: true,
@@ -190,6 +190,44 @@ test("loads bounded listed-market candles through the protected origin and strip
   assert.equal(result.payload.execution_boundary.submission_available, false);
   assert.equal(JSON.stringify(result).includes("test-token"), false);
   assert.equal(JSON.stringify(result).includes("must-not-ship"), false);
+});
+
+test("listed-market one-minute and one-month contracts remain distinct", async () => {
+  const minute = instrumentChartEnvelope({
+    timeframe: "1m",
+    candles: [
+      { time: 1_753_000_000, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+      { time: 1_753_000_060, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+    ],
+    market_data_observed_at: new Date(1_753_000_060 * 1_000).toISOString(),
+  });
+  const monthly = instrumentChartEnvelope({
+    timeframe: "1M",
+    candles: [
+      { time: 1_748_736_000, open: 200, high: 215, low: 198, close: 210, volume: 1_000 },
+      { time: 1_751_155_200, open: 210, high: 220, low: 205, close: 212, volume: 1_200 },
+    ],
+    market_data_observed_at: new Date(1_751_155_200 * 1_000).toISOString(),
+  });
+  const observed = [];
+  for (const [timeframe, payload] of [["1m", minute], ["1M", monthly]]) {
+    const result = await loadPublicInstrumentChart({
+      env: ENV,
+      query: "AAPL",
+      instrumentId: "equity:nasdaq:aapl",
+      timeframe,
+      limit: 120,
+      nowMs: NOW,
+      fetchImpl: async (url) => {
+        observed.push(url);
+        return jsonResponse(payload);
+      },
+    });
+    assert.equal(result.available, true);
+    assert.equal(result.payload.timeframe, timeframe);
+  }
+  assert.match(observed[0], /timeframe=1m/);
+  assert.match(observed[1], /timeframe=1M/);
 });
 
 test("listed-market chart rejects invalid identity before network access", async () => {

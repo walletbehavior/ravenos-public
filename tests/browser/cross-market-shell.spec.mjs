@@ -187,7 +187,8 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
   const row = page.locator(".discover-row").first();
   await expect(row).toContainText("SOL-PERP");
-  await expect(row).toContainText("Behavior changed");
+  await expect(row).toContainText("+2.40% over 24h");
+  await expect(row.locator(".discover-thesis > span")).toHaveText("What changed");
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
   await expect(page.locator("#discoverMarketState")).toHaveText("Live provider");
@@ -509,7 +510,7 @@ test("exact contract search preserves the address match ahead of a more liquid d
   await expect(results.nth(1)).toContainText("Spot · Solana");
 });
 
-test("contract-address search resolves an exact Robinhood Chain pool without pretending chart or route support", async ({ page }) => {
+test("contract-address search resolves a provider-backed Robinhood Chain chart without pretending route support", async ({ page }) => {
   await mockWorkspaceApis(page);
   await mockTerminalLiveApis(page);
   await page.goto("/discover/");
@@ -520,19 +521,36 @@ test("contract-address search resolves an exact Robinhood Chain pool without pre
   await expect(result).toBeVisible();
   await expect(result).toContainText("Spot · Robinhood");
   await expect(result).toContainText("The Runner");
-  await expect(result).toContainText("chart unavailable");
+  await expect(result).toContainText("chart ready");
   await result.click();
 
   await expect(page).toHaveURL(/instrument_id=robinhood%3Apool%3A0x602633/i);
   await expect(page.locator("#terminalInstrument")).toHaveText("RUNNER/WETH");
   await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText("chart unavailable");
-  await expect(page.locator("#terminalChartStatus")).toContainText(/unavailable/i);
-  await expect(page.locator("#terminalChart canvas")).toHaveCount(0);
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText("chart available");
+  await expect(page.locator("#terminalChartStatus")).not.toContainText(/unavailable/i);
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("provider attribution stays visible and opens a bounded source ledger", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.goto("/discover/");
+  await expect(page.locator(".ros-provider-credit")).toHaveCount(1);
+  const credit = page.locator(".ros-provider-credit > summary");
+  await expect(credit).toContainText("Powered by DexPaprika");
+  const fontSize = await credit.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(fontSize).toBeGreaterThanOrEqual(10);
+  await credit.click();
+  const panel = page.locator(".ros-provider-panel");
+  await expect(panel).toBeVisible();
+  for (const provider of ["DexPaprika", "DexScreener", "CoinGecko", "Hyperliquid", "Tradier + Atlas", "Moralis", "Constant-K + Raven", "Cloudflare", "TradingView"]) {
+    await expect(panel).toContainText(provider);
+  }
+  await expect(panel).toContainText(/not endorsement or partnership/i);
 });
 
 test("Atlas outage is isolated and explicit", async ({ page }) => {

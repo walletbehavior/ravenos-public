@@ -3,9 +3,12 @@ import ravenosWorker from "../worker.mjs";
 const productionMode = process.argv.includes("--production");
 const providerKeyConfigured = Boolean(String(process.env.COINGECKO_PRO_API_KEY || "").trim());
 const publicOriginConfigured = Boolean(String(process.env.RAVENOS_PUBLIC_ORIGIN_TOKEN || "").trim());
+const providerOrder = String(process.env.RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER || "dexpaprika,coingecko_onchain").trim();
+const productionProvider = String(process.env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER || "").trim();
+const productionProviderQualified = String(process.env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED || "") === "1";
 
-if (productionMode && !providerKeyConfigured) {
-  throw new Error("Production chart validation requires the server-only on-chain provider binding.");
+if (productionMode && (!productionProvider || !productionProviderQualified)) {
+  throw new Error("Production chart validation remains blocked until one exact-pool provider's commercial rights, anchor coverage, rate behavior, and server-side binding are qualified.");
 }
 if (productionMode && !publicOriginConfigured) {
   throw new Error("Production chart validation requires the server-only public-origin binding.");
@@ -13,6 +16,7 @@ if (productionMode && !publicOriginConfigured) {
 
 const env = {
   COINGECKO_PRO_API_KEY: process.env.COINGECKO_PRO_API_KEY,
+  RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: providerOrder,
   RAVENOS_PUBLIC_ORIGIN_TOKEN: process.env.RAVENOS_PUBLIC_ORIGIN_TOKEN,
   RAVENOS_PUBLIC_ORIGIN_URL: process.env.RAVENOS_PUBLIC_ORIGIN_URL,
   RAVENOS_SPOT_CHART_ORIGIN_TOKEN: process.env.RAVENOS_SPOT_CHART_ORIGIN_TOKEN,
@@ -31,7 +35,7 @@ const anchors = [
     token_address: "zGh48JtNHVBb5evgoZLXwgPD2Qu4MhkWdJLGDAupump",
     quote_address: "So11111111111111111111111111111111111111112",
     intervals,
-    evaluation_intervals: ["15m", "1h"],
+    evaluation_intervals: ["1m", "15m", "1h"],
   },
   {
     name: "cbBTC/USDC Base",
@@ -42,7 +46,7 @@ const anchors = [
     token_address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
     quote_address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     intervals,
-    evaluation_intervals: ["15m"],
+    evaluation_intervals: ["1m", "15m"],
   },
   {
     name: "WETH/USDC Ethereum",
@@ -53,7 +57,19 @@ const anchors = [
     token_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     quote_address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     intervals,
-    evaluation_intervals: ["15m"],
+    evaluation_intervals: ["1m", "15m"],
+  },
+  {
+    name: "RUNNER/WETH Robinhood Chain",
+    market: "crypto_spot",
+    asset: "RUNNER/WETH",
+    chain: "robinhood",
+    pair_address: "0x602633428507BBAA848E6D0c3127cda15eEAE6a9",
+    token_address: "0x230442C8133A9efb4c278b3723043444749Ca08b",
+    quote_address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    intervals,
+    evaluation_intervals: ["1m", "15m", "1h"],
+    minimum_bars: { "15m": 60, "1h": 20 },
   },
   {
     name: "SOL-PERP Hyperliquid",
@@ -66,22 +82,13 @@ const anchors = [
     market: "equities",
     asset: "SPY",
     instrument_id: "etf:nyse-arca:spy",
-    intervals: ["5m", "15m", "1h", "4h", "1d"],
+    intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
     minimum_bars: { "15m": 100, "4h": 40 },
     requires_public_origin: true,
   },
 ];
 
 const unavailableAnchors = [
-  {
-    name: "RUNNER/WETH Robinhood Chain",
-    market: "crypto_spot",
-    asset: "RUNNER/WETH",
-    chain: "robinhood",
-    pair_address: "0x602633428507BBAA848E6D0c3127cda15eEAE6a9",
-    token_address: "0x230442C8133A9efb4c278b3723043444749Ca08b",
-    timeframe: "15m",
-  },
   {
     name: "Unregistered network",
     market: "crypto_spot",
@@ -143,12 +150,17 @@ for (const anchor of anchors) {
     if (productionMode) failures += 1;
     continue;
   }
-  const anchorIntervals = productionMode || providerKeyConfigured ? anchor.intervals : (anchor.evaluation_intervals || anchor.intervals);
+  const anchorIntervals = productionMode ? anchor.intervals : (anchor.evaluation_intervals || anchor.intervals);
   for (const timeframe of anchorIntervals) {
     const started = Date.now();
     try {
       const { response, payload } = await requestPayload(anchor, timeframe);
-      if (!response.ok || !payload?.ok) throw new Error(payload?.message || payload?.source_type || `HTTP ${response.status}`);
+      if (!response.ok || !payload?.ok) {
+        const error = new Error(payload?.message || payload?.source_type || `HTTP ${response.status}`);
+        error.provider_state = payload?.provider_state || null;
+        error.provider_attempts = Array.isArray(payload?.provider_attempts) ? payload.provider_attempts : null;
+        throw error;
+      }
       const bars = validateCandles(payload, { minimum: anchor.minimum_bars?.[timeframe] || minimumBars[timeframe] || 2 });
       if (anchor.market === "crypto_spot" && payload.instrument?.pool_address?.toLowerCase() !== anchor.pair_address.toLowerCase()) throw new Error("exact pool identity mismatch");
       if (anchor.instrument_id && payload.instrument?.canonical_id !== anchor.instrument_id) throw new Error("exact listed identity mismatch");
@@ -165,7 +177,15 @@ for (const anchor of anchors) {
       });
     } catch (error) {
       failures += 1;
-      results.push({ anchor: anchor.name, timeframe, state: "failed", reason: error instanceof Error ? error.message : "validation_failed", latency_ms: Date.now() - started });
+      results.push({
+        anchor: anchor.name,
+        timeframe,
+        state: "failed",
+        reason: error instanceof Error ? error.message : "validation_failed",
+        provider_state: error?.provider_state || null,
+        provider_attempts: Array.isArray(error?.provider_attempts) ? error.provider_attempts : null,
+        latency_ms: Date.now() - started,
+      });
     }
     if (!providerKeyConfigured && anchor.market === "crypto_spot") await new Promise((resolve) => setTimeout(resolve, 2_500));
   }
@@ -187,6 +207,9 @@ const report = {
   generated_at: new Date().toISOString(),
   production_mode: productionMode,
   provider_key_configured: providerKeyConfigured,
+  provider_order: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+  production_provider: productionProvider || null,
+  production_provider_qualified: productionProviderQualified,
   public_origin_configured: publicOriginConfigured,
   passed: failures === 0,
   failures,

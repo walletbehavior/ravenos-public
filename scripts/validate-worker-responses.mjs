@@ -61,9 +61,49 @@ const checks = [
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input?.url || input);
+  if (url.includes("api.dexpaprika.com") && url.includes("/ohlcv?")) {
+    const now = Math.floor(Date.now() / 900_000) * 900;
+    const rows = Array.from({ length: 120 }, (_, index) => ({
+      time_open: new Date((now - (119 - index) * 900) * 1_000).toISOString(),
+      open: 1,
+      high: 1.1,
+      low: 0.9,
+      close: 1.05,
+      volume: 10,
+    }));
+    return new Response(JSON.stringify(rows), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (url.includes("api.dexpaprika.com/networks/base/pools/0x1111111111111111111111111111111111111111")) {
+    return new Response(JSON.stringify({
+      id: "0x1111111111111111111111111111111111111111",
+      chain: "base",
+      dex_id: "validation_pool",
+      created_at: "2024-01-01T00:00:00Z",
+      base_token_id: "0x2222222222222222222222222222222222222222",
+      quote_token_id: "0x3333333333333333333333333333333333333333",
+      liquidity_usd: 100_000,
+      tokens: [
+        { id: "0x2222222222222222222222222222222222222222", symbol: "TEST" },
+        { id: "0x3333333333333333333333333333333333333333", symbol: "USDC" },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.includes("pro-api.coingecko.com")) {
     if (init.headers?.["x-cg-pro-api-key"] !== env.COINGECKO_PRO_API_KEY) throw new Error("server-only provider credential was not bound to the provider request");
     if (url.includes(env.COINGECKO_PRO_API_KEY)) throw new Error("provider credential entered the request URL");
+    if (!url.includes("/ohlcv/")) {
+      return new Response(JSON.stringify({
+        data: {
+          id: "base_0x1111111111111111111111111111111111111111",
+          type: "pool",
+          attributes: { address: "0x1111111111111111111111111111111111111111" },
+          relationships: {
+            base_token: { data: { id: "base_0x2222222222222222222222222222222222222222" } },
+            quote_token: { data: { id: "base_0x3333333333333333333333333333333333333333" } },
+          },
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     const now = Math.floor(Date.now() / 900_000) * 900;
     const rows = Array.from({ length: 120 }, (_, index) => [now - (119 - index) * 900, 1, 1.1, 0.9, 1.05, 10]);
     return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: rows } } }), { status: 200, headers: { "content-type": "application/json" } });

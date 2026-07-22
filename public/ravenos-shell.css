@@ -1,22 +1,22 @@
 :root {
   color-scheme: dark;
-  --ros-bg: #070a10;
-  --ros-bg-deep: #04070c;
-  --ros-surface: #0c1119;
-  --ros-surface-raised: #111925;
-  --ros-surface-soft: #172131;
-  --ros-line: rgba(172, 191, 218, 0.12);
-  --ros-line-strong: rgba(172, 191, 218, 0.24);
-  --ros-text: #edf3fb;
-  --ros-muted: #96a4b8;
-  --ros-soft: #64738a;
-  --ros-accent: #7698ff;
-  --ros-accent-soft: rgba(118, 152, 255, 0.12);
-  --ros-cyan: #6bb7d6;
-  --ros-positive: #35c98b;
-  --ros-negative: #ff6577;
-  --ros-warning: #e5b85c;
-  --ros-topbar-height: 58px;
+  --ros-bg: #090b0e;
+  --ros-bg-deep: #050608;
+  --ros-surface: #0e1115;
+  --ros-surface-raised: #151a20;
+  --ros-surface-soft: #1a2028;
+  --ros-line: rgba(183, 194, 208, 0.11);
+  --ros-line-strong: rgba(183, 194, 208, 0.22);
+  --ros-text: #e7ebf0;
+  --ros-muted: #929daa;
+  --ros-soft: #65717f;
+  --ros-accent: #a6b1be;
+  --ros-accent-soft: rgba(166, 177, 190, 0.1);
+  --ros-cyan: #8398a7;
+  --ros-positive: #3fa675;
+  --ros-negative: #cf5968;
+  --ros-warning: #be9b58;
+  --ros-topbar-height: 52px;
   --ros-mobile-nav-height: 58px;
   --ros-drawer-width: 390px;
   --ros-radius: 10px;
@@ -29,9 +29,7 @@ body.ros-shell-active {
   min-height: 100vh;
   padding: var(--ros-topbar-height) 0 0;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 45% -20%, rgba(72, 104, 166, 0.15), transparent 34rem),
-    var(--ros-bg) !important;
+  background: var(--ros-bg) !important;
   color: var(--ros-text);
   font-family: var(--ros-font);
   letter-spacing: 0;
@@ -51,7 +49,7 @@ body.ros-shell-active button { cursor: pointer; }
   display: grid;
   grid-template-columns: 132px minmax(300px, 1fr) minmax(320px, 680px) 126px 92px 42px;
   align-items: stretch;
-  background: rgba(7, 10, 16, 0.96);
+  background: rgba(9, 11, 14, 0.97);
   border-bottom: 1px solid var(--ros-line);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.16);
   backdrop-filter: blur(18px);
@@ -70,9 +68,9 @@ body.ros-shell-active button { cursor: pointer; }
   height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(118, 152, 255, 0.5);
+  border: 1px solid rgba(166, 177, 190, 0.34);
   border-radius: 9px 3px 9px 3px;
-  background: linear-gradient(145deg, rgba(118, 152, 255, 0.18), rgba(107, 183, 214, 0.04));
+  background: #11151a;
   color: var(--ros-accent);
   font: 800 14px var(--ros-mono);
 }
@@ -176,7 +174,7 @@ body.ros-shell-active button { cursor: pointer; }
 .ros-profile-trigger {
   display: grid;
   place-items: center;
-  margin: 14px 9px;
+  margin: 11px 9px;
   width: 28px;
   height: 28px;
   border: 1px solid var(--ros-line-strong);
@@ -291,7 +289,7 @@ body.ros-utility-open .ros-utility-drawer {
 .ros-context-grid div { min-width: 0; display: grid; gap: 5px; padding: 13px 15px; background: #0a0f17; }
 .ros-context-grid strong { font-size: 11px; text-transform: capitalize; overflow-wrap: anywhere; }
 .ros-context-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 16px 24px; }
-.ros-context-footer button:first-child { border-color: rgba(118, 152, 255, 0.38); color: var(--ros-accent); }
+.ros-context-footer button:first-child { border-color: rgba(166, 177, 190, 0.32); color: var(--ros-accent); }
 
 .ros-utility-content { display: grid; }
 .ros-utility-content section { padding: 18px 16px; border-bottom: 1px solid var(--ros-line); }
@@ -317,6 +315,75 @@ body.ros-utility-open .ros-utility-drawer {
 .ros-utility-list span,
 .ros-more-links span { color: var(--ros-muted); font-size: 9px; text-transform: capitalize; }
 .ros-mobile-nav { display: none; }
+
+.ros-provider-credit {
+  position: fixed;
+  z-index: 1040;
+  right: 10px;
+  bottom: 10px;
+  color: var(--ros-text);
+}
+.ros-provider-credit > summary {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--ros-line-strong);
+  border-radius: 8px;
+  background: rgba(10, 15, 23, 0.94);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+  color: #b7c2d2;
+  font-size: 10px;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+.ros-provider-credit > summary::-webkit-details-marker { display: none; }
+.ros-provider-credit > summary img { width: 24px; height: 24px; object-fit: contain; flex: 0 0 auto; }
+.ros-provider-credit[open] > summary { border-color: rgba(172, 191, 218, 0.34); color: var(--ros-text); }
+.ros-provider-panel {
+  position: absolute;
+  right: 0;
+  bottom: 38px;
+  width: min(360px, calc(100vw - 20px));
+  overflow: hidden;
+  border: 1px solid var(--ros-line-strong);
+  border-radius: 11px;
+  background: #0a0f17;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+}
+.ros-provider-panel > header { display: grid; gap: 5px; padding: 14px; border-bottom: 1px solid var(--ros-line); }
+.ros-provider-panel > header span { color: var(--ros-soft); font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em; }
+.ros-provider-panel > header strong { font-size: 14px; }
+.ros-provider-panel > header p { margin: 0; color: var(--ros-muted); font-size: 10px; line-height: 1.45; }
+.ros-provider-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.ros-provider-row {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-right: 1px solid var(--ros-line);
+  border-bottom: 1px solid var(--ros-line);
+  background: var(--ros-surface);
+}
+.ros-provider-row:nth-child(even) { border-right: 0; }
+.ros-provider-row:hover { background: var(--ros-surface-raised); }
+.ros-provider-mark { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--ros-line-strong); border-radius: 7px; color: var(--ros-muted); font: 750 8px var(--ros-mono); }
+.ros-provider-mark.official { border: 0; }
+.ros-provider-mark img { width: 24px; height: 24px; object-fit: contain; }
+.ros-provider-row > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.ros-provider-row strong { overflow: hidden; color: var(--ros-text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.ros-provider-row small { color: var(--ros-muted); font-size: 8px; line-height: 1.35; }
+.ros-provider-panel > footer { padding: 10px 12px; color: var(--ros-soft); font-size: 8px; line-height: 1.4; }
+
+@media (min-width: 821px) {
+  body.ros-shell-terminal .ros-provider-credit { right: 388px; }
+}
 
 .ros-command-palette {
   width: min(760px, calc(100vw - 48px));
@@ -434,6 +501,12 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
   }
   .ros-mobile-nav-item .ros-nav-glyph { min-width: 22px; height: 20px; border: 0; }
   .ros-mobile-nav-item.active { color: var(--ros-text); border-top-color: var(--ros-accent); background: var(--ros-accent-soft); }
+  .ros-provider-credit { right: 8px; bottom: calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom) + 6px); }
+  .ros-provider-credit > summary { min-height: 24px; gap: 5px; padding: 2px 7px 2px 4px; font-size: 9px; }
+  .ros-provider-credit > summary img { width: 18px; height: 18px; }
+  .ros-provider-panel { width: min(360px, calc(100vw - 16px)); max-height: 62vh; overflow: auto; }
+  .ros-provider-grid { grid-template-columns: 1fr; }
+  .ros-provider-row { border-right: 0; }
   .ros-drawer-scrim { inset: var(--ros-topbar-height) 0 calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom)) 0; }
   .ros-context-rail,
   .ros-utility-drawer {

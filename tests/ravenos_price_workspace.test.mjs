@@ -22,6 +22,9 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /value\.instrument_id !== instrument\.canonical_id/);
   assert.match(workspace, /events: \[\], overlays: \[\], visibleOverlayTypes: \[\]/);
   assert.match(workspace, /new CustomEvent\("ravenos:priceworkspace", \{ detail: \{ \.\.\.this\.state \} \}\)/);
+  assert.match(workspace, /acceptProviderTransition/);
+  assert.match(workspace, /chart_provider_transition_pool_mismatch/);
+  assert.match(workspace, /onMarkerSelect/);
 });
 
 test("Terminal uses PriceWorkspace by default and exposes no unresolved build token", () => {
@@ -32,7 +35,12 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.doesNotMatch(terminal, /v=__RAVENOS_BUILD_ID__/);
   assert.match(terminal, /data-ravenos-build-id[^>]*>pending/);
   assert.match(terminalRuntime, /No fallback market state was generated/);
+  assert.match(terminalRuntime, /renderSourceDetails/);
+  assert.match(terminalRuntime, /renderMarketAnatomy/);
+  assert.match(terminalRuntime, /renderMarkerDetail/);
+  assert.match(terminalRuntime, /No customer venue account or exposure is connected/);
   assert.doesNotMatch(terminal, /Synthetic fallback/);
+  assert.match(terminal, /Lightweight Charts™ by TradingView/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
 });
 
@@ -49,5 +57,7 @@ test("Worker supports exact-pool OHLCV with explicit provider lineage", () => {
   assert.match(worker, /pair_address/);
   assert.match(worker, /token_address/);
   assert.match(worker, /price_currency: "usd"/);
-  assert.match(worker, /token_orientation: "base"/);
+  assert.match(worker, /token_orientation: "selected_token_usd"/);
+  assert.match(worker, /coingecko_token_identity_mismatch/);
+  assert.match(worker, /coingecko_quote_identity_mismatch/);
 });

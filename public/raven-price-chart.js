@@ -1,24 +1,24 @@
 (function () {
   const SEVERITY_COLOR = {
-    info: "#7dd3fc",
-    warning: "#facc15",
-    danger: "#fb7185",
-    success: "#34d399",
+    info: "#8da6b8",
+    warning: "#c4a05c",
+    danger: "#d96070",
+    success: "#3fa675",
   };
 
   const OVERLAY_META = {
-    structure: { label: "Structure", color: "#7dd3fc" },
-    pressure: { label: "Pressure", color: "#fb7185" },
-    participation: { label: "Participation", color: "#34d399" },
-    replay: { label: "History", color: "#a78bfa" },
-    risk: { label: "Risk", color: "#facc15" },
-    "pressure-zone": { label: "Pressure", color: "#fb7185" },
-    "history-window": { label: "History", color: "#a78bfa" },
-    "breadth-line": { label: "Participation", color: "#34d399" },
-    "compression-band": { label: "Structure", color: "#7dd3fc" },
-    "regime-marker": { label: "Risk", color: "#facc15" },
-    "liquidity-zone": { label: "Risk", color: "#facc15" },
-    "participant-shift": { label: "Participation", color: "#34d399" },
+    structure: { label: "Structure", color: "#8da6b8" },
+    pressure: { label: "Pressure", color: "#c47a72" },
+    participation: { label: "Participation", color: "#68a585" },
+    replay: { label: "History", color: "#998bad" },
+    risk: { label: "Risk", color: "#c4a05c" },
+    "pressure-zone": { label: "Pressure", color: "#c47a72" },
+    "history-window": { label: "History", color: "#998bad" },
+    "breadth-line": { label: "Participation", color: "#68a585" },
+    "compression-band": { label: "Structure", color: "#8da6b8" },
+    "regime-marker": { label: "Risk", color: "#c4a05c" },
+    "liquidity-zone": { label: "Risk", color: "#c4a05c" },
+    "participant-shift": { label: "Participation", color: "#68a585" },
   };
 
   const OVERLAY_RENDERER_REGISTRY = {
@@ -72,7 +72,7 @@
       .map((candle) => ({
         time: candle.time,
         value: Number(candle.volume),
-        color: Number(candle.close) >= Number(candle.open) ? "rgba(52, 211, 153, 0.32)" : "rgba(251, 113, 133, 0.28)",
+        color: Number(candle.close) >= Number(candle.open) ? "rgba(63, 166, 117, 0.3)" : "rgba(207, 89, 104, 0.26)",
       }));
   }
 
@@ -123,9 +123,10 @@
     return output;
   }
 
-  function markerFor(event) {
+  function markerFor(event, index = 0) {
     const above = event.type === "liquidity-warning" || event.type === "toxicity-risk";
     return {
+      id: `raven-event:${String(event.event_id || event.id || `${event.type || "event"}-${event.time}-${index}`).slice(0, 180)}`,
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(event),
@@ -134,10 +135,11 @@
     };
   }
 
-  function overlayMarker(overlay) {
+  function overlayMarker(overlay, index = 0) {
     const type = overlayType(overlay.type);
     const above = type === "pressure-zone" || type === "regime-marker" || type === "distribution-risk";
     return {
+      id: `raven-overlay:${String(overlay.id || `${type}-${overlay.time || overlay.startTime}-${index}`).slice(0, 180)}`,
       time: overlay.time || overlay.startTime,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(overlay),
@@ -298,7 +300,7 @@
       option.textContent = entry.label;
       option.dataset.overlayId = entry.id;
       option.setAttribute("aria-pressed", active ? "true" : "false");
-      const meta = OVERLAY_META[matchedKey] || { color: "#7dd3fc" };
+      const meta = OVERLAY_META[matchedKey] || { color: "#8da6b8" };
       Object.assign(option.style, {
         border: `1px solid ${meta.color}55`,
         background: active ? `${meta.color}22` : "rgba(8, 17, 14, 0.72)",
@@ -320,7 +322,7 @@
     const activeEntries = Array.from(activeTypes);
     activeEntries.forEach((type) => {
       const entry = RAVEN_OVERLAY_LIBRARY.find((candidate) => candidate.keys.includes(type));
-      const meta = OVERLAY_META[type] || { color: "#7dd3fc" };
+      const meta = OVERLAY_META[type] || { color: "#8da6b8" };
       const chip = document.createElement("button");
       chip.type = "button";
       chip.textContent = `${entry?.label || OVERLAY_META[type]?.label || type} ×`;
@@ -424,13 +426,13 @@
       height: chartHeight,
       width: chartHost.clientWidth || container.clientWidth,
       layout: {
-        background: { color: "#060a11" },
-        textColor: "#96a4b8",
+        background: { color: "#080a0d" },
+        textColor: "#929daa",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(118, 152, 255, 0.055)" },
-        horzLines: { color: "rgba(118, 152, 255, 0.055)" },
+        vertLines: { color: "rgba(183, 194, 208, 0.05)" },
+        horzLines: { color: "rgba(183, 194, 208, 0.05)" },
       },
       rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
       timeScale: {
@@ -445,12 +447,12 @@
     });
 
     const candleSeries = chart.addSeries(api.CandlestickSeries, {
-      upColor: "#34d399",
-      downColor: "#fb7185",
-      borderUpColor: "#34d399",
-      borderDownColor: "#fb7185",
-      wickUpColor: "#86efac",
-      wickDownColor: "#fca5a5",
+      upColor: "#3fa675",
+      downColor: "#cf5968",
+      borderUpColor: "#3fa675",
+      borderDownColor: "#cf5968",
+      wickUpColor: "#75b996",
+      wickDownColor: "#d8848e",
       priceFormat: {
         type: "custom",
         formatter: priceFormatter,
@@ -485,9 +487,9 @@
     };
     const activeIndicators = new Set(Array.isArray(options?.indicators) ? options.indicators : []);
     const indicatorDefinitions = [
-      { key: "ema20", label: "EMA 20", color: "#7dd3fc", values: () => emaSeries(candles, 20) },
-      { key: "ema50", label: "EMA 50", color: "#a78bfa", values: () => emaSeries(candles, 50) },
-      { key: "vwap", label: "VWAP", color: "#facc15", values: () => vwapSeries(options?.candles || candles) },
+      { key: "ema20", label: "EMA 20", color: "#8da6b8", values: () => emaSeries(candles, 20) },
+      { key: "ema50", label: "EMA 50", color: "#998bad", values: () => emaSeries(candles, 50) },
+      { key: "vwap", label: "VWAP", color: "#b5965c", values: () => vwapSeries(options?.candles || candles) },
     ];
     indicatorDefinitions.forEach((indicator) => {
       if (!activeIndicators.has(indicator.key)) return;
@@ -544,12 +546,17 @@
       });
     });
 
-    const markers = events.filter((event) => event && event.time).map(markerFor).concat(
-      visibleOverlays()
-        .filter((overlay) => OVERLAY_RENDERER_REGISTRY[overlay.type]?.renderAs === "marker")
-        .filter((overlay) => overlay.time || overlay.startTime)
-        .map(overlayMarker),
+    const eventMarkers = events.filter((event) => event && event.time).map(markerFor);
+    const overlayMarkerRows = visibleOverlays()
+      .filter((overlay) => OVERLAY_RENDERER_REGISTRY[overlay.type]?.renderAs === "marker")
+      .filter((overlay) => overlay.time || overlay.startTime);
+    const overlayMarkers = overlayMarkerRows.map(overlayMarker);
+    const markers = eventMarkers.concat(
+      overlayMarkers,
     );
+    const markerLookup = new Map();
+    eventMarkers.forEach((marker, index) => markerLookup.set(marker.id, events.filter((event) => event && event.time)[index]));
+    overlayMarkers.forEach((marker, index) => markerLookup.set(marker.id, overlayMarkerRows[index]));
     if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers);
     else if (typeof candleSeries.setMarkers === "function") candleSeries.setMarkers(markers);
 
@@ -689,6 +696,12 @@
       });
     };
     if (typeof chart.subscribeCrosshairMove === "function") chart.subscribeCrosshairMove(crosshairHandler);
+    const clickHandler = (param) => {
+      const markerId = param?.hoveredInfo?.objectId ?? param?.hoveredObjectId;
+      if (!markerId || !markerLookup.has(String(markerId))) return;
+      options?.onMarkerSelect?.(markerLookup.get(String(markerId)));
+    };
+    if (typeof chart.subscribeClick === "function") chart.subscribeClick(clickHandler);
     const resizeObserver = new ResizeObserver(() => {
       const width = chartHost.clientWidth || container.clientWidth;
       const height = container.clientHeight || chartHost.clientHeight || options?.height || 520;

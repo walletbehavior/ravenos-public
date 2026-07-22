@@ -76,12 +76,49 @@
       <article class="terminal-chart-panel">
         <header>
           <div><span>Price history</span><h2 id="terminalChartTitle">SOL-PERP · 1h</h2></div>
-          <p id="terminalChartStatus">Requesting current candles.</p>
+          <div class="terminal-chart-source">
+            <p id="terminalChartStatus">Requesting current candles.</p>
+            <details id="terminalSourceDetail">
+              <summary id="terminalSourceSummary">Source details</summary>
+              <dl>
+                <div><dt>Source</dt><dd id="terminalSourceProvider">Checking</dd></div>
+                <div><dt>Bars</dt><dd id="terminalSourceInterval">Checking</dd></div>
+                <div><dt>Continuity</dt><dd id="terminalSourceContinuity">Checking</dd></div>
+                <div><dt>Freshness</dt><dd id="terminalSourceFreshness">Checking</dd></div>
+                <div><dt>Chart</dt><dd><a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">Lightweight Charts™ by TradingView</a></dd></div>
+              </dl>
+            </details>
+          </div>
         </header>
         <div id="terminalChart" aria-label="Selected market chart"></div>
       </article>
 
       <aside class="terminal-intelligence" aria-label="Selected market intelligence">
+        <section class="terminal-anatomy">
+          <header><div><span>Market anatomy</span><h2>What this market is made of</h2></div><strong id="terminalAnatomyState">Resolving</strong></header>
+          <dl class="terminal-anatomy-grid">
+            <div><dt id="terminalAnatomy1Label">Liquidity</dt><dd id="terminalAnatomy1">--</dd></div>
+            <div><dt id="terminalAnatomy2Label">Volume</dt><dd id="terminalAnatomy2">--</dd></div>
+            <div><dt id="terminalAnatomy3Label">Transactions</dt><dd id="terminalAnatomy3">--</dd></div>
+            <div><dt id="terminalAnatomy4Label">Market age</dt><dd id="terminalAnatomy4">--</dd></div>
+            <div><dt id="terminalAnatomy5Label">Holders</dt><dd id="terminalAnatomy5">--</dd></div>
+            <div><dt id="terminalAnatomy6Label">Route</dt><dd id="terminalAnatomy6">--</dd></div>
+          </dl>
+          <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
+        </section>
+
+        <section class="terminal-marker-detail" id="terminalMarkerDetail" hidden>
+          <header><div><span>Raven marker</span><h2 id="terminalMarkerTitle">Decision detail</h2></div><button type="button" id="terminalMarkerClose" aria-label="Close marker detail">Close</button></header>
+          <dl class="terminal-marker-grid">
+            <div><dt>Source evidence</dt><dd id="terminalMarkerSource">Unavailable</dd></div>
+            <div><dt>Evidence maturity</dt><dd id="terminalMarkerMaturity">Unavailable</dd></div>
+            <div><dt>Path transition</dt><dd id="terminalMarkerPath">Unavailable</dd></div>
+            <div><dt>Historical outcome</dt><dd id="terminalMarkerOutcome">Unavailable</dd></div>
+            <div><dt>What supports it</dt><dd id="terminalMarkerSupport">Unavailable</dd></div>
+            <div><dt>What contradicts it</dt><dd id="terminalMarkerContradiction">Unavailable</dd></div>
+          </dl>
+        </section>
+
         <section>
           <header><div><span>Why now</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
           <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
@@ -109,6 +146,8 @@
           <header><div><span>Available action</span><h2>Trade review</h2></div><strong id="terminalQuoteState">Checking</strong></header>
           <dl class="terminal-boundary-list">
             <div><dt>Review</dt><dd id="terminalQuoteContract">Checking availability</dd></div>
+            <div><dt>Settlement</dt><dd id="terminalSettlementConsequence">Resolved by exact market; no transaction prepared</dd></div>
+            <div><dt>Portfolio consequence</dt><dd id="terminalPortfolioConsequence">No customer portfolio is connected or inferred</dd></div>
             <div><dt>Action</dt><dd>No order can be signed or sent</dd></div>
           </dl>
           <p id="terminalQuoteNote">RavenOS will explain why review is available or unavailable for this exact market.</p>

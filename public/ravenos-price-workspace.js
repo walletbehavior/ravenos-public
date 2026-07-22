@@ -149,6 +149,7 @@ function createMarkup() {
       </div>
       <div class="rpw-stage">
         <div class="rpw-chart" data-rpw-chart></div>
+        <div class="rpw-marker-index" data-rpw-marker-index hidden aria-label="Inspectable Raven chart markers"></div>
         <div class="rpw-watermark" data-rpw-watermark>Data unavailable</div>
         <div class="rpw-crosshair" data-rpw-crosshair hidden></div>
         <div class="rpw-coverage-note" data-rpw-coverage-note hidden aria-live="polite"></div>
@@ -202,6 +203,13 @@ export class PriceWorkspace {
       instrumentScope: "exact_pool",
       availableScopes: {},
       ravenAnnotations: null,
+      candleSeries: null,
+      continuity: null,
+      derivation: null,
+      providerSelection: null,
+      providerUsage: null,
+      marketAnatomy: null,
+      providerTransitionCount: 0,
     };
     container.innerHTML = createMarkup();
     this.root = container.querySelector(".rpw");
@@ -415,6 +423,31 @@ export class PriceWorkspace {
     }));
   }
 
+  paintMarkerIndex() {
+    const host = this.container.querySelector("[data-rpw-marker-index]");
+    if (!host) return;
+    const events = (Array.isArray(this.renderInput?.events) ? this.renderInput.events : []).filter((row) => row?.time);
+    const overlays = (Array.isArray(this.renderInput?.overlays) ? this.renderInput.overlays : []).filter((row) => row?.time || row?.startTime);
+    const rows = [...events, ...overlays].slice(0, 6);
+    host.replaceChildren();
+    host.hidden = rows.length === 0;
+    if (!rows.length) return;
+    rows.forEach((row, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = row.label || row.raven_read?.title || `Raven marker ${index + 1}`;
+      button.title = `Inspect ${button.textContent}`;
+      button.addEventListener("click", () => this.options.onMarkerSelect?.(row));
+      host.append(button);
+    });
+    const remaining = events.length + overlays.length - rows.length;
+    if (remaining > 0) {
+      const count = document.createElement("span");
+      count.textContent = `+${remaining}`;
+      host.append(count);
+    }
+  }
+
   schedulePaint() {
     if (this.paintFrame !== null) return;
     const schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (callback) => setTimeout(callback, 16);
@@ -474,6 +507,12 @@ export class PriceWorkspace {
       instrumentScope: request.instrumentScope || "exact_pool",
       availableScopes: {},
       ravenAnnotations: null,
+      candleSeries: null,
+      continuity: null,
+      derivation: null,
+      providerSelection: null,
+      providerUsage: null,
+      marketAnatomy: null,
     });
     if (request.demo === true) {
       const candles = normalizeCandles(request.demoCandles);
@@ -536,6 +575,12 @@ export class PriceWorkspace {
         instrumentScope: payload.instrument_scope || payload.instrument?.identity_scope || request.instrumentScope || "exact_pool",
         availableScopes: payload.available_scopes || {},
         ravenAnnotations,
+        candleSeries: payload.candle_series || null,
+        continuity: payload.continuity || null,
+        derivation: payload.derivation || payload.candle_series?.derivation || null,
+        providerSelection: payload.provider_selection || null,
+        providerUsage: payload.provider_usage || null,
+        marketAnatomy: payload.market_anatomy || null,
       });
       this.renderInput = {
         ...this.renderInput,
@@ -589,6 +634,12 @@ export class PriceWorkspace {
       instrumentScope,
       availableScopes: {},
       ravenAnnotations: null,
+      candleSeries: null,
+      continuity: null,
+      derivation: null,
+      providerSelection: null,
+      providerUsage: null,
+      marketAnatomy: null,
       lineage: null,
     });
   }
@@ -597,6 +648,7 @@ export class PriceWorkspace {
     this.renderInput = { ...this.renderInput, ...input };
     this.destroyChart();
     if (!this.state.candles.length || ["loading", "empty", "error", "data_unavailable"].includes(this.state.state)) {
+      this.paintMarkerIndex();
       this.paintState();
       return null;
     }
@@ -616,8 +668,10 @@ export class PriceWorkspace {
       indicatorSourceState: this.state.state === "demo" ? "demo" : "provider_backed",
       indicators: Array.from(this.activeIndicators),
       onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
+      onMarkerSelect: (marker) => this.options.onMarkerSelect?.(marker),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
     });
+    this.paintMarkerIndex();
     const publishGeometry = () => {
       const geometry = this.chartHandle?.measure?.() || null;
       if (!geometry) return;
@@ -705,6 +759,7 @@ export class PriceWorkspace {
         poll: async () => {
           const result = await this.fetchPayload(request, { limit: 3 });
           if (!result.response.ok || !result.payload?.ok) throw new Error(result.payload?.error || `chart_poll_${result.response.status}`);
+          this.acceptProviderTransition(result.payload);
           return result.payload;
         },
       });
@@ -736,6 +791,7 @@ export class PriceWorkspace {
     try {
       const { response, payload } = await this.fetchPayload(request, { limit: 3 });
       if (!response.ok || !payload?.ok) return;
+      this.acceptProviderTransition(payload);
       for (const candle of normalizeCandles(payload.candles)) this.applyCandle(candle);
       this.state.marketState = { ...this.state.marketState, ...(payload.market_state || {}) };
       document.dispatchEvent(new CustomEvent("ravenos:chartresync", { detail: { instrumentId: this.state.instrument?.canonical_id, state: "completed" } }));
@@ -743,6 +799,39 @@ export class PriceWorkspace {
       this.state.connectionState = "degraded";
       this.paintState();
     }
+  }
+
+  acceptProviderTransition(payload = {}) {
+    const currentInstrument = this.state.instrument?.canonical_id || null;
+    const nextInstrument = payload.instrument?.canonical_id || null;
+    if (currentInstrument && nextInstrument && currentInstrument !== nextInstrument) throw new Error("chart_provider_transition_identity_mismatch");
+    const currentContinuity = this.state.continuity || {};
+    const nextContinuity = payload.continuity || {};
+    const currentFingerprint = currentContinuity.exact_pool_fingerprint || null;
+    const nextFingerprint = nextContinuity.exact_pool_fingerprint || null;
+    if (currentFingerprint && nextFingerprint && currentFingerprint !== nextFingerprint) throw new Error("chart_provider_transition_pool_mismatch");
+    const currentOrientation = currentContinuity.token_orientation || this.state.candleSeries?.token_orientation || null;
+    const nextOrientation = nextContinuity.token_orientation || payload.candle_series?.token_orientation || null;
+    if (currentOrientation && nextOrientation && currentOrientation !== nextOrientation) throw new Error("chart_provider_transition_orientation_mismatch");
+    for (const field of ["selected_token_decimals", "quote_token_decimals"]) {
+      const current = finite(currentContinuity[field]);
+      const next = finite(nextContinuity[field]);
+      if (current !== null && next !== null && current !== next) throw new Error(`chart_provider_transition_${field}_mismatch`);
+    }
+    if (payload.provider_selection?.transition_continuity?.state === "rejected") throw new Error("chart_provider_transition_rejected");
+    const providerChanged = Boolean(
+      this.state.candleSeries?.provider
+      && payload.candle_series?.provider
+      && this.state.candleSeries.provider !== payload.candle_series.provider
+    );
+    this.state.candleSeries = payload.candle_series || this.state.candleSeries;
+    this.state.continuity = payload.continuity || this.state.continuity;
+    this.state.derivation = payload.derivation || payload.candle_series?.derivation || this.state.derivation;
+    this.state.providerSelection = payload.provider_selection || this.state.providerSelection;
+    this.state.providerUsage = payload.provider_usage || this.state.providerUsage;
+    this.state.marketAnatomy = payload.market_anatomy || this.state.marketAnatomy;
+    if (providerChanged) this.state.providerTransitionCount = Number(this.state.providerTransitionCount || 0) + 1;
+    return true;
   }
 
   applyCandle(value) {

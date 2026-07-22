@@ -83,8 +83,8 @@ function drawChart() {
   const y = (value) => 18 + (high - value) / spread * (height - 48);
   const gradient = context.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, "rgba(118,152,255,.22)"); gradient.addColorStop(1, "rgba(118,152,255,0)");
   context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.lineTo(x(values.length - 1), height - 22); context.lineTo(x(0), height - 22); context.closePath(); context.fillStyle = gradient; context.fill();
-  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = "#7698ff"; context.lineWidth = 1.7; context.stroke();
-  const lastX = x(values.length - 1); const lastY = y(values.at(-1)); context.beginPath(); context.arc(lastX, lastY, 3, 0, Math.PI * 2); context.fillStyle = "#7698ff"; context.fill();
+  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = "#a6b1be"; context.lineWidth = 1.7; context.stroke();
+  const lastX = x(values.length - 1); const lastY = y(values.at(-1)); context.beginPath(); context.arc(lastX, lastY, 3, 0, Math.PI * 2); context.fillStyle = "#a6b1be"; context.fill();
   wrap.dataset.state = "live";
 }
 

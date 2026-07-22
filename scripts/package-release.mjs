@@ -100,6 +100,7 @@ const releaseWrangler = {
     RAVENOS_STATIC_ASSET_MANIFEST_SHA256: release.static_asset_manifest_sha256,
     RAVENOS_PUBLIC_ORIGIN_CONTRACT_VERSION: release.public_origin_contract_version,
     RAVENOS_PUBLIC_ORIGIN_URL: releaseConfig.public_origin.base_url,
+    RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: (releaseConfig.onchain_chart_provider?.evaluation_provider_order || []).join(","),
   },
 };
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
@@ -117,9 +118,9 @@ const packageManifest = {
   static_asset_manifest_sha256: release.static_asset_manifest_sha256,
   artifact_content_sha256: deploy.artifact_content_sha256,
   public_origin_contract_version: release.public_origin_contract_version,
+  onchain_chart_provider: releaseConfig.onchain_chart_provider,
   worker_name: baseWrangler.name,
   required_server_secret_bindings: [
-    "COINGECKO_PRO_API_KEY",
     "RAVENOS_PUBLIC_ORIGIN_TOKEN",
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN"
   ],

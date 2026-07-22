@@ -2,6 +2,32 @@
   "release_contract_version": "ravenos.release.v1",
   "asset_manifest_version": "ravenos.static_assets.v1",
   "deploy_manifest_version": "ravenos.deploy.v2",
+  "onchain_chart_provider": {
+    "contract_version": "ravenos.onchain_chart_provider_registry.v1",
+    "evaluation_provider_order": [
+      "dexpaprika",
+      "coingecko_onchain"
+    ],
+    "required_intervals": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "one_minute_minimum_useful_bars": 120,
+    "subminute_candles_required": false,
+    "production_provider": null,
+    "production_promotion_eligible": false,
+    "production_blockers": [
+      "commercial_rights_unverified",
+      "exact_pool_anchor_matrix_incomplete",
+      "one_minute_anchor_matrix_incomplete",
+      "rate_behavior_not_production_qualified",
+      "production_provider_binding_not_selected"
+    ]
+  },
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
     "contract_version": "ravenos_public_origin_v2",

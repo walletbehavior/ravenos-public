@@ -33,6 +33,12 @@ test("selected perp context joins exact Raven evidence to live market state", ()
   assert.equal(result.instrument.instrument_id, "hyperliquid:perp:SOL");
   assert.equal(result.raven_context.public_context_id, "perpctx_test");
   assert.equal(result.chart_event.event_id, "perpctx_test");
+  assert.equal(result.chart_event.inspection.source_evidence.public_reference, "perpctx_test");
+  assert.equal(result.chart_event.inspection.evidence_maturity, "forming");
+  assert.equal(result.chart_event.inspection.path_transition.behavior, "Compression release");
+  assert.equal(result.chart_event.inspection.historical_outcome.sample_size, 12);
+  assert.ok(result.chart_event.inspection.support.length > 0);
+  assert.ok(result.chart_event.inspection.contradiction.length > 0);
   assert.equal(result.matured_comparables.sample_size, 12);
   assert.equal(result.plan_preview.state, "research_only");
   assert.equal(result.plan_preview.executable, false);

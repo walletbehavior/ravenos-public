@@ -50,6 +50,7 @@ const runtimeAssets = [
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
+  "assets/providers/dexpaprika-symbol.svg",
   "vendor/lightweight-charts.standalone.production.js",
 ];
 
@@ -173,7 +174,6 @@ const compiling = new Set();
 
 function resolveLocalAsset(importer, specifier) {
   const clean = String(specifier || "").split("?", 1)[0];
-  if (!clean.endsWith(".js")) return null;
   const candidate = clean.startsWith("/")
     ? clean.replace(/^\/+/, "")
     : posix.normalize(posix.join(posix.dirname(importer), clean));
@@ -190,7 +190,7 @@ function compileAsset(logicalPath) {
   const dependencies = new Set();
 
   if (extension === ".js") {
-    content = content.replace(/(["'])((?:\/|\.\.?\/)[^"'\s]+\.js)(?:\?[^"'\s]*)?\1/g, (match, quote, specifier) => {
+    content = content.replace(/(["'])((?:\/|\.\.?\/)[^"'\s]+\.(?:js|svg))(?:\?[^"'\s]*)?\1/g, (match, quote, specifier) => {
       const dependency = resolveLocalAsset(logicalPath, specifier);
       if (!dependency) return match;
       dependencies.add(dependency);
@@ -207,7 +207,7 @@ function compileAsset(logicalPath) {
     url: `/${outputPath}`,
     sha256: hash,
     bytes: Buffer.byteLength(content),
-    type: extension === ".css" ? "style" : "script",
+    type: extension === ".css" ? "style" : extension === ".js" ? "script" : extension === ".svg" ? "image" : "asset",
     dependencies: [...dependencies].sort(),
     content,
   };

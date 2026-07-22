@@ -3,6 +3,7 @@ export const RAVENOS_CHART_EVENT_SCHEMA = "ravenos.chart_event.v1";
 export const RAVENOS_CHART_DIAGNOSTICS_SCHEMA = "ravenos.chart_diagnostics.v1";
 export const RAVENOS_CHART_CANDLE_SERIES_SCHEMA = "ravenos.chart_candle_series.v1";
 export const RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA = "ravenos.chart_capability_registry.v1";
+export const RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY_SCHEMA = "ravenos.onchain_chart_provider_registry.v1";
 
 export const CHART_INSTRUMENT_TYPES = Object.freeze({
   SPOT_TOKEN: "spot_token",
@@ -50,12 +51,28 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       responsibilities: ["discovery", "exact_market_identity", "current_pair_state"],
       base_candles: false,
     },
+    dexpaprika: {
+      schema_version: RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY_SCHEMA,
+      responsibilities: ["exact_market_identity", "historical_ohlcv", "active_view_ohlcv_updates", "volume"],
+      base_candles: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      provider_intervals: ["1m", "5m", "10m", "15m", "30m", "1h", "6h", "12h", "24h"],
+      maximum_bars_per_request: 366,
+      live_mechanism: "bounded_server_poll",
+      attribution_required: true,
+      attribution_label: "Powered by DexPaprika",
+      commercial_state: "free_development_only",
+      production_state: "blocked_pending_paid_plan_and_rights_verification",
+    },
     coingecko_onchain: {
+      schema_version: RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY_SCHEMA,
       responsibilities: ["historical_ohlcv", "active_view_ohlcv_updates", "liquidity", "volume"],
       base_candles: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
       maximum_bars_per_request: 1000,
       live_mechanism: "bounded_server_poll",
+      commercial_state: "license_unverified",
+      production_state: "blocked_pending_plan_rights_and_binding_verification",
     },
     hyperliquid_native: {
       responsibilities: ["historical_ohlcv", "live_ohlcv", "book", "tape", "funding", "open_interest"],
@@ -66,7 +83,7 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
     atlas_listed_market: {
       responsibilities: ["exact_listing_identity", "historical_ohlcv", "market_session"],
       base_candles: true,
-      intervals: ["5m", "15m", "1h", "4h", "1d", "1w", "1M"],
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"],
       live_mechanism: "bounded_server_refresh",
     },
     raven_exact_observations: {
@@ -76,66 +93,69 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
   },
   onchain_networks: {
     solana: {
-      provider_network: "solana",
+      provider_networks: { dexpaprika: "solana", coingecko_onchain: "solana" },
+      provider_order: ["dexpaprika", "coingecko_onchain"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 1000,
-      history_provider: "coingecko_onchain",
-      live_provider: "coingecko_onchain",
+      maximum_history_bars: 366,
+      history_provider: "dexpaprika",
+      live_provider: "dexpaprika",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: true,
       execution_support: false,
     },
     base: {
-      provider_network: "base",
+      provider_networks: { dexpaprika: "base", coingecko_onchain: "base" },
+      provider_order: ["dexpaprika", "coingecko_onchain"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 1000,
-      history_provider: "coingecko_onchain",
-      live_provider: "coingecko_onchain",
+      maximum_history_bars: 366,
+      history_provider: "dexpaprika",
+      live_provider: "dexpaprika",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
     },
     ethereum: {
-      provider_network: "eth",
+      provider_networks: { dexpaprika: "ethereum", coingecko_onchain: "eth" },
+      provider_order: ["dexpaprika", "coingecko_onchain"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 1000,
-      history_provider: "coingecko_onchain",
-      live_provider: "coingecko_onchain",
+      maximum_history_bars: 366,
+      history_provider: "dexpaprika",
+      live_provider: "dexpaprika",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
     },
     robinhood: {
-      provider_network: null,
+      provider_networks: { dexpaprika: "robinhood" },
+      provider_order: ["dexpaprika"],
       discovery_supported: true,
-      historical_candles_supported: false,
-      live_candles_supported: false,
-      intervals: [],
-      maximum_history_bars: 0,
-      history_provider: null,
-      live_provider: null,
-      freshness_policy_seconds: null,
-      raven_overlay_support: false,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_history_bars: 366,
+      history_provider: "dexpaprika",
+      live_provider: "dexpaprika",
+      freshness_policy_seconds: 120,
+      raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
-      unavailable_reason: "No exact-pool OHLCV provider has been verified for Robinhood Chain.",
     },
   },
 });
 
-export function resolveChartCapability({ market = "", chain = "", instrumentType = "", pairAddress = "", timeframe = "1h" } = {}) {
+export function resolveChartCapability({ market = "", chain = "", instrumentType = "", pairAddress = "", timeframe = "1h", providerId = "" } = {}) {
   const cleanMarket = text(market).toLowerCase();
   const cleanType = text(instrumentType).toLowerCase();
   const cleanTimeframe = text(timeframe, "1h");
@@ -191,16 +211,27 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
   }
   const exactIdentity = Boolean(text(pairAddress));
   const intervalSupported = record.intervals.includes(cleanTimeframe);
+  const requestedProvider = text(providerId).toLowerCase();
+  const selectedProvider = requestedProvider && record.provider_order?.includes(requestedProvider)
+    ? requestedProvider
+    : record.provider_order?.[0] || record.history_provider;
+  const providerNetwork = record.provider_networks?.[selectedProvider] || null;
   return {
     schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
     ...record,
     chain: cleanNetwork,
-    exact_market_id: exactIdentity ? `${record.provider_network || cleanNetwork}:${text(pairAddress)}` : null,
-    chart_ready: Boolean(exactIdentity && record.historical_candles_supported && intervalSupported),
+    provider_id: selectedProvider,
+    provider_network: providerNetwork,
+    history_provider: selectedProvider,
+    live_provider: selectedProvider,
+    exact_market_id: exactIdentity ? `${cleanNetwork}:${text(pairAddress)}` : null,
+    chart_ready: Boolean(exactIdentity && providerNetwork && record.historical_candles_supported && intervalSupported),
     exact_identity_required: true,
     exact_identity_available: exactIdentity,
     unavailable_reason: !exactIdentity
       ? "Select an exact pool before requesting candles."
+      : !providerNetwork
+        ? "The selected chart provider has no verified exact-pool route for this network."
       : !record.historical_candles_supported
         ? record.unavailable_reason || "Historical candles are unavailable for this network."
         : !intervalSupported
