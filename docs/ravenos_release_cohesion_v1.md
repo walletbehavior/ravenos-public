@@ -62,7 +62,7 @@ Promotion uses the already-staged Worker version ID; it never rebuilds.
 - a qualified one-minute contract and no sub-minute requirement;
 - `RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION` equal to the exact release ID.
 
-Without every condition, it stops before calling Cloudflare. A Demo-backed version remains available only through its isolated Cloudflare preview URL and is ineligible for `ravenos.xyz` traffic.
+Without every condition, it stops before calling Cloudflare. The selected CoinGecko Basic release is eligible only after its exact immutable preview passes every current-data, chart, security, and release-cohesion check.
 
 ## Rollback
 

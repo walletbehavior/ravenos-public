@@ -10,6 +10,7 @@ if (!baseUrl.startsWith("https://") || !bundleRoot) {
 }
 
 const release = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_release.json"), "utf8"));
+const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-package.json"), "utf8"));
 const assetManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_asset_manifest.json"), "utf8"));
 const routeManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/public_routes.json"), "utf8"));
 const stageReceipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), "utf8"));
@@ -251,6 +252,10 @@ const chartParams = new URLSearchParams({
 const chartCapture = await capture(`/api/terminal/chart?${chartParams.toString()}`);
 const chartEnvelope = JSON.parse(chartCapture.text);
 const chart = chartEnvelope?.data || chartEnvelope;
+const chartProviderContract = packageManifest.onchain_chart_provider || {};
+const expectedChartPlan = chartProviderContract.production_promotion_eligible === true
+  ? chartProviderContract.production_provider_plan
+  : chartProviderContract.preview_provider_plan;
 if (
   chart?.ok !== true
   || chart?.market_identity !== `${chartAnchor.chain}:${chartAnchor.pair}`
@@ -260,7 +265,7 @@ if (
   || chart?.candle_series?.raven_observations_are_candles !== false
   || chart?.provider_selection?.selected !== "coingecko_onchain"
   || chart?.provider_selection?.fallback !== false
-  || chart?.lineage?.provider_plan !== "demo"
+  || chart?.lineage?.provider_plan !== expectedChartPlan
   || chart?.lineage?.empty_interval_policy !== "provider_previous_close_zero_volume"
   || chart?.attribution?.required !== true
   || chart?.attribution?.label !== "Data provided by CoinGecko"
@@ -270,7 +275,7 @@ if (
   || !Array.isArray(chart?.candles)
   || chart.candles.length < 120
 ) {
-  throw new Error("Isolated preview did not return the exact keyed CoinGecko Demo one-minute chart contract");
+  throw new Error(`Isolated preview did not return the exact keyed CoinGecko ${expectedChartPlan || "configured"} one-minute chart contract`);
 }
 const localProviderEnv = onchainChartProviderEnv(dirname(dirname(bundleRoot)));
 const localProviderSecret = String(localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRET || "").trim();

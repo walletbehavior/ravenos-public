@@ -9,8 +9,8 @@
       "coingecko_onchain"
     ],
     "preview_provider": "coingecko",
-    "preview_provider_plan": "demo",
-    "preview_provider_commercial": false,
+    "preview_provider_plan": "basic",
+    "preview_provider_commercial": true,
     "provider_secret_binding": "ONCHAIN_CHART_PROVIDER_SECRET",
     "keyless_application_fallback_allowed": false,
     "required_intervals": [
@@ -23,15 +23,18 @@
     ],
     "one_minute_minimum_useful_bars": 120,
     "subminute_candles_required": false,
-    "production_provider": null,
-    "production_provider_plan": null,
-    "production_provider_commercial": false,
-    "production_promotion_eligible": false,
-    "production_blockers": [
-      "commercial_rights_unverified",
-      "rate_behavior_not_production_qualified",
-      "production_provider_binding_not_selected"
-    ]
+    "production_provider": "coingecko",
+    "production_provider_plan": "basic",
+    "production_provider_commercial": true,
+    "production_promotion_eligible": true,
+    "production_blockers": [],
+    "production_qualification": {
+      "qualified_at": "2026-07-22T19:40:00Z",
+      "qualification_basis": "owner_confirmed_basic_subscription_and_server_side_pro_api_probe",
+      "pro_api_authentication_verified": true,
+      "exact_pool_ohlcv_verified": true,
+      "required_attribution": "Data provided by CoinGecko"
+    }
   },
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
