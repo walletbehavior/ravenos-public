@@ -256,7 +256,7 @@ test("Featured Atlas snapshots require the same canonical entity and an exact li
     change: null,
     change_percent: 1.2,
     market_state: "open",
-    provider: "Atlas public projection",
+    provider: "Tradier",
     provider_timestamp: nowIso(),
     delay_class: "current",
     stale: false,
@@ -270,6 +270,21 @@ test("Featured Atlas snapshots require the same canonical entity and an exact li
   });
   const admitted = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(payload) });
   assert.equal(admitted.available, true);
+  assert.equal(admitted.payload.sections[0].entities[0].snapshot.last, 640.25);
+
+  const restricted = structuredClone(payload);
+  restricted.sections[0].entities[0].observation_display_eligibility = "restricted";
+  restricted.sections[0].entities[0].refusal_reason = "public_redistribution_not_authorized";
+  const redacted = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(restricted) });
+  assert.equal(redacted.available, true);
+  assert.equal(redacted.payload.sections[0].entities[0].snapshot, null);
+
+  const wrongProvider = structuredClone(payload);
+  wrongProvider.sections[0].entities[0].snapshot.provider = "Massive";
+  const providerRefused = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(wrongProvider) });
+  assert.equal(providerRefused.available, true);
+  assert.equal(providerRefused.payload.sections[0].entities[0].snapshot, null);
+
   const mismatched = structuredClone(payload);
   mismatched.sections[0].entities[0].snapshot.atlas_entity_id = "equity:us:SPY";
   const rejected = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(mismatched) });
