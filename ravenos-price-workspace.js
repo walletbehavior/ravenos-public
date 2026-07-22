@@ -3,6 +3,7 @@ import {
   CHART_INSTRUMENT_TYPES,
   HyperliquidChartFeed,
   PollingChartFeed,
+  RAVENOS_CHART_TIMEFRAMES,
   normalizeChartCandle,
   normalizeChartInstrument,
   sharedChartSubscriptions,
@@ -36,7 +37,7 @@ const STATE_LABELS = Object.freeze({
   data_unavailable: "Data unavailable",
 });
 
-const TIMEFRAMES = Object.freeze(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
+const TIMEFRAMES = RAVENOS_CHART_TIMEFRAMES;
 
 function cleanState(value, fallback = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -110,6 +111,13 @@ function crosshairTimeLabel(value) {
 
 function payloadData(payload) {
   return payload?.data && typeof payload.data === "object" ? payload.data : payload;
+}
+
+function exactRavenAnnotations(value, instrument) {
+  if (!value || value.role !== "annotation_only" || value.identity_scope !== "exact_pool") return null;
+  if (value.candle_replacement_allowed !== false || !value.lineage || typeof value.lineage !== "object") return null;
+  if (!instrument?.canonical_id || value.instrument_id !== instrument.canonical_id) return null;
+  return value;
 }
 
 function createMarkup() {
@@ -193,6 +201,7 @@ export class PriceWorkspace {
       backfillCount: 0,
       instrumentScope: "exact_pool",
       availableScopes: {},
+      ravenAnnotations: null,
     };
     container.innerHTML = createMarkup();
     this.root = container.querySelector(".rpw");
@@ -446,6 +455,7 @@ export class PriceWorkspace {
     this.backfillArmed = false;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
+    this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
     const timeframe = request.timeframe || this.state.timeframe || "1h";
     this.setState({
       state: PRICE_WORKSPACE_STATES.LOADING,
@@ -463,6 +473,7 @@ export class PriceWorkspace {
       connectionState: "disconnected",
       instrumentScope: request.instrumentScope || "exact_pool",
       availableScopes: {},
+      ravenAnnotations: null,
     });
     if (request.demo === true) {
       const candles = normalizeCandles(request.demoCandles);
@@ -506,6 +517,7 @@ export class PriceWorkspace {
         tokenAddress: request.tokenAddress,
         pairAddress: request.pairAddress,
       });
+      const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
       const state = this.setState({
         state: cleanState(payload.freshness_state, payload.stale ? PRICE_WORKSPACE_STATES.DELAYED : PRICE_WORKSPACE_STATES.LIVE),
         source: payload.source_label || payload.source || "Market provider",
@@ -523,7 +535,13 @@ export class PriceWorkspace {
         connectionState: payload.capabilities?.live_bars ? "connecting" : "snapshot_only",
         instrumentScope: payload.instrument_scope || payload.instrument?.identity_scope || request.instrumentScope || "exact_pool",
         availableScopes: payload.available_scopes || {},
+        ravenAnnotations,
       });
+      this.renderInput = {
+        ...this.renderInput,
+        events: Array.isArray(ravenAnnotations?.events) ? ravenAnnotations.events : [],
+        overlays: Array.isArray(ravenAnnotations?.overlays) ? ravenAnnotations.overlays : [],
+      };
       for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);
       this.paintState();
       this.render(this.renderInput);
@@ -570,6 +588,7 @@ export class PriceWorkspace {
       connectionState: "disconnected",
       instrumentScope,
       availableScopes: {},
+      ravenAnnotations: null,
       lineage: null,
     });
   }

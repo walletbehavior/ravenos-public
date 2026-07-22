@@ -18,6 +18,9 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /data-rpw-focus/);
   assert.match(workspace, /Limited history/);
   assert.match(workspace, /payload\.instrument\?\.identity_scope/);
+  assert.match(workspace, /exactRavenAnnotations\(payload\.raven_annotations, instrument\)/);
+  assert.match(workspace, /value\.instrument_id !== instrument\.canonical_id/);
+  assert.match(workspace, /events: \[\], overlays: \[\], visibleOverlayTypes: \[\]/);
   assert.match(workspace, /new CustomEvent\("ravenos:priceworkspace", \{ detail: \{ \.\.\.this\.state \} \}\)/);
 });
 

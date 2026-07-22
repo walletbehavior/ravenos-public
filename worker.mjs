@@ -17,7 +17,10 @@ import {
 } from "./lib/ravenos_public_origin.mjs";
 import {
   CHART_INSTRUMENT_TYPES,
+  RAVENOS_CHART_CANDLE_SERIES_SCHEMA,
   normalizeChartInstrument,
+  resolveChartCapability,
+  timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
 import { resolveCustomerTradeFlags } from "./lib/customer_trade/feature_flags.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
@@ -47,6 +50,7 @@ const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
 const GECKOTERMINAL_BASE_URL = "https://api.geckoterminal.com/api/v2";
+const COINGECKO_ONCHAIN_PRO_BASE_URL = "https://pro-api.coingecko.com/api/v3/onchain";
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 const DEFAULT_RAVENOS_SPOT_CHART_ORIGIN_URL = "https://ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json";
@@ -64,15 +68,6 @@ const EXACT_TRADITIONAL_INSTRUMENTS = Object.freeze({
   QQQ: Object.freeze({ instrument_id: "etf:nasdaq:qqq", instrument_type: "etf", venue: "nasdaq", listing: "Nasdaq Stock Market" }),
   IWM: Object.freeze({ instrument_id: "etf:nyse-arca:iwm", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
 });
-const GECKOTERMINAL_NETWORKS = Object.freeze({
-  solana: "solana",
-  base: "base",
-  ethereum: "eth",
-  eth: "eth",
-  avalanche: "avax",
-  avax: "avax",
-});
-
 function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
     status: init.status || 200,
@@ -555,13 +550,15 @@ async function hyperliquidInstrument(coinInput) {
 }
 
 function timeframeSpec(timeframe = "1h") {
-  const tf = String(timeframe || "1h").toLowerCase();
+  const requested = String(timeframe || "1h");
+  const tf = requested.toLowerCase();
+  if (requested === "1M") return { yahooInterval: "1mo", yahooRange: "10y", hyperInterval: "1M", displayTimeframe: "1M", lookbackMs: 6 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 120, yahooMaxItems: 120 };
+  if (tf === "1m") return { yahooInterval: "1m", yahooRange: "1d", hyperInterval: "1m", displayTimeframe: "1m", lookbackMs: 12 * 60 * 60 * 1000, hyperMaxItems: 480, yahooMaxItems: 480 };
   if (tf === "5m") return { yahooInterval: "5m", yahooRange: "5d", hyperInterval: "5m", displayTimeframe: "5m", lookbackMs: 2 * 24 * 60 * 60 * 1000, hyperMaxItems: 576, yahooMaxItems: 576 };
   if (tf === "15m") return { yahooInterval: "15m", yahooRange: "5d", hyperInterval: "15m", lookbackMs: 3 * 24 * 60 * 60 * 1000 };
   if (tf === "4h") return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "4h", lookbackMs: 21 * 24 * 60 * 60 * 1000 };
   if (tf === "1d") return { yahooInterval: "1d", yahooRange: "6mo", hyperInterval: "1d", lookbackMs: 180 * 24 * 60 * 60 * 1000 };
   if (tf === "1w") return { yahooInterval: "1wk", yahooRange: "5y", hyperInterval: "1w", displayTimeframe: "1w", lookbackMs: 3 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 260, yahooMaxItems: 260 };
-  if (tf === "1m") return { yahooInterval: "1mo", yahooRange: "10y", hyperInterval: "1M", displayTimeframe: "1m", lookbackMs: 6 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 120, yahooMaxItems: 120 };
   return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "1h", displayTimeframe: "1h", lookbackMs: 14 * 24 * 60 * 60 * 1000, hyperMaxItems: 360, yahooMaxItems: 360 };
 }
 
@@ -630,13 +627,15 @@ function normalizeChartCandle(row = {}) {
 }
 
 function geckoTimeframeSpec(timeframe = "1h") {
-  const tf = String(timeframe || "1h").toLowerCase();
+  const requested = String(timeframe || "1h");
+  const tf = requested.toLowerCase();
+  if (requested === "1M") return { providerTimeframe: "day", aggregate: 30, limit: 120, intervalSeconds: 2_592_000 };
+  if (tf === "1m") return { providerTimeframe: "minute", aggregate: 1, limit: 480, intervalSeconds: 60 };
   if (tf === "5m") return { providerTimeframe: "minute", aggregate: 5, limit: 576, intervalSeconds: 300 };
   if (tf === "15m") return { providerTimeframe: "minute", aggregate: 15, limit: 480, intervalSeconds: 900 };
   if (tf === "4h") return { providerTimeframe: "hour", aggregate: 4, limit: 240, intervalSeconds: 14_400 };
   if (tf === "1d") return { providerTimeframe: "day", aggregate: 1, limit: 180, intervalSeconds: 86_400 };
   if (tf === "1w") return { providerTimeframe: "day", aggregate: 7, limit: 260, intervalSeconds: 604_800 };
-  if (tf === "1m") return { providerTimeframe: "day", aggregate: 30, limit: 120, intervalSeconds: 2_592_000 };
   return { providerTimeframe: "hour", aggregate: 1, limit: 360, intervalSeconds: 3_600 };
 }
 
@@ -735,7 +734,7 @@ async function fetchRavenSpotProjection({
   if (!endpoint.startsWith("https://")) return null;
   const params = new URLSearchParams({
     chain: String(chain || "").toLowerCase(),
-    timeframe: String(timeframe || "1h").toLowerCase(),
+    timeframe: String(timeframe || "1h"),
     limit: String(boundedChartLimit(limit, 240, 1000)),
     instrument_scope: instrumentScope === "token_aggregate" ? "token_aggregate" : "exact_pool",
   });
@@ -782,73 +781,136 @@ async function fetchRavenSpotProjection({
   return payload;
 }
 
-function mergeExactPoolHistory(providerPayload, ravenPayload, { limit = 240 } = {}) {
-  if (!providerPayload?.ok || !ravenPayload?.ok || ravenPayload.price_unit !== "usd_per_token") return ravenPayload?.ok ? ravenPayload : providerPayload;
-  const merged = new Map();
-  for (const candle of sanitizeChartCandles(providerPayload.candles, { maxItems: 1000 })) merged.set(String(candle.time), candle);
-  for (const ravenCandle of sanitizeChartCandles(ravenPayload.candles, { maxItems: 1000 })) {
-    const key = String(ravenCandle.time);
-    const providerCandle = merged.get(key);
-    merged.set(key, providerCandle
-      ? {
-          ...providerCandle,
-          high: Math.max(providerCandle.high, ravenCandle.high),
-          low: Math.min(providerCandle.low, ravenCandle.low),
-          close: ravenCandle.close,
-        }
-      : ravenCandle);
-  }
-  const candles = sanitizeChartCandles([...merged.values()], { maxItems: boundedChartLimit(limit, 240, 1000) });
-  const latestObserved = [providerPayload.observed_at, ravenPayload.observed_at]
-    .filter(Boolean)
-    .sort((left, right) => Date.parse(right) - Date.parse(left))[0] || null;
+function candleSeriesContract({ instrument, provider, providerMarketId, timeframe, priceCurrency = "USD", tokenOrientation = "base", candles = [] } = {}) {
+  return {
+    schema_version: RAVENOS_CHART_CANDLE_SERIES_SCHEMA,
+    role: "base_ohlcv",
+    instrument_id: instrument?.canonical_id || null,
+    identity_scope: instrument?.identity_scope || null,
+    exact_identity: ["exact_pool", "venue_market"].includes(instrument?.identity_scope),
+    provider,
+    provider_market_id: providerMarketId || null,
+    timeframe,
+    price_currency: priceCurrency,
+    token_orientation: tokenOrientation,
+    bar_count: Array.isArray(candles) ? candles.length : 0,
+    raven_observations_are_candles: false,
+  };
+}
+
+function sameExactPool(providerPayload, ravenPayload) {
+  const same = (left, right) => String(left || "").toLowerCase() === String(right || "").toLowerCase();
+  return Boolean(
+    providerPayload?.instrument?.identity_scope === "exact_pool"
+    && ravenPayload?.instrument_scope === "exact_pool"
+    && same(providerPayload.chain, ravenPayload.chain)
+    && same(providerPayload.pair_address, ravenPayload.pair_address)
+    && (!providerPayload.token_address || !ravenPayload.token_address || same(providerPayload.token_address, ravenPayload.token_address))
+  );
+}
+
+function ravenAnnotationEvents(ravenPayload, candles = [], { timeframe = "1h", instrumentId = null } = {}) {
+  const providerCandles = Array.isArray(candles) ? candles : [];
+  if (!providerCandles.length) return [];
+  const firstCandleTime = Number(providerCandles[0]?.time);
+  const lastCandleTime = Number(providerCandles.at(-1)?.time);
+  const finalBucketEnd = lastCandleTime + timeframeSeconds(timeframe);
+  const epochSeconds = (value) => {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return Math.trunc(numeric > 10_000_000_000 ? numeric / 1000 : numeric);
+    const parsed = Date.parse(String(value || ""));
+    return Number.isFinite(parsed) ? Math.trunc(parsed / 1000) : null;
+  };
+  return (Array.isArray(ravenPayload?.recent_trades) ? ravenPayload.recent_trades : [])
+    .slice(-64)
+    .map((row, index) => {
+      const observed = epochSeconds(row?.time ?? row?.observed_at ?? row?.timestamp);
+      if (!observed) return null;
+      if (observed < firstCandleTime || observed >= finalBucketEnd) return null;
+      const nearest = providerCandles.reduce((best, candle) => (
+        Math.abs(Number(candle.time) - observed) < Math.abs(Number(best.time) - observed) ? candle : best
+      ), providerCandles[0]);
+      const compatiblePrice = ravenPayload.price_unit === "usd_per_token" && Number.isFinite(Number(row?.price))
+        ? Number(row.price)
+        : null;
+      return {
+        type: "raven-observation",
+        severity: "info",
+        time: nearest.time,
+        exact_observed_at: new Date(observed * 1000).toISOString(),
+        event_id: String(row?.event_id || row?.id || `raven-observation-${observed}-${index}`).slice(0, 160),
+        instrument_id: instrumentId,
+        ...(compatiblePrice !== null ? { price: compatiblePrice } : {}),
+      };
+    })
+    .filter(Boolean);
+}
+
+function attachRavenChartAnnotations(providerPayload, ravenPayload) {
+  if (!providerPayload?.ok || !ravenPayload?.ok || !sameExactPool(providerPayload, ravenPayload)) return providerPayload;
+  const comparableUsdPrices = ravenPayload.price_unit === "usd_per_token";
+  const events = ravenAnnotationEvents(ravenPayload, providerPayload.candles, {
+    timeframe: providerPayload.timeframe,
+    instrumentId: providerPayload.instrument?.canonical_id || null,
+  });
   return {
     ...providerPayload,
-    ok: Boolean(candles.length),
-    source: "Raven + GeckoTerminal",
-    source_type: "hybrid_exact_pool",
-    source_label: "Provider history + Raven exact-pair observations",
-    observed_at: latestObserved,
-    updated_at: new Date().toISOString(),
-    freshness_state: ravenPayload.freshness_state === "live" || providerPayload.freshness_state === "live" ? "live" : "delayed",
-    coverage: ravenPayload.freshness_state === "live" || providerPayload.freshness_state === "live" ? "Live" : "Delayed",
-    stale: ravenPayload.freshness_state !== "live" && providerPayload.freshness_state !== "live",
-    candles,
-    recent_trades: ravenPayload.recent_trades || [],
+    recent_trades: comparableUsdPrices ? (ravenPayload.recent_trades || []) : [],
     available_scopes: ravenPayload.available_scopes || {},
     capabilities: {
       ...(providerPayload.capabilities || {}),
-      ...(ravenPayload.capabilities || {}),
-      historical_bars: true,
-      older_bar_backfill: true,
-      live_bars: true,
-      live_trades: Boolean(ravenPayload.recent_trades?.length),
+      raven_overlays: true,
+      live_trades: comparableUsdPrices && Boolean(ravenPayload.recent_trades?.length),
     },
-    market_state: { ...(providerPayload.market_state || {}), ...(ravenPayload.market_state || {}) },
-    lineage: {
-      provider_history: providerPayload.lineage || null,
-      raven_projection: ravenPayload.lineage || null,
+    raven_annotations: {
+      schema_version: "ravenos.chart_annotations.v1",
+      role: "annotation_only",
+      source: ravenPayload.source || "Raven exact observations",
+      observed_at: ravenPayload.observed_at || null,
+      freshness_state: ravenPayload.freshness_state || "unknown",
       identity_scope: "exact_pool",
-      price_unit: "usd_per_token",
-      source_precedence: "Raven observations correct the current provider bucket; provider history remains preserved",
+      instrument_id: providerPayload.instrument?.canonical_id || null,
+      market_identity: providerPayload.market_identity || null,
+      price_unit: ravenPayload.price_unit || "unknown",
+      event_count: events.length,
+      events,
+      overlays: [],
+      price_axis_compatible: comparableUsdPrices,
+      candle_replacement_allowed: false,
+      lineage: {
+        ...(ravenPayload.lineage || {}),
+        source: ravenPayload.source || "Raven exact observations",
+        observed_at: ravenPayload.observed_at || null,
+      },
+    },
+    lineage: {
+      ...(providerPayload.lineage || {}),
+      raven_projection: ravenPayload.lineage || null,
+      raven_observed_at: ravenPayload.observed_at || null,
+      source_precedence: "provider_ohlcv_base_raven_annotations_only",
     },
   };
 }
 
-async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddress = "", asset = "", timeframe = "1h", before = null, limit = null } = {}) {
-  const network = GECKOTERMINAL_NETWORKS[String(chain || "").toLowerCase()];
+async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", tokenAddress = "", asset = "", timeframe = "1h", before = null, limit = null } = {}) {
+  const capability = resolveChartCapability({ market: "crypto_spot", chain, instrumentType: "spot_pool", pairAddress, timeframe });
+  const network = capability.provider_network;
   const pool = String(pairAddress || "").trim();
-  if (!network || !pool) {
-    return unresolvedChart(asset, "Exact-pool chart identity is unavailable for this market.", {
-      source: "GeckoTerminal",
-      sourceType: "identity_unavailable",
+  if (!capability.chart_ready || !network || !pool) {
+    return unresolvedChart(asset, capability.unavailable_reason || "Exact-pool chart identity is unavailable for this market.", {
+      source: "Onchain market provider",
+      sourceType: network ? "interval_unavailable" : "coverage_unavailable",
       timeframe,
     });
   }
   const spec = geckoTimeframeSpec(timeframe);
   const requestedLimit = boundedChartLimit(limit, spec.limit, spec.limit);
   const beforeSeconds = chartBeforeSeconds(before);
-  const cacheKey = `gecko:${network}:${pool}:${tokenAddress || "base"}:${timeframe}:${beforeSeconds || "latest"}:${requestedLimit}`;
+  const proKey = String(env.COINGECKO_PRO_API_KEY || "").trim();
+  const providerTier = proKey ? "coingecko_pro" : "geckoterminal_public";
+  const providerName = proKey ? "CoinGecko Onchain" : "GeckoTerminal";
+  const providerBaseUrl = proKey ? COINGECKO_ONCHAIN_PRO_BASE_URL : GECKOTERMINAL_BASE_URL;
+  const cacheKey = `gecko:${providerTier}:${network}:${pool}:${tokenAddress || "base"}:${timeframe}:${beforeSeconds || "latest"}:${requestedLimit}`;
   const cached = cacheGet(terminalChartCache, cacheKey);
   if (cached) {
     recordProviderComponentEvent({
@@ -884,14 +946,15 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
           include_empty_intervals: "false",
         });
         if (beforeSeconds) params.set("before_timestamp", String(beforeSeconds));
-        const url = `${GECKOTERMINAL_BASE_URL}/networks/${encodeURIComponent(network)}/pools/${encodeURIComponent(pool)}/ohlcv/${spec.providerTimeframe}?${params.toString()}`;
+        const url = `${providerBaseUrl}/networks/${encodeURIComponent(network)}/pools/${encodeURIComponent(pool)}/ohlcv/${spec.providerTimeframe}?${params.toString()}`;
         const response = await fetch(url, {
           headers: {
             accept: "application/json",
             "user-agent": "RavenOS/1.0 market-chart",
+            ...(proKey ? { "x-cg-pro-api-key": proKey } : {}),
           },
         });
-        if (!response.ok) throw new Error(`geckoterminal_ohlcv_${response.status}`);
+        if (!response.ok) throw new Error(`onchain_ohlcv_${response.status}`);
         const payload = await response.json().catch(() => ({}));
         const rows = payload?.data?.attributes?.ohlcv_list;
         const candles = sanitizeChartCandles((Array.isArray(rows) ? rows : []).map(normalizeGeckoCandle).filter(Boolean), {
@@ -906,10 +969,10 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
           market: "crypto_spot",
           asset,
           chain,
-          venue: "geckoterminal",
+          venue: "onchain_pool",
           pairAddress: pool,
           tokenAddress,
-          provider: "geckoterminal",
+          provider: "coingecko_onchain",
         });
         const lastCandleAt = Number.isFinite(lastCandleMs) ? new Date(lastCandleMs).toISOString() : null;
         const result = {
@@ -920,7 +983,7 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
           chain: String(chain || "").toLowerCase(),
           pair_address: pool,
           token_address: tokenAddress || null,
-          source: "GeckoTerminal",
+          source: providerName,
           source_type: "provider",
           source_label: "Exact-pool OHLCV",
           coverage: candles.length ? (delayed ? "Delayed" : "Live") : "Data unavailable",
@@ -938,6 +1001,7 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
             older_bar_backfill: true,
             live_bars: true,
             live_trades: false,
+            live_poll_interval_ms: proKey ? 10_000 : 20_000,
             liquidity: true,
             order_book: false,
             funding: false,
@@ -958,7 +1022,8 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
           },
           build_id: null,
           lineage: {
-            provider: "GeckoTerminal",
+            provider: providerName,
+            provider_tier: providerTier,
             network,
             pool_address: pool,
             token_address: tokenAddress || null,
@@ -968,6 +1033,13 @@ async function fetchGeckoPoolCandles({ chain = "", pairAddress = "", tokenAddres
           },
           candles,
         };
+        result.candle_series = candleSeriesContract({
+          instrument,
+          provider: "coingecko_onchain",
+          providerMarketId: `${network}:${pool}`,
+          timeframe,
+          candles,
+        });
         cacheSet(terminalChartCache, cacheKey, result, 30_000);
         return result;
       },
@@ -1076,6 +1148,13 @@ async function fetchHyperliquidCandles(symbol, timeframe, { before = null, limit
         build_id: null,
         candles,
       };
+      result.candle_series = candleSeriesContract({
+        instrument,
+        provider: "hyperliquid_native",
+        providerMarketId: `hyperliquid:${coin}`,
+        timeframe: spec.displayTimeframe || spec.hyperInterval,
+        candles,
+      });
       cacheSet(terminalChartCache, cacheKey, result, 15_000);
       return result;
     },
@@ -1091,7 +1170,8 @@ async function fetchYahooCandles(ticker, timeframe, {
   limit = null,
 } = {}) {
   const spec = timeframeSpec(timeframe);
-  const requestedTimeframe = String(timeframe || "1h").toLowerCase();
+  const requestedValue = String(timeframe || "1h");
+  const requestedTimeframe = requestedValue === "1M" ? "1M" : requestedValue.toLowerCase();
   const cacheKey = `yahoo:${ticker}:${instrumentId || "aggregate"}:${requestedTimeframe}:${spec.yahooInterval}:${spec.yahooRange}`;
   const cached = cacheGet(terminalChartCache, cacheKey);
   if (cached) {
@@ -1194,6 +1274,13 @@ async function fetchYahooCandles(ticker, timeframe, {
         build_id: null,
         candles: limitedCandles,
       };
+      result.candle_series = candleSeriesContract({
+        instrument,
+        provider: assetType === "equity" || assetType === "etf" ? "atlas_listed_market" : "yahoo_finance",
+        providerMarketId: instrumentId || ticker,
+        timeframe: result.timeframe,
+        candles: limitedCandles,
+      });
       cacheSet(terminalChartCache, cacheKey, result, 60_000);
       return result;
     },
@@ -1208,7 +1295,8 @@ async function fetchPublicListedCandles(env, ticker, timeframe, {
   listing = "",
   limit = null,
 } = {}) {
-  const requestedTimeframe = String(timeframe || "1h").toLowerCase();
+  const requestedValue = String(timeframe || "1h");
+  const requestedTimeframe = requestedValue === "1M" ? "1M" : requestedValue.toLowerCase();
   const defaultLimit = timeframeSpec(requestedTimeframe).yahooMaxItems || 360;
   const requestedLimit = limit === null || limit === undefined || limit === ""
     ? defaultLimit
@@ -1310,6 +1398,13 @@ async function fetchPublicListedCandles(env, ticker, timeframe, {
         build_id: null,
         candles,
       };
+      result.candle_series = candleSeriesContract({
+        instrument,
+        provider: "atlas_listed_market",
+        providerMarketId: instrumentId,
+        timeframe: projection.timeframe,
+        candles,
+      });
       cacheSet(terminalChartCache, cacheKey, result, 60_000);
       return result;
     },
@@ -1364,6 +1459,8 @@ function unresolvedChart(asset, message, { source = "Coverage Developing", sourc
     age_seconds: null,
     build_id: null,
     message,
+    candle_series: null,
+    raven_annotations: null,
     candles: [],
   };
 }
@@ -1485,22 +1582,18 @@ async function terminalChartPayload({
         }).catch(() => null);
       }
       let payload;
-      if (ravenPayload?.ok && ravenPayload.price_unit !== "usd_per_token" && ravenPayload.candles?.length >= 2) {
-        payload = ravenPayload;
-      } else {
-        try {
-          const providerPayload = await fetchGeckoPoolCandles({ chain, pairAddress, tokenAddress, asset: cleanAsset, timeframe, before, limit });
-          payload = ravenPayload?.ok && ravenPayload.price_unit === "usd_per_token"
-            ? mergeExactPoolHistory(providerPayload, ravenPayload, { limit })
-            : providerPayload;
-        } catch (providerError) {
-          if (!ravenPayload?.ok) throw providerError;
-          payload = {
-            ...ravenPayload,
-            message: ravenPayload.message || "Provider history is unavailable; showing bounded Raven-native observations.",
-            provider_history_state: "unavailable",
-          };
-        }
+      try {
+        const providerPayload = await fetchGeckoPoolCandles({ env, chain, pairAddress, tokenAddress, asset: cleanAsset, timeframe, before, limit });
+        payload = attachRavenChartAnnotations(providerPayload, ravenPayload);
+      } catch (providerError) {
+        payload = unresolvedChart(cleanAsset, "Exact-pool candle history is temporarily unavailable. Raven observations were not substituted for market candles.", {
+          source: "Onchain market provider",
+          sourceType: "provider_unavailable",
+          timeframe,
+        });
+        payload.failed_layer = "historical_ohlcv";
+        payload.provider_state = String(providerError?.message || "").includes("429") ? "throttled" : "unavailable";
+        payload.raven_annotations_available = Boolean(ravenPayload?.ok);
       }
       payload.available_scopes = {
         exact_pool: true,

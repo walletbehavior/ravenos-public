@@ -160,6 +160,8 @@ const manifest = {
     intelligence_contract: "ravenos.intelligence.v1",
     selected_context: "ravenos.context.v2",
     price_workspace: "ravenos.price_workspace.v1",
+    chart_candle_series: "ravenos.chart_candle_series.v1",
+    chart_capability_registry: "ravenos.chart_capability_registry.v1",
   },
   evidence_contract_version: "1.0",
   claim_lineage_version: "2.0",

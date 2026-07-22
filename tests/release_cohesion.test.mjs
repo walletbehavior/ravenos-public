@@ -189,6 +189,11 @@ test("origin connectivity preflight resolves its probes from the immutable asset
   assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
 });
 
+test("release packaging requires the server-only on-chain provider credential", () => {
+  const source = readFileSync("scripts/package-release.mjs", "utf8");
+  assert.match(source, /required_server_secret_bindings:[\s\S]*COINGECKO_PRO_API_KEY/);
+});
+
 test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {
   const env = cloudflareReleaseEnv(process.cwd(), {
     RAVEN_APP_ENV_PATH: "/nonexistent/ravenos-release-test.env",
@@ -205,4 +210,6 @@ test("release environment keeps Cloudflare aliases and the protected-origin toke
 test("generated build manifest advertises the browser context contract actually shipped", () => {
   const build = JSON.parse(readFileSync("public/ravenos_build.json", "utf8"));
   assert.equal(build.api_schema_versions?.selected_context, RAVENOS_CONTEXT_SCHEMA);
+  assert.equal(build.api_schema_versions?.chart_candle_series, "ravenos.chart_candle_series.v1");
+  assert.equal(build.api_schema_versions?.chart_capability_registry, "ravenos.chart_capability_registry.v1");
 });

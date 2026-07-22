@@ -124,7 +124,7 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   const chart = page.locator("#terminalChart .rpw");
-  await expect(chart.locator("[data-rpw-timeframes] button")).toHaveText(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
+  await expect(chart.locator("[data-rpw-timeframes] button")).toHaveText(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
   await expect(chart.locator('[data-rpw-timeframes] button[data-timeframe="1h"]')).toHaveAttribute("aria-pressed", "true");
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
@@ -166,7 +166,7 @@ test("instrument and timeframe changes repaint the chart and exact context", asy
   await expect(page).toHaveURL(/asset=BTC-PERP.*timeframe=4h/);
 });
 
-for (const timeframe of ["1w", "1m"]) {
+for (const timeframe of ["1m", "1w", "1M"]) {
   test(`${timeframe} Hyperliquid history remains provider-backed and exact`, async ({ page }) => {
     const { calls } = await mockTerminalLiveApis(page);
     await page.goto(`/terminal/?asset=SOL-PERP&timeframe=${timeframe}`);
@@ -203,6 +203,7 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address")).toBe(true);
 
   const initialHash = await chartHash(page);

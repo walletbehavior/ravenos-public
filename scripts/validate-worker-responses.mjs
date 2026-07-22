@@ -24,6 +24,7 @@ const assets = {
 
 const env = {
   ASSETS: assets,
+  COINGECKO_PRO_API_KEY: "worker-response-provider-validation-token",
   RAVENOS_PUBLIC_ORIGIN_URL: "https://validation-origin.example/public/ravenos",
   RAVENOS_PUBLIC_ORIGIN_TOKEN: "worker-response-validation-token",
 };
@@ -44,6 +45,7 @@ const checks = [
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
+  ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],
   ["GET", "/api/terminal"],
   ["GET", "/api/chains/solana"],
   ["GET", "/api/chains/base"],
@@ -57,8 +59,18 @@ const checks = [
 ];
 
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async (input) => {
+globalThis.fetch = async (input, init = {}) => {
   const url = String(input?.url || input);
+  if (url.includes("pro-api.coingecko.com")) {
+    if (init.headers?.["x-cg-pro-api-key"] !== env.COINGECKO_PRO_API_KEY) throw new Error("server-only provider credential was not bound to the provider request");
+    if (url.includes(env.COINGECKO_PRO_API_KEY)) throw new Error("provider credential entered the request URL");
+    const now = Math.floor(Date.now() / 900_000) * 900;
+    const rows = Array.from({ length: 120 }, (_, index) => [now - (119 - index) * 900, 1, 1.1, 0.9, 1.05, 10]);
+    return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: rows } } }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (url.includes("api.dexscreener.com")) {
+    return new Response(JSON.stringify({ pairs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.includes("/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360")) {
     const lastTime = Math.floor(Date.now() / 1_000) - 60;
     return new Response(JSON.stringify({
@@ -144,6 +156,7 @@ try {
     const response = await worker.fetch(request, env);
     const text = await response.text();
     const label = `worker:${method}:${path}:${response.status}`;
+    if (text.includes(env.COINGECKO_PRO_API_KEY)) findings.push({ file: label, path: "", term: "provider_secret_value" });
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       try {

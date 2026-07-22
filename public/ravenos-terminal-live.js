@@ -1,11 +1,14 @@
 import { ravenOSContext } from "./ravenos-context-store.js";
-import { getChartDataPlaneDiagnostics } from "./ravenos-chart-data-plane.js";
+import {
+  RAVENOS_CHART_TIMEFRAMES,
+  getChartDataPlaneDiagnostics,
+  resolveChartCapability,
+} from "./ravenos-chart-data-plane.js";
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
 
 document.body.classList.add("ros-terminal-live-shell");
 
-const TIMEFRAMES = new Set(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
-const CHARTED_SPOT_CHAINS = new Set(["solana", "base", "ethereum"]);
+const TIMEFRAMES = new Set(RAVENOS_CHART_TIMEFRAMES);
 const state = {
   lane: "perps",
   markets: [],
@@ -20,6 +23,17 @@ const state = {
   selectionGeneration: 0,
   searchTimer: null,
 };
+
+function spotChartCapability(row = {}, timeframe = "1h") {
+  const market = row || {};
+  return resolveChartCapability({
+    market: "crypto_spot",
+    chain: market.chainId,
+    instrumentType: "spot_pool",
+    pairAddress: market.pairAddress,
+    timeframe,
+  });
+}
 
 function finite(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -155,7 +169,7 @@ function spotSubject(row = {}) {
     preferredCashAsset: "USDC",
     economicNumeraire: "USDC",
     capabilities: {
-      chart: CHARTED_SPOT_CHAINS.has(chain),
+      chart: spotChartCapability(row, state.timeframe).chart_ready,
       live_price: true,
       liquidity: true,
       route_preview: chain === "solana",
@@ -241,7 +255,7 @@ function renderPerpFacts() {
 }
 
 function renderSpotFacts(row = state.selected) {
-  const chartAvailable = CHARTED_SPOT_CHAINS.has(String(row?.chainId || "").toLowerCase());
+  const chartAvailable = spotChartCapability(row, state.timeframe).chart_ready;
   setText("terminalInstrumentScope", "Exact public pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
   setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · lookup snapshot` : "Search for a symbol, token, or contract");
@@ -623,7 +637,6 @@ function rankSpotRows(rows = [], query = "") {
   const normalized = String(query || "").trim().toLowerCase();
   return [...rows].sort((left, right) => {
     const quality = (row) => {
-      const chain = String(row.chainId || "").toLowerCase();
       const exactAddress = normalized && [row.tokenAddress, row.quoteTokenAddress, row.pairAddress]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase() === normalized);
@@ -631,7 +644,7 @@ function rankSpotRows(rows = [], query = "") {
       return {
         exactAddress,
         exactName,
-        chartReady: CHARTED_SPOT_CHAINS.has(chain),
+        chartReady: spotChartCapability(row, "1h").chart_ready,
         volume: Math.max(0, finite(row.volume24h) || 0),
         liquidity: Math.max(0, finite(row.liquidityUsd) || 0),
       };
@@ -695,7 +708,8 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   renderSpotFacts(row);
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Requesting exact-pool provider candles.");
-  const hasChartCoverage = CHARTED_SPOT_CHAINS.has(String(row.chainId || "").toLowerCase());
+  const chartCapability = spotChartCapability(row, state.timeframe);
+  const hasChartCoverage = chartCapability.chart_ready;
   setText("terminalDeepLink", hasChartCoverage ? `Open ${chainDisplayName(row.chainId)} coverage` : "Coverage unavailable");
   document.getElementById("terminalDeepLink").href = hasChartCoverage ? `/chains/${String(row.chainId).toLowerCase()}/` : "/docs/#availability";
   setContextUnavailable({

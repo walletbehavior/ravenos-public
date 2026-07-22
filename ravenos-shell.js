@@ -6,6 +6,7 @@ import {
   renderIntelligence,
 } from "/ravenos-intelligence-contract.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
+import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
 
 const NAV_ITEMS = Object.freeze([
   {
@@ -20,7 +21,15 @@ const NAV_ITEMS = Object.freeze([
   { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", match: ["atlas"] },
 ]);
 
-const CHARTED_SPOT_CHAINS = new Set(["solana", "base", "ethereum"]);
+function spotChartReady(chain, pairAddress, timeframe = "1h") {
+  return resolveChartCapability({
+    market: "crypto_spot",
+    chain,
+    instrumentType: "spot_pool",
+    pairAddress,
+    timeframe,
+  }).chart_ready;
+}
 
 function currentSlug() {
   const configured = document.getElementById("ravenosRouteConfig");
@@ -282,7 +291,7 @@ function spotInstrumentSubject(row = {}) {
     preferredCashAsset: "USDC",
     economicNumeraire: "USDC",
     capabilities: {
-      chart: CHARTED_SPOT_CHAINS.has(chain),
+      chart: spotChartReady(chain, pairAddress),
       live_price: true,
       liquidity: true,
       route_preview: chain === "solana",
@@ -296,13 +305,14 @@ function spotSearchInstrument(row = {}) {
   const subject = spotInstrumentSubject(row);
   if (!subject || finiteNumber(row.priceUsd) === null || finiteNumber(row.priceUsd) <= 0) return null;
   const chainLabel = chainDisplayName(subject.chain);
+  const chartCapability = resolveChartCapability({ market: "crypto_spot", chain: subject.chain, instrumentType: "spot_pool", pairAddress: row.pairAddress, timeframe: "1h" });
   return {
     ...row,
     instrument_id: subject.id,
     asset: subject.label,
     label: subject.label,
     detail: `${row.name || subject.symbol} · ${chainLabel} · ${row.dexId || "venue unavailable"} · pool ${shortMarketId(row.pairAddress)} · ${compactCurrency(row.liquidityUsd)}`,
-    state: CHARTED_SPOT_CHAINS.has(subject.chain) ? "Exact pool · chart ready" : "Exact pool · chart unavailable",
+    state: chartCapability.chart_ready ? "Exact pool · provider OHLCV · chart ready" : "Exact pool · chart unavailable",
     group: `Spot · ${chainLabel}`,
     raven_context: false,
     subject,
@@ -318,7 +328,7 @@ function spotSearchQuality(row = {}, query = "") {
     .filter(Boolean)
     .some((value) => String(value).toLowerCase() === normalized);
   const exactName = normalized && (symbol === normalized || name === normalized);
-  const chartReady = CHARTED_SPOT_CHAINS.has(chain);
+  const chartReady = spotChartReady(chain, row.pairAddress);
   const volume = Math.max(0, finiteNumber(row.volume24h) || 0);
   const liquidity = Math.max(0, finiteNumber(row.liquidityUsd) || 0);
   return { exactAddress, exactName, chartReady, active: volume > 0, liquid: liquidity > 0, volume, liquidity };

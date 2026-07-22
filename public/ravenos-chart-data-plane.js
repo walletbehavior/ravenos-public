@@ -1,6 +1,8 @@
 export const RAVENOS_CHART_INSTRUMENT_SCHEMA = "ravenos.chart_instrument.v1";
 export const RAVENOS_CHART_EVENT_SCHEMA = "ravenos.chart_event.v1";
 export const RAVENOS_CHART_DIAGNOSTICS_SCHEMA = "ravenos.chart_diagnostics.v1";
+export const RAVENOS_CHART_CANDLE_SERIES_SCHEMA = "ravenos.chart_candle_series.v1";
+export const RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA = "ravenos.chart_capability_registry.v1";
 
 export const CHART_INSTRUMENT_TYPES = Object.freeze({
   SPOT_TOKEN: "spot_token",
@@ -27,20 +29,195 @@ export const CHART_EVENT_TYPES = Object.freeze([
   "resync.completed",
 ]);
 
-const CHAIN_ALIASES = Object.freeze({
-  eth: "ethereum",
-  avax: "avalanche",
-  hyperliquid: "hyperliquid",
+export const RAVENOS_CHART_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
+
+export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
+  schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
+  revision: "2026-07-22",
+  network_aliases: {
+    eth: "ethereum",
+    avax: "avalanche",
+    hyperliquid: "hyperliquid",
+  },
+  providers: {
+    dexscreener: {
+      responsibilities: ["discovery", "exact_market_identity", "current_pair_state"],
+      base_candles: false,
+    },
+    coingecko_onchain: {
+      responsibilities: ["historical_ohlcv", "active_view_ohlcv_updates", "liquidity", "volume"],
+      base_candles: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_bars_per_request: 1000,
+      live_mechanism: "bounded_server_poll",
+    },
+    hyperliquid_native: {
+      responsibilities: ["historical_ohlcv", "live_ohlcv", "book", "tape", "funding", "open_interest"],
+      base_candles: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"],
+      live_mechanism: "venue_websocket",
+    },
+    atlas_listed_market: {
+      responsibilities: ["exact_listing_identity", "historical_ohlcv", "market_session"],
+      base_candles: true,
+      intervals: ["5m", "15m", "1h", "4h", "1d", "1w", "1M"],
+      live_mechanism: "bounded_server_refresh",
+    },
+    raven_exact_observations: {
+      responsibilities: ["annotations", "events", "overlays", "intelligence"],
+      base_candles: false,
+    },
+  },
+  onchain_networks: {
+    solana: {
+      provider_network: "solana",
+      discovery_supported: true,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_history_bars: 1000,
+      history_provider: "coingecko_onchain",
+      live_provider: "coingecko_onchain",
+      freshness_policy_seconds: 120,
+      raven_overlay_support: true,
+      route_preview_support: true,
+      execution_support: false,
+    },
+    base: {
+      provider_network: "base",
+      discovery_supported: true,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_history_bars: 1000,
+      history_provider: "coingecko_onchain",
+      live_provider: "coingecko_onchain",
+      freshness_policy_seconds: 120,
+      raven_overlay_support: true,
+      route_preview_support: false,
+      execution_support: false,
+    },
+    ethereum: {
+      provider_network: "eth",
+      discovery_supported: true,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_history_bars: 1000,
+      history_provider: "coingecko_onchain",
+      live_provider: "coingecko_onchain",
+      freshness_policy_seconds: 120,
+      raven_overlay_support: true,
+      route_preview_support: false,
+      execution_support: false,
+    },
+    robinhood: {
+      provider_network: null,
+      discovery_supported: true,
+      historical_candles_supported: false,
+      live_candles_supported: false,
+      intervals: [],
+      maximum_history_bars: 0,
+      history_provider: null,
+      live_provider: null,
+      freshness_policy_seconds: null,
+      raven_overlay_support: false,
+      route_preview_support: false,
+      execution_support: false,
+      unavailable_reason: "No exact-pool OHLCV provider has been verified for Robinhood Chain.",
+    },
+  },
 });
 
+export function resolveChartCapability({ market = "", chain = "", instrumentType = "", pairAddress = "", timeframe = "1h" } = {}) {
+  const cleanMarket = text(market).toLowerCase();
+  const cleanType = text(instrumentType).toLowerCase();
+  const cleanTimeframe = text(timeframe, "1h");
+  if (cleanMarket === "perpetuals" || cleanType === CHART_INSTRUMENT_TYPES.PERPETUAL || cleanType === "perpetual") {
+    const provider = RAVENOS_CHART_CAPABILITY_REGISTRY.providers.hyperliquid_native;
+    return {
+      schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
+      chart_ready: provider.intervals.includes(cleanTimeframe),
+      exact_identity_required: true,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: provider.intervals,
+      history_provider: "hyperliquid_native",
+      live_provider: "hyperliquid_native",
+      raven_overlay_support: true,
+      route_preview_support: true,
+      execution_support: false,
+    };
+  }
+  if (["equity", "etf"].includes(cleanType) || ["equities", "atlas"].includes(cleanMarket)) {
+    const provider = RAVENOS_CHART_CAPABILITY_REGISTRY.providers.atlas_listed_market;
+    return {
+      schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
+      chart_ready: provider.intervals.includes(cleanTimeframe),
+      exact_identity_required: true,
+      historical_candles_supported: true,
+      live_candles_supported: false,
+      intervals: provider.intervals,
+      history_provider: "atlas_listed_market",
+      live_provider: "atlas_listed_market",
+      raven_overlay_support: true,
+      route_preview_support: false,
+      execution_support: false,
+    };
+  }
+  const cleanNetwork = cleanChain(chain);
+  const record = RAVENOS_CHART_CAPABILITY_REGISTRY.onchain_networks[cleanNetwork];
+  if (!record) {
+    return {
+      schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
+      chart_ready: false,
+      discovery_supported: true,
+      historical_candles_supported: false,
+      live_candles_supported: false,
+      intervals: [],
+      history_provider: null,
+      live_provider: null,
+      raven_overlay_support: false,
+      route_preview_support: false,
+      execution_support: false,
+      unavailable_reason: "No exact-pool chart provider has been verified for this network.",
+    };
+  }
+  const exactIdentity = Boolean(text(pairAddress));
+  const intervalSupported = record.intervals.includes(cleanTimeframe);
+  return {
+    schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
+    ...record,
+    chain: cleanNetwork,
+    exact_market_id: exactIdentity ? `${record.provider_network || cleanNetwork}:${text(pairAddress)}` : null,
+    chart_ready: Boolean(exactIdentity && record.historical_candles_supported && intervalSupported),
+    exact_identity_required: true,
+    exact_identity_available: exactIdentity,
+    unavailable_reason: !exactIdentity
+      ? "Select an exact pool before requesting candles."
+      : !record.historical_candles_supported
+        ? record.unavailable_reason || "Historical candles are unavailable for this network."
+        : !intervalSupported
+        ? `The exact pool provider does not support ${cleanTimeframe}.`
+        : record.unavailable_reason || null,
+  };
+}
+
 const HYPERLIQUID_INTERVALS = Object.freeze({
+  "1m": "1m",
   "5m": "5m",
   "15m": "15m",
   "1h": "1h",
   "4h": "4h",
   "1d": "1d",
   "1w": "1w",
-  "1m": "1M",
+  "1M": "1M",
 });
 
 const TIMEFRAME_SECONDS = Object.freeze({
@@ -72,7 +249,7 @@ function finite(value) {
 
 function cleanChain(value) {
   const chain = text(value, "unknown").toLowerCase().replace(/[^a-z0-9_:-]+/g, "_");
-  return CHAIN_ALIASES[chain] || chain;
+  return RAVENOS_CHART_CAPABILITY_REGISTRY.network_aliases[chain] || chain;
 }
 
 function cleanAddress(value) {
@@ -147,12 +324,14 @@ export function normalizeChartInstrument(input = {}) {
 }
 
 export function timeframeSeconds(timeframe = "1h") {
-  const normalized = HYPERLIQUID_INTERVALS[text(timeframe, "1h").toLowerCase()] || text(timeframe, "1h");
+  const requested = text(timeframe, "1h");
+  const normalized = HYPERLIQUID_INTERVALS[requested] || HYPERLIQUID_INTERVALS[requested.toLowerCase()] || requested;
   return TIMEFRAME_SECONDS[normalized] || 3600;
 }
 
 export function hyperliquidInterval(timeframe = "1h") {
-  return HYPERLIQUID_INTERVALS[text(timeframe, "1h").toLowerCase()] || "1h";
+  const requested = text(timeframe, "1h");
+  return HYPERLIQUID_INTERVALS[requested] || HYPERLIQUID_INTERVALS[requested.toLowerCase()] || "1h";
 }
 
 function epochSeconds(value) {

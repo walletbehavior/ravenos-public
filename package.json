@@ -10,6 +10,7 @@
     "test:browser:terminal": "playwright test tests/browser/terminal-chart.spec.mjs",
     "validate:no-leak": "node scripts/validate-public-no-leak.mjs && node scripts/validate-worker-responses.mjs",
     "validate:security": "node scripts/validate-security-architecture.mjs",
+    "validate:chart-anchors": "node scripts/validate-chart-anchors.mjs",
     "pages:build": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
     "build:pages": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
     "cf:build": "node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",

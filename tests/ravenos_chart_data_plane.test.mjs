@@ -7,8 +7,13 @@ import {
   FormingCandleAccumulator,
   HyperliquidChartFeed,
   PollingChartFeed,
+  RAVENOS_CHART_CAPABILITY_REGISTRY,
+  RAVENOS_CHART_CANDLE_SERIES_SCHEMA,
   SharedChartSubscriptionHub,
+  hyperliquidInterval,
   normalizeChartInstrument,
+  resolveChartCapability,
+  timeframeSeconds,
 } from "../ravenos-chart-data-plane.js";
 import ravenosWorker from "../worker.mjs";
 
@@ -35,6 +40,32 @@ test("canonical chart identity preserves exact-pool, aggregate-token, and perp s
   assert.equal(etf.instrument_type, CHART_INSTRUMENT_TYPES.ETF);
   assert.equal(etf.canonical_id, "etf:nyse-arca:spy");
   assert.notEqual(aggregate.canonical_id, pool.canonical_id);
+});
+
+test("versioned chart capabilities distinguish discovery from exact chart coverage", () => {
+  assert.equal(RAVENOS_CHART_CAPABILITY_REGISTRY.schema_version, "ravenos.chart_capability_registry.v1");
+  assert.equal(RAVENOS_CHART_CAPABILITY_REGISTRY.network_aliases.eth, "ethereum");
+  assert.deepEqual(RAVENOS_CHART_CAPABILITY_REGISTRY.providers.raven_exact_observations.responsibilities, ["annotations", "events", "overlays", "intelligence"]);
+  assert.equal(RAVENOS_CHART_CAPABILITY_REGISTRY.providers.raven_exact_observations.base_candles, false);
+  const retire = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", pairAddress: "ExactPool", timeframe: "15m" });
+  assert.equal(retire.chart_ready, true);
+  assert.equal(retire.exact_market_id, "solana:ExactPool");
+  assert.equal(retire.history_provider, "coingecko_onchain");
+  assert.equal(retire.raven_overlay_support, true);
+  const unresolved = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", timeframe: "15m" });
+  assert.equal(unresolved.chart_ready, false);
+  assert.match(unresolved.unavailable_reason, /exact pool/i);
+  const robinhood = resolveChartCapability({ market: "crypto_spot", chain: "robinhood", instrumentType: "spot_pool", pairAddress: "0xPool", timeframe: "15m" });
+  assert.equal(robinhood.discovery_supported, true);
+  assert.equal(robinhood.chart_ready, false);
+  assert.match(robinhood.unavailable_reason, /no exact-pool ohlcv provider/i);
+});
+
+test("one-minute and one-month intervals remain distinct", () => {
+  assert.equal(timeframeSeconds("1m"), 60);
+  assert.equal(timeframeSeconds("1M"), 2_592_000);
+  assert.equal(hyperliquidInterval("1m"), "1m");
+  assert.equal(hyperliquidInterval("1M"), "1M");
 });
 
 test("exact EVM contract search discovers provider-listed chains without substituting another token", async () => {
@@ -240,6 +271,43 @@ test("bounded polling emits newly observed spot trades once", async () => {
   assert.equal(events.find((event) => event.type === "trade.append").source_event_id, "new");
 });
 
+test("on-chain active-view polling fails degraded and returns to live without changing exact identity", async () => {
+  const events = [];
+  const statuses = [];
+  let attempts = 0;
+  const instrument = normalizeChartInstrument({
+    instrumentType: "spot_pool",
+    chain: "base",
+    venue: "onchain_pool",
+    symbol: "TEST",
+    quoteAsset: "USDC",
+    pairAddress: "0xExactPool",
+  });
+  const feed = new PollingChartFeed({
+    intervalMs: 5_000,
+    source: "Exact-pool provider polling",
+    poll: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("provider_temporarily_unavailable");
+      return {
+        source_label: "Exact-pool OHLCV",
+        freshness_state: "live",
+        instrument,
+        candles: [{ time: 1_800_000_000, open: 1, high: 2, low: 1, close: 2, volume: 3 }],
+      };
+    },
+  });
+  feed.start((event) => events.push(event), (status) => statuses.push(status));
+  await feed.tick();
+  await feed.tick();
+  feed.stop();
+  assert.equal(statuses.some((status) => status.state === "degraded"), true);
+  assert.equal(statuses.some((status) => status.state === "live"), true);
+  assert.equal(events.some((event) => event.type === "gap.detected"), true);
+  const update = events.find((event) => event.type === "bar.upsert");
+  assert.equal(update.instrument_id, instrument.canonical_id);
+});
+
 class FakeSocket {
   constructor() {
     this.listeners = new Map();
@@ -397,7 +465,128 @@ test("exact-pool freshness separates provider observation time from candle bucke
     assert.equal(payload.last_candle_at, new Date(bucketSeconds * 1000).toISOString());
     assert.ok(Date.now() - Date.parse(payload.observed_at) < 2_000);
     assert.equal(payload.lineage.last_candle_at, payload.last_candle_at);
+    assert.equal(payload.candle_series.schema_version, RAVENOS_CHART_CANDLE_SERIES_SCHEMA);
+    assert.equal(payload.candle_series.role, "base_ohlcv");
+    assert.equal(payload.candle_series.provider, "coingecko_onchain");
+    assert.equal(payload.candle_series.raven_observations_are_candles, false);
     assert.equal(cacheWrites.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("server-only CoinGecko credential selects the paid exact-pool path without entering the response", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const secret = "server-only-provider-secret";
+  const pairAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const tokenAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input, init = {}) => {
+      const url = String(input?.url || input);
+      if (url.includes("pro-api.coingecko.com")) {
+        assert.equal(init.headers["x-cg-pro-api-key"], secret);
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [
+          [now, 2, 2.2, 1.9, 2.1, 12],
+          [now - 60, 1.9, 2.1, 1.8, 2, 10],
+          [now - 60, 99, 99, 99, 99, 1],
+          [now - 120, 1.8, 2, 1.7, 1.9, 8],
+        ] } } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=1m&limit=240&chain=ethereum&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
+      COINGECKO_PRO_API_KEY: secret,
+    });
+    const responseText = await response.text();
+    assert.doesNotMatch(responseText, new RegExp(secret));
+    const body = JSON.parse(responseText);
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.source, "CoinGecko Onchain");
+    assert.equal(payload.lineage.provider_tier, "coingecko_pro");
+    assert.equal(payload.candles.length, 3);
+    assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
+    assert.equal(payload.candles.some((candle) => candle.close === 99), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("dense provider OHLCV remains the base series while Raven observations attach only as annotations", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x1111111111111111111111111111111111111111";
+  const tokenAddress = "0x2222222222222222222222222222222222222222";
+  const providerRows = Array.from({ length: 240 }, (_, index) => [
+    1_800_000_000 + index * 900,
+    10 + index / 100,
+    10.2 + index / 100,
+    9.8 + index / 100,
+    10.1 + index / 100,
+    100 + index,
+  ]);
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json")) {
+        return new Response(JSON.stringify({
+          schema_version: "ravenos.spot_chart_projection.v1",
+          ok: true,
+          chain: "base",
+          instrument_scope: "exact_pool",
+          pair_address: pairAddress,
+          token_address: tokenAddress,
+          quote_address: "0x3333333333333333333333333333333333333333",
+          price_unit: "quote_per_token",
+          source: "Raven EVM exact swap",
+          freshness_state: "live",
+          observed_at: new Date().toISOString(),
+          available_scopes: { exact_pool: true, token_aggregate: false },
+          candles: [{ time: 1_900_000_000, open: 999, high: 999, low: 999, close: 999, volume: 1 }],
+          recent_trades: [{ id: "raven-event", time: providerRows[120][0] + 100, price: 999, size: 1, side: "buy" }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("geckoterminal.com")) {
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: providerRows } } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FUSDC&timeframe=15m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
+      RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.source_type, "provider");
+    assert.equal(payload.candles.length, 240);
+    assert.equal(payload.candles.some((candle) => candle.close === 999), false);
+    assert.equal(payload.candle_series.role, "base_ohlcv");
+    assert.equal(payload.candle_series.bar_count, 240);
+    assert.equal(payload.raven_annotations.role, "annotation_only");
+    assert.equal(payload.raven_annotations.candle_replacement_allowed, false);
+    assert.equal(payload.raven_annotations.instrument_id, payload.instrument.canonical_id);
+    assert.equal(payload.raven_annotations.market_identity, payload.market_identity);
+    assert.equal(payload.raven_annotations.lineage.source, "Raven EVM exact swap");
+    assert.equal(payload.raven_annotations.price_axis_compatible, false);
+    assert.equal(payload.raven_annotations.event_count, 1);
+    assert.equal(payload.raven_annotations.events.length, 1);
+    assert.equal(payload.raven_annotations.events[0].type, "raven-observation");
+    assert.equal(payload.raven_annotations.events[0].time, providerRows[120][0]);
+    assert.equal(payload.raven_annotations.events[0].instrument_id, payload.instrument.canonical_id);
+    assert.equal(Object.hasOwn(payload.raven_annotations.events[0], "price"), false);
+    assert.deepEqual(payload.recent_trades, []);
+    assert.equal(payload.lineage.source_precedence, "provider_ohlcv_base_raven_annotations_only");
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;
@@ -449,7 +638,7 @@ test("Raven-native token aggregate remains distinct from exact-pool identity", a
   }
 });
 
-test("valid Raven exact-pool observations survive provider-history failure", async () => {
+test("provider-history failure rejects Raven observations as substitute candles", async () => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;
   try {
@@ -487,11 +676,12 @@ test("valid Raven exact-pool observations survive provider-history failure", asy
     const body = await response.json();
     const payload = body.data || body;
     assert.equal(response.status, 200);
-    assert.equal(payload.ok, true);
-    assert.equal(payload.source_type, "raven_native_projection");
-    assert.equal(payload.provider_history_state, "unavailable");
-    assert.equal(payload.instrument.identity_scope, "exact_pool");
-    assert.equal(payload.recent_trades.length, 1);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.source_type, "provider_unavailable");
+    assert.equal(payload.failed_layer, "historical_ohlcv");
+    assert.equal(payload.raven_annotations_available, true);
+    assert.deepEqual(payload.candles, []);
+    assert.match(payload.message, /not substituted/i);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

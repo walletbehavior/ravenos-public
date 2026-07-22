@@ -119,6 +119,7 @@ const packageManifest = {
   public_origin_contract_version: release.public_origin_contract_version,
   worker_name: baseWrangler.name,
   required_server_secret_bindings: [
+    "COINGECKO_PRO_API_KEY",
     "RAVENOS_PUBLIC_ORIGIN_TOKEN",
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN"
   ],

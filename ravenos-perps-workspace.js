@@ -1,7 +1,7 @@
 import { ravenOSContext } from "./ravenos-context-store.js";
-import { getChartDataPlaneDiagnostics } from "./ravenos-chart-data-plane.js";
+import { RAVENOS_CHART_TIMEFRAMES, getChartDataPlaneDiagnostics } from "./ravenos-chart-data-plane.js";
 
-const TIMEFRAMES = Object.freeze(["5m", "15m", "1h", "4h", "1d", "1w"]);
+const TIMEFRAMES = RAVENOS_CHART_TIMEFRAMES;
 const state = {
   rows: [],
   row: null,

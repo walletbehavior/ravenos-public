@@ -1,12 +1,13 @@
 export function providerCandles(asset, timeframe = "1h") {
   const spec = {
+    "1m": [60, 80],
     "5m": [300, 72],
     "15m": [900, 64],
     "1h": [3600, 56],
     "4h": [14400, 48],
     "1d": [86400, 42],
     "1w": [604800, 36],
-    "1m": [2592000, 30],
+    "1M": [2592000, 30],
   }[timeframe] || [3600, 56];
   const [step, count] = spec;
   const seed = [...`${asset}:${timeframe}`].reduce((sum, character) => sum + character.charCodeAt(0), 17);
@@ -204,7 +205,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       body: JSON.stringify({
         ok: true,
         asset,
-        source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "Dexscreener",
+        source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "CoinGecko Onchain",
         source_label: perp ? "Live perps market price" : traditional ? "Live market price" : "Exact public pool",
         freshness_state: "fresh",
         timeframe,
@@ -217,6 +218,19 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           ? { instrument_type: "perpetual", chain: "hyperliquid", venue: "hyperliquid", symbol: asset }
           : { instrument_type: "spot_pool", chain: "solana", venue: "fixture-dex", symbol: "JUP", quote_asset: "USDC", pair_address: pairAddress, token_address: "fixture-token" },
         capabilities: { live_bars: liveBars, older_bar_backfill: false, live_trades: liveBars && perp },
+        raven_annotations: pairAddress ? {
+          schema_version: "ravenos.chart_annotations.v1",
+          role: "annotation_only",
+          identity_scope: "exact_pool",
+          instrument_id: `spot_pool:solana:fixture-dex:JUP:USDC:${pairAddress}`,
+          market_identity: `solana:pool:${pairAddress}`,
+          price_unit: "usd_per_token",
+          price_axis_compatible: true,
+          candle_replacement_allowed: false,
+          events: [{ type: "raven-observation", severity: "info", time: providerCandles(asset, timeframe)[10].time, exact_observed_at: "2026-07-21T12:00:00Z", event_id: "public-raven-event" }],
+          overlays: [],
+          lineage: { source: "Raven exact observations", observed_at: "2026-07-21T12:00:00Z" },
+        } : null,
         candles: sparseTimeframe === timeframe ? providerCandles(asset, timeframe).slice(-12) : providerCandles(asset, timeframe),
       }),
     });
