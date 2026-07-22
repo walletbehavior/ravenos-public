@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   attachDelivery,
   loadOriginControlDocument,
+  loadPublicInstrumentChart,
   loadPublicInstrumentLookup,
   loadPublicProjection,
   projectionFreshness,
@@ -77,6 +78,37 @@ function instrumentLookupEnvelope(overrides = {}) {
   };
 }
 
+function instrumentChartEnvelope(overrides = {}) {
+  const lastTime = 1_753_000_600;
+  return {
+    ok: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    schema_version: "ravenos.instrument_chart.v1",
+    generated_at: "2026-07-21T09:59:30Z",
+    freshness_target_seconds: 300,
+    query: "AAPL",
+    instrument_id: "equity:nasdaq:aapl",
+    timeframe: "1h",
+    provider: "Yahoo Finance",
+    identity_provider: "Tradier",
+    instrument: instrumentLookupEnvelope().results[0],
+    candles: [
+      { time: 1_753_000_000, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+      { time: lastTime, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+    ],
+    market_data_observed_at: new Date(lastTime * 1_000).toISOString(),
+    execution_boundary: {
+      broker_connection_available: false,
+      quote_preview_available: false,
+      signing_available: false,
+      submission_available: false,
+      position_monitoring_available: false,
+    },
+    ...overrides,
+  };
+}
+
 test("loads a valid current public projection through the protected origin", async () => {
   let observed;
   const result = await loadPublicProjection({
@@ -128,6 +160,90 @@ test("loads a bounded exact listed-instrument lookup through the protected origi
   assert.equal(JSON.stringify(result).includes("test-token"), false);
   assert.equal(JSON.stringify(result).includes("must-not-ship"), false);
   assert.equal("provider_payload" in result.payload.results[0], false);
+});
+
+test("loads bounded listed-market candles through the protected origin and strips provider extras", async () => {
+  let observed;
+  const result = await loadPublicInstrumentChart({
+    env: ENV,
+    query: "AAPL",
+    instrumentId: "equity:nasdaq:aapl",
+    timeframe: "1h",
+    limit: 360,
+    nowMs: NOW,
+    fetchImpl: async (url, init) => {
+      observed = { url, init };
+      const payload = instrumentChartEnvelope({ provider_debug: { credential: "must-not-ship" } });
+      payload.candles[0].provider_trade_id = "must-not-ship";
+      return jsonResponse(payload);
+    },
+  });
+  assert.equal(observed.url, "https://origin.example/public/ravenos/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360");
+  assert.equal(observed.init.headers["x-ravenos-public-token"], "test-token");
+  assert.equal(observed.init.redirect, "manual");
+  assert.equal(result.available, true);
+  assert.equal(result.delivery.source, "current_public_origin");
+  assert.equal(result.delivery.freshness_state, "fresh");
+  assert.equal(result.delivery.fallback, false);
+  assert.equal(result.payload.instrument_id, "equity:nasdaq:aapl");
+  assert.equal(result.payload.candles.length, 2);
+  assert.equal(result.payload.execution_boundary.submission_available, false);
+  assert.equal(JSON.stringify(result).includes("test-token"), false);
+  assert.equal(JSON.stringify(result).includes("must-not-ship"), false);
+});
+
+test("listed-market chart rejects invalid identity before network access", async () => {
+  let called = false;
+  const result = await loadPublicInstrumentChart({
+    env: ENV,
+    query: "AAPL",
+    instrumentId: "not-an-exact-id",
+    timeframe: "1h",
+    nowMs: NOW,
+    fetchImpl: async () => {
+      called = true;
+      return jsonResponse(instrumentChartEnvelope());
+    },
+  });
+  assert.equal(called, false);
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.reason, "invalid_instrument_chart_query");
+  assert.equal(result.delivery.fallback, false);
+});
+
+for (const [name, mutate] of [
+  ["wrong identity", (payload) => ({ ...payload, instrument_id: "equity:nasdaq:msft" })],
+  ["enabled execution", (payload) => ({ ...payload, execution_boundary: { ...payload.execution_boundary, submission_available: true } })],
+  ["malformed candle", (payload) => ({ ...payload, candles: [{ ...payload.candles[0], high: 1 }] })],
+  ["out-of-order candles", (payload) => ({ ...payload, candles: [...payload.candles].reverse() })],
+]) {
+  test(`listed-market chart fails closed on ${name}`, async () => {
+    const result = await loadPublicInstrumentChart({
+      env: ENV,
+      query: "AAPL",
+      instrumentId: "equity:nasdaq:aapl",
+      timeframe: "1h",
+      nowMs: NOW,
+      fetchImpl: async () => jsonResponse(mutate(instrumentChartEnvelope())),
+    });
+    assert.equal(result.available, false);
+    assert.equal(result.payload, null);
+    assert.equal(result.delivery.reason, "instrument_chart_contract_rejected");
+    assert.equal(result.delivery.fallback, false);
+  });
+}
+
+test("listed-market chart rejects oversized responses", async () => {
+  const result = await loadPublicInstrumentChart({
+    env: ENV,
+    query: "AAPL",
+    instrumentId: "equity:nasdaq:aapl",
+    timeframe: "1h",
+    nowMs: NOW,
+    fetchImpl: async () => jsonResponse(instrumentChartEnvelope(), { headers: { "content-length": String(513 * 1024) } }),
+  });
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.reason, "origin_payload_too_large");
 });
 
 test("listed-instrument lookup rejects invalid queries before network access", async () => {

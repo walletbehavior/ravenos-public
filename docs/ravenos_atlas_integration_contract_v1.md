@@ -1,6 +1,6 @@
 # RavenOS Atlas Integration Contract v1
 
-Status: exact public adapter and UI slice implemented and tested; not reloaded or deployed to production
+Status: exact public adapter and UI slice implemented and tested; protected origin loaded; RavenOS Worker release not yet promoted
 Public projection code: `/srv/raven/app/tools/build_ravenos_public_origin.py`, `lib/cross_market/atlas_projection.mjs`, and `worker.mjs`
 Target schema: `ravenos.atlas_projection.v1`
 
@@ -21,9 +21,10 @@ The bounded continuity refresh proved these current paths:
 | Atlas synthesis | `/srv/raven/app/services/atlas_state.py` -> `data/atlas_state.json` | Current aggregate posture, breadth, alignment, options context, and rail health. |
 | Analytics refresh | `/srv/raven/app/services/atlas_analytics_refresh_v1.py` | Analytics-only, explicitly reports `paper_engine_started=false` and `execution_path_loaded=false`. |
 | Proposed service files | `/srv/raven/app/ops/systemd/raven-atlas-analytics-refresh.{service,timer}` | Present in source but not installed as systemd units at refresh time. |
-| Public origin source | `/srv/raven/app/tools/build_ravenos_public_origin.py` and `serve_ravenos_public_origin.py` | Atlas is now the ninth fixed source endpoint and is present in the exact allowlist. The running service still has the previously loaded code until a separately authorized reload. |
+| Public origin source | `/srv/raven/app/tools/build_ravenos_public_origin.py` and `serve_ravenos_public_origin.py` | Atlas is the ninth fixed source endpoint. The protected origin was loaded with the bounded listed lookup and chart contracts on 2026-07-22; unrelated Raven services were not restarted. |
 | Exact public instrument registry | `/srv/raven/app/config/atlas_public_instrument_registry.json` | SPY, QQQ, and IWM retain fixed verified identities for Atlas projection admission. |
-| Bounded listed-market lookup | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_lookup.json?q=` -> `/api/instruments/search` | Exact US equity/ETF identities are sanitized from Tradier server-side. Query, response size, result count, exchange codes, freshness, and execution state are bounded. Implemented and tested; the running origin has not been reloaded. |
+| Bounded listed-market lookup | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_lookup.json?q=` -> `/api/instruments/search` | Exact US equity/ETF identities are sanitized from Tradier server-side. Query, response size, result count, exchange codes, freshness, and execution state are bounded. Active on the protected origin. |
+| Bounded listed-market charts | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_chart.json` -> `/api/terminal/chart` | The origin re-verifies the exact Tradier identity, retrieves provider history server-side, and emits only bounded, sorted, deduplicated OHLCV. Provider payloads and credentials never cross the projection. Active on the protected origin; Worker promotion pending. |
 | RavenOS Worker adapter | `/api/atlas` in `worker.mjs` | Current-origin-only, schema/size/freshness validated, no embedded fallback; implemented and tested but not deployed. |
 | Product consumers | `ravenos-shell.js`, `ravenos-atlas.js`, `ravenos-terminal-live.js` | Exact ETF search, Atlas research table, and exact-listing Terminal slice implemented and browser-tested. |
 
@@ -40,7 +41,7 @@ Current verified Atlas output can support:
 - provider health and explicit degraded/stale state;
 - cross-market context for Raven perps and token reads.
 
-The undeployed branch now supports exact listed-instrument discovery for bounded Tradier equity and ETF lookup. This provides identity and provider-backed price-chart inspection; it does not create Atlas intelligence for each returned listing.
+The undeployed Worker branch now supports exact listed-instrument discovery and provider-backed price-chart inspection through the protected origin. This provides identity and chart coverage; it does not create Atlas intelligence for each returned listing.
 
 It does not yet publicly support:
 
@@ -83,7 +84,7 @@ The adapter intentionally removes:
 
 The adapter does not expose the raw `by_underlying.provider_debug` structures currently present in `atlas_options_state.json`.
 
-## Implemented transport (undeployed)
+## Implemented transport (Worker promotion pending)
 
 The smallest justified production path is:
 
@@ -93,6 +94,8 @@ flowchart LR
   O[Tradier options summary] --> B
   S[Atlas synthesis] --> B
   B --> J[atlas.json]
+  T[Tradier exact lookup] --> P
+  Y[Listed-market chart provider] --> P
   J --> P[Protected public-origin exact allowlist]
   P --> W[RavenOS Worker server-side read]
   W --> C[/api/atlas public projection]
@@ -110,12 +113,11 @@ Implemented in source and isolated tests:
 
 Still required before production use:
 
-1. Reload only the public-origin service so the running allowlist and builder load the new endpoint.
-2. Verify token enforcement, endpoint freshness, schema, size, and no-leak output through the real protected origin.
-3. Stage the exact immutable RavenOS release and run the Cloudflare production-equivalent preflight.
-4. Obtain explicit production promotion authorization.
+1. Stage the exact immutable RavenOS release and run the Cloudflare production-equivalent preflight.
+2. Verify AAPL and SPY chart coverage through the real Worker-to-origin path.
+3. Promote only the verified immutable release tuple under the owner authorization already granted for this pass.
 
-Tradier is never called directly from browser JavaScript. The implemented exact-instrument lookup runs only inside the protected private origin and returns a strict public-safe projection through the Worker. It enforces query validation, a 256 KiB upstream/Worker response bound, a 12-result cap, an admitted US exchange map, stock/ETF-only types, short caching, exact canonical identities, server-only credentials, and hard-false broker/quote/signing/submission capabilities. Unknown exchanges, options, malformed identities, stale payloads, and provider failures fail closed.
+Tradier and the listed-chart provider are never called directly from browser JavaScript. Exact-instrument lookup and chart normalization run only inside the protected private origin and return strict public-safe projections through the Worker. Lookup enforces query validation, a 256 KiB response bound, a 12-result cap, an admitted US exchange map, stock/ETF-only types, short caching, exact canonical identities, server-only credentials, and hard-false broker/quote/signing/submission capabilities. Charts re-verify that identity, accept only seven bounded timeframes, cap output at 1,000 candles and 512 KiB, remove raw provider structures, and retain hard-false execution state. Unknown exchanges, options, malformed identities, stale payloads, and provider failures fail closed.
 
 ## Health semantics
 
@@ -178,10 +180,10 @@ Future deeper fields—complete option chains, company/event archives, relations
 
 Current focused evidence:
 
-- private public-origin suite: 9/9, including token enforcement, provider sanitization, bounded lookup, exact identity, and fixed artifact routes;
-- RavenOS contract suite: 117/117, including current Atlas, listed-market lookup, exact chart re-verification, origin failure, stale payload, malformed identity, and no-substitution cases;
+- private public-origin suite: 10/10, including token enforcement, provider sanitization, bounded lookup, bounded listed charts, exact identity, and fixed artifact routes;
+- RavenOS contract suite: 127/127, including current Atlas, listed-market lookup, protected listed charts, exact chart re-verification, origin failure, stale payload, malformed identity, and no-substitution cases;
 - browser suite: 77/77, including Atlas-to-Terminal, arbitrary AAPL lookup without Atlas context, same-ticker equity-versus-token ranking, Robinhood Chain contract lookup, chart controls, focus mode, and mobile containment;
-- generated deploy-asset and 25-route Worker-response no-leak scans pass;
+- generated deploy-asset and 26-route Worker-response no-leak scans pass;
 - signing and submission remain hard false.
 
 Listing identity sources:

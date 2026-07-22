@@ -4,7 +4,7 @@
   "deploy_manifest_version": "ravenos.deploy.v2",
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
-    "contract_version": "ravenos_public_origin_manifest_v1",
+    "contract_version": "ravenos_public_origin_v2",
     "required_endpoints": {
       "brief": "ravenos_brief_public_origin_v1",
       "replay": "ravenos_replay_public_origin_v1",
@@ -15,7 +15,9 @@
       "perps": "ravenos_perps_public_origin_v1",
       "opportunities": "ravenos_opportunity_census_public_origin_v1",
       "atlas": "ravenos_atlas_public_origin_v1",
-      "claims": "ravenos_claims_public_origin_v2"
+      "claims": "ravenos_claims_public_origin_v2",
+      "instrument_lookup": "ravenos.instrument_lookup.v1",
+      "instrument_chart": "ravenos.instrument_chart.v1"
     }
   }
 }

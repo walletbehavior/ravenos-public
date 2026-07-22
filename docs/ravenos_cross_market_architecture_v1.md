@@ -54,7 +54,8 @@ flowchart LR
   V --> S[Settlement and quote preview]
   S --> N[No signing or submission]
 
-  M --> H[Hyperliquid / chart providers]
+  M --> H[Hyperliquid / exact spot chart planes]
+  M --> L[Protected listed-market chart projection]
   I --> O[Current public-origin projection]
   I --> AP[Current-origin Atlas public-safe projection]
 ```
@@ -217,17 +218,18 @@ Legacy surfaces may redirect or remain deep compatibility routes during migratio
 
 ## Current support matrix
 
-As verified on 2026-07-21:
+As verified on 2026-07-22:
 
 | Lane | Identity | Fast data | Raven context | Atlas context | Quote/execution |
 | --- | --- | --- | --- | --- | --- |
 | Hyperliquid perps | Exact and current | Live candles, book, tape, funding, OI | Current public-origin joins | Independent aggregate cross-market posture | Read-only; no signing |
 | Solana exact pool | Exact where pool data exists | Real chart path and bounded providers | Exact Raven-native observations where covered | None yet | Existing disabled preview contracts only |
 | EVM spot | Exact/aggregate varies by source | Bounded provider support | Public aggregate coverage | None yet | Read-only boundary |
-| ETFs (SPY/QQQ/IWM context) | Exact verified registry IDs; only currently priced rows become Terminal entries | Protected current-origin Massive market rows plus bounded Yahoo chart adapter; Tradier aggregate options context | No dedicated public Raven equity projection; explicitly unavailable | `/api/atlas`, universal search, Atlas table, and exact-listing Terminal implemented and tested; undeployed | No broker quote, account, signing, or execution path |
-| Arbitrary equity/option | Contract model supports it | Not yet publicly projected | Not yet | Not yet | Not available |
+| ETFs (SPY/QQQ/IWM context) | Exact verified registry IDs plus current Tradier re-verification | Protected current-origin Massive rows and protected bounded listed-market candles; Tradier aggregate options context | No dedicated public Raven equity projection; explicitly unavailable | `/api/atlas`, universal search, Atlas table, and exact-listing Terminal implemented and tested; Worker promotion pending | No broker quote, account, signing, or execution path |
+| Tradier-listed equity | Exact stock/ETF lookup with admitted exchange identity | Protected bounded listed-market candles after exact identity re-verification | Explicitly unavailable unless a separate current Raven projection exists | Atlas intelligence remains unavailable unless the current Atlas projection contains the exact instrument | No broker quote, account, signing, or execution path |
+| Option | Contract model supports exact expiry/strike/right identity | Not yet publicly projected | Not yet | Aggregate context only for selected underlyings; no public option chain | Not available |
 
-The first polished cross-market anchor remains Hyperliquid. Exact SPY and QQQ are the first truthful priced Atlas anchors in the current source state; IWM options context is shown only where available. A claimed arbitrary NVDA flow remains blocked until a bounded server-side adapter and exact listing registry exist.
+The first polished cross-market anchor remains Hyperliquid. Exact SPY and QQQ are the first truthful priced Atlas anchors in the current source state; IWM options context is shown only where available. Tradier-listed equities can now resolve and chart through the protected origin, but they do not inherit Atlas or Raven intelligence merely because price history exists.
 
 ## Release and safety relationship
 

@@ -11,6 +11,8 @@ const PRODUCTION_WORKER = "ravenos-public";
 const PRODUCTION_BASE = "https://ravenos.xyz";
 const RESTORED_ORIGIN_BASE = "https://ravenos-public-origin.ravenos.xyz/public/ravenos";
 const DENIED_ORIGIN_BASE = "https://ravenos-public-origin.ravenos.xyz/public/ravenos-denied";
+const LISTED_CHART_PATH = "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl";
+const FIXED_LISTED_CHART_PATH = "/api/terminal/chart?market=equities&asset=SPY&timeframe=1h&instrument_id=etf%3Anyse-arca%3Aspy";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseEnv = cloudflareReleaseEnv(repoRoot);
 const secret = String(releaseEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN || "");
@@ -151,6 +153,10 @@ function deployStaging(originBase, message) {
   };
 }
 
+function writeOriginSecret(value) {
+  writeFileSync(tempSecrets, `${JSON.stringify({ RAVENOS_PUBLIC_ORIGIN_TOKEN: value })}\n`, { mode: 0o600 });
+}
+
 function sha256(text) {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -287,6 +293,51 @@ function validateHealth(captured) {
   };
 }
 
+function validateListedChart(captured) {
+  const body = captured.json;
+  if (
+    captured.status !== 200
+    || body?.ok !== true
+    || body?.market_identity !== "equity:nasdaq:aapl"
+    || body?.instrument?.canonical_id !== "equity:nasdaq:aapl"
+    || body?.instrument?.instrument_type !== "equity"
+    || body?.source !== "Yahoo Finance"
+    || body?.delivery?.source !== "current_public_origin"
+    || body?.delivery?.freshness_state !== "fresh"
+    || body?.delivery?.fallback !== false
+    || !Array.isArray(body?.candles)
+    || body.candles.length < 20
+  ) throw new Error("Restored-origin staging route did not return exact current listed-market candles");
+  return {
+    status: captured.status,
+    instrument_id: body.market_identity,
+    instrument_type: body.instrument.instrument_type,
+    source: body.source,
+    candle_count: body.candles.length,
+    timeframe: body.timeframe,
+    delivery_source: body.delivery.source,
+    freshness_state: body.delivery.freshness_state,
+    fallback: body.delivery.fallback,
+  };
+}
+
+function validateWrongTokenChart(captured) {
+  const body = captured.json;
+  if (
+    captured.status !== 503
+    || body?.ok !== false
+    || !Array.isArray(body?.candles)
+    || body.candles.length !== 0
+  ) throw new Error("Wrong-token staging chart route did not fail closed with 503");
+  return {
+    status: captured.status,
+    error: body.error || null,
+    source_type: body.source_type || null,
+    freshness_state: body.freshness_state || null,
+    candle_count: body.candles.length,
+  };
+}
+
 function healthObservation(captured) {
   const body = captured?.json || {};
   return {
@@ -320,7 +371,7 @@ function opportunityObservation(captured) {
 }
 
 const report = {
-  schema_version: "ravenos.origin_connectivity_preflight.v3",
+  schema_version: "ravenos.origin_connectivity_preflight.v4",
   started_at: new Date().toISOString(),
   production_worker: PRODUCTION_WORKER,
   staging_worker: stagingWorker,
@@ -333,7 +384,7 @@ let failed = null;
 let zone = null;
 let routesBefore = null;
 
-writeFileSync(tempSecrets, `${JSON.stringify({ RAVENOS_PUBLIC_ORIGIN_TOKEN: secret })}\n`, { mode: 0o600 });
+writeOriginSecret(secret);
 
 try {
   report.production_before = productionStatus();
@@ -369,6 +420,16 @@ try {
     result: deniedDiagnostic.json,
   };
 
+  writeOriginSecret(`invalid-${nonce}`);
+  report.wrong_token_deployment = deployStaging(
+    RESTORED_ORIGIN_BASE,
+    "RavenOS staging preflight: intentional origin-token rejection",
+  );
+  const wrongTokenChart = await captureUntilValid(FIXED_LISTED_CHART_PATH, validateWrongTokenChart);
+  report.wrong_token_chart_capture = summarizeCapture(wrongTokenChart.capture);
+  report.wrong_token_chart_check = wrongTokenChart.check;
+
+  writeOriginSecret(secret);
   report.restored_deployment = deployStaging(
     RESTORED_ORIGIN_BASE,
     "RavenOS staging preflight: exact protected route restored",
@@ -403,6 +464,9 @@ try {
   });
   report.restored_captures = [summarizeCapture(health.capture), summarizeCapture(opportunity.capture)];
   report.health_check = health.check;
+  const listedChart = await captureUntilValid(LISTED_CHART_PATH, validateListedChart);
+  report.listed_chart_capture = summarizeCapture(listedChart.capture);
+  report.listed_chart_check = listedChart.check;
 
   const assetPaths = ["/", ...preflightAssetUrls, "/ravenos_build.json"];
   const assets = [];
@@ -412,7 +476,7 @@ try {
   }
   report.asset_scans = assets.map(summarizeCapture);
   report.no_leak = {
-    response_count: 2 + assets.length,
+    response_count: 4 + assets.length,
     origin_token_absent: true,
     cloudflare_token_absent: true,
   };

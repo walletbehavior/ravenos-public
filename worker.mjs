@@ -8,6 +8,7 @@ import { buildPerpTerminalContext } from "./lib/perp_terminal_context.mjs";
 import {
   attachDelivery,
   loadOriginControlDocument,
+  loadPublicInstrumentChart,
   loadPublicInstrumentLookup,
   loadPublicProjection,
   projectionFreshness,
@@ -1199,6 +1200,122 @@ async function fetchYahooCandles(ticker, timeframe, {
   });
 }
 
+async function fetchPublicListedCandles(env, ticker, timeframe, {
+  assetLabel = ticker,
+  assetType = "equity",
+  instrumentId = "",
+  venue = "traditional",
+  listing = "",
+  limit = null,
+} = {}) {
+  const requestedTimeframe = String(timeframe || "1h").toLowerCase();
+  const defaultLimit = timeframeSpec(requestedTimeframe).yahooMaxItems || 360;
+  const requestedLimit = limit === null || limit === undefined || limit === ""
+    ? defaultLimit
+    : boundedChartLimit(limit, defaultLimit, 1000);
+  const cacheKey = `listed-origin:${ticker}:${instrumentId}:${requestedTimeframe}:${requestedLimit}`;
+  const cached = cacheGet(terminalChartCache, cacheKey);
+  if (cached) {
+    recordProviderComponentEvent({
+      component: "market_chart_data",
+      category: "success",
+      cache_hit: true,
+      reason_code: "chart_cache_hit",
+    });
+    return cached;
+  }
+  return runProviderOperation({
+    component: "market_chart_data",
+    operation_key: cacheKey,
+    fn: async () => {
+      const configuredTimeout = Number(env.RAVENOS_PUBLIC_ORIGIN_CHART_TIMEOUT_MS);
+      const loaded = await loadPublicInstrumentChart({
+        env,
+        query: ticker,
+        instrumentId,
+        timeframe: requestedTimeframe,
+        limit: requestedLimit,
+        timeoutMs: Number.isFinite(configuredTimeout) && configuredTimeout > 0
+          ? Math.min(4_500, configuredTimeout)
+          : 4_500,
+      });
+      if (
+        !loaded.available
+        || loaded.delivery?.source !== "current_public_origin"
+        || loaded.delivery?.fallback !== false
+        || loaded.delivery?.freshness_state !== "fresh"
+      ) throw new Error("listed_chart_current_origin_unavailable");
+      const projection = loaded.payload;
+      if (
+        projection.instrument_id !== instrumentId
+        || projection.instrument?.instrument_id !== instrumentId
+        || projection.instrument?.symbol !== ticker
+      ) throw new Error("listed_chart_identity_mismatch");
+      const candles = sanitizeChartCandles(projection.candles, { maxItems: requestedLimit });
+      if (!candles.length) throw new Error("listed_chart_empty");
+      const instrument = normalizeChartInstrument({
+        canonicalId: instrumentId,
+        instrumentType: assetType === "etf" ? CHART_INSTRUMENT_TYPES.ETF : CHART_INSTRUMENT_TYPES.EQUITY,
+        chain: "none",
+        venue,
+        symbol: ticker,
+        baseAsset: ticker,
+        quoteAsset: "USD",
+        marketStatus: projection.instrument?.market_session?.state || "unknown",
+        ravenCoverageState: "atlas_context",
+        providerRouting: {
+          history: "listed_market_history",
+          live: "bounded_provider_poll",
+          providerAsset: ticker,
+          providerNetwork: listing || venue,
+        },
+      });
+      const result = {
+        ok: true,
+        asset: assetLabel,
+        source: projection.provider,
+        source_type: "provider",
+        source_label: "Provider-backed market history",
+        coverage: "Current provider response",
+        stale: false,
+        freshness_state: "fresh",
+        timeframe: projection.timeframe,
+        updated_at: projection.generated_at,
+        observed_at: projection.market_data_observed_at,
+        market_identity: instrumentId,
+        age_seconds: loaded.delivery.age_seconds,
+        instrument,
+        capabilities: {
+          historical_bars: true,
+          older_bar_backfill: false,
+          live_bars: true,
+          live_trades: false,
+          liquidity: false,
+          order_book: false,
+          funding: false,
+          open_interest: false,
+          raven_overlays: false,
+          atlas_overlays: false,
+        },
+        history_window: {
+          before: null,
+          returned: candles.length,
+          oldest: candles[0]?.time || null,
+          newest: candles[candles.length - 1]?.time || null,
+        },
+        market_state: {
+          last: candles[candles.length - 1]?.close || null,
+        },
+        delivery: loaded.delivery,
+        build_id: null,
+        candles,
+      };
+      cacheSet(terminalChartCache, cacheKey, result, 60_000);
+      return result;
+    },
+  });
+}
+
 async function resolveTraditionalExactInstrument(env, ticker, instrumentId = "") {
   const symbol = String(ticker || "").trim().toUpperCase();
   const requestedId = String(instrumentId || "").trim().toLowerCase();
@@ -1214,7 +1331,7 @@ async function resolveTraditionalExactInstrument(env, ticker, instrumentId = "")
     || result.delivery?.source !== "current_public_origin"
     || result.delivery?.fallback !== false
     || result.delivery?.freshness_state !== "fresh"
-  ) return null;
+  ) throw new Error("listed_identity_current_origin_unavailable");
   const matches = (result.payload?.results || []).filter((row) => (
     String(row?.instrument_id || "").toLowerCase() === requestedId
     && String(row?.symbol || "").toUpperCase() === symbol
@@ -1312,7 +1429,7 @@ async function terminalChartPayload({
         timeframe,
       });
     }
-    return fetchYahooCandles(ticker, timeframe, {
+    return fetchPublicListedCandles(env, ticker, timeframe, {
       assetLabel: cleanAsset,
       assetType: exact.instrument_type,
       instrumentId: exact.instrument_id,

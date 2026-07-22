@@ -121,6 +121,52 @@ function instrumentLookupFixture(query) {
   };
 }
 
+function instrumentChartFixture(query, instrumentId, timeframe = "1h", limit = 360) {
+  const symbol = String(query || "").trim().toUpperCase();
+  const fixture = listedInstrumentFixtures.find((row) => row.symbol === symbol);
+  const instrument = fixture ? listedInstrument(fixture) : null;
+  if (!instrument || instrument.instrument_id !== String(instrumentId || "").trim().toLowerCase()) return null;
+  const count = Math.max(2, Math.min(Number(limit) || 360, 96));
+  const intervalSeconds = timeframe === "5m" ? 300 : timeframe === "15m" ? 900 : timeframe === "4h" ? 14_400 : timeframe === "1d" ? 86_400 : 3_600;
+  const lastTime = Math.floor(Date.now() / 1_000 / intervalSeconds) * intervalSeconds;
+  const candles = Array.from({ length: count }, (_, index) => {
+    const base = symbol === "SPY" ? 700 : symbol === "QQQ" ? 620 : 210;
+    const close = base + index * 0.15;
+    return {
+      time: lastTime - (count - index - 1) * intervalSeconds,
+      open: close - 0.1,
+      high: close + 0.4,
+      low: close - 0.4,
+      close,
+      volume: 10_000 + index * 100,
+    };
+  });
+  const generatedAt = new Date().toISOString();
+  return {
+    ok: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    schema_version: "ravenos.instrument_chart.v1",
+    generated_at: generatedAt,
+    freshness_target_seconds: 300,
+    query: symbol,
+    instrument_id: instrument.instrument_id,
+    timeframe,
+    provider: "Yahoo Finance",
+    identity_provider: "Tradier",
+    instrument,
+    candles,
+    market_data_observed_at: new Date(candles.at(-1).time * 1_000).toISOString(),
+    execution_boundary: {
+      broker_connection_available: false,
+      quote_preview_available: false,
+      signing_available: false,
+      submission_available: false,
+      position_monitoring_available: false,
+    },
+  };
+}
+
 function atlasFixture() {
   const generatedAt = new Date().toISOString();
   const spy = listedInstrument(listedInstrumentFixtures[1]);
@@ -177,6 +223,17 @@ async function servePublicOriginFixture(req, res) {
   if (url.pathname === "/__playwright_public_origin/instrument_lookup.json") {
     res.statusCode = 200;
     res.end(JSON.stringify(instrumentLookupFixture(url.searchParams.get("q") || "")));
+    return true;
+  }
+  if (url.pathname === "/__playwright_public_origin/instrument_chart.json") {
+    const payload = instrumentChartFixture(
+      url.searchParams.get("q") || "",
+      url.searchParams.get("instrument_id") || "",
+      url.searchParams.get("timeframe") || "1h",
+      url.searchParams.get("limit") || "360",
+    );
+    res.statusCode = payload ? 200 : 503;
+    res.end(JSON.stringify(payload || { ok: false, error: "instrument_chart_unavailable", candles: [] }));
     return true;
   }
   if (url.pathname === "/__playwright_public_origin/atlas.json") {

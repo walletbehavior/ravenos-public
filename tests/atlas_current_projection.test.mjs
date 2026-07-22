@@ -118,6 +118,37 @@ function instrumentLookup({ query = "AAPL", rows = [listedInstrument()], generat
   };
 }
 
+function instrumentChart({ generatedAt = isoAgo(10), overrides = {} } = {}) {
+  const lastTime = Math.floor(Date.now() / 1_000) - 60;
+  return {
+    ok: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    schema_version: "ravenos.instrument_chart.v1",
+    generated_at: generatedAt,
+    freshness_target_seconds: 300,
+    query: "AAPL",
+    instrument_id: "equity:nasdaq:aapl",
+    timeframe: "1h",
+    provider: "Yahoo Finance",
+    identity_provider: "Tradier",
+    instrument: listedInstrument(),
+    candles: [
+      { time: lastTime - 3600, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+      { time: lastTime, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+    ],
+    market_data_observed_at: new Date(lastTime * 1_000).toISOString(),
+    execution_boundary: {
+      broker_connection_available: false,
+      quote_preview_available: false,
+      signing_available: false,
+      submission_available: false,
+      position_monitoring_available: false,
+    },
+    ...overrides,
+  };
+}
+
 function response(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
 }
@@ -262,7 +293,7 @@ for (const [name, originResponse] of [
   });
 }
 
-test("dynamic equity chart re-verifies exact listing identity before requesting provider candles", async () => {
+test("dynamic equity chart re-verifies exact listing identity before requesting protected origin candles", async () => {
   const previous = globalThis.fetch;
   const calls = [];
   try {
@@ -273,15 +304,9 @@ test("dynamic equity chart re-verifies exact listing identity before requesting 
         assert.equal(init.headers?.["x-ravenos-public-token"], TOKEN);
         return response(instrumentLookup());
       }
-      if (url.includes("query1.finance.yahoo.com/v8/finance/chart/AAPL")) {
-        return response({
-          chart: {
-            result: [{
-              timestamp: [1_800_000_000, 1_800_003_600],
-              indicators: { quote: [{ open: [210, 211], high: [212, 213], low: [209, 210], close: [211, 212], volume: [100, 120] }] },
-            }],
-          },
-        });
+      if (url === `${ORIGIN}/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360`) {
+        assert.equal(init.headers?.["x-ravenos-public-token"], TOKEN);
+        return response(instrumentChart());
       }
       throw new Error(`Unexpected request: ${url}`);
     };
@@ -294,6 +319,8 @@ test("dynamic equity chart re-verifies exact listing identity before requesting 
     assert.equal(payload.instrument.canonical_id, "equity:nasdaq:aapl");
     assert.equal(payload.instrument.venue, "nasdaq");
     assert.equal(payload.candles.length, 2);
+    assert.equal(payload.delivery.source, "current_public_origin");
+    assert.equal(payload.delivery.fallback, false);
     assert.equal(calls.length, 2);
   } finally {
     globalThis.fetch = previous;
@@ -317,6 +344,22 @@ test("dynamic equity chart refuses an identity mismatch without calling the cand
     assert.equal(payload.source_type, "identity_mismatch");
     assert.equal(payload.candles.length, 0);
     assert.deepEqual(calls, [`${ORIGIN}/instrument_lookup.json?q=AAPL`]);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
+test("dynamic equity chart reports 503 when current identity authority is unavailable", async () => {
+  const previous = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => response({ ok: false, error: "unauthorized" }, 401);
+    const result = await worker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"), env());
+    assert.equal(result.status, 503);
+    const body = await result.json();
+    const payload = body.data || body;
+    assert.equal(payload.ok, false);
+    assert.equal(payload.candles.length, 0);
+    assert.equal(payload.freshness_state, "unavailable");
   } finally {
     globalThis.fetch = previous;
   }

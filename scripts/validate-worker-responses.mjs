@@ -43,6 +43,7 @@ const checks = [
   ["GET", "/api/opportunity"],
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
+  ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal"],
   ["GET", "/api/chains/solana"],
   ["GET", "/api/chains/base"],
@@ -58,6 +59,44 @@ const checks = [
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input) => {
   const url = String(input?.url || input);
+  if (url.includes("/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360")) {
+    const lastTime = Math.floor(Date.now() / 1_000) - 60;
+    return new Response(JSON.stringify({
+      ok: true,
+      safe_public: true,
+      redaction_policy: "aggregate_public_market_context_only",
+      schema_version: "ravenos.instrument_chart.v1",
+      generated_at: new Date().toISOString(),
+      freshness_target_seconds: 300,
+      query: "AAPL",
+      instrument_id: "equity:nasdaq:aapl",
+      timeframe: "1h",
+      provider: "Yahoo Finance",
+      identity_provider: "Tradier",
+      instrument: {
+        schema_version: "ravenos.instrument.v1",
+        instrument_id: "equity:nasdaq:aapl",
+        symbol: "AAPL",
+        display_name: "Apple Inc.",
+        asset_class: "equity",
+        instrument_type: "equity",
+        identity_scope: "exact_instrument",
+        venue: "nasdaq",
+        chain: "none",
+        market_identity: { market_id: "AAPL", listing: "Nasdaq" },
+        quote_asset: { symbol: "USD", asset_id: "USD" },
+        settlement_asset: { symbol: "USD", asset_id: "USD" },
+        capabilities: { chart: true, live_price: true, quote_preview: false, execution: false },
+      },
+      candles: [
+        { time: lastTime - 3600, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+        { time: lastTime, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+      ],
+      market_data_observed_at: new Date(lastTime * 1_000).toISOString(),
+      provider_debug: { credential: "must-be-stripped" },
+      execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false, position_monitoring_available: false },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.includes("/instrument_lookup.json?q=AAPL")) {
     return new Response(JSON.stringify({
       ok: true,
