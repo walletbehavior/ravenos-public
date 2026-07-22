@@ -78,27 +78,9 @@ cpSync(join(repoRoot, "lib"), join(bundleRoot, "lib"), { recursive: true });
 
 const chartProviderConfig = releaseConfig.onchain_chart_provider || {};
 const productionChartProvider = chartProviderConfig.production_promotion_eligible === true;
-const publicEvaluationChartProvider = !productionChartProvider && chartProviderConfig.public_evaluation_promotion_eligible === true;
-const deploymentClass = productionChartProvider
-  ? "commercial_production"
-  : publicEvaluationChartProvider
-    ? "public_evaluation"
-    : "isolated_preview";
-const runtimeChartProvider = productionChartProvider
-  ? chartProviderConfig.production_provider
-  : publicEvaluationChartProvider
-    ? chartProviderConfig.public_evaluation_provider
-    : chartProviderConfig.preview_provider;
-const runtimeChartPlan = productionChartProvider
-  ? chartProviderConfig.production_provider_plan
-  : publicEvaluationChartProvider
-    ? chartProviderConfig.public_evaluation_provider_plan
-    : chartProviderConfig.preview_provider_plan;
-const runtimeChartCommercial = productionChartProvider
-  ? chartProviderConfig.production_provider_commercial
-  : publicEvaluationChartProvider
-    ? chartProviderConfig.public_evaluation_provider_commercial
-    : chartProviderConfig.preview_provider_commercial;
+const runtimeChartProvider = productionChartProvider ? chartProviderConfig.production_provider : chartProviderConfig.preview_provider;
+const runtimeChartPlan = productionChartProvider ? chartProviderConfig.production_provider_plan : chartProviderConfig.preview_provider_plan;
+const runtimeChartCommercial = productionChartProvider ? chartProviderConfig.production_provider_commercial : chartProviderConfig.preview_provider_commercial;
 
 const releaseWrangler = {
   name: baseWrangler.name,
@@ -128,7 +110,6 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER: runtimeChartProvider || "",
     ONCHAIN_CHART_PROVIDER_PLAN: runtimeChartPlan || "",
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
-    RAVENOS_DEPLOYMENT_CLASS: deploymentClass,
   },
 };
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
@@ -146,7 +127,6 @@ const packageManifest = {
   static_asset_manifest_sha256: release.static_asset_manifest_sha256,
   artifact_content_sha256: deploy.artifact_content_sha256,
   public_origin_contract_version: release.public_origin_contract_version,
-  deployment_class: deploymentClass,
   onchain_chart_provider: releaseConfig.onchain_chart_provider,
   worker_name: baseWrangler.name,
   required_server_secret_bindings: [

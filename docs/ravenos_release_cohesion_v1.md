@@ -1,6 +1,6 @@
 # RavenOS Release Cohesion v1
 
-Status: implemented for isolated version staging, bounded public evaluation, commercial production, and rollback; every traffic change remains separately authorized.
+Status: implemented for isolated version staging; production promotion remains separately authorized.
 
 Contract: `ravenos.release.v1`
 
@@ -51,23 +51,16 @@ The parent `.env` is read only for Cloudflare credentials. It is never copied, p
 
 Promotion uses the already-staged Worker version ID; it never rebuilds.
 
-`scripts/promote-release.mjs` recognizes two independently gated traffic classes:
-
-- `public_evaluation` permits a noncommercial Demo provider only for testing and exploration, with required attribution, no commercial customer capabilities, and customer signing/submission disabled;
-- `commercial_production` requires an explicitly qualified commercial provider and rejects a Demo plan.
-
-Both classes require:
+`scripts/promote-release.mjs` requires:
 
 - a verified stage receipt;
 - matching package and receipt identities;
 - the production-equivalent preview report for the same release;
-- exact-pool provider provenance with no fallback;
+- an explicitly commercially qualified, non-Demo chart provider;
 - a qualified one-minute contract and no sub-minute requirement;
-- an authorization variable equal to the exact release ID.
+- `RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION` equal to the exact release ID.
 
-Public evaluation uses `RAVENOS_PUBLIC_EVALUATION_PROMOTION_AUTHORIZATION`. Commercial production uses `RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION`.
-
-Without every applicable condition, it stops before calling Cloudflare. Public evaluation does not satisfy or weaken the commercial-production provider gate.
+Without every condition, it stops before calling Cloudflare. A Demo-backed version remains available only through its isolated Cloudflare preview URL and is ineligible for `ravenos.xyz` traffic.
 
 ## Rollback
 

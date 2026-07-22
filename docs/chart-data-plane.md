@@ -51,11 +51,9 @@ truth.
 
 Provider selection is explicit in `lib/onchain_chart_providers.mjs`. A secret's
 presence cannot silently change the selected chart authority. Free/Demo provider
-paths remain evaluation-only. A separately authorized `public_evaluation` release
-may receive live no-customer traffic with required attribution and disabled
-commercial/execution capabilities; commercial production remains blocked until a
-provider's rights, exact-pool anchors, rate behavior, and server-side production
-binding are qualified.
+paths remain development and isolated-preview only. Production promotion remains
+blocked until a provider's commercial rights, exact-pool anchors, rate behavior,
+and server-side production binding are qualified.
 
 `lib/chart_continuity.mjs` owns the only permitted same-provider derivations:
 `5m → 15m`, `15m → 1h`, `1h → 4h`, and `1h → 1d`. Every historical target

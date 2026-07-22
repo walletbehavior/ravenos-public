@@ -1,6 +1,6 @@
 # RavenOS market-data plane v1
 
-Status: implemented evaluation baseline; bounded public evaluation authorized; commercial production blocked
+Status: implemented evaluation baseline; production promotion blocked
 
 Date: 2026-07-22 UTC
 
@@ -20,7 +20,7 @@ The base-chart precedence is:
 6. a last-good response matching exact provider, market, orientation, decimals, and timeframe, visibly marked degraded, where policy permits;
 7. no chart.
 
-The default unconfigured evaluation order remains `dexpaprika,coingecko_onchain`, but the current evaluation release explicitly selects `coingecko_onchain` with plan `demo` through the generic provider contract. The existing parent variable `COINGECKO_API_KEY` is read only by the local validation helper and mapped to `ONCHAIN_CHART_PROVIDER_SECRET`; key presence alone does not change provider authority inside the Worker. A separately authorized `public_evaluation` release may receive live traffic only while attribution is present, commercial customer capabilities remain unavailable, and signing/submission remain disabled. Commercial production still has no qualified selected provider and remains blocked until commercial rights, rate behavior, and the server-side production plan are verified.
+The default unconfigured evaluation order remains `dexpaprika,coingecko_onchain`, but the current version preview explicitly selects `coingecko_onchain` with plan `demo` through the generic provider contract. The existing parent variable `COINGECKO_API_KEY` is read only by the local validation helper and mapped to `ONCHAIN_CHART_PROVIDER_SECRET`; key presence alone does not change provider authority inside the Worker. The Demo key is preview/evaluation only and excluded from production promotion eligibility. Production has no qualified selected provider and remains blocked until written authorization or a Basic-or-higher commercial key, rate behavior, and the server-side production plan are verified.
 
 Every market advertised as chart-ready must provide a useful one-minute series. The release matrix requires at least 120 real provider-backed `1m` bars for every representative chart-ready anchor. No `30s` candle contract is required, and RavenOS does not derive `1m` from sub-minute observations. A market can remain discoverable while its one-minute chart is unavailable.
 
@@ -95,7 +95,7 @@ No provider becomes chart-ready because a marketing page names a chain. An exact
 - Same-provider interval derivation is limited to `5m → 15m`, `15m → 1h`, `1h → 4h`, and `1h → 1d`. These are the only mappings that passed representative exact-pool comparison. `1m → 5m` is explicitly prohibited because representative pools showed incomplete source buckets and material volume disagreement.
 - Every completed derived bucket must contain every expected lower-interval bar. A currently forming bucket is accepted only when it begins at the exact UTC boundary and all received source bars are contiguous. Missing source intervals remain missing; RavenOS never interpolates, forward-fills, or manufactures OHLCV.
 - Provider or derivation transitions validate exact pool, selected/quote orientation, token decimals, timestamps, open/close continuity, volume semantics, duplicate/conflicting rows, missing buckets, and freshness before data is applied. A failed transition degrades the feed without switching identity.
-- A release-enforced Worker never uses the anonymous GeckoTerminal endpoint as application capacity. CoinGecko Demo uses the generic server-only binding only in development, isolated preview, or the bounded no-customer `public_evaluation` release class. Commercial production requires an explicitly commercial plan and the same generic binding.
+- A release-enforced Worker never uses the anonymous GeckoTerminal endpoint as application capacity. CoinGecko Demo uses the generic server-only binding only in development and isolated version preview. Production requires written authorization or an explicitly commercial Basic-or-higher plan using the same generic binding.
 - One minute is a native-provider requirement. RavenOS does not downsample a `30s` source, upsample a sparse Raven observation, or relabel a monthly series as `1m`.
 - A pool migration is a new exact market. RavenOS never silently moves a selected chart to the replacement pool.
 - A last-good rescue must match provider, network, exact pool, token orientation, and timeframe and must remain visibly degraded.
@@ -176,23 +176,23 @@ Moralis may supply supported wallet balances, swaps/history, P&L/net worth, top 
 
 RavenOS now exposes a collapsed global provider ledger with persistent `Data by DexPaprika + CoinGecko` text and the official unmodified DexPaprika symbol. It identifies the bounded roles of DexPaprika, DexScreener, CoinGecko, Hyperliquid, Tradier/Atlas, Moralis, Constant-K/Raven, Cloudflare, and the TradingView Lightweight Charts renderer and explicitly avoids implying endorsement or partnership. The exact chart response and Terminal source detail carry the active provider, freshness, derivation, and required CoinGecko attribution.
 
-Attribution does not establish commercial permission. It satisfies a presentation requirement while the release gate independently distinguishes bounded public evaluation from commercial production.
+Attribution does not establish commercial permission. It satisfies a presentation requirement while the release gate independently blocks production use of an unqualified plan.
 
 ## Cost and operating implications
 
 - DexPaprika Free carries no API-key setup cost and is appropriate for the current development bake-off, but its terms prohibit commercial production use. Current Pro list pricing begins at $99/month; actual RavenOS rights and capacity must be confirmed before selection.
-- CoinGecko Demo is the explicitly selected evaluation provider. The current parent `COINGECKO_API_KEY` is mapped locally to the provider-neutral secret contract; it is never shipped as a browser variable. The full six-interval matrix used approximately one bounded OHLCV request per exact pool/interval plus cached identity requests, which is appropriate for the current zero-customer public evaluation but is not a commercial-production capacity model.
+- CoinGecko Demo is the explicitly selected development and isolated-preview provider. The current parent `COINGECKO_API_KEY` is mapped locally to the provider-neutral secret contract; it is never shipped as a browser variable. The full six-interval matrix used approximately one bounded OHLCV request per exact pool/interval plus cached identity requests, which is appropriate for zero-traffic evaluation but is not a production-capacity model.
 - `COINGECKO_PRO_API_KEY` remains a compatibility input only, not the architectural release contract. Production uses `ONCHAIN_CHART_PROVIDER`, `ONCHAIN_CHART_PROVIDER_PLAN`, `ONCHAIN_CHART_PROVIDER_COMMERCIAL`, and `ONCHAIN_CHART_PROVIDER_SECRET`.
 - Cloudflare caches coalesce identical exact-market requests and retain a bounded same-market rescue. They reduce calls but do not make an insufficient or prohibited provider production-safe.
 - Active views currently use bounded polling. At scale, one shared upstream subscription per exact market/timeframe may be preferable; that requires a measured stateful-fanout cost model.
 - Hyperliquid and Atlas remain independent, so an on-chain provider outage must not collapse perp or listed-market surfaces.
 - Moralis consumption remains private and budgeted separately from OHLCV.
 
-## Release recommendation
+## Production recommendation
 
-The exact staged tuple may be promoted only under the separately authorized `public_evaluation` class. That class is deliberately noncommercial: provider attribution is mandatory, commercial customer capabilities remain unavailable, and public signing/submission remain disabled.
+Do not promote the Demo-backed release to `ravenos.xyz`.
 
-Commercial production remains mechanically blocked until one provider has:
+Use the isolated Cloudflare version preview for owner evaluation, visual QA, screenshots, automated tests, and provider/cache measurement. Production remains mechanically blocked until CoinGecko provides written permission or one provider has:
 
 1. written/contractual commercial product-display and normalized-delivery rights;
 2. a selected paid plan and explicit server-side production binding;

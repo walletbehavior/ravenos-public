@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { evaluateReleasePromotion } from "../lib/release_promotion_policy.mjs";
 import { cloudflareReleaseEnv } from "./lib/cloudflare-release-env.mjs";
 
 const repoRoot = process.cwd();
@@ -15,19 +14,31 @@ if (previewVerification.ok !== true || previewVerification.release_id !== receip
   throw new Error("Preview verification and staged release identities differ");
 }
 const chartProvider = packageManifest.onchain_chart_provider || {};
-const deploymentClass = packageManifest.deployment_class || "commercial_production";
-const publicEvaluation = deploymentClass === "public_evaluation";
-const policy = evaluateReleasePromotion({ deploymentClass, chartProvider, previewVerification });
-if (!policy.eligible) throw new Error(`Release promotion blocked: ${policy.reasons.join(", ")}`);
+if (chartProvider.production_promotion_eligible !== true) {
+  const blockers = chartProvider.production_blockers || ["onchain_chart_provider_not_qualified"];
+  throw new Error(`Production promotion blocked by on-chain chart-provider gate: ${blockers.join(", ")}`);
+}
+if (
+  !chartProvider.production_provider
+  || !chartProvider.production_provider_plan
+  || chartProvider.production_provider_plan === "demo"
+  || chartProvider.production_provider_commercial !== true
+) {
+  throw new Error("Production promotion requires an explicitly commercially qualified provider and non-Demo plan");
+}
 const providerSecretBinding = chartProvider.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET";
 if (!(receipt.required_server_secret_bindings_verified || []).includes(providerSecretBinding)) {
   throw new Error("Production promotion requires the selected chart provider's generic server-only secret binding");
 }
-const authorizationVariable = publicEvaluation
-  ? "RAVENOS_PUBLIC_EVALUATION_PROMOTION_AUTHORIZATION"
-  : "RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION";
-if (process.env[authorizationVariable] !== receipt.release_id) {
-  throw new Error(`Explicit ${deploymentClass} authorization is absent or does not name this exact release ID`);
+const requiredChartIntervals = packageManifest.onchain_chart_provider?.required_intervals || [];
+if (!requiredChartIntervals.includes("1m") || Number(packageManifest.onchain_chart_provider?.one_minute_minimum_useful_bars) < 120) {
+  throw new Error("Production promotion requires a qualified one-minute chart contract with at least 120 useful bars per advertised chart-ready anchor");
+}
+if (packageManifest.onchain_chart_provider?.subminute_candles_required !== false) {
+  throw new Error("Production promotion chart policy must explicitly keep sub-minute candles out of the required matrix");
+}
+if (process.env.RAVENOS_PRODUCTION_PROMOTION_AUTHORIZATION !== receipt.release_id) {
+  throw new Error("Explicit production authorization is absent or does not name this exact release ID");
 }
 const cloudflareEnv = cloudflareReleaseEnv(repoRoot);
 
@@ -36,7 +47,7 @@ const result = spawnSync(process.execPath, [
   "versions", "deploy",
   `${receipt.worker_version_id}@100%`,
   "--name", receipt.worker_name,
-  "--message", `Promote verified RavenOS ${deploymentClass} release ${receipt.release_id}`,
+  "--message", `Promote verified RavenOS release ${receipt.release_id}`,
   "--yes",
 ], {
   cwd: repoRoot,

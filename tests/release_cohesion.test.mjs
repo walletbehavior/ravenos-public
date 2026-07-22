@@ -8,7 +8,6 @@ import {
   evaluateReleaseCohesion,
   expectedReleaseFromEnv,
 } from "../lib/release_contract.mjs";
-import { evaluateReleasePromotion } from "../lib/release_promotion_policy.mjs";
 import { cloudflareReleaseEnv } from "../scripts/lib/cloudflare-release-env.mjs";
 
 const RELEASE_ID = "ravenos-abc123def456-0123456789abcdef";
@@ -210,14 +209,6 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.equal(releaseConfig.onchain_chart_provider.preview_provider, "coingecko");
   assert.equal(releaseConfig.onchain_chart_provider.preview_provider_plan, "demo");
   assert.equal(releaseConfig.onchain_chart_provider.preview_provider_commercial, false);
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_provider, "coingecko");
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_provider_plan, "demo");
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_provider_commercial, false);
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_promotion_eligible, true);
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_scope, "testing_and_exploration");
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_attribution_required, true);
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_commercial_features_allowed, false);
-  assert.equal(releaseConfig.onchain_chart_provider.public_evaluation_customer_execution_allowed, false);
   assert.equal(releaseConfig.onchain_chart_provider.provider_secret_binding, "ONCHAIN_CHART_PROVIDER_SECRET");
   assert.equal(releaseConfig.onchain_chart_provider.keyless_application_fallback_allowed, false);
   assert.equal(releaseConfig.onchain_chart_provider.production_promotion_eligible, false);
@@ -227,53 +218,13 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.equal(releaseConfig.onchain_chart_provider.one_minute_minimum_useful_bars, 120);
   assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
   const promote = readFileSync("scripts/promote-release.mjs", "utf8");
-  assert.match(promote, /evaluateReleasePromotion/);
-  assert.match(promote, /RAVENOS_PUBLIC_EVALUATION_PROMOTION_AUTHORIZATION/);
+  assert.match(promote, /Production promotion blocked by on-chain chart-provider gate/);
+  assert.match(promote, /production_provider_plan === "demo"/);
+  assert.doesNotMatch(promote, /PUBLIC_EVALUATION/);
   const preview = readFileSync("scripts/verify-release-preview.mjs", "utf8");
   assert.match(preview, /chart_readiness\?\.one_minute_requirement !== "verified"/);
   assert.match(preview, /candle_series\?\.provider !== "coingecko_onchain"/);
   assert.match(preview, /Server-only chart-provider secret entered the preview response/);
-});
-
-test("public evaluation promotion is distinct from commercial provider qualification", () => {
-  const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
-  const previewVerification = {
-    provider_attribution_verified: true,
-    onchain_chart: { provider_plan: "demo", fallback: false },
-    execution_boundary: { signing_available: false, submission_available: false },
-  };
-  const evaluation = evaluateReleasePromotion({
-    deploymentClass: "public_evaluation",
-    chartProvider: releaseConfig.onchain_chart_provider,
-    previewVerification,
-  });
-  assert.equal(evaluation.eligible, true);
-  assert.deepEqual(evaluation.reasons, []);
-
-  const commercial = evaluateReleasePromotion({
-    deploymentClass: "commercial_production",
-    chartProvider: releaseConfig.onchain_chart_provider,
-    previewVerification,
-  });
-  assert.equal(commercial.eligible, false);
-  assert.ok(commercial.reasons.includes("commercial_provider_not_qualified"));
-  assert.ok(commercial.reasons.includes("commercial_rights_unverified"));
-});
-
-test("public evaluation promotion fails closed on missing attribution or enabled execution", () => {
-  const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
-  const result = evaluateReleasePromotion({
-    deploymentClass: "public_evaluation",
-    chartProvider: releaseConfig.onchain_chart_provider,
-    previewVerification: {
-      provider_attribution_verified: false,
-      onchain_chart: { provider_plan: "demo", fallback: false },
-      execution_boundary: { signing_available: true, submission_available: false },
-    },
-  });
-  assert.equal(result.eligible, false);
-  assert.ok(result.reasons.includes("provider_attribution_unverified"));
-  assert.ok(result.reasons.includes("customer_signing_available"));
 });
 
 test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {

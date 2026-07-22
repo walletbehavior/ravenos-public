@@ -155,11 +155,6 @@ const manifest = {
   public_origin_contract_version: releaseConfig.public_origin?.contract_version || "unknown",
   onchain_chart_provider_contract_version: releaseConfig.onchain_chart_provider?.contract_version || "unknown",
   onchain_chart_provider_production_state: releaseConfig.onchain_chart_provider?.production_promotion_eligible === true ? "qualified" : "blocked",
-  onchain_chart_provider_release_state: releaseConfig.onchain_chart_provider?.production_promotion_eligible === true
-    ? "commercial_production"
-    : releaseConfig.onchain_chart_provider?.public_evaluation_promotion_eligible === true
-      ? "public_evaluation"
-      : "isolated_preview",
   assets: assetHashes,
   routes: routeList,
   api_schema_versions: {
