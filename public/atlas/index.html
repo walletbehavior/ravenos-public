@@ -4,33 +4,46 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Atlas · RavenOS</title>
-  <meta name="description" content="Cross-market context, options summaries, and provider health inside RavenOS." />
+  <meta name="description" content="Search markets, rates, energy, companies, options, and SEC activity in one cross-market RavenOS workspace." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
 </head>
 <body>
   <main class="workspace-page atlas-page" data-route-slug="atlas">
-    <header class="workspace-operator-head">
+    <header class="workspace-operator-head atlas-operator-head">
       <div>
         <span class="workspace-question">What does the broader market imply?</span>
-        <h1>The market around your market.</h1>
-        <p>Equities, ETFs, options posture, breadth, and risk context—kept distinct from Raven's behavioral read.</p>
+        <h1 id="atlasPageTitle">One market, resolved in context.</h1>
+        <p id="atlasPageSummary">Search listed markets, rates, energy, companies, options, and filings without turning the entire universe into a live polling loop.</p>
       </div>
-      <div class="workspace-mast-actions">
-        <button class="workspace-primary-action" id="atlasSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
+      <form class="atlas-search" id="atlasSearchForm" role="search">
+        <label for="atlasSearchInput">Search Atlas</label>
+        <div class="atlas-search-control">
+          <span aria-hidden="true"></span>
+          <input id="atlasSearchInput" name="q" type="search" autocomplete="off" spellcheck="false" placeholder="SPY, NVDA, DGS10, crude inventories, CIK…" />
+          <kbd>↵</kbd>
+        </div>
+        <small>Ticker, company, ETF, index, futures root, FX pair, series ID, issuer, or CIK</small>
+        <div class="atlas-search-results" id="atlasSearchResults" hidden></div>
+      </form>
+      <div class="atlas-detail-actions" id="atlasDetailActions" hidden>
+        <a class="workspace-primary-action" id="atlasOpenTerminal" href="/terminal/"><span>Open in Terminal</span><span>↗</span></a>
+        <button class="workspace-secondary-action" type="button" disabled title="Secure accounts are not enabled yet">Watchlists require an account</button>
       </div>
     </header>
 
     <section class="workspace-statusline" aria-label="Current Atlas coverage">
-      <div><span>Atlas</span><strong id="atlasProjectionState" data-state="unavailable">Checking</strong></div>
-      <div><span>Market map</span><strong id="atlasMarketState" data-state="unavailable">Checking</strong></div>
-      <div><span>Options posture</span><strong id="atlasOptionsState" data-state="unavailable">Checking</strong></div>
+      <div><span>Universe</span><strong id="atlasProjectionState" data-state="unavailable">Checking</strong></div>
+      <div><span>Market pulse</span><strong id="atlasMarketState" data-state="unavailable">Checking</strong></div>
+      <div><span>Provider rights</span><strong id="atlasOptionsState" data-state="unavailable">Enforced</strong></div>
+      <div><span>Mode</span><strong data-state="available">Read only</strong></div>
     </section>
 
     <section id="atlasContent">
-      <div class="workspace-state"><div><span class="workspace-state-mark">A</span><h2>Reading the broader market</h2><p>Atlas will show only current, supported context for exact listed instruments.</p></div></div>
+      <div class="workspace-state"><div><span class="workspace-state-mark">A</span><h2>Resolving the market around your market</h2><p>Atlas will show only supported entities, rights-admitted observations, and exact source timing.</p></div></div>
     </section>
   </main>
+  <script src="/vendor/lightweight-charts.standalone.production.js"></script>
   <script type="module" src="/ravenos-shell.js"></script>
   <script type="module" src="/ravenos-atlas.js"></script>
 </body>

@@ -15,6 +15,8 @@ A RavenOS release is one immutable tuple:
 - deploy artifact digest;
 - public-origin contract version.
 
+Atlas Universe v1 expands the protected-origin tuple to `ravenos_public_origin_v3`; featured/search/detail/history, lazy options, SEC, EIA, and provider-health schemas are now named release inputs rather than unversioned side routes.
+
 The Worker, HTML, JavaScript, CSS, release controls, and public-origin contract must agree. A packaged Worker sets `RAVENOS_RELEASE_ENFORCE=1`; an identity mismatch then returns HTTP 503 before any API or static asset is served.
 
 `GET /api/build` is public-safe and non-cacheable. It reports the release ID, source commit, Worker version ID, static manifest digest, deploy digest, public-origin contract, and cohesion state. It never reports secret values. Cloudflare's runtime version metadata may omit the Wrangler annotation tag; staging therefore verifies that tag independently through the Cloudflare Versions API and joins it to the runtime version ID.

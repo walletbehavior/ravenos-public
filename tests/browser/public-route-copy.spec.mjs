@@ -298,12 +298,12 @@ test("/atlas/ explains an outage without inventing unsupported research", async 
     body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }),
   }));
   await page.goto("/atlas/");
-  await expect(page.locator("h1")).toContainText(/market around your market/i);
+  await expect(page.locator("h1")).toContainText(/one market, resolved in context/i);
   await expect(page.locator("#atlasProjectionState")).toHaveText("Unavailable");
-  await expect(page.locator("#atlasContent")).toContainText(/Broader-market context unavailable/i);
+  await expect(page.locator("#atlasContent")).toContainText(/bounded market frame is unavailable/i);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);
-  expect(body).toMatch(/Raven opportunities, live perpetuals, and exact crypto charts remain available independently/i);
+  expect(body).toMatch(/Search remains usable, and no old posture was substituted/i);
   expect(body).not.toMatch(/Use Atlas as a regime router|placeholder company|sample options chain/i);
 });
 

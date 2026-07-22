@@ -8,6 +8,7 @@ import { buildPerpTerminalContext } from "./lib/perp_terminal_context.mjs";
 import {
   attachDelivery,
   loadOriginControlDocument,
+  loadPublicAtlasUniverse,
   loadPublicInstrumentChart,
   loadPublicInstrumentLookup,
   loadPublicProjection,
@@ -313,6 +314,9 @@ function routeCacheHeaders(pathname) {
   if (pathname === "/api/terminal") return { "cache-control": "public, max-age=15, stale-while-revalidate=60" };
   if (pathname === "/api/opportunity") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
   if (pathname === "/api/atlas") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
+  if (pathname === "/api/atlas/featured") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
+  if (pathname === "/api/atlas/search") return { "cache-control": "public, max-age=15, stale-while-revalidate=30" };
+  if (pathname.startsWith("/api/atlas/")) return { "cache-control": "private, no-store" };
   if (pathname === "/api/instruments/search") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
   if (pathname === "/api/brief") return { "cache-control": "public, max-age=300, stale-while-revalidate=900" };
   if (pathname === "/api/status" || pathname === "/api/claims") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
@@ -2820,6 +2824,56 @@ async function handleInstrumentSearch(request, env = {}) {
   });
 }
 
+const ATLAS_API_ENDPOINTS = Object.freeze({
+  "/api/atlas/featured": "featured",
+  "/api/atlas/search": "search",
+  "/api/atlas/entity": "entity",
+  "/api/atlas/history": "history",
+  "/api/atlas/options/expirations": "options_expirations",
+  "/api/atlas/options/chain": "options_chain",
+  "/api/atlas/sec/filings": "sec_filings",
+  "/api/atlas/sec/insiders": "sec_insiders",
+  "/api/atlas/eia/facets": "eia_facets",
+  "/api/atlas/eia/series": "eia_series",
+  "/api/atlas/provider-health": "provider_health",
+});
+
+async function handleAtlasUniverse(request, env = {}, endpoint = "") {
+  const url = new URL(request.url);
+  const query = String(url.searchParams.get("q") || "");
+  const entityId = String(url.searchParams.get("entity_id") || "");
+  const expiration = String(url.searchParams.get("expiration") || "");
+  const facetId = String(url.searchParams.get("facet_id") || "");
+  const facetValue = String(url.searchParams.get("facet_value") || "");
+  const frequency = String(url.searchParams.get("frequency") || "");
+  const dataField = String(url.searchParams.get("data_field") || "");
+  const limit = Number(url.searchParams.get("limit") || (endpoint === "featured" ? 8 : endpoint === "search" ? 20 : 240));
+  const viewerToken = String(request.headers.get("x-ravenos-atlas-viewer") || "");
+  const result = await loadPublicAtlasUniverse({ env, endpoint, query, entityId, expiration, facetId, facetValue, frequency, dataField, limit, viewerToken });
+  if (!result.available || result.delivery?.source !== "current_public_origin" || result.delivery?.fallback !== false) {
+    const invalid = result.delivery?.reason === "invalid_atlas_request";
+    return json({
+      ok: false,
+      status: "unavailable",
+      error: invalid ? "invalid_atlas_request" : "atlas_universe_unavailable",
+      endpoint,
+      data: null,
+      historical_context_substituted: false,
+      message: invalid
+        ? "The Atlas request could not be resolved to an exact supported entity."
+        : "Current public-safe Atlas data is unavailable. No private provider payload or historical substitute was returned.",
+      delivery: result.delivery,
+    }, {
+      status: invalid ? 400 : 503,
+      headers: projectionRouteHeaders(url.pathname, result.delivery),
+    });
+  }
+  return json(attachDelivery(result.payload, result.delivery), {
+    status: 200,
+    headers: projectionRouteHeaders(url.pathname, result.delivery),
+  });
+}
+
 async function handleHealth(request, env = {}) {
   const context = createTerminalRequestContext({
     request,
@@ -3849,6 +3903,7 @@ async function routeApi(request, env) {
   if (url.pathname.startsWith("/api/claims/") && request.method === "GET") return handleClaims(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/opportunity" && request.method === "GET") return handleOpportunity(request, env);
   if (url.pathname === "/api/atlas" && request.method === "GET") return handleAtlas(request, env);
+  if (ATLAS_API_ENDPOINTS[url.pathname] && request.method === "GET") return handleAtlasUniverse(request, env, ATLAS_API_ENDPOINTS[url.pathname]);
   if (url.pathname === "/api/instruments/search" && request.method === "GET") return handleInstrumentSearch(request, env);
   if (url.pathname === "/api/terminal" && request.method === "GET") return handleTerminal(request, env);
   if (url.pathname === "/api/terminal/chart" && request.method === "GET") return handleTerminalChart(request, env);

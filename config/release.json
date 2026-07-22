@@ -35,7 +35,7 @@
   },
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
-    "contract_version": "ravenos_public_origin_v2",
+    "contract_version": "ravenos_public_origin_v3",
     "required_endpoints": {
       "brief": "ravenos_brief_public_origin_v1",
       "replay": "ravenos_replay_public_origin_v1",
@@ -46,6 +46,17 @@
       "perps": "ravenos_perps_public_origin_v1",
       "opportunities": "ravenos_opportunity_census_public_origin_v1",
       "atlas": "ravenos_atlas_public_origin_v1",
+      "atlas_featured": "atlas_featured_state_v1",
+      "atlas_search": "atlas_search_result_v1",
+      "atlas_entity": "atlas_entity_detail_v1",
+      "atlas_history": "atlas_history_v1",
+      "atlas_options_expirations": "atlas_options_expirations_v1",
+      "atlas_options_chain": "atlas_options_chain_v1",
+      "atlas_sec_filings": "atlas_sec_filings_v1",
+      "atlas_sec_insiders": "atlas_sec_insiders_v1",
+      "atlas_eia_facets": "atlas_eia_facets_v1",
+      "atlas_eia_series": "atlas_eia_materialized_series_v1",
+      "atlas_provider_health": "atlas_provider_health_v1",
       "claims": "ravenos_claims_public_origin_v2",
       "instrument_lookup": "ravenos.instrument_lookup.v1",
       "instrument_chart": "ravenos.instrument_chart.v1"

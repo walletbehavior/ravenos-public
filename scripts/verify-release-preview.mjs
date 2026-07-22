@@ -14,6 +14,7 @@ const assetManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_a
 const routeManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/public_routes.json"), "utf8"));
 const stageReceipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), "utf8"));
 const results = [];
+const capturedBodies = [];
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -25,6 +26,7 @@ async function capture(path, { expectedStatus = 200 } = {}) {
     redirect: "manual",
   });
   const bytes = Buffer.from(await response.arrayBuffer());
+  capturedBodies.push({ path, text: bytes.toString("utf8") });
   const record = {
     path,
     status: response.status,
@@ -127,6 +129,109 @@ if (
   throw new Error("Customer execution boundary is not read-only and non-signing");
 }
 
+const atlasFeaturedCapture = await capture("/api/atlas/featured?limit=8");
+const atlasFeatured = JSON.parse(atlasFeaturedCapture.text);
+if (
+  atlasFeatured?.schema_version !== "atlas_featured_state_v1"
+  || atlasFeatured?.safe_public !== true
+  || !Array.isArray(atlasFeatured?.sections)
+  || Object.values(atlasFeatured?.execution_boundary || {}).some(Boolean)
+) {
+  throw new Error("Atlas featured state did not preserve its safe public contract");
+}
+const atlasSearchCapture = await capture("/api/atlas/search?q=SPY&limit=20");
+const atlasSearch = JSON.parse(atlasSearchCapture.text);
+const atlasSpy = (atlasSearch?.results || []).find((row) => row?.entity_id === "etf:us:SPY");
+if (!atlasSpy || atlasSearch?.quote_fetch_triggered !== false || atlasSearch?.observer_created !== false) {
+  throw new Error("Atlas local-first search did not resolve exact SPY metadata without hydration");
+}
+const atlasEntityCapture = await capture("/api/atlas/entity?entity_id=etf%3Aus%3ASPY");
+const atlasEntity = JSON.parse(atlasEntityCapture.text);
+if (
+  atlasEntity?.entity?.entity_id !== "etf:us:SPY"
+  || atlasEntity?.snapshot?.state !== "display_restricted"
+  || atlasEntity?.snapshot?.data !== null
+  || Object.values(atlasEntity?.execution_boundary || {}).some(Boolean)
+) {
+  throw new Error("Atlas listed detail did not enforce exact identity and Tradier display rights");
+}
+const atlasOptionsCapture = await capture("/api/atlas/options/expirations?entity_id=etf%3Aus%3ASPY");
+const atlasOptions = JSON.parse(atlasOptionsCapture.text);
+if (
+  atlasOptions?.entity_id !== "etf:us:SPY"
+  || atlasOptions?.full_chain_fetched !== false
+  || atlasOptions?.options?.state !== "display_restricted"
+  || atlasOptions?.options?.data !== null
+) {
+  throw new Error("Atlas lazy options boundary did not remain restricted and chain-free");
+}
+const fredHistoryCapture = await capture("/api/atlas/history?entity_id=fred%3ADGS10&limit=120");
+const fredHistory = JSON.parse(fredHistoryCapture.text);
+if (
+  fredHistory?.entity_id !== "fred:DGS10"
+  || fredHistory?.history?.state !== "available"
+  || fredHistory?.history?.delay_class !== "periodic"
+  || !Array.isArray(fredHistory?.history?.data?.observations)
+  || fredHistory.history.data.observations.length < 2
+) {
+  throw new Error("Atlas FRED periodic history was not available through the staged Worker");
+}
+const secFilingsCapture = await capture("/api/atlas/sec/filings?entity_id=equity%3Aus%3AAAPL&limit=100");
+const secFilings = JSON.parse(secFilingsCapture.text);
+if (
+  secFilings?.entity_id !== "equity:us:AAPL"
+  || secFilings?.metadata_is_not_a_filing_summary !== true
+  || secFilings?.filings?.state !== "available"
+  || !Array.isArray(secFilings?.filings?.data)
+  || !secFilings.filings.data.some((row) => row?.form === "4" && String(row?.filing_url || "").startsWith("https://www.sec.gov/Archives/"))
+) {
+  throw new Error("Atlas SEC filing metadata was not available with an original EDGAR link");
+}
+const secInsidersCapture = await capture("/api/atlas/sec/insiders?entity_id=equity%3Aus%3AAAPL&limit=3");
+const secInsiders = JSON.parse(secInsidersCapture.text);
+if (
+  !Array.isArray(secInsiders?.events)
+  || secInsiders.events.length < 1
+  || !secInsiders.events.every((row) => row?.transaction_at && row?.filed_at && String(row?.original_document || "").startsWith("https://www.sec.gov/Archives/"))
+  || secInsiders?.market_enrichment_active !== false
+  || secInsiders?.options_enrichment_active !== false
+  || secInsiders?.misconduct_inference_emitted !== false
+) {
+  throw new Error("Atlas Form 4 normalization did not preserve both clocks and its non-inference boundary");
+}
+const eiaHistoryCapture = await capture("/api/atlas/history?entity_id=eia%3Apetroleum.pri.spt&limit=120");
+const eiaHistory = JSON.parse(eiaHistoryCapture.text);
+const eiaDataset = eiaHistory?.dataset;
+if (eiaHistory?.state !== "facet_selection_required" || !Array.isArray(eiaDataset?.facets) || !Array.isArray(eiaDataset?.frequencies) || !Array.isArray(eiaDataset?.data_fields)) {
+  throw new Error("Atlas EIA detail fetched observations before an exact facet selection");
+}
+const seriesFacet = eiaDataset.facets.find((row) => row?.id === "series");
+const eiaFrequency = eiaDataset.frequencies[0]?.id;
+const eiaDataField = eiaDataset.data_fields[0];
+if (!seriesFacet || !eiaFrequency || !eiaDataField) throw new Error("Atlas EIA exact-series controls are incomplete");
+const eiaFacetsCapture = await capture("/api/atlas/eia/facets?entity_id=eia%3Apetroleum.pri.spt&facet_id=series&limit=25");
+const eiaFacets = JSON.parse(eiaFacetsCapture.text);
+const eiaFacetValue = eiaFacets?.facets?.data?.values?.[0]?.id;
+if (!eiaFacetValue || eiaFacets?.observations_fetched !== false) throw new Error("Atlas EIA facet lookup was not bounded metadata-only");
+const eiaParams = new URLSearchParams({
+  entity_id: "eia:petroleum.pri.spt",
+  frequency: eiaFrequency,
+  data_field: eiaDataField,
+  facet_id: "series",
+  facet_value: eiaFacetValue,
+  limit: "120",
+});
+const eiaSeriesCapture = await capture(`/api/atlas/eia/series?${eiaParams.toString()}`);
+const eiaSeries = JSON.parse(eiaSeriesCapture.text);
+if (
+  eiaSeries?.selection_exact !== true
+  || eiaSeries?.series?.delay_class !== "periodic"
+  || !Array.isArray(eiaSeries?.series?.data?.observations)
+  || eiaSeries.series.data.observations.length < 2
+) {
+  throw new Error("Atlas exact EIA series was not hydrated as a bounded periodic series");
+}
+
 const chartAnchor = {
   chain: "solana",
   pair: "6HfaJiUuTXFZEfmdkQSNbvfe6i95Nh2wUVJ5dWMf7gtw",
@@ -172,6 +277,18 @@ const localProviderSecret = String(localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRE
 if (localProviderSecret && chartCapture.text.includes(localProviderSecret)) {
   throw new Error("Server-only chart-provider secret entered the preview response");
 }
+const serverOnlyValues = new Set([
+  localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRET,
+  localProviderEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN,
+  localProviderEnv.RAVENOS_SPOT_CHART_ORIGIN_TOKEN,
+  localProviderEnv.COINGECKO_API_KEY,
+  localProviderEnv.COINGECKO_PRO_API_KEY,
+].map((value) => String(value || "").trim()).filter((value) => value.length >= 8));
+for (const { path, text } of capturedBodies) {
+  for (const secret of serverOnlyValues) {
+    if (text.includes(secret)) throw new Error(`Server-only secret entered preview response ${path}`);
+  }
+}
 
 const report = {
   schema_version: "ravenos.release_preview_verification.v1",
@@ -191,6 +308,16 @@ const report = {
   opportunity_freshness: opportunity.delivery.freshness_state,
   exact_instrument_verified: selectedRow.instrument_id,
   provider_attribution_verified: true,
+  atlas_universe: {
+    featured_sections: atlasFeatured.sections.length,
+    search_identity: atlasSpy.entity_id,
+    listed_values_restricted: atlasEntity.snapshot.state === "display_restricted",
+    options_lazy_and_restricted: atlasOptions.full_chain_fetched === false,
+    fred_observations: fredHistory.history.data.observations.length,
+    sec_filings: secFilings.filings.data.length,
+    sec_insider_events: secInsiders.events.length,
+    eia_observations: eiaSeries.series.data.observations.length,
+  },
   onchain_chart: {
     market_identity: chart.market_identity,
     provider: chart.candle_series.provider,

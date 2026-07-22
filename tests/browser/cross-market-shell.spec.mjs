@@ -276,14 +276,90 @@ test("Atlas preserves verified exact ETF identity into the universal Terminal", 
     contentType: "application/json",
     body: JSON.stringify(atlasPayload()),
   }));
+  await page.route("**/api/atlas/featured**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      safe_public: true,
+      redaction_policy: "atlas_public_metadata_and_rights_admitted_observations_only",
+      schema_version: "atlas_featured_state_v1",
+      generated_at: "2026-07-21T12:20:00Z",
+      execution_boundary: { account_available: false, broker_connection_available: false, order_preview_available: false, position_available: false, signing_available: false, submission_available: false, execution_available: false },
+      state: "available",
+      sections: [{
+        section_id: "major_etfs",
+        label: "Major ETFs",
+        entities: [{
+          schema_version: "atlas_search_result_v1",
+          entity_id: "etf:us:SPY",
+          name: "State Street SPDR S&P 500 ETF Trust",
+          symbol: "SPY",
+          entity_kind: "etf",
+          entity_class: "proxy",
+          provider: "tradier",
+          data_frequency: "market session",
+          status: "LIVE",
+          optionable: true,
+          cached_snapshot_available: false,
+          public_display_eligibility: "allowed",
+          description: "State Street SPDR S&P 500 ETF Trust",
+          featured: true,
+          selectable: true,
+          refusal_reason: null,
+          snapshot: { last: 640.25, change_percent: 1.2, delay_class: "periodic", stale: false },
+        }],
+      }],
+      catalog_only_entities_do_not_refresh: true,
+      featured_refresh: "bounded_existing_atlas_cycle",
+      public_projection_generated_at: "2026-07-21T12:20:00Z",
+    }),
+  }));
+  await page.route("**/api/atlas/entity**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      safe_public: true,
+      redaction_policy: "atlas_public_metadata_and_rights_admitted_observations_only",
+      schema_version: "atlas_entity_detail_v1",
+      generated_at: "2026-07-21T12:20:00Z",
+      execution_boundary: { account_available: false, broker_connection_available: false, order_preview_available: false, position_available: false, signing_available: false, submission_available: false, execution_available: false },
+      entity: {
+        schema_version: "atlas_search_result_v1",
+        entity_id: "etf:us:SPY",
+        name: "State Street SPDR S&P 500 ETF Trust",
+        symbol: "SPY",
+        entity_kind: "etf",
+        entity_class: "proxy",
+        provider: "tradier",
+        data_frequency: "market session",
+        status: "LIVE",
+        optionable: true,
+        cached_snapshot_available: false,
+        public_display_eligibility: "allowed",
+        description: "State Street SPDR S&P 500 ETF Trust",
+        featured: true,
+        selectable: true,
+        refusal_reason: null,
+      },
+      snapshot: { state: "display_restricted", provider: "tradier", provider_timestamp: "2026-07-21T12:20:00Z", fetched_at: "2026-07-21T12:20:00Z", delay_class: "current", delayed: false, degraded: false, stale: false, cache_hit: false, display_policy: { decision: "restricted", raw_redistribution_allowed: false, cache_allowed: true, max_cache_seconds: 60, delay_requirement_seconds: 0, attribution_required: true, attribution_text: "Market data provided by Tradier", decision_source: "fixture", last_reviewed: "2026-07-22", reason: "public_redistribution_not_authorized" }, attribution: "Market data provided by Tradier", refusal_reasons: ["public_redistribution_not_authorized"], data: null },
+      lease: null,
+      searchable: true,
+      hydrated: true,
+      featured: true,
+      active: false,
+      watched: false,
+      alerted: false,
+      deep_observed: false,
+    }),
+  }));
   await page.goto("/atlas/");
-  await expect(page.locator("#atlasProjectionState")).toHaveText("Available");
-  await expect(page.locator(".atlas-market-table")).toContainText("SPY");
-  await expect(page.locator(".atlas-market-table")).toContainText("NYSE Arca");
-  await expect(page.locator(".atlas-market-table")).not.toContainText("etf:nyse-arca:spy");
-  await expect(page.locator(".atlas-list-row")).toContainText("Tradier");
-  await expect(page.locator("#atlasContent a[href*='terminal']")).toHaveCount(1);
-  await expect(page.locator("#atlasContent a[href*='terminal']")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
+  await expect(page.locator("#atlasProjectionState")).toHaveText("Searchable");
+  await expect(page.locator(".atlas-pulse-row")).toContainText("SPY");
+  await expect(page.locator(".atlas-pulse-row")).toContainText("Tradier");
+  await page.locator(".atlas-pulse-row").click();
+  await expect(page.locator("#atlasOpenTerminal")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   await expect(page.getByRole("button", { name: /buy|sell|sign|submit|execute/i })).toHaveCount(0);
 });
 
@@ -558,5 +634,6 @@ test("Atlas outage is isolated and explicit", async ({ page }) => {
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }) }));
   await page.goto("/atlas/");
   await expect(page.locator("#atlasProjectionState")).toHaveText("Unavailable");
-  await expect(page.locator("#atlasContent")).toContainText("Raven opportunities, live perpetuals, and exact crypto charts remain available independently");
+  await expect(page.locator("#atlasContent")).toContainText("Search can still resolve supported entities");
+  await expect(page.locator("#atlasContent")).toContainText("no old posture was substituted");
 });
