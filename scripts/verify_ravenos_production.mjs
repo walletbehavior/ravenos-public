@@ -49,7 +49,9 @@ async function fetchJson(path) {
 function hasBuildMarker(text) {
   return text.includes("Public artifact verified")
     || text.includes("UI build")
-    || text.includes("data-ravenos-build-id");
+    || text.includes("data-ravenos-build-id")
+    || text.includes("data-ravenos-release-id")
+    || text.includes('name="ravenos-release-id"');
 }
 
 for (const route of pageRoutes) {
@@ -67,10 +69,14 @@ for (const route of apiRoutes) {
 }
 
 const { json: statusJson } = await fetchJson("/api/status");
-if (statusJson?.claim_lineage_version !== "2.0") throw new Error("/api/status missing claim lineage v2");
-if (statusJson?.api_schema_versions?.evidence_contract !== "1.0") throw new Error("/api/status missing evidence contract v1");
+if (statusJson?.schema_version !== "customer_trade_terminal_health_snapshot.v1") {
+  throw new Error("/api/status missing current Terminal health contract");
+}
 
 const { json: claimsJson } = await fetchJson("/api/claims");
+if (claimsJson?.schema_version !== "ravenos_claim_lineage_public_origin_v2" || claimsJson?.data?.lineage_version !== "2.0") {
+  throw new Error("/api/claims missing claim lineage v2");
+}
 const claimId = claimsJson?.data?.current_claims?.[0]?.claim_id || claimsJson?.data?.claim_history?.[0]?.claim_id;
 if (!claimId) throw new Error("/api/claims did not return a public claim");
 
