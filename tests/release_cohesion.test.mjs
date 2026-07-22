@@ -8,6 +8,7 @@ import {
   evaluateReleaseCohesion,
   expectedReleaseFromEnv,
 } from "../lib/release_contract.mjs";
+import { cloudflareReleaseEnv } from "../scripts/lib/cloudflare-release-env.mjs";
 
 const RELEASE_ID = "ravenos-abc123def456-0123456789abcdef";
 const SOURCE_COMMIT = "abc123def456abc123def456abc123def456abcd";
@@ -182,8 +183,23 @@ test("origin connectivity preflight resolves its probes from the immutable asset
   const source = readFileSync("scripts/run-origin-connectivity-preflight.mjs", "utf8");
   assert.match(source, /ravenos_asset_manifest\.json/);
   assert.match(source, /\.\.\.preflightAssetUrls/);
+  assert.match(source, /cloudflareReleaseEnv\(repoRoot\)/);
+  assert.match(source, /attempts: 45/);
   assert.doesNotMatch(source, /["']\/ravenos-route-app\.js["']/);
   assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
+});
+
+test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {
+  const env = cloudflareReleaseEnv(process.cwd(), {
+    RAVEN_APP_ENV_PATH: "/nonexistent/ravenos-release-test.env",
+    CLOUDFLARE_API_TOKEN: "test-cloudflare-token",
+    CLOUDFLARE_ACCOUNT_ID: "test-account-id",
+    RAVENOS_PUBLIC_ORIGIN_TOKEN: "test-origin-token",
+  });
+  assert.equal(env.CLOUDFLARE_API_TOKEN, "test-cloudflare-token");
+  assert.equal(env.CLOUDFLARE_ACCOUNT_ID, "test-account-id");
+  assert.equal(env.CLOUDFLARE_API_ACCOUNT_ID, "test-account-id");
+  assert.equal(env.RAVENOS_PUBLIC_ORIGIN_TOKEN, "test-origin-token");
 });
 
 test("generated build manifest advertises the browser context contract actually shipped", () => {

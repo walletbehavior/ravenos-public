@@ -5,14 +5,17 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cloudflareReleaseEnv } from "./lib/cloudflare-release-env.mjs";
 
 const PRODUCTION_WORKER = "ravenos-public";
 const PRODUCTION_BASE = "https://ravenos.xyz";
 const RESTORED_ORIGIN_BASE = "https://ravenos-public-origin.ravenos.xyz/public/ravenos";
 const DENIED_ORIGIN_BASE = "https://ravenos-public-origin.ravenos.xyz/public/ravenos-denied";
-const secret = String(process.env.RAVENOS_PUBLIC_ORIGIN_TOKEN || "");
-const apiToken = String(process.env.CLOUDFLARE_API_TOKEN || "");
-const accountId = String(process.env.CLOUDFLARE_API_ACCOUNT_ID || "");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const releaseEnv = cloudflareReleaseEnv(repoRoot);
+const secret = String(releaseEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN || "");
+const apiToken = String(releaseEnv.CLOUDFLARE_API_TOKEN || "");
+const accountId = String(releaseEnv.CLOUDFLARE_API_ACCOUNT_ID || "");
 
 if (!process.version.startsWith("v22.")) throw new Error(`Node 22 is required; found ${process.version}`);
 if (!secret) throw new Error("RAVENOS_PUBLIC_ORIGIN_TOKEN is not present in the server environment");
@@ -21,7 +24,6 @@ if (!apiToken || !accountId) throw new Error("Cloudflare deployment credentials 
 const args = process.argv.slice(2);
 const outputIndex = args.indexOf("--output");
 const outputPath = outputIndex >= 0 && args[outputIndex + 1] ? resolve(args[outputIndex + 1]) : null;
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const assetManifest = JSON.parse(readFileSync(join(repoRoot, ".deploy-public/ravenos_asset_manifest.json"), "utf8"));
 const preflightAssetUrls = ["ravenos-route-app.js", "ravenos-shell.css"].map((logicalPath) => {
   const url = assetManifest?.assets?.[logicalPath]?.url;
@@ -51,7 +53,7 @@ function redact(value) {
 function runWrangler(wranglerArgs) {
   const result = spawnSync(process.execPath, [wranglerBin, ...wranglerArgs], {
     cwd: repoRoot,
-    env: process.env,
+    env: releaseEnv,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
   });
@@ -377,7 +379,7 @@ try {
     }
     return captured.json;
   }, {
-    attempts: 12,
+    attempts: 45,
     onAttempt(captured, attempt) {
       report.last_restored_origin_diagnostic = {
         attempt,

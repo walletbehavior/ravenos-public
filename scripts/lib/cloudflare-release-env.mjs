@@ -31,5 +31,8 @@ export function cloudflareReleaseEnv(repoRoot, baseEnv = process.env) {
   if (!accountId) throw new Error("Required Cloudflare account scope is not configured");
   env.CLOUDFLARE_API_TOKEN = apiToken;
   env.CLOUDFLARE_ACCOUNT_ID = accountId;
+  env.CLOUDFLARE_API_ACCOUNT_ID = accountId;
+  const originToken = baseEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN || parentEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN;
+  if (originToken) env.RAVENOS_PUBLIC_ORIGIN_TOKEN = originToken;
   return env;
 }
