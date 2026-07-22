@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,14 @@ const args = process.argv.slice(2);
 const outputIndex = args.indexOf("--output");
 const outputPath = outputIndex >= 0 && args[outputIndex + 1] ? resolve(args[outputIndex + 1]) : null;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const assetManifest = JSON.parse(readFileSync(join(repoRoot, ".deploy-public/ravenos_asset_manifest.json"), "utf8"));
+const preflightAssetUrls = ["ravenos-route-app.js", "ravenos-shell.css"].map((logicalPath) => {
+  const url = assetManifest?.assets?.[logicalPath]?.url;
+  if (!url || !/^\/assets\/[A-Za-z0-9._-]+\.[0-9a-f]{16}\.(?:js|css)$/.test(url)) {
+    throw new Error(`Immutable preflight asset is absent or malformed: ${logicalPath}`);
+  }
+  return url;
+});
 const require = createRequire(import.meta.url);
 const wranglerRoot = dirname(require.resolve("wrangler/package.json"));
 const wranglerBin = join(wranglerRoot, "bin", "wrangler.js");
@@ -394,7 +402,7 @@ try {
   report.restored_captures = [summarizeCapture(health.capture), summarizeCapture(opportunity.capture)];
   report.health_check = health.check;
 
-  const assetPaths = ["/", "/ravenos-route-app.js", "/ravenos-shell.css", "/ravenos_build.json"];
+  const assetPaths = ["/", ...preflightAssetUrls, "/ravenos_build.json"];
   const assets = [];
   for (const path of assetPaths) assets.push(await capture(path, { staging: true }));
   if (assets.some((item) => item.status !== 200 || item.secret_scan !== "pass")) {

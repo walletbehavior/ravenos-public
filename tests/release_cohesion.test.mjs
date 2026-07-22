@@ -178,6 +178,14 @@ test("generated deploy surface contains no unhashed JavaScript or CSS", () => {
   assert.deepEqual(unhashed, []);
 });
 
+test("origin connectivity preflight resolves its probes from the immutable asset manifest", () => {
+  const source = readFileSync("scripts/run-origin-connectivity-preflight.mjs", "utf8");
+  assert.match(source, /ravenos_asset_manifest\.json/);
+  assert.match(source, /\.\.\.preflightAssetUrls/);
+  assert.doesNotMatch(source, /["']\/ravenos-route-app\.js["']/);
+  assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
+});
+
 test("generated build manifest advertises the browser context contract actually shipped", () => {
   const build = JSON.parse(readFileSync("public/ravenos_build.json", "utf8"));
   assert.equal(build.api_schema_versions?.selected_context, RAVENOS_CONTEXT_SCHEMA);
