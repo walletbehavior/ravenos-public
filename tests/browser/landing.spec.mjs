@@ -55,7 +55,7 @@ function atlasPayload() {
   };
 }
 
-async function mockLanding(page, { current = true } = {}) {
+async function mockLanding(page, { current = true, chartIdentityMismatch = false } = {}) {
   await page.route("**/api/opportunity", (route) => route.fulfill({
     status: current ? 200 : 503,
     contentType: "application/json",
@@ -68,13 +68,24 @@ async function mockLanding(page, { current = true } = {}) {
   await page.route("**/api/atlas", (route) => route.fulfill({ status: current ? 200 : 503, contentType: "application/json", body: JSON.stringify(current ? atlasPayload() : { ok: false, error: "atlas_projection_unavailable" }) }));
   await page.route("**/api/health", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ market_data_health: { state: "fresh" }, intelligence_freshness: { state: current ? "fresh" : "unavailable" } }) }));
   await page.route("**/api/terminal/chart**", (route) => {
-    const url = new URL(route.request().url());
-    const instrumentId = url.searchParams.get("instrument_id");
+    const asset = chartIdentityMismatch ? "BTC" : "SOL";
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       ok: true,
-      market_identity: instrumentId,
+      instrument_scope: "exact_instrument",
       freshness_state: "fresh",
-      instrument: { canonical_id: instrumentId, instrument_type: "perpetual", identity_scope: "exact_instrument", venue: "hyperliquid", chain: "hyperliquid", symbol: "SOL-PERP" },
+      instrument: {
+        schema_version: "ravenos.chart_instrument.v1",
+        canonical_id: `perpetual:hyperliquid:hyperliquid:${asset}:USD:aggregate`,
+        instrument_type: "perpetual",
+        identity_scope: "venue_market",
+        venue: "hyperliquid",
+        chain: "hyperliquid",
+        symbol: `${asset}-PERP`,
+        base_asset: asset,
+        quote_asset: "USD",
+        aggregate_token: false,
+        provider_routing: { history: "hyperliquid", live: "hyperliquid_websocket", provider_asset: asset, provider_network: "hyperliquid" },
+      },
       candles: providerCandles("SOL-PERP", "1h"),
     }) });
   });
@@ -111,6 +122,16 @@ test("landing page keeps current-origin failure explicit and generates no fallba
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
   expect(product.instrumentId).toBeNull();
+});
+
+test("landing page rejects a chart whose normalized exact identity belongs to another market", async ({ page }) => {
+  await mockLanding(page, { chartIdentityMismatch: true });
+  await page.goto("/");
+  await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
+  await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
+  await expect(page.locator("#landingChartState")).toContainText("No fallback series was generated");
+  const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
+  expect(product.candleCount).toBe(0);
 });
 
 test("landing page is composed for a 390px mobile viewport without horizontal overflow", async ({ page }) => {

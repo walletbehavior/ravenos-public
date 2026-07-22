@@ -302,11 +302,41 @@ function spotSearchInstrument(row = {}) {
     asset: subject.label,
     label: subject.label,
     detail: `${row.name || subject.symbol} · ${chainLabel} · ${row.dexId || "venue unavailable"} · pool ${shortMarketId(row.pairAddress)} · ${compactCurrency(row.liquidityUsd)}`,
-    state: CHARTED_SPOT_CHAINS.has(subject.chain) ? "Exact pool" : "Exact pool · chart unavailable",
+    state: CHARTED_SPOT_CHAINS.has(subject.chain) ? "Exact pool · chart ready" : "Exact pool · chart unavailable",
     group: `Spot · ${chainLabel}`,
     raven_context: false,
     subject,
   };
+}
+
+function spotSearchQuality(row = {}, query = "") {
+  const normalized = String(query || "").trim().toLowerCase();
+  const chain = String(row.chainId || "").toLowerCase();
+  const symbol = String(row.symbol || "").trim().toLowerCase();
+  const name = String(row.name || "").trim().toLowerCase();
+  const exactAddress = normalized && [row.tokenAddress, row.quoteTokenAddress, row.pairAddress]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase() === normalized);
+  const exactName = normalized && (symbol === normalized || name === normalized);
+  const chartReady = CHARTED_SPOT_CHAINS.has(chain);
+  const volume = Math.max(0, finiteNumber(row.volume24h) || 0);
+  const liquidity = Math.max(0, finiteNumber(row.liquidityUsd) || 0);
+  return { exactAddress, exactName, chartReady, active: volume > 0, liquid: liquidity > 0, volume, liquidity };
+}
+
+function rankSpotSearchRows(rows = [], query = "") {
+  return [...rows].sort((left, right) => {
+    const a = spotSearchQuality(left, query);
+    const b = spotSearchQuality(right, query);
+    return Number(b.exactAddress) - Number(a.exactAddress)
+      || Number(b.exactName) - Number(a.exactName)
+      || Number(b.chartReady) - Number(a.chartReady)
+      || Number(b.active) - Number(a.active)
+      || Number(b.liquid) - Number(a.liquid)
+      || b.volume - a.volume
+      || b.liquidity - a.liquidity
+      || String(left.symbol || left.name || "").localeCompare(String(right.symbol || right.name || ""));
+  });
 }
 
 function utilityMarkup(kind, context) {
@@ -451,6 +481,9 @@ export function mountRavenOSShell(options = {}) {
       item.label,
       item.name,
       item.instrument?.display_name,
+      item.tokenAddress,
+      item.quoteTokenAddress,
+      item.pairAddress,
     ].filter(Boolean).map((value) => String(value).trim().toLowerCase());
     if (values.slice(0, 3).some((value) => value === normalized)) return 0;
     if (values.some((value) => value === normalized)) return 1;
@@ -467,6 +500,26 @@ export function mountRavenOSShell(options = {}) {
     if (type === "perpetual" || String(item.instrument_id || "").startsWith("hyperliquid:perp:")) return 1;
     if (type === "exact_pool" || String(item.instrument_id || "").includes(":pool:")) return 2;
     return 3;
+  }
+
+  function commandSpotQualityRank(item) {
+    const subject = item.subject || {};
+    if (subject.instrumentType !== "exact_pool") return [0, 0, 0, 0];
+    return [
+      subject.capabilities?.chart === true ? 0 : 1,
+      finiteNumber(item.volume24h) > 0 ? 0 : 1,
+      -(finiteNumber(item.volume24h) || 0),
+      -(finiteNumber(item.liquidityUsd) || 0),
+    ];
+  }
+
+  function compareSpotQuality(left, right) {
+    const a = commandSpotQualityRank(left);
+    const b = commandSpotQualityRank(right);
+    for (let index = 0; index < a.length; index += 1) {
+      if (a[index] !== b[index]) return a[index] - b[index];
+    }
+    return 0;
   }
 
   function uniqueCommandResults(rows = []) {
@@ -492,6 +545,7 @@ export function mountRavenOSShell(options = {}) {
         commandMatchRank(left, normalized) - commandMatchRank(right, normalized)
         || Number(Boolean(right.raven_context)) - Number(Boolean(left.raven_context))
         || commandTypeRank(left) - commandTypeRank(right)
+        || compareSpotQuality(left, right)
         || String(left.label || left.asset).localeCompare(String(right.label || right.asset))
       ))
       .slice(0, clean ? 16 : 6);
@@ -565,7 +619,7 @@ export function mountRavenOSShell(options = {}) {
           && listedResult.value?.response?.ok
           && Array.isArray(listedResult.value?.payload?.results)
         );
-        const spotRows = spotAvailable ? spotResult.value.payload.results : [];
+        const spotRows = spotAvailable ? rankSpotSearchRows(spotResult.value.payload.results, clean) : [];
         const listedRows = !listedAvailable ? [] : listedResult.value.payload.results;
         const rows = [...spotRows.flatMap((row) => {
           const instrument = spotSearchInstrument(row);
@@ -577,7 +631,7 @@ export function mountRavenOSShell(options = {}) {
           if (!instrument || seen.has(instrument.instrument_id)) return [];
           seen.add(instrument.instrument_id);
           return [instrument];
-        })].slice(0, 20);
+        })].slice(0, 36);
         const summary = [
           !spotApplicable ? "onchain search starts at 2 characters" : spotAvailable ? "onchain markets current" : "onchain markets unavailable",
           !listedApplicable ? "listed markets not applicable" : listedAvailable ? "listed markets current" : "listed markets unavailable",

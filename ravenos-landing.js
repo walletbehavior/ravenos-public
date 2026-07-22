@@ -1,3 +1,5 @@
+import { canonicalInstrumentId, RAVENOS_CHART_INSTRUMENT_SCHEMA } from "./ravenos-chart-data-plane.js";
+
 const state = { opportunities: [], markets: new Map(), atlas: null, selected: null, candles: [], chartRequest: 0 };
 
 function text(value, fallback = "Unavailable") { const clean = String(value ?? "").trim(); return clean || fallback; }
@@ -9,6 +11,28 @@ function compact(value) { const number = finite(value); return number === null ?
 function when(value) { const date = new Date(value || ""); return Number.isNaN(date.getTime()) ? "Timestamp unavailable" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(date) + " UTC"; }
 function setText(id, value, fallback = "—") { const node = document.getElementById(id); if (node) node.textContent = value === null || value === undefined || value === "" ? fallback : String(value); }
 async function json(url) { const response = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } }); return { response, payload: await response.json().catch(() => null) }; }
+
+function exactHyperliquidChartIdentity(row, payload) {
+  const match = /^hyperliquid:perp:([A-Z0-9._-]+)$/.exec(String(row?.instrument_id || ""));
+  if (!match || !payload?.instrument) return false;
+  const asset = match[1];
+  const instrument = payload.instrument;
+  const canonicalId = canonicalInstrumentId({ instrumentType: "perpetual", chain: "hyperliquid", venue: "hyperliquid", baseAsset: asset, quoteAsset: "USD" });
+  return payload.instrument_scope === "exact_instrument"
+    && instrument.schema_version === RAVENOS_CHART_INSTRUMENT_SCHEMA
+    && instrument.canonical_id === canonicalId
+    && instrument.instrument_type === "perpetual"
+    && instrument.identity_scope === "venue_market"
+    && instrument.chain === "hyperliquid"
+    && instrument.venue === "hyperliquid"
+    && instrument.symbol === `${asset}-PERP`
+    && instrument.base_asset === asset
+    && instrument.quote_asset === "USD"
+    && instrument.aggregate_token === false
+    && instrument.provider_routing?.history === "hyperliquid"
+    && instrument.provider_routing?.provider_asset === asset
+    && instrument.provider_routing?.provider_network === "hyperliquid";
+}
 
 function terminalHref(row) {
   const params = new URLSearchParams({ asset: row.instrument, instrument_id: row.instrument_id, instrument_type: "perpetual", asset_class: "crypto", identity_scope: "exact_instrument", chain: "hyperliquid", venue: "hyperliquid", market: "perp", quote: "USD", settlement: "USDC", numeraire: "USDC", timeframe: "1h" });
@@ -57,10 +81,10 @@ function drawChart() {
   const low = Math.min(...values); const high = Math.max(...values); const spread = Math.max(high - low, Math.abs(high) * .002, 1e-9);
   const x = (index) => 10 + index / Math.max(1, values.length - 1) * (width - 20);
   const y = (value) => 18 + (high - value) / spread * (height - 48);
-  const gradient = context.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, "rgba(185,243,74,.22)"); gradient.addColorStop(1, "rgba(185,243,74,0)");
+  const gradient = context.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, "rgba(118,152,255,.22)"); gradient.addColorStop(1, "rgba(118,152,255,0)");
   context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.lineTo(x(values.length - 1), height - 22); context.lineTo(x(0), height - 22); context.closePath(); context.fillStyle = gradient; context.fill();
-  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = "#b9f34a"; context.lineWidth = 1.7; context.stroke();
-  const lastX = x(values.length - 1); const lastY = y(values.at(-1)); context.beginPath(); context.arc(lastX, lastY, 3, 0, Math.PI * 2); context.fillStyle = "#b9f34a"; context.fill();
+  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = "#7698ff"; context.lineWidth = 1.7; context.stroke();
+  const lastX = x(values.length - 1); const lastY = y(values.at(-1)); context.beginPath(); context.arc(lastX, lastY, 3, 0, Math.PI * 2); context.fillStyle = "#7698ff"; context.fill();
   wrap.dataset.state = "live";
 }
 
@@ -74,7 +98,7 @@ async function loadChart(row) {
     const { response, payload: outer } = await json(`/api/terminal/chart?${params.toString()}`);
     const payload = outer?.data || outer;
     if (generation !== state.chartRequest) return;
-    if (!response.ok || !payload?.ok || payload?.market_identity !== row.instrument_id || payload?.instrument?.canonical_id !== row.instrument_id || !Array.isArray(payload.candles) || !payload.candles.length) throw new Error("Exact provider chart unavailable");
+    if (!response.ok || !payload?.ok || !exactHyperliquidChartIdentity(row, payload) || !Array.isArray(payload.candles) || !payload.candles.length) throw new Error("Exact provider chart unavailable");
     state.candles = payload.candles.filter((candle) => [candle.time, candle.open, candle.high, candle.low, candle.close].every((value) => finite(value) !== null));
     if (!state.candles.length) throw new Error("No admissible provider candles");
     setText("landingFreshness", title(payload.freshness_state));

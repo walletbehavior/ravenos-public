@@ -412,6 +412,103 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
 });
 
+test("token-name search ranks chartable active pools ahead of unsupported inactive listings", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.unroute("**/api/dexscreener/search**");
+  await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      results: [
+        {
+          chainId: "abstract",
+          dexId: "uniswap",
+          pairAddress: "inactive-retire-pool",
+          tokenAddress: "inactive-retire-token",
+          quoteTokenAddress: "inactive-weth",
+          symbol: "RETIRE",
+          name: "Retire",
+          quoteSymbol: "WETH",
+          priceUsd: 0.000001,
+          liquidityUsd: 0,
+          volume24h: 0,
+        },
+        {
+          chainId: "solana",
+          dexId: "raydium",
+          pairAddress: "active-retire-pool",
+          tokenAddress: "active-retire-token",
+          quoteTokenAddress: "solana-usdc",
+          symbol: "RETIRE",
+          name: "Retire",
+          quoteSymbol: "USDC",
+          priceUsd: 0.0042,
+          liquidityUsd: 420_000,
+          volume24h: 1_800_000,
+        },
+      ],
+    }),
+  }));
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("RETIRE");
+  const results = page.locator(".ros-command-result.instrument");
+  await expect(results).toHaveCount(2);
+  await expect(results.nth(0)).toContainText("Spot · Solana");
+  await expect(results.nth(0)).toContainText("chart ready");
+  await expect(results.nth(1)).toContainText("Spot · Abstract");
+  await expect(results.nth(1)).toContainText("chart unavailable");
+});
+
+test("exact contract search preserves the address match ahead of a more liquid different token", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.unroute("**/api/dexscreener/search**");
+  await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      results: [
+        {
+          chainId: "solana",
+          dexId: "raydium",
+          pairAddress: "lookalike-runner-pool",
+          tokenAddress: "lookalike-runner-token",
+          quoteTokenAddress: "solana-usdc",
+          symbol: "RUNNER",
+          name: "Runner lookalike",
+          quoteSymbol: "USDC",
+          priceUsd: 0.42,
+          liquidityUsd: 4_200_000,
+          volume24h: 9_000_000,
+        },
+        {
+          chainId: "robinhood",
+          dexId: "uniswap",
+          pairAddress: "0x602633428507BBAA848E6D0c3127cda15eEAE6a9",
+          tokenAddress: ROBINHOOD_CONTRACT,
+          quoteTokenAddress: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          symbol: "RUNNER",
+          name: "The Runner",
+          quoteSymbol: "WETH",
+          priceUsd: 0.0003219,
+          liquidityUsd: 68_960,
+          volume24h: 14_200,
+        },
+      ],
+    }),
+  }));
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill(ROBINHOOD_CONTRACT);
+  const results = page.locator(".ros-command-result.instrument");
+  await expect(results).toHaveCount(2);
+  await expect(results.nth(0)).toContainText("Spot · Robinhood");
+  await expect(results.nth(0)).toContainText("The Runner");
+  await expect(results.nth(1)).toContainText("Spot · Solana");
+});
+
 test("contract-address search resolves an exact Robinhood Chain pool without pretending chart or route support", async ({ page }) => {
   await mockWorkspaceApis(page);
   await mockTerminalLiveApis(page);

@@ -18,6 +18,7 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /data-rpw-focus/);
   assert.match(workspace, /Limited history/);
   assert.match(workspace, /payload\.instrument\?\.identity_scope/);
+  assert.match(workspace, /new CustomEvent\("ravenos:priceworkspace", \{ detail: \{ \.\.\.this\.state \} \}\)/);
 });
 
 test("Terminal uses PriceWorkspace by default and exposes no unresolved build token", () => {

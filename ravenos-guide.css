@@ -9,7 +9,7 @@
   --guide-muted: #8b969f;
   --guide-soft: #5f6b74;
   --guide-cyan: #77b7c9;
-  --guide-green: #adff2f;
+  --guide-green: #7698ff;
   --guide-amber: #d9ad58;
   --guide-red: #ef6a7a;
   --guide-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -44,7 +44,7 @@ a { color: inherit; text-decoration: none; }
   background: rgba(8,11,13,.96);
 }
 .guide-brand { height: 100%; padding: 0 16px; display: flex; align-items: center; gap: 10px; border-right: 1px solid var(--guide-line); }
-.guide-brand > span { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(173,255,47,.45); color: var(--guide-green); font: 800 12px var(--guide-mono); }
+.guide-brand > span { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(118,152,255,.45); color: var(--guide-green); font: 800 12px var(--guide-mono); }
 .guide-brand strong { font-size: 14px; letter-spacing: -.02em; }
 .guide-brand small { display: block; margin-top: 2px; color: var(--guide-muted); font: 8px var(--guide-mono); text-transform: uppercase; }
 .guide-product-label { color: var(--guide-muted); font: 750 9px var(--guide-mono); text-transform: uppercase; }
@@ -119,7 +119,7 @@ a { color: inherit; text-decoration: none; }
 .guide-callout p { margin: 0; color: #9d988a; font-size: 10px; line-height: 1.5; }
 .guide-actions { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 7px; }
 .guide-actions a { min-height: 36px; padding: 9px 11px; display: inline-flex; align-items: center; border: 1px solid var(--guide-line-strong); color: #b9c3c8; font: 800 9px var(--guide-mono); text-transform: uppercase; }
-.guide-actions a.primary { border-color: rgba(173,255,47,.45); color: #d9ff92; background: rgba(173,255,47,.04); }
+.guide-actions a.primary { border-color: rgba(118,152,255,.45); color: #a9bbff; background: rgba(118,152,255,.06); }
 
 .faq-layout { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); align-items: start; gap: 12px; }
 .faq-list { border: 1px solid var(--guide-line); background: #090d10; }

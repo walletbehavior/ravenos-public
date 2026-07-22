@@ -183,7 +183,7 @@
     tooltip.style.border = "1px solid rgba(125, 211, 252, 0.28)";
     tooltip.style.background = "rgba(5, 9, 7, 0.96)";
     tooltip.style.boxShadow = "0 14px 36px rgba(0, 0, 0, 0.38)";
-    tooltip.style.color = "#e5f0eb";
+    tooltip.style.color = "#edf3fb";
     tooltip.style.font = "12px/1.45 Inter, ui-sans-serif, system-ui, sans-serif";
     tooltip.style.pointerEvents = "none";
     chartHost.appendChild(tooltip);
@@ -197,12 +197,12 @@
       const shortLabel = String(read.short_label || read.title || "context").replace(/\s+/g, " ");
       const status = [read.status, read.confidence].filter(Boolean).join(" · ") || "forming";
       tooltip.innerHTML = `
-        <span style="display:block;color:#8da39a;font-size:10px;font-weight:850;text-transform:uppercase;margin-bottom:3px">${modeLabel}</span>
+        <span style="display:block;color:#8f9db2;font-size:10px;font-weight:850;text-transform:uppercase;margin-bottom:3px">${modeLabel}</span>
         <strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${shortLabel}</strong>
-        <span style="display:block;color:#b9c9c2">${status}</span>`;
+        <span style="display:block;color:#b6c2d2">${status}</span>`;
     } else {
       const title = overlay.label || OVERLAY_META[overlayType(overlay.type)]?.label || "Overlay";
-      const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8da39a;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
+      const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8f9db2;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
       tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}`;
     }
     tooltip.style.left = "8px";
@@ -275,7 +275,7 @@
       Object.assign(tab.style, {
         border: `1px solid ${selectedGroup === group ? "rgba(125, 211, 252, 0.42)" : "rgba(148, 163, 184, 0.18)"}`,
         background: selectedGroup === group ? "rgba(125, 211, 252, 0.08)" : "rgba(8, 17, 14, 0.72)",
-        color: selectedGroup === group ? "#e5f0eb" : "#60746b",
+        color: selectedGroup === group ? "#edf3fb" : "#64738a",
         padding: "5px 7px",
         cursor: "pointer",
         fontWeight: "850",
@@ -302,7 +302,7 @@
       Object.assign(option.style, {
         border: `1px solid ${meta.color}55`,
         background: active ? `${meta.color}22` : "rgba(8, 17, 14, 0.72)",
-        color: active ? "#e5f0eb" : "#9fb5aa",
+        color: active ? "#edf3fb" : "#96a4b8",
         padding: "5px 7px",
         cursor: "pointer",
         fontWeight: "800",
@@ -328,7 +328,7 @@
       Object.assign(chip.style, {
         border: `1px solid ${meta.color}66`,
         background: `${meta.color}18`,
-        color: "#e5f0eb",
+        color: "#edf3fb",
         padding: "4px 7px",
         cursor: "pointer",
         fontWeight: "850",
@@ -345,7 +345,7 @@
     Object.assign(clear.style, {
       border: "1px solid rgba(148, 163, 184, 0.18)",
       background: "rgba(255, 255, 255, 0.02)",
-      color: activeEntries.length ? "#8da39a" : "#60746b",
+      color: activeEntries.length ? "#8f9db2" : "#64738a",
       padding: "4px 7px",
       cursor: activeEntries.length ? "pointer" : "not-allowed",
       fontWeight: "850",
@@ -424,13 +424,13 @@
       height: chartHeight,
       width: chartHost.clientWidth || container.clientWidth,
       layout: {
-        background: { color: "#050907" },
-        textColor: "#9fb5aa",
+        background: { color: "#060a11" },
+        textColor: "#96a4b8",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(125, 211, 252, 0.06)" },
-        horzLines: { color: "rgba(125, 211, 252, 0.06)" },
+        vertLines: { color: "rgba(118, 152, 255, 0.055)" },
+        horzLines: { color: "rgba(118, 152, 255, 0.055)" },
       },
       rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
       timeScale: {

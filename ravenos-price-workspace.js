@@ -701,6 +701,8 @@ export class PriceWorkspace {
           this.state.connectionState = status?.state || "unknown";
           if (status?.source && ["live", "polling"].includes(status.state)) this.state.source = status.source;
           this.paintState();
+          this.options.onStateChange?.({ ...this.state });
+          document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
           if (status?.state === "live" && ["reconnecting", "degraded"].includes(prior)) this.reconcileAfterReconnect(request);
         },
       });

@@ -279,7 +279,7 @@ button, input, select { font: inherit; }
   text-decoration: none;
   text-transform: uppercase;
 }
-.brief-actions a.primary { border-color: rgba(173,255,47,.45); color: #d9ff92; background: rgba(173,255,47,.045); }
+.brief-actions a.primary { border-color: rgba(118,152,255,.45); color: #a9bbff; background: rgba(118,152,255,.06); }
 .brief-notes { display: grid; }
 .brief-notes header { padding: 14px 0; border-bottom: 1px solid var(--route-line); }
 .brief-notes h2 { margin: 6px 0 0; font-size: 16px; }
@@ -305,7 +305,7 @@ button, input, select { font: inherit; }
   align-items: center;
   gap: 20px;
   border-bottom: 1px solid var(--route-line);
-  background: linear-gradient(90deg, rgba(173,255,47,.045), transparent 45%);
+  background: linear-gradient(90deg, rgba(118,152,255,.055), transparent 45%);
 }
 .opportunity-focus h3 { margin: 8px 0; color: #f2f6f3; font: 720 clamp(24px, 3vw, 38px)/1 var(--route-mono); }
 .opportunity-focus p { max-width: 690px; margin: 0; color: #aeb8be; font-size: 11px; line-height: 1.55; }
@@ -318,8 +318,8 @@ button, input, select { font: inherit; }
   padding: 10px 12px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(173,255,47,.48);
-  color: #d9ff92;
+  border: 1px solid rgba(118,152,255,.48);
+  color: #a9bbff;
   font: 800 9px var(--route-mono);
   text-decoration: none;
   text-transform: uppercase;

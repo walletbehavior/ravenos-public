@@ -164,7 +164,7 @@ function contextPayload(asset) {
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null } = {}) {
+export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({
@@ -216,7 +216,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           : perp
           ? { instrument_type: "perpetual", chain: "hyperliquid", venue: "hyperliquid", symbol: asset }
           : { instrument_type: "spot_pool", chain: "solana", venue: "fixture-dex", symbol: "JUP", quote_asset: "USDC", pair_address: pairAddress, token_address: "fixture-token" },
-        capabilities: { live_bars: false, older_bar_backfill: false, live_trades: false },
+        capabilities: { live_bars: liveBars, older_bar_backfill: false, live_trades: liveBars && perp },
         candles: sparseTimeframe === timeframe ? providerCandles(asset, timeframe).slice(-12) : providerCandles(asset, timeframe),
       }),
     });

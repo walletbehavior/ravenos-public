@@ -85,6 +85,14 @@ function timestamp(value) {
   }).format(parsed) + " UTC";
 }
 
+function durationLabel(seconds) {
+  const value = Math.max(0, Math.trunc(finite(seconds) || 0));
+  if (value < 60) return `${value}s ago`;
+  if (value < 3600) return `${Math.max(1, Math.round(value / 60))}m ago`;
+  if (value < 86_400) return `${Math.max(1, Math.round(value / 3600))}h ago`;
+  return `${Math.max(1, Math.round(value / 86_400))}d ago`;
+}
+
 function unwrap(payload) {
   return payload?.data && typeof payload.data === "object" ? payload.data : payload;
 }
@@ -354,6 +362,21 @@ function setContextUnavailable({ headline, summary, identity, reason = "No exact
   resetComparableEvidence();
 }
 
+function setContextChecking({ identity } = {}) {
+  state.context = null;
+  setText("terminalReadHeadline", "Resolving Raven context");
+  setText("terminalReadSummary", "The live market and timestamped Raven evidence are loading independently.");
+  setText("terminalWhy", "Raven is checking for an exact decision-time observation for this instrument.");
+  setText("terminalContextIdentity", identity || "Exact instrument resolving");
+  setText("terminalBehavior", "Checking");
+  setText("terminalPath", "Checking");
+  setText("terminalEvidenceMaturity", "Checking");
+  setText("terminalEvidenceState", "Checking current evidence");
+  setState("terminalContextFreshness", "loading", "Checking");
+  resetComparableEvidence();
+  setText("terminalComparableNote", "Checking for exact matured comparisons.");
+}
+
 function contextChartEvent(payload) {
   const event = payload?.chart_event;
   const candles = state.workspace?.state?.candles || [];
@@ -396,6 +419,12 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   const read = payload?.raven_read || {};
   const delivery = payload?.delivery || {};
   const available = context.context_available === true;
+  const observationLabel = context.context_state === "fresh"
+    ? "Current observation"
+    : finite(context.context_age_seconds) !== null
+      ? `Observed ${durationLabel(context.context_age_seconds)}`
+      : "Timestamped observation";
+  const deliveryLabel = delivery.freshness_state === "fresh" ? "current feed" : `${titleCase(delivery.freshness_state)} feed`;
   setText("terminalReadHeadline", read.headline || `${state.selected?.asset || "Instrument"} · Raven context unavailable`);
   setText("terminalReadSummary", customerFacingText(read.summary, "Live market data remains available, but no timestamped Raven observation matches this instrument."));
   setText("terminalWhy", customerFacingText(read.why_raven_noticed || context.why_raven_noticed, "No current Raven observation is available for this instrument."));
@@ -403,8 +432,8 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   setText("terminalBehavior", available ? context.behavior_family || "Observed, family unavailable" : "Unavailable");
   setText("terminalPath", available ? context.current_path || context.pressure_state || context.context_state : "Unavailable");
   setText("terminalEvidenceMaturity", available ? titleCase(context.outcomes?.evidence_maturity, "Forming") : "Unavailable");
-  setText("terminalEvidenceState", available ? `${titleCase(context.context_state)} · ${titleCase(delivery.freshness_state)}` : "Context unavailable");
-  setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : titleCase(delivery.freshness_state));
+  setText("terminalEvidenceState", available ? `${observationLabel} · ${deliveryLabel}` : "Context unavailable");
+  setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderComparables(payload?.matured_comparables || {});
   applyContextChartEvent(payload);
   updateShell({
@@ -457,8 +486,8 @@ function updateQuoteBoundary() {
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
   const selectedSolanaSpot = state.lane === "spot" && String(state.selected?.chainId || "").toLowerCase() === "solana";
-  setText("terminalQuoteState", enabled ? "Review only" : "Unavailable");
-  setText("terminalQuoteContract", enabled ? "Read-only quote review" : "Not available for this market");
+  setText("terminalQuoteState", enabled ? "Review only" : "Read only");
+  setText("terminalQuoteContract", enabled ? "Read-only quote review" : "Quote preview not enabled");
   setText("terminalQuoteNote", enabled && selectedSolanaSpot
     ? "A current route and quote may be reviewed. No transaction is prepared, signed, or sent."
     : enabled
@@ -492,7 +521,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   setText("terminalDeepLink", "Perp depth");
   document.getElementById("terminalDeepLink").href = `/perps/?asset=${encodeURIComponent(row.asset)}&timeframe=${encodeURIComponent(state.timeframe)}`;
   renderPerpFacts();
-  setContextUnavailable({ headline: "Decision context checking", identity: row.instrument_id, reason: "Exact public Raven context is being resolved." });
+  setContextChecking({ identity: row.instrument_id });
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: perpSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
 
@@ -508,9 +537,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   const [chartState, contextResult] = await Promise.all([chartPromise, contextPromise]);
   if (generation !== state.selectionGeneration) return;
   renderPerpFacts();
-  setText("terminalChartStatus", chartState?.candles?.length
-    ? `${chartState.candles.length.toLocaleString()} provider-backed bars · ${titleCase(chartState.connectionState)}`
-    : chartState?.message || "Provider-backed candles unavailable.");
+  renderWorkspaceState(state.workspace?.state || chartState);
   if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload, { updateUrl });
   else {
     setContextUnavailable({ identity: row.instrument_id });
@@ -592,6 +619,35 @@ function createSpotResult(row, index) {
   return button;
 }
 
+function rankSpotRows(rows = [], query = "") {
+  const normalized = String(query || "").trim().toLowerCase();
+  return [...rows].sort((left, right) => {
+    const quality = (row) => {
+      const chain = String(row.chainId || "").toLowerCase();
+      const exactAddress = normalized && [row.tokenAddress, row.quoteTokenAddress, row.pairAddress]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === normalized);
+      const exactName = normalized && [row.symbol, row.name].filter(Boolean).some((value) => String(value).toLowerCase() === normalized);
+      return {
+        exactAddress,
+        exactName,
+        chartReady: CHARTED_SPOT_CHAINS.has(chain),
+        volume: Math.max(0, finite(row.volume24h) || 0),
+        liquidity: Math.max(0, finite(row.liquidityUsd) || 0),
+      };
+    };
+    const a = quality(left);
+    const b = quality(right);
+    return Number(b.exactAddress) - Number(a.exactAddress)
+      || Number(b.exactName) - Number(a.exactName)
+      || Number(b.chartReady) - Number(a.chartReady)
+      || Number(b.volume > 0) - Number(a.volume > 0)
+      || Number(b.liquidity > 0) - Number(a.liquidity > 0)
+      || b.volume - a.volume
+      || b.liquidity - a.liquidity;
+  });
+}
+
 function renderSpotResults(rows, message = "") {
   const host = document.getElementById("terminalSpotResults");
   host.replaceChildren();
@@ -618,7 +674,7 @@ async function searchSpot(query) {
     const { response, payload } = await fetchJson(`/api/dexscreener/search?q=${encodeURIComponent(clean)}`);
     if (generation !== state.searchGeneration) return;
     const rows = response.ok && Array.isArray(payload?.results)
-      ? payload.results.filter((row) => row?.chainId && row?.pairAddress && row?.tokenAddress && finite(row?.priceUsd) > 0)
+      ? rankSpotRows(payload.results.filter((row) => row?.chainId && row?.pairAddress && row?.tokenAddress && finite(row?.priceUsd) > 0), clean)
       : [];
     renderSpotResults(rows, response.ok ? "No verified public pool matched this search." : "Public spot lookup is unavailable.");
   } catch {
@@ -888,8 +944,8 @@ function defaultPerp(requested = "") {
       .filter((row) => row?.context_available === true && state.markets.some((market) => market.asset === row.instrument))
       .sort((left, right) => (
         (freshnessRank[right.context_state] || 0) - (freshnessRank[left.context_state] || 0)
+        || (finite(left.context_age_seconds) ?? Infinity) - (finite(right.context_age_seconds) ?? Infinity)
         || Number(right.outcomes?.sample_size || 0) - Number(left.outcomes?.sample_size || 0)
-        || Number(left.context_age_seconds || Infinity) - Number(right.context_age_seconds || Infinity)
       ))[0];
     if (best) return best.instrument;
   }
@@ -1078,27 +1134,30 @@ function bindControls() {
   });
 }
 
+function renderWorkspaceState(workspace = {}) {
+  const workspaceState = workspace?.state || "unavailable";
+  setState("terminalMarketFreshness", workspaceState, titleCase(workspaceState));
+  setText("terminalChartStatus", workspace?.candles?.length
+    ? `${workspace.candles.length.toLocaleString()} provider-backed bars · ${titleCase(workspace.connectionState)}`
+    : workspace?.message || titleCase(workspaceState));
+  const boundary = document.getElementById("terminalBoundary");
+  if (!boundary) return;
+  const connection = String(workspace?.connectionState || "").toLowerCase();
+  const liveLabel = connection === "snapshot_only"
+    ? "Provider snapshot available"
+    : ["live", "connected"].includes(connection)
+      ? "Provider market connected"
+      : connection === "connecting"
+        ? "Provider live feed connecting"
+        : "Provider market data available";
+  boundary.dataset.state = workspaceState;
+  boundary.querySelector("strong").textContent = workspaceState === "live" ? liveLabel : titleCase(workspaceState);
+}
+
 function bindWorkspaceEvents() {
   document.addEventListener("ravenos:priceworkspace", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id && event.detail?.state !== "loading") return;
-    const workspaceState = event.detail?.state || "unavailable";
-    setState("terminalMarketFreshness", workspaceState, titleCase(workspaceState));
-    setText("terminalChartStatus", event.detail?.candles?.length
-      ? `${event.detail.candles.length.toLocaleString()} provider-backed bars · ${titleCase(event.detail.connectionState)}`
-      : event.detail?.message || titleCase(workspaceState));
-    const boundary = document.getElementById("terminalBoundary");
-    if (boundary) {
-      const connection = String(event.detail?.connectionState || "").toLowerCase();
-      const liveLabel = connection === "snapshot_only"
-        ? "Provider snapshot available"
-        : ["live", "connected"].includes(connection)
-          ? "Provider market connected"
-          : connection === "connecting"
-            ? "Provider live feed connecting"
-            : "Provider market data available";
-      boundary.dataset.state = workspaceState;
-      boundary.querySelector("strong").textContent = workspaceState === "live" ? liveLabel : titleCase(workspaceState);
-    }
+    renderWorkspaceState(event.detail);
   });
   document.addEventListener("ravenos:chartmarket", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id) return;

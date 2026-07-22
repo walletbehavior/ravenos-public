@@ -46,7 +46,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalReadHeadline")).toContainText("SOL-PERP · Behavioral setup");
   await expect(page.locator("#terminalWhy")).toContainText("Behavior changed");
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
-  await expect(page.locator("#terminalEvidenceState")).toContainText(/Fresh/i);
+  await expect(page.locator("#terminalEvidenceState")).toContainText(/Current observation · current feed/i);
   await expect(page.locator(".ros-capability-status, .terminal-continuity")).toHaveCount(0);
   await expect(page.locator("#terminalBoundary")).toContainText("No order can be signed or sent");
   await expect(page.locator("#assetSelect option")).toHaveCount(2);
@@ -59,6 +59,63 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   expect(state.candleCount).toBeGreaterThan(20);
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("live chart connection status reaches the visible Terminal instead of remaining on Connecting", async ({ page }) => {
+  await page.addInitScript(() => {
+    class TestWebSocket {
+      constructor() {
+        this.readyState = 0;
+        this.listeners = new Map();
+        setTimeout(() => {
+          this.readyState = 1;
+          for (const listener of this.listeners.get("open") || []) listener({ type: "open" });
+        }, 15);
+      }
+
+      addEventListener(type, listener) {
+        const listeners = this.listeners.get(type) || [];
+        listeners.push(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = 3;
+      }
+    }
+    window.WebSocket = TestWebSocket;
+  });
+  await mockTerminalLiveApis(page, { liveBars: true });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
+  await expect(page.locator("#terminalChartStatus")).toContainText(/Live/i);
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Provider market connected");
+});
+
+test("default market favors the newest matching Raven observation before historical sample size", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.unroute("**/api/perps");
+  await page.route("**/api/perps", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        instrument_context: {
+          rows: [
+            { instrument: "SOL-PERP", context_available: true, context_state: "delayed", context_age_seconds: 1_800, outcomes: { sample_size: 900 } },
+            { instrument: "BTC-PERP", context_available: true, context_state: "delayed", context_age_seconds: 12, outcomes: { sample_size: 4 } },
+          ],
+        },
+      },
+    }),
+  }));
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "BTC-PERP" });
+  await expect(page.locator("#terminalInstrument")).toHaveText("BTC-PERP");
 });
 
 test("chart basics expose intervals, verified indicators, readable crosshair data, and focus mode", async ({ page }) => {
@@ -221,6 +278,7 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   const chart = await page.locator("#terminalChart .rpw-stage").boundingBox();
   expect(chart.width).toBeGreaterThan(350);
   expect(chart.height).toBeGreaterThan(280);
+  expect(chart.y).toBeLessThan(620);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
   await page.locator("#rosContextTrigger").click();

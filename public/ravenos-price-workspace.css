@@ -6,8 +6,8 @@
   display: grid;
   grid-template-rows: 30px 34px minmax(0, 1fr) 62px 8px;
   overflow: hidden;
-  background: #040806;
-  color: #dbe8e1;
+  background: #060a11;
+  color: #dbe5f2;
 }
 @media (min-width: 821px) {
   .rpw.rpw-fluid { height: 100%; min-height: 0; }
@@ -20,17 +20,17 @@
   gap: 10px;
   padding: 0 9px;
   border-bottom: 1px solid rgba(148,163,184,.15);
-  background: #070c09;
+  background: #080d15;
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .rpw-provenance strong {
   padding: 3px 6px;
   border: 1px solid rgba(148,163,184,.28);
-  color: #b7c4bd;
+  color: #b6c2d2;
   text-transform: uppercase;
 }
 .rpw-provenance span,
-.rpw-provenance time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7f9188; }
+.rpw-provenance time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7f8da2; }
 .rpw-provenance [data-rpw-coverage] { color: #f5c76b; }
 .rpw-provenance span:nth-of-type(2) { text-align: right; }
 .rpw-provenance button {
@@ -38,12 +38,12 @@
   padding: 0 7px;
   border: 1px solid rgba(148,163,184,.22);
   border-radius: 2px;
-  background: #0a100c;
-  color: #8fa39a;
+  background: #0b111b;
+  color: #8f9db2;
   font: 9px ui-monospace, SFMono-Regular, Consolas, monospace;
   text-transform: uppercase;
 }
-.rpw-provenance button[aria-pressed="true"] { border-color: rgba(52,211,153,.38); color: #63d7a3; }
+.rpw-provenance button[aria-pressed="true"] { border-color: rgba(118,152,255,.42); color: #8aa7ff; }
 .rpw-provenance [data-rpw-focus] { display: block; }
 .rpw-provenance [data-rpw-overlays] { display: none; }
 .rpw-chart-tools {
@@ -54,7 +54,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   border-bottom: 1px solid rgba(148,163,184,.15);
-  background: #060b08;
+  background: #070c14;
   scrollbar-width: thin;
 }
 .rpw-mobile-timeframes,
@@ -67,13 +67,13 @@
   border-right: 1px solid rgba(148,163,184,.12);
   border-radius: 0;
   background: transparent;
-  color: #71847a;
+  color: #718097;
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .rpw-mobile-timeframes button[aria-pressed="true"],
-.rpw-indicators button[aria-pressed="true"] { color: #dbe8e1; background: #111914; box-shadow: inset 0 -2px #63d7a3; }
+.rpw-indicators button[aria-pressed="true"] { color: #dbe5f2; background: #111925; box-shadow: inset 0 -2px #7698ff; }
 .rpw-indicators { border-left: 1px solid rgba(148,163,184,.16); }
-.rpw-indicators > span { display: grid; place-content: center; padding: 0 9px; color: #64786d; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.rpw-indicators > span { display: grid; place-content: center; padding: 0 9px; color: #64738a; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .rpw-scope-control {
   position: absolute;
   z-index: 8;
@@ -81,7 +81,7 @@
   left: 9px;
   display: inline-flex;
   border: 1px solid rgba(148,163,184,.2);
-  background: rgba(4,8,6,.9);
+  background: rgba(6,10,17,.92);
 }
 .rpw-scope-control[hidden] { display: none; }
 .rpw-scope-control button {
@@ -91,12 +91,12 @@
   border-right: 1px solid rgba(148,163,184,.16);
   border-radius: 0;
   background: transparent;
-  color: #71847a;
+  color: #718097;
   font: 9px ui-monospace, SFMono-Regular, Consolas, monospace;
   text-transform: uppercase;
 }
 .rpw-scope-control button:last-child { border-right: 0; }
-.rpw-scope-control button[aria-pressed="true"] { background: #111914; color: #dbe8e1; }
+.rpw-scope-control button[aria-pressed="true"] { background: #111925; color: #dbe5f2; }
 .rpw[data-price-workspace-state="live"] .rpw-provenance strong { color: #63d7a3; border-color: rgba(52,211,153,.42); }
 .rpw[data-price-workspace-state="delayed"] .rpw-provenance strong { color: #f5c76b; border-color: rgba(245,199,107,.42); }
 .rpw[data-price-workspace-state="demo"] .rpw-provenance strong,
@@ -111,7 +111,7 @@
   right: 14px;
   bottom: 28px;
   pointer-events: none;
-  color: rgba(198,212,204,.12);
+  color: rgba(198,210,227,.12);
   font: 800 26px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   text-transform: uppercase;
 }
@@ -127,8 +127,8 @@
   white-space: nowrap;
   padding: 4px 6px;
   border: 1px solid rgba(148,163,184,.18);
-  background: rgba(4,8,6,.86);
-  color: #aebdb5;
+  background: rgba(6,10,17,.88);
+  color: #aeb9c9;
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
   pointer-events: none;
 }
@@ -156,18 +156,18 @@
   gap: 7px;
   padding: 20px;
   text-align: center;
-  background: #040806;
+  background: #060a11;
 }
 .rpw-state-panel[hidden] { display: none; }
 .rpw-state-panel strong { font-size: 13px; }
-.rpw-state-panel span { max-width: 480px; color: #7f9188; font-size: 11px; line-height: 1.45; }
+.rpw-state-panel span { max-width: 480px; color: #7f8da2; font-size: 11px; line-height: 1.45; }
 .rpw-activity {
   min-width: 0;
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
   align-items: stretch;
   border-top: 1px solid rgba(148,163,184,.13);
-  background: #050a07;
+  background: #070b12;
   overflow: hidden;
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
 }
@@ -175,7 +175,7 @@
   display: grid;
   place-content: center;
   border-right: 1px solid rgba(148,163,184,.12);
-  color: #82958b;
+  color: #8290a5;
   text-transform: uppercase;
 }
 .rpw-activity > div {
@@ -185,13 +185,13 @@
   gap: 12px;
   padding: 0 10px;
   overflow-x: auto;
-  color: #64786d;
+  color: #64738a;
   white-space: nowrap;
 }
-.rpw-trade { color: #9baba3; }
+.rpw-trade { color: #96a4b8; }
 .rpw-trade-buy { color: #63d7a3; }
 .rpw-trade-sell { color: #fb8a9d; }
-.rpw-resize-handle { cursor: ns-resize; border-top: 1px solid rgba(148,163,184,.12); background: #080d0a; }
+.rpw-resize-handle { cursor: ns-resize; border-top: 1px solid rgba(148,163,184,.12); background: #080d15; }
 .rpw-resize-handle::after { content: ""; display: block; width: 42px; height: 2px; margin: 3px auto 0; background: rgba(148,163,184,.28); }
 .rpw-focus-mode {
   position: fixed;
@@ -200,7 +200,7 @@
   width: 100vw;
   height: 100dvh;
   min-height: 0;
-  background: #040806;
+  background: #060a11;
 }
 body.raven-chart-focus { overflow: hidden; }
 
@@ -232,7 +232,7 @@ body.raven-chart-focus { overflow: hidden; }
     overflow: auto;
     padding: 8px !important;
     border: 1px solid rgba(148,163,184,.3);
-    background: rgba(4,8,6,.98);
+    background: rgba(6,10,17,.98);
     box-shadow: 0 18px 46px rgba(0,0,0,.52);
   }
   .rpw-scope-control { top: 84px; left: 6px; }
