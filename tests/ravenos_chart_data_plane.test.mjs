@@ -232,6 +232,8 @@ test("release-enforced on-chain chart capacity forbids the keyless GeckoTerminal
   assert.equal(demo.base_url, "https://api.coingecko.com/api/v3/onchain");
   assert.equal(demo.request_headers["x-cg-demo-api-key"], "server-only-demo-test-value");
   assert.equal(demo.commercial_state, "noncommercial_evaluation");
+  assert.equal(demo.attribution_label, "Data provided by CoinGecko");
+  assert.equal(demo.attribution_url, "https://www.coingecko.com/");
   const qualified = onchainProviderRuntime("coingecko_onchain", {
     RAVENOS_RELEASE_ENFORCE: "1",
     ONCHAIN_CHART_PROVIDER: "coingecko",
@@ -1110,6 +1112,13 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     assert.equal(payload.lineage.provider_plan, "basic");
     assert.equal(payload.lineage.commercial_state, "commercial_configured_unverified");
     assert.equal(payload.lineage.empty_interval_policy, "provider_previous_close_zero_volume");
+    assert.deepEqual(payload.attribution, {
+      required: true,
+      label: "Data provided by CoinGecko",
+      url: "https://www.coingecko.com/",
+    });
+    assert.equal(payload.chart_readiness.state, "verified_current");
+    assert.equal(payload.chart_readiness.one_minute_requirement, "insufficient_depth");
     assert.equal(payload.candles.length, 3);
     assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
     assert.equal(payload.candles.some((candle) => candle.close === 99), false);

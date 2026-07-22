@@ -218,6 +218,10 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
   const promote = readFileSync("scripts/promote-release.mjs", "utf8");
   assert.match(promote, /Production promotion blocked by on-chain chart-provider gate/);
+  const preview = readFileSync("scripts/verify-release-preview.mjs", "utf8");
+  assert.match(preview, /chart_readiness\?\.one_minute_requirement !== "verified"/);
+  assert.match(preview, /candle_series\?\.provider !== "coingecko_onchain"/);
+  assert.match(preview, /Server-only chart-provider secret entered the preview response/);
 });
 
 test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {

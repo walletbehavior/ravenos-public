@@ -1774,6 +1774,11 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
             volume: candles[candles.length - 1]?.volume || null,
             observed_at: fetchedAt,
           },
+          attribution: {
+            required: runtime.attribution_required === true,
+            label: runtime.attribution_label,
+            url: runtime.attribution_url,
+          },
           build_id: null,
           continuity: {
             schema_version: "ravenos.chart_continuity.v1",
@@ -1932,7 +1937,7 @@ async function fetchOnchainPoolCandles(options = {}) {
         ...payload,
         chart_readiness: {
           schema_version: "ravenos.exact_market_chart_readiness.v1",
-          state: payload.freshness_state === "fresh" ? "verified_current" : "verified_with_visible_staleness",
+          state: ["fresh", "live"].includes(payload.freshness_state) ? "verified_current" : "verified_with_visible_staleness",
           exact_market_verified: true,
           provider_id: providerId,
           timeframe: payload.timeframe || options.timeframe || null,
