@@ -24,7 +24,10 @@ const assets = {
 
 const env = {
   ASSETS: assets,
-  COINGECKO_PRO_API_KEY: "worker-response-provider-validation-token",
+  ONCHAIN_CHART_PROVIDER: "coingecko",
+  ONCHAIN_CHART_PROVIDER_PLAN: "demo",
+  ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
+  ONCHAIN_CHART_PROVIDER_SECRET: "worker-response-provider-validation-token",
   RAVENOS_PUBLIC_ORIGIN_URL: "https://validation-origin.example/public/ravenos",
   RAVENOS_PUBLIC_ORIGIN_TOKEN: "worker-response-validation-token",
 };
@@ -88,9 +91,9 @@ globalThis.fetch = async (input, init = {}) => {
       ],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }
-  if (url.includes("pro-api.coingecko.com")) {
-    if (init.headers?.["x-cg-pro-api-key"] !== env.COINGECKO_PRO_API_KEY) throw new Error("server-only provider credential was not bound to the provider request");
-    if (url.includes(env.COINGECKO_PRO_API_KEY)) throw new Error("provider credential entered the request URL");
+  if (url.includes("api.coingecko.com/api/v3/onchain")) {
+    if (init.headers?.["x-cg-demo-api-key"] !== env.ONCHAIN_CHART_PROVIDER_SECRET) throw new Error("server-only provider credential was not bound to the provider request");
+    if (url.includes(env.ONCHAIN_CHART_PROVIDER_SECRET)) throw new Error("provider credential entered the request URL");
     if (!url.includes("/ohlcv/")) {
       return new Response(JSON.stringify({
         data: {
@@ -196,7 +199,7 @@ try {
     const response = await worker.fetch(request, env);
     const text = await response.text();
     const label = `worker:${method}:${path}:${response.status}`;
-    if (text.includes(env.COINGECKO_PRO_API_KEY)) findings.push({ file: label, path: "", term: "provider_secret_value" });
+    if (text.includes(env.ONCHAIN_CHART_PROVIDER_SECRET)) findings.push({ file: label, path: "", term: "provider_secret_value" });
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       try {

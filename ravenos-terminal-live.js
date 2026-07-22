@@ -26,13 +26,24 @@ const state = {
 
 function spotChartCapability(row = {}, timeframe = "1h") {
   const market = row || {};
-  return resolveChartCapability({
+  const coverage = market.chart_coverage;
+  const resolved = resolveChartCapability({
     market: "crypto_spot",
     chain: market.chainId,
     instrumentType: "spot_pool",
     pairAddress: market.pairAddress,
     timeframe,
+    providerId: coverage?.provider_id || "",
   });
+  if (coverage?.schema_version === "ravenos.search_chart_coverage.v1" && coverage.state === "unavailable") {
+    return {
+      ...resolved,
+      chart_ready: false,
+      chart_request_supported: false,
+      unavailable_reason: coverage.reason || resolved.unavailable_reason,
+    };
+  }
+  return resolved;
 }
 
 function finite(value) {
@@ -422,14 +433,14 @@ function renderPerpFacts() {
 }
 
 function renderSpotFacts(row = state.selected) {
-  const chartAvailable = spotChartCapability(row, state.timeframe).chart_ready;
+  const chartRequestSupported = spotChartCapability(row, state.timeframe).chart_request_supported;
   setText("terminalInstrumentScope", "Exact public pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
   setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · lookup snapshot` : "Search for a symbol, token, or contract");
   setText("terminalPickerSymbol", row ? `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}` : "Exact spot market required");
   setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
-  setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartAvailable ? "chart available" : "chart unavailable"} · USDC economic intent` : "No chain or venue selected");
+  setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartRequestSupported ? "coverage check on open" : "chart unavailable"} · USDC economic intent` : "No chain or venue selected");
   setText("terminalLast", formatPrice(row?.priceUsd));
   setText("terminalMetric2Label", "Market cap");
   setText("terminalMetric2", compact(row?.marketCap ?? row?.fdv, { currency: true }));
@@ -800,7 +811,10 @@ function createSpotResult(row, index) {
   const identity = document.createElement("strong");
   identity.textContent = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
   const venue = document.createElement("span");
-  venue.textContent = `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}`;
+  const coverage = row.chart_coverage || {};
+  const chartLabel = coverage.request_supported ? "chart check on open" : "chart unavailable";
+  const providerLabel = coverage.provider_id ? ` · ${String(coverage.provider_id).replace("_onchain", "")}` : "";
+  venue.textContent = `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}${providerLabel} · ${chartLabel}`;
   const liquidity = document.createElement("span");
   liquidity.textContent = `Liquidity ${compact(row.liquidityUsd, { currency: true })}`;
   const price = document.createElement("small");
@@ -821,7 +835,7 @@ function rankSpotRows(rows = [], query = "") {
       return {
         exactAddress,
         exactName,
-        chartReady: spotChartCapability(row, "1h").chart_ready,
+        chartReady: spotChartCapability(row, "1h").chart_request_supported,
         volume: Math.max(0, finite(row.volume24h) || 0),
         liquidity: Math.max(0, finite(row.liquidityUsd) || 0),
       };
@@ -886,7 +900,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Requesting exact-pool provider candles.");
   const chartCapability = spotChartCapability(row, state.timeframe);
-  const hasChartCoverage = chartCapability.chart_ready;
+  const hasChartCoverage = chartCapability.chart_request_supported;
   setText("terminalDeepLink", hasChartCoverage ? `Open ${chainDisplayName(row.chainId)} coverage` : "Coverage unavailable");
   document.getElementById("terminalDeepLink").href = hasChartCoverage ? `/chains/${String(row.chainId).toLowerCase()}/` : "/docs/#availability";
   setContextUnavailable({
@@ -912,6 +926,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact pool`
     : chartState?.message || "Exact-pool candles unavailable.");
+  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartState?.candles?.length ? "exact chart verified" : "chart unavailable"} · USDC economic intent`);
   updateShell({
     subject: spotSubject(row),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,

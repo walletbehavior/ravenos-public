@@ -1,13 +1,24 @@
 import ravenosWorker from "../worker.mjs";
+import { onchainChartProviderEnv } from "./lib/onchain-chart-provider-env.mjs";
 
+const providerEnv = onchainChartProviderEnv(process.cwd());
 const productionMode = process.argv.includes("--production");
-const providerKeyConfigured = Boolean(String(process.env.COINGECKO_PRO_API_KEY || "").trim());
-const publicOriginConfigured = Boolean(String(process.env.RAVENOS_PUBLIC_ORIGIN_TOKEN || "").trim());
-const providerOrder = String(process.env.RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER || "dexpaprika,coingecko_onchain").trim();
-const productionProvider = String(process.env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER || "").trim();
-const productionProviderQualified = String(process.env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED || "") === "1";
+const fullMatrix = productionMode || process.argv.includes("--full");
+const allowKeylessDiagnostic = process.argv.includes("--allow-keyless-diagnostic")
+  || String(providerEnv.RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC || "") === "1";
+const providerKeyConfigured = Boolean(String(providerEnv.ONCHAIN_CHART_PROVIDER_SECRET || providerEnv.COINGECKO_PRO_API_KEY || "").trim());
+const selectedProvider = String(providerEnv.ONCHAIN_CHART_PROVIDER || "").trim();
+const providerPlan = String(providerEnv.ONCHAIN_CHART_PROVIDER_PLAN || "").trim().toLowerCase();
+const providerCommercial = String(providerEnv.ONCHAIN_CHART_PROVIDER_COMMERCIAL || "").trim().toLowerCase() === "true";
+const publicOriginConfigured = Boolean(String(providerEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN || "").trim());
+const providerOrder = String(providerEnv.RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER || "dexpaprika,coingecko_onchain").trim();
+const effectiveProviderOrder = selectedProvider
+  ? [selectedProvider.toLowerCase() === "coingecko" ? "coingecko_onchain" : selectedProvider.toLowerCase()]
+  : providerOrder.split(",").map((value) => value.trim()).filter(Boolean);
+const productionProvider = String(providerEnv.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER || "").trim();
+const productionProviderQualified = String(providerEnv.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED || "") === "1";
 
-if (productionMode && (!productionProvider || !productionProviderQualified)) {
+if (productionMode && (!productionProvider || !productionProviderQualified || !providerCommercial || providerPlan === "demo")) {
   throw new Error("Production chart validation remains blocked until one exact-pool provider's commercial rights, anchor coverage, rate behavior, and server-side binding are qualified.");
 }
 if (productionMode && !publicOriginConfigured) {
@@ -15,12 +26,17 @@ if (productionMode && !publicOriginConfigured) {
 }
 
 const env = {
-  COINGECKO_PRO_API_KEY: process.env.COINGECKO_PRO_API_KEY,
+  ONCHAIN_CHART_PROVIDER: selectedProvider,
+  ONCHAIN_CHART_PROVIDER_PLAN: providerPlan,
+  ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(providerCommercial),
+  ONCHAIN_CHART_PROVIDER_SECRET: providerEnv.ONCHAIN_CHART_PROVIDER_SECRET,
+  COINGECKO_PRO_API_KEY: providerEnv.COINGECKO_PRO_API_KEY,
+  RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: allowKeylessDiagnostic ? "1" : "0",
   RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: providerOrder,
-  RAVENOS_PUBLIC_ORIGIN_TOKEN: process.env.RAVENOS_PUBLIC_ORIGIN_TOKEN,
-  RAVENOS_PUBLIC_ORIGIN_URL: process.env.RAVENOS_PUBLIC_ORIGIN_URL,
-  RAVENOS_SPOT_CHART_ORIGIN_TOKEN: process.env.RAVENOS_SPOT_CHART_ORIGIN_TOKEN,
-  RAVENOS_SPOT_CHART_ORIGIN_URL: process.env.RAVENOS_SPOT_CHART_ORIGIN_URL,
+  RAVENOS_PUBLIC_ORIGIN_TOKEN: providerEnv.RAVENOS_PUBLIC_ORIGIN_TOKEN,
+  RAVENOS_PUBLIC_ORIGIN_URL: providerEnv.RAVENOS_PUBLIC_ORIGIN_URL,
+  RAVENOS_SPOT_CHART_ORIGIN_TOKEN: providerEnv.RAVENOS_SPOT_CHART_ORIGIN_TOKEN,
+  RAVENOS_SPOT_CHART_ORIGIN_URL: providerEnv.RAVENOS_SPOT_CHART_ORIGIN_URL,
 };
 
 const intervals = ["1m", "5m", "15m", "1h", "4h", "1d"];
@@ -70,6 +86,7 @@ const anchors = [
     intervals,
     evaluation_intervals: ["1m", "15m", "1h"],
     minimum_bars: { "15m": 60, "1h": 20 },
+    expected_unavailable_for: ["coingecko", "coingecko_onchain"],
   },
   {
     name: "SOL-PERP Hyperliquid",
@@ -150,11 +167,32 @@ for (const anchor of anchors) {
     if (productionMode) failures += 1;
     continue;
   }
-  const anchorIntervals = productionMode ? anchor.intervals : (anchor.evaluation_intervals || anchor.intervals);
+  const anchorIntervals = fullMatrix ? anchor.intervals : (anchor.evaluation_intervals || anchor.intervals);
   for (const timeframe of anchorIntervals) {
     const started = Date.now();
     try {
       const { response, payload } = await requestPayload(anchor, timeframe);
+      const selectedAliases = new Set([
+        selectedProvider.toLowerCase(),
+        selectedProvider.toLowerCase() === "coingecko" ? "coingecko_onchain" : "",
+      ].filter(Boolean));
+      const expectedUnavailable = (anchor.expected_unavailable_for || []).some((provider) => selectedAliases.has(provider));
+      if (
+        expectedUnavailable
+        && !payload?.ok
+        && (!Array.isArray(payload?.candles) || payload.candles.length === 0)
+      ) {
+        results.push({
+          anchor: anchor.name,
+          timeframe,
+          state: "passed_unavailable",
+          reason: payload?.message || payload?.source_type || `HTTP ${response.status}`,
+          provider_state: payload?.provider_state || null,
+          provider_attempts: Array.isArray(payload?.provider_attempts) ? payload.provider_attempts : null,
+          latency_ms: Date.now() - started,
+        });
+        continue;
+      }
       if (!response.ok || !payload?.ok) {
         const error = new Error(payload?.message || payload?.source_type || `HTTP ${response.status}`);
         error.provider_state = payload?.provider_state || null;
@@ -206,8 +244,13 @@ const report = {
   schema_version: "ravenos.chart_anchor_validation.v1",
   generated_at: new Date().toISOString(),
   production_mode: productionMode,
+  full_matrix: fullMatrix,
   provider_key_configured: providerKeyConfigured,
-  provider_order: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+  selected_provider: selectedProvider || null,
+  provider_plan: providerPlan || null,
+  provider_commercial: providerCommercial,
+  keyless_diagnostic: allowKeylessDiagnostic,
+  provider_order: effectiveProviderOrder,
   production_provider: productionProvider || null,
   production_provider_qualified: productionProviderQualified,
   public_origin_configured: publicOriginConfigured,

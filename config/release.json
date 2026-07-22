@@ -8,6 +8,11 @@
       "dexpaprika",
       "coingecko_onchain"
     ],
+    "preview_provider": "coingecko",
+    "preview_provider_plan": "demo",
+    "preview_provider_commercial": false,
+    "provider_secret_binding": "ONCHAIN_CHART_PROVIDER_SECRET",
+    "keyless_application_fallback_allowed": false,
     "required_intervals": [
       "1m",
       "5m",
@@ -19,6 +24,8 @@
     "one_minute_minimum_useful_bars": 120,
     "subminute_candles_required": false,
     "production_provider": null,
+    "production_provider_plan": null,
+    "production_provider_commercial": false,
     "production_promotion_eligible": false,
     "production_blockers": [
       "commercial_rights_unverified",

@@ -60,6 +60,15 @@ Existing consumers may continue to read `candles`. New consumers must validate `
     "fallback": false,
     "commercial_state": "free_development_only"
   },
+  "chart_readiness": {
+    "schema_version": "ravenos.exact_market_chart_readiness.v1",
+    "state": "verified_current",
+    "exact_market_verified": true,
+    "provider_id": "dexpaprika",
+    "timeframe": "15m",
+    "bars": 366,
+    "one_minute_requirement": "not_evaluated_by_this_request"
+  },
   "continuity": {
     "schema_version": "ravenos.chart_continuity.v1",
     "state": "verified",
@@ -136,6 +145,10 @@ Existing consumers may continue to read `candles`. New consumers must validate `
 17. `1m` is required for every advertised chart-ready market and must contain at least 120 useful provider-backed bars in the release anchor matrix.
 18. `1m` and `1M` are distinct case-sensitive product intervals. Provider adapters and public-origin contracts may not collapse them.
 19. No `30s` candle source is required, and sub-minute data is not used to manufacture one-minute history.
+20. Static network/provider routing proves only that a request can be attempted. It never proves that the selected exact pool is chart-ready.
+21. Search may expose `probe_required` or `unavailable`; only a validated exact-market response may expose `verified_current` or `verified_with_visible_staleness`.
+22. A provider-specific request cannot silently fall back to a different provider merely because that provider supports the network.
+23. CoinGecko's provider-defined empty intervals are accepted only when explicitly requested, attributed in lineage, and returned as previous-close, zero-volume bars. RavenOS itself never manufactures them.
 
 ## Capability registries
 
@@ -143,7 +156,7 @@ Existing consumers may continue to read `candles`. New consumers must validate `
 
 `ravenos-chart-data-plane.js` exports `RAVENOS_CHART_CAPABILITY_REGISTRY` (`ravenos.chart_capability_registry.v1`). It records market/network discovery, historical/live support, intervals, maximum history, provider order, freshness, Raven overlays, route preview, and execution capability.
 
-`resolveChartCapability()` requires an exact pool before returning `chart_ready=true`. A discoverable exact market can still be unchartable, under-depth, non-routeable, or non-executable. Unknown networks fail closed.
+`resolveChartCapability()` requires an exact pool before returning `chart_request_supported=true`. Its legacy `chart_ready` field remains a request-routing alias for compatible consumers, but on-chain customer surfaces must use `advertised_chart_ready=false` until the exact provider response passes. A discoverable exact market can still be unchartable, under-depth, non-routeable, or non-executable. Unknown networks and provider/network mismatches fail closed without choosing another provider.
 
 ## DexPaprika adapter specifics
 

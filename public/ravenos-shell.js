@@ -21,14 +21,21 @@ const NAV_ITEMS = Object.freeze([
   { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", match: ["atlas"] },
 ]);
 
-function spotChartReady(chain, pairAddress, timeframe = "1h") {
+function spotChartRequestSupported(row = {}, timeframe = "1h") {
+  const coverage = row.chart_coverage;
+  if (coverage?.schema_version === "ravenos.search_chart_coverage.v1") {
+    if (coverage.state === "unavailable") return false;
+    if (timeframe === "1m") return coverage.one_minute_request_supported === true;
+    if (timeframe === "1h") return coverage.one_hour_request_supported === true;
+  }
   return resolveChartCapability({
     market: "crypto_spot",
-    chain,
+    chain: row.chainId,
     instrumentType: "spot_pool",
-    pairAddress,
+    pairAddress: row.pairAddress,
     timeframe,
-  }).chart_ready;
+    providerId: coverage?.provider_id || "",
+  }).chart_request_supported;
 }
 
 function currentSlug() {
@@ -128,7 +135,7 @@ function providerCreditMarkup() {
   const providers = [
     { mark: "DP", name: "DexPaprika", role: "Exact-pool market history", href: "https://dexpaprika.com/", official: true },
     { mark: "DS", name: "DexScreener", role: "Pool discovery and current market state", href: "https://dexscreener.com/" },
-    { mark: "CG", name: "CoinGecko", role: "Exact-pool history fallback under evaluation", href: "https://www.coingecko.com/" },
+    { mark: "CG", name: "CoinGecko", role: "Data provided by CoinGecko · exact-pool market history", href: "https://www.coingecko.com/" },
     { mark: "HL", name: "Hyperliquid", role: "Venue-native perpetual markets", href: "https://hyperliquid.xyz/" },
     { mark: "T", name: "Tradier + Atlas", role: "Listed-market data and context", href: "https://tradier.com/" },
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },
@@ -308,7 +315,7 @@ function spotInstrumentSubject(row = {}) {
     preferredCashAsset: "USDC",
     economicNumeraire: "USDC",
     capabilities: {
-      chart: spotChartReady(chain, pairAddress),
+      chart: spotChartRequestSupported(row),
       live_price: finiteNumber(row.priceUsd) !== null,
       liquidity: finiteNumber(row.liquidityUsd) !== null,
       route_preview: chain === "solana",
@@ -322,14 +329,14 @@ function spotSearchInstrument(row = {}) {
   const subject = spotInstrumentSubject(row);
   if (!subject) return null;
   const chainLabel = chainDisplayName(subject.chain);
-  const chartCapability = resolveChartCapability({ market: "crypto_spot", chain: subject.chain, instrumentType: "spot_pool", pairAddress: row.pairAddress, timeframe: "1h" });
+  const chartRequestSupported = spotChartRequestSupported(row, "1h");
   return {
     ...row,
     instrument_id: subject.id,
     asset: subject.label,
     label: subject.label,
     detail: `${row.name || subject.symbol} · ${chainLabel} · ${row.dexId || "venue unavailable"} · pool ${shortMarketId(row.pairAddress)} · ${compactCurrency(row.liquidityUsd)}`,
-    state: chartCapability.chart_ready ? "Exact pool · provider OHLCV · chart ready" : "Exact pool · chart unavailable",
+    state: chartRequestSupported ? "Exact pool · chart coverage checked on open" : "Exact pool · chart unavailable",
     group: `Spot · ${chainLabel}`,
     raven_context: false,
     subject,
@@ -345,7 +352,7 @@ function spotSearchQuality(row = {}, query = "") {
     .filter(Boolean)
     .some((value) => String(value).toLowerCase() === normalized);
   const exactName = normalized && (symbol === normalized || name === normalized);
-  const chartReady = spotChartReady(chain, row.pairAddress);
+  const chartReady = spotChartRequestSupported(row, "1h");
   const volume = Math.max(0, finiteNumber(row.volume24h) || 0);
   const liquidity = Math.max(0, finiteNumber(row.liquidityUsd) || 0);
   return { exactAddress, exactName, chartReady, active: volume > 0, liquid: liquidity > 0, volume, liquidity };

@@ -230,6 +230,71 @@ test("listed-market one-minute and one-month contracts remain distinct", async (
   assert.match(observed[1], /timeframe=1M/);
 });
 
+test("listed-market adapter folds Yahoo's trailing live quote into its current interval", async () => {
+  const hour = 3_600;
+  const firstTime = 1_753_000_000;
+  const secondTime = firstTime + hour;
+  const quoteTime = secondTime + 1_410;
+  const payload = instrumentChartEnvelope({
+    timeframe: "1h",
+    candles: [
+      { time: firstTime, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+      { time: secondTime, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+      { time: quoteTime, open: 213.5, high: 213.5, low: 213.5, close: 213.5, volume: 0 },
+    ],
+    market_data_observed_at: new Date(quoteTime * 1_000).toISOString(),
+  });
+  const result = await loadPublicInstrumentChart({
+    env: ENV,
+    query: "AAPL",
+    instrumentId: "equity:nasdaq:aapl",
+    timeframe: "1h",
+    limit: 360,
+    nowMs: NOW,
+    fetchImpl: async () => jsonResponse(payload),
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.payload.candles.length, 2);
+  assert.deepEqual(result.payload.candles.at(-1), {
+    time: secondTime,
+    open: 211,
+    high: 213.5,
+    low: 210,
+    close: 213.5,
+    volume: 120,
+  });
+  assert.equal(result.payload.market_data_observed_at, new Date(quoteTime * 1_000).toISOString());
+});
+
+test("listed-market adapter aligns a trailing one-minute quote without inventing intermediate bars", async () => {
+  const firstTime = 1_753_000_000;
+  const secondTime = firstTime + 60;
+  const quoteTime = secondTime + 90;
+  const payload = instrumentChartEnvelope({
+    timeframe: "1m",
+    candles: [
+      { time: firstTime, open: 210, high: 212, low: 209, close: 211, volume: 100 },
+      { time: secondTime, open: 211, high: 213, low: 210, close: 212, volume: 120 },
+      { time: quoteTime, open: 212.5, high: 212.5, low: 212.5, close: 212.5, volume: 0 },
+    ],
+    market_data_observed_at: new Date(quoteTime * 1_000).toISOString(),
+  });
+  const result = await loadPublicInstrumentChart({
+    env: ENV,
+    query: "AAPL",
+    instrumentId: "equity:nasdaq:aapl",
+    timeframe: "1m",
+    limit: 360,
+    nowMs: NOW,
+    fetchImpl: async () => jsonResponse(payload),
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.payload.candles.length, 3);
+  assert.equal(result.payload.candles.at(-1).time, secondTime + 60);
+  assert.equal(result.payload.candles.at(-1).close, 212.5);
+  assert.equal(result.payload.candles.at(-1).volume, 0);
+});
+
 test("listed-market chart rejects invalid identity before network access", async () => {
   let called = false;
   const result = await loadPublicInstrumentChart({

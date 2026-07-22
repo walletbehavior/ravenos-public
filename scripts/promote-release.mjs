@@ -9,9 +9,22 @@ const receipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), 
 const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-package.json"), "utf8"));
 if (!receipt.verified) throw new Error("Refusing to promote an unverified staged release");
 if (receipt.release_id !== packageManifest.release_id) throw new Error("Stage receipt and package release identities differ");
-if (packageManifest.onchain_chart_provider?.production_promotion_eligible !== true) {
-  const blockers = packageManifest.onchain_chart_provider?.production_blockers || ["onchain_chart_provider_not_qualified"];
+const chartProvider = packageManifest.onchain_chart_provider || {};
+if (chartProvider.production_promotion_eligible !== true) {
+  const blockers = chartProvider.production_blockers || ["onchain_chart_provider_not_qualified"];
   throw new Error(`Production promotion blocked by on-chain chart-provider gate: ${blockers.join(", ")}`);
+}
+if (
+  !chartProvider.production_provider
+  || !chartProvider.production_provider_plan
+  || chartProvider.production_provider_plan === "demo"
+  || chartProvider.production_provider_commercial !== true
+) {
+  throw new Error("Production promotion requires an explicitly commercially qualified provider and non-Demo plan");
+}
+const providerSecretBinding = chartProvider.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET";
+if (!(receipt.required_server_secret_bindings_verified || []).includes(providerSecretBinding)) {
+  throw new Error("Production promotion requires the selected chart provider's generic server-only secret binding");
 }
 const requiredChartIntervals = packageManifest.onchain_chart_provider?.required_intervals || [];
 if (!requiredChartIntervals.includes("1m") || Number(packageManifest.onchain_chart_provider?.one_minute_minimum_useful_bars) < 120) {

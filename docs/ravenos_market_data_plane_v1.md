@@ -20,7 +20,7 @@ The base-chart precedence is:
 6. a last-good response matching exact provider, market, orientation, decimals, and timeframe, visibly marked degraded, where policy permits;
 7. no chart.
 
-The development evaluation order is currently `dexpaprika,coingecko_onchain`. A CoinGecko key does not silently select CoinGecko. Production has no selected provider and cannot be promoted until commercial rights, exact-pool coverage, rate behavior, and the server-side production binding have been verified.
+The default unconfigured evaluation order remains `dexpaprika,coingecko_onchain`, but this preview explicitly selects `coingecko_onchain` with plan `demo` through the generic provider contract. The existing parent variable `COINGECKO_API_KEY` is read only by the local validation helper and mapped to `ONCHAIN_CHART_PROVIDER_SECRET`; key presence alone does not change provider authority inside the Worker. Production has no selected provider and cannot be promoted until commercial rights, exact-pool coverage, rate behavior, and the server-side production binding have been verified.
 
 Every market advertised as chart-ready must provide a useful one-minute series. The release matrix requires at least 120 real provider-backed `1m` bars for every representative chart-ready anchor. No `30s` candle contract is required, and RavenOS does not derive `1m` from sub-minute observations. A market can remain discoverable while its one-minute chart is unavailable.
 
@@ -58,7 +58,7 @@ Published claims and live RavenOS probes are deliberately separated. Pricing and
 | Hyperliquid native | Exact venue contract for supported perps | Native history plus WebSocket candles, tape, book, funding, and OI | Existing venue-specific adapter | Venue terms govern | Authoritative perp feed |
 | Atlas listed-market projection | Exact listing/instrument ID | Protected provider-backed equity/ETF history | Existing bounded current-origin contract | Existing Atlas/Tradier server-side boundary | Authoritative listed-market feed |
 | [DexPaprika](https://docs.dexpaprika.com/introduction) | Network plus exact pool; published coverage includes Solana, Base, Ethereum, and Robinhood | Up to 366 rows per request; native `1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `6h`, `12h`, `24h`; RavenOS derives `4h` from `1h` and maps `1d` to `24h`; bounded polling for active views | Current pricing page advertises 200k anonymous requests/month at 30/min, 500k registered Free, and Pro at $99/month for 5M requests; response headers and 429s remain runtime authority | [Terms effective 2026-07-14](https://dexpaprika.com/api/terms) restrict Free to development, testing, and support; commercial use requires a non-Free plan. Visible exact `Powered by DexPaprika` attribution is required | Integrated first in the development bake-off; not production-qualified |
-| [CoinGecko Onchain](https://docs.coingecko.com/reference/pool-ohlcv-contract-address) | Network plus exact pool and base/quote orientation; broad advertised network coverage | Up to 1,000 bars/call; backward pagination; required RavenOS intervals documented; paid REST and WebSocket options | Analyst pricing and limits vary by contract; keyless GeckoTerminal throttling was reproduced | Attribution and redistribution/product-delivery rights require plan-specific confirmation | Retained as an optional exact-market fallback/challenger, not selected by key presence |
+| [CoinGecko Onchain](https://docs.coingecko.com/reference/pool-ohlcv-contract-address) | Network plus exact pool and base/quote orientation; keyed Demo was verified on the selected Solana, Base, and Ethereum pools | Up to 1,000 bars/call; backward pagination; all required RavenOS intervals exercised; provider-defined empty intervals requested explicitly | [Demo authentication](https://docs.coingecko.com/demo/reference/authentication) uses the Demo host and `x-cg-demo-api-key`; anonymous [keyless GeckoTerminal](https://docs.coingecko.com/docs/keyless-public-api) remains diagnostic-only | Demo is treated as noncommercial evaluation. Basic or higher still requires applicable commercial/product-display rights and attribution confirmation | Explicit preview provider; technically passed the full anchor matrix, not production-qualified |
 | [Codex](https://docs.codex.io/api-reference/queries/getbars) | Exact pair plus network ID | Up to 1,500 points; GraphQL bar subscription | Growth advertises high request and WebSocket limits; SLA is plan-dependent | Executed product and redistribution rights must be confirmed | Strong challenger; not integrated in this pass |
 | [Birdeye](https://docs.birdeye.so/reference/get-defi-v3-ohlcv-pair) | Exact pair plus chain header | Up to 5,000 records and pair/token OHLCV streaming | Compute-unit billing and plan-specific rate limits | Product-use and attribution rights need vendor confirmation | Strong Solana/EVM challenger; not integrated in this pass |
 | Moralis | Exact wallet/token/pair facts on supported chains | Existing private holder-distribution enrichment and related wallet surfaces; not selected as the chart authority | Existing Free integration is budget-bounded in Raven | Private Raven credential is not a RavenOS browser credential or blanket production license | Keep for wallet/holder facts; evaluate chart OHLCV only if it independently wins the fixed matrix |
@@ -74,14 +74,14 @@ Provider plan numbers are operational estimates, not a procurement decision. The
 |---|---|---|---|---|---|---|
 | Exact pool/contract identity | Verified on Solana, Base, Ethereum, and Robinhood | Verified on Solana, Base, Ethereum | Documented pair + network query | Documented pair + chain header | Verified private exact wallet/token facts; pair OHLCV remains a challenger | Verified discovery/current pair identity |
 | Historical depth | Maximum 366 source rows/call; density varies by pool | Up to 1,000/call documented | Up to 1,500 documented | Up to 5,000 documented | Endpoint/plan dependent | No documented history |
-| Required intervals | Native `1m`, `5m`, `15m`, `1h`, `1d`; derived bounded `4h` | Required set documented | Exact set needs trial | Broad set documented | No native `15m` in prior audit | Not applicable |
+| Required intervals | Native `1m`, `5m`, `15m`, `1h`, `1d`; derived bounded `4h` | Verified `1m`, `5m`, `15m`, `1h`, `4h`, and `1d` on three exact pools | Exact set needs trial | Broad set documented | No native `15m` in prior audit | Not applicable |
 | Backward window | `start` required, `end` optional; bounded by adapter | `before_timestamp` | Time-bounded query | `time_from` / `time_to` | Endpoint dependent | Not applicable |
 | Live transition | Bounded server polling; no provider stream proven | Paid REST and WebSocket documented | Subscription documented | WebSocket documented | Exact-pair stream not proven | Current-state HTTP only |
 | Liquidity/volume | Pool metadata plus OHLCV volume verified | Pool metadata plus OHLCV volume | Documented | Documented | Holder/wallet metrics are the intended role | Current liquidity/volume verified |
 | Pool migration | New pool remains a new exact instrument | Same RavenOS rule | Same RavenOS rule | Same RavenOS rule | Not chart authority | May discover a replacement but cannot switch selection |
 | Duplicate/out-of-order handling | Normalized, sorted, deduplicated before render | Same canonical normalizer | Required | Required | Required if evaluated | Discovery ranking only |
-| Cloudflare fit | Anonymous server-side adapter and cache verified | Server-only optional secret adapter verified | Technically suitable; not integrated | Technically suitable; not integrated | Private Raven integration; no browser exposure | Worker discovery adapter operating |
-| Commercial readiness | Free explicitly development-only; paid terms and capacity not yet qualified | License/plan not verified | Not verified | Not verified | Existing private use only | Not the candle source |
+| Cloudflare fit | Anonymous server-side adapter and cache verified | Generic server-only secret adapter verified with keyed Demo; secret absent from payloads | Technically suitable; not integrated | Technically suitable; not integrated | Private Raven integration; no browser exposure | Worker discovery adapter operating |
+| Commercial readiness | Free explicitly development-only; paid terms and capacity not yet qualified | Demo is evaluation-only; production requires an explicitly qualified commercial plan and binding | Not verified | Not verified | Existing private use only | Not the candle source |
 
 No provider becomes chart-ready because a marketing page names a chain. An exact anchor must pass identity, depth, interval, freshness, failure, rate, and rights checks.
 
@@ -95,16 +95,35 @@ No provider becomes chart-ready because a marketing page names a chain. An exact
 - Same-provider interval derivation is limited to `5m → 15m`, `15m → 1h`, `1h → 4h`, and `1h → 1d`. These are the only mappings that passed representative exact-pool comparison. `1m → 5m` is explicitly prohibited because representative pools showed incomplete source buckets and material volume disagreement.
 - Every completed derived bucket must contain every expected lower-interval bar. A currently forming bucket is accepted only when it begins at the exact UTC boundary and all received source bars are contiguous. Missing source intervals remain missing; RavenOS never interpolates, forward-fills, or manufactures OHLCV.
 - Provider or derivation transitions validate exact pool, selected/quote orientation, token decimals, timestamps, open/close continuity, volume semantics, duplicate/conflicting rows, missing buckets, and freshness before data is applied. A failed transition degrades the feed without switching identity.
-- A release-enforced Worker never uses the anonymous GeckoTerminal endpoint as production capacity. CoinGecko fallback requires the server-only Pro binding in a packaged release.
+- A release-enforced Worker never uses the anonymous GeckoTerminal endpoint as production capacity. CoinGecko Demo uses the generic server-only binding only in development and isolated preview; production requires an explicitly commercial plan and the same generic binding.
 - One minute is a native-provider requirement. RavenOS does not downsample a `30s` source, upsample a sparse Raven observation, or relabel a monthly series as `1m`.
 - A pool migration is a new exact market. RavenOS never silently moves a selected chart to the replacement pool.
 - A last-good rescue must match provider, network, exact pool, token orientation, and timeframe and must remain visibly degraded.
 - A discoverable market may be unchartable. A chartable market may still be non-routeable and non-executable.
 - Raw provider payloads and provider secrets never enter browser responses.
 
-## Live anchor observations
+## Keyed CoinGecko Demo anchor matrix
 
-Read-only probes from the Raven host on 2026-07-22 produced these representative results. Counts are observations, not guarantees.
+The full noncommercial evaluation matrix completed at `2026-07-22T17:00:36Z` with zero failures. The Worker used `ONCHAIN_CHART_PROVIDER=coingecko`, plan `demo`, the generic server-only secret binding, the protected current-origin adapter for SPY, and no keyless application fallback. Counts are observations from that run, not availability guarantees.
+
+| Exact market | 1m | 5m | 15m | 1h | 4h | 1d | Result |
+|---|---:|---:|---:|---:|---:|---:|---|
+| RETIRE/SOL, Solana pool `6Hfa…7gtw` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
+| cbBTC/USDC, Base pool `0x4e96…E778` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
+| WETH/USDC, Ethereum pool `0x88e6…5640` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
+| RUNNER/WETH, Robinhood Chain pool `0x6026…E6a9` | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | Expected unavailable: selected provider has no Robinhood network route; no alternate pool or provider was substituted |
+| SOL-PERP, Hyperliquid | 480 | 480 | 289 | 337 | 127 | 181 | Native venue matrix passed |
+| SPY, exact NYSE Arca ETF | 480 | 355 | 119 | 148 | 42 | 125 | Protected listed-market matrix passed |
+
+CoinGecko's `include_empty_intervals=true` semantics are explicit in lineage: when a provider interval has no trade, CoinGecko may return the previous close with zero volume. RavenOS does not invent or interpolate those bars. An inactive exact pool can therefore render a truthful dense but flat chart rather than sparse Raven observation dots.
+
+The listed-market source appends a flat, zero-volume live quote at provider observation time. The public adapter now deterministically folds that quote into the current interval, or aligns it to the immediately following interval when appropriate. It does not fill intermediate history. That repair made SPY's full `1m` through `1d` matrix pass while retaining exact listing identity and observation time.
+
+Chart readiness is now per exact market. Search reports `probe_required` when the selected provider has a viable 1m and 1h request route, and `unavailable` when it does not. Only a validated candle response may report `verified_current` or `verified_with_visible_staleness`; a static chain mapping is not advertised as proof.
+
+### Prior DexPaprika bake-off observations
+
+Earlier read-only probes from the Raven host on 2026-07-22 produced these representative DexPaprika results. They remain useful provider-comparison evidence but do not describe the explicitly selected CoinGecko Demo preview.
 
 | Anchor | DexPaprika result | Qualification consequence |
 |---|---|---|
@@ -114,9 +133,9 @@ Read-only probes from the Raven host on 2026-07-22 produced these representative
 | RUNNER/WETH, Robinhood Chain pool `0x6026…E6a9` | Exact address search and pool resolution; 101 `15m` and 30 `1h` rows on a market only about 37 hours old in the final validation run | Search gap is repaired and history is appropriate to market age; still requires production terms/capacity qualification |
 | Unregistered network | No registry mapping | May be discoverable, but chart support fails explicitly |
 
-### One-minute gate
+### Prior one-minute gate
 
-The evaluation run at 2026-07-22 16:10 UTC added `1m` to every applicable anchor rather than treating it as an optional UI control.
+The earlier evaluation run at 2026-07-22 16:10 UTC added `1m` to every applicable anchor rather than treating it as an optional UI control. Its failures were specific to the prior DexPaprika-plus-keyless diagnostic configuration and are superseded for the current keyed Demo preview by the complete matrix above.
 
 | Anchor | One-minute result | Production consequence |
 |---|---|---|
@@ -127,7 +146,7 @@ The evaluation run at 2026-07-22 16:10 UTC added `1m` to every applicable anchor
 | RUNNER/WETH Robinhood Chain | DexPaprika returned fewer than 120 usable `1m` bars and some rows omitted required volume; CoinGecko has no registered Robinhood adapter | Failed closed |
 | SPY Atlas | Not exercised by the public validator process because its server-only origin binding was intentionally absent | Source and contract tests pass; production-equivalent origin probe remains required |
 
-The listed-market adapter also had a casing defect that collapsed `1m` and `1M`. The source now preserves `1m` as Yahoo's one-minute/5-day request and `1M` as a monthly/10-year request, and the public-origin consumer validates candle spacing against the requested interval. The running private origin was not restarted during this pass.
+The listed-market adapter also had a casing defect that collapsed `1m` and `1M`. The source preserves `1m` as Yahoo's one-minute/5-day request and `1M` as a monthly/10-year request. The public-origin consumer additionally normalizes the provider's trailing zero-volume live quote and validates the resulting candle spacing against the requested interval. Validation used an isolated current-source origin; no production service was restarted.
 
 DexPaprika requires lowercase EVM pool addresses on the OHLCV path in current live behavior; the adapter normalizes those requests. Pool detail accepts broader casing. That provider-specific quirk never changes canonical identity.
 
@@ -162,7 +181,8 @@ Attribution does not establish commercial permission. It satisfies a presentatio
 ## Cost and operating implications
 
 - DexPaprika Free carries no API-key setup cost and is appropriate for the current development bake-off, but its terms prohibit commercial production use. Current Pro list pricing begins at $99/month; actual RavenOS rights and capacity must be confirmed before selection.
-- CoinGecko remains a fallback/challenger. Purchasing it is not required merely because the adapter supports `COINGECKO_PRO_API_KEY`.
+- CoinGecko Demo is the explicitly selected development/preview provider. The current parent `COINGECKO_API_KEY` is mapped locally to the provider-neutral secret contract; it is never shipped as a browser variable. The full six-interval matrix used approximately one bounded OHLCV request per exact pool/interval plus cached identity requests, which is appropriate for zero-traffic evaluation but is not a production-capacity model.
+- `COINGECKO_PRO_API_KEY` remains a compatibility input only, not the architectural release contract. Production uses `ONCHAIN_CHART_PROVIDER`, `ONCHAIN_CHART_PROVIDER_PLAN`, `ONCHAIN_CHART_PROVIDER_COMMERCIAL`, and `ONCHAIN_CHART_PROVIDER_SECRET`.
 - Cloudflare caches coalesce identical exact-market requests and retain a bounded same-market rescue. They reduce calls but do not make an insufficient or prohibited provider production-safe.
 - Active views currently use bounded polling. At scale, one shared upstream subscription per exact market/timeframe may be preferable; that requires a measured stateful-fanout cost model.
 - Hyperliquid and Atlas remain independent, so an on-chain provider outage must not collapse perp or listed-market surfaces.
@@ -176,7 +196,7 @@ The development integration is real, exact-identity preserving, and useful for p
 
 1. written/contractual commercial product-display and normalized-delivery rights;
 2. a selected paid plan and explicit server-side production binding;
-3. fixed-anchor coverage and density across every advertised chart-ready chain;
+3. fixed-anchor coverage and density across every exact market advertised as chart-ready; unsupported markets remain discoverable with an explicit unavailable state;
 4. at least 120 provider-backed one-minute bars for every advertised chart-ready anchor, with `1m` and `1M` proven distinct;
 5. measured rate/429, latency, cache, and outage behavior at expected concurrency;
 6. isolated Cloudflare preview validation using the exact staged release artifact;

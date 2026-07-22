@@ -201,10 +201,16 @@ test("release packaging carries the versioned on-chain provider gate without har
   const source = readFileSync("scripts/package-release.mjs", "utf8");
   assert.match(source, /onchain_chart_provider: releaseConfig\.onchain_chart_provider/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER/);
+  assert.match(source, /ONCHAIN_CHART_PROVIDER_SECRET/);
   assert.doesNotMatch(source, /required_server_secret_bindings:[\s\S]{0,200}COINGECKO_PRO_API_KEY/);
   const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
   assert.equal(releaseConfig.onchain_chart_provider.contract_version, "ravenos.onchain_chart_provider_registry.v1");
   assert.deepEqual(releaseConfig.onchain_chart_provider.evaluation_provider_order, ["dexpaprika", "coingecko_onchain"]);
+  assert.equal(releaseConfig.onchain_chart_provider.preview_provider, "coingecko");
+  assert.equal(releaseConfig.onchain_chart_provider.preview_provider_plan, "demo");
+  assert.equal(releaseConfig.onchain_chart_provider.preview_provider_commercial, false);
+  assert.equal(releaseConfig.onchain_chart_provider.provider_secret_binding, "ONCHAIN_CHART_PROVIDER_SECRET");
+  assert.equal(releaseConfig.onchain_chart_provider.keyless_application_fallback_allowed, false);
   assert.equal(releaseConfig.onchain_chart_provider.production_promotion_eligible, false);
   assert.ok(releaseConfig.onchain_chart_provider.production_blockers.includes("one_minute_anchor_matrix_incomplete"));
   assert.ok(releaseConfig.onchain_chart_provider.required_intervals.includes("1m"));

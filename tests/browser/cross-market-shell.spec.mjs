@@ -457,7 +457,7 @@ test("token-name search ranks chartable active pools ahead of unsupported inacti
   const results = page.locator(".ros-command-result.instrument");
   await expect(results).toHaveCount(2);
   await expect(results.nth(0)).toContainText("Spot · Solana");
-  await expect(results.nth(0)).toContainText("chart ready");
+  await expect(results.nth(0)).toContainText("chart coverage checked on open");
   await expect(results.nth(1)).toContainText("Spot · Abstract");
   await expect(results.nth(1)).toContainText("chart unavailable");
 });
@@ -521,14 +521,14 @@ test("contract-address search resolves a provider-backed Robinhood Chain chart w
   await expect(result).toBeVisible();
   await expect(result).toContainText("Spot · Robinhood");
   await expect(result).toContainText("The Runner");
-  await expect(result).toContainText("chart ready");
+  await expect(result).toContainText("chart coverage checked on open");
   await result.click();
 
   await expect(page).toHaveURL(/instrument_id=robinhood%3Apool%3A0x602633/i);
   await expect(page.locator("#terminalInstrument")).toHaveText("RUNNER/WETH");
   await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText("chart available");
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText("exact chart verified");
   await expect(page.locator("#terminalChartStatus")).not.toContainText(/unavailable/i);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());

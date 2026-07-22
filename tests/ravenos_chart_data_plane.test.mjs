@@ -84,8 +84,23 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   const robinhood = resolveChartCapability({ market: "crypto_spot", chain: "robinhood", instrumentType: "spot_pool", pairAddress: "0xPool", timeframe: "15m" });
   assert.equal(robinhood.discovery_supported, true);
   assert.equal(robinhood.chart_ready, true);
+  assert.equal(robinhood.chart_request_supported, true);
+  assert.equal(robinhood.advertised_chart_ready, false);
+  assert.equal(robinhood.exact_market_verification, "probe_required");
   assert.equal(robinhood.history_provider, "dexpaprika");
   assert.equal(robinhood.provider_network, "robinhood");
+  const robinhoodViaCoinGecko = resolveChartCapability({
+    market: "crypto_spot",
+    chain: "robinhood",
+    instrumentType: "spot_pool",
+    pairAddress: "0xPool",
+    timeframe: "15m",
+    providerId: "coingecko_onchain",
+  });
+  assert.equal(robinhoodViaCoinGecko.chart_ready, false);
+  assert.equal(robinhoodViaCoinGecko.chart_request_supported, false);
+  assert.equal(robinhoodViaCoinGecko.history_provider, "coingecko_onchain");
+  assert.equal(robinhoodViaCoinGecko.provider_network, null);
 });
 
 test("on-chain provider selection is explicit and not inferred from a CoinGecko key", () => {
@@ -94,6 +109,7 @@ test("on-chain provider selection is explicit and not inferred from a CoinGecko 
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.required_for_every_advertised_chart_ready_market, true);
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.subminute_derivation, false);
   assert.deepEqual(onchainChartProviderOrder({ COINGECKO_PRO_API_KEY: "present-but-not-authoritative" }), ["dexpaprika", "coingecko_onchain"]);
+  assert.deepEqual(onchainChartProviderOrder({ ONCHAIN_CHART_PROVIDER: "coingecko" }), ["coingecko_onchain"]);
   assert.deepEqual(onchainChartProviderOrder({ RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain,dexpaprika" }), ["coingecko_onchain", "dexpaprika"]);
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.production_promotion_eligible, false);
 });
@@ -191,17 +207,43 @@ test("candle and exact-market continuity reject conflicting duplicates, orientat
 });
 
 test("release-enforced on-chain chart capacity forbids the keyless GeckoTerminal runtime", () => {
-  const blocked = onchainProviderRuntime("coingecko_onchain", { RAVENOS_RELEASE_ENFORCE: "1" });
+  const applicationBlocked = onchainProviderRuntime("coingecko_onchain", {});
+  assert.equal(applicationBlocked.runtime_allowed, false);
+  assert.equal(applicationBlocked.runtime_block_reason, "keyless_geckoterminal_application_fallback_forbidden");
+  const diagnostic = onchainProviderRuntime("coingecko_onchain", { RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1" });
+  assert.equal(diagnostic.runtime_allowed, true);
+  assert.equal(diagnostic.provider_tier, "geckoterminal_keyless_diagnostic");
+  const blocked = onchainProviderRuntime("coingecko_onchain", {
+    RAVENOS_RELEASE_ENFORCE: "1",
+    RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
+  });
   assert.equal(blocked.runtime_allowed, false);
   assert.equal(blocked.runtime_block_reason, "keyless_geckoterminal_forbidden_in_release");
   assert.equal(blocked.base_url, "https://api.geckoterminal.com/api/v2");
+  const demo = onchainProviderRuntime("coingecko_onchain", {
+    RAVENOS_RELEASE_ENFORCE: "1",
+    ONCHAIN_CHART_PROVIDER: "coingecko",
+    ONCHAIN_CHART_PROVIDER_PLAN: "demo",
+    ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
+    ONCHAIN_CHART_PROVIDER_SECRET: "server-only-demo-test-value",
+  });
+  assert.equal(demo.runtime_allowed, true);
+  assert.equal(demo.provider_tier, "coingecko_demo");
+  assert.equal(demo.base_url, "https://api.coingecko.com/api/v3/onchain");
+  assert.equal(demo.request_headers["x-cg-demo-api-key"], "server-only-demo-test-value");
+  assert.equal(demo.commercial_state, "noncommercial_evaluation");
   const qualified = onchainProviderRuntime("coingecko_onchain", {
     RAVENOS_RELEASE_ENFORCE: "1",
-    COINGECKO_PRO_API_KEY: "server-only-test-value",
+    ONCHAIN_CHART_PROVIDER: "coingecko",
+    ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+    ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+    ONCHAIN_CHART_PROVIDER_SECRET: "server-only-test-value",
   });
   assert.equal(qualified.runtime_allowed, true);
-  assert.equal(qualified.provider_tier, "coingecko_pro");
+  assert.equal(qualified.provider_tier, "coingecko_basic");
   assert.equal(qualified.base_url, "https://pro-api.coingecko.com/api/v3/onchain");
+  assert.equal(qualified.request_headers["x-cg-pro-api-key"], "server-only-test-value");
+  assert.equal(qualified.commercial_configured, true);
 });
 
 test("DexPaprika normalizes exact EVM pool identity and emits bounded USD candles without raw payload leakage", async () => {
@@ -223,7 +265,7 @@ test("DexPaprika normalizes exact EVM pool identity and emits bounded USD candle
   }));
   try {
     globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
-    globalThis.fetch = async (input) => {
+    globalThis.fetch = async (input, init = {}) => {
       const url = new URL(String(input?.url || input));
       if (url.hostname === "api.dexpaprika.com" && url.pathname.endsWith("/ohlcv")) {
         assert.ok(url.pathname.includes(normalizedPair));
@@ -443,7 +485,7 @@ test("insufficient DexPaprika history falls through to the next exact-pool provi
   const geckoRows = Array.from({ length: 120 }, (_, index) => [latest - ((119 - index) * 900), 1, 1.1, 0.9, 1, 1]);
   try {
     globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
-    globalThis.fetch = async (input) => {
+    globalThis.fetch = async (input, init = {}) => {
       const url = String(input?.url || input);
       if (url.includes("api.dexpaprika.com") && url.includes("/ohlcv?")) return new Response(JSON.stringify(paprikaRows), { status: 200 });
       if (url.includes("api.dexpaprika.com")) return new Response(JSON.stringify({
@@ -454,12 +496,19 @@ test("insufficient DexPaprika history falls through to the next exact-pool provi
         quote_token_id: quoteAddress,
         tokens: [{ id: quoteAddress, symbol: "USDC" }, { id: tokenAddress, symbol: "TEST" }],
       }), { status: 200 });
-      if (url.includes("geckoterminal.com") && url.includes("/ohlcv/")) return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: geckoRows } } }), { status: 200 });
-      if (url.includes("geckoterminal.com")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "base", pairAddress, baseAddress: tokenAddress, quoteAddress })), { status: 200 });
+      if (url.includes("api.coingecko.com/api/v3/onchain")) {
+        assert.equal(init.headers?.["x-cg-demo-api-key"], "server-only-demo-test-value");
+        if (url.includes("/ohlcv/")) return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: geckoRows } } }), { status: 200 });
+        return new Response(JSON.stringify(geckoPoolIdentity({ network: "base", pairAddress, baseAddress: tokenAddress, quoteAddress })), { status: 200 });
+      }
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {});
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER_PLAN: "demo",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
+      ONCHAIN_CHART_PROVIDER_SECRET: "server-only-demo-test-value",
+    });
     const body = await response.json();
     const payload = body.data || body;
     assert.equal(payload.ok, true);
@@ -499,6 +548,7 @@ test("CoinGecko fallback verifies the selected token and quote before requesting
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=WRONG%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=0x7878787878787878787878787878787878787878&quote_address=${quoteAddress}`), {
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
     });
     const body = await response.json();
     const payload = body.data || body;
@@ -546,6 +596,9 @@ test("DexPaprika discovery resolves the supplied Robinhood Chain contract when D
     assert.equal(body.results[0].pairAddress, pairAddress);
     assert.equal(body.results[0].tokenAddress, tokenAddress);
     assert.equal(body.results[0].provider, "DexPaprika");
+    assert.equal(body.results[0].chart_coverage.state, "probe_required");
+    assert.equal(body.results[0].chart_coverage.request_supported, true);
+    assert.equal(body.results[0].chart_coverage.exact_market_verified, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -556,6 +609,48 @@ test("one-minute and one-month intervals remain distinct", () => {
   assert.equal(timeframeSeconds("1M"), 2_592_000);
   assert.equal(hyperliquidInterval("1m"), "1m");
   assert.equal(hyperliquidInterval("1M"), "1M");
+});
+
+test("search reports per-provider exact-market coverage without silently switching providers", async () => {
+  const originalFetch = globalThis.fetch;
+  const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
+  const pairAddress = "0x602633428507bbaa848e6d0c3127cda15eeae6a9";
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("api.dexpaprika.com/search")) return new Response(JSON.stringify({
+        pools: [{
+          id: pairAddress,
+          chain: "robinhood",
+          dex_id: "uniswap_v3",
+          volume_usd: 135_000,
+          transactions: 837,
+          tokens: [
+            { id: "0x0bd7d308f8e1639fab988df18a8011f41eacad73", name: "WETH", symbol: "WETH" },
+            { id: tokenAddress, name: "The Runner", symbol: "RUNNER" },
+          ],
+        }],
+      }), { status: 200 });
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify(url.includes("/tokens/v1/") ? [] : { pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "demo",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
+      ONCHAIN_CHART_PROVIDER_SECRET: "fixture-only",
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].chart_coverage.provider_id, "coingecko_onchain");
+    assert.equal(body.results[0].chart_coverage.provider_plan, "demo");
+    assert.equal(body.results[0].chart_coverage.state, "unavailable");
+    assert.equal(body.results[0].chart_coverage.request_supported, false);
+    assert.equal(body.results[0].chart_coverage.one_minute_request_supported, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("exact EVM contract search discovers provider-listed chains without substituting another token", async () => {
@@ -906,7 +1001,10 @@ test("exact-pool provider throttling uses only an explicitly degraded verified r
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=ExactPool&token_address=ExactMint"), { RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain" });
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=ExactPool&token_address=ExactMint"), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
+    });
     assert.equal(response.status, 200);
     const body = await response.json();
     const payload = body.data || body;
@@ -947,7 +1045,10 @@ test("exact-pool freshness separates provider observation time from candle bucke
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=FRESH%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=FreshPool&token_address=FreshMint"), { RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain" });
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=FRESH%2FSOL&timeframe=1h&limit=240&chain=solana&pair_address=FreshPool&token_address=FreshMint"), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
+    });
     assert.equal(response.status, 200);
     const body = await response.json();
     const payload = body.data || body;
@@ -982,6 +1083,7 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
       if (url.includes("pro-api.coingecko.com")) {
         assert.equal(init.headers["x-cg-pro-api-key"], secret);
         if (!url.includes("/ohlcv/")) return new Response(JSON.stringify(geckoPoolIdentity({ network: "eth", pairAddress, baseAddress: tokenAddress, quoteAddress: "0xcccccccccccccccccccccccccccccccccccccccc" })), { status: 200 });
+        assert.equal(new URL(url).searchParams.get("include_empty_intervals"), "true");
         return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [
           [now, 2, 2.2, 1.9, 2.1, 12],
           [now - 60, 1.9, 2.1, 1.8, 2, 10],
@@ -993,8 +1095,10 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
       throw new Error(`Unexpected test request: ${url}`);
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=1m&limit=240&chain=ethereum&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
-      COINGECKO_PRO_API_KEY: secret,
-      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: secret,
     });
     const responseText = await response.text();
     assert.doesNotMatch(responseText, new RegExp(secret));
@@ -1002,7 +1106,10 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     const payload = body.data || body;
     assert.equal(payload.ok, true);
     assert.equal(payload.source, "CoinGecko Onchain");
-    assert.equal(payload.lineage.provider_tier, "coingecko_pro");
+    assert.equal(payload.lineage.provider_tier, "coingecko_basic");
+    assert.equal(payload.lineage.provider_plan, "basic");
+    assert.equal(payload.lineage.commercial_state, "commercial_configured_unverified");
+    assert.equal(payload.lineage.empty_interval_policy, "provider_previous_close_zero_volume");
     assert.equal(payload.candles.length, 3);
     assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
     assert.equal(payload.candles.some((candle) => candle.close === 99), false);
@@ -1058,6 +1165,7 @@ test("dense provider OHLCV remains the base series while Raven observations atta
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FUSDC&timeframe=15m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
     });
     const body = await response.json();
     const payload = body.data || body;
@@ -1121,6 +1229,7 @@ test("Raven-native token aggregate remains distinct from exact-pool identity", a
     const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RAVEN%2FSOL&timeframe=5m&limit=240&chain=solana&pair_address=ExactPool&token_address=MintA&quote_address=QuoteA&instrument_scope=token_aggregate"), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
     });
     assert.equal(response.status, 200);
     const body = await response.json();
@@ -1169,6 +1278,7 @@ test("provider-history failure rejects Raven observations as substitute candles"
     const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FWETH&timeframe=5m&limit=240&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222&quote_address=0x3333333333333333333333333333333333333333"), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
+      RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
     });
     const body = await response.json();
     const payload = body.data || body;

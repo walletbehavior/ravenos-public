@@ -76,6 +76,12 @@ cpSync(join(repoRoot, "worker.mjs"), join(bundleRoot, "worker.mjs"));
 cpSync(join(repoRoot, "ravenos-chart-data-plane.js"), join(bundleRoot, "ravenos-chart-data-plane.js"));
 cpSync(join(repoRoot, "lib"), join(bundleRoot, "lib"), { recursive: true });
 
+const chartProviderConfig = releaseConfig.onchain_chart_provider || {};
+const productionChartProvider = chartProviderConfig.production_promotion_eligible === true;
+const runtimeChartProvider = productionChartProvider ? chartProviderConfig.production_provider : chartProviderConfig.preview_provider;
+const runtimeChartPlan = productionChartProvider ? chartProviderConfig.production_provider_plan : chartProviderConfig.preview_provider_plan;
+const runtimeChartCommercial = productionChartProvider ? chartProviderConfig.production_provider_commercial : chartProviderConfig.preview_provider_commercial;
+
 const releaseWrangler = {
   name: baseWrangler.name,
   main: "worker.mjs",
@@ -100,7 +106,10 @@ const releaseWrangler = {
     RAVENOS_STATIC_ASSET_MANIFEST_SHA256: release.static_asset_manifest_sha256,
     RAVENOS_PUBLIC_ORIGIN_CONTRACT_VERSION: release.public_origin_contract_version,
     RAVENOS_PUBLIC_ORIGIN_URL: releaseConfig.public_origin.base_url,
-    RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: (releaseConfig.onchain_chart_provider?.evaluation_provider_order || []).join(","),
+    RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: (chartProviderConfig.evaluation_provider_order || []).join(","),
+    ONCHAIN_CHART_PROVIDER: runtimeChartProvider || "",
+    ONCHAIN_CHART_PROVIDER_PLAN: runtimeChartPlan || "",
+    ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
   },
 };
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
@@ -122,7 +131,8 @@ const packageManifest = {
   worker_name: baseWrangler.name,
   required_server_secret_bindings: [
     "RAVENOS_PUBLIC_ORIGIN_TOKEN",
-    "RAVENOS_SPOT_CHART_ORIGIN_TOKEN"
+    "RAVENOS_SPOT_CHART_ORIGIN_TOKEN",
+    chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET"
   ],
   promotion_requires_explicit_authorization: true,
   rebuild_after_staging_permitted: false,

@@ -1630,9 +1630,9 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
   const beforeSeconds = chartBeforeSeconds(before);
   const runtime = onchainProviderRuntime(providerId, env);
   if (!runtime.runtime_allowed) throw new Error(runtime.runtime_block_reason || "coingecko_runtime_forbidden");
-  const proKey = runtime.credential_present;
+  const credentialedProvider = runtime.credential_present;
   const providerTier = runtime.provider_tier;
-  const providerName = proKey ? runtime.label : runtime.public_label;
+  const providerName = credentialedProvider ? runtime.label : runtime.public_label;
   const providerBaseUrl = runtime.base_url;
   const cacheKey = `gecko:${providerTier}:${network}:${pool}:${tokenAddress || "base"}:${timeframe}:${beforeSeconds || "latest"}:${requestedLimit}`;
   const cached = cacheGet(terminalChartCache, cacheKey);
@@ -1668,7 +1668,7 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
           limit: String(requestedLimit),
           currency: "usd",
           token: identity.token_parameter,
-          include_empty_intervals: "false",
+          include_empty_intervals: credentialedProvider ? "true" : "false",
         });
         if (beforeSeconds) params.set("before_timestamp", String(beforeSeconds));
         const url = `${providerBaseUrl}/networks/${encodeURIComponent(network)}/pools/${encodeURIComponent(pool)}/ohlcv/${spec.providerTimeframe}?${params.toString()}`;
@@ -1755,7 +1755,7 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
             older_bar_backfill: true,
             live_bars: true,
             live_trades: false,
-            live_poll_interval_ms: proKey ? 10_000 : 20_000,
+            live_poll_interval_ms: Number(runtime.refresh_seconds || 60) * 1_000,
             liquidity: true,
             order_book: false,
             funding: false,
@@ -1806,12 +1806,17 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
             fallback_event: false,
             active_viewer_signal: 1,
             active_viewer_measurement: "request_signal_only",
-            projected_cost_state: runtime.credential_present ? "plan_contract_required" : "evaluation_only",
+            projected_cost_state: runtime.provider_plan === "demo"
+              ? "demo_monthly_budget"
+              : runtime.commercial_configured ? "commercial_plan_configured" : "evaluation_only",
             projected_provider_requests_per_active_refresh: 1,
           },
           lineage: {
             provider: providerName,
             provider_tier: providerTier,
+            provider_plan: runtime.provider_plan,
+            commercial_state: runtime.commercial_state,
+            empty_interval_policy: credentialedProvider ? "provider_previous_close_zero_volume" : "excluded",
             network,
             pool_address: pool,
             token_address: identity.selected_token_address,
@@ -1866,6 +1871,7 @@ function publicProviderFailure(error) {
   if (message.includes("identity")) return "identity_rejected";
   if (message.includes("ohlcv_continuity_rejected")) return "candle_continuity_rejected";
   if (message.includes("keyless_geckoterminal_forbidden")) return "production_capacity_forbidden";
+  if (message.includes("keyless_geckoterminal_application_fallback_forbidden") || message.includes("provider_secret_missing")) return "provider_configuration_unavailable";
   if (message.includes("malformed") || message.includes("invalid")) return "invalid_provider_response";
   return "unavailable";
 }
@@ -1924,6 +1930,17 @@ async function fetchOnchainPoolCandles(options = {}) {
       }
       return {
         ...payload,
+        chart_readiness: {
+          schema_version: "ravenos.exact_market_chart_readiness.v1",
+          state: payload.freshness_state === "fresh" ? "verified_current" : "verified_with_visible_staleness",
+          exact_market_verified: true,
+          provider_id: providerId,
+          timeframe: payload.timeframe || options.timeframe || null,
+          bars: Array.isArray(payload.candles) ? payload.candles.length : 0,
+          one_minute_requirement: (payload.timeframe || options.timeframe) === "1m"
+            ? (Array.isArray(payload.candles) && payload.candles.length >= 120 ? "verified" : "insufficient_depth")
+            : "not_evaluated_by_this_request",
+        },
         provider_usage: {
           ...(payload.provider_usage || {}),
           fallback_event: attempts.length > 0,
@@ -2618,6 +2635,42 @@ async function resolveDexInput(input) {
   if (pair) return pairDex(pair[1], pair[2]);
   const settled = await Promise.allSettled([searchDex(q), searchDexPaprika(q)]);
   return mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : []));
+}
+
+function onchainSearchChartCoverage(row = {}, env = {}) {
+  let providerId = null;
+  let runtime = null;
+  try {
+    providerId = onchainChartProviderOrder(env)[0] || null;
+    runtime = providerId ? onchainProviderRuntime(providerId, env) : null;
+  } catch {
+    providerId = null;
+  }
+  const input = {
+    market: "crypto_spot",
+    chain: row.chainId,
+    instrumentType: "spot_pool",
+    pairAddress: row.pairAddress,
+    providerId: providerId || "",
+  };
+  const minute = resolveChartCapability({ ...input, timeframe: "1m" });
+  const hour = resolveChartCapability({ ...input, timeframe: "1h" });
+  const requestSupported = minute.chart_request_supported === true && hour.chart_request_supported === true;
+  return {
+    schema_version: "ravenos.search_chart_coverage.v1",
+    state: requestSupported ? "probe_required" : "unavailable",
+    exact_market_verified: false,
+    request_supported: requestSupported,
+    one_minute_required: true,
+    one_minute_request_supported: minute.chart_request_supported === true,
+    one_hour_request_supported: hour.chart_request_supported === true,
+    provider_id: providerId,
+    provider_plan: runtime?.provider_plan || null,
+    provider_runtime_state: runtime?.runtime_allowed ? "configured" : "unavailable",
+    reason: requestSupported
+      ? "Exact-pool coverage is verified when this market is opened."
+      : minute.unavailable_reason || hour.unavailable_reason || "No selected provider route is available for this exact market.",
+  };
 }
 
 // Legacy wallet-address access and billing scaffolding is intentionally
@@ -3813,12 +3866,15 @@ async function routeApi(request, env) {
   }
   if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {
+      const results = (await resolveDexInput(url.searchParams.get("q") || ""))
+        .slice(0, 30)
+        .map((row) => ({ ...row, chart_coverage: onchainSearchChartCoverage(row, env) }));
       return json({
         ok: true,
         schema_version: "ravenos.onchain_market_search.v1",
         providers: ["DexScreener", "DexPaprika"],
         attribution: { label: "Powered by DexPaprika", url: "https://dexpaprika.com/" },
-        results: (await resolveDexInput(url.searchParams.get("q") || "")).slice(0, 30),
+        results,
       });
     } catch (error) {
       return json({ ok: false, error: "onchain_market_search_unavailable", results: [] }, { status: 502 });

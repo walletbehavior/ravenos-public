@@ -71,8 +71,14 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
       maximum_bars_per_request: 1000,
       live_mechanism: "bounded_server_poll",
-      commercial_state: "license_unverified",
-      production_state: "blocked_pending_plan_rights_and_binding_verification",
+      attribution_required: true,
+      attribution_label: "Data provided by CoinGecko",
+      evaluation_plan: "demo",
+      evaluation_state: "keyed_server_side_preview",
+      commercial_minimum_plan: "basic_or_higher",
+      keyless_application_fallback: false,
+      commercial_state: "demo_noncommercial_evaluation",
+      production_state: "blocked_pending_commercial_plan_and_rights_verification",
     },
     hyperliquid_native: {
       responsibilities: ["historical_ohlcv", "live_ohlcv", "book", "tape", "funding", "open_interest"],
@@ -164,6 +170,8 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     return {
       schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
       chart_ready: provider.intervals.includes(cleanTimeframe),
+      chart_request_supported: provider.intervals.includes(cleanTimeframe),
+      exact_market_verification: "venue_native",
       exact_identity_required: true,
       historical_candles_supported: true,
       live_candles_supported: true,
@@ -180,6 +188,8 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     return {
       schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
       chart_ready: provider.intervals.includes(cleanTimeframe),
+      chart_request_supported: provider.intervals.includes(cleanTimeframe),
+      exact_market_verification: "exact_listing",
       exact_identity_required: true,
       historical_candles_supported: true,
       live_candles_supported: false,
@@ -197,6 +207,8 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     return {
       schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
       chart_ready: false,
+      chart_request_supported: false,
+      exact_market_verification: "unavailable",
       discovery_supported: true,
       historical_candles_supported: false,
       live_candles_supported: false,
@@ -212,10 +224,9 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
   const exactIdentity = Boolean(text(pairAddress));
   const intervalSupported = record.intervals.includes(cleanTimeframe);
   const requestedProvider = text(providerId).toLowerCase();
-  const selectedProvider = requestedProvider && record.provider_order?.includes(requestedProvider)
-    ? requestedProvider
-    : record.provider_order?.[0] || record.history_provider;
+  const selectedProvider = requestedProvider || record.provider_order?.[0] || record.history_provider;
   const providerNetwork = record.provider_networks?.[selectedProvider] || null;
+  const requestSupported = Boolean(exactIdentity && providerNetwork && record.historical_candles_supported && intervalSupported);
   return {
     schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
     ...record,
@@ -225,7 +236,13 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     history_provider: selectedProvider,
     live_provider: selectedProvider,
     exact_market_id: exactIdentity ? `${cleanNetwork}:${text(pairAddress)}` : null,
-    chart_ready: Boolean(exactIdentity && providerNetwork && record.historical_candles_supported && intervalSupported),
+    // For on-chain pools this means the exact provider request can be made. A
+    // market becomes chart-ready only after that exact pool returns validated
+    // candles; search surfaces must not advertise this static route as proof.
+    chart_ready: requestSupported,
+    chart_request_supported: requestSupported,
+    advertised_chart_ready: false,
+    exact_market_verification: requestSupported ? "probe_required" : "unavailable",
     exact_identity_required: true,
     exact_identity_available: exactIdentity,
     unavailable_reason: !exactIdentity
