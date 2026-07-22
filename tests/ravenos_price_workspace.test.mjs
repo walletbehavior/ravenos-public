@@ -26,8 +26,9 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /RavenOSPriceWorkspace\?\.create/);
   assert.doesNotMatch(`${terminal}\n${terminalRuntime}`, /Local structure fallback|feature_flag_off|RAVENOS_LIGHTWEIGHT_CHART_SPIKE|samplePrices|perpsInputVector|replayMatches|pressureComposition/);
   assert.doesNotMatch(terminal, /v=__RAVENOS_BUILD_ID__/);
-  assert.match(terminal, /data-ravenos-build-id>pending/);
-  assert.match(terminal, /Synthetic fallback<\/span><strong>None/);
+  assert.match(terminal, /data-ravenos-build-id[^>]*>pending/);
+  assert.match(terminalRuntime, /No fallback market state was generated/);
+  assert.doesNotMatch(terminal, /Synthetic fallback/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
 });
 

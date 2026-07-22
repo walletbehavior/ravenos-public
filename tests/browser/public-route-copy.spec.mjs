@@ -73,6 +73,11 @@ const badPrimaryCopy = [
   /\bGenerated\b/i,
   /\bAfter Window\b/i,
   /\bObserved surfaces\b/i,
+  /Evidence version/i,
+  /Public artifact verified/i,
+  /Projection loading/i,
+  /Required contract/i,
+  /\b(?:migration|checkpoint|adapter|internal)\b/i,
 ];
 
 for (const route of ["/brief/", "/opportunity/", "/memory/", "/behavior/", "/outcomes/", "/replay/"]) {
@@ -104,7 +109,9 @@ test("/perps/ renders a trader-facing live market workspace", async ({ page }) =
 
 test("/terminal/ renders trader-facing primary copy", async ({ page }) => {
   await page.goto("/terminal/");
-  await expect(page.locator("#terminalModeSelect")).toBeVisible();
+  await expect(page.locator("#terminalInstrumentTrigger")).toBeVisible();
+  await expect(page.locator("#terminalModeSelect")).toBeHidden();
+  await expect(page.locator("#terminalInstrument")).not.toHaveText("");
   const rendered = await visibleBodyText(page);
   for (const pattern of badPrimaryCopy) {
     expect(rendered).not.toMatch(pattern);
@@ -122,27 +129,29 @@ for (const route of ["/faq/", "/research/"]) {
   });
 }
 
-test("/opportunity/ renders the current Census with exact perp identity and aggregate-only spot coverage", async ({ page }) => {
+test("/opportunity/ renders current exact markets without engineering inventory", async ({ page }) => {
   await page.goto("/opportunity/");
   await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
   await expect(page.locator("#routeHeroSummary")).toContainText(/Raven froze|Raven preserved/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/Current exact-instrument review queue/i);
-  expect(primary).toMatch(/Decision → path → outcome continuity/i);
-  expect(primary).toMatch(/Hyperliquid perpetuals/i);
-  expect(primary).toMatch(/Solana spot[\s\S]*aggregate coverage only/i);
-  expect(primary).toMatch(/EVM spot[\s\S]*aggregate coverage only/i);
-  expect(primary).toMatch(/Research only · signing off · submission off · monitoring off/i);
-  expect(primary).toMatch(/not ranked trades, orders, or personalized plans/i);
+  expect(primary).toMatch(/Current exact markets/i);
+  expect(primary).toMatch(/Exact, current, or unavailable/i);
+  expect(primary).toMatch(/Exact market required/i);
+  expect(primary).toMatch(/Older observations do not substitute/i);
+  expect(primary).toMatch(/Research only/i);
+  expect(primary).not.toMatch(/Census|admission joins|current cycle|market samples/i);
   expect(primary).not.toMatch(/buy now|sell now|guaranteed/i);
   expect(primary).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
   expect(await page.locator("#routePrimaryPanel tbody tr").count()).toBeGreaterThan(0);
+  const terminalLink = page.locator('#routePrimaryPanel a[href^="/terminal/"]').first();
+  await expect(terminalLink).toHaveAttribute("href", /asset=[A-Z0-9._-]+-PERP/);
+  await expect(terminalLink).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3A[A-Z0-9._-]+/);
 });
 
 test("/replay/ refuses to fabricate similarity without as-of comparable lineage", async ({ page }) => {
   await page.goto("/replay/");
-  await expect(page.locator("#routeHeadline")).toContainText(/Historical comparable lineage is not yet projected/i);
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/No fabricated analogue rows/i);
+  await expect(page.locator("#routeHeadline")).toContainText(/Similar history is unavailable/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/No invented analogues/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(primary).toMatch(/Synthetic similarity[\s\S]*None/i);
   expect(primary).toMatch(/Current outcomes substituted[\s\S]*No/i);
@@ -154,8 +163,8 @@ test("/replay/ refuses to fabricate similarity without as-of comparable lineage"
 test("/replay/ explicit unavailable state stays contained on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/replay/");
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/As-of comparable projection is still missing/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/What must exist before Replay turns on/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/cannot reconstruct a comparable case/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/What Raven needs before showing similar history/i);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });
@@ -173,7 +182,7 @@ test("research surfaces its stale unavailable contract without a cached narrator
 test("account status exposes no synthetic session, entitlement, or billing controls", async ({ page }) => {
   await page.goto("/account/");
   await expect(page.getByRole("heading", { name: "Customer accounts are not available yet." })).toBeVisible();
-  await expect(page.locator("#rosActivityDetail")).toContainText(/Static account boundary/i);
+  await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal], [data-access-check]")).toHaveCount(0);
   const text = await visibleBodyText(page);
@@ -184,7 +193,7 @@ test("account status exposes no synthetic session, entitlement, or billing contr
 test("commercial status publishes no price, checkout, or invented tier", async ({ page }) => {
   await page.goto("/pricing/");
   await expect(page.getByRole("heading", { name: "Commercial access is not open yet." })).toBeVisible();
-  await expect(page.locator("#rosActivityDetail")).toContainText(/Static commercial boundary/i);
+  await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
   const text = await visibleBodyText(page);
   expect(text).toMatch(/No prices · no checkout · no entitlement claims · no customer execution/i);
@@ -193,8 +202,9 @@ test("commercial status publishes no price, checkout, or invented tier", async (
 
 test("Terminal keeps wallet context separate from customer access", async ({ page }) => {
   await page.goto("/terminal/");
-  await expect(page.locator(".terminal-continuity")).toContainText(/Customer session[\s\S]*Not configured/i);
-  await expect(page.locator(".terminal-intelligence")).toContainText(/Wallet[\s\S]*Optional context only/i);
+  await expect(page.locator(".terminal-continuity, .ros-capability-status")).toHaveCount(0);
+  await expect(page.locator("#terminalBoundary")).toContainText(/No order can be signed or sent/i);
+  await expect(page.locator(".terminal-intelligence")).toContainText(/Trade review/i);
   await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"]')).toHaveCount(0);
   const text = await visibleBodyText(page);
@@ -216,10 +226,41 @@ test("/outcomes/ mobile funnel stays compact and preserves the lesson", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/outcomes/");
   await expect(page.locator("#routePrimaryPanel")).toContainText(/Live observations are not outcomes/i);
-  const compactCards = await page.locator(".outcome-funnel-compact .route-card").count();
+  const funnel = page.locator(".outcome-funnel-compact");
+  await expect(funnel).toBeVisible();
+  const compactCards = await funnel.locator(".route-card").count();
   expect(compactCards).toBeGreaterThanOrEqual(6);
-  const box = await page.locator(".outcome-funnel-compact").boundingBox();
-  expect(box.height).toBeLessThanOrEqual(520);
+  const height = await funnel.evaluate((node) => node.getBoundingClientRect().height);
+  expect(height).toBeLessThanOrEqual(520);
+});
+
+test("/behavior/ exposes aggregate participation with denominators and privacy boundaries", async ({ page }) => {
+  await page.goto("/behavior/");
+  await expect(page.locator(".behavior-focus")).toContainText(/Clearest supported aggregate/i);
+  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable/i);
+  await expect(page.locator(".participant-ledger")).toContainText(/Observed actors/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, relationship graph, ownership claim, or coordination claim is exposed/i);
+  const body = await visibleBodyText(page);
+  expect(body).toMatch(/Outcome status[\s\S]*Unproven/i);
+  expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
+});
+
+test("/memory/ treats recurrence as context rather than fabricated Replay", async ({ page }) => {
+  await page.goto("/memory/");
+  await expect(page.locator("#routeHeroSummary")).toContainText(/recurrence and persistence/i);
+  await expect(page.locator(".memory-family-row").first()).toContainText(/appearances/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Recurrence is not similarity, causality, or a forecast/i);
+  const body = await visibleBodyText(page);
+  expect(body).not.toMatch(/closest analogue|\d{1,3}% similarity/i);
+});
+
+test("/outcomes/ keeps missing movement metrics unavailable instead of coercing null to zero", async ({ page }) => {
+  await page.goto("/outcomes/");
+  await expect(page.locator(".outcome-distribution")).toContainText(/Confirmed[\s\S]*Mixed[\s\S]*Insufficient/i);
+  const rows = await page.locator(".route-settled-table tbody tr").allInnerTexts();
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.some((row) => /Unavailable/.test(row))).toBe(true);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/descriptive evidence, not capturable return/i);
 });
 
 test("/perps/ keeps live market context and chart controls contained on mobile", async ({ page }) => {
@@ -250,27 +291,33 @@ test("mobile route metadata is secondary before the read", async ({ page }) => {
   expect(evidenceHeight).toBeLessThanOrEqual(56);
 });
 
-test("/atlas/ routes to useful backed RavenOS context without pretending macro coverage", async ({ page }) => {
+test("/atlas/ explains an outage without inventing unsupported research", async ({ page }) => {
+  await page.route("**/api/atlas", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }),
+  }));
   await page.goto("/atlas/");
-  await expect(page.locator("h1")).toContainText(/Regime map/i);
+  await expect(page.locator("h1")).toContainText(/market around your market/i);
+  await expect(page.locator("#atlasProjectionState")).toHaveText("Unavailable");
+  await expect(page.locator("#atlasContent")).toContainText(/Broader-market context unavailable/i);
   const body = await visibleBodyText(page);
-  expect(body).toMatch(/Use Atlas as a regime router/i);
-  expect(body).toMatch(/Behavior.*Who is participating|Replay.*prior public structures|Perps.*Derivatives context|Outcomes.*earlier public reads/s);
-  expect(body).toMatch(/Broad macro regime.*Coverage developing|Cross-market confirmation.*Not inferred yet/s);
-  expect(body).not.toMatch(/internal product-boundary|placeholder/i);
+  expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);
+  expect(body).toMatch(/Raven opportunities, live perpetuals, and exact crypto charts remain available independently/i);
+  expect(body).not.toMatch(/Use Atlas as a regime router|placeholder company|sample options chain/i);
 });
 
 test("/outcomes/ frames observations and outcomes as a validation funnel", async ({ page }) => {
   await page.goto("/outcomes/");
   await expect(page.locator("#routeHeadline")).toContainText("Did earlier Raven reads follow through?");
-  await expect(page.locator("#routeHeroSummary")).toContainText("Live observations are not outcomes");
+  await expect(page.locator("#routeHeroSummary")).toContainText("Live observations remain open");
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(primary).toMatch(/Evidence observed/i);
   expect(primary).toMatch(/Reads under validation|Pending validation/i);
   expect(primary).toMatch(/Settled outcomes/i);
   expect(primary).toMatch(/Confirmed followthrough/i);
   expect(primary).toMatch(/Validation sample forming|Validation status/i);
-  expect(primary).toContain("Observations are raw market evidence");
+  expect(primary).toContain("Open observations are never counted as followthrough");
   expect(primary).not.toMatch(/Usable observations\s+\d+\s+Confirmed\s+\d+\s+Pending/i);
   expect(primary).not.toMatch(/claim details|settlement status|outcome rows|public proof rail|methodology IDs|source filenames/i);
 });
@@ -287,11 +334,11 @@ test("primary evidence strip uses trader-facing totals and window labels", async
   expect(bridge).not.toMatch(/Evidence bridge|Current reads, historical context, and settled validation use declared windows/i);
 });
 
-test("opportunity identity stays exact for perps while spot identities stay aggregate", async ({ page }) => {
+test("opportunity identity stays exact and unsupported spot markets are not inferred", async ({ page }) => {
   await page.goto("/opportunity/");
   await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/Solana spot[\s\S]*aggregate coverage only/i);
-  expect(primary).toMatch(/EVM spot[\s\S]*aggregate coverage only/i);
+  expect(primary).toMatch(/Exact market required/i);
+  expect(primary).not.toMatch(/Solana spot|EVM spot|aggregate coverage only/i);
   expect(primary).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 });

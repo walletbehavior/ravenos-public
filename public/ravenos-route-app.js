@@ -107,7 +107,13 @@ function traderText(value, fallback = FORMING_TEXT) {
     .replace(/^Current public research snapshot is forming while the latest completed cohort remains available\.?$/i, "Current research evidence is forming while the latest completed cohort remains available.")
     .replace(/^No completed live cohort yet; current observations remain in research sample forming state\.?$/i, "No completed live cohort yet; current observations are still in evidence-forming research state.")
     .replace(/^Research sample forming; latest completed cohort remains visible when available\.?$/i, "Research evidence is still forming; the latest completed cohort remains visible when available.")
+    .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
+    .replace(/^Raven froze a behavioral setup observation while (.+?) was present\.?$/i, "Market behavior changed while $1 remained visible.")
+    .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
+    .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")
     .replace(/\bOutcomes Unclear\b/gi, "similar conditions remain mixed")
+    .replace(/\bReplay\b/gi, "similar history")
+    .replace(/\bOutcomes\b/gi, "followthrough")
     .replace(/^Behavior rows are public aggregate observations\. Each row shows a declared window, usable sample, and unit so “constructive” or “mixed” is never detached from its denominator\.$/i, "Participation is measured across current market surfaces and refreshed as new observations arrive.")
     .replace(/^Settled validation currently reads mixed against the original Raven read\.?$/i, "Followthrough is mixed against the original Raven read.")
     .replace(/\bConclusion first, evidence second, methodology expandable\.?/gi, "Raven shows the read first, then what confirms or weakens it.")
@@ -156,11 +162,24 @@ function publicReadType(value, slug = routeConfig?.slug) {
 function memoryFamilyLabel(value, fallback = "Similar conditions remain mixed") {
   const raw = String(value || "").trim();
   if (!raw) return fallback;
+  if (/^thin_sample$/i.test(raw)) return "Thin evidence dominates";
+  if (/^broad_but_unconfirmed$/i.test(raw)) return "Broad participation, not confirmed";
+  if (/^high_risk_low_clarity$/i.test(raw)) return "High risk, low clarity";
+  if (/^mixed_signal_environment$/i.test(raw)) return "Mixed signal environment";
+  if (/^thin_but_improving$/i.test(raw)) return "Thin evidence, improving";
   if (/outcomes unclear/i.test(raw)) return titleCase(traderText(raw));
   if (/^outcomes unclear$/i.test(raw)) return "Similar conditions remain mixed";
   if (/^participation punishing$/i.test(raw)) return "Participation followthrough is weak";
   if (/^participation rewarding$/i.test(raw)) return "Participation is following through";
   return titleCase(raw);
+}
+
+function memoryConditionLabel(value) {
+  const raw = String(value || "")
+    .replace(/_(current|live|\d+h)$/i, "")
+    .replaceAll("_", " ")
+    .trim();
+  return traderSurfaceLabel(titleCase(raw || "market condition"));
 }
 
 function titleCase(value) {
@@ -193,6 +212,28 @@ function fmtPct(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return FORMING_TEXT;
   return `${num > 1 ? num.toFixed(2) : (num * 100).toFixed(2)}%`;
+}
+
+function fmtOptionalNumber(value, fallback = "Unavailable") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return fmtNumber(value);
+}
+
+function fmtOptionalPct(value, fallback = "Unavailable") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return fmtPct(value);
+}
+
+function fmtOptionalUsd(value, fallback = "Unavailable") {
+  if (value === null || value === undefined || value === "") return fallback;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: Math.abs(num) >= 1_000_000 ? "compact" : "standard",
+    maximumFractionDigits: Math.abs(num) >= 1_000_000 ? 1 : 0,
+  }).format(num);
 }
 
 function statusClass(status) {
@@ -296,7 +337,7 @@ function opportunitySpecificityNote(row = {}) {
   const chain = publicMarketLabel(scope.chain || row.chain || "");
   const capBand = String(scope.cap_band || "").replace(/_/g, " ");
   if (chain && capBand && !/live activity/i.test(capBand)) {
-    return `${chain} ${capBand} is the current public behavioral surface. Broader cap-band context remains visible in Behavior and Replay.`;
+    return `${chain} ${capBand} is the clearest current behavioral surface. Broader context remains available in participant activity and similar history.`;
   }
   if (chain) {
     return `${chain} activity is the current public behavioral surface; finer cap-band detail is coverage developing.`;
@@ -399,7 +440,7 @@ function getEvidenceContract(payload) {
       settlement_window: { label: "declared future-only windows" },
       population: { label: "observed Raven decision population" },
       weighting: { description: "independence-adjusted upstream" },
-      source: { public_label: "Raven Opportunity Census projection" },
+      source: { public_label: "Raven current opportunity read" },
       validation_status: "research only",
       artifact_version: census.contract?.public_projection_version || "1.0",
     };
@@ -442,7 +483,6 @@ function renderEvidenceStrip(payload) {
     validation: titleCase(contract?.validation_status || payload?.data?.validation_status || "pending"),
     artifact: text(contract?.artifact_version || payload?.schema_version || payload?.data?.artifact_version, "unversioned")
   };
-  document.querySelector('[data-evidence-field="role"]').textContent = detail.role;
   document.querySelector('[data-evidence-field="role"]').textContent = publicReadType(detail.role);
   const rawRole = document.querySelector('[data-evidence-field="raw_role"]');
   if (rawRole) rawRole.textContent = detail.role;
@@ -454,11 +494,13 @@ function renderEvidenceStrip(payload) {
   document.querySelector('[data-evidence-field="bridge"]').innerHTML = `<strong>Why reads can differ:</strong> ${escapeHtml(getEvidenceBridge(payload, routeConfig.slug))}`;
   document.querySelector('[data-evidence-field="settlement"]').textContent = detail.settlement;
   document.querySelector('[data-evidence-field="population"]').textContent = detail.population;
-  document.querySelector('[data-evidence-field="weighting"]').textContent = detail.weighting;
+  const weighting = document.querySelector('[data-evidence-field="weighting"]');
+  if (weighting) weighting.textContent = detail.weighting;
   document.querySelector('[data-evidence-field="source"]').textContent = detail.source;
   document.querySelector('[data-evidence-field="observed_settled"]').textContent = detail.observedSettled;
   document.querySelector('[data-evidence-field="validation"]').textContent = detail.validation;
-  document.querySelector('[data-evidence-field="artifact"]').textContent = detail.artifact;
+  const artifact = document.querySelector('[data-evidence-field="artifact"]');
+  if (artifact) artifact.textContent = detail.artifact;
 }
 
 function routeStateCard(label, value) {
@@ -645,6 +687,21 @@ function renderBrief(payload) {
   const data = payload?.data || {};
   const read = traderText(data.one_sentence_read, "Current market evidence is forming.");
   const actorEvidence = data.actor_evidence || {};
+  const selected = ravenOSContext.getState().subject;
+  const selectedLabel = selected.id === "unselected" ? "Market-wide brief" : `${selected.label} selected · market-wide brief`;
+  const warningLabels = {
+    helius_profile_thin: "Some participant profiles remain incomplete.",
+    outcome_pending: "Followthrough is still maturing.",
+    raw_wallet_redacted: "Participant identities remain aggregated for privacy.",
+    stale_sweep_dependency: "Part of this read depends on a delayed evidence sweep.",
+  };
+  const warnings = [...new Set((Array.isArray(data.warnings) ? data.warnings : []).slice(0, 4).map((item) => warningLabels[String(item || "").toLowerCase()] || "A source or maturity limitation remains attached to this read."))];
+  const structuredThesis = `${titleCase(data.participation_quality || "forming")} participation. ${titleCase(data.outcome_status || "unproven")} followthrough.`;
+  const changeRows = [
+    ["Participation", data.participation_change, "No current participation delta was projected."],
+    ["Pressure", data.pressure_change, "No current pressure delta was projected."],
+    ["Reward", data.reward_change, "No current outcome delta was projected."],
+  ];
   document.getElementById("routeHeadline").textContent = read;
   document.getElementById("routeHeroSummary").textContent = traderText(
     data.public_read_label || actorEvidence.public_read_label,
@@ -659,27 +716,43 @@ function renderBrief(payload) {
     routeStateCard("Outcome state", titleCase(data.outcome_status || "unproven")),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Raven read</div><h2>Decision context, not a signal feed</h2></div><span class="route-pill ${statusClass(data.outcome_status)}">${escapeHtml(titleCase(data.outcome_status || "unproven"))}</span></div>
-    <p class="route-summary">${escapeHtml(read)}</p>
-    <div class="route-card-grid dense route-ledger-grid" style="margin-top:12px;">
-      ${summaryMetric("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label, "Actor evidence is forming."))}
-      ${summaryMetric("Participation quality", titleCase(data.participation_quality || "forming"))}
-      ${summaryMetric("Outlier dependence", titleCase(data.outlier_dependency || "not measured"))}
-      ${summaryMetric("Actor-backed moves", fmtNumber(data.actor_backed_big_moves))}
-      ${summaryMetric("10% path events", fmtNumber(data.actual_mfe10_count))}
-      ${summaryMetric("25% path events", fmtNumber(data.actual_mfe25_count))}
-    </div>
-    <div class="route-next"><a class="primary" href="/opportunity/">Open current opportunities</a><a href="/perps/">Open live Perps</a><a href="/outcomes/">Audit outcomes</a></div>
+    <article class="brief-document">
+      <header class="brief-document-head">
+        <div><span>Raven / current market brief</span><small>${escapeHtml(selectedLabel)}</small></div>
+        <span class="route-pill ${statusClass(data.outcome_status)}">${escapeHtml(titleCase(data.outcome_status || "unproven"))}</span>
+      </header>
+      <section class="brief-thesis">
+        <span>Evidence posture</span>
+        <h2>${escapeHtml(structuredThesis)}</h2>
+        <p>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Raven is preserving the current evidence state while the next path matures."))}</p>
+      </section>
+      <section class="brief-change-grid" aria-label="What changed">
+        ${changeRows.map(([label, value, fallback]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(traderText(value, fallback))}</strong></article>`).join("")}
+      </section>
+      <section class="brief-ledger" aria-label="Brief evidence ledger">
+        <div><span>Participation quality</span><strong>${escapeHtml(titleCase(data.participation_quality || "forming"))}</strong></div>
+        <div><span>Actor evidence</span><strong>${escapeHtml(`${fmtNumber(data.actor_count)} observed · ${fmtNumber(data.repeat_actor_count)} repeat`)}</strong></div>
+        <div><span>Cohort context</span><strong>${escapeHtml(`${fmtNumber(data.cohort_count)} aggregate cohorts`)}</strong></div>
+        <div><span>Outlier dependence</span><strong>${escapeHtml(titleCase(data.outlier_dependency || "not measured"))}</strong></div>
+        <div><span>10% path events</span><strong>${escapeHtml(fmtNumber(data.actual_mfe10_count))}</strong></div>
+        <div><span>25% path events</span><strong>${escapeHtml(fmtNumber(data.actual_mfe25_count))}</strong></div>
+      </section>
+      <footer class="brief-actions"><a class="primary" href="/discover/">Open Discover</a><a href="${escapeHtml(ravenOSContext.decorateHref("/terminal/"))}">Inspect selected instrument</a><a href="/outcomes/">Review followthrough</a></footer>
+    </article>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Evidence pulse</div><h2>What is actually connected</h2></div></div>
-    <div class="route-continuity-list">
-      <div><span>Observation</span><strong>Timestamped market state</strong><small>${escapeHtml(fmtWhen(data.generated_at || payload.generated_at))}</small></div>
-      <div><span>Participation</span><strong>${escapeHtml(`${fmtNumber(data.actor_count)} actors / ${fmtNumber(data.cohort_count)} cohorts`)}</strong><small>Aggregate identities only</small></div>
-      <div><span>Independence</span><strong>Adjusted upstream</strong><small>Raw relationship graphs remain private</small></div>
-      <div><span>Outcome</span><strong>${escapeHtml(titleCase(data.outcome_status || "unproven"))}</strong><small>Open evidence is not relabeled as settled</small></div>
-    </div>
-    <p class="route-caveat">${escapeHtml((data.warnings || []).length ? `${data.warnings.length} source or maturity limitations remain attached to this read.` : "No public warning is attached to this read.")}</p>
+    <aside class="brief-notes">
+      <header><span>Read boundary</span><h2>What this brief can support</h2></header>
+      <dl>
+        <div><dt>Observed</dt><dd>${escapeHtml(fmtWhen(data.generated_at || payload.generated_at))}</dd></div>
+        <div><dt>Identity</dt><dd>Aggregate market and privacy-preserving actor context</dd></div>
+        <div><dt>Independence</dt><dd>Adjusted upstream; raw relationship graphs remain private</dd></div>
+        <div><dt>Outcome</dt><dd>${escapeHtml(titleCase(data.outcome_status || "unproven"))}; open evidence is not relabeled as settled</dd></div>
+        <div><dt>Execution</dt><dd>Research only · signing and submission unavailable</dd></div>
+      </dl>
+      <section><span>Limitations attached to this read</span>${warnings.length ? `<ul>${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p>No public warning is attached to this read.</p>`}</section>
+      <p class="brief-context-note">An exact instrument may be carried into this view for continuity, but the Brief remains market-wide. RavenOS does not fabricate an instrument-specific brief from aggregate evidence.</p>
+    </aside>
   `;
 }
 
@@ -706,29 +779,51 @@ function opportunityReviewLabel(row = {}) {
   return `${fmtNumber(favorable)}% favorable / ${fmtNumber(adverse)}% adverse`;
 }
 
+function opportunityTerminalHref(row = {}) {
+  const instrument = String(row.instrument || "").trim().toUpperCase();
+  const instrumentId = String(row.instrument_id || "").trim();
+  const coin = instrument.replace(/-PERP$/, "");
+  if (!coin || !instrument.endsWith("-PERP")) return "";
+  if (!["exact_instrument", "exact venue instrument"].includes(String(row.identity_scope || "").toLowerCase())) return "";
+  if (String(row.market_type || "") !== "perpetual") return "";
+  if (String(row.venue || "").toLowerCase() !== "hyperliquid") return "";
+  if (instrumentId !== `hyperliquid:perp:${coin}`) return "";
+  if (row.source_join?.census_row_joined !== true) return "";
+  const params = new URLSearchParams({
+    asset: instrument,
+    instrument_id: instrumentId,
+    instrument_type: "perpetual",
+    asset_class: "crypto",
+    identity_scope: "exact_instrument",
+    venue: "hyperliquid",
+    market: "perp",
+    quote: "USD",
+    settlement: "USDC",
+    cash: "USDC",
+    numeraire: "USDC",
+  });
+  return `/terminal/?${params.toString()}`;
+}
+
 function renderOpportunityCensus(payload, census) {
   const population = census.population || {};
-  const cycle = census.current_cycle || {};
   const opportunitySet = census.opportunities || {};
   const rows = Array.isArray(opportunitySet.rows) ? opportunitySet.rows : [];
   const top = rows[0] || null;
   const topFamily = top?.raven_atoms?.[0] || "decision context";
-  const exactJoinCount = rows.filter((row) => row.source_join?.census_row_joined === true).length;
   const headline = top
     ? `${top.instrument} · ${topFamily}`
     : "Current opportunity rows are unavailable.";
   const summary = top
     ? top.why_raven_noticed || `Raven preserved a ${String(topFamily).toLowerCase()} observation on ${top.instrument}.`
-    : "The connected Opportunity Census is visible at aggregate level, but no current exact-instrument row is safe to publish.";
+    : "Raven has current aggregate market coverage, but no exact market can be shown.";
   document.getElementById("routeHeadline").textContent = headline;
   document.getElementById("routeHeroSummary").textContent = summary;
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Census", titleCase(census.source_state || "unavailable")),
-    routeStateCard("Decision observations", fmtNumber(population.decision_observations)),
-    routeStateCard("Tracked paths", fmtNumber(population.tracked_forward_paths)),
-    routeStateCard("Matured windows", fmtNumber(population.matured_path_windows)),
-    routeStateCard("Public rows", fmtNumber(rows.length)),
-    routeStateCard("Exact admission joins", fmtNumber(exactJoinCount)),
+    routeStateCard("Current read", titleCase(census.source_state || "unavailable")),
+    routeStateCard("Exact markets", fmtNumber(rows.length)),
+    routeStateCard("Historical comparisons", fmtNumber(population.complete_matured_paths)),
+    routeStateCard("Updated", fmtWhen(census.generated_at)),
   ].join("");
 
   const rowMarkup = rows.map((row) => {
@@ -737,23 +832,23 @@ function renderOpportunityCensus(payload, census) {
     const pressure = text(row.pressure_state, "Pressure unavailable");
     const family = row.raven_atoms?.[0] || "Behavior forming";
     const context = titleCase(row.context_state || "unavailable");
-    const join = row.source_join?.census_row_joined === true ? "Exact decision join" : "Instrument context";
-    const href = `/perps/?asset=${encodeURIComponent(instrument)}`;
+    const join = row.source_join?.census_row_joined === true ? "Exact market" : "Market context only";
+    const href = opportunityTerminalHref(row);
     return `<tr>
-      <td><a class="route-market-link" href="${href}"><strong>${escapeHtml(instrument)}</strong><span>${escapeHtml(fmtWhen(row.decision_at))}</span></a></td>
+      <td>${href ? `<a class="route-market-link" href="${escapeHtml(href)}"><strong>${escapeHtml(instrument)}</strong><span>${escapeHtml(fmtWhen(row.decision_at))}</span></a>` : `<div class="route-market-link"><strong>${escapeHtml(instrument)}</strong><span>Exact identity unavailable</span></div>`}</td>
       <td><span class="route-pill ${statusClass(row.context_state)}">${escapeHtml(context)}</span><small>${escapeHtml(join)}</small></td>
-      <td><strong>${escapeHtml(family)}</strong><span>${escapeHtml(text(row.why_raven_noticed, "Decision context preserved."))}</span></td>
+      <td><strong>${escapeHtml(family)}</strong><span>${escapeHtml(traderText(row.why_raven_noticed, "Decision context preserved."))}</span></td>
       <td><strong>${escapeHtml(direction)}</strong><span>${escapeHtml(pressure)}</span></td>
       <td><strong>${escapeHtml(opportunityEvidenceLabel(row))}</strong><span>${escapeHtml(opportunityReviewLabel(row))}</span></td>
-      <td><a class="route-open-link" href="${href}">Inspect →</a></td>
+      <td>${href ? `<a class="route-open-link" href="${escapeHtml(href)}">Open Terminal →</a>` : `<span class="route-pill unavailable">Unavailable</span>`}</td>
     </tr>`;
   }).join("");
   const mobileCard = (row) => {
     const instrument = text(row.instrument, "Unavailable");
-    const href = `/perps/?asset=${encodeURIComponent(instrument)}`;
+    const href = opportunityTerminalHref(row);
     return `<article class="route-mobile-card route-opportunity-card">
-      <header><div><span>${escapeHtml(titleCase(row.context_state || "unavailable"))}</span><h3>${escapeHtml(instrument)}</h3></div><a href="${href}">Inspect →</a></header>
-      <p>${escapeHtml(text(row.why_raven_noticed, "Decision context preserved."))}</p>
+      <header><div><span>${escapeHtml(titleCase(row.context_state || "unavailable"))}</span><h3>${escapeHtml(instrument)}</h3></div>${href ? `<a href="${escapeHtml(href)}">Terminal →</a>` : `<span>Unavailable</span>`}</header>
+      <p>${escapeHtml(traderText(row.why_raven_noticed, "Decision context preserved."))}</p>
       <dl><div><dt>Behavior</dt><dd>${escapeHtml(row.raven_atoms?.[0] || "Forming")}</dd></div><div><dt>Pressure</dt><dd>${escapeHtml(text(row.pressure_state, "Unavailable"))}</dd></div><div><dt>Evidence</dt><dd>${escapeHtml(opportunityEvidenceLabel(row))}</dd></div></dl>
     </article>`;
   };
@@ -763,32 +858,20 @@ function renderOpportunityCensus(payload, census) {
     : "";
 
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Raven Opportunities</div><h2>Current exact-instrument review queue</h2></div><span class="route-pill ${statusClass(census.source_state)}">${escapeHtml(titleCase(census.source_state || "unavailable"))}</span></div>
-    <p class="route-copy">This is a bounded research projection. Rows are current Raven decision contexts; they are not ranked trades, orders, or personalized plans.</p>
-    ${rows.length ? `<div class="route-table-wrap route-opportunity-table"><table class="route-table"><thead><tr><th>Instrument</th><th>State</th><th>Why Raven noticed</th><th>Direction / pressure</th><th>Comparable evidence</th><th></th></tr></thead><tbody>${rowMarkup}</tbody></table></div><div class="route-mobile-card-list">${mobileRows}${mobileMore}</div>` : `<div class="route-unavailable"><strong>No public opportunity rows</strong><p>The aggregate Census remains visible below. Raven will not fill this queue with synthetic instruments.</p></div>`}
+    <div class="route-panel-head"><div><div class="route-chip-label">Why now</div><h2>Current exact markets</h2></div><span class="route-pill ${statusClass(census.source_state)}">${escapeHtml(titleCase(census.source_state || "unavailable"))}</span></div>
+    ${top ? `<section class="opportunity-focus"><div><span>Strongest current signal</span><h3>${escapeHtml(top.instrument)}</h3><p>${escapeHtml(summary)}</p></div><dl><div><dt>Path</dt><dd>${escapeHtml(titleCase(top.path_review?.state || top.context_state || "unavailable"))}</dd></div><div><dt>Pressure</dt><dd>${escapeHtml(text(top.pressure_state, "Unavailable"))}</dd></div><div><dt>Evidence</dt><dd>${escapeHtml(opportunityEvidenceLabel(top))}</dd></div><div><dt>Identity</dt><dd>${escapeHtml(top.instrument_id || "Unavailable")}</dd></div></dl>${opportunityTerminalHref(top) ? `<a href="${escapeHtml(opportunityTerminalHref(top))}">Inspect exact market →</a>` : `<span class="route-pill unavailable">Exact market unavailable</span>`}</section>` : ""}
+    <p class="route-copy">Research only. A current signal is not an order, recommendation, or personalized plan.</p>
+    ${rows.length ? `<div class="route-table-wrap route-opportunity-table"><table class="route-table"><thead><tr><th>Instrument</th><th>State</th><th>Why Raven noticed</th><th>Direction / pressure</th><th>Similar history</th><th></th></tr></thead><tbody>${rowMarkup}</tbody></table></div><div class="route-mobile-card-list">${mobileRows}${mobileMore}</div>` : `<div class="route-unavailable"><strong>No exact opportunities can be shown</strong><p>Raven will not fill this view with older or invented markets.</p></div>`}
   `;
 
-  const coverage = Array.isArray(census.coverage) ? census.coverage : [];
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Connected Census</div><h2>Decision → path → outcome continuity</h2></div></div>
-    <div class="route-card-grid dense route-ledger-grid">
-      ${summaryMetric("Decision observations", fmtNumber(population.decision_observations))}
-      ${summaryMetric("Market samples", fmtNumber(population.market_samples))}
-      ${summaryMetric("Paths with evidence", fmtNumber(population.paths_with_evidence))}
-      ${summaryMetric("Matured path windows", fmtNumber(population.matured_path_windows))}
-      ${summaryMetric("Complete matured paths", fmtNumber(population.complete_matured_paths))}
-      ${summaryMetric("Behavior-linked outcomes", fmtNumber(population.behavior_linked_outcomes))}
+    <div class="route-panel-head"><div><div class="route-chip-label">Why a market can be missing</div><h2>Exact, current, or unavailable</h2></div></div>
+    <div class="route-continuity-list">
+      <div><span>Identity</span><strong>Exact market required</strong><small>No inferred pool, listing, or contract</small></div>
+      <div><span>Recency</span><strong>A fresh market read is required</strong><small>Older observations do not substitute</small></div>
+      <div><span>History</span><strong>Measured windows only</strong><small>Open observations remain open</small></div>
+      <div><span>Action</span><strong>Research only</strong><small>No signing or order submission</small></div>
     </div>
-    <div class="route-cycle-strip">
-      <span>Current cycle</span>
-      <strong>+${escapeHtml(fmtNumber(cycle.new_decision_observations))} decisions</strong>
-      <strong>+${escapeHtml(fmtNumber(cycle.new_market_samples))} samples</strong>
-      <strong>+${escapeHtml(fmtNumber(cycle.new_matured_path_windows))} matured windows</strong>
-      <strong>${escapeHtml(fmtNumber(cycle.independently_admitted_observations))} independently admitted</strong>
-    </div>
-    <div class="route-coverage-list">${coverage.map((item) => `<div><span>${escapeHtml(item.market_mode)}</span><strong>${escapeHtml(fmtNumber(item.decision_observations))}</strong><small>${escapeHtml(item.public_row_state || item.coverage_state || "Coverage developing")}</small></div>`).join("")}</div>
-    <div class="route-boundary"><span>Execution boundary</span><strong>Research only · signing off · submission off · monitoring off</strong></div>
-    <ul class="route-limitations">${(census.limitations || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
   `;
 }
 
@@ -809,23 +892,23 @@ function renderReplay(payload) {
   const data = payload?.data || {};
   const comparables = Array.isArray(data.comparables) ? data.comparables.slice(0, 6) : [];
   if (!comparables.length && (data.availability?.state === "unavailable" || data.status === "historical_comparables_unavailable")) {
-    document.getElementById("routeHeadline").textContent = "Historical comparable lineage is not yet projected.";
+    document.getElementById("routeHeadline").textContent = "Similar history is unavailable for this market.";
     document.getElementById("routeHeroSummary").textContent = text(
       data.availability?.reason,
-      "Replay remains unavailable until current as-of lineage can be projected without substituting present-day outcomes.",
+      "Similar history remains unavailable until Raven can reconstruct exactly what was known then without substituting present-day results.",
     );
     document.getElementById("routeStateStrip").innerHTML = [
-      routeStateCard("Replay", "Unavailable"),
+      routeStateCard("Similar history", "Unavailable"),
       routeStateCard("Synthetic similarity", data.availability?.synthetic_similarity_generated === false ? "None" : "Unknown"),
       routeStateCard("Current outcomes substituted", data.availability?.current_outcomes_substituted === false ? "No" : "Unknown"),
       routeStateCard("Available analogues", "0"),
     ].join("");
     document.getElementById("routePrimaryPanel").innerHTML = `
-      <div class="route-panel-head"><div><div class="route-chip-label">Replay unavailable</div><h2>No fabricated analogue rows</h2></div><span class="route-pill unavailable">Unavailable</span></div>
-      <div class="route-unavailable"><strong>As-of comparable projection is still missing</strong><p>${escapeHtml(text(data.availability?.reason, "Current historical comparable lineage is not available."))}</p></div>
-      <div class="route-next"><a class="primary" href="/outcomes/">Inspect measured outcomes</a><a href="/opportunity/">Return to current opportunities</a></div>`;
+      <div class="route-panel-head"><div><div class="route-chip-label">Similar history unavailable</div><h2>No invented analogues</h2></div><span class="route-pill unavailable">Unavailable</span></div>
+      <div class="route-unavailable"><strong>Raven cannot reconstruct a comparable case yet</strong><p>${escapeHtml(text(data.availability?.reason, "Current historical comparisons are not available."))}</p></div>
+      <div class="route-next"><a class="primary" href="/outcomes/">Inspect measured followthrough</a><a href="/opportunity/">Return to current opportunities</a></div>`;
     document.getElementById("routeSecondaryPanel").innerHTML = `
-      <div class="route-panel-head"><div><div class="route-chip-label">Required contract</div><h2>What must exist before Replay turns on</h2></div></div>
+      <div class="route-panel-head"><div><div class="route-chip-label">Why unavailable</div><h2>What Raven needs before showing similar history</h2></div></div>
       <div class="route-continuity-list">
         <div><span>Identity</span><strong>Same market and decision boundary</strong><small>No present-day backfill</small></div>
         <div><span>Time</span><strong>As-of evidence reconstruction</strong><small>Only evidence available then</small></div>
@@ -840,9 +923,9 @@ function renderReplay(payload) {
   const topOutcome = titleCase(top?.after_window_summary || FORMING_TEXT);
   const topMeaning = top
     ? `${fmtPct(top.similarity_score)} similarity means the current public structure matched prior ${comparableLabel(top)} conditions across ${matchReasons.length ? matchReasons.join(", ") : "available public context"}. Prior followthrough was ${topOutcome.toLowerCase()}. This supports historical context, not conviction or a forecast.`
-    : "Replay interpretation is forming because no comparable setup is currently available.";
+    : "Historical interpretation is forming because no comparable setup is currently available.";
   document.getElementById("routeHeadline").textContent = traderText(comparables[0]?.public_read, "Historical analogue context is forming.");
-  document.getElementById("routeHeroSummary").textContent = "Replay is historical analogue context. It explains what looked similar before and what followed, without turning analogue outcomes into forecasts.";
+  document.getElementById("routeHeroSummary").textContent = "Similar history explains what looked alike before and what followed, without turning prior results into a forecast.";
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Similar setups", fmtNumber(comparables.length)),
     routeStateCard("Closest match", top ? comparableLabel(top) : FORMING_TEXT),
@@ -853,7 +936,7 @@ function renderReplay(payload) {
     <div class="route-panel-head"><div><div class="route-chip-label">Historical comparison</div><h2>What Happened Before</h2></div></div>
     <article class="route-card route-interpretation-card" style="margin-bottom:12px;">
       <div class="route-metric-label">What this means</div>
-      <p class="route-summary">${escapeHtml(top ? `Replay supports context, not conviction. The current structure is highly similar to prior ${comparableLabel(top)} conditions, but prior followthrough was ${topOutcome.toLowerCase()}. Raven treats this as historical context until current behavior and path evidence strengthen.` : topMeaning)}</p>
+      <p class="route-summary">${escapeHtml(top ? `Similar history supports context, not conviction. The current structure resembles prior ${comparableLabel(top)} conditions, but prior followthrough was ${topOutcome.toLowerCase()}. Raven treats this as historical context until current behavior and path evidence strengthen.` : topMeaning)}</p>
     </article>
     <div class="route-card-grid" style="margin:12px 0;">
       ${summaryMetric("Closest analogue", top ? comparableLabel(top) : FORMING_TEXT)}
@@ -866,71 +949,174 @@ function renderReplay(payload) {
     }</tbody></table></div>
     <div class="route-next"><a class="primary" href="/opportunity/">Find markets with similar structure</a><a href="/memory/">Open Memory</a></div>
   `;
-  document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Caveat</div><h2>How To Use Replay</h2></div></div><p class="route-caveat">Replay similarity explains why prior structures are relevant. Check prior followthrough and match basis before treating an analogue as useful context. Similarity does not validate outcome or management path.</p>`;
+  document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">How to use it</div><h2>History is context, not conviction</h2></div></div><p class="route-caveat">Similarity explains why prior structures may be relevant. Check what matched and what followed before treating an analogue as useful context. Similarity does not validate the current outcome or management path.</p>`;
 }
 
 function renderMemory(payload) {
   const data = payload?.data || {};
-  const families = Object.entries(data.frequent_condition_families || {}).slice(0, 6);
-  document.getElementById("routeHeadline").textContent = memoryFamilyLabel(data.dominant_condition_family);
-  document.getElementById("routeHeroSummary").textContent = "Memory tracks how often this public structure repeats, whether it broadens, and when it remains unusual or unstable.";
+  const families = Object.entries(data.frequent_condition_families || {})
+    .map(([name, count]) => [name, Number(count) || 0])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const familyTotal = families.reduce((total, [, count]) => total + count, 0);
+  const persistent = Array.isArray(data.persistent_conditions) ? data.persistent_conditions.slice(0, 6) : [];
+  const transitions = Number(data.transition_frequency);
+  const transitionLabel = Number.isFinite(transitions) && transitions === 0
+    ? "No family transitions recorded"
+    : Number.isFinite(transitions)
+      ? `${fmtNumber(transitions)} transitions recorded`
+      : "Transition count unavailable";
+  const dominant = memoryFamilyLabel(data.dominant_condition_family);
+  document.getElementById("routeHeadline").textContent = `${dominant} in the recent memory window.`;
+  document.getElementById("routeHeroSummary").textContent = "Memory measures recurrence and persistence across recent public observations. It does not invent historical analogues or imply that repetition predicts the next move.";
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Most common pattern", memoryFamilyLabel(data.dominant_condition_family, FORMING_TEXT)),
+    routeStateCard("Most common condition", dominant),
     routeStateCard("Consistency trend", titleCase(data.consistency_trend || FORMING_TEXT)),
     routeStateCard("Condition stability", titleCase(data.condition_stability || FORMING_TEXT)),
-    routeStateCard("Window", data.window_hours ? `${fmtNumber(data.window_hours)}h` : FORMING_TEXT)
+    routeStateCard("Memory window", data.window_hours ? `${fmtNumber(data.window_hours)}h` : FORMING_TEXT),
+    routeStateCard("Family appearances", fmtNumber(familyTotal)),
+    routeStateCard("Transitions", Number.isFinite(transitions) ? fmtNumber(transitions) : "Unavailable"),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Historical Frequency</div><h2>How common this pattern is</h2></div></div>
-    <div class="route-card-grid">${families.map(([name, count]) => summaryMetric(memoryFamilyLabel(name, titleCase(name)), `${fmtNumber(count)} observations`)).join("")}</div>
-    <div class="route-next"><a class="primary" href="/opportunity/">See where this regime is active</a><a href="/replay/">Open Replay</a></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Recurrence profile</div><h2>What Raven keeps seeing</h2></div><span class="route-pill historical_observation">Recent memory</span></div>
+    <section class="memory-thesis">
+      <span>Most frequent condition</span>
+      <h3>${escapeHtml(dominant)}</h3>
+      <p>${escapeHtml(`${fmtNumber(families[0]?.[1] || 0)} of ${fmtNumber(familyTotal)} recorded family appearances carry this condition. Frequency is context, not confirmation.`)}</p>
+    </section>
+    <div class="memory-family-list" aria-label="Recent condition-family frequency">
+      ${families.map(([name, count]) => {
+        const shareFraction = familyTotal > 0 ? Math.max(0, Math.min(1, count / familyTotal)) : 0;
+        return `<div class="memory-family-row"><div><strong>${escapeHtml(memoryFamilyLabel(name, titleCase(name)))}</strong><span>${escapeHtml(`${fmtNumber(count)} appearances`)}</span></div><div class="memory-family-track" aria-label="${escapeHtml(fmtPct(shareFraction))} of recent family appearances"><i style="width:${(shareFraction * 100).toFixed(2)}%"></i></div><b>${escapeHtml(fmtPct(shareFraction))}</b></div>`;
+      }).join("")}
+    </div>
+    <div class="route-next"><a class="primary" href="/discover/">Find current opportunities</a><a href="/replay/">Check similar history</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">What To Watch</div><h2>Transition Context</h2></div></div>
-    ${(data.cards || []).slice(0, 2).map((card) => `<div class="route-card"><h3>${escapeHtml(memoryFamilyLabel(card.title || "Memory card", "Market memory"))}</h3><p class="route-copy">${escapeHtml(traderText(card.summary || "Current memory context is forming."))}</p><p class="route-caveat" style="margin-top:8px;">${escapeHtml(traderText(card.what_to_watch || ""))}</p></div>`).join("")}
+    <div class="route-panel-head"><div><div class="route-chip-label">Persistence ledger</div><h2>What has held through the window</h2></div></div>
+    <div class="memory-transition"><span>Transition read</span><strong>${escapeHtml(transitionLabel)}</strong><small>${escapeHtml(`${titleCase(data.condition_stability || "forming")} conditions · ${titleCase(data.consistency_trend || "forming")} consistency`)}</small></div>
+    <div class="route-continuity-list">
+      ${persistent.length ? persistent.map((row) => `<div><span>Persistent</span><strong>${escapeHtml(memoryConditionLabel(row.condition_key))}</strong><small>${escapeHtml(`${fmtNumber(row.appearance_count)} appearances in the declared window`)}</small></div>`).join("") : `<div><span>Persistent</span><strong>No persistent public condition published</strong><small>RavenOS will not infer one.</small></div>`}
+    </div>
+    ${(data.cards || []).slice(0, 2).map((card) => `<article class="memory-watch"><span>What to watch</span><h3>${escapeHtml(memoryFamilyLabel(card.title || "Memory card", "Market memory"))}</h3><p>${escapeHtml(traderText(card.what_to_watch || card.summary || "Current memory context is forming."))}</p></article>`).join("")}
+    <div class="route-boundary"><span>Memory boundary</span><strong>Recurrence is not similarity, causality, or a forecast.</strong></div>
   `;
 }
 
 function renderBehavior(payload) {
   const data = payload?.data || {};
-  const rows = Array.isArray(data.rows) ? data.rows.slice(0, 8) : [];
   const allRows = Array.isArray(data.rows) ? data.rows : [];
-  const totals = sampleTotals(allRows);
-  const top = rows[0];
   const actorEvidence = data.actor_evidence || {};
-  document.getElementById("routeHeadline").textContent = traderText(top?.plain_language_summary, "Participation context is forming.");
-  document.getElementById("routeHeroSummary").textContent = "Behavior is a leading participation read. It explains who is active, how broad participation is, and whether the current mix is constructive or still concentrated.";
+  const strengthOrder = { strong: 3, mixed: 2, building: 1 };
+  const rows = [...allRows].sort((a, b) => {
+    const strength = (strengthOrder[b.outcome_strength] || 0) - (strengthOrder[a.outcome_strength] || 0);
+    if (strength) return strength;
+    return rowUsableSample(b) - rowUsableSample(a);
+  });
+  const focus = rows.find((row) => row.outcome_strength === "strong" && rowUsableSample(row) >= 20) || rows[0] || null;
+  const limitations = {
+    helius_profile_thin: "Some participant profiles remain incomplete.",
+    outcome_pending: "Participant followthrough is not yet proven.",
+    raw_wallet_redacted: "Raw wallet identities remain private; this surface uses aggregates.",
+    stale_sweep_dependency: "Part of the participant sweep is delayed.",
+  };
+  const warnings = [...new Set((data.warnings || []).map((item) => limitations[item] || "A participant-evidence limitation remains attached to this read."))];
+  const focusLabel = focus ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.cap_band)}`) : "Participation context";
+  document.getElementById("routeHeadline").textContent = focus
+    ? `${focusLabel} is strengthening.`
+    : "Participation context is forming.";
+  document.getElementById("routeHeroSummary").textContent = "Behavior shows where aggregate participation is broadening, repeating, or failing to follow through. It preserves denominators and privacy boundaries instead of turning wallet activity into anonymous hype.";
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Top context", top ? traderSurfaceLabel(`${titleCase(top.chain)} · ${titleCase(top.cap_band)}`) : FORMING_TEXT),
-    routeStateCard("Window", data.metadata?.timeframe || top?.window || FORMING_TEXT),
-    routeStateCard("Markets", fmtNumber(data.count || allRows.length)),
-    routeStateCard("Observed sample", `${fmtNumber(totals.observed)} observations`),
-    routeStateCard("Usable observations", `${fmtNumber(totals.usable)} observations`),
-    routeStateCard("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label || "Actor evidence is forming.")),
-    routeStateCard("Evidence source", "Raven participation feed")
+    routeStateCard("Aggregate surfaces", fmtNumber(data.count || allRows.length)),
+    routeStateCard("Actor aggregates", fmtNumber(actorEvidence.actor_count ?? data.actor_count)),
+    routeStateCard("Cohorts", fmtNumber(actorEvidence.cohort_count ?? data.cohort_count)),
+    routeStateCard("Repeat actors", fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count)),
+    routeStateCard("Actor evidence", titleCase(actorEvidence.actor_evidence_freshness || data.actor_evidence_freshness || "forming")),
+    routeStateCard("Outcome status", titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven")),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Who Is Participating?</div><h2>Current Behavior Read</h2></div></div>
-    <div class="route-card-grid dense" style="margin-bottom:12px;">
-      ${summaryMetric("Observed markets", fmtNumber(data.count || allRows.length))}
-      ${summaryMetric("Observed sample", `${fmtNumber(totals.observed)} observations`)}
-      ${summaryMetric("Usable observations", `${fmtNumber(totals.usable)} observations`)}
-      ${summaryMetric("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label || "Actor evidence is forming."))}
-      ${summaryMetric("Repeat cohorts", fmtNumber(actorEvidence.repeat_actor_count || data.repeat_actor_count))}
-      ${summaryMetric("Window", data.metadata?.timeframe || top?.window || "24h")}
+    <div class="route-panel-head"><div><div class="route-chip-label">Participation field</div><h2>Where behavior is strengthening</h2></div><span class="route-pill ${statusClass(actorEvidence.participation_quality || data.participation_quality)}">${escapeHtml(titleCase(actorEvidence.participation_quality || data.participation_quality || "forming"))}</span></div>
+    ${focus ? `<section class="behavior-focus"><div><span>Clearest supported aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.plain_language_summary, "Participation context is forming."))}</p></div><dl><div><dt>Trend</dt><dd>${escapeHtml(titleCase(focus.trend || "forming"))}</dd></div><div><dt>Followthrough</dt><dd>${escapeHtml(titleCase(focus.outcome_strength || "forming"))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(`${fmtNumber(rowUsableSample(focus))} usable / ${fmtNumber(rowObservedSample(focus))} observed`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || focus.timeframe || "current")}</dd></div></dl></section>` : ""}
+    <div class="behavior-matrix" aria-label="Aggregate participation matrix">
+      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.cap_band)}`))}</span><b>${escapeHtml(titleCase(row.outcome_strength || "forming"))}</b></header><p>${escapeHtml(traderText(row.plain_language_summary, "Participation context is forming."))}</p><footer><span>${escapeHtml(`${fmtNumber(rowUsableSample(row))} / ${fmtNumber(rowObservedSample(row))} usable`)}</span><span>${escapeHtml(titleCase(row.trend || "forming"))}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span></footer></article>`).join("")}
     </div>
-    <div class="route-table-wrap"><table class="route-table"><thead><tr><th>Market</th><th>Read</th><th>Window</th><th>Sample</th><th>Weighting</th></tr></thead><tbody>${
-      rows.map((row) => `<tr><td><strong>${escapeHtml(titleCase(row.chain))}</strong><br>${escapeHtml(capBandLabel(row.cap_band))}</td><td>${escapeHtml(traderText(row.plain_language_summary))}</td><td>${escapeHtml(row.window || row.timeframe || "live")}</td><td>${escapeHtml(`${fmtNumber(row.sample_summary?.usable || row.usable_sample)} / ${fmtNumber(row.sample_summary?.observed || row.observed_sample)} ${traderText(row.sample_summary?.unit || "observations")}`)}</td><td>${escapeHtml("equal row")}</td></tr>`).join("")
-    }</tbody></table></div>
-    <div class="route-next"><a class="primary" href="/opportunity/">See where participation is becoming actionable</a><a href="/outcomes/">Compare settled outcomes</a></div>
+    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
   `;
-  document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Evidence Caveat</div><h2>How to read this</h2></div></div><p class="route-caveat">${escapeHtml(traderText('Behavior rows are public aggregate observations. Each row shows a declared window, usable sample, and unit so “constructive” or “mixed” is never detached from its denominator.'))}</p>`;
+  document.getElementById("routeSecondaryPanel").innerHTML = `
+    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Aggregate, recurring, privacy-safe</h2></div></div>
+    <section class="participant-ledger">
+      <div><span>Observed actors</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>Aggregate evidence only</small></div>
+      <div><span>Observed cohorts</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Public cohort counts</small></div>
+      <div><span>Repeat actors</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
+      <div><span>Actor-linked large moves</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_backed_big_moves ?? data.actor_backed_big_moves))}</strong><small>Descriptive, not causal</small></div>
+      <div><span>10% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Post-observation evidence</small></div>
+      <div><span>25% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe25_count ?? data.actual_mfe25_count))}</strong><small>Not capturable performance</small></div>
+    </section>
+    <div class="participant-read"><span>Current participant read</span><strong>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Participant evidence is forming."))}</strong><p>Outcome status: ${escapeHtml(titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven"))}. Participation can lead price behavior; it does not prove followthrough.</p></div>
+    <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    <div class="route-boundary"><span>Privacy boundary</span><strong>No raw wallet identity, relationship graph, ownership claim, or coordination claim is exposed.</strong></div>
+  `;
 }
 
 function renderResearch(payload) {
-  const data = payload || {};
+  const data = payload?.data?.research_state ? payload.data : payload || {};
   const state = data.research_state || "unavailable";
   const summary = data.data?.summary || {};
+  const generatedAt = data.generated_at || data.latest_completed_cohort?.completed_at || null;
+  const generatedMs = generatedAt ? new Date(generatedAt).getTime() : Number.NaN;
+  const ageSeconds = Number.isFinite(generatedMs) ? Math.max(0, (Date.now() - generatedMs) / 1000) : Number.POSITIVE_INFINITY;
+  const freshnessTarget = Number(payload?.freshness_target_seconds || 900);
+  const deliveryState = payload?.delivery?.freshness_state || "unavailable";
+  const stale = data.stale === true
+    || ageSeconds > freshnessTarget
+    || ["stale", "unavailable"].includes(String(deliveryState).toLowerCase());
+  const currentAvailable = !stale && state !== "unavailable" && Boolean(generatedAt);
+  const archiveDate = generatedAt ? fmtWhen(generatedAt) : "No archived snapshot";
+
+  if (!currentAvailable) {
+    document.getElementById("routeHeadline").textContent = "Current research snapshot unavailable.";
+    document.getElementById("routeHeroSummary").textContent = `The last completed research snapshot is dated ${archiveDate}. RavenOS keeps it clearly archived and does not use it as current intelligence.`;
+    document.getElementById("routeStateStrip").innerHTML = [
+      routeStateCard("Research state", "Unavailable"),
+      routeStateCard("Archived snapshot", archiveDate),
+      routeStateCard("Archived findings", fmtOptionalNumber(data.findings_count ?? summary.findings_reviewed)),
+      routeStateCard("Archived sample", fmtOptionalNumber(data.sample_depth?.value ?? summary.sample_depth)),
+      routeStateCard("Archived open observations", fmtOptionalNumber(data.forward_observations ?? summary.forward_observations)),
+      routeStateCard("Current narrator", "Not used"),
+    ].join("");
+    document.getElementById("routePrimaryPanel").innerHTML = `
+      <div class="route-panel-head"><div><div class="route-chip-label">Research availability</div><h2>No stale research presented as live</h2></div><span class="route-pill unavailable">Unavailable</span></div>
+      <div class="research-unavailable">
+        <span>The available research is too old</span>
+        <h3>Research remains off until a new evidence-bound snapshot is projected.</h3>
+        <p>The archived cohort below can explain what Raven measured at that time. It cannot describe today, unlock a plan, rank an opportunity, or substitute for current opportunities and followthrough.</p>
+      </div>
+      <section class="research-archive" aria-label="Archived research record">
+        <header><span>Archived record · ${escapeHtml(archiveDate)}</span><strong>Historical context only</strong></header>
+        <dl>
+          <div><dt>Strongest archived condition</dt><dd>${escapeHtml(traderSurfaceLabel(summary.strongest_condition || data.latest_completed_cohort?.strongest_condition || "Unavailable"))}</dd></div>
+          <div><dt>Weakest archived condition</dt><dd>${escapeHtml(traderSurfaceLabel(summary.weakest_condition || data.latest_completed_cohort?.weakest_condition || "Unavailable"))}</dd></div>
+          <div><dt>Findings reviewed</dt><dd>${escapeHtml(fmtOptionalNumber(data.findings_count ?? summary.findings_reviewed))}</dd></div>
+          <div><dt>Observation sample</dt><dd>${escapeHtml(`${fmtOptionalNumber(data.sample_depth?.value ?? summary.sample_depth)} ${text(data.sample_depth?.unit, "archived observations")}`)}</dd></div>
+          <div><dt>Validation window</dt><dd>${escapeHtml(data.validation_window?.label || "Unavailable")}</dd></div>
+          <div><dt>Current authority</dt><dd>None</dd></div>
+        </dl>
+      </section>
+      <div class="route-next"><a class="primary" href="/discover/">Open current Discover</a><a href="/outcomes/">Inspect followthrough</a></div>
+    `;
+    document.getElementById("routeSecondaryPanel").innerHTML = `
+      <div class="route-panel-head"><div><div class="route-chip-label">Activation gate</div><h2>What must become current</h2></div></div>
+      <div class="route-continuity-list">
+        <div><span>Evidence</span><strong>Current completed cohort</strong><small>Completed inside the declared recency policy</small></div>
+        <div><span>Lineage</span><strong>Decision-time inputs retained</strong><small>No present-day evidence substituted backward</small></div>
+        <div><span>Followthrough</span><strong>Measured only after the declared window</strong><small>Open observations remain visibly open</small></div>
+        <div><span>Language</span><strong>Structured approved projection</strong><small>No private thresholds, paths, prompts, or raw identities</small></div>
+      </div>
+      <div class="route-boundary"><span>Fail-closed state</span><strong>Stale research cannot hydrate Raven Read, Plan Preview, or current opportunity authority.</strong></div>
+    `;
+    return;
+  }
+
   document.getElementById("routeHeadline").textContent = traderText(summary.strongest_condition, "Current research snapshot unavailable");
   document.getElementById("routeHeroSummary").textContent = summary.caveat || "Research is evidence context only. It explains behavioral observations, uncertainty, and what still needs evidence.";
   document.getElementById("routeStateStrip").innerHTML = [
@@ -947,7 +1133,7 @@ function renderResearch(payload) {
       ${summaryMetric("Evidence", data.source ? "Raven research feed" : "last known research snapshot")}
       ${summaryMetric("Validation window", data.validation_window?.label || "pending")}
     </div>
-    <div class="route-next"><a class="primary" href="/opportunity/">Open Behavioral Opportunity</a><a href="/outcomes/">Check Outcomes</a></div>
+    <div class="route-next"><a class="primary" href="/opportunity/">Open current opportunity</a><a href="/outcomes/">Check followthrough</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Open observations</div><h2>What Is Still Forming</h2></div></div><p class="route-caveat">${escapeHtml(data.current_forming_cohort?.expected_validation_window ? `Open observations remain unsettled. Next validation window: ${data.current_forming_cohort.expected_validation_window}.` : "No safe completed or forming research cohort is currently available.")}</p>`;
 }
@@ -1005,17 +1191,15 @@ function renderPerps(payload) {
     <div class="route-mobile-card-list route-perps-cards">${
       topVolume.slice(0, 10).map((row) => `<article class="route-mobile-card"><h3>${escapeHtml(row.symbol)}</h3><div><span>Volume</span><strong>${escapeHtml(`$${fmtNumber(row.day_volume_usd)}`)}</strong></div><div><span>Open interest</span><strong>${escapeHtml(`$${fmtNumber(row.open_interest_usd)}`)}</strong></div><div><span>Pressure</span><strong>${escapeHtml(row.pressure_state || row.pressure_direction || "forming")}</strong></div><p>${escapeHtml(row.liquidity_quality || "Perps context forming.")}</p></article>`).join("")
     }</div>
-    <p class="route-caveat" style="margin-top:10px;">${escapeHtml(data.legal_caveat || "Perps context is a live derivatives read. Use it as pressure context, then compare it with settled Outcomes before treating the move as confirmed.")}</p>`;
+    <p class="route-caveat" style="margin-top:10px;">${escapeHtml(data.legal_caveat || "Perpetual context is a live derivatives read. Use it as pressure context, then compare it with measured followthrough before treating the move as confirmed.")}</p>`;
 }
 
 function renderOutcomes(payload) {
   const data = payload?.data || {};
   const recent = Array.isArray(data.recent_raven_reads) ? data.recent_raven_reads : [];
-  const legacy = Array.isArray(data.legacy_unlinked) ? data.legacy_unlinked : [];
   const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
   const recentTotals = sampleTotals(recent);
   const outcomeTotals = sampleTotals(outcomes);
-  const readStatusKeys = ["pending", "partially_settled", "mixed", "confirmed", "invalidated", "insufficient", "expired"];
   const readCounts = recent.reduce((acc, row) => {
     const key = row.current_validation_status || row.settled_result || row.status || "pending";
     acc[key] = (acc[key] || 0) + 1;
@@ -1033,6 +1217,17 @@ function renderOutcomes(payload) {
   const validationStatus = confirmedFollowthrough > 0
     ? titleCase(data.aggregate_validation_state || "sample forming")
     : "Validation sample forming";
+  const confirmedShare = outcomes.length ? (confirmedFollowthrough / outcomes.length) * 100 : 0;
+  const mixedCount = outcomeCounts.mixed || 0;
+  const insufficientCount = outcomeCounts.insufficient || 0;
+  const mixedShare = outcomes.length ? (mixedCount / outcomes.length) * 100 : 0;
+  const insufficientShare = outcomes.length ? (insufficientCount / outcomes.length) * 100 : 0;
+  const outcomeOrder = { confirmed: 3, mixed: 2, insufficient: 1 };
+  const settledRows = [...outcomes].sort((a, b) => {
+    const status = (outcomeOrder[b.validation_status] || 0) - (outcomeOrder[a.validation_status] || 0);
+    if (status) return status;
+    return rowUsableSample(b) - rowUsableSample(a);
+  });
   const recentRow = (row) => {
     const status = row.current_validation_status || row.settled_result || row.status || "pending";
     const claimHref = row.claim_id ? claimLink(row.claim_id) : "";
@@ -1044,6 +1239,24 @@ function renderOutcomes(payload) {
       <td><strong>${escapeHtml(traderText(sampleLabel(row.sample), "evidence forming"))}</strong><span>${escapeHtml(titleCase(row.settled_result || status))}</span></td>
       <td><a class="route-open-link" href="${claimHref || sourceHref}">${claimHref ? "Evidence" : "Context"} →</a></td>
     </tr>`;
+  };
+  const settledRow = (row) => {
+    const status = row.validation_status || row.participant_outcome || "insufficient";
+    const scope = traderSurfaceLabel(`${titleCase(row.chain || "market")} · ${capBandLabel(row.cap_band)}`);
+    const claimHref = row.claim_id ? claimLink(row.claim_id) : "";
+    return `<tr>
+      <td><strong>${escapeHtml(scope)}</strong><span>${escapeHtml(row.window || "declared window")}</span></td>
+      <td><span class="route-pill ${statusClass(status)}">${escapeHtml(titleCase(status))}</span><small>${escapeHtml(titleCase(row.direction || "mixed"))} direction</small></td>
+      <td><strong>${escapeHtml(`${fmtNumber(rowUsableSample(row))} / ${fmtNumber(rowObservedSample(row))}`)}</strong><span>${escapeHtml(traderText(row.sample_detail?.unit || "observations"))}</span></td>
+      <td><strong>${escapeHtml(fmtOptionalPct(row.median_move_pct))}</strong><span>${escapeHtml(`${fmtOptionalPct(row.rewarding_pct)} rewarding · ${fmtOptionalPct(row.punishing_pct)} punishing`)}</span></td>
+      <td><strong>${escapeHtml(fmtOptionalUsd(row.total_liquidity_usd))}</strong><span>${escapeHtml(titleCase(row.confidence || "forming"))} confidence</span></td>
+      <td>${claimHref ? `<a class="route-open-link" href="${claimHref}">Evidence →</a>` : `<span>Lineage unavailable</span>`}</td>
+    </tr>`;
+  };
+  const settledMobileCard = (row) => {
+    const status = row.validation_status || row.participant_outcome || "insufficient";
+    const claimHref = row.claim_id ? claimLink(row.claim_id) : "";
+    return `<article class="route-mobile-card route-outcome-card"><header><div><span>${escapeHtml(row.window || "declared window")}</span><h3>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain || "market")} · ${capBandLabel(row.cap_band)}`))}</h3></div>${claimHref ? `<a href="${claimHref}">Evidence →</a>` : ""}</header><dl><div><dt>Outcome</dt><dd>${escapeHtml(titleCase(status))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(`${fmtNumber(rowUsableSample(row))} / ${fmtNumber(rowObservedSample(row))} usable`)}</dd></div><div><dt>Median move</dt><dd>${escapeHtml(fmtOptionalPct(row.median_move_pct))}</dd></div><div><dt>Reward / punish</dt><dd>${escapeHtml(`${fmtOptionalPct(row.rewarding_pct)} / ${fmtOptionalPct(row.punishing_pct)}`)}</dd></div></dl></article>`;
   };
   const recentMobileCard = (row) => {
     const status = row.current_validation_status || row.settled_result || row.status || "pending";
@@ -1057,7 +1270,7 @@ function renderOutcomes(payload) {
   const initialMobileReads = recent.slice(0, 4);
   const moreMobileReads = recent.slice(4);
   document.getElementById("routeHeadline").textContent = "Did earlier Raven reads follow through?";
-  document.getElementById("routeHeroSummary").textContent = "Outcomes tracks whether earlier Raven reads followed through after their validation window. Live observations are not outcomes; they are the evidence base Raven uses to form reads.";
+  document.getElementById("routeHeroSummary").textContent = "Followthrough tracks what happened after earlier Raven reads reached their declared measurement window. Live observations remain open until then.";
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Evidence observed", `${fmtNumber(evidenceObserved)} observations`),
     routeStateCard("Reads under validation", fmtNumber(readsUnderValidation)),
@@ -1067,8 +1280,12 @@ function renderOutcomes(payload) {
     routeStateCard("Validation status", validationStatus)
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Outcome funnel</div><h2>Did earlier Raven reads follow through?</h2></div></div>
-    <p class="route-copy">Confirmed followthrough ${confirmedFollowthrough > 0 ? "exists" : "is still forming"}, but mixed/insufficient outcomes ${mixedOrInsufficient >= confirmedFollowthrough ? "still dominate" : "remain present"}. The outcome loop is active, but validation is still developing. Live observations are not outcomes.</p>
+    <div class="route-panel-head"><div><div class="route-chip-label">Outcome proof</div><h2>What happened after Raven issued the read</h2></div><span class="route-pill ${statusClass(data.aggregate_validation_state)}">${escapeHtml(validationStatus)}</span></div>
+    <section class="outcome-proof-statement"><span>Confirmed followthrough</span><h3>${escapeHtml(`${fmtNumber(confirmedFollowthrough)} of ${fmtNumber(outcomes.length)} settled checks`)}</h3><p>Mixed or insufficient evidence still accounts for ${escapeHtml(fmtNumber(mixedOrInsufficient))} checks. The outcome loop is active, but validation is still developing. Live observations are not outcomes.</p></section>
+    <div class="outcome-distribution" aria-label="Settled outcome distribution">
+      <div class="outcome-distribution-track"><i class="confirmed" style="width:${confirmedShare.toFixed(2)}%"></i><i class="mixed" style="width:${mixedShare.toFixed(2)}%"></i><i class="insufficient" style="width:${insufficientShare.toFixed(2)}%"></i></div>
+      <div class="outcome-distribution-legend"><span><i class="confirmed"></i>Confirmed <strong>${escapeHtml(fmtNumber(confirmedFollowthrough))}</strong></span><span><i class="mixed"></i>Mixed <strong>${escapeHtml(fmtNumber(mixedCount))}</strong></span><span><i class="insufficient"></i>Insufficient <strong>${escapeHtml(fmtNumber(insufficientCount))}</strong></span></div>
+    </div>
     <div class="route-card-grid dense outcome-funnel-compact" style="margin:12px 0;">
       ${summaryMetric("Evidence observed", `${fmtNumber(evidenceObserved)} observations`)}
       ${summaryMetric("Reads tracked", fmtNumber(recent.length))}
@@ -1076,26 +1293,25 @@ function renderOutcomes(payload) {
       ${summaryMetric("Settled outcomes", fmtNumber(outcomes.length))}
       ${summaryMetric("Confirmed followthrough", fmtNumber(confirmedFollowthrough))}
       ${summaryMetric("Mixed / insufficient", fmtNumber(mixedOrInsufficient))}
-      ${summaryMetric("Validation status", validationStatus)}
     </div>
-    <div class="route-panel-head"><div><div class="route-chip-label">Recent reads</div><h2>Recent reads</h2></div></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Read tracker</div><h2>Current claims moving through validation</h2></div></div>
     ${recent.length ? `<div class="route-table-wrap route-outcome-table"><table class="route-table"><thead><tr><th>Read</th><th>Validation</th><th>Window</th><th>Sample</th><th></th></tr></thead><tbody>${recent.slice(0, 12).map(recentRow).join("")}</tbody></table></div><div class="route-mobile-card-list">${initialMobileReads.map(recentMobileCard).join("")}${moreMobileReads.length ? `<details class="route-mobile-more"><summary>Show ${escapeHtml(fmtNumber(moreMobileReads.length))} more reads</summary><div>${moreMobileReads.map(recentMobileCard).join("")}</div></details>` : ""}</div>` : `<p class="route-caveat">No current reads are available.</p>`}
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Settled checks</div><h2>Followthrough context</h2></div></div>
-    <p class="route-copy">Observations are raw market evidence. Reads are Raven's synthesized market conclusions. Outcomes are reads after validation and followthrough measurement.</p>
-    <div class="route-table-wrap"><table class="route-table"><thead><tr><th>Surface</th><th>Outcome</th><th>Sample</th><th>Move / liquidity</th></tr></thead><tbody>${
-      outcomes.slice(0, 12).map((row) => `<tr><td><strong>${escapeHtml(titleCase(row.chain))}</strong><br>${escapeHtml(capBandLabel(row.cap_band))}</td><td>${escapeHtml(titleCase(row.validation_status || row.participant_outcome))}</td><td>${escapeHtml(`${fmtNumber(row.usable_sample || row.sample_size)} / ${fmtNumber(row.observed_sample || row.sample_size)} ${traderText(row.sample_detail?.unit || "observations")}`)}</td><td>${escapeHtml(`${fmtNumber(row.median_move_pct)}% · $${fmtNumber(row.total_liquidity_usd)}`)}</td></tr>`).join("")
-    }</tbody></table></div>
-    <p class="route-caveat" style="margin-top:10px;">Older rows remain available through evidence links when safe, but Outcomes leads with validation totals and current reads.</p>
+    <div class="route-panel-head"><div><div class="route-chip-label">Settled evidence</div><h2>Measured cohort checks</h2></div></div>
+    <div class="outcome-lesson"><span>How it is measured</span><strong>Observation → Raven read → declared window → measured result</strong><p>A read remains open until its declared future window can be measured. Open observations are never counted as followthrough.</p></div>
+    <div class="route-table-wrap route-outcome-table"><table class="route-table route-settled-table"><thead><tr><th>Surface</th><th>Outcome</th><th>Usable / observed</th><th>Median / tails</th><th>Liquidity</th><th></th></tr></thead><tbody>${settledRows.slice(0, 12).map(settledRow).join("")}</tbody></table></div>
+    <div class="route-mobile-card-list">${settledRows.slice(0, 8).map(settledMobileCard).join("")}</div>
+    <div class="route-boundary"><span>Performance boundary</span><strong>Post-observation movement is descriptive evidence, not capturable return, a target, or an executable plan.</strong></div>
+    <p class="route-caveat">${escapeHtml(data.population_note || "Outcome coverage is bounded to the declared public population.")}</p>
   `;
 }
 
 function renderClaimsList(payload) {
   const data = payload?.data || {};
   const claims = Array.isArray(data.current_claims) && data.current_claims.length ? data.current_claims : (data.claim_history || []).slice(0, 12);
-  document.getElementById("routeHeadline").textContent = "Claim provenance behind the Outcomes proof rail.";
-  document.getElementById("routeHeroSummary").textContent = "Claims preserve the original issued read. Outcomes is the user-facing proof rail that shows what happened later.";
+  document.getElementById("routeHeadline").textContent = "The original reads behind measured followthrough.";
+  document.getElementById("routeHeroSummary").textContent = "Read history preserves what Raven said at the time so later followthrough can be judged against the original wording.";
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Current claims", fmtNumber((data.current_claims || []).length)),
     routeStateCard("History", fmtNumber((data.claim_history || []).length)),
@@ -1107,9 +1323,9 @@ function renderClaimsList(payload) {
     <div class="route-proof-grid">${claims.map((row) => proofCard(row)).join("")}</div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">How To Use Claims</div><h2>Drill In From Outcomes</h2></div></div>
-    <p class="route-caveat">Read IDs are evidence references, not the headline. Use them when an Outcomes or evidence link needs the original wording, later evidence, supersession, and outcome status.</p>
-    <div class="route-next"><a class="primary" href="/outcomes/">Open Outcomes</a><a href="/opportunity/">Open Opportunity</a></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">How to use read history</div><h2>Start from followthrough</h2></div></div>
+    <p class="route-caveat">Use a read reference when you need the original wording, later evidence, supersession, and measured status.</p>
+    <div class="route-next"><a class="primary" href="/outcomes/">Open followthrough</a><a href="/opportunity/">Open current opportunities</a></div>
   `;
 }
 
@@ -1142,14 +1358,14 @@ function renderClaimDetail(payload) {
       ${summaryMetric("Confidence at issue", titleCase(claim.confidence?.label || FORMING_TEXT))}
     </div>
     <p class="route-summary" style="margin-top:12px;">${escapeHtml(traderText(claim.summary, "No market summary was recorded for this read."))}</p>
-    <div class="route-next"><a class="primary" href="/outcomes/">Open Outcomes</a><a href="${sourceRouteForSurface(claim.surface, claim)}">Open source page</a></div>
+    <div class="route-next"><a class="primary" href="/outcomes/">Open followthrough</a><a href="${sourceRouteForSurface(claim.surface, claim)}">Open source page</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Observation Timeline</div><h2>What Changed Later</h2></div></div>
     <div class="route-timeline">
       ${observations.map((row) => `<article class="route-timeline-card"><div class="route-timeline-label">Observation</div><h3>${escapeHtml(fmtWhen(row.observed_at))}</h3><p class="route-copy">${escapeHtml(row.note || titleCase(row.current_validation_status || "evidence update"))}</p></article>`).join("")}
       ${settlements.map((row) => `<article class="route-timeline-card"><div class="route-timeline-label">Outcome</div><h3>${escapeHtml(fmtWhen(row.settled_at))}</h3><p class="route-copy">${escapeHtml(row.outcome?.public_summary || titleCase(row.settlement_status || "settled"))}</p></article>`).join("")}
-      ${related_recent_reads.map((row) => `<article class="route-timeline-card"><div class="route-timeline-label">Followthrough</div><h3>${escapeHtml(titleCase(row.current_validation_status || "pending"))}</h3><p class="route-copy">${escapeHtml(row.plain_language_status || "Validation context attached in Outcomes.")}</p></article>`).join("")}
+      ${related_recent_reads.map((row) => `<article class="route-timeline-card"><div class="route-timeline-label">Followthrough</div><h3>${escapeHtml(titleCase(row.current_validation_status || "pending"))}</h3><p class="route-copy">${escapeHtml(row.plain_language_status || "Measured followthrough is attached to this read.")}</p></article>`).join("")}
     </div>
   `;
 }
@@ -1170,7 +1386,7 @@ function renderChain(payload) {
     <p class="route-summary">${escapeHtml(traderText(data.current_read, "Developing coverage."))}</p>
     <div class="route-card-grid" style="margin-top:12px;">
       ${summaryMetric("Behavior context", traderText(data.behavior_context?.plain_language_summary))}
-      ${summaryMetric("Replay context", traderText(data.replay_context?.public_read))}
+      ${summaryMetric("Similar history", traderText(data.replay_context?.public_read))}
       ${summaryMetric("Memory context", traderText(data.memory_context?.title))}
     </div>
     <div class="route-next"><a class="primary" href="/opportunity/">Open ${escapeHtml(label)} in Opportunity</a><a href="/outcomes/">View outcome status</a></div>
@@ -1277,7 +1493,7 @@ function syncShellFromRoute(payload = {}) {
       : [summary],
     contradictingEvidence: census?.limitations || [],
     invalidation: census
-      ? ["An exact public outcome join is not claimed for a row unless the contract says it is joined."]
+      ? ["Raven does not claim exact followthrough for a row unless the source confirms the match."]
       : [],
     timeHorizon: census ? "declared future-only windows" : routeConfig.funnel_stage === "validate" ? "settled window" : "current window",
     confidence: census ? { label: "research only", sampleSize: census.population?.paths_with_evidence } : { label: "developing" },

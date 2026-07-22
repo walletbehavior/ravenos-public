@@ -3,74 +3,114 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS RavenOS</title>
-  <meta name="description" content="What does Raven believe right now?" />
-  <link rel="stylesheet" href="/ravenos-route.css" />
-  <link rel="stylesheet" href="/ravenos-evidence.css" />
-  <link rel="stylesheet" href="/ravenos-funnel.css" />
-  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <title>RavenOS · See what changed before the market explains it</title>
+  <meta name="description" content="A current, evidence-bound market intelligence workspace for crypto, perpetuals, equities, ETFs, and options context." />
+  <meta name="theme-color" content="#080a08" />
+  <link rel="stylesheet" href="/ravenos-landing.css" />
 </head>
 <body>
-  <main class="route-shell" data-route-slug="home">
-    <header class="route-topbar">
-      <div class="route-brand">
-        <span class="route-eyebrow">RavenOS RavenOS</span>
-        <strong>What does Raven believe right now?</strong>
-      </div>
-      <nav class="route-nav" aria-label="Primary navigation"><a class="" href="/brief/">Brief</a><a class="" href="/opportunity/">Opportunities</a><a class="" href="/terminal/">Terminal</a><a class="" href="/atlas/">Atlas</a><a class="" href="/replay/">Replay</a><a class="" href="/outcomes/">Outcomes</a><a class="" href="/memory/">Memory</a><a class="" href="/behavior/">Behavior</a><a class="" href="/research/">Research</a><a class="" href="/perps/">Perps</a><a class="" href="/docs/">Docs</a><a class="" href="/faq/">FAQ</a><a class="" href="/account/">Account</a></nav>
-    </header>
+  <header class="landing-nav">
+    <a class="landing-brand" href="/" aria-label="RavenOS home"><span>R</span><strong>RavenOS</strong><small>Market intelligence</small></a>
+    <nav aria-label="Landing navigation"><a href="#product">Product</a><a href="#method">Method</a><a href="/docs/">Docs</a><a href="/pricing/">Access</a></nav>
+    <a class="landing-launch" href="/discover/">Launch workspace <span>↗</span></a>
+  </header>
 
-    <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
-      <div class="public-evidence-strip">
-        <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
-        <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
-        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">read-defined window</strong></div>
-        <div class="public-evidence-cell"><span>Observations</span><strong data-evidence-field="sample">see totals below</strong></div>
-        <div class="public-evidence-cell"><span>Status</span><strong data-evidence-field="freshness">checking</strong></div>
-        <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
-      </div>
-      <details class="public-evidence-details">
-        <summary>Evidence details</summary>
-        <p class="public-evidence-bridge" data-evidence-field="bridge"><strong>Why reads can differ:</strong> Live reads can move before outcomes settle. We separate current opportunity from later followthrough checks.</p>
-        <div class="public-evidence-detail-grid">
-          <div>Evidence role<strong data-evidence-field="raw_role">current_synthesis</strong></div>
-          <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
-          <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
-          <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
-          <div>Source<strong data-evidence-field="source">Raven feed</strong></div>
-          <div>Observed / outcomes<strong data-evidence-field="observed_settled">0 / 0</strong></div>
-          <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
-          <div>Evidence version<strong data-evidence-field="artifact">unversioned</strong></div>
-          <div>Methodology<strong><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Public definitions</a></strong></div>
+  <main>
+    <section class="landing-hero" id="product">
+      <div class="landing-hero-copy">
+        <span class="landing-eyebrow"><i></i> Raven + Atlas / one market context</span>
+        <h1>See the move.<br /><em>Understand the behavior.</em></h1>
+        <p>RavenOS connects live market state to the evidence, participants, paths, and cross-market context that made the change worth noticing—without making you choose a chain or venue first.</p>
+        <div class="landing-hero-actions"><a href="/discover/">Explore current opportunities <span>→</span></a><a href="/terminal/">Open the Terminal</a></div>
+        <div class="landing-truth-row" aria-label="Current product boundaries">
+          <span><i id="landingOriginDot"></i><strong id="landingOriginState">Checking current origin</strong></span>
+          <span>Exact market identity</span><span>Read only</span><span>No synthetic fallback</span>
         </div>
-      </details>
+      </div>
+      <div class="landing-orbit" aria-hidden="true"><span>R</span><i></i><i></i><i></i></div>
     </section>
 
-    <section class="route-hero">
-      <div class="route-hero-meta"><span class="route-eyebrow">Raven intelligence / RavenOS</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Projection loading</strong><small>Source timestamp pending</small></div></div>
-      <h1 id="routeHeadline">What does Raven believe right now?</h1>
-      <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
-      <div class="route-state-strip" id="routeStateStrip">RavenOS</div>
+    <section class="landing-product" aria-label="Live RavenOS product demonstration">
+      <header class="landing-product-bar">
+        <div><span class="landing-window-mark">R</span><strong>RavenOS / Live workspace</strong></div>
+        <div class="landing-product-health"><span id="landingMarketState">Market data checking</span><span id="landingIntelligenceState">Intelligence checking</span><span>Signing off</span></div>
+        <a href="/discover/">Open full workspace</a>
+      </header>
+
+      <div class="landing-product-grid">
+        <aside class="landing-live-list">
+          <header><span>Discover</span><strong>Current attention</strong><small id="landingOpportunityCount">Awaiting current Census</small></header>
+          <div id="landingOpportunityList" class="landing-opportunity-list" aria-live="polite">
+            <div class="landing-unavailable"><strong>Connecting</strong><span>Historical claims will not substitute.</span></div>
+          </div>
+        </aside>
+
+        <section class="landing-market-preview">
+          <header>
+            <div><span id="landingInstrumentType">Exact instrument</span><h2 id="landingInstrument">No market selected</h2><small id="landingInstrumentId">Current identity pending</small></div>
+            <div class="landing-quote"><strong id="landingPrice">—</strong><span id="landingChange">—</span></div>
+          </header>
+          <div class="landing-chart-wrap" id="landingChartWrap" data-state="loading">
+            <canvas id="landingChart" aria-label="Provider-backed selected market price chart"></canvas>
+            <div class="landing-chart-state" id="landingChartState">Requesting provider-backed candles</div>
+            <div class="landing-chart-axis"><span>Provider history</span><span id="landingChartTimeframe">1h</span></div>
+          </div>
+          <dl class="landing-market-facts">
+            <div><dt>Venue</dt><dd id="landingVenue">—</dd></div>
+            <div><dt>Funding</dt><dd id="landingFunding">—</dd></div>
+            <div><dt>Open interest</dt><dd id="landingOpenInterest">—</dd></div>
+            <div><dt>Freshness</dt><dd id="landingFreshness">—</dd></div>
+          </dl>
+        </section>
+
+        <aside class="landing-read">
+          <header><span>Raven Read</span><strong id="landingReadState">Evidence checking</strong></header>
+          <div class="landing-read-body">
+            <span>Why now</span>
+            <h2 id="landingWhy">Current decision context is resolving.</h2>
+            <p id="landingReadSummary">Live market facts and Raven evidence hydrate independently.</p>
+          </div>
+          <dl>
+            <div><dt>Path</dt><dd id="landingPath">—</dd></div>
+            <div><dt>Evidence</dt><dd id="landingEvidence">—</dd></div>
+            <div><dt>Comparable paths</dt><dd id="landingComparables">—</dd></div>
+          </dl>
+          <a id="landingInspect" href="/terminal/">Inspect exact market <span>→</span></a>
+        </aside>
+      </div>
+      <footer class="landing-product-foot"><span>Live product surface</span><span id="landingGeneratedAt">Source timestamp pending</span><span>Current data never falls back silently</span></footer>
     </section>
 
-    <section class="route-grid">
-      <article class="route-panel" id="routePrimaryPanel"></article>
-      <article class="route-panel" id="routeSecondaryPanel"></article>
+    <section class="landing-sequence" id="method">
+      <header><span class="landing-eyebrow">One operating system</span><h2>From movement to decision context—without changing mental models.</h2></header>
+      <ol>
+        <li><span>01</span><strong>Discover</strong><p>See current Raven observations and exact Atlas market context in one stable stream.</p><a href="/discover/">See what is moving →</a></li>
+        <li><span>02</span><strong>Terminal</strong><p>Keep the exact pool, contract, or listing while RavenOS resolves the appropriate data plane.</p><a href="/terminal/">Inspect a market →</a></li>
+        <li><span>03</span><strong>Portfolio</strong><p>One economic view is security-gated until identity and read-only connectors meet the verification standard.</p><a href="/portfolio/">Review the boundary →</a></li>
+        <li><span>04</span><strong>Atlas</strong><p>Add equity, ETF, options, and cross-market context without confusing it for Raven behavioral evidence.</p><a href="/atlas/">Open Atlas →</a></li>
+      </ol>
     </section>
 
-    <nav class="route-flow" aria-label="Raven evidence workflow">
-      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
-      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
-      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
-      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
-    </nav>
+    <section class="landing-atlas-band">
+      <div><span class="landing-eyebrow">Atlas / market around the market</span><h2>Crypto does not trade in a vacuum.</h2><p>Current ETF and options context sits beside Raven’s behavioral memory, with provenance kept intact.</p></div>
+      <div id="landingAtlasList" class="landing-atlas-list"><div class="landing-unavailable"><strong>Atlas checking</strong><span>No stale market row will substitute.</span></div></div>
+    </section>
 
-    <footer class="route-build">
-      <div id="routeHydrationState">Fallback shell loaded</div>
-      <div id="ravenosBuildMark">Public artifact verified</div>
-    </footer>
+    <section class="landing-principles">
+      <article><span>01 / Current</span><h3>Freshness is a product feature.</h3><p>Process health, market health, intelligence freshness, narrator state, and projection state are reported independently.</p></article>
+      <article><span>02 / Exact</span><h3>A symbol is not a market.</h3><p>Pools, perpetual contracts, ETF listings, and future option contracts retain their exact identity from search through chart and context.</p></article>
+      <article><span>03 / Evidence</span><h3>Interpretation stays attached to proof.</h3><p>Raven claims, matured outcomes, and Atlas context remain distinct even when the interface turns them into one coherent read.</p></article>
+      <article><span>04 / Boundary</span><h3>Read-only means read-only.</h3><p>No customer signing, submission, confirmed trading, or position monitoring is presented as available.</p></article>
+    </section>
+
+    <section class="landing-close">
+      <span>Choose the opportunity.</span>
+      <h2>RavenOS handles the market plumbing.</h2>
+      <a href="/discover/">Launch RavenOS <span>↗</span></a>
+    </section>
   </main>
-  <script id="ravenosRouteConfig" type="application/json">{"route":"/","slug":"home","title":"RavenOS","question":"What does Raven believe right now?","funnel_stage":"understand","evidence_role":"current_synthesis","api_endpoint":"/api/brief","fallback_artifact":"/ravenos/brief.json","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"2.0","fallback_message":null,"surface_state":"live_intelligence_workspace"}</script>
-  <script type="module" src="/ravenos-route-app.js"></script>
+
+  <footer class="landing-footer"><a class="landing-brand" href="/"><span>R</span><strong>RavenOS</strong></a><p>Evidence-bound market intelligence. Research only. Not investment advice.</p><nav><a href="/docs/">Methodology</a><a href="/faq/">FAQ</a><a href="/pricing/">Access</a><a href="/account/">Account</a></nav></footer>
+  <script type="module" src="/ravenos-landing.js"></script>
 </body>
 </html>

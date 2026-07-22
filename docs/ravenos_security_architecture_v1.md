@@ -179,6 +179,7 @@ Cloudflare documents rate-limiting rules for login and API abuse in its [WAF rat
 - Start with read-only scopes. Trading permissions require a later authorization milestone.
 - Portfolio resources use random IDs and object-level authorization; wallet address or account ID from a request never establishes ownership by itself.
 - Normalized economic views do not change actual custody or settlement facts.
+- A unified USDC cash intent does not collapse chain-local balances or authorize a bridge. Cross-domain funding requires an exact, end-to-end, separately reviewed route; incomplete or hidden transfer state fails closed.
 
 ## Audit and notification
 

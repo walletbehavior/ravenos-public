@@ -11,43 +11,37 @@
 </head>
 <body>
   <main class="terminal-live" data-route-slug="terminal">
-    <section class="terminal-continuity" aria-label="Terminal data boundary">
-      <div><span>Market data</span><strong id="terminalMarketFreshness">Connecting</strong></div>
-      <div><span>Raven context</span><strong id="terminalContextFreshness">Checking</strong></div>
-      <div><span>Chart source</span><strong>Provider backed</strong></div>
-      <div><span>Synthetic fallback</span><strong>None</strong></div>
-      <div><span>Customer session</span><strong>Not configured</strong></div>
-      <div><span>Execution</span><strong>Signing off</strong></div>
-    </section>
-
-    <header class="terminal-head">
+    <header class="terminal-operator-head">
       <div class="terminal-title">
-        <span>RavenOS / Market Terminal</span>
-        <h1>One chart. Exact identity. No invented market state.</h1>
-        <p>Live Hyperliquid instruments and verified public spot pools share the protected Raven chart plane. Raven context is shown only when it joins to the selected instrument.</p>
+        <span class="terminal-question">What is happening right now?</span>
+        <h1>Exact market. Current context.</h1>
+      </div>
+      <div class="terminal-state-pair" aria-label="Current market and intelligence state">
+        <div><span>Market</span><strong id="terminalMarketFreshness">Connecting</strong></div>
+        <div><span>Raven</span><strong id="terminalContextFreshness">Checking</strong></div>
       </div>
       <div class="terminal-boundary" id="terminalBoundary" data-state="loading">
         <span>Read only</span>
-        <strong>Market path connecting</strong>
-        <small>Quote review, signing, and submission remain separate</small>
+        <strong>Market connecting</strong>
+        <small>No order can be signed or sent</small>
       </div>
     </header>
 
-    <section class="terminal-controls" aria-label="Market selection">
-      <label>
-        <span>Market lane</span>
-        <select id="terminalModeSelect">
-          <option value="perps">Hyperliquid perps</option>
-          <option value="spot">Spot pool lookup</option>
-        </select>
-      </label>
-      <label id="terminalPerpControl">
-        <span>Instrument</span>
-        <select id="assetSelect" aria-label="Hyperliquid instrument"><option value="SOL-PERP">SOL-PERP</option></select>
-      </label>
+    <select id="terminalModeSelect" hidden aria-hidden="true" tabindex="-1"><option value="perps">Perpetual</option><option value="spot">Spot</option><option value="equity">Equity / ETF</option></select>
+    <select id="assetSelect" hidden aria-hidden="true" tabindex="-1"><option value="SOL-PERP">SOL-PERP</option></select>
+    <select id="venueSelect" hidden aria-hidden="true" tabindex="-1"><option value="hyperliquid">Hyperliquid</option></select>
+
+    <section class="terminal-controls" aria-label="Resolved instrument controls">
+      <div class="terminal-picker-control">
+        <span>Selected instrument</span>
+        <button class="terminal-instrument-picker" id="terminalInstrumentTrigger" type="button">
+          <strong id="terminalPickerSymbol">SOL-PERP</strong>
+          <small id="terminalPickerMeta">Search any supported market</small>
+        </button>
+      </div>
       <label id="terminalSpotControl" hidden>
-        <span>Exact pool search</span>
-        <input id="terminalSpotSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Symbol, token, or contract" />
+        <span>Resolve exact spot market</span>
+        <input id="terminalSpotSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Symbol, token, pool, or contract" />
       </label>
       <label>
         <span>Timeframe</span>
@@ -55,13 +49,10 @@
           <option value="5m">5m</option><option value="15m">15m</option><option value="1h" selected>1h</option><option value="4h">4h</option><option value="1d">1d</option><option value="1w">1w</option><option value="1m">1m</option>
         </select>
       </label>
-      <label>
-        <span>Venue</span>
-        <select id="venueSelect" disabled><option value="hyperliquid">Hyperliquid</option></select>
-      </label>
+      <div class="terminal-resolved-control"><span>Resolved market</span><strong id="terminalVenueLabel">Hyperliquid</strong><small id="terminalCapabilityLabel">Perpetual · USDC collateral</small></div>
       <div class="terminal-actions">
-        <a id="terminalDeepLink" href="/perps/">Open Raven Perps</a>
-        <a href="/opportunity/">Current opportunities</a>
+        <button type="button" id="terminalReadTrigger">Raven Read</button>
+        <a id="terminalDeepLink" href="/perps/">Market depth</a>
       </div>
     </section>
 
@@ -84,19 +75,19 @@
     <section class="terminal-workspace">
       <article class="terminal-chart-panel">
         <header>
-          <div><span>Provider-backed price history</span><h2 id="terminalChartTitle">SOL-PERP · 1h</h2></div>
-          <p id="terminalChartStatus">Requesting verified candles.</p>
+          <div><span>Price history</span><h2 id="terminalChartTitle">SOL-PERP · 1h</h2></div>
+          <p id="terminalChartStatus">Requesting current candles.</p>
         </header>
         <div id="terminalChart" aria-label="Selected market chart"></div>
       </article>
 
       <aside class="terminal-intelligence" aria-label="Selected market intelligence">
         <section>
-          <header><div><span>Exact Raven join</span><h2 id="terminalReadHeadline">Decision context checking</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
-          <p id="terminalReadSummary">Live venue facts and Raven evidence resolve independently.</p>
-          <div class="terminal-why"><span>Why Raven noticed this</span><strong id="terminalWhy">No verified context yet.</strong></div>
+          <header><div><span>Why now</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
+          <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
+          <div class="terminal-why"><span id="terminalWhyLabel">Why Raven noticed this</span><strong id="terminalWhy">No verified context yet.</strong></div>
           <dl class="terminal-context-grid">
-            <div><dt>Identity</dt><dd id="terminalContextIdentity">hyperliquid:perp:SOL</dd></div>
+            <div><dt>Market</dt><dd id="terminalContextIdentity">SOL perpetual</dd></div>
             <div><dt>Behavior</dt><dd id="terminalBehavior">Unavailable</dd></div>
             <div><dt>Path</dt><dd id="terminalPath">Unavailable</dd></div>
             <div><dt>Evidence</dt><dd id="terminalEvidenceMaturity">Unavailable</dd></div>
@@ -104,34 +95,28 @@
         </section>
 
         <section>
-          <header><div><span>Future-only evidence</span><h2>Matured paths</h2></div><strong id="terminalComparableState">Forming</strong></header>
+          <header><div><span>Similar history</span><h2>What followed before</h2></div><strong id="terminalComparableState">Forming</strong></header>
           <dl class="terminal-context-grid">
             <div><dt>Sample</dt><dd id="terminalComparableN">0</dd></div>
             <div><dt>Median change</dt><dd id="terminalComparableChange">--</dd></div>
             <div><dt>Favorable excursion</dt><dd id="terminalComparableFavorable">--</dd></div>
             <div><dt>Adverse excursion</dt><dd id="terminalComparableAdverse">--</dd></div>
           </dl>
-          <p id="terminalComparableNote">No exact matured sample has been verified.</p>
+          <p id="terminalComparableNote">No exact historical sample is available yet.</p>
         </section>
 
         <section>
-          <header><div><span>Commercial boundary</span><h2>Quote and execution</h2></div><strong id="terminalQuoteState">Checking</strong></header>
+          <header><div><span>Available action</span><h2>Trade review</h2></div><strong id="terminalQuoteState">Checking</strong></header>
           <dl class="terminal-boundary-list">
-            <div><dt>Quote contract</dt><dd id="terminalQuoteContract">Checking flags</dd></div>
-            <div><dt>Wallet</dt><dd>Optional context only</dd></div>
-            <div><dt>Signing</dt><dd>Unavailable</dd></div>
-            <div><dt>Submission</dt><dd>Unavailable</dd></div>
-            <div><dt>Position monitoring</dt><dd>Not implemented</dd></div>
+            <div><dt>Review</dt><dd id="terminalQuoteContract">Checking availability</dd></div>
+            <div><dt>Action</dt><dd>No order can be signed or sent</dd></div>
           </dl>
-          <p id="terminalQuoteNote">No transaction payload is requested or prepared by this workspace.</p>
+          <p id="terminalQuoteNote">RavenOS will explain why review is available or unavailable for this exact market.</p>
         </section>
       </aside>
     </section>
 
-    <footer class="terminal-footer">
-      <p><strong>Truth boundary:</strong> no fallback candles, seeded scores, synthetic replay, inferred participant composition, customer signing, or hidden stale substitution.</p>
-      <span data-ravenos-build-id>pending</span>
-    </footer>
+    <span data-ravenos-build-id hidden>pending</span>
   </main>
 
   <script src="/vendor/lightweight-charts.standalone.production.js"></script>

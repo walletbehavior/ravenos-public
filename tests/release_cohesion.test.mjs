@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import worker from "../worker.mjs";
+import { RAVENOS_CONTEXT_SCHEMA } from "../ravenos-context-store.js";
 import {
   evaluateReleaseCohesion,
   expectedReleaseFromEnv,
@@ -175,4 +176,9 @@ test("generated deploy surface contains no unhashed JavaScript or CSS", () => {
   const deploy = JSON.parse(readFileSync(".deploy-public/ravenos_deploy_manifest.json", "utf8"));
   const unhashed = (deploy.files || []).filter((file) => /\.(?:js|css)$/.test(file) && !/^assets\/.+\.[0-9a-f]{16}\.(?:js|css)$/.test(file));
   assert.deepEqual(unhashed, []);
+});
+
+test("generated build manifest advertises the browser context contract actually shipped", () => {
+  const build = JSON.parse(readFileSync("public/ravenos_build.json", "utf8"));
+  assert.equal(build.api_schema_versions?.selected_context, RAVENOS_CONTEXT_SCHEMA);
 });

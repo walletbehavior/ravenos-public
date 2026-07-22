@@ -56,12 +56,15 @@ Before any future transaction is prepared, the server stores:
   "side": "buy_sell_long_or_short",
   "input_asset": "exact_asset_identity",
   "input_amount_base_units": "integer_string",
+  "source_custody_domain": "exact_chain_venue_or_broker_account_domain",
   "expected_output_asset": "exact_asset_identity",
   "expected_output_amount_base_units": "integer_string",
   "minimum_output_amount_base_units": "integer_string",
+  "destination_custody_domain": "exact_chain_venue_or_broker_account_domain",
   "slippage_bps": 0,
   "route_id": "provider_independent_route_identity",
   "route_hops": [],
+  "cross_domain_transfer": null,
   "program_or_contract_allowlist": [],
   "spender_and_approval": null,
   "fee_items": [],
@@ -86,9 +89,10 @@ The user sees plain-language, decoded facts:
 
 - account and wallet that would act;
 - exact chain/network and instrument/pool/contract;
+- exact funding source and delivery custody domains;
 - side and input amount;
 - expected and minimum received amount;
-- route and each economically material hop;
+- route and each economically material hop, including any bridge, issuer transfer, venue deposit, wrapper, or solver;
 - price impact, slippage, network fee, RavenOS/provider/referral fees;
 - contract/program addresses and spender approvals;
 - quote timestamp and countdown to expiry;
@@ -138,6 +142,22 @@ Any mismatch invalidates the prepared artifact and the user must review a new in
 - Bind exact venue account, instrument, side, quantity, order type, limit/trigger values, reduce-only state, time in force, leverage/margin mode, client order ID, and expiry.
 - Preserve actual venue collateral and settlement rules.
 - A broker OAuth scope or venue session never substitutes for a current RavenOS user authorization.
+
+### Adapter invariance
+
+The Terminal and reviewed intent contract are provider-neutral; the execution adapter is not. Jupiter, Hyperliquid, Tradier, or any future provider may translate a reviewed exact intent into its own quote or order representation only after capability and account compatibility are established server-side.
+
+An adapter may narrow capability or fail unavailable. It may never:
+
+- replace the selected instrument, pool, contract, listing, venue account, chain, or settlement asset;
+- broaden an order type, approval, OAuth scope, wallet permission, leverage limit, or transaction flag;
+- treat provider authentication as RavenOS transaction authorization;
+- skip quote, review, recent reauthentication, intent binding, simulation/semantic validation, or idempotency;
+- report execution, submission, or confirmation from an optimistic client state.
+
+A cross-domain adapter must return one end-to-end route from the reviewed funding source to the reviewed destination. It must expose the transfer provider, all material custody-domain changes, expected timing, expiry, fees, gas, and failure/refund behavior. A partial route that leaves the customer to operate a bridge manually is unavailable, not “ready.” RavenOS still requires explicit review of the transfer even when the user does not have to leave the application.
+
+Regulated securities execution and custody remain with the authorized broker. Non-custodial on-chain signing remains with the user wallet. Perpetual collateral and order semantics remain with the venue account. RavenOS supplies the exact instrument context, research, provider-neutral intent, review, policy boundary, and orchestration without collapsing those legal and custody roles.
 
 ## Idempotency and replay defense
 

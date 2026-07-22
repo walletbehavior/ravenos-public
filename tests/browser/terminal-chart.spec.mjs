@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { createHash } from "node:crypto";
 
-import { mockTerminalLiveApis, waitForTerminalLive } from "./terminal-live-fixtures.mjs";
+import {
+  mockTerminalLiveApis,
+  openExactSpotSearch,
+  selectUniversalInstrument,
+  waitForTerminalLive,
+} from "./terminal-live-fixtures.mjs";
 
 async function chartHash(page) {
   const screenshot = await page.locator("#terminalChart").screenshot();
@@ -42,9 +47,11 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalWhy")).toContainText("Behavior changed");
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
   await expect(page.locator("#terminalEvidenceState")).toContainText(/Fresh/i);
-  await expect(page.locator(".ros-capability-status")).toContainText("Sign off");
+  await expect(page.locator(".ros-capability-status, .terminal-continuity")).toHaveCount(0);
+  await expect(page.locator("#terminalBoundary")).toContainText("No order can be signed or sent");
   await expect(page.locator("#assetSelect option")).toHaveCount(2);
-  await expect(page.locator("#terminalModeSelect option")).toHaveCount(2);
+  await expect(page.locator("#terminalModeSelect")).toBeHidden();
+  await expect(page.locator("#terminalModeSelect option")).toHaveCount(3);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
 
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
@@ -54,13 +61,41 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   expect(state.submissionAvailable).toBe(false);
 });
 
+test("chart basics expose intervals, verified indicators, readable crosshair data, and focus mode", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
+
+  const chart = page.locator("#terminalChart .rpw");
+  await expect(chart.locator("[data-rpw-timeframes] button")).toHaveText(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
+  await expect(chart.locator('[data-rpw-timeframes] button[data-timeframe="1h"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
+
+  await chart.locator('[data-rpw-indicator="ema50"]').click();
+  await expect(chart.locator('[data-rpw-indicator="ema50"]')).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema50?.points || 0)).toBeGreaterThan(0);
+
+  const canvas = chart.locator(".rpw-stage canvas").first();
+  const bounds = await canvas.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45);
+  await expect(chart.locator("[data-rpw-crosshair]")).toBeVisible();
+  await expect(chart.locator("[data-rpw-crosshair]")).toContainText(/UTC.*O .*H .*L .*C .*V /);
+
+  await chart.locator("[data-rpw-focus]").click();
+  await expect(chart).toHaveClass(/rpw-focus-mode/);
+  await expect(page.locator("body")).toHaveClass(/raven-chart-focus/);
+  await page.keyboard.press("Escape");
+  await expect(chart).not.toHaveClass(/rpw-focus-mode/);
+});
+
 test("instrument and timeframe changes repaint the chart and exact context", async ({ page }) => {
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
   const initialHash = await chartHash(page);
 
-  await page.selectOption("#assetSelect", "BTC-PERP");
+  await selectUniversalInstrument(page, "BTC-PERP");
   await waitForTerminalLive(page, { instrument: "BTC-PERP", timeframe: "1h" });
   await expect(page.locator("#terminalReadHeadline")).toContainText("BTC-PERP · Pressure reset");
   const instrumentHash = await chartHash(page);
@@ -100,12 +135,9 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
-  await page.selectOption("#terminalModeSelect", "spot");
-  await expect(page.locator("#terminalSpotControl")).toBeVisible();
+  await openExactSpotSearch(page, "JUP");
+  await expect(page.locator("#terminalSpotControl")).toBeHidden();
   await expect(page.locator("#terminalPerpControl")).toBeHidden();
-  await page.locator("#terminalSpotSearch").fill("JUP");
-  await expect(page.locator(".terminal-search-result")).toHaveCount(1);
-  await page.locator(".terminal-search-result").click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
 
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
@@ -123,30 +155,31 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
 });
 
-test("exact-pool search dismisses on Escape and outside interaction", async ({ page }) => {
+test("universal exact-market search dismisses on Escape and explicit close", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
-  await page.selectOption("#terminalModeSelect", "spot");
-  const input = page.locator("#terminalSpotSearch");
-  const results = page.locator("#terminalSpotResults");
+  await page.locator("#terminalInstrumentTrigger").click();
+  const input = page.locator("#rosCommandInput");
+  const palette = page.locator("#rosCommandPalette");
   await input.fill("JUP");
-  await expect(results).toBeVisible();
+  await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "JUP/USDC" })).toBeVisible();
   await input.press("Escape");
-  await expect(results).toBeHidden();
-  await input.fill("JUP ");
-  await expect(results).toBeVisible();
-  await page.locator(".terminal-title").click();
-  await expect(results).toBeHidden();
+  await expect(palette).not.toBeVisible();
+  await page.locator("#terminalInstrumentTrigger").click();
+  await input.fill("JUP");
+  await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "JUP/USDC" })).toBeVisible();
+  await page.locator("#rosCommandClose").click();
+  await expect(palette).not.toBeVisible();
 });
 
 test("quote-preview capability stays non-signing even when the review flags are enabled", async ({ page }) => {
   await mockTerminalLiveApis(page, { flagsEnabled: true });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
-  await expect(page.locator("#terminalQuoteState")).toHaveText("Preview contract enabled");
-  await expect(page.locator("#terminalQuoteContract")).toHaveText("Read-only review only");
-  await expect(page.locator("#terminalQuoteNote")).toContainText(/Signing and submission remain unavailable/i);
+  await expect(page.locator("#terminalQuoteState")).toHaveText("Review only");
+  await expect(page.locator("#terminalQuoteContract")).toHaveText("Read-only quote review");
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order can be signed or sent/i);
   await expect(page.getByRole("button", { name: /sign|submit|execute|buy|sell|long|short/i })).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"], script[src*="ravenos-access"]')).toHaveCount(0);
 });
@@ -158,18 +191,20 @@ test("Terminal ships no seeded market model or synthetic replay client", async (
   const source = await page.evaluate(() => fetch("/ravenos-terminal-live.js").then((response) => response.text()));
   expect(source).not.toMatch(/samplePrices|perpsInputVector|replayMatches|pressureComposition|Math\.random|May 2026 compression|Raven Paper Candidates|smart-wallet-distribution/i);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/Synthetic fallback None/i);
+  expect(text).not.toMatch(/Synthetic fallback|seeded|generated market/i);
   expect(text).not.toMatch(/Demo|sample price|similarity score|pressure engine|paper ready|upgrade to pro|token access/i);
 });
 
-test("rapid market switching leaves only the final exact selection visible", async ({ page }) => {
+test("repeated universal market selection leaves only the final exact instrument visible", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   const initialCanvasCount = await page.locator("#terminalChart canvas").count();
-  await page.selectOption("#assetSelect", "BTC-PERP");
-  await page.selectOption("#assetSelect", "SOL-PERP");
-  await page.selectOption("#assetSelect", "BTC-PERP");
+  await selectUniversalInstrument(page, "BTC-PERP");
+  await waitForTerminalLive(page, { instrument: "BTC-PERP" });
+  await selectUniversalInstrument(page, "SOL-PERP");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await selectUniversalInstrument(page, "BTC-PERP");
   await waitForTerminalLive(page, { instrument: "BTC-PERP" });
   await expect(page.locator("#terminalInstrument")).toHaveText("BTC-PERP");
   await expect(page.locator("#terminalReadHeadline")).toContainText("BTC-PERP");
@@ -192,29 +227,74 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   await expect(page.locator("#rosContextRail")).toContainText("SOL-PERP");
 });
 
-test("selected context survives navigation to Opportunities", async ({ page }) => {
+test("sparse 15m coverage explains the gap without filling missing history", async ({ page }) => {
+  await mockTerminalLiveApis(page, { sparseTimeframe: "15m" });
+  await page.goto("/terminal/?asset=SOL-PERP&timeframe=15m");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().candleCount)).toBe(12);
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator("[data-rpw-coverage-note]")).toBeVisible();
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("15m coverage is limited to 12 provider-backed bars");
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("Missing history was not filled");
+});
+
+test("mobile Raven overlay sheet closes after an available overlay is selected", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
-  await page.selectOption("#assetSelect", "BTC-PERP");
+  await page.evaluate(() => {
+    const host = document.createElement("div");
+    host.id = "overlaySelectionFixture";
+    host.style.height = "520px";
+    document.querySelector(".terminal-live").append(host);
+    const candles = Array.from({ length: 48 }, (_, index) => ({
+      time: 1_784_000_000 + index * 3600,
+      open: 100 + index * .1,
+      high: 101 + index * .1,
+      low: 99 + index * .1,
+      close: 100.5 + index * .1,
+      volume: 1000 + index,
+    }));
+    const workspace = window.RavenOSPriceWorkspace.create(host, { timeframe: "1h" });
+    workspace.setState({ state: "live", source: "Verified test provider", marketIdentity: "test:exact", timeframe: "1h", candles, returnedBars: candles.length });
+    workspace.render({ overlays: [{ type: "pressure-zone", label: "Pressure", start_time: candles[8].time, end_time: candles[20].time, low: 100, high: 104 }] });
+    window.__RAVENOS_OVERLAY_SELECTION_TEST__ = workspace;
+  });
+  const root = page.locator("#overlaySelectionFixture .rpw");
+  await root.locator("[data-rpw-overlays]").click();
+  await expect(root).toHaveClass(/rpw-overlays-open/);
+  await root.locator(".raven-overlay-options button", { hasText: "Pressure" }).click();
+  await expect(root).not.toHaveClass(/rpw-overlays-open/);
+  await expect(root.locator("[data-rpw-overlays]")).toHaveAttribute("aria-expanded", "false");
+});
+
+test("selected context survives navigation to Discover", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await selectUniversalInstrument(page, "BTC-PERP");
   await page.selectOption("#timeframeSelect", "4h");
   await waitForTerminalLive(page, { instrument: "BTC-PERP", timeframe: "4h" });
-  await page.locator('.ros-left-nav a[href^="/opportunity/"]').click();
-  await expect(page).toHaveURL(/\/opportunity\/.*asset=BTC-PERP.*timeframe=4h/);
+  await page.locator('.ros-workspace-nav a[data-ros-nav="discover"]').click();
+  await expect(page).toHaveURL(/\/discover\/.*asset=BTC-PERP.*timeframe=4h/);
   await expect(page.locator("#rosContextSubject")).toHaveText("BTC-PERP");
 });
 
 test("primary navigation is coherent across workspace and static support surfaces", async ({ page }) => {
-  const shellExpected = ["Brief", "Opportunities", "Perps", "Terminal", "Behavior", "Outcomes", "Replay", "Markets", "Research"];
-  const reportExpected = ["Brief", "Opportunity", "Terminal", "Atlas", "Replay", "Outcomes", "Memory", "Behavior", "Research", "Perps", "Docs", "FAQ", "Account"];
-  const routes = ["/", "/terminal/", "/opportunity/", "/replay/", "/outcomes/", "/memory/", "/behavior/", "/research/", "/perps/", "/atlas/", "/docs/", "/faq/", "/account/"];
-  const shellRoutes = new Set(["/", "/terminal/", "/opportunity/", "/replay/", "/outcomes/", "/memory/", "/behavior/", "/research/", "/perps/", "/account/"]);
+  const expected = ["Discover", "Terminal", "Portfolio", "Atlas"];
+  const shellRoutes = ["/discover/", "/terminal/", "/opportunity/", "/replay/", "/outcomes/", "/memory/", "/behavior/", "/research/", "/perps/", "/atlas/", "/account/"];
   await mockTerminalLiveApis(page);
 
-  for (const route of routes) {
+  for (const route of shellRoutes) {
     await page.goto(route);
-    const selector = shellRoutes.has(route) ? ".ros-left-nav a" : "nav[aria-label='Primary navigation'] a";
-    const labels = await page.locator(selector).evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()).filter(Boolean));
-    expect(labels).toEqual(shellRoutes.has(route) ? shellExpected : reportExpected);
+    const labels = await page.locator(".ros-workspace-nav a > span:last-child").allTextContents();
+    expect(labels).toEqual(expected);
   }
+  for (const route of ["/docs/", "/faq/"]) {
+    await page.goto(route);
+    const labels = await page.locator("nav[aria-label='Primary navigation'] a").allTextContents();
+    expect(labels).toEqual(expected);
+  }
+  await page.goto("/");
+  await expect(page.locator(".landing-nav")).toHaveText(/Product.*Method.*Docs.*Access/s);
 });

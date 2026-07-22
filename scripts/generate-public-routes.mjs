@@ -22,13 +22,6 @@ function routeToPath(route) {
   return trimmed ? `${trimmed}/index.html` : "index.html";
 }
 
-function navLinks(activeSlug) {
-  return routes
-    .filter((route) => route.public && route.nav_group === "primary" && route.slug !== "home")
-    .map((route) => `<a class="${route.slug === activeSlug ? "active" : ""}" href="${route.route}">${route.title}</a>`)
-    .join("");
-}
-
 function buildMarkerPlaceholder() {
   return "Public artifact verified";
 }
@@ -45,8 +38,8 @@ function fallbackArtifactExists(route) {
 function routePrompt(route) {
   if (route.slug === "opportunity") return "What is Raven watching now?";
   if (route.slug === "memory") return "Similar conditions remain mixed";
-  if (route.slug === "replay") return "Historical context";
-  if (route.slug === "outcomes") return "Followthrough check";
+  if (route.slug === "replay") return "What looked similar before?";
+  if (route.slug === "outcomes") return "Did earlier reads follow through?";
   return route.question;
 }
 
@@ -74,15 +67,7 @@ function renderGeneratedRoute(route) {
 </head>
 <body>
   <main class="route-shell" data-route-slug="${route.slug}">
-    <header class="route-topbar">
-      <div class="route-brand">
-        <span class="route-eyebrow">RavenOS ${route.title}</span>
-        <strong>${prompt}</strong>
-      </div>
-      <nav class="route-nav" aria-label="Primary navigation">${navLinks(route.slug)}</nav>
-    </header>
-
-    <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
+    <section class="public-evidence" aria-label="Why this read can change" data-evidence-contract-header>
       <div class="public-evidence-strip">
         <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
         <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
@@ -92,24 +77,20 @@ function renderGeneratedRoute(route) {
         <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
       </div>
       <details class="public-evidence-details">
-        <summary>Evidence details</summary>
+        <summary>Why this read can change</summary>
         <p class="public-evidence-bridge" data-evidence-field="bridge"><strong>Why reads can differ:</strong> Live reads can move before outcomes settle. We separate current opportunity from later followthrough checks.</p>
         <div class="public-evidence-detail-grid">
-          <div>Evidence role<strong data-evidence-field="raw_role">${route.evidence_role}</strong></div>
           <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
           <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
-          <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
-          <div>Source<strong data-evidence-field="source">Raven feed</strong></div>
-          <div>Observed / outcomes<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Authority<strong data-evidence-field="source">Raven feed</strong></div>
+          <div>Observed / measured<strong data-evidence-field="observed_settled">0 / 0</strong></div>
           <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
-          <div>Evidence version<strong data-evidence-field="artifact">unversioned</strong></div>
-          <div>Methodology<strong><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Public definitions</a></strong></div>
         </div>
       </details>
     </section>
 
     <section class="route-hero">
-      <div class="route-hero-meta"><span class="route-eyebrow">Raven intelligence / ${route.title}</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Projection loading</strong><small>Source timestamp pending</small></div></div>
+      <div class="route-hero-meta"><span class="route-eyebrow">${route.title}</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Checking current data</strong><small>Timestamp pending</small></div></div>
       <h1 id="routeHeadline">${prompt}</h1>
       <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
       <div class="route-state-strip" id="routeStateStrip">${route.title}</div>
@@ -120,17 +101,7 @@ function renderGeneratedRoute(route) {
       <article class="route-panel" id="routeSecondaryPanel"></article>
     </section>
 
-    <nav class="route-flow" aria-label="Raven evidence workflow">
-      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
-      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
-      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
-      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
-    </nav>
-
-    <footer class="route-build">
-      <div id="routeHydrationState">Fallback shell loaded</div>
-      <div id="ravenosBuildMark">${buildMarkerPlaceholder()}</div>
-    </footer>
+    <footer hidden aria-hidden="true"><span id="routeHydrationState">Awaiting current data</span><span id="ravenosBuildMark">${buildMarkerPlaceholder()}</span></footer>
   </main>
   <script id="ravenosRouteConfig" type="application/json">${JSON.stringify(configPayload)}</script>
   <script type="module" src="/ravenos-route-app.js"></script>
@@ -173,6 +144,9 @@ for (const legacyPath of [
 for (const asset of [
   "ravenos-route.css",
   "ravenos-route-app.js",
+  "ravenos-landing.css",
+  "ravenos-landing.js",
+  "ravenos-guide.css",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
   "ravenos-shell.css",
@@ -186,6 +160,10 @@ for (const asset of [
   "ravenos-price-workspace.js",
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
+  "ravenos-workspace.css",
+  "ravenos-discover.js",
+  "ravenos-portfolio.js",
+  "ravenos-atlas.js",
   "raven-chart-overlays.js",
   "raven-price-chart.js",
 ]) {

@@ -22,7 +22,11 @@ const assets = {
   },
 };
 
-const env = { ASSETS: assets };
+const env = {
+  ASSETS: assets,
+  RAVENOS_PUBLIC_ORIGIN_URL: "https://validation-origin.example/public/ravenos",
+  RAVENOS_PUBLIC_ORIGIN_TOKEN: "worker-response-validation-token",
+};
 const checks = [
   ["GET", "/api/health"],
   ["GET", "/api/status"],
@@ -37,6 +41,8 @@ const checks = [
   ["GET", "/api/research"],
   ["GET", "/api/claims/not-a-real-claim"],
   ["GET", "/api/opportunity"],
+  ["GET", "/api/atlas"],
+  ["GET", "/api/instruments/search?q=AAPL"],
   ["GET", "/api/terminal"],
   ["GET", "/api/chains/solana"],
   ["GET", "/api/chains/base"],
@@ -50,10 +56,43 @@ const checks = [
 ];
 
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async () => new Response(JSON.stringify({ ok: false }), {
-  status: 503,
-  headers: { "content-type": "application/json" },
-});
+globalThis.fetch = async (input) => {
+  const url = String(input?.url || input);
+  if (url.includes("/instrument_lookup.json?q=AAPL")) {
+    return new Response(JSON.stringify({
+      ok: true,
+      safe_public: true,
+      redaction_policy: "aggregate_public_market_context_only",
+      schema_version: "ravenos.instrument_lookup.v1",
+      generated_at: new Date().toISOString(),
+      freshness_target_seconds: 300,
+      query: "AAPL",
+      provider: "Tradier",
+      provider_debug: { credential: "must-be-stripped" },
+      results: [{
+        schema_version: "ravenos.instrument.v1",
+        instrument_id: "equity:nasdaq:aapl",
+        symbol: "AAPL",
+        display_name: "Apple Inc.",
+        asset_class: "equity",
+        instrument_type: "equity",
+        identity_scope: "exact_instrument",
+        venue: "nasdaq",
+        chain: "none",
+        market_identity: { market_id: "AAPL", listing: "Nasdaq" },
+        quote_asset: { symbol: "USD", asset_id: "USD" },
+        settlement_asset: { symbol: "USD", asset_id: "USD" },
+        capabilities: { chart: true, live_price: true, quote_preview: false, execution: false },
+        provider_payload: { credential: "must-be-stripped" },
+      }],
+      execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  return new Response(JSON.stringify({ ok: false }), {
+    status: 503,
+    headers: { "content-type": "application/json" },
+  });
+};
 
 const findings = [];
 try {

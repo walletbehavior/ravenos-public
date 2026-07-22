@@ -26,6 +26,74 @@ export function providerCandles(asset, timeframe = "1h") {
   });
 }
 
+export const ROBINHOOD_CONTRACT = "0x230442c8133a9efb4c278b3723043444749ca08b";
+
+function spotFixtureRows(query = "") {
+  const normalized = String(query || "").trim().toLowerCase();
+  if (normalized === ROBINHOOD_CONTRACT || normalized.includes("runner")) {
+    return [{
+      chainId: "robinhood",
+      dexId: "uniswap",
+      pairAddress: "0x602633428507BBAA848E6D0c3127cda15eEAE6a9",
+      tokenAddress: ROBINHOOD_CONTRACT,
+      quoteTokenAddress: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      symbol: "RUNNER",
+      name: "The Runner",
+      quoteSymbol: "WETH",
+      priceUsd: 0.0003219,
+      liquidityUsd: 68_960.64,
+      volume24h: 14_200,
+      txns24h: 241,
+      marketCap: 321_900,
+      fdv: 321_900,
+      priceChange24h: -1.8,
+      coverage: "Public lookup snapshot",
+      isSample: false,
+      lastUpdated: "2026-07-21T12:20:00Z",
+    }];
+  }
+  if (normalized && !normalized.includes("jup") && !normalized.includes("jupiter")) return [];
+  return [{
+    chainId: "solana",
+    dexId: "fixture-dex",
+    pairAddress: "fixture-pair-address",
+    tokenAddress: "fixture-token-address",
+    quoteTokenAddress: "fixture-quote-address",
+    symbol: "JUP",
+    name: "Jupiter",
+    quoteSymbol: "USDC",
+    priceUsd: 1.12,
+    liquidityUsd: 4_200_000,
+    volume24h: 16_500_000,
+    txns24h: 12_400,
+    marketCap: 3_100_000_000,
+    fdv: 7_800_000_000,
+    priceChange24h: 3.4,
+    coverage: "Public lookup snapshot",
+    isSample: false,
+    lastUpdated: "2026-07-21T12:20:00Z",
+  }];
+}
+
+export async function selectUniversalInstrument(page, label) {
+  await page.locator("#terminalInstrumentTrigger, #rosCommandTrigger").first().click();
+  const input = page.locator("#rosCommandInput");
+  await input.fill(label);
+  const result = page.locator(".ros-command-result.instrument").filter({ hasText: label }).first();
+  await result.waitFor({ state: "visible" });
+  await result.click();
+  await page.waitForURL((url) => url.pathname === "/terminal/" && url.searchParams.get("asset") === label);
+}
+
+export async function openExactSpotSearch(page, query) {
+  await page.locator("#terminalInstrumentTrigger, #rosCommandTrigger").first().click();
+  await page.locator("#rosCommandInput").fill(query);
+  const result = page.locator(".ros-command-result.instrument").filter({ hasText: query }).filter({ hasText: "Exact pool" }).first();
+  await result.waitFor({ state: "visible" });
+  await result.click();
+  await page.waitForURL((url) => url.pathname === "/terminal/" && String(url.searchParams.get("instrument_id") || "").includes(":pool:"));
+}
+
 function marketRow(asset, overrides = {}) {
   const coin = asset.replace(/-PERP$/, "");
   const mark = asset === "BTC-PERP" ? 67_500 : 148.25;
@@ -96,7 +164,7 @@ function contextPayload(asset) {
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false } = {}) {
+export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({
@@ -119,57 +187,49 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const timeframe = url.searchParams.get("timeframe") || "1h";
     const market = url.searchParams.get("market") || "perpetuals";
     const pairAddress = url.searchParams.get("pair_address");
-    calls.push({ asset, timeframe, market, pairAddress });
+    const instrumentId = url.searchParams.get("instrument_id");
+    const chain = url.searchParams.get("chain");
+    calls.push({ asset, timeframe, market, pairAddress, instrumentId });
     if (chartFailure) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "provider_unavailable", freshness_state: "data_unavailable", candles: [] }) });
+    if (chain === "robinhood") return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: false, asset, source: "Coverage Developing", source_type: "identity_unavailable", source_label: "Coverage Developing", freshness_state: "unavailable", timeframe, market_identity: instrumentId, instrument_scope: "exact_pool", message: "Provider-backed chart coverage is unavailable for this exact Robinhood Chain pool.", candles: [] }),
+    });
     const perp = asset.endsWith("-PERP");
+    const traditional = market === "equities";
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
         asset,
-        source: perp ? "Hyperliquid" : "Dexscreener",
-        source_label: perp ? "Live perps market price" : "Exact public pool",
+        source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "Dexscreener",
+        source_label: perp ? "Live perps market price" : traditional ? "Live market price" : "Exact public pool",
         freshness_state: "fresh",
         timeframe,
         observed_at: "2026-07-21T12:20:00Z",
-        market_identity: pairAddress ? `solana:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
+        market_identity: traditional ? instrumentId : pairAddress ? `solana:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
         instrument_scope: pairAddress ? "exact_pool" : "exact_instrument",
-        instrument: perp
+        instrument: traditional
+          ? { canonical_id: instrumentId, instrument_type: String(instrumentId || "").startsWith("etf:") ? "etf" : "equity", identity_scope: "exact_instrument", chain: "none", venue: String(instrumentId || "").split(":")[1] || "traditional", symbol: asset, quote_asset: "USD" }
+          : perp
           ? { instrument_type: "perpetual", chain: "hyperliquid", venue: "hyperliquid", symbol: asset }
           : { instrument_type: "spot_pool", chain: "solana", venue: "fixture-dex", symbol: "JUP", quote_asset: "USDC", pair_address: pairAddress, token_address: "fixture-token" },
         capabilities: { live_bars: false, older_bar_backfill: false, live_trades: false },
-        candles: providerCandles(asset, timeframe),
+        candles: sparseTimeframe === timeframe ? providerCandles(asset, timeframe).slice(-12) : providerCandles(asset, timeframe),
       }),
     });
   });
-  await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      ok: true,
-      results: [{
-        chainId: "solana",
-        dexId: "fixture-dex",
-        pairAddress: "fixture-pair-address",
-        tokenAddress: "fixture-token-address",
-        quoteTokenAddress: "fixture-quote-address",
-        symbol: "JUP",
-        name: "Jupiter",
-        quoteSymbol: "USDC",
-        priceUsd: 1.12,
-        liquidityUsd: 4_200_000,
-        volume24h: 16_500_000,
-        txns24h: 12_400,
-        marketCap: 3_100_000_000,
-        fdv: 7_800_000_000,
-        priceChange24h: 3.4,
-        coverage: "Public lookup snapshot",
-        isSample: false,
-        lastUpdated: "2026-07-21T12:20:00Z",
-      }],
-    }),
-  }));
+  await page.route("**/api/dexscreener/search**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q") || "";
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: spotFixtureRows(query) }) });
+  });
+  await page.route("**/api/dexscreener/pair**", (route) => {
+    const url = new URL(route.request().url());
+    const rows = url.searchParams.get("chainId") === "robinhood" ? spotFixtureRows(ROBINHOOD_CONTRACT) : spotFixtureRows("JUP");
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: rows }) });
+  });
   await page.route("**/api/trade/flags", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",

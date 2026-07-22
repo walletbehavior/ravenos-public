@@ -1,13 +1,16 @@
 import { ravenOSContext } from "./ravenos-context-store.js";
 import { getChartDataPlaneDiagnostics } from "./ravenos-chart-data-plane.js";
+import { customerFacingText } from "./ravenos-intelligence-contract.js";
 
 document.body.classList.add("ros-terminal-live-shell");
 
 const TIMEFRAMES = new Set(["5m", "15m", "1h", "4h", "1d", "1w", "1m"]);
+const CHARTED_SPOT_CHAINS = new Set(["solana", "base", "ethereum"]);
 const state = {
   lane: "perps",
   markets: [],
   publicPerps: null,
+  atlas: null,
   selected: null,
   timeframe: "1h",
   workspace: null,
@@ -40,6 +43,11 @@ function titleCase(value, fallback = "Unavailable") {
   const clean = String(value || "").trim();
   if (!clean) return fallback;
   return clean.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function chainDisplayName(value) {
+  const chain = String(value || "").trim().toLowerCase();
+  return chain === "robinhood" ? "Robinhood Chain" : titleCase(chain, "Unknown chain");
 }
 
 function formatPrice(value) {
@@ -87,6 +95,101 @@ async function fetchJson(url, init = {}) {
   return { response, payload: unwrap(payload) };
 }
 
+function perpSubject(row = {}) {
+  return {
+    id: row.instrument_id,
+    instrumentId: row.instrument_id,
+    type: "instrument",
+    label: row.asset,
+    symbol: row.asset,
+    assetClass: "crypto",
+    instrumentType: "perpetual",
+    identityScope: "exact_instrument",
+    chain: "hyperliquid",
+    venue: "hyperliquid",
+    marketType: "perp",
+    quoteAsset: "USD",
+    settlementAsset: "USDC",
+    preferredCashAsset: "USDC",
+    economicNumeraire: "USDC",
+    capabilities: {
+      chart: true,
+      live_price: true,
+      book: true,
+      tape: true,
+      funding: true,
+      open_interest: true,
+      raven_intelligence: true,
+      quote_preview: false,
+      execution: false,
+    },
+  };
+}
+
+function spotSubject(row = {}) {
+  const chain = String(row.chainId || "").toLowerCase();
+  const pairAddress = String(row.pairAddress || "");
+  const label = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
+  return {
+    id: `${chain}:pool:${pairAddress}`,
+    instrumentId: `${chain}:pool:${pairAddress}`,
+    type: "pool",
+    label,
+    symbol: row.symbol || "",
+    assetClass: "crypto",
+    instrumentType: "exact_pool",
+    identityScope: "exact_pool",
+    chain,
+    venue: String(row.dexId || "unknown").toLowerCase(),
+    marketType: "spot",
+    quoteAsset: String(row.quoteSymbol || "").toUpperCase(),
+    settlementAsset: String(row.quoteSymbol || "").toUpperCase(),
+    preferredCashAsset: "USDC",
+    economicNumeraire: "USDC",
+    capabilities: {
+      chart: CHARTED_SPOT_CHAINS.has(chain),
+      live_price: true,
+      liquidity: true,
+      route_preview: chain === "solana",
+      raven_intelligence: false,
+      execution: false,
+    },
+  };
+}
+
+function atlasSubject(row = {}) {
+  const instrument = row.instrument?.schema_version === "ravenos.instrument.v1"
+    ? row.instrument
+    : row.schema_version === "ravenos.instrument.v1"
+      ? row
+      : {};
+  const symbol = String(row.symbol || instrument.symbol || "").toUpperCase();
+  const quote = instrument.quote_asset?.symbol || "USD";
+  const settlement = instrument.settlement_asset?.symbol || "USD";
+  return {
+    id: row.instrument_id || instrument.instrument_id,
+    instrumentId: row.instrument_id || instrument.instrument_id,
+    type: "instrument",
+    label: symbol || instrument.display_name || "Traditional market",
+    symbol,
+    assetClass: instrument.asset_class || "equity",
+    instrumentType: instrument.instrument_type || "equity",
+    identityScope: instrument.identity_scope || "exact_instrument",
+    chain: instrument.chain || "none",
+    venue: instrument.venue || "unknown",
+    marketType: "equities",
+    quoteAsset: quote,
+    settlementAsset: settlement,
+    preferredCashAsset: instrument.preferred_cash_asset?.symbol || "USD",
+    economicNumeraire: instrument.economic_numeraire || "USDC",
+    capabilities: { ...(instrument.capabilities || {}), execution: false },
+  };
+}
+
+function setWhyLabel(value = "Why Raven noticed this") {
+  setText("terminalWhyLabel", value);
+}
+
 function selectedPerpSnapshot(row = state.selected, streamed = state.workspace?.state?.marketState || {}) {
   const last = finite(streamed.last ?? row?.last_price ?? row?.lastPrice);
   const mark = finite(streamed.mark ?? row?.mark_price ?? row?.markPx);
@@ -109,6 +212,10 @@ function renderPerpFacts() {
   setText("terminalInstrumentScope", "Exact instrument");
   setText("terminalInstrument", row?.asset);
   setText("terminalInstrumentMeta", row ? `${row.instrument_id} · ${timestamp(row.observed_at)}` : "Hyperliquid perpetual · unavailable");
+  setText("terminalPickerSymbol", row?.asset, "No instrument");
+  setText("terminalPickerMeta", row?.instrument_id, "Search any supported market");
+  setText("terminalVenueLabel", "Hyperliquid");
+  setText("terminalCapabilityLabel", "Perpetual · USDC collateral · exact contract");
   setText("terminalLast", formatPrice(market.last));
   setText("terminalMetric2Label", "Mark");
   setText("terminalMetric2", formatPrice(market.mark));
@@ -126,9 +233,14 @@ function renderPerpFacts() {
 }
 
 function renderSpotFacts(row = state.selected) {
+  const chartAvailable = CHARTED_SPOT_CHAINS.has(String(row?.chainId || "").toLowerCase());
   setText("terminalInstrumentScope", "Exact public pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
-  setText("terminalInstrumentMeta", row ? `${titleCase(row.chainId)} · ${row.dexId || "venue unavailable"} · lookup snapshot` : "Search for a symbol, token, or contract");
+  setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · lookup snapshot` : "Search for a symbol, token, or contract");
+  setText("terminalPickerSymbol", row ? `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}` : "Exact spot market required");
+  setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
+  setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
+  setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartAvailable ? "chart available" : "chart unavailable"} · USDC economic intent` : "No chain or venue selected");
   setText("terminalLast", formatPrice(row?.priceUsd));
   setText("terminalMetric2Label", "Market cap");
   setText("terminalMetric2", compact(row?.marketCap ?? row?.fdv, { currency: true }));
@@ -144,6 +256,67 @@ function renderSpotFacts(row = state.selected) {
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", change !== null && change >= 0);
   changeNode?.classList.toggle("terminal-negative", change !== null && change < 0);
+}
+
+function atlasOptionsFor(row = state.selected) {
+  const subject = atlasSubject(row || {});
+  return (state.atlas?.options_context || []).find((option) => (
+    option?.underlying_instrument_id === subject.instrumentId
+    || String(option?.underlying || "").toUpperCase() === subject.symbol
+  )) || null;
+}
+
+function renderAtlasFacts(row = state.selected) {
+  const subject = atlasSubject(row || {});
+  const instrument = row?.instrument || {};
+  const options = atlasOptionsFor(row);
+  const session = instrument.market_session?.state || "unknown";
+  setText("terminalInstrumentScope", "Exact listed instrument");
+  setText("terminalInstrument", subject.symbol || "No instrument selected");
+  setText("terminalInstrumentMeta", row ? `${titleCase(instrument.market_identity?.listing || subject.venue)} · ${subject.instrumentId} · ${timestamp(row.observed_at)}` : "Select an exact listed instrument");
+  setText("terminalPickerSymbol", subject.symbol, "Exact listed instrument required");
+  setText("terminalPickerMeta", subject.instrumentId, "Search equities and ETFs");
+  setText("terminalVenueLabel", titleCase(instrument.market_identity?.listing || subject.venue));
+  setText("terminalCapabilityLabel", `${titleCase(subject.instrumentType)} · ${subject.settlementAsset} settlement · ${titleCase(session)} session`);
+  setText("terminalLast", formatPrice(row?.price));
+  setText("terminalMetric2Label", "5d change");
+  setText("terminalMetric2", percent(row?.change_5d, { ratio: true }));
+  setText("terminalMetric3Label", "21d change");
+  setText("terminalMetric3", percent(row?.change_21d, { ratio: true }));
+  setText("terminalMetric4Label", "63d change");
+  setText("terminalMetric4", percent(row?.change_63d, { ratio: true }));
+  setText("terminalMetric5Label", "Options context");
+  setText("terminalMetric5", options ? titleCase(options.regime) : "Unavailable");
+  setText("terminalMetric6Label", "Market session");
+  setText("terminalMetric6", titleCase(session));
+  const changeNode = document.getElementById("terminalMetric6");
+  changeNode?.classList.remove("terminal-positive", "terminal-negative");
+}
+
+function renderListedFacts(row = state.selected) {
+  const subject = atlasSubject(row || {});
+  const instrument = row?.instrument?.schema_version === "ravenos.instrument.v1" ? row.instrument : row || {};
+  const session = instrument.market_session?.state || "unknown";
+  const listing = instrument.market_identity?.listing || subject.venue;
+  setText("terminalInstrumentScope", "Exact listed instrument");
+  setText("terminalInstrument", subject.symbol || "No instrument selected");
+  setText("terminalInstrumentMeta", subject.instrumentId ? `${titleCase(listing)} · ${subject.instrumentId}` : "Select an exact listed instrument");
+  setText("terminalPickerSymbol", subject.symbol, "Exact listed instrument required");
+  setText("terminalPickerMeta", subject.instrumentId, "Search equities and ETFs");
+  setText("terminalVenueLabel", titleCase(listing));
+  setText("terminalCapabilityLabel", `${titleCase(subject.instrumentType)} · ${subject.settlementAsset} settlement · market-data inspection only`);
+  setText("terminalLast", "--");
+  setText("terminalMetric2Label", "Settlement");
+  setText("terminalMetric2", subject.settlementAsset);
+  setText("terminalMetric3Label", "Economic view");
+  setText("terminalMetric3", subject.economicNumeraire);
+  setText("terminalMetric4Label", "Market session");
+  setText("terminalMetric4", titleCase(session));
+  setText("terminalMetric5Label", "Atlas context");
+  setText("terminalMetric5", "Unavailable");
+  setText("terminalMetric6Label", "Execution");
+  setText("terminalMetric6", "Read only");
+  document.getElementById("terminalMetric6")?.classList.remove("terminal-positive", "terminal-negative");
 }
 
 function resetComparableEvidence() {
@@ -217,15 +390,15 @@ function applyContextChartEvent(payload) {
   });
 }
 
-function renderPerpContext(payload) {
+function renderPerpContext(payload, { updateUrl = true } = {}) {
   state.context = payload;
   const context = payload?.raven_context || {};
   const read = payload?.raven_read || {};
   const delivery = payload?.delivery || {};
   const available = context.context_available === true;
   setText("terminalReadHeadline", read.headline || `${state.selected?.asset || "Instrument"} · Raven context unavailable`);
-  setText("terminalReadSummary", read.summary || "Live market data remains available, but no frozen Raven observation joined to this instrument.");
-  setText("terminalWhy", read.why_raven_noticed || context.why_raven_noticed || "No current decision-time Raven observation is available for this instrument.");
+  setText("terminalReadSummary", customerFacingText(read.summary, "Live market data remains available, but no timestamped Raven observation matches this instrument."));
+  setText("terminalWhy", customerFacingText(read.why_raven_noticed || context.why_raven_noticed, "No current Raven observation is available for this instrument."));
   setText("terminalContextIdentity", payload?.instrument?.instrument_id || state.selected?.instrument_id);
   setText("terminalBehavior", available ? context.behavior_family || "Observed, family unavailable" : "Unavailable");
   setText("terminalPath", available ? context.current_path || context.pressure_state || context.context_state : "Unavailable");
@@ -235,27 +408,27 @@ function renderPerpContext(payload) {
   renderComparables(payload?.matured_comparables || {});
   applyContextChartEvent(payload);
   updateShell({
-    subject: { id: payload?.instrument?.instrument_id || state.selected?.instrument_id, label: state.selected?.asset, type: "instrument", chain: "hyperliquid", venue: "hyperliquid", marketType: "perp" },
+    subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
     marketLabel: read.headline || `${state.selected?.asset} market`,
-    thesis: read.summary || "No exact Raven thesis is currently available.",
+    thesis: customerFacingText(read.summary, "No exact Raven thesis is currently available."),
     setup: available ? context.context_state || "observed" : "unavailable",
     supporting: Array.isArray(read.what_would_strengthen) ? read.what_would_strengthen : [],
     contradicting: Array.isArray(read.what_would_weaken) ? read.what_would_weaken : [],
     evidenceState: available ? context.outcomes?.evidence_maturity || "forming" : "unavailable",
     freshnessState: delivery.freshness_state || "data_unavailable",
     observedAt: context.observed_at || payload?.market_data?.generated_at || null,
-  });
+  }, { updateUrl });
 }
 
-function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, observedAt }) {
-  ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" });
+function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, observedAt }, { updateUrl = true } = {}) {
+  ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   window.RavenOSShell?.setCapabilities?.({
     market: state.workspace?.state?.state === "live" ? `Live · ${state.workspace.state.source}` : titleCase(state.workspace?.state?.state),
     wallet: "No customer session",
     mode: "Read only",
     signing: "Sign off",
     broadcast: "Broadcast off",
-    evidence: evidenceState && evidenceState !== "unavailable" ? "Exact evidence linked" : "Evidence unavailable",
+    evidence: evidenceState === "atlas_context" ? "Atlas context linked · Raven unavailable" : evidenceState && evidenceState !== "unavailable" ? "Exact evidence linked" : "Evidence unavailable",
   });
   window.RavenOSShell?.setIntelligence?.({
     subject,
@@ -268,9 +441,13 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
     invalidation: [],
     timeHorizon: state.timeframe,
     confidence: { label: evidenceState || "unrated" },
-    evidenceQuality: { state: evidenceState || "unavailable", lineageComplete: Boolean(state.context?.raven_context?.context_available) },
+    evidenceQuality: { state: evidenceState || "unavailable", lineageComplete: Boolean(state.context?.raven_context?.context_available || state.context?.atlas_context?.context_available) },
     freshness: { state: freshnessState || "data_unavailable", observedAt },
-    nextExpectedTransition: state.lane === "perps" ? "Wait for the next timestamped Raven context or market update." : "Exact spot Raven context is not yet projected.",
+    nextExpectedTransition: state.lane === "perps"
+      ? "Wait for the next timestamped Raven context or market update."
+      : state.lane === "equity"
+        ? "Atlas context is current; Raven has no exact behavioral read for this listing."
+        : "Raven has no exact behavioral read for this spot market yet.",
   });
 }
 
@@ -280,13 +457,13 @@ function updateQuoteBoundary() {
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
   const selectedSolanaSpot = state.lane === "spot" && String(state.selected?.chainId || "").toLowerCase() === "solana";
-  setText("terminalQuoteState", enabled ? "Preview contract enabled" : "Preview contract disabled");
-  setText("terminalQuoteContract", enabled ? "Read-only review only" : "Disabled by server flags");
+  setText("terminalQuoteState", enabled ? "Review only" : "Unavailable");
+  setText("terminalQuoteContract", enabled ? "Read-only quote review" : "Not available for this market");
   setText("terminalQuoteNote", enabled && selectedSolanaSpot
-    ? "A compatible reviewed-quote client may request a quote. This workspace still requests no transaction payload and exposes no signing action."
+    ? "A current route and quote may be reviewed. No transaction is prepared, signed, or sent."
     : enabled
-      ? "Quote review is limited to supported Solana pairs. Signing and submission remain unavailable."
-      : "The server-side quote contract is present but disabled. No transaction payload is requested or prepared by this workspace.");
+      ? "Quote review is available only for supported Solana pairs. No order can be signed or sent."
+      : "RavenOS cannot review a current route for this exact market. No transaction is prepared, signed, or sent.");
 }
 
 async function loadTradeFlags() {
@@ -306,16 +483,18 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   state.lane = "perps";
   state.selected = row;
   state.context = null;
+  setWhyLabel("Why Raven noticed this");
+  setText("terminalReadTrigger", "Raven Read");
   document.getElementById("assetSelect").value = row.asset;
   document.getElementById("venueSelect").replaceChildren(new Option("Hyperliquid", "hyperliquid"));
   setText("terminalChartTitle", `${row.asset} · ${state.timeframe}`);
   setText("terminalChartStatus", "Requesting provider-backed candles and exact Raven context.");
-  setText("terminalDeepLink", "Open Raven Perps");
+  setText("terminalDeepLink", "Perp depth");
   document.getElementById("terminalDeepLink").href = `/perps/?asset=${encodeURIComponent(row.asset)}&timeframe=${encodeURIComponent(state.timeframe)}`;
   renderPerpFacts();
   setContextUnavailable({ headline: "Decision context checking", identity: row.instrument_id, reason: "Exact public Raven context is being resolved." });
   updateQuoteBoundary();
-  if (updateUrl) history.replaceState({}, "", `?asset=${encodeURIComponent(row.asset)}&timeframe=${encodeURIComponent(state.timeframe)}`);
+  ravenOSContext.setSelection({ subject: perpSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
 
   const chartPromise = state.workspace.load({
     market: "perpetuals",
@@ -332,31 +511,41 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} provider-backed bars · ${titleCase(chartState.connectionState)}`
     : chartState?.message || "Provider-backed candles unavailable.");
-  if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload);
+  if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload, { updateUrl });
   else {
     setContextUnavailable({ identity: row.instrument_id });
     updateShell({
-      subject: { id: row.instrument_id, label: row.asset, type: "instrument", chain: "hyperliquid", venue: "hyperliquid", marketType: "perp" },
+      subject: perpSubject(row),
       marketLabel: `${row.asset} provider market`,
       thesis: "Live market data is available; exact Raven context is unavailable.",
       setup: "unavailable",
       evidenceState: "unavailable",
       freshnessState: chartState?.state || "data_unavailable",
       observedAt: chartState?.observedAt || row.observed_at,
-    });
+    }, { updateUrl });
   }
 }
 
-function setLane(lane) {
-  if (!new Set(["perps", "spot"]).has(lane)) return;
+function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
+  if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   state.lane = lane;
   document.getElementById("terminalModeSelect").value = lane;
-  document.getElementById("terminalPerpControl").hidden = lane !== "perps";
-  document.getElementById("terminalSpotControl").hidden = lane !== "spot";
+  document.getElementById("terminalSpotControl").hidden = true;
   document.getElementById("terminalSpotResults").hidden = true;
   if (lane === "perps") {
     document.getElementById("venueSelect").replaceChildren(new Option("Hyperliquid", "hyperliquid"));
-    selectPerp(state.selected?.asset?.endsWith("-PERP") ? state.selected.asset : state.markets[0]?.asset || "SOL-PERP");
+    if (selectDefault) {
+      const selected = state.markets.some((row) => row.instrument_id === state.selected?.instrument_id)
+        ? state.selected.asset
+        : defaultPerp();
+      if (selected) selectPerp(selected, { updateUrl });
+    }
+    return;
+  }
+  if (lane === "equity") {
+    document.getElementById("venueSelect").replaceChildren(new Option("Select exact listing", "unavailable"));
+    if (!selectDefault) return;
+    renderExplicitSelectionUnavailable({ lane: "equity", reason: "Select an exact equity or ETF. RavenOS will not choose a listing for you." });
     return;
   }
   ++state.selectionGeneration;
@@ -374,16 +563,15 @@ function setLane(lane) {
   });
   state.workspace.load({ market: "crypto_spot", asset: "", timeframe: state.timeframe, instrumentScope: "exact_pool" });
   updateQuoteBoundary();
-  history.replaceState({}, "", `?lane=spot&timeframe=${encodeURIComponent(state.timeframe)}`);
   updateShell({
-    subject: { id: "spot-pool-unselected", label: "No spot pool selected", type: "market", chain: "all", venue: "all", marketType: "spot" },
+    subject: { id: "spot-pool-unselected", label: "No spot pool selected", type: "market", assetClass: "crypto", instrumentType: "exact_pool", identityScope: "unselected", chain: "all", venue: "all", marketType: "spot", economicNumeraire: "USDC", capabilities: {} },
     marketLabel: "Exact spot pool required",
     thesis: "No market data or Raven context is shown until an exact public pool is selected.",
     setup: "unavailable",
     evidenceState: "unavailable",
     freshnessState: "data_unavailable",
     observedAt: null,
-  });
+  }, { updateUrl });
 }
 
 function createSpotResult(row, index) {
@@ -394,7 +582,7 @@ function createSpotResult(row, index) {
   const identity = document.createElement("strong");
   identity.textContent = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
   const venue = document.createElement("span");
-  venue.textContent = `${titleCase(row.chainId)} · ${row.dexId || "venue unavailable"}`;
+  venue.textContent = `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}`;
   const liquidity = document.createElement("span");
   liquidity.textContent = `Liquidity ${compact(row.liquidityUsd, { currency: true })}`;
   const price = document.createElement("small");
@@ -429,26 +617,31 @@ async function searchSpot(query) {
   try {
     const { response, payload } = await fetchJson(`/api/dexscreener/search?q=${encodeURIComponent(clean)}`);
     if (generation !== state.searchGeneration) return;
-    const rows = response.ok && Array.isArray(payload?.results) ? payload.results.filter((row) => row?.pairAddress && row?.tokenAddress && finite(row?.priceUsd) > 0) : [];
+    const rows = response.ok && Array.isArray(payload?.results)
+      ? payload.results.filter((row) => row?.chainId && row?.pairAddress && row?.tokenAddress && finite(row?.priceUsd) > 0)
+      : [];
     renderSpotResults(rows, response.ok ? "No verified public pool matched this search." : "Public spot lookup is unavailable.");
   } catch {
     if (generation === state.searchGeneration) renderSpotResults([], "Public spot lookup is unavailable.");
   }
 }
 
-async function selectSpot(row) {
+async function selectSpot(row, { updateUrl = true } = {}) {
   const generation = ++state.selectionGeneration;
   state.lane = "spot";
   state.selected = row;
   state.context = null;
+  setWhyLabel("Why Raven noticed this");
+  setText("terminalReadTrigger", "Raven Read");
   document.getElementById("terminalSpotResults").hidden = true;
   document.getElementById("terminalSpotSearch").value = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
-  document.getElementById("venueSelect").replaceChildren(new Option(`${titleCase(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
+  document.getElementById("venueSelect").replaceChildren(new Option(`${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
   renderSpotFacts(row);
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Requesting exact-pool provider candles.");
-  setText("terminalDeepLink", `Open ${titleCase(row.chainId)} coverage`);
-  document.getElementById("terminalDeepLink").href = ["solana", "base", "ethereum"].includes(String(row.chainId || "").toLowerCase()) ? `/chains/${String(row.chainId).toLowerCase()}/` : "/chains/solana/";
+  const hasChartCoverage = CHARTED_SPOT_CHAINS.has(String(row.chainId || "").toLowerCase());
+  setText("terminalDeepLink", hasChartCoverage ? `Open ${chainDisplayName(row.chainId)} coverage` : "Coverage unavailable");
+  document.getElementById("terminalDeepLink").href = hasChartCoverage ? `/chains/${String(row.chainId).toLowerCase()}/` : "/docs/#availability";
   setContextUnavailable({
     headline: `${row.symbol || "Spot"} · Raven context unavailable`,
     summary: "The exact public pool chart is independent from Raven decision evidence.",
@@ -456,6 +649,7 @@ async function selectSpot(row) {
     reason: "No deterministic exact-pool Raven decision join is currently projected. Aggregate token or chain evidence is not substituted.",
   });
   updateQuoteBoundary();
+  ravenOSContext.setSelection({ subject: spotSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const chartState = await state.workspace.load({
     market: "crypto_spot",
     asset: `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`,
@@ -472,14 +666,14 @@ async function selectSpot(row) {
     ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact pool`
     : chartState?.message || "Exact-pool candles unavailable.");
   updateShell({
-    subject: { id: `${row.chainId}:pool:${row.pairAddress}`, label: `${row.symbol}/${row.quoteSymbol}`, type: "pool", chain: row.chainId, venue: row.dexId, marketType: "spot" },
+    subject: spotSubject(row),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
     thesis: "Provider-backed market data is available. Exact Raven decision context is unavailable and has not been inferred.",
     setup: "unavailable",
     evidenceState: "unavailable",
     freshnessState: chartState?.state || "data_unavailable",
     observedAt: chartState?.observedAt || row.lastUpdated,
-  });
+  }, { updateUrl });
 }
 
 async function loadMarkets() {
@@ -497,6 +691,191 @@ async function loadPublicPerps() {
   } catch {
     state.publicPerps = null;
   }
+}
+
+function currentAtlasProjection(payload) {
+  const execution = payload?.execution_boundary || {};
+  const rows = payload?.market_context?.rows;
+  const exactRows = Array.isArray(rows) && rows.length > 0 && rows.every((row) => (
+    row?.instrument_id
+    && row.instrument?.instrument_id === row.instrument_id
+    && row.instrument?.identity_scope === "exact_instrument"
+    && ["equity", "etf"].includes(row.instrument?.instrument_type)
+    && row.instrument?.capabilities?.execution === false
+  ));
+  return payload?.schema_version === "ravenos.atlas_projection.v1"
+    && ["available", "degraded"].includes(payload.state)
+    && ["fresh", "delayed"].includes(payload.freshness?.state)
+    && payload.delivery?.source === "current_public_origin"
+    && payload.delivery?.fallback === false
+    && exactRows
+    && execution.signing_available === false
+    && execution.submission_available === false;
+}
+
+async function loadAtlasProjection() {
+  const { response, payload } = await fetchJson("/api/atlas");
+  if (!response.ok || !currentAtlasProjection(payload)) throw new Error("atlas_current_projection_unavailable");
+  state.atlas = payload;
+  return payload;
+}
+
+function requestedAtlas(params) {
+  const instrumentId = String(params.get("instrument_id") || params.get("subject_id") || "").trim().toLowerCase();
+  const asset = String(params.get("asset") || "").trim().toUpperCase();
+  const rows = state.atlas?.market_context?.rows || [];
+  if (instrumentId) {
+    const row = rows.find((item) => String(item.instrument_id || "").toLowerCase() === instrumentId);
+    if (!row) return { error: "The exact listed instrument is not available in the current Atlas registry.", instrumentId, asset };
+    if (asset && String(row.symbol || "").toUpperCase() !== asset) return { error: "The requested symbol and exact listed-instrument identity do not match.", instrumentId, asset };
+    return { row };
+  }
+  if (asset) {
+    const matches = rows.filter((item) => String(item.symbol || "").toUpperCase() === asset);
+    if (matches.length !== 1) return { error: matches.length ? "The symbol is ambiguous. Select an exact listed instrument." : "The requested listed instrument is not available in the current Atlas registry.", asset };
+    return { row: matches[0] };
+  }
+  return { error: "Select an exact equity or ETF. RavenOS will not choose a listing for you.", asset };
+}
+
+function currentListedLookup(payload, query) {
+  const execution = payload?.execution_boundary || {};
+  const rows = payload?.results;
+  return payload?.ok === true
+    && payload?.schema_version === "ravenos.instrument_lookup.v1"
+    && String(payload?.query || "").toUpperCase() === String(query || "").toUpperCase()
+    && payload?.delivery?.source === "current_public_origin"
+    && payload?.delivery?.freshness_state === "fresh"
+    && payload?.delivery?.fallback === false
+    && Array.isArray(rows)
+    && rows.length <= 12
+    && rows.every((row) => (
+      row?.schema_version === "ravenos.instrument.v1"
+      && row.identity_scope === "exact_instrument"
+      && ["equity", "etf"].includes(row.instrument_type)
+      && row.asset_class === row.instrument_type
+      && row.chain === "none"
+      && row.quote_asset?.symbol === "USD"
+      && row.settlement_asset?.symbol === "USD"
+      && row.capabilities?.execution === false
+      && row.capabilities?.quote_preview === false
+    ))
+    && execution.broker_connection_available === false
+    && execution.quote_preview_available === false
+    && execution.signing_available === false
+    && execution.submission_available === false;
+}
+
+async function resolveListedSelection({ instrumentId = "", asset = "" } = {}) {
+  const exactId = String(instrumentId || "").trim().toLowerCase();
+  const symbol = String(asset || "").trim().toUpperCase();
+  if (!exactId || !symbol) {
+    return { error: "Select an exact listed instrument from universal search. RavenOS will not infer a listing from a symbol alone." };
+  }
+  const { response, payload } = await fetchJson(`/api/instruments/search?q=${encodeURIComponent(symbol)}`);
+  if (!response.ok || !currentListedLookup(payload, symbol)) {
+    return { error: "Current listed-market identity lookup is unavailable. No older listing or alternate symbol was substituted." };
+  }
+  const matches = payload.results.filter((row) => (
+    String(row.instrument_id || "").toLowerCase() === exactId
+    && String(row.symbol || "").toUpperCase() === symbol
+  ));
+  if (matches.length !== 1) {
+    return { error: "The requested symbol and exact listed-instrument identity do not match. No substitute was loaded." };
+  }
+  return { row: matches[0] };
+}
+
+async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
+  const subject = atlasSubject(row);
+  const atlasRow = row?.instrument?.schema_version === "ravenos.instrument.v1"
+    && state.atlas?.market_context?.rows?.some((candidate) => candidate?.instrument_id === subject.instrumentId);
+  if (!subject.instrumentId || !subject.symbol) {
+    await renderExplicitSelectionUnavailable({ instrumentId: subject.instrumentId, asset: subject.symbol, lane: "equity", reason: "The selected row does not contain a complete exact listed-instrument identity." });
+    return;
+  }
+  const generation = ++state.selectionGeneration;
+  state.lane = "equity";
+  state.selected = row;
+  const options = atlasRow ? atlasOptionsFor(row) : null;
+  state.context = atlasRow ? { atlas_context: { context_available: true, instrument_id: subject.instrumentId } } : null;
+  document.getElementById("terminalModeSelect").value = "equity";
+  document.getElementById("terminalSpotControl").hidden = true;
+  document.getElementById("terminalSpotResults").hidden = true;
+  const instrument = row?.instrument?.schema_version === "ravenos.instrument.v1" ? row.instrument : row;
+  document.getElementById("venueSelect").replaceChildren(new Option(titleCase(instrument?.market_identity?.listing || subject.venue), subject.venue));
+  setWhyLabel(atlasRow ? "What Atlas adds" : "Why this market");
+  setText("terminalReadTrigger", atlasRow ? "Atlas Context" : "Market Context");
+  if (atlasRow) renderAtlasFacts(row);
+  else renderListedFacts(row);
+  setText("terminalChartTitle", `${subject.symbol} · ${state.timeframe}`);
+  setText("terminalChartStatus", "Requesting provider-backed candles for the exact listing.");
+  setText("terminalDeepLink", atlasRow ? "Open Atlas context" : "Atlas context unavailable");
+  document.getElementById("terminalDeepLink").href = atlasRow
+    ? `/atlas/?instrument_id=${encodeURIComponent(subject.instrumentId)}&asset=${encodeURIComponent(subject.symbol)}`
+    : "/docs/#availability";
+  setText("terminalReadHeadline", atlasRow ? `${subject.symbol} · Atlas cross-market context` : `${subject.symbol} · exact listed market`);
+  setText("terminalReadSummary", atlasRow
+    ? `Current ${titleCase(state.atlas?.market_context?.equity_regime).toLowerCase()} equity regime and ${titleCase(state.atlas?.posture?.alignment).toLowerCase()} cross-market alignment. Atlas context is research-only.`
+    : `RavenOS resolved ${subject.symbol} to ${titleCase(instrument?.market_identity?.listing || subject.venue)} with USD settlement. Current Raven and Atlas intelligence are unavailable for this exact listing.`);
+  setText("terminalWhy", atlasRow
+    ? options
+      ? `Atlas adds ${titleCase(options.regime).toLowerCase()} aggregate options context and current rail posture. No Raven behavioral claim has been substituted.`
+      : "Atlas adds current market and cross-asset context. No Raven behavioral claim or options context has been substituted."
+    : "The exact provider listing matched the selected symbol and identity. RavenOS is showing market data only; no behavioral claim, analogue, or broker capability was inferred.");
+  setText("terminalContextIdentity", subject.instrumentId);
+  setText("terminalBehavior", "Raven evidence unavailable");
+  setText("terminalPath", atlasRow ? titleCase(state.atlas?.market_context?.equity_regime) : "Unavailable");
+  setText("terminalEvidenceMaturity", atlasRow ? "Atlas context only" : "Market data only");
+  setText("terminalEvidenceState", atlasRow ? "Atlas context · Raven unavailable" : "Intelligence unavailable");
+  setState("terminalContextFreshness", atlasRow ? state.atlas?.freshness?.state || "unavailable" : "unavailable", atlasRow ? titleCase(state.atlas?.freshness?.state) : "Unavailable");
+  resetComparableEvidence();
+  setText("terminalComparableNote", atlasRow
+    ? "No exact matured Raven behavioral sample is projected for this listing. Atlas context is not presented as a comparable outcome set."
+    : "No exact Raven or Atlas comparison is projected for this listing. Market-price history is not presented as behavioral evidence.");
+  updateQuoteBoundary();
+  ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
+  const chartState = await state.workspace.load({
+    market: "equities",
+    asset: subject.symbol,
+    instrumentId: subject.instrumentId,
+    instrumentType: subject.instrumentType,
+    timeframe: state.timeframe,
+    chain: "none",
+    marketIdentity: subject.instrumentId,
+    instrumentScope: "exact_instrument",
+  });
+  if (generation !== state.selectionGeneration) return;
+  state.workspace.render({
+    asset: subject.symbol,
+    market: "equities",
+    venue: subject.venue,
+    chain: "none",
+    timeframe: state.timeframe,
+    events: [],
+    overlays: [],
+    visibleOverlayTypes: [],
+    showVolume: true,
+    chartDataSource: "terminal_chart_api",
+    indicatorSourceState: "provider_backed",
+  });
+  setText("terminalChartStatus", chartState?.candles?.length
+    ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact ${titleCase(subject.instrumentType)}`
+    : chartState?.message || "Exact listed-instrument candles unavailable.");
+  if (!atlasRow && chartState?.candles?.length) setText("terminalLast", formatPrice(chartState.candles.at(-1)?.close));
+  updateShell({
+    subject,
+    marketLabel: atlasRow ? `${subject.symbol} · ${titleCase(state.atlas?.market_context?.equity_regime)} equity regime` : `${subject.symbol} · exact listed market`,
+    thesis: atlasRow
+      ? `Atlas cross-market alignment is ${titleCase(state.atlas?.posture?.alignment).toLowerCase()}. Raven behavioral evidence is unavailable for this exact listing and has not been inferred.`
+      : "Provider-backed candles are available for the exact listing. Raven and Atlas intelligence are unavailable and have not been inferred.",
+    setup: atlasRow ? state.atlas?.posture?.state || "atlas_context" : "market_data_only",
+    supporting: atlasRow ? Object.entries(state.atlas?.rail_breadth || {}).slice(0, 4).map(([rail, value]) => `${titleCase(rail)}: ${titleCase(value?.trend)} trend · ${titleCase(value?.participation)} participation.`) : [],
+    contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} provider rail is degraded.`) : ["Raven and Atlas intelligence are unavailable for this exact listing."],
+    evidenceState: atlasRow ? "atlas_context" : "unavailable",
+    freshnessState: atlasRow ? state.atlas?.freshness?.state === "fresh" ? "live" : "delayed" : chartState?.state || "data_unavailable",
+    observedAt: atlasRow ? row.observed_at || state.atlas?.generated_at : chartState?.observedAt,
+  }, { updateUrl });
 }
 
 function defaultPerp(requested = "") {
@@ -517,15 +896,172 @@ function defaultPerp(requested = "") {
   return state.markets.some((row) => row.asset === "SOL-PERP") ? "SOL-PERP" : state.markets[0]?.asset;
 }
 
+function requestedPerp(params) {
+  const instrumentId = String(params.get("instrument_id") || params.get("subject_id") || "").trim();
+  const asset = String(params.get("asset") || "").trim().toUpperCase();
+  if (instrumentId) {
+    const row = state.markets.find((item) => String(item.instrument_id || "").toLowerCase() === instrumentId.toLowerCase());
+    if (!row) return { error: "The exact perpetual instrument is not available in the current Hyperliquid registry.", instrumentId, asset };
+    if (asset && row.asset !== asset) return { error: "The requested symbol and exact instrument identity do not match.", instrumentId, asset };
+    return { row };
+  }
+  if (asset) {
+    const row = state.markets.find((item) => item.asset === asset);
+    return row ? { row } : { error: "The requested perpetual symbol is not available in the current Hyperliquid registry.", asset };
+  }
+  return { row: null };
+}
+
+function parsePoolIdentity(value = "") {
+  const parts = String(value || "").trim().split(":").filter(Boolean);
+  if (parts.length === 3 && parts[1] === "pool") return { chainId: parts[0], pairAddress: parts[2] };
+  if (parts.length >= 5 && parts[0] === "crypto" && parts[1] === "pool") {
+    return { chainId: parts[2], pairAddress: parts.slice(4).join(":") };
+  }
+  return null;
+}
+
+function explicitUnavailableSubject({ instrumentId = "", asset = "", lane = "perps" } = {}) {
+  const pool = parsePoolIdentity(instrumentId);
+  if (pool || lane === "spot") {
+    return {
+      id: instrumentId || "spot-pool-unresolved",
+      instrumentId: instrumentId || "spot-pool-unresolved",
+      type: "pool",
+      label: asset || "Requested spot market",
+      symbol: asset,
+      assetClass: "crypto",
+      instrumentType: "exact_pool",
+      identityScope: instrumentId ? "exact_pool" : "unselected",
+      chain: pool?.chainId || "unknown",
+      venue: "unknown",
+      marketType: "spot",
+      preferredCashAsset: "USDC",
+      economicNumeraire: "USDC",
+      capabilities: {},
+    };
+  }
+  if (lane === "equity") {
+    const instrumentType = instrumentId.startsWith("etf:") ? "etf" : "equity";
+    return {
+      id: instrumentId || "traditional-instrument-unresolved",
+      instrumentId: instrumentId || "traditional-instrument-unresolved",
+      type: "instrument",
+      label: asset || "Requested listed instrument",
+      symbol: asset,
+      assetClass: instrumentType,
+      instrumentType,
+      identityScope: instrumentId ? "exact_instrument" : "unselected",
+      chain: "none",
+      venue: "unknown",
+      marketType: "equities",
+      quoteAsset: "USD",
+      settlementAsset: "USD",
+      preferredCashAsset: "USD",
+      economicNumeraire: "USDC",
+      capabilities: {},
+    };
+  }
+  return {
+    id: instrumentId || `hyperliquid:perp:${asset.replace(/-PERP$/, "") || "unknown"}`,
+    instrumentId: instrumentId || `hyperliquid:perp:${asset.replace(/-PERP$/, "") || "unknown"}`,
+    type: "instrument",
+    label: asset || "Requested perpetual",
+    symbol: asset,
+    assetClass: "crypto",
+    instrumentType: "perpetual",
+    identityScope: "exact_instrument",
+    chain: "hyperliquid",
+    venue: "hyperliquid",
+    marketType: "perp",
+    quoteAsset: "USD",
+    settlementAsset: "USDC",
+    preferredCashAsset: "USDC",
+    economicNumeraire: "USDC",
+    capabilities: {},
+  };
+}
+
+async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "", lane = "perps", reason } = {}) {
+  ++state.selectionGeneration;
+  state.lane = lane;
+  state.selected = null;
+  state.context = null;
+  document.getElementById("terminalModeSelect").value = lane;
+  document.getElementById("terminalSpotControl").hidden = true;
+  document.getElementById("terminalSpotResults").hidden = true;
+  const subject = explicitUnavailableSubject({ instrumentId, asset, lane });
+  setWhyLabel(lane === "equity" ? "What Atlas adds" : "Why Raven noticed this");
+  setText("terminalReadTrigger", lane === "equity" ? "Atlas Context" : "Raven Read");
+  setText("terminalPickerSymbol", subject.label, "Requested market");
+  setText("terminalPickerMeta", subject.id, "Exact identity unavailable");
+  setText("terminalVenueLabel", subject.venue === "unknown" ? "Unresolved" : titleCase(subject.venue));
+  setText("terminalCapabilityLabel", "Exact selection unavailable · no substitute loaded");
+  setText("terminalInstrumentScope", subject.identityScope === "exact_pool" ? "Exact public pool" : "Exact instrument");
+  setText("terminalInstrument", subject.label);
+  setText("terminalInstrumentMeta", subject.id);
+  setText("terminalChartTitle", `${subject.label} · unavailable`);
+  setText("terminalChartStatus", reason || "The exact requested market is unavailable. RavenOS did not choose a substitute.");
+  setText("terminalLast", "--");
+  for (const id of ["terminalMetric2", "terminalMetric3", "terminalMetric4", "terminalMetric5", "terminalMetric6"]) setText(id, "--");
+  setState("terminalMarketFreshness", "unavailable", "Unavailable");
+  setContextUnavailable({
+    headline: "Exact market unavailable",
+    summary: "The requested identity could not be resolved against the current provider registry.",
+    identity: subject.id,
+    reason: reason || "No alternate symbol, pool, venue, or instrument was substituted.",
+  });
+  state.workspace.showUnavailable({
+    message: reason || "The exact requested market is unavailable. No substitute data was loaded.",
+    marketIdentity: subject.id,
+    instrumentScope: subject.identityScope,
+    timeframe: state.timeframe,
+  });
+  updateShell({
+    subject,
+    marketLabel: "Exact selection unavailable",
+    thesis: "No market or Raven state is shown because the requested identity did not resolve exactly.",
+    setup: "unavailable",
+    evidenceState: "unavailable",
+    freshnessState: "data_unavailable",
+    observedAt: null,
+  }, { updateUrl: false });
+}
+
+async function loadExactPool(instrumentId, { updateUrl = false } = {}) {
+  const identity = parsePoolIdentity(instrumentId);
+  if (!identity) {
+    await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The requested exact-pool identity is malformed." });
+    return;
+  }
+  try {
+    const { response, payload } = await fetchJson(`/api/dexscreener/pair?chainId=${encodeURIComponent(identity.chainId)}&pairAddress=${encodeURIComponent(identity.pairAddress)}`);
+    const rows = response.ok && Array.isArray(payload?.results) ? payload.results : [];
+    const row = rows.find((item) => String(item.pairAddress || "").toLowerCase() === identity.pairAddress.toLowerCase()
+      && String(item.chainId || "").toLowerCase() === identity.chainId.toLowerCase());
+    if (!row) {
+      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact requested pool is not available from the current public provider." });
+      return;
+    }
+    setLane("spot", { updateUrl: false, selectDefault: false });
+    await selectSpot(row, { updateUrl });
+  } catch {
+    await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact-pool provider lookup is currently unavailable." });
+  }
+}
+
 function bindControls() {
   document.getElementById("terminalModeSelect").addEventListener("change", (event) => setLane(event.target.value));
   document.getElementById("assetSelect").addEventListener("change", (event) => selectPerp(event.target.value));
+  document.getElementById("terminalInstrumentTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
+  document.getElementById("terminalReadTrigger").addEventListener("click", () => window.RavenOSShell?.openContext?.());
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
     state.timeframe = timeframe;
     if (state.lane === "perps" && state.selected) selectPerp(state.selected.asset);
     else if (state.lane === "spot" && state.selected) selectSpot(state.selected);
+    else if (state.lane === "equity" && state.selected) selectAtlasInstrument(state.selected);
   });
   const spotSearch = document.getElementById("terminalSpotSearch");
   spotSearch.addEventListener("input", (event) => {
@@ -552,8 +1088,16 @@ function bindWorkspaceEvents() {
       : event.detail?.message || titleCase(workspaceState));
     const boundary = document.getElementById("terminalBoundary");
     if (boundary) {
+      const connection = String(event.detail?.connectionState || "").toLowerCase();
+      const liveLabel = connection === "snapshot_only"
+        ? "Provider snapshot available"
+        : ["live", "connected"].includes(connection)
+          ? "Provider market connected"
+          : connection === "connecting"
+            ? "Provider live feed connecting"
+            : "Provider market data available";
       boundary.dataset.state = workspaceState;
-      boundary.querySelector("strong").textContent = workspaceState === "live" ? "Provider market connected" : titleCase(workspaceState);
+      boundary.querySelector("strong").textContent = workspaceState === "live" ? liveLabel : titleCase(workspaceState);
     }
   });
   document.addEventListener("ravenos:chartmarket", (event) => {
@@ -590,22 +1134,73 @@ async function boot() {
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   bindControls();
   bindWorkspaceEvents();
-  await Promise.all([loadMarkets(), loadPublicPerps(), loadTradeFlags(), loadBuildIdentity()]);
-  if (params.get("lane") === "spot") {
-    setLane("spot");
+  const instrumentId = String(params.get("instrument_id") || params.get("subject_id") || "").trim();
+  const poolIdentity = parsePoolIdentity(instrumentId);
+  const requestedType = String(params.get("instrument_type") || "").toLowerCase();
+  const requestedClass = String(params.get("asset_class") || "").toLowerCase();
+  const requestedMarket = String(params.get("market") || "").toLowerCase();
+  const requestedLane = params.get("lane") === "equity"
+      || requestedMarket === "equities"
+      || ["equity", "etf"].includes(requestedType)
+      || ["equity", "etf"].includes(requestedClass)
+      || /^(equity|etf):/i.test(instrumentId)
+    ? "equity"
+    : params.get("lane") === "spot" || requestedMarket === "spot" || requestedMarket === "crypto_spot" || requestedType === "exact_pool" || Boolean(poolIdentity)
+      ? "spot"
+      : "perps";
+  await Promise.all([loadTradeFlags(), loadBuildIdentity()]);
+  if (requestedLane === "spot") {
+    if (instrumentId) await loadExactPool(instrumentId, { updateUrl: false });
+    else {
+      setLane("spot", { updateUrl: false, selectDefault: false });
+      const query = String(params.get("search") || params.get("asset") || "").trim();
+      if (query) {
+        document.getElementById("terminalSpotSearch").value = query;
+        await searchSpot(query);
+      }
+    }
+  } else if (requestedLane === "equity") {
+    let atlasRequest = null;
+    try {
+      await loadAtlasProjection();
+      atlasRequest = requestedAtlas(params);
+    } catch {
+      state.atlas = null;
+    }
+    if (atlasRequest?.row) {
+      await selectAtlasInstrument(atlasRequest.row, { updateUrl: false });
+    } else {
+      try {
+        const listed = await resolveListedSelection({ instrumentId, asset: params.get("asset") || "" });
+        if (listed.error) {
+          await renderExplicitSelectionUnavailable({ instrumentId, asset: params.get("asset") || "", lane: "equity", reason: listed.error });
+        } else {
+          await selectAtlasInstrument(listed.row, { updateUrl: false });
+        }
+      } catch {
+        await renderExplicitSelectionUnavailable({ instrumentId, asset: params.get("asset") || "", lane: "equity", reason: "Current listed-market identity lookup is unavailable. No older listing or alternate symbol was substituted." });
+      }
+    }
   } else {
-    await selectPerp(defaultPerp(params.get("asset")), { updateUrl: false });
+    await Promise.all([loadMarkets(), loadPublicPerps()]);
+    const request = requestedPerp(params);
+    if (request.error) await renderExplicitSelectionUnavailable({ instrumentId: request.instrumentId, asset: request.asset, lane: "perps", reason: request.error });
+    else await selectPerp(request.row?.asset || defaultPerp(), { updateUrl: !request.row });
   }
   window.__RAVENOS_TERMINAL__ = {
     getState: () => ({
       lane: state.lane,
-      instrument: state.lane === "perps" ? state.selected?.asset || null : state.selected ? `${state.selected.symbol}/${state.selected.quoteSymbol}` : null,
+      instrument: state.lane === "perps"
+        ? state.selected?.asset || null
+        : state.lane === "equity"
+          ? state.selected?.symbol || null
+          : state.selected ? `${state.selected.symbol}/${state.selected.quoteSymbol}` : null,
       instrumentId: state.workspace?.state?.instrument?.canonical_id || null,
       timeframe: state.timeframe,
       candleCount: state.workspace?.state?.candles?.length || 0,
       chartState: state.workspace?.state?.state || "unavailable",
       connectionState: state.workspace?.state?.connectionState || "disconnected",
-      contextState: state.context?.raven_context?.context_state || "unavailable",
+      contextState: state.context?.raven_context?.context_state || (state.context?.atlas_context?.context_available ? "atlas_context" : "unavailable"),
       quoteOnly: state.flags?.quote_only === true,
       signingAvailable: false,
       submissionAvailable: false,

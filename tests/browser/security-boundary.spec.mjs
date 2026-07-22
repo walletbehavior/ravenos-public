@@ -46,7 +46,8 @@ test("stored instrument metadata renders as text and cannot become utility marku
     }));
   });
   await page.goto("/terminal/", { waitUntil: "domcontentloaded" });
-  await page.locator('[data-ros-utility="watchlist"]').first().click();
+  await page.locator("#rosProfileTrigger").click();
+  await page.locator('#rosUtilityContent [data-ros-utility="watchlist"]').click();
   const drawer = page.locator("#rosUtilityContent");
   await expect(drawer).toContainText("<img src=x onerror=window.__RAVENOS_XSS__=true>");
   await expect(drawer.locator("img")).toHaveCount(0);

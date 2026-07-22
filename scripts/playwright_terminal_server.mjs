@@ -56,6 +56,109 @@ const env = {
   RAVENOS_PUBLIC_ORIGIN_TOKEN: originToken,
 };
 
+const listedInstrumentFixtures = Object.freeze([
+  Object.freeze({ symbol: "AAPL", name: "Apple Inc.", type: "equity", venue: "nasdaq", listing: "Nasdaq" }),
+  Object.freeze({ symbol: "SPY", name: "State Street SPDR S&P 500 ETF Trust", type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
+  Object.freeze({ symbol: "QQQ", name: "Invesco QQQ Trust", type: "etf", venue: "nasdaq", listing: "Nasdaq" }),
+]);
+
+function listedInstrument(row) {
+  const instrumentId = `${row.type}:${row.venue}:${row.symbol.toLowerCase()}`;
+  return {
+    schema_version: "ravenos.instrument.v1",
+    instrument_id: instrumentId,
+    symbol: row.symbol,
+    display_name: row.name,
+    asset_class: row.type,
+    instrument_type: row.type,
+    identity_scope: "exact_instrument",
+    venue: row.venue,
+    chain: "none",
+    market_identity: { market_id: row.symbol, listing: row.listing },
+    base_asset: { symbol: row.symbol, asset_id: row.symbol },
+    quote_asset: { symbol: "USD", asset_id: "USD" },
+    settlement_asset: { symbol: "USD", asset_id: "USD" },
+    preferred_cash_asset: { symbol: "USD", asset_id: "USD" },
+    economic_numeraire: "USDC",
+    chart_source: "ravenos_terminal_chart",
+    market_session: { state: "open", timezone: "America/New_York", observed_at: new Date().toISOString() },
+    capabilities: {
+      chart: true,
+      live_price: true,
+      atlas_intelligence: false,
+      raven_intelligence: false,
+      options_summary: false,
+      quote_preview: false,
+      execution: false,
+    },
+    route_compatibility: ["inspect"],
+    account_compatibility: [],
+  };
+}
+
+function instrumentLookupFixture(query) {
+  const normalized = String(query || "").trim().toLowerCase();
+  const generatedAt = new Date().toISOString();
+  const results = listedInstrumentFixtures
+    .filter((row) => `${row.symbol} ${row.name}`.toLowerCase().includes(normalized))
+    .map(listedInstrument);
+  return {
+    ok: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    schema_version: "ravenos.instrument_lookup.v1",
+    generated_at: generatedAt,
+    freshness_target_seconds: 300,
+    query: String(query || "").trim(),
+    provider: "Tradier",
+    results,
+    execution_boundary: {
+      broker_connection_available: false,
+      quote_preview_available: false,
+      signing_available: false,
+      submission_available: false,
+    },
+  };
+}
+
+function atlasFixture() {
+  const generatedAt = new Date().toISOString();
+  const spy = listedInstrument(listedInstrumentFixtures[1]);
+  spy.capabilities.atlas_intelligence = true;
+  spy.capabilities.options_summary = true;
+  return {
+    ok: true,
+    safe_public: true,
+    key: "atlas",
+    schema_version: "ravenos_atlas_public_origin_v1",
+    generated_at: generatedAt,
+    updated_at: generatedAt,
+    source_artifact: "playwright_atlas_projection",
+    freshness_target_seconds: 1800,
+    redaction_policy: "aggregate_public_market_context_only",
+    data: {
+      schema_version: "ravenos.atlas_projection.v1",
+      generated_at: generatedAt,
+      freshness: { state: "fresh", age_seconds: 0, target_seconds: 1800 },
+      state: "available",
+      posture: { state: "balanced", confidence: "forming", alignment: "mixed" },
+      market_context: {
+        risk_regime: "balanced",
+        equity_regime: "mixed",
+        sector_breadth: "mixed",
+        participation_quality: "forming",
+        rows: [{ instrument_id: spy.instrument_id, instrument: spy, symbol: spy.symbol, price: 742.09, provider: "Test projection", observed_at: generatedAt }],
+      },
+      options_context: [],
+      provider_health: {},
+      capabilities: { market_map: true, options_summary: true, browser_provider_credentials: false },
+      execution_boundary: { research_only: true, broker_connection_available: false, signing_available: false, submission_available: false, position_monitoring_available: false },
+      public_safety: { aggregate_only: true, provider_payloads_removed: true, provider_urls_removed: true, credentials_removed: true, paper_engine_removed: true, proprietary_calibration_removed: true },
+      unavailable: {},
+    },
+  };
+}
+
 async function servePublicOriginFixture(req, res) {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
   if (!url.pathname.startsWith("/__playwright_public_origin/")) return false;
@@ -69,6 +172,16 @@ async function servePublicOriginFixture(req, res) {
   if (req.headers["x-ravenos-public-token"] !== originToken) {
     res.statusCode = 401;
     res.end(JSON.stringify({ ok: false, error: "unauthorized" }));
+    return true;
+  }
+  if (url.pathname === "/__playwright_public_origin/instrument_lookup.json") {
+    res.statusCode = 200;
+    res.end(JSON.stringify(instrumentLookupFixture(url.searchParams.get("q") || "")));
+    return true;
+  }
+  if (url.pathname === "/__playwright_public_origin/atlas.json") {
+    res.statusCode = 200;
+    res.end(JSON.stringify(atlasFixture()));
     return true;
   }
   if (url.pathname !== "/__playwright_public_origin/opportunities.json") {

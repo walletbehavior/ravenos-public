@@ -3,77 +3,35 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Atlas</title>
-  <style>
-    :root { color-scheme: dark; --bg:#050907; --panel:#08110e; --line:rgba(148,163,184,.18); --text:#e5f0eb; --muted:#8da39a; --cyan:#7dd3fc; --green:#34d399; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing:0; }
-    a { color:inherit; text-decoration:none; }
-    .shell { max-width:1180px; margin:0 auto; padding:18px; }
-    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid var(--line); }
-    .eyebrow { color:var(--cyan); font-size:11px; font-weight:850; text-transform:uppercase; }
-    h1,h2,p { margin:0; }
-    h1 { margin-top:5px; font-size:clamp(30px,5vw,62px); line-height:1; }
-    h2 { font-size:16px; }
-    .muted { color:var(--muted); font-size:13px; line-height:1.55; }
-    .main-nav { display:flex; gap:8px; flex-wrap:wrap; }
-    .main-nav a { border:1px solid var(--line); background:#0b1713; padding:8px 10px; font-size:12px; font-weight:850; }
-    .main-nav a.active { border-color:rgba(52,211,153,.5); color:var(--green); }
-    .grid { display:grid; grid-template-columns:1.1fr .9fr; gap:14px; margin-top:16px; }
-    .panel { border:1px solid var(--line); background:var(--panel); padding:16px; min-height:170px; }
-    .panel p { margin-top:8px; }
-    .route-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
-    .route-card { border:1px solid var(--line); background:#07100d; padding:12px; display:grid; gap:6px; }
-    .route-card strong { color:var(--text); font-size:13px; }
-    .route-card span { color:var(--muted); font-size:12px; line-height:1.4; }
-    .status-row { display:grid; gap:8px; margin-top:12px; }
-    .status-row div { display:flex; justify-content:space-between; gap:12px; border-top:1px solid var(--line); padding-top:8px; font-size:13px; }
-    .status-row span { color:var(--muted); }
-    .list { display:grid; gap:9px; margin:12px 0 0; padding:0; list-style:none; color:#b9c9c2; font-size:13px; line-height:1.45; }
-    .list li { border-top:1px solid var(--line); padding-top:9px; }
-    @media (max-width:860px) { .grid, .route-grid { grid-template-columns:1fr; } }
-  </style>
+  <title>Atlas · RavenOS</title>
+  <meta name="description" content="Cross-market context, options summaries, and provider health inside RavenOS." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
+  <main class="workspace-page atlas-page" data-route-slug="atlas">
+    <header class="workspace-operator-head">
       <div>
-        <span class="eyebrow">RavenOS Atlas</span>
-        <h1>Regime map for RavenOS context.</h1>
-        <p class="muted">Atlas is the place where broad risk context will connect to RavenOS behavioral reads. Macro inputs are not provider-backed yet, so Atlas currently routes you to the crypto behavior surfaces that are live today.</p>
+        <span class="workspace-question">What does the broader market imply?</span>
+        <h1>The market around your market.</h1>
+        <p>Equities, ETFs, options posture, breadth, and risk context—kept distinct from Raven's behavioral read.</p>
       </div>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/terminal/">Terminal</a><a class="active" href="/atlas/">Atlas</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/docs/">Docs</a><a href="/faq/">FAQ</a><a href="/account/">Account</a>
-      </nav>
+      <div class="workspace-mast-actions">
+        <button class="workspace-primary-action" id="atlasSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
+      </div>
     </header>
-    <section class="grid">
-      <article class="panel">
-        <span class="eyebrow">Current Use</span>
-        <h2>Use Atlas as a regime router.</h2>
-        <p class="muted">The active backed context is still crypto-native: participation, replay analogues, outcomes, derivatives pressure, and Terminal behavioral decks. Atlas will add broad macro confirmation only after reliable inputs exist.</p>
-        <div class="route-grid">
-          <a class="route-card" href="/behavior/"><strong>Behavior</strong><span>Who is participating and whether support is broadening.</span></a>
-          <a class="route-card" href="/replay/"><strong>Replay</strong><span>Which prior public structures looked similar and what followed.</span></a>
-          <a class="route-card" href="/perps/"><strong>Perps</strong><span>Derivatives context from funding, pressure, and OI where backed.</span></a>
-          <a class="route-card" href="/outcomes/"><strong>Outcomes</strong><span>Whether earlier public reads followed through, failed, or need more evidence.</span></a>
-        </div>
-      </article>
-      <article class="panel">
-        <span class="eyebrow">Coverage State</span>
-        <h2>What Atlas can and cannot say today.</h2>
-        <div class="status-row">
-          <div><span>Crypto behavior</span><strong>Backed through RavenOS public artifacts</strong></div>
-          <div><span>Broad macro regime</span><strong>Coverage developing</strong></div>
-          <div><span>Cross-market confirmation</span><strong>Not inferred yet</strong></div>
-        </div>
-        <ul class="list">
-          <li>Atlas does not infer equities, futures, rates, FX, or commodities context without backed data.</li>
-          <li>Terminal remains the active behavioral intelligence workstation for selected crypto markets.</li>
-          <li>When macro coverage is backed, Atlas will explain whether broad conditions confirm or weaken RavenOS behavioral reads.</li>
-        </ul>
-      </article>
+
+    <section class="workspace-statusline" aria-label="Current Atlas coverage">
+      <div><span>Atlas</span><strong id="atlasProjectionState" data-state="unavailable">Checking</strong></div>
+      <div><span>Market map</span><strong id="atlasMarketState" data-state="unavailable">Checking</strong></div>
+      <div><span>Options posture</span><strong id="atlasOptionsState" data-state="unavailable">Checking</strong></div>
     </section>
-    <template id="ravenosBuildMark">Public artifact verified</template>
+
+    <section id="atlasContent">
+      <div class="workspace-state"><div><span class="workspace-state-mark">A</span><h2>Reading the broader market</h2><p>Atlas will show only current, supported context for exact listed instruments.</p></div></div>
+    </section>
   </main>
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-atlas.js"></script>
 </body>
 </html>

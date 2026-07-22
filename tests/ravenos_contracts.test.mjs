@@ -114,25 +114,56 @@ test("terminal facts preserve market, evidence, invalidation, and source state",
   assert.equal(record.invalidation[0].label, "Open interest falls without price continuation");
 });
 
-test("selected context is normalized from URL and persists across route links", () => {
-  const parsed = contextFromSearch("?asset=SOL-PERP&subject_id=sol&chain=hyperliquid&market=perp&timeframe=4h&workspace=opportunity-review");
+test("selected context is normalized from URL and persists cash and actual settlement separately", () => {
+  const parsed = contextFromSearch("?asset=JUP&subject_id=crypto%3Apool%3Aethereum%3Auniswap%3A0xpool&chain=ethereum&market=spot&quote=WETH&settlement=WETH&cash=USDC&timeframe=4h&workspace=opportunity-review");
   assert.equal(parsed.schemaVersion, RAVENOS_CONTEXT_SCHEMA);
-  assert.equal(parsed.subject.label, "SOL-PERP");
-  assert.equal(parsed.subject.chain, "hyperliquid");
+  assert.equal(parsed.subject.label, "JUP");
+  assert.equal(parsed.subject.chain, "ethereum");
+  assert.equal(parsed.subject.quoteAsset, "WETH");
+  assert.equal(parsed.subject.settlementAsset, "WETH");
+  assert.equal(parsed.subject.preferredCashAsset, "USDC");
   assert.equal(parsed.timeframe, "4h");
 
-  const fixture = createWindowFixture("?asset=SOL-PERP&chain=hyperliquid&market=perp");
+  const fixture = createWindowFixture("?asset=JUP&chain=ethereum&market=spot&quote=WETH&settlement=WETH&cash=USDC");
   const store = createRavenOSContextStore({ windowRef: fixture.windowRef });
   store.setSelection({
-    subject: { id: "btc", label: "BTC-PERP", chain: "hyperliquid", venue: "hyperliquid", marketType: "perp" },
+    subject: {
+      id: "crypto:pool:ethereum:uniswap:0xpool",
+      label: "JUP",
+      chain: "ethereum",
+      venue: "uniswap",
+      marketType: "spot",
+      instrumentType: "exact_pool",
+      quoteAsset: { symbol: "WETH" },
+      settlementAsset: { symbol: "WETH" },
+      preferredCashAsset: { symbol: "USDC" },
+    },
     timeframe: "1h",
   });
   const href = store.decorateHref("/outcomes/");
   assert.match(href, /^\/outcomes\/\?/);
-  assert.match(href, /asset=BTC-PERP/);
-  assert.match(href, /chain=hyperliquid/);
-  assert.ok(fixture.historyCalls.at(-1).value.includes("asset=BTC-PERP"));
+  assert.match(href, /asset=JUP/);
+  assert.match(href, /chain=ethereum/);
+  assert.match(href, /quote=WETH/);
+  assert.match(href, /settlement=WETH/);
+  assert.match(href, /cash=USDC/);
+  assert.ok(fixture.historyCalls.at(-1).value.includes("cash=USDC"));
   assert.match(store.decorateHref("/terminal/?workspace=watchlist"), /workspace=watchlist/);
+});
+
+test("a new market-search intent clears prior exact identity before navigation", () => {
+  const fixture = createWindowFixture("?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&market=perp");
+  const store = createRavenOSContextStore({ windowRef: fixture.windowRef });
+  assert.equal(store.getState().subject.id, "hyperliquid:perp:SOL");
+
+  store.clearSelection({ updateUrl: false });
+
+  assert.equal(store.getState().subject.id, "unselected");
+  assert.equal(store.getState().subject.identityScope, "unselected");
+  const href = store.decorateHref("/terminal/?market=crypto_spot&instrument_type=exact_pool&search=JUP");
+  assert.match(href, /market=crypto_spot/);
+  assert.match(href, /search=JUP/);
+  assert.doesNotMatch(href, /instrument_id=hyperliquid/);
 });
 
 test("missing evidence remains explicit in the intelligence contract", () => {

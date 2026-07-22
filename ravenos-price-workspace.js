@@ -86,6 +86,28 @@ function priceLabel(value) {
   return parsed.toLocaleString(undefined, { minimumSignificantDigits: 3, maximumSignificantDigits: 8 });
 }
 
+function volumeLabel(value) {
+  const parsed = finite(value);
+  if (parsed === null) return "--";
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(parsed);
+}
+
+function crosshairTimeLabel(value) {
+  let parsed;
+  if (typeof value === "number") parsed = new Date(value * 1_000);
+  else if (value && typeof value === "object" && Number.isInteger(value.year)) parsed = new Date(Date.UTC(value.year, Number(value.month || 1) - 1, Number(value.day || 1)));
+  else parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "Time unavailable";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(parsed) + " UTC";
+}
+
 function payloadData(payload) {
   return payload?.data && typeof payload.data === "object" ? payload.data : payload;
 }
@@ -108,11 +130,20 @@ function createMarkup() {
         <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
         <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
       </div>
-      <div class="rpw-mobile-timeframes" data-rpw-timeframes aria-label="Chart timeframe"></div>
+      <div class="rpw-chart-tools">
+        <div class="rpw-mobile-timeframes" data-rpw-timeframes aria-label="Chart timeframe"></div>
+        <div class="rpw-indicators" data-rpw-indicators aria-label="Chart indicators">
+          <span>Indicators</span>
+          <button type="button" data-rpw-indicator="ema20" aria-pressed="true">EMA 20</button>
+          <button type="button" data-rpw-indicator="ema50" aria-pressed="false">EMA 50</button>
+          <button type="button" data-rpw-indicator="vwap" aria-pressed="false">VWAP</button>
+        </div>
+      </div>
       <div class="rpw-stage">
         <div class="rpw-chart" data-rpw-chart></div>
         <div class="rpw-watermark" data-rpw-watermark>Data unavailable</div>
         <div class="rpw-crosshair" data-rpw-crosshair hidden></div>
+        <div class="rpw-coverage-note" data-rpw-coverage-note hidden aria-live="polite"></div>
         <div class="rpw-state-panel" data-rpw-state-panel>
           <strong>Market data unavailable</strong>
           <span>Select a provider-backed market or retry the current feed.</span>
@@ -131,6 +162,7 @@ export class PriceWorkspace {
     if (!container) throw new Error("PriceWorkspace requires a container");
     this.container = container;
     this.options = options;
+    this.activeIndicators = new Set(Array.isArray(options.indicators) ? options.indicators : ["ema20"]);
     this.chartHandle = null;
     this.liveRelease = null;
     this.requestSequence = 0;
@@ -167,6 +199,7 @@ export class PriceWorkspace {
     this.root.classList.toggle("rpw-fluid", options.fluidHeight === true);
     this.chartHost = container.querySelector("[data-rpw-chart]");
     this.bindTimeframes();
+    this.bindIndicators();
     this.bindScopes();
     this.bindResize();
     this.bindFollowLive();
@@ -186,6 +219,24 @@ export class PriceWorkspace {
       button.addEventListener("click", () => this.options.onTimeframeChange?.(timeframe));
       host.append(button);
     }
+  }
+
+  bindIndicators() {
+    const host = this.container.querySelector("[data-rpw-indicators]");
+    if (!host) return;
+    const paint = () => host.querySelectorAll("[data-rpw-indicator]").forEach((button) => {
+      button.setAttribute("aria-pressed", this.activeIndicators.has(button.dataset.rpwIndicator) ? "true" : "false");
+    });
+    paint();
+    host.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-rpw-indicator]");
+      const indicator = button?.dataset?.rpwIndicator;
+      if (!indicator || !["ema20", "ema50", "vwap"].includes(indicator)) return;
+      if (this.activeIndicators.has(indicator)) this.activeIndicators.delete(indicator);
+      else this.activeIndicators.add(indicator);
+      paint();
+      this.render({ indicators: Array.from(this.activeIndicators) });
+    });
   }
 
   bindScopes() {
@@ -247,15 +298,30 @@ export class PriceWorkspace {
     };
     button.addEventListener("click", () => setFocus(!this.root.classList.contains("rpw-focus-mode")));
     this._clearFocus = () => setFocus(false);
+    this._focusKeyHandler = (event) => {
+      if (event.key === "Escape" && this.root.classList.contains("rpw-focus-mode")) {
+        event.preventDefault();
+        setFocus(false);
+      }
+    };
+    document.addEventListener("keydown", this._focusKeyHandler);
   }
 
   bindOverlayMenu() {
     const button = this.container.querySelector("[data-rpw-overlays]");
     if (!button) return;
+    const close = () => {
+      this.root.classList.remove("rpw-overlays-open");
+      button.setAttribute("aria-expanded", "false");
+    };
     button.addEventListener("click", () => {
       const open = !this.root.classList.contains("rpw-overlays-open");
       this.root.classList.toggle("rpw-overlays-open", open);
       button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    this.root.addEventListener("click", (event) => {
+      const selected = event.target.closest(".raven-overlay-options button:not(:disabled), .raven-overlay-active button:not(:disabled)");
+      if (selected) close();
     });
   }
 
@@ -292,6 +358,11 @@ export class PriceWorkspace {
     const sparse = returnedBars > 0 && returnedBars < 40;
     coverage.hidden = !sparse;
     coverage.textContent = sparse ? `Limited history · ${returnedBars} bars` : "";
+    const coverageNote = this.container.querySelector("[data-rpw-coverage-note]");
+    coverageNote.hidden = !sparse;
+    coverageNote.textContent = sparse
+      ? `${this.state.timeframe} coverage is limited to ${returnedBars} provider-backed bars. Missing history was not filled.`
+      : "";
     this.container.querySelector("[data-rpw-connection]").textContent = String(this.state.connectionState || "disconnected").replaceAll("_", " ");
     this.container.querySelector("[data-rpw-time]").textContent = timestampLabel(this.state.observedAt);
     this.container.querySelector("[data-rpw-watermark]").textContent = label;
@@ -356,6 +427,7 @@ export class PriceWorkspace {
     if (request.tokenAddress) params.set("token_address", request.tokenAddress);
     if (request.quoteAddress) params.set("quote_address", request.quoteAddress);
     if (request.instrumentScope) params.set("instrument_scope", request.instrumentScope);
+    if (request.instrumentId) params.set("instrument_id", request.instrumentId);
     if (extra.before) params.set("before", String(extra.before));
     return params;
   }
@@ -382,6 +454,7 @@ export class PriceWorkspace {
       marketIdentity: request.marketIdentity || request.asset || "",
       observedAt: null,
       candles: [],
+      returnedBars: 0,
       message: "Requesting provider-backed candles.",
       instrument: null,
       capabilities: {},
@@ -425,7 +498,8 @@ export class PriceWorkspace {
       }
       const instrument = normalizeChartInstrument(payload.instrument || {
         marketType: request.market === "perpetuals" || String(request.asset || "").endsWith("-PERP") ? "perp" : "spot",
-        instrumentType: request.pairAddress ? CHART_INSTRUMENT_TYPES.SPOT_POOL : undefined,
+        instrumentType: request.instrumentType || (request.pairAddress ? CHART_INSTRUMENT_TYPES.SPOT_POOL : undefined),
+        canonicalId: request.instrumentId,
         chain: request.chain,
         venue: payload.source,
         symbol: request.asset,
@@ -438,6 +512,7 @@ export class PriceWorkspace {
         observedAt: payload.observed_at || payload.updated_at || null,
         marketIdentity: payload.market_identity || request.marketIdentity || payload.asset || request.asset || "",
         candles,
+        returnedBars: Number.isFinite(Number(payload.returned_bars)) ? Number(payload.returned_bars) : candles.length,
         message: "",
         lineage: payload.lineage || null,
         providerAsset: payload.provider_asset || payload.asset || null,
@@ -467,6 +542,38 @@ export class PriceWorkspace {
     }
   }
 
+  showUnavailable({
+    message = "The exact requested market is unavailable. No substitute data was loaded.",
+    marketIdentity = "",
+    instrumentScope = "unselected",
+    source = "No provider selected",
+    timeframe = this.state.timeframe,
+  } = {}) {
+    ++this.requestSequence;
+    this.stopLive();
+    this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
+    this.lastRequest = null;
+    this.destroyChart();
+    return this.setState({
+      state: PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE,
+      timeframe,
+      source,
+      marketIdentity,
+      observedAt: null,
+      candles: [],
+      returnedBars: 0,
+      message,
+      instrument: null,
+      capabilities: {},
+      marketState: {},
+      orderBook: null,
+      connectionState: "disconnected",
+      instrumentScope,
+      availableScopes: {},
+      lineage: null,
+    });
+  }
+
   render(input = {}) {
     this.renderInput = { ...this.renderInput, ...input };
     this.destroyChart();
@@ -488,6 +595,7 @@ export class PriceWorkspace {
       compact: mobile,
       chartDataSource: this.state.state === "demo" ? "explicit_demo" : "terminal_chart_api",
       indicatorSourceState: this.state.state === "demo" ? "demo" : "provider_backed",
+      indicators: Array.from(this.activeIndicators),
       onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
     });
@@ -519,7 +627,10 @@ export class PriceWorkspace {
       return;
     }
     host.hidden = false;
-    host.textContent = `${String(crosshair.time)}  O ${priceLabel(crosshair.open)}  H ${priceLabel(crosshair.high)}  L ${priceLabel(crosshair.low)}  C ${priceLabel(crosshair.close)}`;
+    const change = finite(crosshair.open) && finite(crosshair.close)
+      ? ((finite(crosshair.close) / finite(crosshair.open)) - 1) * 100
+      : null;
+    host.textContent = `${crosshairTimeLabel(crosshair.time)}  O ${priceLabel(crosshair.open)}  H ${priceLabel(crosshair.high)}  L ${priceLabel(crosshair.low)}  C ${priceLabel(crosshair.close)}${change === null ? "" : `  ${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}  V ${volumeLabel(crosshair.volume)}`;
   }
 
   attachIntelligence({ evidence = null, narrator = null } = {}) {
@@ -687,6 +798,8 @@ export class PriceWorkspace {
     this.paintFrame = null;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
+    this._clearFocus?.();
+    if (this._focusKeyHandler) document.removeEventListener("keydown", this._focusKeyHandler);
     this.destroyChart();
     this.container.replaceChildren();
   }

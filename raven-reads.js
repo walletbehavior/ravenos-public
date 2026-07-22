@@ -7,7 +7,7 @@
     structure: "Structure",
     pressure: "Pressure",
     participation: "Participation",
-    replay: "Replay",
+    replay: "History",
     risk: "Risk",
   };
   const MODE_COLORS = {
@@ -248,29 +248,29 @@
     const hasOutcome = Boolean(outcome);
     const hasSimilarity = finiteMeta(metadata, "similarity_score");
     let title = "Historical memory unavailable";
-    if (hasOutcome && /mixed/.test(outcome)) title = "Replay mixed";
+    if (hasOutcome && /mixed/.test(outcome)) title = "Similar history is mixed";
     else if (hasOutcome && /favorable|reward/.test(outcome)) title = "Similar contexts rewarded continuation";
     else if (hasOutcome && /punish|unfavorable|failed|negative/.test(outcome)) title = "Similar contexts punished followthrough";
-    else if (hasSimilarity || backing.hasSample) title = "Replay context weak";
+    else if (hasSimilarity || backing.hasSample) title = "Similar history is weak";
     const warnings = [];
     if (!hasOutcome) warnings.push("Historical outcome field unavailable; this read does not claim prior outcome.");
-    if (!backing.hasSample) warnings.push("Replay sample count unavailable; confidence remains low.");
+    if (!backing.hasSample) warnings.push("Comparable sample count unavailable; confidence remains low.");
     if (!metadata.evidence_id && !metadata.claim_id && !metadata.outcome_id && !metadata.replay_id && !metadata.public_artifact_ref) warnings.push("proof_ref unavailable");
-    if (backing.stale) warnings.push("Replay source is not fresh.");
+    if (backing.stale) warnings.push("Historical source is not fresh.");
     return {
       title,
-      shortLabel: title === "Historical memory unavailable" ? "Replay unavailable" : title === "Similar contexts rewarded continuation" ? "Replay rewarded" : title === "Similar contexts punished followthrough" ? "Replay punished" : title,
-      plain: title === "Replay mixed"
-        ? "Similar public contexts produced mixed followthrough, so current confirmation matters more than the replay alone."
+      shortLabel: title === "Historical memory unavailable" ? "History unavailable" : title === "Similar contexts rewarded continuation" ? "Favorable history" : title === "Similar contexts punished followthrough" ? "Unfavorable history" : title,
+      plain: title === "Similar history is mixed"
+        ? "Similar public contexts produced mixed followthrough, so current confirmation matters more than history alone."
         : title === "Similar contexts rewarded continuation"
           ? "Similar public contexts had favorable followthrough, but Raven still needs current confirmation."
           : title === "Similar contexts punished followthrough"
             ? "Similar public contexts weakened after the read, so Raven is treating followthrough as fragile."
-            : "Replay evidence is incomplete or unavailable, so Raven is not treating history as confirmation.",
-      setup: hasSimilarity ? "A public replay comparable is linked with similarity context." : "Replay context is forming without a strong comparable.",
-      edge: "Replay helps identify what separated prior followthrough from failure without forecasting the current path.",
-      confirmation: ["Current context keeps matching the comparable set", "Usable replay sample remains compatible"],
-      failure: ["Current context diverges from the comparable set", "Replay sample remains weak or stale"],
+            : "Historical evidence is incomplete or unavailable, so Raven is not treating it as confirmation.",
+      setup: hasSimilarity ? "A measured historical comparable is linked to this context." : "Historical context is forming without a strong comparable.",
+      edge: "Similar history helps identify what separated prior followthrough from failure without forecasting the current path.",
+      confirmation: ["Current context keeps matching the comparable set", "Usable historical sample remains compatible"],
+      failure: ["Current context diverges from the comparable set", "Historical sample remains weak or stale"],
       warnings,
       confidence: backing.confidence,
       confidenceScore: backing.score,
@@ -448,7 +448,7 @@
         failure: replayCopy.failure,
         supporting: replayCopy.supporting,
         conflicting: replayCopy.conflicting,
-        warnings: ["Replay is context, not a forecast.", ...replayCopy.warnings],
+        warnings: ["Similar history is context, not a forecast.", ...replayCopy.warnings],
         confidence: replayCopy.confidence,
         confidenceScore: replayCopy.confidenceScore,
         evidenceExtra: { public_artifact_ref: overlay.metadata?.public_artifact_ref },

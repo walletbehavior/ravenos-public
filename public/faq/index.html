@@ -3,51 +3,68 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS FAQ</title>
-  <style>
-    :root { color-scheme: dark; --bg:#050907; --panel:#08110e; --line:rgba(148,163,184,.18); --text:#e5f0eb; --muted:#8da39a; --cyan:#7dd3fc; --green:#34d399; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing:0; }
-    a { color:inherit; text-decoration:none; }
-    .shell { max-width:1180px; margin:0 auto; padding:18px; }
-    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid var(--line); }
-    .eyebrow { color:var(--cyan); font-size:11px; font-weight:850; text-transform:uppercase; }
-    h1,h2,p { margin:0; }
-    h1 { margin-top:5px; font-size:clamp(30px,5vw,58px); line-height:1; }
-    h2 { font-size:15px; }
-    .muted { color:var(--muted); font-size:13px; line-height:1.55; }
-    .main-nav { display:flex; gap:8px; flex-wrap:wrap; }
-    .main-nav a { border:1px solid var(--line); background:#0b1713; padding:8px 10px; font-size:12px; font-weight:850; }
-    .main-nav a.active { border-color:rgba(52,211,153,.5); color:var(--green); }
-    .faq { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
-    .item { border:1px solid var(--line); background:var(--panel); padding:14px; min-height:130px; }
-    .item p { margin-top:8px; }
-    @media (max-width:860px) { .faq { grid-template-columns:1fr; } }
-  </style>
+  <meta name="description" content="Straight answers about RavenOS intelligence, Atlas, exact instruments, portfolios, wallets, brokers, plans, and execution boundaries." />
+  <title>RavenOS Product FAQ</title>
+  <link rel="stylesheet" href="/ravenos-guide.css" />
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <div>
-        <span class="eyebrow">RavenOS FAQ</span>
-        <h1>Privacy-first behavioral market intelligence.</h1>
-        <p class="muted">RavenOS combines live market structure, participation context, pressure reads, replay, outcomes, and followthrough checks.</p>
-      </div>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/terminal/">Terminal</a><a href="/atlas/">Atlas</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a href="/docs/">Docs</a><a class="active" href="/faq/">FAQ</a><a href="/account/">Account</a>
+  <main class="guide-shell">
+    <header class="guide-topbar">
+      <a class="guide-brand" href="/" aria-label="RavenOS home"><span>R</span><div><strong>RavenOS</strong><small>Market intelligence</small></div></a>
+      <div class="guide-product-label">Product FAQ / straight answers</div>
+      <nav class="guide-nav" aria-label="Primary navigation">
+        <a href="/discover/">Discover</a><a href="/terminal/">Terminal</a><a href="/portfolio/">Portfolio</a><a href="/atlas/">Atlas</a>
       </nav>
     </header>
-    <section class="faq">
-      <article class="item"><h2>What is a Raven Read?</h2><p class="muted">A Raven Read is an evidence-backed market interpretation showing what Raven is seeing, why it matters, and what would confirm or weaken the read.</p></article>
-      <article class="item"><h2>Are Raven Reads trade instructions?</h2><p class="muted">No. Raven Reads are not buy, sell, long, short, or execution instructions. They help focus attention on changing market behavior.</p></article>
-      <article class="item"><h2>What does Terminal cover?</h2><p class="muted">Terminal covers crypto-native chain and perps intelligence: Solana, Base, Ethereum, Perps, Hyperliquid context, Raven Reads, wallet/account state, and quote-only review.</p></article>
-      <article class="item"><h2>What does Atlas cover?</h2><p class="muted">Atlas is the broader macro and traditional market intelligence boundary: equities, ETFs, futures, rates, FX, commodities, energy, and broad risk regime.</p></article>
-      <article class="item"><h2>What are Outcomes?</h2><p class="muted">Outcomes track what happened after earlier Raven reads, including mixed, insufficient, negative, and still-forming results.</p></article>
-      <article class="item"><h2>What are Read records?</h2><p class="muted">Read records preserve evidence details behind earlier reads. They support followthrough checks, but are not a separate trading signal page.</p></article>
-      <article class="item"><h2>Does RavenOS custody funds or trade for me?</h2><p class="muted">No. Current public flows are intelligence, account context, and quote-only preview. Signing, submission, broadcasting, custody, and unattended execution are disabled.</p></article>
-      <article class="item"><h2>Why can Opportunity and Outcomes disagree?</h2><p class="muted">Opportunity is a leading read. Outcomes is lagging validation. A current setup can improve before settled evidence confirms it.</p></article>
+
+    <section class="guide-hero">
+      <span class="guide-eyebrow">RavenOS / product boundaries</span>
+      <h1>What Raven does. What Raven does not pretend to do.</h1>
+      <p>RavenOS is a cross-market intelligence workspace with a real read-only market feed. These answers separate what works now from what remains unavailable.</p>
+      <div class="guide-status" aria-label="Current product status">
+        <span class="current">Current Raven intelligence</span>
+        <span class="current">Live Hyperliquid data</span>
+        <span>No customer account system</span>
+        <span class="boundary">No signing or submission</span>
+      </div>
     </section>
-    <template id="ravenosBuildMark">Public artifact verified</template>
+
+    <div class="faq-layout">
+      <section class="faq-list" aria-label="Frequently asked questions">
+        <details open><summary>What is RavenOS?</summary><div><strong>RavenOS is one cross-market decision workspace.</strong> It combines discovery, exact-instrument market data, Raven behavioral evidence, Atlas market context, measured followthrough, and provider-specific review beneath one interface. It is currently read-only.</div></details>
+        <details><summary>Do I choose Solana, perps, or equities before I search?</summary><div>No. Search for the market you want. RavenOS resolves asset class, venue, chain, exact contract or pool, chart source, available intelligence, settlement, and provider compatibility. If a symbol is ambiguous, the product must ask—it cannot silently choose another market.</div></details>
+        <details><summary>What is a Raven Read?</summary><div>A Raven Read is a structured interpretation of current market facts and Raven evidence. It explains why Raven noticed a change, what supports it, what weakens it, the current path, and what remains unknown. It is not a buy, sell, long, short, or execution instruction.</div></details>
+        <details><summary>What does Atlas add?</summary><div>Atlas adds company, equity, ETF, option, event, peer, sector, session, and cross-asset context where a bounded current projection exists. Atlas and Raven appear in one intelligence sidecar; Atlas cannot invent behavioral evidence or make a stale Raven read current.</div></details>
+        <details><summary>Why does exact instrument identity matter?</summary><div>Because BTC spot is not BTC-PERP, a token is not an exact pool, SPY is an exact listing, and an option requires its underlying, expiry, strike, and right. Every chart, evidence join, quote preview, and future order must refer to the same exact object.</div></details>
+        <details><summary>Why can a current signal and later followthrough disagree?</summary><div>A current signal is a leading decision-time read. Followthrough measures what happened after the declared future window. A setup can look stronger now while earlier evidence remains mixed, insufficient, or invalidated. RavenOS keeps both states visible.</div></details>
+        <details><summary>What is the difference between recurrence and similar history?</summary><div>Recurrence measures how often a condition has appeared and persisted recently. Similar history requires an as-of reconstruction and future-only measurement for genuinely comparable earlier cases. If that history cannot be established, RavenOS shows it as unavailable rather than inventing similarity scores.</div></details>
+        <details><summary>Does RavenOS execute trades today?</summary><div>No. Current customer signing, order submission, transaction broadcast, confirmed trading, and position monitoring are unavailable. The interface may show market context and a clearly non-executable review boundary, but no control may imply that an order was placed.</div></details>
+        <details><summary>How would stocks, ETFs, and options execute later?</summary><div>Through a regulated broker. RavenOS can provide research, Atlas context, quote review, and orchestration; the broker remains responsible for the customer account, custody, legal settlement, and execution. RavenOS does not become the broker.</div></details>
+        <details><summary>How would on-chain spot and perps execute later?</summary><div>An exact Solana pool can resolve to a Jupiter-compatible route, while a Hyperliquid perpetual resolves to the venue’s order path and margin rules. The Terminal can stay consistent, but custody, settlement, and final user confirmation remain provider-specific.</div></details>
+        <details><summary>Is there a unified Portfolio?</summary><div>Not yet. A future view can combine verified wallets, Hyperliquid, Tradier, and other providers into one economic report while retaining actual custody and settlement. RavenOS will not show a demonstration balance as though it belongs to the user.</div></details>
+        <details><summary>Are USD and USDC treated as the same?</summary><div>No. A unified report may show a timestamped USD or USDC equivalent, but broker USD and on-chain USDC retain their actual custody, conversion source, recency, and risk. A missing or old conversion fails closed.</div></details>
+        <details><summary>Does connecting a wallet sign me in?</summary><div>No. Wallet connection, wallet verification, RavenOS sign-in, account linking, entitlement, and transaction approval are separate concepts. No production account or wallet-linking system is active yet.</div></details>
+        <details><summary>Can I subscribe or create an account?</summary><div>Not yet. Production authentication, server sessions, subscriptions, Stripe entitlements, persistent watchlists, alerts, and layouts remain unavailable. They will not be represented by client-only locks or placeholder account states.</div></details>
+        <details><summary>What happens when current data is unavailable?</summary><div>The affected surface fails closed or shows a clearly labeled archive. RavenOS does not silently replace a missing current Opportunity Census with an embedded historical claim, and one provider outage should not collapse unrelated markets.</div></details>
+        <details><summary>Is Raven Plan an executable trade plan?</summary><div>No. Any Plan or Scenario Preview remains evidence-bound, research-only, non-personalized, and non-executable until the supporting evidence and safety controls prove otherwise. It must show sample size, maturity, observation time, and limitations. A plan can never authorize a transaction.</div></details>
+        <details><summary>Does RavenOS ever need my seed phrase or private key?</summary><div>No. RavenOS should never ask for, receive, or store seed phrases, recovery phrases, or private keys. A normal wallet keeps custody and performs any future final signature in its own confirmation interface.</div></details>
+      </section>
+
+      <aside class="faq-aside">
+        <header><span>Current boundary</span><h2>Truth before feature theater</h2></header>
+        <dl>
+          <div><dt>Intelligence</dt><dd>Current protected projection</dd></div>
+          <div><dt>Hyperliquid</dt><dd>Live market data and exact identity</dd></div>
+          <div><dt>Atlas</dt><dd>Current listings; deeper context unavailable</dd></div>
+          <div><dt>Portfolio</dt><dd>No customer connections or saved balances</dd></div>
+          <div><dt>Accounts</dt><dd>Security-gated and unavailable</dd></div>
+          <div><dt>Execution</dt><dd>Signing, submission, and monitoring off</dd></div>
+        </dl>
+        <footer><div class="guide-actions"><a class="primary" href="/docs/">Read methodology</a><a href="/discover/">Open Discover</a></div></footer>
+      </aside>
+    </div>
+
+    <footer class="guide-footer"><span>RavenOS FAQ · current product truth</span><span id="ravenosBuildMark" hidden aria-hidden="true">Public artifact verified</span></footer>
   </main>
 </body>
 </html>

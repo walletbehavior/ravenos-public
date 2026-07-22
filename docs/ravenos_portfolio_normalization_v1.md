@@ -100,6 +100,10 @@ RavenOS must not infer common ownership or deduplicate wallets merely because ad
 
 Unavailable adapters must render connection state and methodology—not illustrative holdings.
 
+The account adapters are an ingestion and custody underlay, not separate user-facing portfolios. Portfolio answers “What do I own, what is it worth, and what is at risk?” across every authorized connector. Venue and account details remain inspectable for reconciliation, settlement, permissions, and failures, but they do not force the user into isolated Solana, Hyperliquid, EVM, or broker dashboards.
+
+Adding a future broker, exchange, wallet, route provider, or RFQ adapter must not change `ravenos.portfolio.v1`. It must normalize into the same account, economic-lot, valuation, exposure, freshness, conversion, and deduplication rules. A new adapter cannot claim a unified total until its custody values, derivative notional, pending reservations, and currency conversions pass those rules.
+
 ## Economic workflow
 
 For supported on-chain spot:
@@ -110,6 +114,10 @@ Sell: exact selected asset amount -> route -> USDC received
 ```
 
 Gas assets, wrappers, and intermediate hops are route details. They become prominent only when the user must supply gas, approve wrapping/bridging, or accept material route risk.
+
+USDC balances remain custody-domain specific. A Solana USDC balance, Base USDC balance, Ethereum USDC balance, and venue USDC collateral are not collapsed into one spendable balance. RavenOS may present one economic cash total while retaining each location underneath it.
+
+Future quote resolution prefers same-domain cash. If the selected market requires another custody domain, RavenOS may present a single reviewed end-to-end route that includes the transfer. A route is not considered available if it stops at a bridge, omits the destination, hides the transfer provider, or leaves the user to complete an undeclared manual step. When no end-to-end route exists, the truthful state is `funding route unavailable`.
 
 For brokered securities:
 

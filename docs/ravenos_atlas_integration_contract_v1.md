@@ -1,7 +1,7 @@
 # RavenOS Atlas Integration Contract v1
 
-Status: verified private inputs; public adapter contract implemented but not connected to production
-Public projection code: `lib/cross_market/atlas_projection.mjs`
+Status: exact public adapter and UI slice implemented and tested; not reloaded or deployed to production
+Public projection code: `/srv/raven/app/tools/build_ravenos_public_origin.py`, `lib/cross_market/atlas_projection.mjs`, and `worker.mjs`
 Target schema: `ravenos.atlas_projection.v1`
 
 ## Role inside RavenOS
@@ -21,7 +21,11 @@ The bounded continuity refresh proved these current paths:
 | Atlas synthesis | `/srv/raven/app/services/atlas_state.py` -> `data/atlas_state.json` | Current aggregate posture, breadth, alignment, options context, and rail health. |
 | Analytics refresh | `/srv/raven/app/services/atlas_analytics_refresh_v1.py` | Analytics-only, explicitly reports `paper_engine_started=false` and `execution_path_loaded=false`. |
 | Proposed service files | `/srv/raven/app/ops/systemd/raven-atlas-analytics-refresh.{service,timer}` | Present in source but not installed as systemd units at refresh time. |
-| Public origin | `/srv/raven/app/tools/build_ravenos_public_origin.py` and `serve_ravenos_public_origin.py` | Publishes nine Raven endpoints; no Atlas endpoint currently exists. |
+| Public origin source | `/srv/raven/app/tools/build_ravenos_public_origin.py` and `serve_ravenos_public_origin.py` | Atlas is now the ninth fixed source endpoint and is present in the exact allowlist. The running service still has the previously loaded code until a separately authorized reload. |
+| Exact public instrument registry | `/srv/raven/app/config/atlas_public_instrument_registry.json` | SPY, QQQ, and IWM retain fixed verified identities for Atlas projection admission. |
+| Bounded listed-market lookup | `/srv/raven/app/tools/serve_ravenos_public_origin.py` -> protected `instrument_lookup.json?q=` -> `/api/instruments/search` | Exact US equity/ETF identities are sanitized from Tradier server-side. Query, response size, result count, exchange codes, freshness, and execution state are bounded. Implemented and tested; the running origin has not been reloaded. |
+| RavenOS Worker adapter | `/api/atlas` in `worker.mjs` | Current-origin-only, schema/size/freshness validated, no embedded fallback; implemented and tested but not deployed. |
+| Product consumers | `ravenos-shell.js`, `ravenos-atlas.js`, `ravenos-terminal-live.js` | Exact ETF search, Atlas research table, and exact-listing Terminal slice implemented and browser-tested. |
 
 The current Atlas state showed fresh Massive market rows and fresh Tradier option summaries. This proves provider-backed private analytics. It does not prove a public equity terminal, company dataset, arbitrary-symbol endpoint, filings, earnings calendar, relationship graph, or customer broker integration.
 
@@ -36,9 +40,11 @@ Current verified Atlas output can support:
 - provider health and explicit degraded/stale state;
 - cross-market context for Raven perps and token reads.
 
+The undeployed branch now supports exact listed-instrument discovery for bounded Tradier equity and ETF lookup. This provides identity and provider-backed price-chart inspection; it does not create Atlas intelligence for each returned listing.
+
 It does not yet publicly support:
 
-- arbitrary equity lookup such as NVDA;
+- complete Atlas context for arbitrary equities such as NVDA;
 - a complete option chain in RavenOS;
 - company fundamentals;
 - filings or earnings chronology;
@@ -47,7 +53,7 @@ It does not yet publicly support:
 - broker accounts, orders, settlement, or execution;
 - browser-side Tradier access.
 
-The first Atlas product slice should therefore use a verified ETF context such as SPY while the arbitrary-equity public adapter is built. UI architecture may support equities and options, but unsupported modules must render unavailable—not sample rows.
+The first Atlas product slice now uses exact SPY/QQQ rows when current market state contains them. IWM retains a verified registry identity and current options summary but is not fabricated as a priced market row when the current market state omits it. Unsupported modules render unavailable—not sample rows.
 
 ## Public projection boundary
 
@@ -58,7 +64,7 @@ Public fields include:
 - generation time and freshness;
 - aggregate Atlas posture, confidence, and rail alignment;
 - risk/equity regime, sector breadth, and participation quality;
-- bounded market rows with symbol, price, 5/21/63-day changes, sample points, provider label, and observation time;
+- bounded market rows with an exact `ravenos.instrument.v1` listing identity, symbol, price, 5/21/63-day changes, sample points, provider label, and observation time;
 - aggregate option contexts by underlying;
 - bounded provider health;
 - an explicit capabilities object;
@@ -77,7 +83,7 @@ The adapter intentionally removes:
 
 The adapter does not expose the raw `by_underlying.provider_debug` structures currently present in `atlas_options_state.json`.
 
-## Target transport
+## Implemented transport (undeployed)
 
 The smallest justified production path is:
 
@@ -93,17 +99,23 @@ flowchart LR
   C --> UI[Discover / Terminal / Atlas]
 ```
 
-Requirements before this path becomes current:
+Implemented in source and isolated tests:
 
-1. Add a deterministic private projection builder using the public adapter rules.
-2. Add `atlas.json` to the public-origin manifest and exact allowlist.
-3. Version its schema and include it in the RavenOS public-origin release contract.
-4. Extend the private and public no-leak validators.
-5. Add size, schema, source, freshness, timeout, and redirect rejection in the Worker.
-6. Fail Atlas alone when unavailable; Raven crypto and perp lanes must remain healthy.
-7. Restart/reload only the public-origin service if its exact endpoint allowlist changes, with separate authorization and smoke verification.
+1. Deterministic private projection builder with exact registry admission.
+2. `atlas.json` in the public-origin manifest and exact allowlist.
+3. Versioned schema in the RavenOS public-origin release contract.
+4. Private safety scanning and generated Worker-response scanning.
+5. Worker size, schema, source, freshness, timeout, redirect, identity, and execution-boundary rejection.
+6. Atlas-only degradation; Raven crypto and perp lanes remain independent.
 
-Tradier must never be called directly from browser JavaScript. If future arbitrary-symbol lookup is required, it must be a bounded server-side adapter with symbol validation, response size limits, rate limits, provider health, cache policy, and no credential reflection.
+Still required before production use:
+
+1. Reload only the public-origin service so the running allowlist and builder load the new endpoint.
+2. Verify token enforcement, endpoint freshness, schema, size, and no-leak output through the real protected origin.
+3. Stage the exact immutable RavenOS release and run the Cloudflare production-equivalent preflight.
+4. Obtain explicit production promotion authorization.
+
+Tradier is never called directly from browser JavaScript. The implemented exact-instrument lookup runs only inside the protected private origin and returns a strict public-safe projection through the Worker. It enforces query validation, a 256 KiB upstream/Worker response bound, a 12-result cap, an admitted US exchange map, stock/ETF-only types, short caching, exact canonical identities, server-only credentials, and hard-false broker/quote/signing/submission capabilities. Unknown exchanges, options, malformed identities, stale payloads, and provider failures fail closed.
 
 ## Health semantics
 
@@ -122,7 +134,8 @@ An Atlas outage must not collapse Hyperliquid market data, Raven Opportunity Cen
 
 Atlas entities and market rows resolve through `ravenos.instrument.v1` before opening Terminal. A ticker alone is not sufficient if multiple listings or derivative contracts exist.
 
-- ETF rows such as SPY resolve to an exact supported listing/venue when that adapter is available.
+- SPY resolves to `etf:nyse-arca:spy`, QQQ to `etf:nasdaq:qqq`, and IWM to `etf:nyse-arca:iwm` in the fixed Atlas registry.
+- Other admitted US equities and ETFs resolve through the protected current lookup to exact identities such as `equity:nasdaq:aapl`. A lookup result may provide chart inspection without implying Raven evidence, Atlas context, broker connectivity, quote preview, or execution.
 - Options require an exact contract identity and underlying instrument ID.
 - Atlas events point to one or more canonical instruments; they cannot silently select one.
 - Terminal links back to Atlas using the same exact instrument ID.
@@ -162,3 +175,17 @@ Future deeper fields—complete option chains, company/event archives, relations
 - JS/CSS/map/manifest scanning;
 - public-origin token remains server-only;
 - no paper or execution state crosses the adapter.
+
+Current focused evidence:
+
+- private public-origin suite: 9/9, including token enforcement, provider sanitization, bounded lookup, exact identity, and fixed artifact routes;
+- RavenOS contract suite: 117/117, including current Atlas, listed-market lookup, exact chart re-verification, origin failure, stale payload, malformed identity, and no-substitution cases;
+- browser suite: 77/77, including Atlas-to-Terminal, arbitrary AAPL lookup without Atlas context, same-ticker equity-versus-token ranking, Robinhood Chain contract lookup, chart controls, focus mode, and mobile containment;
+- generated deploy-asset and 25-route Worker-response no-leak scans pass;
+- signing and submission remain hard false.
+
+Listing identity sources:
+
+- SPY: State Street’s official SPY product page identifies NYSE Arca: <https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-sp-500-etf-trust-spy>;
+- QQQ: Invesco’s official QQQ product page identifies Nasdaq: <https://www.invesco.com/us/financial-products/etfs/product-detail?audienceType=investors&productId=QQQ&ticker=QQQ>;
+- IWM: iShares’ official IWM product page identifies NYSE Arca: <https://www.ishares.com/us/products/239710/IWM>.

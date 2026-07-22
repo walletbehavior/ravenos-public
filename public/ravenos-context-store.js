@@ -1,13 +1,22 @@
-export const RAVENOS_CONTEXT_SCHEMA = "ravenos.context.v1";
-export const RAVENOS_CONTEXT_STORAGE_KEY = "ravenos:selected-context:v1";
+export const RAVENOS_CONTEXT_SCHEMA = "ravenos.context.v2";
+export const RAVENOS_CONTEXT_STORAGE_KEY = "ravenos:selected-context:v2";
+const LEGACY_CONTEXT_STORAGE_KEY = "ravenos:selected-context:v1";
 
 const QUERY_FIELDS = Object.freeze({
   asset: ["subject", "label"],
+  instrument_id: ["subject", "id"],
   subject_id: ["subject", "id"],
   subject_type: ["subject", "type"],
+  instrument_type: ["subject", "instrumentType"],
+  asset_class: ["subject", "assetClass"],
+  identity_scope: ["subject", "identityScope"],
   chain: ["subject", "chain"],
   venue: ["subject", "venue"],
   market: ["subject", "marketType"],
+  quote: ["subject", "quoteAsset"],
+  settlement: ["subject", "settlementAsset"],
+  cash: ["subject", "preferredCashAsset"],
+  numeraire: ["subject", "economicNumeraire"],
   timeframe: ["timeframe"],
   workspace: ["workspace"],
   detection: ["detectionId"],
@@ -28,9 +37,17 @@ function defaultContext() {
       type: "market",
       label: "No market selected",
       symbol: "",
+      assetClass: "unknown",
+      instrumentType: "unknown",
+      identityScope: "unselected",
       chain: "all",
       venue: "all",
       marketType: "all",
+      quoteAsset: "",
+      settlementAsset: "",
+      preferredCashAsset: "USDC",
+      economicNumeraire: "USDC",
+      capabilities: {},
     },
     timeframe: "1h",
     workspace: "market-monitor",
@@ -42,17 +59,29 @@ function defaultContext() {
   };
 }
 
-function normalizeSubject(value = {}) {
+export function normalizeInstrumentSubject(value = {}) {
   const row = value && typeof value === "object" ? value : {};
   const label = clean(row.label || row.symbol || row.id, "No market selected");
+  const instrumentType = clean(row.instrumentType || row.instrument_type || row.marketType || row.market_type, "unknown").toLowerCase();
+  const assetClass = clean(row.assetClass || row.asset_class, ["perp", "perpetual", "spot", "token", "pool"].includes(instrumentType) ? "crypto" : "unknown").toLowerCase();
   return {
-    id: clean(row.id || row.address || row.symbol || label, "unselected"),
+    id: clean(row.instrumentId || row.instrument_id || row.id || row.address || row.symbol || label, "unselected"),
     type: clean(row.type, "market").toLowerCase(),
     label,
     symbol: clean(row.symbol || row.label),
+    assetClass,
+    instrumentType,
+    identityScope: clean(row.identityScope || row.identity_scope, instrumentType === "exact_pool" || instrumentType === "pool" ? "exact_pool" : instrumentType === "token" ? "token_aggregate" : row.id || row.instrument_id ? "exact_instrument" : "unselected").toLowerCase(),
     chain: clean(row.chain, "all").toLowerCase(),
     venue: clean(row.venue, "all").toLowerCase(),
     marketType: clean(row.marketType || row.market_type, "all").toLowerCase(),
+    quoteAsset: clean(row.quoteAsset?.symbol || row.quote_asset?.symbol || row.quoteAsset || row.quote_asset || row.quote_asset_symbol).toUpperCase(),
+    settlementAsset: clean(row.settlementAsset?.symbol || row.settlement_asset?.symbol || row.settlementAsset || row.settlement_asset || row.settlement_asset_symbol).toUpperCase(),
+    preferredCashAsset: clean(row.preferredCashAsset?.symbol || row.preferred_cash_asset?.symbol || row.preferredCashAsset || row.preferred_cash_asset || row.preferred_cash_asset_symbol, assetClass === "crypto" ? "USDC" : "USD").toUpperCase(),
+    economicNumeraire: clean(row.economicNumeraire || row.economic_numeraire, assetClass === "crypto" ? "USDC" : "USD").toUpperCase(),
+    capabilities: row.capabilities && typeof row.capabilities === "object"
+      ? Object.fromEntries(Object.entries(row.capabilities).map(([key, enabled]) => [key, Boolean(enabled)]))
+      : {},
   };
 }
 
@@ -63,7 +92,7 @@ export function normalizeContext(value = {}) {
     ...base,
     ...row,
     schemaVersion: RAVENOS_CONTEXT_SCHEMA,
-    subject: normalizeSubject(row.subject || base.subject),
+    subject: normalizeInstrumentSubject(row.subject || base.subject),
     timeframe: clean(row.timeframe, base.timeframe),
     workspace: clean(row.workspace, base.workspace),
     detectionId: clean(row.detectionId, "") || null,
@@ -86,7 +115,7 @@ export function contextFromSearch(search = "", seed = {}) {
     const value = params.get(query);
     if (value) setPath(context, path, value);
   }
-  context.subject = normalizeSubject(context.subject);
+  context.subject = normalizeInstrumentSubject(context.subject);
   return context;
 }
 
@@ -95,11 +124,19 @@ export function contextSearchParams(contextValue, options = {}) {
   const params = new URLSearchParams(options.search || "");
   const values = {
     asset: context.subject.label === "No market selected" ? "" : context.subject.label,
+    instrument_id: context.subject.id === "unselected" ? "" : context.subject.id,
     subject_id: context.subject.id === "unselected" ? "" : context.subject.id,
     subject_type: context.subject.type,
+    instrument_type: context.subject.instrumentType === "unknown" ? "" : context.subject.instrumentType,
+    asset_class: context.subject.assetClass === "unknown" ? "" : context.subject.assetClass,
+    identity_scope: context.subject.identityScope === "unselected" ? "" : context.subject.identityScope,
     chain: context.subject.chain === "all" ? "" : context.subject.chain,
     venue: context.subject.venue === "all" ? "" : context.subject.venue,
     market: context.subject.marketType === "all" ? "" : context.subject.marketType,
+    quote: context.subject.quoteAsset,
+    settlement: context.subject.settlementAsset,
+    cash: context.subject.preferredCashAsset,
+    numeraire: context.subject.economicNumeraire,
     timeframe: context.timeframe,
     workspace: context.workspace,
     detection: context.detectionId || "",
@@ -123,7 +160,11 @@ export function createRavenOSContextStore(options = {}) {
   const listeners = new Set();
   let stored = {};
   if (windowRef?.localStorage) {
-    try { stored = JSON.parse(windowRef.localStorage.getItem(storageKey) || "{}"); } catch { stored = {}; }
+    try {
+      const current = windowRef.localStorage.getItem(storageKey);
+      const legacy = storageKey === RAVENOS_CONTEXT_STORAGE_KEY ? windowRef.localStorage.getItem(LEGACY_CONTEXT_STORAGE_KEY) : null;
+      stored = JSON.parse(current || legacy || "{}");
+    } catch { stored = {}; }
   }
   let state = contextFromSearch(windowRef?.location?.search || "", stored);
 
@@ -173,6 +214,15 @@ export function createRavenOSContextStore(options = {}) {
     return getState();
   }
 
+  function clearSelection(options = {}) {
+    const empty = defaultContext();
+    return setContext({
+      subject: empty.subject,
+      detectionId: null,
+      outcomeId: null,
+    }, options);
+  }
+
   function decorateHref(href) {
     if (!href || !windowRef?.location) return href;
     const target = new URL(href, windowRef.location.origin);
@@ -205,7 +255,7 @@ export function createRavenOSContextStore(options = {}) {
 
   windowRef?.addEventListener?.("storage", handleStorage);
   persist();
-  return { getState, setContext, setSelection: setContext, subscribe, decorateHref, navigate, updateUrl };
+  return { getState, setContext, setSelection: setContext, clearSelection, subscribe, decorateHref, navigate, updateUrl };
 }
 
 export const ravenOSContext = createRavenOSContextStore();

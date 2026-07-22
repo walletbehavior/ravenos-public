@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portfolio · RavenOS</title>
+  <meta name="description" content="The truthful read-only foundation for a future unified RavenOS portfolio." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+</head>
+<body>
+  <main class="workspace-page portfolio-page" data-route-slug="portfolio">
+    <header class="workspace-operator-head">
+      <div>
+        <span class="workspace-question">What do I own, what changed, and where is my risk?</span>
+        <h1>No portfolio connected.</h1>
+        <p>RavenOS has no verified holdings, balances, or positions for you. Nothing below is inferred from the market you are viewing.</p>
+      </div>
+      <div class="workspace-mast-actions">
+        <a class="workspace-primary-action" href="/discover/"><span>Browse markets</span><span>Discover →</span></a>
+      </div>
+    </header>
+
+    <section class="portfolio-empty-workspace">
+      <div class="portfolio-empty-primary">
+        <span class="portfolio-empty-mark">0</span>
+        <span class="workspace-label">Your economic view</span>
+        <h2>There is nothing truthful to total yet.</h2>
+        <p>Secure, read-only account connections are not available. RavenOS will never present sample balances, positions, profit, or risk as yours.</p>
+        <button type="button" disabled>Connections unavailable</button>
+      </div>
+      <aside class="portfolio-selection">
+        <span class="workspace-label">Market in focus</span>
+        <h3 id="portfolioSelected">No instrument selected</h3>
+        <p id="portfolioSelectedMeta">Use universal search to inspect a market. Selection does not imply ownership or a portfolio position.</p>
+        <small>When portfolio connections become available, RavenOS will preserve the actual venue, custody, collateral, and settlement beneath one economic view.</small>
+      </aside>
+    </section>
+  </main>
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-portfolio.js"></script>
+</body>
+</html>

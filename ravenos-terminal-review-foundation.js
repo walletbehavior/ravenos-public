@@ -384,7 +384,7 @@ function resolveInstrumentCandidates(input = "", context = {}) {
 function buildManagementTemplate({ instrument = {}, marketType = "spot" } = {}) {
   return {
     template_id: `preview_${marketType}_replay_management`,
-    label: "Replay sample forming",
+    label: "Similar-history sample forming",
     style: "wide_confirmation",
     source: "insufficient_sample",
     similar_context_count: null,
@@ -508,7 +508,7 @@ function createReviewState(input = {}) {
       funding: input.funding || (isPerp ? "forming" : null),
       open_interest: input.open_interest || (isPerp ? "forming" : null),
       reduce_only: isPerp ? "preview only" : null,
-      tp_sl_template: isPerp ? "Replay management preview" : null,
+      tp_sl_template: isPerp ? "History-based management preview" : null,
     },
     fee_disclosure: {
       fee_kind: fee.fee_kind,

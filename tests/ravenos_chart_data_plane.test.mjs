@@ -16,6 +16,14 @@ test("canonical chart identity preserves exact-pool, aggregate-token, and perp s
   const aggregate = normalizeChartInstrument({ chain: "solana", venue: "jupiter", symbol: "RAVEN", tokenAddress: "MintA" });
   const pool = normalizeChartInstrument({ chain: "base", venue: "uniswap_v3", symbol: "RAVEN", quoteAsset: "USDC", tokenAddress: "0xToken", pairAddress: "0xPool" });
   const perp = normalizeChartInstrument({ marketType: "perp", chain: "hyperliquid", venue: "hyperliquid", symbol: "SOL-PERP", quoteAsset: "USD" });
+  const etf = normalizeChartInstrument({
+    canonicalId: "etf:nyse-arca:spy",
+    instrumentType: "etf",
+    chain: "none",
+    venue: "nyse-arca",
+    symbol: "SPY",
+    quoteAsset: "USD",
+  });
   assert.equal(aggregate.instrument_type, CHART_INSTRUMENT_TYPES.SPOT_TOKEN);
   assert.equal(aggregate.identity_scope, "token_aggregate");
   assert.equal(pool.instrument_type, CHART_INSTRUMENT_TYPES.SPOT_POOL);
@@ -24,7 +32,92 @@ test("canonical chart identity preserves exact-pool, aggregate-token, and perp s
   assert.equal(pool.chain, "base");
   assert.equal(perp.instrument_type, CHART_INSTRUMENT_TYPES.PERPETUAL);
   assert.equal(perp.symbol, "SOL-PERP");
+  assert.equal(etf.instrument_type, CHART_INSTRUMENT_TYPES.ETF);
+  assert.equal(etf.canonical_id, "etf:nyse-arca:spy");
   assert.notEqual(aggregate.canonical_id, pool.canonical_id);
+});
+
+test("exact EVM contract search discovers provider-listed chains without substituting another token", async () => {
+  const originalFetch = globalThis.fetch;
+  const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
+  const pair = {
+    chainId: "robinhood",
+    dexId: "uniswap",
+    pairAddress: "0x602633428507BBAA848E6D0c3127cda15eEAE6a9",
+    baseToken: { address: tokenAddress, name: "The Runner", symbol: "RUNNER" },
+    quoteToken: { address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73", name: "WETH", symbol: "WETH" },
+    priceUsd: "0.0003219",
+    liquidity: { usd: 68_960.64 },
+    volume: { h24: 14_200 },
+    txns: { h24: { buys: 120, sells: 121 } },
+  };
+  const decoy = {
+    ...pair,
+    pairAddress: "0x1111111111111111111111111111111111111111",
+    baseToken: { address: "0x9999999999999999999999999999999999999999", name: "Wrong token", symbol: "WRONG" },
+  };
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("/latest/dex/search")) return new Response(JSON.stringify({ pairs: [pair, decoy] }), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.includes("/tokens/v1/")) return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].chainId, "robinhood");
+    assert.equal(body.results[0].tokenAddress.toLowerCase(), tokenAddress);
+    assert.equal(body.results[0].pairAddress, pair.pairAddress);
+    assert.equal(body.results[0].symbol, "RUNNER");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("exact ETF chart identity survives the provider adapter and mismatches fail closed", async () => {
+  const originalFetch = globalThis.fetch;
+  const providerRequests = [];
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      providerRequests.push(url);
+      if (!url.includes("query1.finance.yahoo.com/v8/finance/chart/SPY")) throw new Error(`Unexpected test request: ${url}`);
+      return new Response(JSON.stringify({
+        chart: {
+          result: [{
+            timestamp: [1_800_000_000, 1_800_003_600],
+            indicators: { quote: [{ open: [700, 701], high: [702, 703], low: [699, 700], close: [701, 702], volume: [100, 120] }] },
+          }],
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=SPY&timeframe=1h&instrument_id=etf%3Anyse-arca%3Aspy"), {});
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.market_identity, "etf:nyse-arca:spy");
+    assert.equal(payload.instrument.canonical_id, "etf:nyse-arca:spy");
+    assert.equal(payload.instrument.instrument_type, CHART_INSTRUMENT_TYPES.ETF);
+    assert.equal(payload.instrument.venue, "nyse-arca");
+    assert.equal(payload.candles.length, 2);
+    assert.equal(providerRequests.length, 1);
+
+    providerRequests.length = 0;
+    const mismatch = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=equities&asset=SPY&timeframe=1h&instrument_id=etf%3Anasdaq%3Aqqq"), {});
+    assert.equal(mismatch.status, 200);
+    const mismatchBody = await mismatch.json();
+    const mismatchPayload = mismatchBody.data || mismatchBody;
+    assert.equal(mismatchPayload.ok, false);
+    assert.equal(mismatchPayload.source_type, "identity_mismatch");
+    assert.equal(mismatchPayload.candles.length, 0);
+    assert.equal(providerRequests.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("forming candles roll over while suppressing duplicates and refusing older-bucket mutation", () => {

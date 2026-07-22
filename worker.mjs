@@ -8,6 +8,7 @@ import { buildPerpTerminalContext } from "./lib/perp_terminal_context.mjs";
 import {
   attachDelivery,
   loadOriginControlDocument,
+  loadPublicInstrumentLookup,
   loadPublicProjection,
   projectionFreshness,
   projectionHeaders,
@@ -57,6 +58,11 @@ const CHAIN_ROUTE_MAP = {
   base: { aliases: ["base"], label: "Base" },
   ethereum: { aliases: ["eth", "ethereum"], label: "Ethereum" },
 };
+const EXACT_TRADITIONAL_INSTRUMENTS = Object.freeze({
+  SPY: Object.freeze({ instrument_id: "etf:nyse-arca:spy", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
+  QQQ: Object.freeze({ instrument_id: "etf:nasdaq:qqq", instrument_type: "etf", venue: "nasdaq", listing: "Nasdaq Stock Market" }),
+  IWM: Object.freeze({ instrument_id: "etf:nyse-arca:iwm", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
+});
 const GECKOTERMINAL_NETWORKS = Object.freeze({
   solana: "solana",
   base: "base",
@@ -296,6 +302,8 @@ function routeCacheHeaders(pathname) {
   if (pathname === "/api/terminal/chart") return { "cache-control": "public, max-age=2, stale-while-revalidate=10" };
   if (pathname === "/api/terminal") return { "cache-control": "public, max-age=15, stale-while-revalidate=60" };
   if (pathname === "/api/opportunity") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
+  if (pathname === "/api/atlas") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
+  if (pathname === "/api/instruments/search") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
   if (pathname === "/api/brief") return { "cache-control": "public, max-age=300, stale-while-revalidate=900" };
   if (pathname === "/api/status" || pathname === "/api/claims") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
   return { "cache-control": "public, max-age=900, stale-while-revalidate=1800" };
@@ -713,6 +721,7 @@ async function fetchRavenSpotProjection({
   pairAddress = "",
   tokenAddress = "",
   quoteAddress = "",
+  instrumentId = "",
   instrumentScope = "exact_pool",
   asset = "",
   timeframe = "1h",
@@ -1072,10 +1081,17 @@ async function fetchHyperliquidCandles(symbol, timeframe, { before = null, limit
   });
 }
 
-async function fetchYahooCandles(ticker, timeframe, { assetLabel = ticker, assetType = "equity", limit = null } = {}) {
+async function fetchYahooCandles(ticker, timeframe, {
+  assetLabel = ticker,
+  assetType = "equity",
+  instrumentId = "",
+  venue = "traditional",
+  listing = "",
+  limit = null,
+} = {}) {
   const spec = timeframeSpec(timeframe);
   const requestedTimeframe = String(timeframe || "1h").toLowerCase();
-  const cacheKey = `yahoo:${ticker}:${requestedTimeframe}:${spec.yahooInterval}:${spec.yahooRange}`;
+  const cacheKey = `yahoo:${ticker}:${instrumentId || "aggregate"}:${requestedTimeframe}:${spec.yahooInterval}:${spec.yahooRange}`;
   const cached = cacheGet(terminalChartCache, cacheKey);
   if (cached) {
     recordProviderComponentEvent({
@@ -1113,13 +1129,31 @@ async function fetchYahooCandles(ticker, timeframe, { assetLabel = ticker, asset
       const observedAt = new Date().toISOString();
       const requestedLimit = boundedChartLimit(limit, candles.length || 220, 1000);
       const limitedCandles = candles.slice(-requestedLimit);
-      const instrument = canonicalChartInstrument({
-        market: assetType === "crypto_spot" ? "crypto_spot" : assetType,
-        asset: assetLabel,
-        chain: assetType === "crypto_spot" ? "aggregate" : "traditional",
-        venue: "yahoo_finance",
-        provider: "yahoo_finance",
-      });
+      const instrument = assetType === "equity" || assetType === "etf"
+        ? normalizeChartInstrument({
+          canonicalId: instrumentId,
+          instrumentType: assetType === "etf" ? CHART_INSTRUMENT_TYPES.ETF : CHART_INSTRUMENT_TYPES.EQUITY,
+          chain: "none",
+          venue,
+          symbol: ticker,
+          baseAsset: ticker,
+          quoteAsset: "USD",
+          marketStatus: "unknown",
+          ravenCoverageState: "atlas_context",
+          providerRouting: {
+            history: "yahoo_finance",
+            live: "bounded_provider_poll",
+            providerAsset: ticker,
+            providerNetwork: listing || venue,
+          },
+        })
+        : canonicalChartInstrument({
+          market: assetType === "crypto_spot" ? "crypto_spot" : assetType,
+          asset: assetLabel,
+          chain: assetType === "crypto_spot" ? "aggregate" : "traditional",
+          venue: "yahoo_finance",
+          provider: "yahoo_finance",
+        });
       const result = {
         ok: candles.length > 0,
         asset: assetLabel,
@@ -1132,6 +1166,7 @@ async function fetchYahooCandles(ticker, timeframe, { assetLabel = ticker, asset
         timeframe: spec.displayTimeframe || (requestedTimeframe === "4h" ? "4h" : spec.yahooInterval),
         updated_at: observedAt,
         observed_at: observedAt,
+        market_identity: instrumentId || instrument.canonical_id,
         age_seconds: 0,
         instrument,
         capabilities: {
@@ -1143,7 +1178,8 @@ async function fetchYahooCandles(ticker, timeframe, { assetLabel = ticker, asset
           order_book: false,
           funding: false,
           open_interest: false,
-          raven_overlays: true,
+          raven_overlays: !["equity", "etf"].includes(assetType),
+          atlas_overlays: false,
         },
         history_window: {
           before: null,
@@ -1161,6 +1197,37 @@ async function fetchYahooCandles(ticker, timeframe, { assetLabel = ticker, asset
       return result;
     },
   });
+}
+
+async function resolveTraditionalExactInstrument(env, ticker, instrumentId = "") {
+  const symbol = String(ticker || "").trim().toUpperCase();
+  const requestedId = String(instrumentId || "").trim().toLowerCase();
+  const fixed = EXACT_TRADITIONAL_INSTRUMENTS[symbol];
+  if (fixed) {
+    if (requestedId && fixed.instrument_id !== requestedId) return null;
+    return { ...fixed, symbol };
+  }
+  if (!requestedId) return null;
+  const result = await loadPublicInstrumentLookup({ env, query: symbol });
+  if (
+    !result.available
+    || result.delivery?.source !== "current_public_origin"
+    || result.delivery?.fallback !== false
+    || result.delivery?.freshness_state !== "fresh"
+  ) return null;
+  const matches = (result.payload?.results || []).filter((row) => (
+    String(row?.instrument_id || "").toLowerCase() === requestedId
+    && String(row?.symbol || "").toUpperCase() === symbol
+  ));
+  if (matches.length !== 1) return null;
+  const row = matches[0];
+  return {
+    instrument_id: row.instrument_id,
+    instrument_type: row.instrument_type,
+    venue: row.venue,
+    listing: row.market_identity?.listing || row.venue,
+    symbol: row.symbol,
+  };
 }
 
 function unresolvedChart(asset, message, { source = "Coverage Developing", sourceType = "coverage_developing", timeframe = "", providerAsset = null } = {}) {
@@ -1200,6 +1267,7 @@ async function terminalChartPayload({
   pairAddress = "",
   tokenAddress = "",
   quoteAddress = "",
+  instrumentId = "",
   instrumentScope = "exact_pool",
   before = null,
   limit = null,
@@ -1232,10 +1300,26 @@ async function terminalChartPayload({
     "MSFT": "MSFT",
     "SPY": "SPY",
     "QQQ": "QQQ",
+    "IWM": "IWM",
   };
   if (cleanMarket === "equities" || equityMap[cleanAsset]) {
     const ticker = equityMap[cleanAsset] || cleanAsset.replace(/\s+Watch$/i, "");
-    return fetchYahooCandles(ticker, timeframe, { assetLabel: cleanAsset, assetType: ["SPY", "QQQ"].includes(ticker) ? "etf" : "equity", limit });
+    const exact = await resolveTraditionalExactInstrument(env, ticker, instrumentId);
+    if (!exact) {
+      return unresolvedChart(cleanAsset, "The requested symbol and exact traditional-market identity do not match.", {
+        source: "Identity registry",
+        sourceType: "identity_mismatch",
+        timeframe,
+      });
+    }
+    return fetchYahooCandles(ticker, timeframe, {
+      assetLabel: cleanAsset,
+      assetType: exact.instrument_type,
+      instrumentId: exact.instrument_id,
+      venue: exact.venue,
+      listing: exact.listing,
+      limit,
+    });
   }
   const spotMap = {
     "BTC Spot": "BTC-USD",
@@ -1353,13 +1437,34 @@ async function tokensDex(chainId, tokenAddresses) {
   return sortedDexResults(Array.isArray(payload) ? payload : []);
 }
 
+function exactTokenDexResults(rows, tokenAddress, { caseSensitive = false } = {}) {
+  const expected = String(tokenAddress || "");
+  const same = caseSensitive
+    ? (value) => String(value || "") === expected
+    : (value) => String(value || "").toLowerCase() === expected.toLowerCase();
+  const deduped = new Map();
+  for (const row of rows) {
+    if (!same(row?.tokenAddress)) continue;
+    const key = `${String(row.chainId || "").toLowerCase()}:${String(row.pairAddress || "").toLowerCase()}`;
+    if (!row?.chainId || !row?.pairAddress || deduped.has(key)) continue;
+    deduped.set(key, row);
+  }
+  return [...deduped.values()].sort((left, right) => num(right.liquidityUsd) - num(left.liquidityUsd));
+}
+
 async function resolveDexInput(input) {
   const q = String(input || "").trim();
   if (!q) return [];
-  if (SOLANA_ADDRESS_RE.test(q)) return tokenDex("solana", q);
+  if (SOLANA_ADDRESS_RE.test(q)) {
+    const settled = await Promise.allSettled([tokenDex("solana", q), searchDex(q)]);
+    return exactTokenDexResults(settled.flatMap((item) => item.status === "fulfilled" ? item.value : []), q, { caseSensitive: true });
+  }
   if (EVM_ADDRESS_RE.test(q)) {
-    const settled = await Promise.allSettled(EVM_CHAINS.map((chain) => tokensDex(chain, q)));
-    return settled.flatMap((item) => item.status === "fulfilled" ? item.value : []).sort((a, b) => b.liquidityUsd - a.liquidityUsd);
+    const settled = await Promise.allSettled([
+      searchDex(q),
+      ...EVM_CHAINS.map((chain) => tokensDex(chain, q)),
+    ]);
+    return exactTokenDexResults(settled.flatMap((item) => item.status === "fulfilled" ? item.value : []), q);
   }
   const pair = q.match(/^([a-z0-9_-]+):([A-Za-z0-9x]+)$/i);
   if (pair) return pairDex(pair[1], pair[2]);
@@ -1422,6 +1527,92 @@ function worstFreshness(states = []) {
   ), states.length ? "fresh" : "unavailable");
 }
 
+function validateCurrentAtlasProjection(result = {}) {
+  const payload = result.payload;
+  const delivery = result.delivery || {};
+  const atlas = payload?.data;
+  const execution = atlas?.execution_boundary || {};
+  const publicSafety = atlas?.public_safety || {};
+  const marketRows = atlas?.market_context?.rows;
+  const validIdentityRows = Array.isArray(marketRows) && marketRows.every((row) => (
+    typeof row?.instrument_id === "string"
+    && row.instrument_id.length > 0
+    && row?.instrument?.schema_version === "ravenos.instrument.v1"
+    && row.instrument.instrument_id === row.instrument_id
+    && row.instrument.identity_scope === "exact_instrument"
+    && row.instrument.capabilities?.execution === false
+  ));
+  if (
+    delivery.source !== "current_public_origin"
+    || delivery.fallback !== false
+    || !["fresh", "delayed"].includes(delivery.freshness_state)
+    || payload?.schema_version !== "ravenos_atlas_public_origin_v1"
+    || payload?.safe_public !== true
+    || payload?.redaction_policy !== "aggregate_public_market_context_only"
+    || atlas?.schema_version !== "ravenos.atlas_projection.v1"
+    || !["available", "degraded"].includes(atlas?.state)
+    || !["fresh", "delayed"].includes(atlas?.freshness?.state)
+    || !validIdentityRows
+    || execution.signing_available !== false
+    || execution.submission_available !== false
+    || execution.broker_connection_available !== false
+    || publicSafety.credentials_removed !== true
+    || publicSafety.provider_payloads_removed !== true
+    || atlas?.capabilities?.browser_provider_credentials !== false
+  ) return { ok: false, reason: "atlas_current_projection_rejected" };
+  return { ok: true, atlas };
+}
+
+async function handleAtlas(request, env = {}) {
+  const result = await loadPublicProjection({ env, key: "atlas", fallbackPayload: null });
+  const current = validateCurrentAtlasProjection(result);
+  if (!current.ok) {
+    return json({
+      ok: false,
+      status: "unavailable",
+      error: "atlas_projection_unavailable",
+      atlas: null,
+      historical_context_substituted: false,
+      message: "Current public-safe Atlas context is unavailable. No embedded or historical Atlas snapshot was substituted.",
+      delivery: result.delivery,
+    }, { status: 503, headers: projectionRouteHeaders("/api/atlas", result.delivery) });
+  }
+  return json(attachDelivery({ ok: true, ...current.atlas }, result.delivery), {
+    status: 200,
+    headers: projectionRouteHeaders("/api/atlas", result.delivery),
+  });
+}
+
+async function handleInstrumentSearch(request, env = {}) {
+  const url = new URL(request.url);
+  const query = String(url.searchParams.get("q") || "").trim().replace(/\s+/g, " ");
+  if (!/^[A-Za-z0-9][A-Za-z0-9 .&'/-]{0,63}$/.test(query)) {
+    return json({ ok: false, error: "invalid_instrument_query", results: [] }, {
+      status: 400,
+      headers: { ...routeCacheHeaders("/api/instruments/search"), "x-ravenos-freshness": "unavailable" },
+    });
+  }
+  const result = await loadPublicInstrumentLookup({ env, query });
+  if (
+    !result.available
+    || result.delivery?.source !== "current_public_origin"
+    || result.delivery?.fallback !== false
+    || result.delivery?.freshness_state !== "fresh"
+  ) {
+    return json({
+      ok: false,
+      error: "instrument_lookup_unavailable",
+      query,
+      results: [],
+      delivery: result.delivery,
+    }, { status: 503, headers: projectionRouteHeaders("/api/instruments/search", result.delivery) });
+  }
+  return json(attachDelivery(result.payload, result.delivery), {
+    status: 200,
+    headers: projectionRouteHeaders("/api/instruments/search", result.delivery),
+  });
+}
+
 async function handleHealth(request, env = {}) {
   const context = createTerminalRequestContext({
     request,
@@ -1449,6 +1640,13 @@ async function handleHealth(request, env = {}) {
   const coreEndpointHealth = endpointHealth.filter((row) => coreKeys.has(row.key));
   const researchEndpoint = endpointHealth.find((row) => row.key === "research") || {
     key: "research",
+    state: "unavailable",
+    age_seconds: null,
+    freshness_target_seconds: null,
+    generated_at: null,
+  };
+  const atlasEndpoint = endpointHealth.find((row) => row.key === "atlas") || {
+    key: "atlas",
     state: "unavailable",
     age_seconds: null,
     freshness_target_seconds: null,
@@ -1510,6 +1708,11 @@ async function handleHealth(request, env = {}) {
       core_endpoints: coreEndpointHealth,
       research: researchEndpoint,
       note: researchEndpoint.state === "stale" ? "Research is historical and is not counted as current intelligence." : null,
+    },
+    atlas_health: {
+      ...atlasEndpoint,
+      independent: true,
+      note: "Atlas availability does not determine Raven opportunity or market-data health.",
     },
     narrator_freshness: {
       state: narratorFreshness.state,
@@ -2278,6 +2481,7 @@ async function handleTerminalChart(request, env = {}) {
         tokenAddress: url.searchParams.get("token_address") || "",
         quoteAddress: url.searchParams.get("quote_address") || "",
         instrumentScope: url.searchParams.get("instrument_scope") || "exact_pool",
+        instrumentId: url.searchParams.get("instrument_id") || "",
         before: url.searchParams.get("before"),
         limit: url.searchParams.get("limit"),
       });
@@ -2421,6 +2625,8 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/claims" && request.method === "GET") return handleClaims(request, env);
   if (url.pathname.startsWith("/api/claims/") && request.method === "GET") return handleClaims(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/opportunity" && request.method === "GET") return handleOpportunity(request, env);
+  if (url.pathname === "/api/atlas" && request.method === "GET") return handleAtlas(request, env);
+  if (url.pathname === "/api/instruments/search" && request.method === "GET") return handleInstrumentSearch(request, env);
   if (url.pathname === "/api/terminal" && request.method === "GET") return handleTerminal(request, env);
   if (url.pathname === "/api/terminal/chart" && request.method === "GET") return handleTerminalChart(request, env);
   if (url.pathname.startsWith("/api/chains/") && request.method === "GET") return handleChain(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));

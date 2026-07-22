@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discover · RavenOS</title>
+  <meta name="description" content="Current public-safe Raven opportunities and live supported markets in one cross-market discovery stream." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+</head>
+<body>
+  <main class="workspace-page discover-page" data-route-slug="discover">
+    <header class="workspace-operator-head">
+      <div>
+        <span class="workspace-question">What deserves my attention?</span>
+        <h1>Movement worth understanding now.</h1>
+        <p>Current opportunities and broader-market changes, ranked without replacing missing data with older observations.</p>
+      </div>
+      <div class="workspace-mast-actions">
+        <button class="workspace-primary-action" id="discoverSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
+      </div>
+    </header>
+
+    <section class="workspace-statusline" aria-label="Current Discover coverage">
+      <div><span>Raven</span><strong id="discoverCensusState" data-state="unavailable">Checking</strong></div>
+      <div><span>Live markets</span><strong id="discoverMarketState" data-state="unavailable">Checking</strong></div>
+      <div><span>Atlas</span><strong id="discoverAtlasState" data-state="unavailable">Checking</strong></div>
+      <div><span>Now showing</span><strong><span id="discoverRowCount">—</span> markets</strong></div>
+    </section>
+
+    <div class="workspace-toolbar" aria-label="Discover filters">
+      <button class="workspace-filter active" type="button" data-discover-filter="all">All current</button>
+      <button class="workspace-filter" type="button" data-discover-filter="perpetual">Perpetuals</button>
+      <button class="workspace-filter" type="button" data-discover-filter="spot" disabled title="No current exact-pool opportunities are available">Spot</button>
+      <button class="workspace-filter" type="button" data-discover-filter="equity">Equities / ETFs</button>
+      <button class="workspace-filter" type="button" data-discover-filter="option" disabled title="No current options opportunities are available">Options</button>
+      <span class="workspace-toolbar-spacer"></span>
+      <button id="discoverPause" type="button">Pause updates</button>
+      <button class="workspace-refresh" id="discoverRefresh" type="button">Refresh now</button>
+    </div>
+
+    <section class="workspace-layout">
+      <div class="workspace-main">
+        <header class="workspace-section-head">
+          <div><span class="workspace-label">Why now</span><h2>Current opportunities</h2><p>Each row retains its exact market and source.</p></div>
+          <strong class="workspace-count" id="discoverUpdatedAt">Awaiting current data</strong>
+        </header>
+        <div class="discover-stream" id="discoverStream" aria-live="polite">
+          <div class="workspace-state"><div><span class="workspace-state-mark">R</span><h2>Checking what deserves attention</h2><p>Older observations will not be presented as current if today's read is unavailable.</p></div></div>
+        </div>
+        <button class="discover-stream-control" id="discoverStreamControl" type="button" hidden>Show more exact markets</button>
+      </div>
+
+      <aside class="workspace-side">
+        <header class="workspace-section-head"><div><span class="workspace-label">Moving now</span><h2>Live perpetuals</h2><small>Current venue activity, whether or not Raven has a read</small></div></header>
+        <div class="pulse-list" id="discoverPulse"><div class="workspace-state"><div><span class="workspace-state-mark">↗</span><p>Connecting live venue markets.</p></div></div></div>
+      </aside>
+    </section>
+  </main>
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-discover.js"></script>
+</body>
+</html>

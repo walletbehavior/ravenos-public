@@ -5,12 +5,13 @@
       "route": "/",
       "slug": "home",
       "title": "RavenOS",
-      "question": "What does Raven believe right now?",
+      "question": "See what changed before the market explains it.",
       "funnel_stage": "understand",
       "evidence_role": "current_synthesis",
       "api_endpoint": "/api/brief",
       "fallback_artifact": "/ravenos/brief.json",
-      "template": "generated",
+      "template": "existing",
+      "source_path": "index.html",
       "public": true,
       "nav_group": "primary",
       "next_route": "/opportunity/"
@@ -28,6 +29,21 @@
       "public": true,
       "nav_group": "primary",
       "next_route": "/opportunity/"
+    },
+    {
+      "route": "/discover/",
+      "slug": "discover",
+      "title": "Discover",
+      "question": "What deserves attention now?",
+      "funnel_stage": "discover",
+      "evidence_role": "current_opportunity_stream",
+      "api_endpoint": "/api/opportunity",
+      "fallback_artifact": null,
+      "template": "existing",
+      "source_path": "discover/index.html",
+      "public": true,
+      "nav_group": "primary",
+      "next_route": "/terminal/"
     },
     {
       "route": "/opportunity/",
@@ -59,6 +75,21 @@
       "next_route": "/opportunity/"
     },
     {
+      "route": "/portfolio/",
+      "slug": "portfolio",
+      "title": "Portfolio",
+      "question": "What do I actually own and risk?",
+      "funnel_stage": "portfolio",
+      "evidence_role": "customer_portfolio_unavailable",
+      "api_endpoint": "/api/access",
+      "fallback_artifact": null,
+      "template": "existing",
+      "source_path": "portfolio/index.html",
+      "public": true,
+      "nav_group": "primary",
+      "next_route": "/account/"
+    },
+    {
       "route": "/atlas/",
       "slug": "atlas",
       "title": "Atlas",
@@ -76,8 +107,8 @@
     {
       "route": "/replay/",
       "slug": "replay",
-      "title": "Replay",
-      "question": "Has Raven seen this before?",
+      "title": "Similar History",
+      "question": "What looked similar before?",
       "funnel_stage": "validate",
       "evidence_role": "historical",
       "api_endpoint": "/api/replay",
@@ -90,8 +121,8 @@
     {
       "route": "/outcomes/",
       "slug": "outcomes",
-      "title": "Outcomes",
-      "question": "What happened after Raven's earlier reads?",
+      "title": "Followthrough",
+      "question": "Did Raven's earlier reads follow through?",
       "funnel_stage": "validate",
       "evidence_role": "settled_validation",
       "api_endpoint": "/api/outcomes",

@@ -10,10 +10,10 @@
     structure: { label: "Structure", color: "#7dd3fc" },
     pressure: { label: "Pressure", color: "#fb7185" },
     participation: { label: "Participation", color: "#34d399" },
-    replay: { label: "Replay", color: "#a78bfa" },
+    replay: { label: "History", color: "#a78bfa" },
     risk: { label: "Risk", color: "#facc15" },
     "pressure-zone": { label: "Pressure", color: "#fb7185" },
-    "history-window": { label: "Replay", color: "#a78bfa" },
+    "history-window": { label: "History", color: "#a78bfa" },
     "breadth-line": { label: "Participation", color: "#34d399" },
     "compression-band": { label: "Structure", color: "#7dd3fc" },
     "regime-marker": { label: "Risk", color: "#facc15" },
@@ -31,37 +31,15 @@
     "participant-shift": { renderAs: "marker" },
   };
 
-  const RAVEN_OVERLAY_GROUPS = ["Flow", "Structure", "Participation", "Replay", "Risk", "Manage"];
+  const RAVEN_OVERLAY_GROUPS = ["Flow", "Structure", "Participants", "History", "Risk"];
   const RAVEN_OVERLAY_LIBRARY = [
-    { id: "pressure", label: "Pressure", group: "Flow", keys: ["pressure", "pressure-zone"], reason: "Coverage developing" },
-    { id: "momentum-shift", label: "Momentum shift", group: "Flow", keys: ["momentum-shift"], reason: "Needs provider-backed candles" },
-    { id: "attention-velocity", label: "Attention velocity", group: "Flow", keys: ["attention-velocity"], reason: "Coverage developing" },
-    { id: "liquidity-posture", label: "Liquidity posture", group: "Flow", keys: ["liquidity-zone"], reason: "Coverage developing" },
-    { id: "reaction-zone", label: "Reaction zone", group: "Structure", keys: ["structure", "compression-band"], reason: "Coverage developing" },
-    { id: "breakout-breakdown", label: "Breakout / breakdown", group: "Structure", keys: ["breakout-zone", "breakdown-zone"], reason: "Needs provider-backed candles" },
-    { id: "range-compression", label: "Range compression", group: "Structure", keys: ["compression-band"], reason: "Coverage developing" },
-    { id: "support-resistance", label: "Support / resistance", group: "Structure", keys: ["support-resistance"], reason: "Needs provider-backed candles" },
-    { id: "actor-cohorts", label: "Actor cohorts", group: "Participation", keys: ["participation", "participant-shift"], reason: "Coverage developing" },
-    { id: "repeat-cohorts", label: "Repeat cohorts", group: "Participation", keys: ["repeat-cohorts"], reason: "Coverage developing" },
-    { id: "fresh-wallets", label: "Fresh wallet activity", group: "Participation", keys: ["fresh-wallets"], reason: "Coverage developing" },
-    { id: "crowd-concentration", label: "Crowd concentration", group: "Participation", keys: ["crowd-concentration"], reason: "Coverage developing" },
-    { id: "thin-actor-support", label: "Thin actor support", group: "Participation", keys: ["thin-actor-support"], reason: "Coverage developing" },
-    { id: "outlier-dependency", label: "Outlier dependency", group: "Participation", keys: ["outlier-dependency"], reason: "Coverage developing" },
-    { id: "similar-setups", label: "Similar setups", group: "Replay", keys: ["replay", "history-window"], reason: "Replay sample forming" },
-    { id: "mfe-mae", label: "MFE / MAE bands", group: "Replay", keys: ["mfe-mae"], reason: "Replay sample forming" },
-    { id: "false-positive-window", label: "False-positive window", group: "Replay", keys: ["false-positive-window"], reason: "Replay sample forming" },
-    { id: "survival-zone", label: "Survival zone", group: "Replay", keys: ["survival-zone"], reason: "Replay sample forming" },
-    { id: "historical-followthrough", label: "Historical followthrough", group: "Replay", keys: ["historical-followthrough"], reason: "Replay sample forming" },
-    { id: "thin-liquidity", label: "Thin liquidity", group: "Risk", keys: ["risk", "liquidity-zone"], reason: "Coverage developing" },
-    { id: "late-chase", label: "Late chase", group: "Risk", keys: ["late-chase"], reason: "Needs provider-backed candles" },
-    { id: "concentration-risk", label: "Concentration risk", group: "Risk", keys: ["concentration-risk"], reason: "Coverage developing" },
-    { id: "stale-confirmation", label: "Stale confirmation", group: "Risk", keys: ["stale-confirmation"], reason: "Coverage developing" },
-    { id: "dev-rug-sniper", label: "Dev / rug / sniper", group: "Risk", keys: ["dev-rug-sniper"], reason: "Requires backed token-safety data" },
-    { id: "auto-tpsl", label: "Auto TP/SL template", group: "Manage", keys: ["auto-tpsl"], reason: "Replay sample forming" },
-    { id: "trail-zone", label: "Trail zone", group: "Manage", keys: ["trail-zone"], reason: "Replay sample forming" },
-    { id: "invalidation", label: "Invalidation", group: "Manage", keys: ["invalidation-zone"], reason: "Replay sample forming" },
-    { id: "partial-tp", label: "Partial TP context", group: "Manage", keys: ["partial-tp"], reason: "Replay sample forming" },
-    { id: "giveback-zone", label: "Giveback zone", group: "Manage", keys: ["giveback-zone"], reason: "Replay sample forming" },
+    { id: "pressure", label: "Pressure", group: "Flow", keys: ["pressure", "pressure-zone"] },
+    { id: "liquidity", label: "Liquidity", group: "Flow", keys: ["liquidity-zone"] },
+    { id: "structure", label: "Structure", group: "Structure", keys: ["structure"] },
+    { id: "compression", label: "Compression", group: "Structure", keys: ["compression-band"] },
+    { id: "participants", label: "Participants", group: "Participants", keys: ["participation", "participant-shift", "breadth-line"] },
+    { id: "similar-history", label: "Similar history", group: "History", keys: ["replay", "history-window"] },
+    { id: "risk", label: "Risk", group: "Risk", keys: ["risk", "regime-marker"] },
   ];
 
   function overlayType(type) {
@@ -269,9 +247,12 @@
   function createLegend(container, overlays, activeTypes, onToggle, onClear) {
     const existing = container.querySelector(".raven-overlay-library");
     if (existing) existing.remove();
-    if (!RAVEN_OVERLAY_LIBRARY.length) return null;
     const availableKeys = new Set(overlays.map(overlayKey));
-    const selectedGroup = container.dataset.ravenOverlayGroup || "Flow";
+    const availableEntries = RAVEN_OVERLAY_LIBRARY.filter((entry) => entry.keys.some((key) => availableKeys.has(key)));
+    if (!availableEntries.length) return null;
+    const availableGroups = RAVEN_OVERLAY_GROUPS.filter((group) => availableEntries.some((entry) => entry.group === group));
+    const requestedGroup = container.dataset.ravenOverlayGroup;
+    const selectedGroup = availableGroups.includes(requestedGroup) ? requestedGroup : availableGroups[0];
 
     const legend = document.createElement("div");
     legend.className = "raven-overlay-library";
@@ -284,7 +265,7 @@
 
     const categories = legend.querySelector(".raven-overlay-categories");
     Object.assign(categories.style, { display: "flex", flexWrap: "wrap", gap: "5px" });
-    RAVEN_OVERLAY_GROUPS.forEach((group) => {
+    availableGroups.forEach((group) => {
       const tab = document.createElement("button");
       tab.type = "button";
       tab.textContent = group;
@@ -309,27 +290,25 @@
 
     const optionsRow = legend.querySelector(".raven-overlay-options");
     Object.assign(optionsRow.style, { display: "flex", flexWrap: "wrap", gap: "5px" });
-    RAVEN_OVERLAY_LIBRARY.filter((entry) => entry.group === selectedGroup).forEach((entry) => {
+    availableEntries.filter((entry) => entry.group === selectedGroup).forEach((entry) => {
       const matchedKey = entry.keys.find((key) => availableKeys.has(key));
       const active = Boolean(matchedKey && activeTypes.has(matchedKey));
       const option = document.createElement("button");
       option.type = "button";
-      option.textContent = matchedKey ? entry.label : `${entry.label} · ${entry.reason}`;
+      option.textContent = entry.label;
       option.dataset.overlayId = entry.id;
       option.setAttribute("aria-pressed", active ? "true" : "false");
-      if (!matchedKey) option.disabled = true;
       const meta = OVERLAY_META[matchedKey] || { color: "#7dd3fc" };
       Object.assign(option.style, {
         border: `1px solid ${meta.color}55`,
         background: active ? `${meta.color}22` : "rgba(8, 17, 14, 0.72)",
-        color: matchedKey ? (active ? "#e5f0eb" : "#9fb5aa") : "#60746b",
+        color: active ? "#e5f0eb" : "#9fb5aa",
         padding: "5px 7px",
-        cursor: matchedKey ? "pointer" : "not-allowed",
+        cursor: "pointer",
         fontWeight: "800",
         textTransform: "uppercase",
       });
       option.addEventListener("click", () => {
-        if (!matchedKey) return;
         const selected = overlays.find((overlay) => overlayKey(overlay) === matchedKey);
         onToggle(matchedKey, selected || null);
       });
@@ -386,6 +365,7 @@
     const api = window.LightweightCharts;
     let rawCandles = Array.isArray(options?.candles) ? [...options.candles] : [];
     let candles = normalizeCandles(rawCandles);
+    let volumeByTime = new Map(normalizeVolume(rawCandles).map((row) => [String(row.time), row.value]));
     const events = Array.isArray(options?.events) ? options.events : [];
     const overlays = (Array.isArray(options?.overlays) ? options.overlays : []).map((overlay) => ({ ...overlay, type: overlayType(overlay.type) }));
     const context = {
@@ -704,6 +684,7 @@
         high: Number.isFinite(Number(row.high)) ? Number(row.high) : null,
         low: Number.isFinite(Number(row.low)) ? Number(row.low) : null,
         close: Number.isFinite(Number(row.close ?? row.value)) ? Number(row.close ?? row.value) : null,
+        volume: Number.isFinite(Number(volumeByTime.get(String(param.time)))) ? Number(volumeByTime.get(String(param.time))) : null,
         point: param.point || null,
       });
     };
@@ -733,6 +714,7 @@
         }
         candleSeries.update(normalized);
         const volume = normalizeVolume([value])[0];
+        if (volume) volumeByTime.set(String(volume.time), volume.value);
         if (volumeSeries && volume) volumeSeries.update(volume);
         renderRegions();
         return true;
@@ -750,6 +732,7 @@
         const merged = [...byTime.values()].sort((left, right) => Number(left.normalized.time) - Number(right.normalized.time));
         rawCandles = merged.map((row) => row.raw);
         candles = merged.map((row) => row.normalized);
+        volumeByTime = new Map(normalizeVolume(rawCandles).map((row) => [String(row.time), row.value]));
         candleSeries.setData(candles);
         if (volumeSeries) volumeSeries.setData(normalizeVolume(rawCandles));
         if (visible && typeof chart.timeScale().setVisibleRange === "function") chart.timeScale().setVisibleRange(visible);

@@ -3,46 +3,137 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Docs</title>
-  <style>
-    :root { color-scheme: dark; --bg:#050907; --panel:#08110e; --line:rgba(148,163,184,.18); --text:#e5f0eb; --muted:#8da39a; --cyan:#7dd3fc; --green:#34d399; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing:0; }
-    a { color:inherit; text-decoration:none; }
-    .shell { max-width:1180px; margin:0 auto; padding:18px; }
-    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid var(--line); }
-    .eyebrow { color:var(--cyan); font-size:11px; font-weight:850; text-transform:uppercase; }
-    h1,h2,p { margin:0; }
-    h1 { margin-top:5px; font-size:clamp(30px,5vw,58px); line-height:1; }
-    h2 { font-size:15px; }
-    .muted { color:var(--muted); font-size:13px; line-height:1.55; }
-    .main-nav { display:flex; gap:8px; flex-wrap:wrap; }
-    .main-nav a { border:1px solid var(--line); background:#0b1713; padding:8px 10px; font-size:12px; font-weight:850; }
-    .main-nav a.active { border-color:rgba(52,211,153,.5); color:var(--green); }
-    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; }
-    .panel { border:1px solid var(--line); background:var(--panel); padding:14px; min-height:150px; }
-    .panel p { margin-top:8px; }
-    @media (max-width:860px) { .grid { grid-template-columns:1fr; } }
-  </style>
+  <meta name="description" content="How RavenOS resolves exact instruments, evidence, market context, portfolio normalization, and provider-specific execution boundaries." />
+  <title>RavenOS Methodology</title>
+  <link rel="stylesheet" href="/ravenos-guide.css" />
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <div>
-        <span class="eyebrow">RavenOS Docs</span>
-        <h1>Evidence, freshness, and proof language.</h1>
-        <p class="muted">Docs explain how RavenOS separates current reads, historical replay, participation context, and settled outcomes.</p>
-      </div>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <a href="/brief/">Brief</a><a href="/opportunity/">Opportunity</a><a href="/terminal/">Terminal</a><a href="/atlas/">Atlas</a><a href="/replay/">Replay</a><a href="/outcomes/">Outcomes</a><a href="/memory/">Memory</a><a href="/behavior/">Behavior</a><a href="/research/">Research</a><a href="/perps/">Perps</a><a class="active" href="/docs/">Docs</a><a href="/faq/">FAQ</a><a href="/account/">Account</a>
+  <main class="guide-shell">
+    <header class="guide-topbar">
+      <a class="guide-brand" href="/" aria-label="RavenOS home"><span>R</span><div><strong>RavenOS</strong><small>Market intelligence</small></div></a>
+      <div class="guide-product-label">Product methodology / current boundaries</div>
+      <nav class="guide-nav" aria-label="Primary navigation">
+        <a href="/discover/">Discover</a><a href="/terminal/">Terminal</a><a href="/portfolio/">Portfolio</a><a href="/atlas/">Atlas</a>
       </nav>
     </header>
-    <section class="grid">
-      <article class="panel"><h2>Raven Reads</h2><p class="muted">Interpretations of structure, pressure, participation, replay, and risk. They are not execution instructions.</p></article>
-      <article class="panel"><h2>Public Evidence</h2><p class="muted">Public pages show freshness, source role, sample status, and proof links where available.</p></article>
-      <article class="panel"><h2>Outcomes</h2><p class="muted">Outcomes preserve what Raven said and what happened later, including negative, mixed, and insufficient results.</p></article>
+
+    <section class="guide-hero">
+      <span class="guide-eyebrow">RavenOS / operator guide</span>
+      <h1>Choose the market. Raven handles the plumbing.</h1>
+      <p>RavenOS resolves exact instrument identity, live market data, Raven evidence, Atlas context, custody, settlement, and the appropriate provider beneath one workspace. This guide explains what is real now, what is staged, and where the product fails closed.</p>
+      <div class="guide-status" aria-label="Current product status">
+        <span class="current">Current intelligence connected</span>
+        <span class="current">Exact identity enforced</span>
+        <span>Read-only workspace</span>
+        <span class="boundary">Signing and submission off</span>
+      </div>
     </section>
-    <template id="ravenosBuildMark">Public artifact verified</template>
+
+    <div class="guide-layout">
+      <aside class="guide-toc">
+        <header><span>In this guide</span><strong>How RavenOS works</strong></header>
+        <nav aria-label="Methodology sections">
+          <a href="#workspace"><span>01</span>One workspace</a>
+          <a href="#identity"><span>02</span>Exact identity</a>
+          <a href="#intelligence"><span>03</span>Raven + Atlas</a>
+          <a href="#evidence"><span>04</span>Evidence states</a>
+          <a href="#execution"><span>05</span>Trade providers</a>
+          <a href="#portfolio"><span>06</span>Portfolio value</a>
+          <a href="#security"><span>07</span>Customer security</a>
+          <a href="#availability"><span>08</span>Availability</a>
+        </nav>
+        <footer>Current product documentation. Unsupported features remain unavailable rather than simulated.</footer>
+      </aside>
+
+      <article class="guide-document">
+        <section class="guide-section" id="workspace">
+          <div class="guide-section-head"><span class="guide-section-number">01</span><div><h2>Four destinations. One selected market.</h2><p class="guide-lead">The instrument—not its chain, venue, or provider—is the organizing object. Context follows the user from discovery through research and portfolio review.</p></div></div>
+          <div class="guide-flow">
+            <article><span>Discover</span><div><h3>What deserves my attention?</h3><p>Current opportunities, movement, evidence transitions, and cross-market events.</p></div></article>
+            <article><span>Terminal</span><div><h3>What is happening right now?</h3><p>Chart, market facts, Raven Read, Atlas context, and read-only intent review.</p></div></article>
+            <article><span>Portfolio</span><div><h3>What do I own, what changed, and where is my risk?</h3><p>One economic view across custody sources when verified account infrastructure exists.</p></div></article>
+            <article><span>Atlas</span><div><h3>What does the broader market imply?</h3><p>Companies, events, options, peers, sectors, and cross-asset context where projected.</p></div></article>
+          </div>
+        </section>
+
+        <section class="guide-section" id="identity">
+          <div class="guide-section-head"><span class="guide-section-number">02</span><div><h2>A symbol is a search hint, not an identity.</h2><p class="guide-lead">RavenOS never silently swaps a pool, perpetual, listing, option, chain, or venue. Ambiguity must be resolved before exact market data or a provider preview can load.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Perpetual</span><h3>BTC-PERP on Hyperliquid</h3><p>The contract retains its venue, collateral, margin rules, funding context, and exact market identity.</p><dl><div><dt>Identity</dt><dd>Exact venue contract</dd></div><div><dt>Current lane</dt><dd>Live book, tape, funding, OI, candles</dd></div></dl></article>
+            <article class="guide-card"><span>Exact pool</span><h3>A Solana token market</h3><p>A token aggregate cannot masquerade as a pool. Pool address, chain, quote asset, and chart source stay attached.</p><dl><div><dt>Identity</dt><dd>Exact chain and pool</dd></div><div><dt>Current lane</dt><dd>Only where a bounded projection exists</dd></div></dl></article>
+            <article class="guide-card"><span>Equity / ETF</span><h3>SPY on NYSE Arca</h3><p>The listing retains exchange and market-session context. Broker settlement remains USD even if the portfolio reports a USDC equivalent.</p><dl><div><dt>Identity</dt><dd>Exact listing</dd></div><div><dt>Current lane</dt><dd>Bounded Atlas quote and chart context</dd></div></dl></article>
+            <article class="guide-card"><span>Option</span><h3>Underlying + expiry + strike + right</h3><p>An option is never reduced to its underlying symbol. Expiry, strike, right, listing, and settlement remain mandatory.</p><dl><div><dt>Identity</dt><dd>Full option contract</dd></div><div><dt>Current lane</dt><dd>Not exposed until provider data is verified</dd></div></dl></article>
+          </div>
+        </section>
+
+        <section class="guide-section" id="intelligence">
+          <div class="guide-section-head"><span class="guide-section-number">03</span><div><h2>Raven explains the behavior. Atlas explains the world around it.</h2><p class="guide-lead">They are presented as one decision-support system, with facts, interpretations, uncertainty, and unavailable data kept distinct.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Raven</span><h3>Why now</h3><p>Current evidence, Behavioral Atoms, participation, cohorts, path state, earlier reads, and matured outcomes. Deeper lineage remains inspectable without becoming the first thing a trader must learn.</p></article>
+            <article class="guide-card"><span>Atlas</span><h3>What surrounds the move</h3><p>Company and instrument context, events, options, peers, sectors, sessions, and cross-market relationships—only where a current bounded projection exists.</p></article>
+            <article class="guide-card"><span>Shared sidecar</span><h3>One readable answer</h3><p>Current facts, Raven interpretation, Atlas context, evidence maturity, uncertainty, and missing information are rendered as separate structured fields—not arbitrary HTML.</p></article>
+            <article class="guide-card"><span>Boundary</span><h3>No narrator authority</h3><p>Generated prose cannot create evidence, upgrade maturity, substitute a stale source, select another instrument, or authorize a transaction.</p></article>
+          </div>
+        </section>
+
+        <section class="guide-section" id="evidence">
+          <div class="guide-section-head"><span class="guide-section-number">04</span><div><h2>Current reads and later proof are different products.</h2><p class="guide-lead">RavenOS keeps leading observations, historical context, and measured followthrough separate so the interface cannot look certain merely because data is plentiful.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Current</span><h3>Opportunity</h3><p>A timestamped decision context from the current Opportunity Census. It is not a ranked trade, order, or personalized plan.</p></article>
+            <article class="guide-card"><span>Participation</span><h3>Behavior</h3><p>Aggregate actors and cohorts with declared samples and privacy boundaries. Recurrence does not imply identity, ownership, coordination, or causality.</p></article>
+            <article class="guide-card"><span>Recurrence</span><h3>Memory</h3><p>How often recent condition families appear and persist. Frequency is context; it is not historical similarity or a forecast.</p></article>
+            <article class="guide-card"><span>Historical</span><h3>Similar history</h3><p>Requires a decision-time reconstruction and future-only measurements. If that lineage is unavailable, RavenOS shows no analogue rows.</p></article>
+            <article class="guide-card"><span>Measured</span><h3>Followthrough</h3><p>What happened after the declared validation window. Confirmed, mixed, insufficient, and invalidated results stay visible.</p></article>
+            <article class="guide-card"><span>Recency</span><h3>Stale means stale</h3><p>A stale or missing current projection is never silently replaced by an old snapshot. Current routes fail closed or label a verified archive explicitly.</p></article>
+          </div>
+          <div class="guide-actions"><a class="primary" href="/opportunity/">Inspect current markets</a><a href="/outcomes/">Review followthrough</a><a href="/replay/">Check similar history</a></div>
+        </section>
+
+        <section class="guide-section" id="execution">
+          <div class="guide-section-head"><span class="guide-section-number">05</span><div><h2>The Terminal stays constant. The trade provider changes.</h2><p class="guide-lead">RavenOS translates user intent into the correct market-specific preview while preserving each provider’s custody, settlement, permissions, and legal role.</p></div></div>
+          <div class="guide-adapters" role="table" aria-label="Trade-provider boundaries">
+            <div class="guide-adapter" role="row"><div><span>Selected market</span><strong>Solana exact pool</strong></div><div><span>Provider path</span><strong>Jupiter-compatible route</strong></div><p>USDC → exact selected asset → USDC is the economic intent. Native gas assets and intermediate hops remain route details.</p><div class="off"><span>Available now</span><strong>Market inspection only</strong></div></div>
+            <div class="guide-adapter" role="row"><div><span>Selected market</span><strong>Hyperliquid perpetual</strong></div><div><span>Provider path</span><strong>Hyperliquid order path</strong></div><p>Long or short intent retains collateral, leverage, funding, liquidation, margin, and exact venue contract context.</p><div class="off"><span>Available now</span><strong>Market data only · submission off</strong></div></div>
+            <div class="guide-adapter" role="row"><div><span>Selected market</span><strong>Equity / ETF / option</strong></div><div><span>Provider path</span><strong>Tradier, then future brokers</strong></div><p>The regulated broker remains responsible for custody, settlement, and execution. RavenOS provides context and a future order-review surface; it does not become the broker.</p><div class="off"><span>Available now</span><strong>Broker execution unavailable</strong></div></div>
+          </div>
+          <div class="guide-callout"><span>Execution boundary</span><strong>Quote → review → prepared transaction or order → user confirmation → signed → submitted → confirmed.</strong><p>Only the early read-only stages exist publicly today. Raven Plan can never skip this pipeline or become an executable transaction by itself.</p></div>
+        </section>
+
+        <section class="guide-section" id="portfolio">
+          <div class="guide-section-head"><span class="guide-section-number">06</span><div><h2>One economic portfolio. Many custody sources.</h2><p class="guide-lead">The user asks what the portfolio looks like. RavenOS can eventually normalize wallets, venues, and brokers beneath that question without pretending they are the same account.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Reporting value</span><h3>USD or USDC equivalent</h3><p>Every conversion must carry a timestamp and source. USD and USDC are not treated as risklessly identical.</p></article>
+            <article class="guide-card"><span>Actual custody</span><h3>Preserved underneath</h3><p>Tradier cash remains broker USD. Hyperliquid collateral retains venue rules. On-chain holdings remain in their actual wallets and chains.</p></article>
+            <article class="guide-card"><span>Normalization</span><h3>No double counting</h3><p>Account equity, child holdings, collateral, positions, wrapped assets, bridges, and duplicate wallet imports require explicit precedence and deduplication.</p></article>
+            <article class="guide-card"><span>Current state</span><h3>Portfolio persistence unavailable</h3><p>No customer account, verified connection, entitlement store, or persistent portfolio exists publicly. RavenOS shows an honest connection boundary, not a demo balance.</p></article>
+          </div>
+        </section>
+
+        <section class="guide-section" id="security">
+          <div class="guide-section-head"><span class="guide-section-number">07</span><div><h2>Account, wallet, entitlement, and transaction authority remain separate.</h2><p class="guide-lead">Customer security is a prerequisite—not a set of connected-looking controls. RavenOS uses OWASP ASVS 5.0.0 as the verification baseline for future account capability.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Identity</span><h3>Managed passkeys and recovery</h3><p>No home-grown password store. Future accounts use random internal IDs, managed WebAuthn/passkeys, protected recovery, session visibility, and revocation.</p></article>
+            <article class="guide-card"><span>Sessions</span><h3>Opaque and server-side</h3><p>No long-lived bearer sessions in browser storage. Cookie sessions require rotation, expiry, CSRF defense, object authorization, and recent reauthentication for sensitive changes.</p></article>
+            <article class="guide-card"><span>Wallets</span><h3>Connect is not authentication</h3><p>A wallet must be verified and linked through a single-use standardized challenge before it can attach to an account. It still does not grant transaction authority.</p></article>
+            <article class="guide-card"><span>Transactions</span><h3>Intent-bound before signing</h3><p>Any future transaction must match the reviewed user, wallet, chain, instrument, amount, route, fees, slippage, expiry, and unique intent record.</p></article>
+          </div>
+          <div class="guide-callout"><span>Current security gate</span><strong>No customer signing or order submission until the complete identity, session, authorization, abuse, and transaction-security path has independent review.</strong><p>RavenOS never asks for seed phrases or private keys.</p></div>
+        </section>
+
+        <section class="guide-section" id="availability">
+          <div class="guide-section-head"><span class="guide-section-number">08</span><div><h2>Unavailable is a product state, not an empty card.</h2><p class="guide-lead">A capability appears only when identity, source, recency, entitlement, and safety requirements are satisfied. Otherwise the interface explains what is missing.</p></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>Working now</span><h3>Live read-only intelligence</h3><p>Current opportunities, Hyperliquid market data, exact crypto charts, Raven Reads, measured followthrough, aggregate participation, and current public evidence.</p></article>
+            <article class="guide-card"><span>Partial</span><h3>Atlas and exact spot coverage</h3><p>Atlas exposes only current verified listings. Solana and EVM intelligence remains aggregate where exact public identity is unavailable.</p></article>
+            <article class="guide-card"><span>Unavailable</span><h3>Customer persistence</h3><p>Accounts, subscriptions, entitlements, watchlists, alerts, persistent layouts, customer Portfolio, and broker connections remain security-gated.</p></article>
+            <article class="guide-card"><span>Separately authorized</span><h3>Signing and submission</h3><p>Wallet signatures, broker orders, transaction broadcast, confirmed trading, and customer position monitoring require a later security and execution milestone.</p></article>
+          </div>
+          <div class="guide-actions"><a class="primary" href="/discover/">Launch Discover</a><a href="/faq/">Read product FAQ</a><a href="/account/">Check account availability</a></div>
+        </section>
+      </article>
+    </div>
+
+    <footer class="guide-footer"><span>RavenOS methodology · read-only current product</span><span id="ravenosBuildMark" hidden aria-hidden="true">Public artifact verified</span></footer>
   </main>
 </body>
 </html>

@@ -16,6 +16,9 @@ const routes = (routeConfig.routes || []).filter((route) => route.public);
 const sourceAssets = [
   "ravenos-route.css",
   "ravenos-route-app.js",
+  "ravenos-landing.css",
+  "ravenos-landing.js",
+  "ravenos-guide.css",
   "ravenos-shell.css",
   "ravenos-shell.js",
   "ravenos-context-store.js",
@@ -27,6 +30,10 @@ const sourceAssets = [
   "ravenos-price-workspace.js",
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
+  "ravenos-workspace.css",
+  "ravenos-discover.js",
+  "ravenos-portfolio.js",
+  "ravenos-atlas.js",
   "ravenos-terminal-review-foundation.js",
   "ravenos-terminal-trade.js",
   "ravenos-access.js",
@@ -251,7 +258,7 @@ for (const route of routes.map((entry) => entry.route)) {
 }
 
 const outcomesHtml = readFileSync("outcomes/index.html", "utf8");
-if (!outcomesHtml.includes("Followthrough check") || !outcomesHtml.includes('"slug":"outcomes"')) {
+if (!outcomesHtml.includes("Did earlier reads follow through?") || !outcomesHtml.includes('"slug":"outcomes"')) {
   fail("Outcomes route shell missing followthrough hooks");
 }
 

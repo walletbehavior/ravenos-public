@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   attachDelivery,
   loadOriginControlDocument,
+  loadPublicInstrumentLookup,
   loadPublicProjection,
   projectionFreshness,
   projectionHeaders,
@@ -38,6 +39,44 @@ function jsonResponse(payload, init = {}) {
   });
 }
 
+function instrumentLookupEnvelope(overrides = {}) {
+  return {
+    ok: true,
+    safe_public: true,
+    redaction_policy: "aggregate_public_market_context_only",
+    schema_version: "ravenos.instrument_lookup.v1",
+    generated_at: "2026-07-21T09:59:30Z",
+    freshness_target_seconds: 300,
+    query: "AAPL",
+    provider: "Tradier",
+    results: [{
+      schema_version: "ravenos.instrument.v1",
+      instrument_id: "equity:nasdaq:aapl",
+      symbol: "AAPL",
+      display_name: "Apple Inc.",
+      asset_class: "equity",
+      instrument_type: "equity",
+      identity_scope: "exact_instrument",
+      venue: "nasdaq",
+      chain: "none",
+      market_identity: { market_id: "AAPL", listing: "Nasdaq" },
+      base_asset: { symbol: "AAPL", asset_id: "AAPL" },
+      quote_asset: { symbol: "USD", asset_id: "USD" },
+      settlement_asset: { symbol: "USD", asset_id: "USD" },
+      preferred_cash_asset: { symbol: "USD", asset_id: "USD" },
+      economic_numeraire: "USDC",
+      capabilities: { chart: true, quote_preview: false, execution: false },
+    }],
+    execution_boundary: {
+      broker_connection_available: false,
+      quote_preview_available: false,
+      signing_available: false,
+      submission_available: false,
+    },
+    ...overrides,
+  };
+}
+
 test("loads a valid current public projection through the protected origin", async () => {
   let observed;
   const result = await loadPublicProjection({
@@ -61,6 +100,82 @@ test("loads a valid current public projection through the protected origin", asy
     "x-ravenos-freshness": "fresh",
   });
   assert.equal(attachDelivery(result.payload, result.delivery).delivery.key, "brief");
+});
+
+test("loads a bounded exact listed-instrument lookup through the protected origin", async () => {
+  let observed;
+  const result = await loadPublicInstrumentLookup({
+    env: ENV,
+    query: "  AAPL  ",
+    nowMs: NOW,
+    fetchImpl: async (url, init) => {
+      observed = { url, init };
+      const payload = instrumentLookupEnvelope({ provider_debug: { api_key: "must-not-ship" } });
+      payload.results[0].provider_payload = { credential: "must-not-ship" };
+      return jsonResponse(payload);
+    },
+  });
+  assert.equal(observed.url, "https://origin.example/public/ravenos/instrument_lookup.json?q=AAPL");
+  assert.equal(observed.init.headers["x-ravenos-public-token"], "test-token");
+  assert.equal(observed.init.redirect, "manual");
+  assert.equal(result.available, true);
+  assert.equal(result.delivery.source, "current_public_origin");
+  assert.equal(result.delivery.freshness_state, "fresh");
+  assert.equal(result.delivery.fallback, false);
+  assert.equal(result.payload.results[0].instrument_id, "equity:nasdaq:aapl");
+  assert.equal(result.payload.results[0].settlement_asset.symbol, "USD");
+  assert.equal(result.payload.results[0].capabilities.execution, false);
+  assert.equal(JSON.stringify(result).includes("test-token"), false);
+  assert.equal(JSON.stringify(result).includes("must-not-ship"), false);
+  assert.equal("provider_payload" in result.payload.results[0], false);
+});
+
+test("listed-instrument lookup rejects invalid queries before network access", async () => {
+  let called = false;
+  const result = await loadPublicInstrumentLookup({
+    env: ENV,
+    query: "<script>alert(1)</script>",
+    nowMs: NOW,
+    fetchImpl: async () => {
+      called = true;
+      return jsonResponse(instrumentLookupEnvelope());
+    },
+  });
+  assert.equal(called, false);
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.reason, "invalid_instrument_query");
+  assert.equal(result.delivery.fallback, false);
+});
+
+for (const [name, mutate, expectedReason] of [
+  ["wrong query", (payload) => ({ ...payload, query: "MSFT" }), "instrument_lookup_contract_rejected"],
+  ["wrong identity", (payload) => ({ ...payload, results: [{ ...payload.results[0], instrument_id: "equity:nasdaq:msft" }] }), "instrument_lookup_contract_rejected"],
+  ["enabled execution", (payload) => ({ ...payload, results: [{ ...payload.results[0], capabilities: { ...payload.results[0].capabilities, execution: true } }] }), "instrument_lookup_contract_rejected"],
+  ["enabled submission", (payload) => ({ ...payload, execution_boundary: { ...payload.execution_boundary, submission_available: true } }), "instrument_lookup_contract_rejected"],
+]) {
+  test(`listed-instrument lookup fails closed on ${name}`, async () => {
+    const result = await loadPublicInstrumentLookup({
+      env: ENV,
+      query: "AAPL",
+      nowMs: NOW,
+      fetchImpl: async () => jsonResponse(mutate(instrumentLookupEnvelope())),
+    });
+    assert.equal(result.available, false);
+    assert.equal(result.payload, null);
+    assert.equal(result.delivery.reason, expectedReason);
+    assert.equal(result.delivery.fallback, false);
+  });
+}
+
+test("listed-instrument lookup rejects oversized responses", async () => {
+  const result = await loadPublicInstrumentLookup({
+    env: ENV,
+    query: "AAPL",
+    nowMs: NOW,
+    fetchImpl: async () => jsonResponse(instrumentLookupEnvelope(), { headers: { "content-length": String(257 * 1024) } }),
+  });
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.reason, "origin_payload_too_large");
 });
 
 test("rejects protected-origin redirects without following them", async () => {

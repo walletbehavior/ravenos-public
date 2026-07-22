@@ -67,6 +67,10 @@ export function customerFacingText(value, fallback = "") {
     .replace(/\bcomparable setup\b/gi, "prior setup")
     .replace(/\bLive Activity\b/gi, "market activity")
     .replace(/\bCurrent Raven Read\b/gi, "Current market read")
+    .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
+    .replace(/^Raven froze a behavioral setup observation while (.+?) was present\.?$/i, "Market behavior changed while $1 remained visible.")
+    .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
+    .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")
     .replace(/\bRaven currently believes\b/gi, "Current evidence indicates");
   return normalized || fallback;
 }

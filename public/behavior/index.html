@@ -12,15 +12,7 @@
 </head>
 <body>
   <main class="route-shell" data-route-slug="behavior">
-    <header class="route-topbar">
-      <div class="route-brand">
-        <span class="route-eyebrow">RavenOS Behavior</span>
-        <strong>Who is participating, and how?</strong>
-      </div>
-      <nav class="route-nav" aria-label="Primary navigation"><a class="" href="/brief/">Brief</a><a class="" href="/opportunity/">Opportunities</a><a class="" href="/terminal/">Terminal</a><a class="" href="/atlas/">Atlas</a><a class="" href="/replay/">Replay</a><a class="" href="/outcomes/">Outcomes</a><a class="" href="/memory/">Memory</a><a class="active" href="/behavior/">Behavior</a><a class="" href="/research/">Research</a><a class="" href="/perps/">Perps</a><a class="" href="/docs/">Docs</a><a class="" href="/faq/">FAQ</a><a class="" href="/account/">Account</a></nav>
-    </header>
-
-    <section class="public-evidence" aria-label="Public evidence contract" data-evidence-contract-header>
+    <section class="public-evidence" aria-label="Why this read can change" data-evidence-contract-header>
       <div class="public-evidence-strip">
         <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
         <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
@@ -30,24 +22,20 @@
         <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
       </div>
       <details class="public-evidence-details">
-        <summary>Evidence details</summary>
+        <summary>Why this read can change</summary>
         <p class="public-evidence-bridge" data-evidence-field="bridge"><strong>Why reads can differ:</strong> Live reads can move before outcomes settle. We separate current opportunity from later followthrough checks.</p>
         <div class="public-evidence-detail-grid">
-          <div>Evidence role<strong data-evidence-field="raw_role">leading</strong></div>
           <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
           <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
-          <div>Weighting<strong data-evidence-field="weighting">equal row</strong></div>
-          <div>Source<strong data-evidence-field="source">Raven feed</strong></div>
-          <div>Observed / outcomes<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Authority<strong data-evidence-field="source">Raven feed</strong></div>
+          <div>Observed / measured<strong data-evidence-field="observed_settled">0 / 0</strong></div>
           <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
-          <div>Evidence version<strong data-evidence-field="artifact">unversioned</strong></div>
-          <div>Methodology<strong><a href="https://github.com/walletbehavior/ravenos-public/tree/main/docs" target="_blank" rel="noopener noreferrer">Public definitions</a></strong></div>
         </div>
       </details>
     </section>
 
     <section class="route-hero">
-      <div class="route-hero-meta"><span class="route-eyebrow">Raven intelligence / Behavior</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Projection loading</strong><small>Source timestamp pending</small></div></div>
+      <div class="route-hero-meta"><span class="route-eyebrow">Behavior</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Checking current data</strong><small>Timestamp pending</small></div></div>
       <h1 id="routeHeadline">Who is participating, and how?</h1>
       <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
       <div class="route-state-strip" id="routeStateStrip">Behavior</div>
@@ -58,17 +46,7 @@
       <article class="route-panel" id="routeSecondaryPanel"></article>
     </section>
 
-    <nav class="route-flow" aria-label="Raven evidence workflow">
-      <a href="/brief/"><span>01</span><strong>Read</strong><small>Current read</small></a>
-      <a href="/opportunity/"><span>02</span><strong>Investigate</strong><small>Decision context</small></a>
-      <a href="/perps/"><span>03</span><strong>Inspect</strong><small>Live market</small></a>
-      <a href="/outcomes/"><span>04</span><strong>Validate</strong><small>Future-only outcomes</small></a>
-    </nav>
-
-    <footer class="route-build">
-      <div id="routeHydrationState">Fallback shell loaded</div>
-      <div id="ravenosBuildMark">Public artifact verified</div>
-    </footer>
+    <footer hidden aria-hidden="true"><span id="routeHydrationState">Awaiting current data</span><span id="ravenosBuildMark">Public artifact verified</span></footer>
   </main>
   <script id="ravenosRouteConfig" type="application/json">{"route":"/behavior/","slug":"behavior","title":"Behavior","question":"Who is participating, and how?","funnel_stage":"understand","evidence_role":"leading","api_endpoint":"/api/behavior","fallback_artifact":"/ravenos/behavior.json","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"2.0","fallback_message":null,"surface_state":"live_intelligence_workspace"}</script>
   <script type="module" src="/ravenos-route-app.js"></script>

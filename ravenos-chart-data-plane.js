@@ -6,6 +6,8 @@ export const CHART_INSTRUMENT_TYPES = Object.freeze({
   SPOT_TOKEN: "spot_token",
   SPOT_POOL: "spot_pool",
   PERPETUAL: "perpetual",
+  EQUITY: "equity",
+  ETF: "etf",
 });
 
 export const CHART_EVENT_TYPES = Object.freeze([
