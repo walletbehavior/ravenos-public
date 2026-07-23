@@ -25,6 +25,24 @@ const MARKET = {
   open_interest_usd: 192_000_000,
 };
 
+const BTC_OPPORTUNITY = {
+  ...OPPORTUNITY,
+  public_opportunity_id: "rop_btc_landing",
+  instrument_id: "hyperliquid:perp:BTC",
+  instrument: "BTC-PERP",
+  why_raven_noticed: "Participation expanded while the exact venue market remained liquid.",
+};
+
+const BTC_MARKET = {
+  ...MARKET,
+  asset: "BTC-PERP",
+  symbol: "BTC",
+  instrument_id: "hyperliquid:perp:BTC",
+  last_price: 67_500,
+  day_change_pct: -0.8,
+  open_interest_usd: 820_000_000,
+};
+
 function atlasPayload() {
   return {
     schema_version: "ravenos.atlas_projection.v1",
@@ -55,20 +73,21 @@ function atlasPayload() {
   };
 }
 
-async function mockLanding(page, { current = true, chartIdentityMismatch = false } = {}) {
+async function mockLanding(page, { current = true, chartIdentityMismatch = false, opportunities = [OPPORTUNITY], markets = [MARKET] } = {}) {
   await page.route("**/api/opportunity", (route) => route.fulfill({
     status: current ? 200 : 503,
     contentType: "application/json",
     body: JSON.stringify(current ? {
-      census: { generated_at: "2026-07-21T12:20:00Z", source_state: "current", opportunities: { rows: [OPPORTUNITY] } },
+      census: { generated_at: "2026-07-21T12:20:00Z", source_state: "current", opportunities: { rows: opportunities } },
       delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
     } : { ok: false, error: "opportunity_census_projection_unavailable", census: null }),
   }));
-  await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: [MARKET] }) }));
+  await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: markets }) }));
   await page.route("**/api/atlas", (route) => route.fulfill({ status: current ? 200 : 503, contentType: "application/json", body: JSON.stringify(current ? atlasPayload() : { ok: false, error: "atlas_projection_unavailable" }) }));
   await page.route("**/api/health", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ market_data_health: { state: "fresh" }, intelligence_freshness: { state: current ? "fresh" : "unavailable" } }) }));
   await page.route("**/api/terminal/chart**", (route) => {
-    const asset = chartIdentityMismatch ? "BTC" : "SOL";
+    const requestedAsset = new URL(route.request().url()).searchParams.get("asset")?.replace(/-PERP$/i, "").toUpperCase() || "SOL";
+    const asset = chartIdentityMismatch ? (requestedAsset === "BTC" ? "SOL" : "BTC") : requestedAsset;
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       ok: true,
       instrument_scope: "exact_instrument",
@@ -86,7 +105,7 @@ async function mockLanding(page, { current = true, chartIdentityMismatch = false
         aggregate_token: false,
         provider_routing: { history: "hyperliquid", live: "hyperliquid_websocket", provider_asset: asset, provider_network: "hyperliquid" },
       },
-      candles: providerCandles("SOL-PERP", "1h"),
+      candles: providerCandles(`${asset}-PERP`, "1h"),
     }) });
   });
 }
@@ -101,14 +120,34 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingWhy")).toContainText("Behavior changed");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
+  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toContainText("SPY");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.instrumentId).toBe("hyperliquid:perp:SOL");
   expect(product.candleCount).toBeGreaterThan(20);
+  expect(product.chartType).toBe("candlestick");
+  expect(product.chartInstrumentId).toBe("hyperliquid:perp:SOL");
+  expect(product.renderedCandles).toBeGreaterThan(20);
   expect(product.signingAvailable).toBe(false);
   expect(product.submissionAvailable).toBe(false);
   await expect(page.locator(".landing-nav nav a")).toHaveCount(4);
+});
+
+test("every selected landing opportunity redraws exact provider OHLC as candlesticks", async ({ page }) => {
+  await mockLanding(page, { opportunities: [OPPORTUNITY, BTC_OPPORTUNITY], markets: [MARKET, BTC_MARKET] });
+  await page.goto("/");
+  await expect(page.locator("#landingChart")).toHaveAttribute("data-instrument-id", "hyperliquid:perp:SOL");
+  await page.locator('.landing-opportunity[data-instrument-id="hyperliquid:perp:BTC"]').click();
+  await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:BTC");
+  await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
+  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
+  await expect(page.locator("#landingChart")).toHaveAttribute("data-instrument-id", "hyperliquid:perp:BTC");
+  const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
+  expect(product.instrumentId).toBe("hyperliquid:perp:BTC");
+  expect(product.chartInstrumentId).toBe("hyperliquid:perp:BTC");
+  expect(product.candleCount).toBeGreaterThan(20);
+  expect(product.renderedCandles).toBeGreaterThan(20);
 });
 
 test("landing page keeps current-origin failure explicit and generates no fallback chart", async ({ page }) => {
@@ -121,6 +160,7 @@ test("landing page keeps current-origin failure explicit and generates no fallba
   await expect(page.locator("#landingAtlasList")).toContainText("Atlas context unavailable");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
+  expect(product.chartType).toBeNull();
   expect(product.instrumentId).toBeNull();
 });
 
@@ -132,6 +172,7 @@ test("landing page rejects a chart whose normalized exact identity belongs to an
   await expect(page.locator("#landingChartState")).toContainText("stays unavailable until exact provider history is verified");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
+  expect(product.chartType).toBeNull();
 });
 
 test("landing page is composed for a 390px mobile viewport without horizontal overflow", async ({ page }) => {
@@ -140,6 +181,7 @@ test("landing page is composed for a 390px mobile viewport without horizontal ov
   await page.goto("/");
   await expect(page.locator(".landing-launch")).toBeVisible();
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
+  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });

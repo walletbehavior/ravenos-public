@@ -81,26 +81,90 @@ function renderOpportunityList() {
 function drawChart() {
   const canvas = document.getElementById("landingChart");
   const wrap = document.getElementById("landingChartWrap");
-  const candles = state.candles;
+  const candles = state.candles
+    .map((row) => ({
+      time: finite(row.time),
+      open: finite(row.open),
+      high: finite(row.high),
+      low: finite(row.low),
+      close: finite(row.close),
+    }))
+    .filter((row) => Object.values(row).every((value) => value !== null)
+      && row.high >= Math.max(row.open, row.close)
+      && row.low <= Math.min(row.open, row.close));
   if (!candles.length || !canvas.clientWidth || !canvas.clientHeight) return;
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const width = canvas.clientWidth; const height = canvas.clientHeight;
   canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
   const context = canvas.getContext("2d"); context.scale(ratio, ratio); context.clearRect(0, 0, width, height);
-  const values = candles.map((row) => Number(row.close)).filter(Number.isFinite);
-  const low = Math.min(...values); const high = Math.max(...values); const spread = Math.max(high - low, Math.abs(high) * .002, 1e-9);
-  const x = (index) => 10 + index / Math.max(1, values.length - 1) * (width - 20);
-  const y = (value) => 18 + (high - value) / spread * (height - 48);
-  const gradient = context.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, "rgba(118,152,255,.22)"); gradient.addColorStop(1, "rgba(118,152,255,0)");
-  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.lineTo(x(values.length - 1), height - 22); context.lineTo(x(0), height - 22); context.closePath(); context.fillStyle = gradient; context.fill();
-  context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = "#a6b1be"; context.lineWidth = 1.7; context.stroke();
-  const lastX = x(values.length - 1); const lastY = y(values.at(-1)); context.beginPath(); context.arc(lastX, lastY, 3, 0, Math.PI * 2); context.fillStyle = "#a6b1be"; context.fill();
+  const plot = { top: 14, right: 10, bottom: 22, left: 10 };
+  const plotWidth = Math.max(1, width - plot.left - plot.right);
+  const plotHeight = Math.max(1, height - plot.top - plot.bottom);
+  const targetSlotWidth = width < 600 ? 4.2 : 5.8;
+  const visibleCount = Math.max(1, Math.min(candles.length, Math.floor(plotWidth / targetSlotWidth)));
+  const visible = candles.slice(-visibleCount);
+  const rawLow = Math.min(...visible.map((row) => row.low));
+  const rawHigh = Math.max(...visible.map((row) => row.high));
+  const rawSpread = Math.max(rawHigh - rawLow, Math.abs(rawHigh) * .002, 1e-9);
+  const low = rawLow - rawSpread * .055;
+  const high = rawHigh + rawSpread * .055;
+  const spread = high - low;
+  const slotWidth = plotWidth / visible.length;
+  const bodyWidth = Math.max(1.25, Math.min(5, slotWidth * .64));
+  const y = (value) => plot.top + (high - value) / spread * plotHeight;
+  const styles = getComputedStyle(document.documentElement);
+  const upColor = styles.getPropertyValue("--green").trim() || "#3fa675";
+  const downColor = styles.getPropertyValue("--red").trim() || "#cf5968";
+
+  visible.forEach((row, index) => {
+    const x = plot.left + (index + .5) * slotWidth;
+    const color = row.close >= row.open ? upColor : downColor;
+    context.strokeStyle = color;
+    context.lineWidth = Math.max(1, Math.min(1.35, slotWidth * .18));
+    context.beginPath();
+    context.moveTo(x, y(row.high));
+    context.lineTo(x, y(row.low));
+    context.stroke();
+
+    const openY = y(row.open);
+    const closeY = y(row.close);
+    const bodyTop = Math.min(openY, closeY);
+    const bodyHeight = Math.max(1.25, Math.abs(closeY - openY));
+    context.fillStyle = color;
+    context.fillRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+  });
+
+  const last = visible.at(-1);
+  const lastY = y(last.close);
+  context.save();
+  context.setLineDash([3, 4]);
+  context.strokeStyle = last.close >= last.open ? "rgba(63,166,117,.45)" : "rgba(207,89,104,.45)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(plot.left, lastY);
+  context.lineTo(width - plot.right, lastY);
+  context.stroke();
+  context.restore();
+
+  canvas.dataset.chartType = "candlestick";
+  canvas.dataset.instrumentId = state.selected?.instrument_id || "";
+  canvas.dataset.renderedCandles = String(visible.length);
   wrap.dataset.state = "live";
+}
+
+function clearChart() {
+  const canvas = document.getElementById("landingChart");
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  delete canvas.dataset.chartType;
+  delete canvas.dataset.instrumentId;
+  delete canvas.dataset.renderedCandles;
 }
 
 async function loadChart(row) {
   const generation = ++state.chartRequest;
   state.candles = [];
+  clearChart();
   const wrap = document.getElementById("landingChartWrap"); wrap.dataset.state = "loading";
   setText("landingChartState", "Requesting provider-backed candles");
   try {
@@ -114,6 +178,7 @@ async function loadChart(row) {
     setText("landingFreshness", title(payload.freshness_state));
     drawChart();
   } catch (error) {
+    clearChart();
     wrap.dataset.state = "unavailable";
     setText("landingChartState", `${error.message}. The chart stays unavailable until exact provider history is verified.`);
   }
@@ -172,7 +237,7 @@ async function boot() {
   else {
     setText("landingReadState", "Unavailable"); setText("landingWhy", "Current Raven opportunity evidence is unavailable."); setText("landingReadSummary", "No older observation was substituted. Live provider markets remain available separately."); document.getElementById("landingChartWrap").dataset.state = "unavailable"; setText("landingChartState", "No exact Raven opportunity is selected. The chart remains unavailable rather than showing a substitute market.");
   }
-  window.__RAVENOS_LANDING__ = Object.freeze({ getState: () => ({ opportunityCount: state.opportunities.length, marketCount: state.markets.size, atlasCount: validAtlas(state.atlas)?.length || 0, instrumentId: state.selected?.instrument_id || null, candleCount: state.candles.length, signingAvailable: false, submissionAvailable: false }) });
+  window.__RAVENOS_LANDING__ = Object.freeze({ getState: () => ({ opportunityCount: state.opportunities.length, marketCount: state.markets.size, atlasCount: validAtlas(state.atlas)?.length || 0, instrumentId: state.selected?.instrument_id || null, candleCount: state.candles.length, chartType: document.getElementById("landingChart").dataset.chartType || null, chartInstrumentId: document.getElementById("landingChart").dataset.instrumentId || null, renderedCandles: finite(document.getElementById("landingChart").dataset.renderedCandles), signingAvailable: false, submissionAvailable: false }) });
 }
 
 new ResizeObserver(() => { if (state.candles.length) drawChart(); }).observe(document.getElementById("landingChartWrap"));
