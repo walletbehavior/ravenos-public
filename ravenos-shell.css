@@ -510,6 +510,8 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
   .ros-provider-credit { right: 8px; bottom: calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom) + 6px); }
   .ros-provider-credit > summary { min-height: 24px; gap: 5px; padding: 2px 7px 2px 4px; font-size: 9px; }
   .ros-provider-credit > summary img { width: 18px; height: 18px; }
+  .ros-provider-credit > summary span { font-size: 0; }
+  .ros-provider-credit > summary span::after { content: "Sources"; font-size: 8px; }
   .ros-provider-panel { width: min(360px, calc(100vw - 16px)); max-height: 62vh; overflow: auto; }
   .ros-provider-grid { grid-template-columns: 1fr; }
   .ros-provider-row { border-right: 0; }

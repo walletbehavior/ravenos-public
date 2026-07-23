@@ -564,6 +564,8 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
   await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
+  await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
+  await expect(page.locator("#terminalAnatomy6")).not.toContainText(/capability|check|required/i);
 });
 
 test("token-name search ranks chartable active pools ahead of unsupported inactive listings", async ({ page }) => {
@@ -704,6 +706,10 @@ test("provider attribution stays visible and opens a bounded source ledger", asy
     await expect(panel).toContainText(provider);
   }
   await expect(panel).toContainText(/not endorsement or partnership/i);
+  await credit.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => credit.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThan(100);
+  await expect(credit).toHaveAttribute("aria-label", "Data sources and attribution");
 });
 
 test("Atlas outage is isolated and explicit", async ({ page }) => {

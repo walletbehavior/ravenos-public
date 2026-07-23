@@ -70,6 +70,17 @@ function titleCase(value, fallback = "Unavailable") {
   return clean.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function routeStateLabel(value) {
+  const state = String(value || "").trim().toLowerCase();
+  const labels = {
+    review_capability_check_required: "Review unavailable",
+    preview_available: "Review available",
+    route_available: "Route available",
+    unavailable: "Route unavailable",
+  };
+  return labels[state] || titleCase(value, "Route unavailable");
+}
+
 function chainDisplayName(value) {
   const chain = String(value || "").trim().toLowerCase();
   return chain === "robinhood" ? "Robinhood Chain" : titleCase(chain, "Unknown chain");
@@ -212,7 +223,7 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     setAnatomySlot(3, "24h transactions", compact(anatomy.transactions_24h ?? state.selected?.txns24h));
     setAnatomySlot(4, "Pool age", ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs));
     setAnatomySlot(5, "Holder distribution", holderState);
-    setAnatomySlot(6, "Route", titleCase(anatomy.route?.state, "Unavailable"));
+    setAnatomySlot(6, "Route", routeStateLabel(anatomy.route?.state));
     setText("terminalFingerprint", anatomy.pool_fingerprint || `${state.selected?.chainId || "unknown"}:pool:${state.selected?.pairAddress || "unresolved"}`);
     setText("terminalAnatomyState", anatomy.exact_identity === false ? "Identity unavailable" : `${chartProvider} · exact pool`);
     return;
