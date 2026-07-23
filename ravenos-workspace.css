@@ -551,6 +551,20 @@
   .workspace-operator-head h1 { font-size: 27px; }
   .workspace-operator-head p { font-size: 10px; }
   .workspace-statusline > div { min-width: 116px; padding-inline: 10px; }
+  .discover-page .workspace-statusline {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .discover-page .workspace-statusline > div {
+    min-width: 0;
+    min-height: 48px;
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    gap: 4px;
+  }
+  .discover-page .workspace-statusline > div:nth-child(4) { display: none; }
   .workspace-mast { padding: 20px 13px; }
   .workspace-mast h1 { font-size: 34px; }
   .workspace-mast p { font-size: 11px; }
