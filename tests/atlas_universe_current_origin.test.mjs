@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../worker.mjs";
-import { loadPublicAtlasUniverse } from "../lib/ravenos_public_origin.mjs";
+import { atlasUniverseTimeoutMs, loadPublicAtlasUniverse } from "../lib/ravenos_public_origin.mjs";
 
 const ORIGIN = "https://origin.example/public/ravenos";
 const TOKEN = "server-only-atlas-universe-token";
@@ -125,6 +125,14 @@ function env() {
     RAVENOS_PUBLIC_ORIGIN_TOKEN: TOKEN,
   };
 }
+
+test("Atlas on-demand hydration has a bounded budget distinct from search", () => {
+  assert.equal(atlasUniverseTimeoutMs(env(), "search"), 3_000);
+  assert.equal(atlasUniverseTimeoutMs(env(), "featured"), 3_000);
+  assert.equal(atlasUniverseTimeoutMs(env(), "history"), 8_000);
+  assert.equal(atlasUniverseTimeoutMs(env(), "options_chain"), 8_000);
+  assert.equal(atlasUniverseTimeoutMs({ ...env(), RAVENOS_PUBLIC_ORIGIN_ATLAS_TIMEOUT_MS: "6500" }, "history"), 6_500);
+});
 
 function searchPayload(overrides = {}) {
   return base("atlas_search_result_v1", {
