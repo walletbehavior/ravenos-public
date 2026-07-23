@@ -34,6 +34,7 @@ const sourceAssets = [
   "ravenos-discover.js",
   "ravenos-portfolio.js",
   "ravenos-atlas.js",
+  "ravenos-tradingview-adapter.js",
   "ravenos-terminal-review-foundation.js",
   "ravenos-terminal-trade.js",
   "ravenos-access.js",

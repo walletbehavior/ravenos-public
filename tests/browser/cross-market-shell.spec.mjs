@@ -188,6 +188,7 @@ test("Discover joins only current Census rows to exact live venue identities", a
   const row = page.locator(".discover-row").first();
   await expect(row).toContainText("SOL-PERP");
   await expect(row).toContainText("+2.40% over 24h");
+  await expect(row).toContainText("Outcome window still maturing");
   await expect(row.locator(".discover-thesis > span")).toHaveText("What changed");
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
@@ -214,7 +215,7 @@ test("Discover combines Raven opportunities with exact Atlas rows without mergin
   await expect(atlasRow).toHaveCount(1);
   await expect(atlasRow).toContainText("Etf · Atlas");
   await expect(atlasRow).toContainText("5d +1.20%");
-  await expect(atlasRow).toContainText("behavior view unavailable");
+  await expect(atlasRow).toContainText("Raven behavior unavailable");
   await expect(atlasRow).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   await page.locator("[data-discover-filter='equity']").click();
   await expect(atlasRow).toBeVisible();
@@ -355,7 +356,6 @@ test("Atlas preserves verified exact ETF identity into the universal Terminal", 
     }),
   }));
   await page.goto("/atlas/");
-  await expect(page.locator("#atlasProjectionState")).toHaveText("Searchable");
   await expect(page.locator(".atlas-pulse-row")).toContainText("SPY");
   await expect(page.locator(".atlas-pulse-row")).toContainText("Tradier");
   await page.locator(".atlas-pulse-row").click();
@@ -431,6 +431,83 @@ test("exact listed symbols rank ahead of same-ticker token pools while preservin
   await expect(results.nth(0)).toContainText("NYSE Arca");
   await expect(results.nth(1)).toContainText("Spot · Solana");
   await expect(results.nth(1)).toContainText("Tokenized SPY");
+});
+
+test("universal search treats an exact perpetual as BTC intent before a same-symbol listed product", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.route("**/api/instruments/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      schema_version: "ravenos.instrument_lookup.v1",
+      query: "BTC",
+      delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+      execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false },
+      results: [{
+        schema_version: "ravenos.instrument.v1",
+        instrument_id: "etf:nyse-arca:btc",
+        symbol: "BTC",
+        display_name: "Grayscale Bitcoin Mini Trust ETF",
+        asset_class: "etf",
+        instrument_type: "etf",
+        identity_scope: "exact_instrument",
+        venue: "nyse-arca",
+        chain: "none",
+        market_identity: { market_id: "BTC", listing: "NYSE Arca" },
+        quote_asset: { symbol: "USD" },
+        settlement_asset: { symbol: "USD" },
+        capabilities: { chart: true, execution: false },
+      }],
+    }),
+  }));
+  await page.route("**/api/atlas/search**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "atlas_search_result_v1", results: [], groups: {}, query: "BTC" }) }));
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("BTC");
+  await expect(page.locator(".ros-command-group > header strong")).toHaveText(["Perpetuals", "Stocks & ETFs"]);
+  await expect(page.locator(".ros-command-result.instrument").first()).toContainText("BTC-PERP");
+  await expect(page.locator(".ros-command-result.instrument").nth(1)).toContainText("Grayscale Bitcoin Mini Trust ETF");
+});
+
+test("universal search resolves a rate-market alias into exact Atlas context", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.route("**/api/instruments/search**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "ravenos.instrument_lookup.v1", results: [], query: "US10Y" }) }));
+  await page.route("**/api/atlas/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      schema_version: "atlas_search_result_v1",
+      query: "US10Y",
+      results: [{
+        schema_version: "atlas_search_result_v1",
+        entity_id: "fred:DGS10",
+        name: "10-Year Treasury Yield",
+        symbol: "DGS10",
+        entity_kind: "rate_series",
+        entity_class: "reference_series",
+        provider: "fred",
+        data_frequency: "Daily",
+        status: "PERIODIC",
+        optionable: false,
+        cached_snapshot_available: true,
+        public_display_eligibility: "allowed",
+        featured: true,
+        selectable: true,
+      }],
+      groups: {},
+    }),
+  }));
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("US10Y");
+  await expect(page.locator(".ros-command-group > header strong")).toHaveText(["Rates & economy"]);
+  const result = page.locator(".ros-command-result.instrument").first();
+  await expect(result).toContainText("DGS10");
+  await expect(result).toContainText("Periodic");
+  await result.click();
+  await expect(page).toHaveURL(/\/atlas\/\?entity_id=fred%3ADGS10/);
 });
 
 test("universal search resolves an arbitrary exact equity even when Atlas context is unavailable", async ({ page }) => {
@@ -633,7 +710,6 @@ test("Atlas outage is isolated and explicit", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }) }));
   await page.goto("/atlas/");
-  await expect(page.locator("#atlasProjectionState")).toHaveText("Unavailable");
   await expect(page.locator("#atlasContent")).toContainText("Search can still resolve supported entities");
   await expect(page.locator("#atlasContent")).toContainText("no old posture was substituted");
 });

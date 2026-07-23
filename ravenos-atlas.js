@@ -1,4 +1,5 @@
 import { ravenOSContext } from "/ravenos-context-store.js";
+import { mountTradingViewChart, resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
 
 const SEARCH_DELAY_MS = 240;
 const SEARCH_MIN_LENGTH = 2;
@@ -37,6 +38,7 @@ function title(value, fallback = "Unavailable") {
 }
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
 }
@@ -95,6 +97,7 @@ function setHeader({ title: heading, summary, detail = false }) {
   document.getElementById("atlasPageTitle").textContent = heading;
   document.getElementById("atlasPageSummary").textContent = summary;
   document.getElementById("atlasDetailActions").hidden = !detail;
+  document.querySelector(".atlas-page")?.setAttribute("data-detail", String(detail));
 }
 
 function cleanReason(reason) {
@@ -138,7 +141,7 @@ function timingLabel(row = {}) {
   if (row.entity_class === "document_entity" || status === "DOCUMENT") return "Document record";
   if (status === "DELAYED") return "Delayed when opened";
   if (status === "PERIODIC") return "Periodic series";
-  if (status === "LIVE") return "Current-data capability";
+  if (status === "LIVE") return row.public_display_eligibility === "allowed" ? "Market timing shown at source" : "Identity resolved";
   if (status === "DISPLAY RESTRICTED") return "Values restricted";
   return "Availability checked on open";
 }
@@ -418,10 +421,10 @@ function providerStateView(host, view, heading = "Current observation") {
   badge.dataset.state = view?.state || "unavailable";
   const timing = append(outer, "div", "atlas-source-ledger");
   const cells = [
-    ["Provider time", view?.provider_timestamp ? dateTime(view.provider_timestamp) : "Not supplied"],
-    ["Retrieved", view?.fetched_at ? dateTime(view.fetched_at) : "Not retrieved"],
-    ["Timing", title(view?.delay_class, "Unknown")],
-    ["Cache", view?.cache_hit ? "Reused safely" : "Direct retrieval"],
+    ["Source time", view?.provider_timestamp ? dateTime(view.provider_timestamp) : "Not supplied"],
+    ["Seen by RavenOS", view?.fetched_at ? dateTime(view.fetched_at) : "Not retrieved"],
+    ["Data timing", title(view?.delay_class, "Unknown")],
+    ["Availability", view?.state === "available" ? "Values available" : view?.state === "display_restricted" ? "Visual context only" : "Unavailable"],
   ];
   for (const [label, value] of cells) {
     const cell = append(timing, "div");
@@ -449,6 +452,23 @@ function detailTabsFor(row) {
   return tabs;
 }
 
+async function resolveExactListedInstrument(row, { signal } = {}) {
+  if (!["equity", "etf"].includes(row?.entity_kind) || !row?.symbol) return null;
+  try {
+    const payload = await fetchJson(`/api/instruments/search?q=${encodeURIComponent(row.symbol)}`, { signal });
+    const matches = (payload.results || []).filter((candidate) => (
+      String(candidate.symbol || "").toUpperCase() === String(row.symbol).toUpperCase()
+      && candidate.schema_version === "ravenos.instrument.v1"
+      && candidate.identity_scope === "exact_instrument"
+      && candidate.instrument_type === row.entity_kind
+    ));
+    return matches.length === 1 ? matches[0] : null;
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    return null;
+  }
+}
+
 function renderMetric(host, label, value, detail = "") {
   const cell = append(host, "div", "atlas-detail-metric");
   append(cell, "span", "", label);
@@ -464,8 +484,11 @@ function renderOverview(host, payload) {
   const primary = append(main, "section", "atlas-detail-primary");
   const head = append(primary, "header", "workspace-section-head");
   const copy = append(head, "div");
-  append(copy, "span", "workspace-label", "What Atlas knows now");
-  append(copy, "h2", "", row.entity_class === "reference_series" ? "Latest published observation" : row.entity_class === "document_entity" ? "Issuer document context" : "Exact market snapshot");
+  append(copy, "span", "workspace-label", "Market context");
+  append(copy, "h2", "", row.entity_class === "reference_series" ? "Latest published observation" : row.entity_class === "document_entity" ? "Issuer document context" : "See the exact market before the narrative");
+  const externalChart = !data && ["equity", "etf", "index", "forex_pair", "future_root"].includes(row.entity_kind)
+    ? resolveTradingViewChart(row, { exactInstrument: payload.exact_instrument })
+    : null;
   if (data) {
     const metrics = append(primary, "div", "atlas-detail-metrics");
     if (row.entity_class === "reference_series") {
@@ -491,6 +514,17 @@ function renderOverview(host, payload) {
       renderMetric(metrics, "Range", `${money(data.low, 4)} – ${money(data.high, 4)}`, `Open ${money(data.open, 4)}`);
       renderMetric(metrics, "Volume", compact(data.volume), `Previous close ${money(data.previous_close, 4)}`);
     }
+  } else if (externalChart) {
+    const chartPanel = append(primary, "section", "atlas-visual-chart");
+    const chartHost = append(chartPanel, "div", "atlas-visual-chart-host");
+    const resolved = mountTradingViewChart(chartHost, row, { exactInstrument: payload.exact_instrument });
+    const footer = append(chartPanel, "footer", "atlas-visual-chart-meta");
+    append(footer, "span", "", `${resolved.timing} · ${resolved.session}`);
+    const link = append(footer, "a", "", resolved.attribution);
+    link.href = resolved.attribution_url;
+    link.target = "_blank";
+    link.rel = "noopener nofollow";
+    append(footer, "small", "", "Visual context only. It is not Raven evidence, an order price, or a portfolio valuation.");
   } else {
     const unavailable = append(primary, "div", "atlas-detail-refusal");
     append(unavailable, "strong", "", view.state === "document_entity" ? "Open a filing view for source documents" : "Market values are not shown");
@@ -500,9 +534,9 @@ function renderOverview(host, payload) {
   }
   const semantics = append(primary, "section", "atlas-decision-grid");
   const decisions = [
-    ["What is known", `${row.name} resolves exactly as a ${entityKindLabel(row.entity_kind).toLowerCase()} through ${providerLabel(row.provider)}.`],
-    ["What is not claimed", row.entity_class === "document_entity" ? "A filing record is not a market quote or a complete filing summary." : "Market context is not a Raven recommendation, execution instruction, or personalized plan."],
-    ["What happens next", row.optionable ? "Options remain dormant until you open the Options tab; only one expiration is requested." : row.entity_class === "reference_series" ? "Historical observations load only when you open History." : "Open the exact listed market in Terminal when an exact listing can be proven."],
+    ["Exact market", `${row.name} resolves as a ${entityKindLabel(row.entity_kind).toLowerCase()} through ${providerLabel(row.provider)}. No alternate listing is substituted.`],
+    ["Decision boundary", row.entity_class === "document_entity" ? "A filing record is not a quote or a complete filing summary." : "Visual context is not a Raven recommendation, order price, or personalized plan."],
+    ["Inspect next", row.optionable ? "Open Options for one selected expiration, or continue into Terminal with this exact identity." : row.entity_class === "reference_series" ? "Open History for the published series, with its units and observation dates intact." : "Continue into Terminal only when this exact listing is supported there."],
   ];
   for (const [label, value] of decisions) {
     const cell = append(semantics, "div");
@@ -511,19 +545,14 @@ function renderOverview(host, payload) {
   }
   const side = append(main, "aside", "atlas-detail-side");
   providerStateView(side, view, "Source & timing");
-  const compute = append(side, "section", "atlas-compute-state");
-  append(compute, "span", "workspace-label", "Observation state");
-  const states = [
-    ["Cataloged", true], ["Hydrated", payload.hydrated], ["Featured", payload.featured],
-    ["Active now", payload.active], ["Watched", payload.watched], ["Deep observed", payload.deep_observed],
-  ];
-  for (const [label, active] of states) {
-    const line = append(compute, "div");
-    append(line, "span", "", label);
-    const value = append(line, "strong", "", active ? "Yes" : "No");
-    value.dataset.state = active ? "available" : "unavailable";
-  }
-  append(compute, "p", "", "Opening this entity creates a short, shared interest lease. Closing it does not create permanent observation.");
+  const meaning = append(side, "section", "atlas-market-meaning");
+  append(meaning, "span", "workspace-label", "What this view can answer");
+  append(meaning, "strong", "", externalChart ? "Price structure is visible" : data ? "A source-qualified observation is available" : "Identity is established; values are not");
+  append(meaning, "p", "", externalChart
+    ? "Use the chart for visual market context. Atlas events, filings, options, and Raven evidence remain separate so their authority stays clear."
+    : data
+      ? "The source and its timing travel with the observation. A successful data retrieval does not become a recommendation."
+      : "RavenOS will not fill the gap with another listing, a stale snapshot, or a proxy that was not selected.");
   if (["equity", "etf"].includes(row.entity_kind) && view.state === "available" && view.delay_class === "current") {
     const entityId = row.entity_id;
     scheduleActiveRefresh(async () => {
@@ -972,16 +1001,14 @@ async function renderInsiders(host, entityPayload) {
   }
 }
 
-async function resolveTerminalLink(row) {
+async function resolveTerminalLink(row, exactInstrument = null) {
   const link = document.getElementById("atlasOpenTerminal");
   link.hidden = true;
   link.removeAttribute("href");
   if (!["equity", "etf"].includes(row.entity_kind)) return;
   try {
-    const payload = await fetchJson(`/api/instruments/search?q=${encodeURIComponent(row.symbol)}`);
-    const matches = (payload.results || []).filter((candidate) => String(candidate.symbol || "").toUpperCase() === String(row.symbol || "").toUpperCase() && candidate.identity_scope === "exact_instrument" && candidate.instrument_type === row.entity_kind);
-    if (matches.length !== 1) return;
-    const exact = matches[0];
+    const exact = exactInstrument || await resolveExactListedInstrument(row);
+    if (!exact) return;
     const params = new URLSearchParams({
       asset: exact.symbol,
       instrument_id: exact.instrument_id,
@@ -1024,7 +1051,7 @@ function renderDetail(payload) {
   destroyChart();
   state.entity = payload;
   const row = payload.entity;
-  setHeader({ title: `${row.symbol} · ${row.name}`, summary: `${entityKindLabel(row.entity_kind)} · ${providerLabel(row.provider)} · ${timingLabel(row)}. Exact identity and source timing travel with every view.`, detail: true });
+  setHeader({ title: `${row.symbol} · ${row.name}`, summary: `${entityKindLabel(row.entity_kind)} context, events, options, and source timing for the exact selected market.`, detail: true });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
   const identity = append(host, "section", "atlas-detail-identity");
@@ -1033,9 +1060,10 @@ function renderDetail(payload) {
   const copy = append(identity, "div");
   append(copy, "span", "workspace-label", entityKindLabel(row.entity_kind));
   append(copy, "h2", "", row.name);
-  append(copy, "p", "", `${row.entity_id} · ${providerLabel(row.provider)} · ${text(row.data_frequency)}`);
+  const visualIdentity = resolveTradingViewChart(row, { exactInstrument: payload.exact_instrument });
+  append(copy, "p", "", `${visualIdentity ? visualIdentity.tradingview_symbol.replace(":", " · ") : row.symbol} · ${providerLabel(row.provider)} · ${text(row.data_frequency)}`);
   const badges = append(identity, "div", "atlas-detail-badges");
-  [timingLabel(row), row.optionable ? "Options available on demand" : "No options path", payload.featured ? "Featured" : "On demand"].forEach((label) => append(badges, "span", "", label));
+  [timingLabel(row), row.optionable ? "Options available" : null].filter(Boolean).forEach((label) => append(badges, "span", "", label));
   const tabs = append(host, "nav", "atlas-detail-tabs");
   tabs.setAttribute("role", "tablist");
   const validTabs = detailTabsFor(row);
@@ -1054,7 +1082,7 @@ function renderDetail(payload) {
   setState("atlasProjectionState", "available", "Exact entity");
   setState("atlasMarketState", payload.snapshot?.state || "unavailable", title(payload.snapshot?.state));
   setState("atlasOptionsState", row.public_display_eligibility === "allowed" ? "available" : "degraded", row.public_display_eligibility === "allowed" ? "Rights checked" : "Restricted");
-  resolveTerminalLink(row);
+  resolveTerminalLink(row, payload.exact_instrument);
   ravenOSContext.setSelection({ subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind }, workspace: "atlas" }, { updateUrl: false });
   window.RavenOSShell?.setCapabilities?.({ market: `${entityKindLabel(row.entity_kind)} · ${timingLabel(row)}`, mode: "Read only", evidence: `${providerLabel(row.provider)} provenance`, wallet: "No customer session", signing: "Sign off", broadcast: "Broadcast off" });
   window.RavenOSShell?.setIntelligence?.({
@@ -1062,14 +1090,18 @@ function renderDetail(payload) {
     marketState: { label: timingLabel(row), regime: entityKindLabel(row.entity_kind) },
     setupState: { state: payload.snapshot?.state || "unavailable", confirmation: "Atlas context only" },
     thesis: `${row.name} is resolved exactly through ${providerLabel(row.provider)}. Atlas context does not substitute for Raven behavioral evidence.`,
-    supportingEvidence: [`Canonical Atlas identity: ${row.entity_id}`, `Data class: ${entityKindLabel(row.entity_kind)}`, `Source timing: ${timingLabel(row)}`],
+    supportingEvidence: [`Exact ${entityKindLabel(row.entity_kind).toLowerCase()} identity resolved`, `Source: ${providerLabel(row.provider)}`, `Source timing: ${timingLabel(row)}`],
     contradictingEvidence: payload.snapshot?.state === "display_restricted" ? ["Market values are withheld because public display rights are not established."] : [],
     invalidation: [],
     timeHorizon: "current selected entity",
     confidence: { label: payload.snapshot?.state === "available" ? "source verified" : "limited" },
     evidenceQuality: { state: payload.snapshot?.state || "unavailable", lineageComplete: true },
-    freshness: { state: payload.snapshot?.stale ? "stale" : payload.snapshot?.delayed ? "delayed" : payload.snapshot?.state === "available" ? "live" : "unavailable", observedAt: payload.snapshot?.provider_timestamp },
-    nextExpectedTransition: "Open only the context needed; inactive entities do not create permanent observers.",
+    freshness: {
+      state: payload.snapshot?.stale ? "stale" : payload.snapshot?.delayed ? "delayed" : payload.snapshot?.state === "available" ? "live" : "unavailable",
+      label: payload.snapshot?.state === "available" ? "Atlas current" : "Raven unavailable",
+      observedAt: payload.snapshot?.provider_timestamp,
+    },
+    nextExpectedTransition: "Open the context needed for this decision; unsupported detail remains explicitly unavailable.",
   });
   window.__RAVENOS_ATLAS__ = Object.freeze({ state: "detail", entityId: row.entity_id, activeTab: state.activeTab, signingAvailable: false, submissionAvailable: false });
 }
@@ -1089,6 +1121,7 @@ async function selectEntity(entityId, { updateHistory = true } = {}) {
   try {
     const payload = await fetchJson(`/api/atlas/entity?entity_id=${encodeURIComponent(exact)}`, { signal: state.detailController.signal, viewer: true });
     if (payload.entity?.entity_id !== exact) throw new Error("atlas_entity_identity_mismatch");
+    payload.exact_instrument = await resolveExactListedInstrument(payload.entity, { signal: state.detailController.signal });
     renderDetail(payload);
   } catch (error) {
     if (error.name === "AbortError") return;

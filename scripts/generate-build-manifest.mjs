@@ -47,6 +47,7 @@ const files = [
   "ravenos-discover.js",
   "ravenos-portfolio.js",
   "ravenos-atlas.js",
+  "ravenos-tradingview-adapter.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
   "raven-chart-overlays.js",

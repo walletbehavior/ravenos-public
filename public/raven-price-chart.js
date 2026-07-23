@@ -368,6 +368,9 @@
     let rawCandles = Array.isArray(options?.candles) ? [...options.candles] : [];
     let candles = normalizeCandles(rawCandles);
     let volumeByTime = new Map(normalizeVolume(rawCandles).map((row) => [String(row.time), row.value]));
+    let quoteVolumeByTime = new Map(rawCandles
+      .filter((row) => row?.time && Number.isFinite(Number(row.quote_volume ?? row.quoteVolume)))
+      .map((row) => [String(row.time), Number(row.quote_volume ?? row.quoteVolume)]));
     const events = Array.isArray(options?.events) ? options.events : [];
     const overlays = (Array.isArray(options?.overlays) ? options.overlays : []).map((overlay) => ({ ...overlay, type: overlayType(overlay.type) }));
     const context = {
@@ -692,6 +695,7 @@
         low: Number.isFinite(Number(row.low)) ? Number(row.low) : null,
         close: Number.isFinite(Number(row.close ?? row.value)) ? Number(row.close ?? row.value) : null,
         volume: Number.isFinite(Number(volumeByTime.get(String(param.time)))) ? Number(volumeByTime.get(String(param.time))) : null,
+        quote_volume: Number.isFinite(Number(quoteVolumeByTime.get(String(param.time)))) ? Number(quoteVolumeByTime.get(String(param.time))) : null,
         point: param.point || null,
       });
     };
@@ -728,6 +732,8 @@
         candleSeries.update(normalized);
         const volume = normalizeVolume([value])[0];
         if (volume) volumeByTime.set(String(volume.time), volume.value);
+        const quoteVolume = Number(value?.quote_volume ?? value?.quoteVolume);
+        if (Number.isFinite(quoteVolume)) quoteVolumeByTime.set(String(normalized.time), quoteVolume);
         if (volumeSeries && volume) volumeSeries.update(volume);
         renderRegions();
         return true;
@@ -746,6 +752,9 @@
         rawCandles = merged.map((row) => row.raw);
         candles = merged.map((row) => row.normalized);
         volumeByTime = new Map(normalizeVolume(rawCandles).map((row) => [String(row.time), row.value]));
+        quoteVolumeByTime = new Map(rawCandles
+          .filter((row) => row?.time && Number.isFinite(Number(row.quote_volume ?? row.quoteVolume)))
+          .map((row) => [String(row.time), Number(row.quote_volume ?? row.quoteVolume)]));
         candleSeries.setData(candles);
         if (volumeSeries) volumeSeries.setData(normalizeVolume(rawCandles));
         if (visible && typeof chart.timeScale().setVisibleRange === "function") chart.timeScale().setVisibleRange(visible);

@@ -222,6 +222,8 @@ export function createIntelligenceRecord(input = {}, options = {}) {
     evidenceRole: input.evidenceRole,
     nowMs: options.nowMs,
   });
+  const explicitFreshnessLabel = customerFacingText(input.freshness?.label, "");
+  if (explicitFreshnessLabel) freshness.label = explicitFreshnessLabel;
   const marketStateInput = input.marketState && typeof input.marketState === "object" ? input.marketState : {};
   const setupStateInput = input.setupState && typeof input.setupState === "object" ? input.setupState : {};
 

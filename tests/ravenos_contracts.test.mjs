@@ -63,6 +63,15 @@ test("historical and simulated states are not relabeled as live", () => {
   assert.equal(simulated.state, RavenDataStates.SIMULATED);
 });
 
+test("a bounded operator label may clarify which intelligence layer is unavailable", () => {
+  const record = createIntelligenceRecord({
+    subject: { id: "equity:us:AAPL", label: "AAPL" },
+    freshness: { state: "unavailable", label: "Raven unavailable" },
+  });
+  assert.equal(record.freshness.state, RavenDataStates.DATA_UNAVAILABLE);
+  assert.equal(record.freshness.label, "Raven unavailable");
+});
+
 test("legacy implementation language is normalized for customer renderings", () => {
   assert.equal(customerFacingText("Solana Live Activity"), "Solana market activity");
   assert.equal(customerFacingText("The closest comparable has sample depth is public-safe."), "The closest prior case has sample depth is available.");

@@ -25,6 +25,9 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /acceptProviderTransition/);
   assert.match(workspace, /chart_provider_transition_pool_mismatch/);
   assert.match(workspace, /onMarkerSelect/);
+  assert.match(workspace, /visibilitychange/);
+  assert.match(workspace, /paused_hidden/);
+  assert.match(workspace, /this\.startLive\(this\.lastLiveRequest, this\.lastLivePayload\)/);
 });
 
 test("Terminal uses PriceWorkspace by default and exposes no unresolved build token", () => {

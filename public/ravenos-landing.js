@@ -3,7 +3,7 @@ import { canonicalInstrumentId, RAVENOS_CHART_INSTRUMENT_SCHEMA } from "./raveno
 const state = { opportunities: [], markets: new Map(), atlas: null, selected: null, candles: [], chartRequest: 0 };
 
 function text(value, fallback = "Unavailable") { const clean = String(value ?? "").trim(); return clean || fallback; }
-function finite(value) { const number = Number(value); return Number.isFinite(number) ? number : null; }
+function finite(value) { if (value === null || value === undefined || value === "") return null; const number = Number(value); return Number.isFinite(number) ? number : null; }
 function title(value) { return text(value).replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function price(value) { const number = finite(value); return number === null ? "—" : number >= 1000 ? `$${number.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : `$${number.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 5 })}`; }
 function percent(value, { ratio = false } = {}) { const number = finite(value); if (number === null) return "—"; const amount = ratio ? number * 100 : number; return `${amount >= 0 ? "+" : ""}${amount.toFixed(Math.abs(amount) < .1 ? 3 : 2)}%`; }
@@ -11,6 +11,15 @@ function compact(value) { const number = finite(value); return number === null ?
 function when(value) { const date = new Date(value || ""); return Number.isNaN(date.getTime()) ? "Timestamp unavailable" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(date) + " UTC"; }
 function setText(id, value, fallback = "—") { const node = document.getElementById(id); if (node) node.textContent = value === null || value === undefined || value === "" ? fallback : String(value); }
 async function json(url) { const response = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } }); return { response, payload: await response.json().catch(() => null) }; }
+
+function pathLabel(value) {
+  const normalized = text(value, "").toLowerCase().replaceAll("_", " ");
+  if (!normalized || normalized === "unavailable") return "Unavailable";
+  if (normalized === "forward path reviewing" || normalized === "forward outcome reviewing") return "Outcome window maturing";
+  if (normalized === "matured" || normalized === "complete") return "Comparable outcomes matured";
+  if (normalized === "rejected" || normalized === "invalidated") return "Earlier path did not hold";
+  return title(normalized);
+}
 
 function exactHyperliquidChartIdentity(row, payload) {
   const match = /^hyperliquid:perp:([A-Z0-9._-]+)$/.exec(String(row?.instrument_id || ""));
@@ -56,8 +65,8 @@ function renderOpportunityList() {
   host.replaceChildren();
   if (!state.opportunities.length) {
     const node = document.createElement("div"); node.className = "landing-unavailable";
-    const strong = document.createElement("strong"); strong.textContent = "Current Census unavailable";
-    const span = document.createElement("span"); span.textContent = "Live markets may remain available, but no prior Raven claim is substituted.";
+    const strong = document.createElement("strong"); strong.textContent = "Current opportunities unavailable";
+    const span = document.createElement("span"); span.textContent = "Live markets may remain available, but no older Raven observation is substituted.";
     node.append(strong, span); host.append(node); return;
   }
   for (const row of state.opportunities.slice(0, 5)) {
@@ -105,7 +114,7 @@ async function loadChart(row) {
     drawChart();
   } catch (error) {
     wrap.dataset.state = "unavailable";
-    setText("landingChartState", `${error.message}. No fallback series was generated.`);
+    setText("landingChartState", `${error.message}. The chart stays unavailable until exact provider history is verified.`);
   }
 }
 
@@ -117,7 +126,7 @@ function selectOpportunity(row) {
   setText("landingPrice", price(market.last_price ?? market.lastPrice)); const change = finite(market.day_change_pct ?? market.dayChangePct); setText("landingChange", percent(change));
   const changeNode = document.getElementById("landingChange"); changeNode.classList.toggle("positive", change !== null && change >= 0); changeNode.classList.toggle("negative", change !== null && change < 0);
   setText("landingVenue", "Hyperliquid"); setText("landingFunding", percent(market.funding_rate ?? market.funding, { ratio: true })); setText("landingOpenInterest", compact(market.open_interest_usd)); setText("landingFreshness", title(row.context_state));
-  setText("landingReadState", `${title(row.context_state)} · research only`); setText("landingWhy", row.why_raven_noticed, "No current public explanation is available."); setText("landingReadSummary", `${title(row.pressure_state)}. Exact market facts and Raven evidence retain separate source timestamps.`); setText("landingPath", title(row.path_review?.state)); setText("landingEvidence", title(row.context_state)); setText("landingComparables", finite(row.matured_comparables?.sample_size)?.toLocaleString() || "Unavailable");
+  setText("landingReadState", `${title(row.context_state)} · research only`); setText("landingWhy", row.why_raven_noticed, "No current public explanation is available."); setText("landingReadSummary", `${title(row.pressure_state)}. Exact market facts and Raven evidence retain separate source timestamps.`); setText("landingPath", pathLabel(row.path_review?.state)); setText("landingEvidence", title(row.context_state)); setText("landingComparables", finite(row.matured_comparables?.sample_size)?.toLocaleString() || "Unavailable");
   const inspect = document.getElementById("landingInspect"); inspect.href = terminalHref(row);
   loadChart(row);
 }
@@ -126,8 +135,8 @@ function renderAtlas(rows, payload) {
   const host = document.getElementById("landingAtlasList"); host.replaceChildren();
   if (!rows?.length) {
     const node = document.createElement("div"); node.className = "landing-unavailable";
-    const strong = document.createElement("strong"); strong.textContent = "Atlas unavailable";
-    const span = document.createElement("span"); span.textContent = "No stale equity or ETF row was substituted.";
+    const strong = document.createElement("strong"); strong.textContent = "Atlas context unavailable";
+    const span = document.createElement("span"); span.textContent = "No older equity or ETF row was substituted.";
     node.append(strong, span); host.append(node); return;
   }
   for (const row of rows.slice(0, 4)) {
@@ -150,16 +159,16 @@ async function boot() {
   const atlasPayload = atlasResult.status === "fulfilled" && atlasResult.value.response.ok ? atlasResult.value.payload : null; renderAtlas(validAtlas(atlasPayload), atlasPayload);
   const health = healthResult.status === "fulfilled" && healthResult.value.response.ok ? healthResult.value.payload : null;
   const marketState = health?.market_data_health?.state || (state.markets.size ? "live" : "unavailable"); const intelligenceState = health?.intelligence_freshness?.state || (state.opportunities.length ? "fresh" : "unavailable");
-  setText("landingMarketState", `Market data ${title(marketState)}`); document.getElementById("landingMarketState").dataset.state = marketState;
-  setText("landingIntelligenceState", `Intelligence ${title(intelligenceState)}`); document.getElementById("landingIntelligenceState").dataset.state = intelligenceState;
-  const originCurrent = state.opportunities.length > 0 || Boolean(validAtlas(atlasPayload)?.length); setText("landingOriginState", originCurrent ? "Current public origin" : "Current origin unavailable"); document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "unavailable";
+  setText("landingMarketState", `Market ${title(marketState)}`); document.getElementById("landingMarketState").dataset.state = marketState;
+  setText("landingIntelligenceState", `Raven ${title(intelligenceState)}`); document.getElementById("landingIntelligenceState").dataset.state = intelligenceState;
+  const originCurrent = state.opportunities.length > 0 || Boolean(validAtlas(atlasPayload)?.length); setText("landingOriginState", originCurrent ? "Current opportunities" : "Current opportunities unavailable"); document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "unavailable";
   setText("landingGeneratedAt", when(opportunityPayload?.census?.generated_at || atlasPayload?.generated_at));
   if (state.opportunities[0]) selectOpportunity(state.opportunities[0]);
   else {
-    setText("landingReadState", "Unavailable"); setText("landingWhy", "Current Raven opportunity evidence is unavailable."); setText("landingReadSummary", "No historical claim was substituted. Live provider markets remain a separate surface."); document.getElementById("landingChartWrap").dataset.state = "unavailable"; setText("landingChartState", "No exact Raven opportunity selected. No fallback series was generated.");
+    setText("landingReadState", "Unavailable"); setText("landingWhy", "Current Raven opportunity evidence is unavailable."); setText("landingReadSummary", "No older observation was substituted. Live provider markets remain available separately."); document.getElementById("landingChartWrap").dataset.state = "unavailable"; setText("landingChartState", "No exact Raven opportunity is selected. The chart remains unavailable rather than showing a substitute market.");
   }
   window.__RAVENOS_LANDING__ = Object.freeze({ getState: () => ({ opportunityCount: state.opportunities.length, marketCount: state.markets.size, atlasCount: validAtlas(state.atlas)?.length || 0, instrumentId: state.selected?.instrument_id || null, candleCount: state.candles.length, signingAvailable: false, submissionAvailable: false }) });
 }
 
 new ResizeObserver(() => { if (state.candles.length) drawChart(); }).observe(document.getElementById("landingChartWrap"));
-boot().catch(() => { setText("landingOriginState", "Current origin unavailable"); document.getElementById("landingOriginDot").dataset.state = "unavailable"; });
+boot().catch(() => { setText("landingOriginState", "Current opportunities unavailable"); document.getElementById("landingOriginDot").dataset.state = "unavailable"; });

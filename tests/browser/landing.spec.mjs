@@ -95,7 +95,7 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await mockLanding(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /See the move.*Understand the behavior/i })).toBeVisible();
-  await expect(page.locator("#landingOriginState")).toHaveText("Current public origin");
+  await expect(page.locator("#landingOriginState")).toHaveText("Current opportunities");
   await expect(page.locator("#landingOpportunityCount")).toHaveText("1 current exact rows");
   await expect(page.locator("#landingInstrument")).toHaveText("SOL-PERP");
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
@@ -114,11 +114,11 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
 test("landing page keeps current-origin failure explicit and generates no fallback chart", async ({ page }) => {
   await mockLanding(page, { current: false });
   await page.goto("/");
-  await expect(page.locator("#landingOriginState")).toHaveText("Current origin unavailable");
-  await expect(page.locator("#landingOpportunityList")).toContainText("Current Census unavailable");
+  await expect(page.locator("#landingOriginState")).toHaveText("Current opportunities unavailable");
+  await expect(page.locator("#landingOpportunityList")).toContainText("Current opportunities unavailable");
   await expect(page.locator("#landingWhy")).toContainText("Current Raven opportunity evidence is unavailable");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
-  await expect(page.locator("#landingAtlasList")).toContainText("Atlas unavailable");
+  await expect(page.locator("#landingAtlasList")).toContainText("Atlas context unavailable");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
   expect(product.instrumentId).toBeNull();
@@ -129,7 +129,7 @@ test("landing page rejects a chart whose normalized exact identity belongs to an
   await page.goto("/");
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
-  await expect(page.locator("#landingChartState")).toContainText("No fallback series was generated");
+  await expect(page.locator("#landingChartState")).toContainText("stays unavailable until exact provider history is verified");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
 });

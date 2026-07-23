@@ -110,6 +110,64 @@ test("live chart connection status reaches the visible Terminal instead of remai
   await expect(page.locator("#terminalBoundary strong")).toHaveText("Provider market connected");
 });
 
+test("hidden Terminal pauses its shared live feed and resumes the exact market without replacing the chart", async ({ page }) => {
+  await page.addInitScript(() => {
+    let hidden = false;
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+    window.__setRavenOSHidden = (value) => {
+      hidden = Boolean(value);
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    window.__RAVENOS_TEST_SOCKET_COUNTS__ = { opened: 0, closed: 0 };
+    class TestWebSocket {
+      constructor() {
+        window.__RAVENOS_TEST_SOCKET_COUNTS__.opened += 1;
+        this.readyState = 0;
+        this.listeners = new Map();
+        setTimeout(() => {
+          this.readyState = 1;
+          for (const listener of this.listeners.get("open") || []) listener({ type: "open" });
+        }, 15);
+      }
+
+      addEventListener(type, listener) {
+        const listeners = this.listeners.get(type) || [];
+        listeners.push(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      send() {}
+
+      close() {
+        window.__RAVENOS_TEST_SOCKET_COUNTS__.closed += 1;
+        this.readyState = 3;
+      }
+    }
+    window.WebSocket = TestWebSocket;
+  });
+  await mockTerminalLiveApis(page, { liveBars: true });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
+  const identity = await page.locator("#terminalInstrumentMeta").textContent();
+  const candleCount = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().candleCount);
+
+  await page.evaluate(() => window.__setRavenOSHidden(true));
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("paused_hidden");
+  await expect.poll(() => page.evaluate(() => window.RavenOSChartDataPlane.diagnostics().active_viewers)).toBe(0);
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+
+  await page.waitForTimeout(1_700);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_SOCKET_COUNTS__.closed)).toBeGreaterThan(0);
+  await page.evaluate(() => window.__setRavenOSHidden(false));
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
+  await expect.poll(() => page.evaluate(() => window.RavenOSChartDataPlane.diagnostics().active_viewers)).toBe(1);
+  await expect(page.locator("#terminalInstrumentMeta")).toHaveText(identity || "");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().candleCount)).toBeGreaterThanOrEqual(candleCount);
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_SOCKET_COUNTS__.opened)).toBeGreaterThanOrEqual(2);
+});
+
 test("default market favors the newest matching Raven observation before historical sample size", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.unroute("**/api/perps");
@@ -144,6 +202,12 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
 
+  const candleLegend = chart.locator("[data-rpw-crosshair]");
+  await expect(candleLegend).toBeVisible();
+  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
+  await expect(candleLegend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  await expect(candleLegend).toContainText("--");
+
   await chart.locator('[data-rpw-indicator="ema50"]').click();
   await expect(chart.locator('[data-rpw-indicator="ema50"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema50?.points || 0)).toBeGreaterThan(0);
@@ -151,8 +215,10 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   const canvas = chart.locator(".rpw-stage canvas").first();
   const bounds = await canvas.boundingBox();
   await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45);
-  await expect(chart.locator("[data-rpw-crosshair]")).toBeVisible();
-  await expect(chart.locator("[data-rpw-crosshair]")).toContainText(/UTC.*O .*H .*L .*C .*V /);
+  await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
+  await expect(candleLegend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  await page.mouse.move(1, 1);
+  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
 
   await chart.locator("[data-rpw-focus]").click();
   await expect(chart).toHaveClass(/rpw-focus-mode/);
@@ -301,6 +367,11 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator("#terminalChart .rpw-crosshair > span")).toHaveCount(9);
+  const ohlcvLegend = await page.locator("#terminalChart .rpw-crosshair").boundingBox();
+  expect(ohlcvLegend?.x).toBeGreaterThanOrEqual(0);
+  expect((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0)).toBeLessThanOrEqual(390);
+  expect(ohlcvLegend?.height).toBeLessThanOrEqual(70);
   const chart = await page.locator("#terminalChart .rpw-stage").boundingBox();
   expect(chart.width).toBeGreaterThan(350);
   expect(chart.height).toBeGreaterThan(280);

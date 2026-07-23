@@ -294,6 +294,7 @@ function text(value, fallback = "") {
 }
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
 }
@@ -398,7 +399,7 @@ export function normalizeChartCandle(value = {}) {
   const high = finite(value.high ?? value.h);
   const low = finite(value.low ?? value.l);
   const close = finite(value.close ?? value.c);
-  const volume = finite(value.volume ?? value.v) ?? 0;
+  const volume = finite(value.volume ?? value.v);
   if (time === null || open === null || high === null || low === null || close === null || Math.min(open, high, low, close) <= 0) return null;
   return {
     time,
@@ -406,7 +407,7 @@ export function normalizeChartCandle(value = {}) {
     high: Math.max(open, high, low, close),
     low: Math.min(open, high, low, close),
     close,
-    volume: Math.max(0, volume),
+    volume: volume === null ? null : Math.max(0, volume),
     quote_volume: finite(value.quoteVolume ?? value.quote_volume),
     trade_count: finite(value.tradeCount ?? value.trade_count ?? value.n),
     source: text(value.source),

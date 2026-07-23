@@ -299,7 +299,6 @@ test("/atlas/ explains an outage without inventing unsupported research", async 
   }));
   await page.goto("/atlas/");
   await expect(page.locator("h1")).toContainText(/one market, resolved in context/i);
-  await expect(page.locator("#atlasProjectionState")).toHaveText("Unavailable");
   await expect(page.locator("#atlasContent")).toContainText(/bounded market frame is unavailable/i);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);

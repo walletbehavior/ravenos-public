@@ -311,6 +311,27 @@ test("Worker exposes Atlas local-first search and never returns the origin token
   }
 });
 
+test("Worker resolves common rate-market aliases through one exact Atlas series", async () => {
+  const previous = globalThis.fetch;
+  const rate = row({ entity_id: "fred:DGS10", symbol: "DGS10", name: "10-Year Treasury Yield", entity_kind: "rate_series", entity_class: "reference_series", provider: "fred", optionable: false });
+  try {
+    globalThis.fetch = async (url, init = {}) => {
+      assert.equal(String(url), `${ORIGIN}/atlas/search.json?q=DGS10&limit=20`);
+      assert.equal(init.headers["x-ravenos-public-token"], TOKEN);
+      return jsonResponse(searchPayload({ query: "DGS10", results: [rate], groups: { Rates: [rate] } }));
+    };
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/atlas/search?q=US10Y"), env());
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.query, "US10Y");
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].entity_id, "fred:DGS10");
+    assert.equal(body.delivery.fallback, false);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test("Worker returns 503 without stale or embedded Atlas substitution", async () => {
   const previous = globalThis.fetch;
   try {

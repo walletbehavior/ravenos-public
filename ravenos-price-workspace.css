@@ -149,16 +149,27 @@
   top: 8px;
   left: 9px;
   max-width: calc(100% - 18px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 4px 6px;
+  min-height: 27px;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(8,10,13,.9);
   color: #aab4bf;
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
   pointer-events: none;
+  scrollbar-width: none;
 }
+.rpw-crosshair[hidden] { display: none; }
+.rpw-crosshair::-webkit-scrollbar { display: none; }
+.rpw-crosshair > span { flex: 0 0 auto; min-width: 58px; display: grid; gap: 2px; align-content: center; padding: 3px 7px; border-right: 1px solid rgba(148,163,184,.14); }
+.rpw-crosshair > span:last-child { border-right: 0; }
+.rpw-crosshair small { color: #697584; font: 700 7px ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.rpw-crosshair strong { color: #c5cdd5; font: 700 9px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.rpw-crosshair-time { min-width: 132px !important; }
+.rpw-crosshair[data-mode="inspect"] { border-color: rgba(166,177,190,.34); background: rgba(8,10,13,.96); }
 .rpw-coverage-note {
   position: absolute;
   z-index: 5;
@@ -263,6 +274,34 @@ body.raven-chart-focus { overflow: hidden; }
     box-shadow: 0 18px 46px rgba(0,0,0,.52);
   }
   .rpw-scope-control { top: 84px; left: 6px; }
+  .rpw-crosshair {
+    right: 7px;
+    left: 7px;
+    max-width: none;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .rpw-crosshair[hidden] { display: none; }
+  .rpw-crosshair > span {
+    min-width: 0;
+    padding: 2px 5px;
+    border-right: 1px solid rgba(148,163,184,.14);
+    border-bottom: 1px solid rgba(148,163,184,.1);
+  }
+  .rpw-crosshair > span:nth-child(5),
+  .rpw-crosshair > span:last-child { border-right: 0; }
+  .rpw-crosshair > span:nth-child(n + 6) { border-bottom: 0; }
+  .rpw-crosshair-time {
+    grid-column: 1 / -1;
+    min-width: 0 !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+  .rpw-crosshair-time strong { text-align: right; }
+  .rpw-crosshair small { font-size: 6px; }
+  .rpw-crosshair strong { overflow: hidden; text-overflow: ellipsis; font-size: 8px; }
   .rpw-chart-tools { justify-content: start; }
   .rpw-mobile-timeframes button,
   .rpw-indicators button { flex: 0 0 42px; min-width: 42px; padding: 0 6px; }

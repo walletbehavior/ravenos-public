@@ -164,6 +164,7 @@ for (const asset of [
   "ravenos-discover.js",
   "ravenos-portfolio.js",
   "ravenos-atlas.js",
+  "ravenos-tradingview-adapter.js",
   "raven-chart-overlays.js",
   "raven-price-chart.js",
   "assets/providers/dexpaprika-symbol.svg",

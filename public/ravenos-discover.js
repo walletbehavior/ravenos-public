@@ -20,6 +20,7 @@ function text(value, fallback = "Unavailable") {
 }
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
 }
@@ -45,6 +46,15 @@ function when(value) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "Timestamp unavailable";
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(parsed) + " UTC";
+}
+
+function pathStateLabel(value) {
+  const normalized = text(value, "").trim().toLowerCase().replaceAll("_", " ");
+  if (!normalized || normalized === "unavailable" || normalized === "not established") return "Path not established";
+  if (normalized === "forward path reviewing" || normalized === "forward outcome reviewing") return "Outcome window still maturing";
+  if (normalized === "matured" || normalized === "complete") return "Comparable outcomes matured";
+  if (normalized === "rejected" || normalized === "invalidated") return "Earlier path did not hold";
+  return title(normalized);
 }
 
 async function json(url) {
@@ -144,12 +154,22 @@ function createOpportunityRow(row) {
   thesis.textContent = "";
   append(thesis, "span", "", "What changed");
   append(thesis, "strong", "", actualOpportunityDelta(row));
+  append(thesis, "small", "", atlas
+    ? "Broader-market context only; no Raven behavior is implied."
+    : customerFacingText(row.why_raven_noticed, "The exact reason for admission is unavailable."));
 
   const evidence = append(anchor, "div", "discover-evidence", "");
   evidence.textContent = "";
   append(evidence, "span", "", "What supports it");
-  append(evidence, "strong", "", atlas ? `${title(row.context_state)} · behavior view unavailable` : `${title(row.context_state)} · ${title(row.path_review?.state, "History unavailable")}`);
-  append(evidence, "small", "", atlas ? text(row.context_note, "Atlas context only") : `${compact(row.matured_comparables?.sample_size)} exact historical comparisons`);
+  const comparableCount = finite(row.matured_comparables?.sample_size);
+  append(evidence, "strong", "", atlas
+    ? "Atlas context · Raven behavior unavailable"
+    : comparableCount !== null && comparableCount > 0
+      ? `${title(row.context_state)} evidence · ${compact(comparableCount)} comparable outcomes`
+      : `${title(row.context_state)} evidence · Similar history unavailable`);
+  append(evidence, "small", "", atlas
+    ? text(row.context_note, "Atlas context only")
+    : pathStateLabel(row.path_review?.state));
 
   const market = append(anchor, "div", "discover-market", "");
   market.textContent = "";

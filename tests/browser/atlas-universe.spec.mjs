@@ -109,6 +109,7 @@ function legacyAtlas() {
 async function mockAtlas(page, { restricted = true } = {}) {
   const calls = [];
   const spy = searchRow();
+  const msft = searchRow({ entity_id: "equity:us:MSFT", name: "Microsoft Corporation", symbol: "MSFT", entity_kind: "equity", entity_class: "tradable_quote", featured: false });
   const fred = searchRow({ entity_id: "fred:DGS10", name: "Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity", symbol: "DGS10", entity_kind: "rate_series", entity_class: "reference_series", provider: "fred", data_frequency: "Daily", status: "PERIODIC", optionable: false, public_display_eligibility: "allowed", featured: true });
   const eia = searchRow({ entity_id: "eia:petroleum.pri.spt", name: "Petroleum spot prices", symbol: "PETROLEUM/PRI/SPT", entity_kind: "energy_series", entity_class: "reference_series", provider: "eia", data_frequency: "Daily, weekly", status: "PERIODIC", optionable: false, public_display_eligibility: "allowed", featured: false });
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(legacyAtlas()) }));
@@ -120,14 +121,15 @@ async function mockAtlas(page, { restricted = true } = {}) {
       payload = base("atlas_featured_state_v1", { state: "available", sections: [{ section_id: "major_etfs", label: "Major ETFs", entities: [{ ...spy, snapshot: null }] }, { section_id: "rates", label: "Rates", entities: [{ ...fred, snapshot: null }] }], catalog_only_entities_do_not_refresh: true, featured_refresh: "bounded_existing_atlas_cycle", public_projection_generated_at: NOW });
     } else if (url.pathname === "/api/atlas/search") {
       const q = url.searchParams.get("q")?.toLowerCase();
-      const rows = q?.includes("dgs") || q?.includes("yield") ? [fred] : q?.includes("wti") || q?.includes("petroleum") ? [eia] : [spy];
+      const rows = q?.includes("dgs") || q?.includes("yield") ? [fred] : q?.includes("wti") || q?.includes("petroleum") ? [eia] : q?.includes("msft") || q?.includes("microsoft") ? [msft] : [spy];
       const group = rows[0].entity_kind === "rate_series" ? "Rates" : rows[0].entity_kind === "energy_series" ? "Energy" : "Stocks & ETFs";
       payload = base("atlas_search_result_v1", { query: q, results: rows, groups: { [group]: rows }, local_first: true, provider_assisted: false, assisted_provider: null, provider_refusal: null, quote_fetch_triggered: false, observer_created: false, elapsed_ms: 1 });
     } else if (url.pathname === "/api/atlas/entity") {
       const isFred = url.searchParams.get("entity_id") === fred.entity_id;
       const isEia = url.searchParams.get("entity_id") === eia.entity_id;
+      const isMsft = url.searchParams.get("entity_id") === msft.entity_id;
       payload = base("atlas_entity_detail_v1", {
-        entity: isFred ? fred : isEia ? eia : spy,
+        entity: isFred ? fred : isEia ? eia : isMsft ? msft : spy,
         snapshot: isFred
           ? { ...providerView({ provider: "fred", decision: "allowed", delayClass: "periodic", data: { series_id: "DGS10", observations: [{ period: "2026-07-20", value: 4.31 }, { period: "2026-07-21", value: 4.28 }] } }), schema_version: "atlas_series_snapshot_v1", latest: { period: "2026-07-21", value: 4.28 }, previous: { period: "2026-07-20", value: 4.31 } }
           : isEia
@@ -176,14 +178,20 @@ async function mockAtlas(page, { restricted = true } = {}) {
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
-  await page.route("**/api/instruments/search**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "ravenos.instrument_lookup.v1", query: "SPY", delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false }, execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false }, results: [{ schema_version: "ravenos.instrument.v1", instrument_id: "etf:nyse-arca:spy", symbol: "SPY", asset_class: "etf", instrument_type: "etf", identity_scope: "exact_instrument", venue: "nyse-arca", chain: "none", market_identity: { market_id: "SPY", listing: "NYSE Arca" }, quote_asset: { symbol: "USD" }, settlement_asset: { symbol: "USD" }, capabilities: { execution: false, quote_preview: false } }] }) }));
+  await page.route("**/api/instruments/search**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q")?.toUpperCase() || "SPY";
+    const msftMatch = query === "MSFT";
+    const row = msftMatch
+      ? { schema_version: "ravenos.instrument.v1", instrument_id: "equity:nasdaq:msft", symbol: "MSFT", asset_class: "equity", instrument_type: "equity", identity_scope: "exact_instrument", venue: "nasdaq", chain: "none", market_identity: { market_id: "MSFT", listing: "Nasdaq" }, quote_asset: { symbol: "USD" }, settlement_asset: { symbol: "USD" }, capabilities: { execution: false, quote_preview: false } }
+      : { schema_version: "ravenos.instrument.v1", instrument_id: "etf:nyse-arca:spy", symbol: "SPY", asset_class: "etf", instrument_type: "etf", identity_scope: "exact_instrument", venue: "nyse-arca", chain: "none", market_identity: { market_id: "SPY", listing: "NYSE Arca" }, quote_asset: { symbol: "USD" }, settlement_asset: { symbol: "USD" }, capabilities: { execution: false, quote_preview: false } };
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "ravenos.instrument_lookup.v1", query, delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false }, execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false }, results: [row] }) });
+  });
   return calls;
 }
 
 test("Atlas search is the front door and selecting metadata hydrates only one exact entity", async ({ page }) => {
   const calls = await mockAtlas(page);
   await page.goto("/atlas/");
-  await expect(page.locator("#atlasProjectionState")).toHaveText("Searchable");
   await expect(page.locator(".atlas-pulse-row")).toHaveCount(1);
   await page.locator("#atlasSearchInput").fill("SPY");
   await expect(page.locator(".atlas-search-row")).toHaveCount(1);
@@ -193,9 +201,25 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   await expect(page).toHaveURL(/entity_id=etf%3Aus%3ASPY/);
   await expect(page.locator(".atlas-detail-identity")).toContainText("SPDR S&P 500 ETF Trust");
   await expect(page.locator(".atlas-decision-note")).toContainText("Why values are not shown");
+  const frame = page.locator(".atlas-tv-frame");
+  await expect(frame).toHaveAttribute("src", /^https:\/\/www\.tradingview-widget\.com\/embed-widget\/advanced-chart\//);
+  await expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+  await expect(page.locator(".atlas-compute-state")).toHaveCount(0);
   await expect(page.locator("#atlasOpenTerminal")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   expect(calls.filter((call) => call.startsWith("/api/atlas/entity")).length).toBe(1);
   expect(calls.some((call) => call.includes("options"))).toBe(false);
+});
+
+test("Atlas gives an arbitrary equity a chart only after one exact listing resolves", async ({ page }) => {
+  await mockAtlas(page);
+  await page.goto("/atlas/");
+  await page.locator("#atlasSearchInput").fill("MSFT");
+  await expect(page.locator(".atlas-search-row")).toHaveCount(1);
+  await page.locator(".atlas-search-row").click();
+  await expect(page).toHaveURL(/entity_id=equity%3Aus%3AMSFT/);
+  await expect(page.locator(".atlas-detail-identity")).toContainText("Microsoft Corporation");
+  await expect(page.locator(".atlas-detail-identity")).toContainText("NASDAQ · MSFT");
+  await expect(page.locator(".atlas-tv-frame")).toHaveAttribute("src", /NASDAQ%3AMSFT/);
 });
 
 test("Options remain lazy and a restricted expiration response never triggers a chain", async ({ page }) => {
@@ -225,7 +249,7 @@ test("Periodic series history loads only on demand and renders a real chart", as
   await page.getByRole("tab", { name: "History" }).click();
   await expect(page.locator(".atlas-history-chart canvas").first()).toBeVisible();
   expect(calls.filter((call) => call.startsWith("/api/atlas/history")).length).toBe(1);
-  await expect(page.locator("#atlasMarketState")).toHaveText("Available");
+  await expect(page.locator(".atlas-provider-state")).toContainText("FRED");
 });
 
 test("EIA observations wait for an exact facet selection", async ({ page }) => {

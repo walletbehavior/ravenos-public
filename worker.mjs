@@ -2882,6 +2882,17 @@ const ATLAS_API_ENDPOINTS = Object.freeze({
   "/api/atlas/provider-health": "provider_health",
 });
 
+const ATLAS_PUBLIC_QUERY_ALIASES = Object.freeze({
+  US02Y: "DGS2",
+  US10Y: "DGS10",
+  FEDFUNDS: "DFF",
+});
+
+function atlasOriginSearchQuery(query = "") {
+  const clean = String(query || "").trim().replace(/\s+/g, " ");
+  return ATLAS_PUBLIC_QUERY_ALIASES[clean.toUpperCase()] || clean;
+}
+
 async function handleAtlasUniverse(request, env = {}, endpoint = "") {
   const url = new URL(request.url);
   const query = String(url.searchParams.get("q") || "");
@@ -2893,7 +2904,8 @@ async function handleAtlasUniverse(request, env = {}, endpoint = "") {
   const dataField = String(url.searchParams.get("data_field") || "");
   const limit = Number(url.searchParams.get("limit") || (endpoint === "featured" ? 8 : endpoint === "search" ? 20 : 240));
   const viewerToken = String(request.headers.get("x-ravenos-atlas-viewer") || "");
-  const result = await loadPublicAtlasUniverse({ env, endpoint, query, entityId, expiration, facetId, facetValue, frequency, dataField, limit, viewerToken });
+  const originQuery = endpoint === "search" ? atlasOriginSearchQuery(query) : query;
+  const result = await loadPublicAtlasUniverse({ env, endpoint, query: originQuery, entityId, expiration, facetId, facetValue, frequency, dataField, limit, viewerToken });
   if (!result.available || result.delivery?.source !== "current_public_origin" || result.delivery?.fallback !== false) {
     const invalid = result.delivery?.reason === "invalid_atlas_request";
     return json({
@@ -2912,7 +2924,10 @@ async function handleAtlasUniverse(request, env = {}, endpoint = "") {
       headers: projectionRouteHeaders(url.pathname, result.delivery),
     });
   }
-  return json(attachDelivery(result.payload, result.delivery), {
+  const payload = endpoint === "search" && originQuery !== query.trim()
+    ? { ...result.payload, query: query.trim() }
+    : result.payload;
+  return json(attachDelivery(payload, result.delivery), {
     status: 200,
     headers: projectionRouteHeaders(url.pathname, result.delivery),
   });

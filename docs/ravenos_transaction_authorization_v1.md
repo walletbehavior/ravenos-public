@@ -20,6 +20,8 @@ The current RavenOS Worker exposes read-only quote/review scaffolding and report
 
 `lib/cross_market/trade_intent.mjs` is a preliminary non-signing product contract. It is not the authorization service described here.
 
+`lib/customer_trade/execution_readiness.mjs` is now a pure, internal-only readiness model for the immutable review binding, allowed state transitions, payload comparison, quote expiry, recent-reauthentication gate, and at-most-once submission rule described below. Its focused tests use fixtures only. It has no Worker import, route, browser bundle, signer, provider submission call, persistence service, or live venue access. The current gate deliberately reports owner-only execution unavailable because signing, submission, the private kill-switch clearance, and fill/position reconciliation are all false. This checkpoint strengthens the future contract; it does not change the public boundary above.
+
 ## Required state machine
 
 ```text

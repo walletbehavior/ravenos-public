@@ -48,6 +48,7 @@ function cleanState(value, fallback = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE) {
 }
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -60,7 +61,8 @@ function normalizeCandles(value) {
       high: finite(row?.high),
       low: finite(row?.low),
       close: finite(row?.close),
-      volume: finite(row?.volume) || 0,
+      volume: finite(row?.volume),
+      quote_volume: finite(row?.quote_volume ?? row?.quoteVolume),
     }))
     .filter((row) => row.time !== null && row.time !== undefined && row.open > 0 && row.high > 0 && row.low > 0 && row.close > 0);
 }
@@ -91,6 +93,16 @@ function volumeLabel(value) {
   const parsed = finite(value);
   if (parsed === null) return "--";
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(parsed);
+}
+
+function signedPriceChange(open, close) {
+  const start = finite(open);
+  const end = finite(close);
+  if (start === null || end === null) return { absolute: null, percent: null };
+  return {
+    absolute: end - start,
+    percent: start === 0 ? null : ((end / start) - 1) * 100,
+  };
 }
 
 function crosshairTimeLabel(value) {
@@ -151,7 +163,7 @@ function createMarkup() {
         <div class="rpw-chart" data-rpw-chart></div>
         <div class="rpw-marker-index" data-rpw-marker-index hidden aria-label="Inspectable Raven chart markers"></div>
         <div class="rpw-watermark" data-rpw-watermark>Data unavailable</div>
-        <div class="rpw-crosshair" data-rpw-crosshair hidden></div>
+        <div class="rpw-crosshair" data-rpw-crosshair hidden aria-live="polite"></div>
         <div class="rpw-coverage-note" data-rpw-coverage-note hidden aria-live="polite"></div>
         <div class="rpw-state-panel" data-rpw-state-panel>
           <strong>Market data unavailable</strong>
@@ -174,6 +186,8 @@ export class PriceWorkspace {
     this.activeIndicators = new Set(Array.isArray(options.indicators) ? options.indicators : ["ema20"]);
     this.chartHandle = null;
     this.liveRelease = null;
+    this.lastLiveRequest = null;
+    this.lastLivePayload = null;
     this.requestSequence = 0;
     this.liveGeneration = 0;
     this.paintFrame = null;
@@ -182,6 +196,7 @@ export class PriceWorkspace {
     this.backfillArmed = false;
     this.backfillArmTimer = null;
     this.followLive = true;
+    this.inspectingCandle = false;
     this.tradeBuffer = new BoundedEventBuffer(options.tradeLimit || 60);
     this.renderInput = {};
     this.state = {
@@ -222,7 +237,38 @@ export class PriceWorkspace {
     this.bindFollowLive();
     this.bindFocusMode();
     this.bindOverlayMenu();
+    this.bindVisibility();
     this.paintState();
+  }
+
+  bindVisibility() {
+    this._visibilityHandler = () => {
+      if (document.hidden) {
+        if (this.liveRelease || this.state.capabilities?.live_bars === true) {
+          this.stopLive("paused_hidden");
+          this.publishConnectionState();
+        }
+        return;
+      }
+      if (
+        !this.liveRelease
+        && this.lastLiveRequest
+        && this.lastLivePayload
+        && this.state.instrument
+        && this.state.capabilities?.live_bars === true
+      ) {
+        this.state.connectionState = "reconnecting";
+        this.publishConnectionState();
+        this.startLive(this.lastLiveRequest, this.lastLivePayload);
+      }
+    };
+    document.addEventListener("visibilitychange", this._visibilityHandler);
+  }
+
+  publishConnectionState() {
+    this.paintState();
+    this.options.onStateChange?.({ ...this.state });
+    document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
   }
 
   bindTimeframes() {
@@ -340,6 +386,18 @@ export class PriceWorkspace {
       const selected = event.target.closest(".raven-overlay-options button:not(:disabled), .raven-overlay-active button:not(:disabled)");
       if (selected) close();
     });
+    this._overlayPointerHandler = (event) => {
+      if (!this.root.classList.contains("rpw-overlays-open")) return;
+      if (!this.root.contains(event.target)) close();
+    };
+    this._overlayKeyHandler = (event) => {
+      if (event.key !== "Escape" || !this.root.classList.contains("rpw-overlays-open")) return;
+      event.preventDefault();
+      close();
+      button.focus();
+    };
+    document.addEventListener("pointerdown", this._overlayPointerHandler);
+    document.addEventListener("keydown", this._overlayKeyHandler);
   }
 
   setTimeframe(timeframe) {
@@ -396,6 +454,7 @@ export class PriceWorkspace {
     panel.hidden = !showPanel;
     panel.querySelector("strong").textContent = label === "Loading" ? "Loading market data" : label;
     panel.querySelector("span").textContent = this.state.message || "No provider-backed candles are available for this market.";
+    if (showPanel) this.container.querySelector("[data-rpw-crosshair]").hidden = true;
     this.paintTrades();
   }
 
@@ -483,6 +542,8 @@ export class PriceWorkspace {
   async load(request = {}) {
     const sequence = ++this.requestSequence;
     this.stopLive();
+    this.lastLiveRequest = null;
+    this.lastLivePayload = null;
     this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
     this.lastRequest = { ...request };
     this.backfillArmed = false;
@@ -614,6 +675,8 @@ export class PriceWorkspace {
   } = {}) {
     ++this.requestSequence;
     this.stopLive();
+    this.lastLiveRequest = null;
+    this.lastLivePayload = null;
     this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
     this.lastRequest = null;
     this.destroyChart();
@@ -671,6 +734,7 @@ export class PriceWorkspace {
       onMarkerSelect: (marker) => this.options.onMarkerSelect?.(marker),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
     });
+    this.renderCrosshair(null);
     this.paintMarkerIndex();
     const publishGeometry = () => {
       const geometry = this.chartHandle?.measure?.() || null;
@@ -695,15 +759,38 @@ export class PriceWorkspace {
 
   renderCrosshair(crosshair) {
     const host = this.container.querySelector("[data-rpw-crosshair]");
-    if (!crosshair?.time || crosshair.close === null || crosshair.close === undefined) {
+    const latest = this.state.candles.at(-1) || null;
+    const selected = crosshair?.time && crosshair.close !== null && crosshair.close !== undefined ? crosshair : latest;
+    this.inspectingCandle = selected === crosshair && Boolean(crosshair);
+    if (!selected?.time || selected.close === null || selected.close === undefined) {
       host.hidden = true;
       return;
     }
     host.hidden = false;
-    const change = finite(crosshair.open) && finite(crosshair.close)
-      ? ((finite(crosshair.close) / finite(crosshair.open)) - 1) * 100
-      : null;
-    host.textContent = `${crosshairTimeLabel(crosshair.time)}  O ${priceLabel(crosshair.open)}  H ${priceLabel(crosshair.high)}  L ${priceLabel(crosshair.low)}  C ${priceLabel(crosshair.close)}${change === null ? "" : `  ${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}  V ${volumeLabel(crosshair.volume)}`;
+    host.dataset.mode = this.inspectingCandle ? "inspect" : "latest";
+    const change = signedPriceChange(selected.open, selected.close);
+    const signed = (value, suffix = "") => value === null ? "—" : `${value >= 0 ? "+" : ""}${priceLabel(value)}${suffix}`;
+    const fields = [
+      [this.inspectingCandle ? "Inspect" : "Latest", crosshairTimeLabel(selected.time)],
+      ["O", priceLabel(selected.open)],
+      ["H", priceLabel(selected.high)],
+      ["L", priceLabel(selected.low)],
+      ["C", priceLabel(selected.close)],
+      ["Δ", signed(change.absolute)],
+      ["Change", change.percent === null ? "—" : `${change.percent >= 0 ? "+" : ""}${change.percent.toFixed(2)}%`],
+      ["Base vol", volumeLabel(selected.volume)],
+      ["Quote vol", volumeLabel(selected.quote_volume ?? selected.quoteVolume)],
+    ];
+    host.replaceChildren(...fields.map(([label, value], index) => {
+      const cell = document.createElement("span");
+      if (index === 0) cell.className = "rpw-crosshair-time";
+      const key = document.createElement("small");
+      key.textContent = label;
+      const result = document.createElement("strong");
+      result.textContent = value;
+      cell.append(key, result);
+      return cell;
+    }));
   }
 
   attachIntelligence({ evidence = null, narrator = null } = {}) {
@@ -746,6 +833,13 @@ export class PriceWorkspace {
 
   startLive(request, payload) {
     if (!this.state.instrument || payload?.capabilities?.live_bars !== true) return;
+    this.lastLiveRequest = { ...request };
+    this.lastLivePayload = payload;
+    if (document.hidden) {
+      this.state.connectionState = "paused_hidden";
+      this.publishConnectionState();
+      return;
+    }
     const generation = ++this.liveGeneration;
     const key = `${this.state.instrument.canonical_id}:${this.state.timeframe}`;
     const createFeed = () => {
@@ -774,10 +868,8 @@ export class PriceWorkspace {
           const prior = this.state.connectionState;
           this.state.connectionState = status?.state || "unknown";
           if (status?.source && ["live", "polling"].includes(status.state)) this.state.source = status.source;
-          this.paintState();
-          this.options.onStateChange?.({ ...this.state });
-          document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
-          if (status?.state === "live" && ["reconnecting", "degraded"].includes(prior)) this.reconcileAfterReconnect(request);
+          this.publishConnectionState();
+          if (status?.state === "live" && ["reconnecting", "degraded", "paused_hidden"].includes(prior)) this.reconcileAfterReconnect(request);
         },
       });
     } catch (error) {
@@ -843,6 +935,7 @@ export class PriceWorkspace {
     this.state.candles.sort((left, right) => Number(left.time) - Number(right.time));
     if (this.state.candles.length > 1200) this.state.candles.splice(0, this.state.candles.length - 1200);
     this.chartHandle?.updateCandle?.(candle);
+    if (!this.inspectingCandle) this.renderCrosshair(null);
     if (this.followLive) this.chartHandle?.scrollToRealTime?.();
   }
 
@@ -874,11 +967,11 @@ export class PriceWorkspace {
     }
   }
 
-  stopLive() {
+  stopLive(connectionState = "disconnected") {
     this.liveGeneration += 1;
     this.liveRelease?.();
     this.liveRelease = null;
-    this.state.connectionState = "disconnected";
+    this.state.connectionState = connectionState;
   }
 
   destroyChart() {
@@ -904,12 +997,17 @@ export class PriceWorkspace {
   destroy() {
     this.requestSequence += 1;
     this.stopLive();
+    this.lastLiveRequest = null;
+    this.lastLivePayload = null;
     if (this.paintFrame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.paintFrame);
     this.paintFrame = null;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
     this._clearFocus?.();
     if (this._focusKeyHandler) document.removeEventListener("keydown", this._focusKeyHandler);
+    if (this._overlayPointerHandler) document.removeEventListener("pointerdown", this._overlayPointerHandler);
+    if (this._overlayKeyHandler) document.removeEventListener("keydown", this._overlayKeyHandler);
+    if (this._visibilityHandler) document.removeEventListener("visibilitychange", this._visibilityHandler);
     this.destroyChart();
     this.container.replaceChildren();
   }

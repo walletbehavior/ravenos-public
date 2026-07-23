@@ -141,7 +141,7 @@ function providerCreditMarkup() {
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },
     { mark: "K", name: "Constant-K + Raven", role: "Evidence and participant interpretation", href: "/docs/" },
     { mark: "CF", name: "Cloudflare", role: "Edge delivery and bounded caching", href: "https://www.cloudflare.com/" },
-    { mark: "TV", name: "TradingView", role: "Lightweight Charts rendering engine", href: "https://www.tradingview.com/" },
+    { mark: "TV", name: "TradingView", role: "Listed-market visual context and chart renderer", href: "https://www.tradingview.com/" },
   ];
   const rows = providers.map((provider) => `<a class="ros-provider-row" href="${provider.href}" ${provider.href.startsWith("http") ? 'target="_blank" rel="noopener noreferrer"' : ""}><span class="ros-provider-mark${provider.official ? " official" : ""}">${provider.official ? '<img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" />' : escapeHtml(provider.mark)}</span><span><strong>${escapeHtml(provider.name)}</strong><small>${escapeHtml(provider.role)}</small></span></a>`).join("");
   return `<details class="ros-provider-credit"><summary><img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" /><span>Data by DexPaprika + CoinGecko</span></summary><section class="ros-provider-panel" aria-label="RavenOS data providers"><header><span>Data sources</span><strong>The pipes beneath RavenOS</strong><p>Each source has a bounded job. Raven supplies the evidence and interpretation.</p></header><div class="ros-provider-grid">${rows}</div><footer>Provider attribution describes data sources, not endorsement or partnership.</footer></section></details>`;
@@ -289,6 +289,42 @@ function traditionalSearchInstrument(instrument = {}) {
     group: "Listed markets",
     raven_context: false,
     subject,
+  };
+}
+
+function atlasSearchInstrument(row = {}, query = "") {
+  const entityId = String(row.entity_id || "").trim();
+  const symbol = String(row.symbol || "").trim().toUpperCase();
+  const kind = String(row.entity_kind || "").trim().toLowerCase();
+  if (!entityId || !symbol || row.selectable !== true) return null;
+  if (kind === "sec_filing" && !/(?:\d{10}-\d{2}-\d{6}|\b10-[kq]\b|\b8-k\b|\bform\s*4\b)/i.test(query)) return null;
+  const kindLabels = {
+    index: "Index",
+    forex_pair: "Forex",
+    future_root: "Futures",
+    future_contract: "Futures contract",
+    rate_series: "Rate series",
+    economic_series: "Economic series",
+    energy_series: "Energy series",
+    sec_issuer: "SEC issuer",
+    sec_filing: "SEC filing",
+    crypto_context_asset: "Crypto context",
+  };
+  const timing = String(row.data_timing || row.status || "").toUpperCase();
+  const timingLabel = timing === "PERIODIC" ? "Periodic" : timing === "DELAYED" ? "Delayed" : timing === "LIVE" ? "Timing shown on open" : "Availability checked on open";
+  return {
+    instrument_id: `atlas:${entityId}`,
+    asset: symbol,
+    symbol,
+    label: `${symbol} · ${row.name || kindLabels[kind] || "Atlas entity"}`,
+    name: row.name || symbol,
+    detail: `${kindLabels[kind] || kind.replaceAll("_", " ")} · ${row.provider || "Atlas"} · ${timingLabel}`,
+    state: row.public_display_eligibility === "allowed" ? "Open Atlas context" : "Identity available · values checked on open",
+    group: "Atlas",
+    atlas_entity_kind: kind,
+    destination: "atlas",
+    href: `/atlas/?entity_id=${encodeURIComponent(entityId)}`,
+    raven_context: false,
   };
 }
 
@@ -482,7 +518,7 @@ export function mountRavenOSShell(options = {}) {
     document.body.classList.add("ros-utility-open");
   }
 
-  function appendCommandResult(item) {
+  function appendCommandResult(item, host = commandResults) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "ros-command-result instrument";
@@ -499,11 +535,15 @@ export function mountRavenOSShell(options = {}) {
     button.append(eyebrow, title, detail, state);
     button.addEventListener("click", () => {
       palette.close();
+      if (item.href) {
+        ravenOSContext.navigate(item.href);
+        return;
+      }
       const subject = item.subject || instrumentSubject(item);
       ravenOSContext.setSelection({ subject }, { updateUrl: false });
       ravenOSContext.navigate(terminalHref(subject));
     });
-    commandResults.append(button);
+    host.append(button);
   }
 
   function commandMatchRank(item, normalized) {
@@ -527,13 +567,34 @@ export function mountRavenOSShell(options = {}) {
     return 5;
   }
 
-  function commandTypeRank(item) {
+  function commandFamily(item) {
     const subject = item.subject || {};
     const type = String(subject.instrumentType || item.instrument?.instrument_type || "").toLowerCase();
-    if (["equity", "etf"].includes(type)) return 0;
-    if (type === "perpetual" || String(item.instrument_id || "").startsWith("hyperliquid:perp:")) return 1;
-    if (type === "exact_pool" || String(item.instrument_id || "").includes(":pool:")) return 2;
-    return 3;
+    if (type === "perpetual" || String(item.instrument_id || "").startsWith("hyperliquid:perp:")) return "Perpetuals";
+    if (type === "exact_pool" || String(item.instrument_id || "").includes(":pool:")) return "Spot markets";
+    if (["equity", "etf"].includes(type)) return "Stocks & ETFs";
+    const atlasKind = String(item.atlas_entity_kind || "").toLowerCase();
+    if (atlasKind === "index") return "Indices";
+    if (["forex_pair", "future_root", "future_contract"].includes(atlasKind)) return "Macro markets";
+    if (["rate_series", "economic_series"].includes(atlasKind)) return "Rates & economy";
+    if (atlasKind === "energy_series") return "Energy";
+    if (["sec_issuer", "sec_filing"].includes(atlasKind)) return "Companies & filings";
+    return "Other exact instruments";
+  }
+
+  function commandFamilyRank(item, normalized, rows) {
+    const family = commandFamily(item);
+    const explicitPerp = /(?:-perp|\bperp(?:etual)?s?)$/i.test(normalized);
+    const addressQuery = /^0x[a-f0-9]{40}$/i.test(normalized) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalized);
+    const exactPerp = rows.some((row) => commandFamily(row) === "Perpetuals" && commandMatchRank(row, normalized) === 0);
+    const contextFamilies = ["Indices", "Macro markets", "Rates & economy", "Energy", "Companies & filings", "Other exact instruments"];
+    const order = addressQuery
+      ? ["Spot markets", "Perpetuals", "Stocks & ETFs", ...contextFamilies]
+      : explicitPerp || exactPerp
+        ? ["Perpetuals", "Stocks & ETFs", "Spot markets", ...contextFamilies]
+        : ["Stocks & ETFs", "Perpetuals", "Spot markets", ...contextFamilies];
+    const rank = order.indexOf(family);
+    return rank === -1 ? order.length : rank;
   }
 
   function commandSpotQualityRank(item) {
@@ -574,17 +635,38 @@ export function mountRavenOSShell(options = {}) {
       .filter((item) => !normalized || [item.asset, item.label, item.symbol, item.name, item.instrument_id, item.detail, item.instrument?.display_name, item.instrument?.market_identity?.listing].filter(Boolean).join(" ").toLowerCase().includes(normalized))
       .slice(0, clean ? 16 : 6);
     const resolvedResults = spotSearch.query === normalized ? spotSearch.rows : [];
-    const instruments = uniqueCommandResults([...indexedInstruments, ...resolvedResults])
+    const candidates = uniqueCommandResults([...indexedInstruments, ...resolvedResults]);
+    const instruments = candidates
       .sort((left, right) => (
         commandMatchRank(left, normalized) - commandMatchRank(right, normalized)
         || Number(Boolean(right.raven_context)) - Number(Boolean(left.raven_context))
-        || commandTypeRank(left) - commandTypeRank(right)
+        || commandFamilyRank(left, normalized, candidates) - commandFamilyRank(right, normalized, candidates)
         || compareSpotQuality(left, right)
         || String(left.label || left.asset).localeCompare(String(right.label || right.asset))
       ))
-      .slice(0, clean ? 16 : 6);
-    for (const item of instruments) appendCommandResult(item);
-    if (!commandResults.children.length) {
+      .slice(0, clean ? 24 : 8);
+    const grouped = new Map();
+    for (const item of instruments) {
+      const family = commandFamily(item);
+      if (!grouped.has(family)) grouped.set(family, []);
+      grouped.get(family).push(item);
+    }
+    for (const [family, rows] of grouped) {
+      const section = document.createElement("section");
+      section.className = "ros-command-group";
+      const heading = document.createElement("header");
+      const label = document.createElement("strong");
+      label.textContent = family;
+      const count = document.createElement("span");
+      count.textContent = `${rows.length} exact ${rows.length === 1 ? "choice" : "choices"}`;
+      heading.append(label, count);
+      const grid = document.createElement("div");
+      grid.className = "ros-command-group-grid";
+      for (const item of rows) appendCommandResult(item, grid);
+      section.append(heading, grid);
+      commandResults.append(section);
+    }
+    if (!instruments.length) {
       const empty = document.createElement("div");
       empty.className = "ros-command-empty";
       const searchPending = clean.length >= 1 && spotSearch.query === normalized && spotSearch.state === "searching";
@@ -634,12 +716,16 @@ export function mountRavenOSShell(options = {}) {
         const likelyContractAddress = /^0x[a-f0-9]{40}$/i.test(clean) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean);
         const spotApplicable = clean.length >= 2;
         const listedApplicable = !likelyContractAddress;
-        const [spotResult, listedResult] = await Promise.allSettled([
+        const atlasApplicable = clean.length >= 2 && !likelyContractAddress;
+        const [spotResult, listedResult, atlasResult] = await Promise.allSettled([
           spotApplicable
             ? fetchJson(`/api/dexscreener/search?q=${encodeURIComponent(clean)}`, { signal: controller.signal })
             : Promise.resolve(null),
           listedApplicable
             ? fetchJson(`/api/instruments/search?q=${encodeURIComponent(clean)}`, { signal: controller.signal })
+            : Promise.resolve(null),
+          atlasApplicable
+            ? fetchJson(`/api/atlas/search?q=${encodeURIComponent(clean)}&limit=20`, { signal: controller.signal })
             : Promise.resolve(null),
         ]);
         if (generation !== spotSearchGeneration) return;
@@ -653,8 +739,16 @@ export function mountRavenOSShell(options = {}) {
           && listedResult.value?.response?.ok
           && Array.isArray(listedResult.value?.payload?.results)
         );
+        const atlasAvailable = atlasApplicable && (
+          atlasResult.status === "fulfilled"
+          && atlasResult.value?.response?.ok
+          && atlasResult.value?.payload?.schema_version === "atlas_search_result_v1"
+          && Array.isArray(atlasResult.value?.payload?.results)
+        );
         const spotRows = spotAvailable ? rankSpotSearchRows(spotResult.value.payload.results, clean) : [];
         const listedRows = !listedAvailable ? [] : listedResult.value.payload.results;
+        const listedSymbols = new Set(listedRows.map((row) => String(row.symbol || "").toUpperCase()).filter(Boolean));
+        const atlasRows = atlasAvailable ? atlasResult.value.payload.results : [];
         const rows = [...spotRows.flatMap((row) => {
           const instrument = spotSearchInstrument(row);
           if (!instrument || seen.has(instrument.instrument_id)) return [];
@@ -665,10 +759,17 @@ export function mountRavenOSShell(options = {}) {
           if (!instrument || seen.has(instrument.instrument_id)) return [];
           seen.add(instrument.instrument_id);
           return [instrument];
-        })].slice(0, 36);
+        }), ...atlasRows.flatMap((row) => {
+          if (["equity", "etf"].includes(row.entity_kind) && listedSymbols.has(String(row.symbol || "").toUpperCase())) return [];
+          const instrument = atlasSearchInstrument(row, clean);
+          if (!instrument || seen.has(instrument.instrument_id)) return [];
+          seen.add(instrument.instrument_id);
+          return [instrument];
+        })].slice(0, 48);
         const summary = [
           !spotApplicable ? "onchain search starts at 2 characters" : spotAvailable ? "onchain markets current" : "onchain markets unavailable",
           !listedApplicable ? "listed markets not applicable" : listedAvailable ? "listed markets current" : "listed markets unavailable",
+          !atlasApplicable ? "Atlas context not applicable" : atlasAvailable ? "Atlas catalog current" : "Atlas catalog unavailable",
         ].join(" · ");
         spotSearch = {
           query: normalized,
