@@ -2573,7 +2573,7 @@ async function terminalChartPayload({
       };
       payload.instrument_scope = "exact_pool";
       if (!before && payload.ok) {
-        const pair = (await pairDex(String(chain || "").toLowerCase(), pairAddress))[0];
+        const pair = (await pairDex(String(chain || "").toLowerCase(), pairAddress).catch(() => []))[0];
         if (pair) payload.market_state = {
           ...(payload.market_state || {}),
           last: pair.priceUsd,

@@ -85,8 +85,10 @@ const anchors = [
     quote_address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
     intervals,
     evaluation_intervals: ["1m", "15m", "1h"],
-    minimum_bars: { "15m": 60, "1h": 20 },
-    expected_unavailable_for: ["coingecko", "coingecko_onchain"],
+    // This pool is only a few days old. Dense lower intervals remain the
+    // readiness gate; higher intervals must preserve its real, bounded age
+    // instead of manufacturing pre-launch history.
+    minimum_bars: { "15m": 60, "1h": 20, "4h": 12, "1d": 2 },
   },
   {
     name: "SOL-PERP Hyperliquid",

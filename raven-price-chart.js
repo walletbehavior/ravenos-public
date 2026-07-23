@@ -444,6 +444,11 @@
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
+      trackingMode: {
+        // Mobile inspection is deliberate: hold to inspect, drag across exact
+        // candles, and return to the latest candle when the finger lifts.
+        exitMode: api.TrackingModeExitMode?.OnTouchEnd ?? 0,
+      },
       localization: {
         priceFormatter,
       },

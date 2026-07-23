@@ -1,4 +1,5 @@
 import { canonicalInstrumentId, RAVENOS_CHART_INSTRUMENT_SCHEMA } from "./ravenos-chart-data-plane.js";
+import { customerFacingText } from "./ravenos-intelligence-contract.js";
 
 const state = { opportunities: [], markets: new Map(), atlas: null, selected: null, candles: [], chartRequest: 0 };
 
@@ -71,7 +72,7 @@ function renderOpportunityList() {
   }
   for (const row of state.opportunities.slice(0, 5)) {
     const button = document.createElement("button"); button.type = "button"; button.className = "landing-opportunity"; button.dataset.instrumentId = row.instrument_id;
-    const copy = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.instrument; const small = document.createElement("small"); small.textContent = row.why_raven_noticed || "Current Raven observation"; copy.append(strong, small);
+    const copy = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.instrument; const small = document.createElement("small"); small.textContent = customerFacingText(row.why_raven_noticed, "Current Raven observation"); copy.append(strong, small);
     const freshness = document.createElement("span"); freshness.textContent = title(row.context_state || "current"); button.append(copy, freshness);
     button.addEventListener("click", () => selectOpportunity(row)); host.append(button);
   }
@@ -126,7 +127,11 @@ function selectOpportunity(row) {
   setText("landingPrice", price(market.last_price ?? market.lastPrice)); const change = finite(market.day_change_pct ?? market.dayChangePct); setText("landingChange", percent(change));
   const changeNode = document.getElementById("landingChange"); changeNode.classList.toggle("positive", change !== null && change >= 0); changeNode.classList.toggle("negative", change !== null && change < 0);
   setText("landingVenue", "Hyperliquid"); setText("landingFunding", percent(market.funding_rate ?? market.funding, { ratio: true })); setText("landingOpenInterest", compact(market.open_interest_usd)); setText("landingFreshness", title(row.context_state));
-  setText("landingReadState", `${title(row.context_state)} · research only`); setText("landingWhy", row.why_raven_noticed, "No current public explanation is available."); setText("landingReadSummary", `${title(row.pressure_state)}. Exact market facts and Raven evidence retain separate source timestamps.`); setText("landingPath", pathLabel(row.path_review?.state)); setText("landingEvidence", title(row.context_state)); setText("landingComparables", finite(row.matured_comparables?.sample_size)?.toLocaleString() || "Unavailable");
+  setText("landingReadState", `${title(row.context_state)} · research only`); setText("landingWhy", customerFacingText(row.why_raven_noticed, "No current public explanation is available.")); setText("landingReadSummary", `${title(row.pressure_state)}. Exact market facts and Raven evidence retain separate source timestamps.`); setText("landingPath", pathLabel(row.path_review?.state)); setText("landingEvidence", title(row.context_state));
+  const comparableCount = finite(row.matured_comparables?.sample_size);
+  const comparableCell = document.getElementById("landingComparables")?.closest("div");
+  if (comparableCell) comparableCell.hidden = !(comparableCount > 0);
+  setText("landingComparables", comparableCount > 0 ? comparableCount.toLocaleString() : "");
   const inspect = document.getElementById("landingInspect"); inspect.href = terminalHref(row);
   loadChart(row);
 }

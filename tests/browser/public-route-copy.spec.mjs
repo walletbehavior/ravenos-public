@@ -132,7 +132,8 @@ for (const route of ["/faq/", "/research/"]) {
 test("/opportunity/ renders current exact markets without engineering inventory", async ({ page }) => {
   await page.goto("/opportunity/");
   await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
-  await expect(page.locator("#routeHeroSummary")).toContainText(/Raven froze|Raven preserved/i);
+  await expect(page.locator("#routeHeroSummary")).not.toContainText(/Raven froze|Raven preserved/i);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/Independent evidence confirmed|appeared/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(primary).toMatch(/Current exact markets/i);
   expect(primary).toMatch(/Exact, current, or unavailable/i);

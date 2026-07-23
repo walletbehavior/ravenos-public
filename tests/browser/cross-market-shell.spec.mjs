@@ -215,7 +215,8 @@ test("Discover combines Raven opportunities with exact Atlas rows without mergin
   await expect(atlasRow).toHaveCount(1);
   await expect(atlasRow).toContainText("Etf · Atlas");
   await expect(atlasRow).toContainText("5d +1.20%");
-  await expect(atlasRow).toContainText("Raven behavior unavailable");
+  await expect(atlasRow).toContainText("Balanced options · current");
+  await expect(atlasRow).not.toContainText("Raven behavior unavailable");
   await expect(atlasRow).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   await page.locator("[data-discover-filter='equity']").click();
   await expect(atlasRow).toBeVisible();
@@ -370,9 +371,9 @@ test("Terminal loads exact ETF candles and Atlas context without inventing Raven
   await expect(page.locator("#terminalInstrument")).toHaveText("SPY");
   await expect(page.locator("#terminalPickerMeta")).toHaveText("etf:nyse-arca:spy");
   await expect(page.locator("#terminalVenueLabel")).toHaveText("NYSE Arca");
-  await expect(page.locator("#terminalWhyLabel")).toHaveText("What Atlas adds");
-  await expect(page.locator("#terminalWhy")).toContainText("No Raven behavioral claim has been substituted");
-  await expect(page.locator("#terminalEvidenceState")).toHaveText("Atlas context · Raven unavailable");
+  await expect(page.locator("#terminalWhyLabel")).toHaveText("Why it matters");
+  await expect(page.locator("#terminalWhy")).toContainText("Options are balanced");
+  await expect(page.locator("#terminalEvidenceState")).toContainText("Current");
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   expect(calls.some((call) => call.market === "equities" && call.instrumentId === "etf:nyse-arca:spy")).toBe(true);
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
@@ -395,7 +396,7 @@ test("company or fund name search resolves an Atlas ETF directly into its exact 
   await result.click();
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=etf%3Anyse-arca%3Aspy/);
   await expect(page.locator("#terminalPickerMeta")).toHaveText("etf:nyse-arca:spy");
-  await expect(page.locator("#terminalWhyLabel")).toHaveText("What Atlas adds");
+  await expect(page.locator("#terminalWhyLabel")).toHaveText("Why it matters");
 });
 
 test("exact listed symbols rank ahead of same-ticker token pools while preserving both choices", async ({ page }) => {
@@ -532,11 +533,10 @@ test("universal search resolves an arbitrary exact equity even when Atlas contex
   await expect(page.locator("#terminalInstrument")).toHaveText("AAPL");
   await expect(page.locator("#terminalPickerMeta")).toHaveText("equity:nasdaq:aapl");
   await expect(page.locator("#terminalVenueLabel")).toHaveText("Nasdaq");
-  await expect(page.locator("#terminalWhyLabel")).toHaveText("Why this market");
-  await expect(page.locator("#terminalWhy")).toContainText("market data only");
-  await expect(page.locator("#terminalEvidenceState")).toHaveText("Intelligence unavailable");
-  await expect(page.locator("#terminalDeepLink")).toHaveText("Atlas context unavailable");
-  await expect(page.locator("#terminalBoundary")).toContainText("Provider snapshot available");
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  await expect(page.locator("#terminalReadTrigger")).toBeHidden();
+  await expect(page.locator("#terminalDeepLink")).toHaveText("Open in Atlas");
+  await expect(page.locator("#terminalBoundary")).toContainText("Market snapshot current");
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
   expect(terminal.instrumentId).toBe("equity:nasdaq:aapl");
@@ -547,6 +547,36 @@ test("universal search resolves an arbitrary exact equity even when Atlas contex
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("an exact listed instrument uses TradingView visual context when native public candles are display-restricted", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await mockTerminalLiveApis(page);
+  await page.route("**/api/atlas", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }),
+  }));
+  await page.route("**/api/terminal/chart**", (route) => route.fulfill({
+    status: 451,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: false,
+      source_type: "display_restricted",
+      freshness_state: "unavailable",
+      message: "Public listed-market candles are display restricted.",
+      candles: [],
+    }),
+  }));
+  await page.goto("/terminal/?asset=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&instrument_type=equity&asset_class=equity&market=equities&timeframe=1h");
+  await expect(page.locator("#terminalInstrument")).toHaveText("AAPL");
+  await expect(page.locator(".terminal-external-chart iframe")).toBeVisible();
+  await expect(page.locator("#terminalChart canvas")).toHaveCount(0);
+  await expect(page.locator("#terminalChartStatus")).toContainText("TradingView visual chart");
+  await expect(page.locator("#terminalChartCredit")).toHaveText("Chart by TradingView");
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  const source = await page.locator(".terminal-external-chart iframe").getAttribute("src");
+  expect(decodeURIComponent(source || "")).toContain('"symbol":"NASDAQ:AAPL"');
 });
 
 test("universal search resolves an exact supported spot pool without a second mode search", async ({ page }) => {
@@ -563,7 +593,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
-  await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
   await expect(page.locator("#terminalAnatomy6")).not.toContainText(/capability|check|required/i);
 });

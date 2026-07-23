@@ -75,6 +75,14 @@ test("a bounded operator label may clarify which intelligence layer is unavailab
 test("legacy implementation language is normalized for customer renderings", () => {
   assert.equal(customerFacingText("Solana Live Activity"), "Solana market activity");
   assert.equal(customerFacingText("The closest comparable has sample depth is public-safe."), "The closest prior case has sample depth is available.");
+  assert.equal(
+    customerFacingText("Raven froze a crowding fade observation while mixed pressure was present."),
+    "Crowding fade appeared while mixed pressure was in place.",
+  );
+  assert.equal(
+    customerFacingText("A frozen decision observation is joined to this exact venue instrument."),
+    "A timestamped market observation is joined to this exact venue instrument.",
+  );
 });
 
 test("legacy narrator payload maps into one structured intelligence contract", () => {

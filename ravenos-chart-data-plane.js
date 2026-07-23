@@ -40,7 +40,7 @@ function deepFreeze(value) {
 
 export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
   schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
-  revision: "2026-07-22",
+  revision: "2026-07-23",
   network_aliases: {
     eth: "ethereum",
     avax: "avalanche",
@@ -146,15 +146,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       execution_support: false,
     },
     robinhood: {
-      provider_networks: { dexpaprika: "robinhood" },
-      provider_order: ["dexpaprika"],
+      provider_networks: { dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
+      provider_order: ["coingecko_onchain", "dexpaprika"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
       maximum_history_bars: 366,
-      history_provider: "dexpaprika",
-      live_provider: "dexpaprika",
+      history_provider: "coingecko_onchain",
+      live_provider: "coingecko_onchain",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,

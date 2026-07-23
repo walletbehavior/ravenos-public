@@ -87,7 +87,7 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   assert.equal(robinhood.chart_request_supported, true);
   assert.equal(robinhood.advertised_chart_ready, false);
   assert.equal(robinhood.exact_market_verification, "probe_required");
-  assert.equal(robinhood.history_provider, "dexpaprika");
+  assert.equal(robinhood.history_provider, "coingecko_onchain");
   assert.equal(robinhood.provider_network, "robinhood");
   const robinhoodViaCoinGecko = resolveChartCapability({
     market: "crypto_spot",
@@ -97,10 +97,10 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
     timeframe: "15m",
     providerId: "coingecko_onchain",
   });
-  assert.equal(robinhoodViaCoinGecko.chart_ready, false);
-  assert.equal(robinhoodViaCoinGecko.chart_request_supported, false);
+  assert.equal(robinhoodViaCoinGecko.chart_ready, true);
+  assert.equal(robinhoodViaCoinGecko.chart_request_supported, true);
   assert.equal(robinhoodViaCoinGecko.history_provider, "coingecko_onchain");
-  assert.equal(robinhoodViaCoinGecko.provider_network, null);
+  assert.equal(robinhoodViaCoinGecko.provider_network, "robinhood");
   const listed = resolveChartCapability({ market: "equities", instrumentType: "etf", timeframe: "1h" });
   assert.equal(listed.chart_ready, false);
   assert.equal(listed.chart_request_supported, false);
@@ -653,9 +653,9 @@ test("search reports per-provider exact-market coverage without silently switchi
     assert.equal(body.results.length, 1);
     assert.equal(body.results[0].chart_coverage.provider_id, "coingecko_onchain");
     assert.equal(body.results[0].chart_coverage.provider_plan, "demo");
-    assert.equal(body.results[0].chart_coverage.state, "unavailable");
-    assert.equal(body.results[0].chart_coverage.request_supported, false);
-    assert.equal(body.results[0].chart_coverage.one_minute_request_supported, false);
+    assert.equal(body.results[0].chart_coverage.state, "probe_required");
+    assert.equal(body.results[0].chart_coverage.request_supported, true);
+    assert.equal(body.results[0].chart_coverage.one_minute_request_supported, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -688,7 +688,8 @@ test("exact EVM contract search discovers provider-listed chains without substit
       throw new Error(`Unexpected test request: ${url}`);
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
-    assert.equal(response.status, 200);
+    const responseText = await response.clone().text();
+    assert.equal(response.status, 200, responseText);
     const body = await response.json();
     assert.equal(body.ok, true);
     assert.equal(body.results.length, 1);
@@ -1087,6 +1088,71 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     assert.equal(payload.candles.length, 3);
     assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
     assert.equal(payload.candles.some((candle) => candle.close === 99), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("Robinhood exact pools use the qualified CoinGecko network without identity substitution", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const secret = "server-only-robinhood-test-secret";
+  const pairAddress = "0x602633428507bbaa848e6d0c3127cda15eeae6a9";
+  const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
+  const quoteAddress = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  const providerRows = Array.from({ length: 180 }, (_, index) => {
+    const close = 0.0003 + (179 - index) * 0.00000001;
+    return [now - index * 60, close, close * 1.002, close * 0.998, close * 1.001, index % 5 ? 15 : 0];
+  });
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input, init = {}) => {
+      const url = String(input?.url || input);
+      if (url.includes("pro-api.coingecko.com")) {
+        assert.equal(init.headers["x-cg-pro-api-key"], secret);
+        assert.match(url, new RegExp(`/networks/robinhood/pools/${pairAddress}`));
+        if (!url.includes("/ohlcv/")) {
+          return new Response(JSON.stringify(geckoPoolIdentity({
+            network: "robinhood",
+            pairAddress,
+            baseAddress: tokenAddress,
+            quoteAddress,
+          })), { status: 200 });
+        }
+        const requestUrl = new URL(url);
+        assert.equal(requestUrl.searchParams.get("include_empty_intervals"), "true");
+        assert.equal(requestUrl.searchParams.get("token"), "base");
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: providerRows } } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=RUNNER%2FWETH&timeframe=1m&limit=180&chain=robinhood&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: secret,
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200, responseText);
+    assert.doesNotMatch(responseText, new RegExp(secret));
+    const body = JSON.parse(responseText);
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.chain, "robinhood");
+    assert.equal(payload.pair_address, pairAddress);
+    assert.equal(payload.token_address, tokenAddress);
+    assert.equal(payload.quote_address, quoteAddress);
+    assert.equal(payload.candle_series.provider, "coingecko_onchain");
+    assert.equal(payload.candles.length, 180);
+    assert.equal(payload.continuity.identity.exact_market_preserved, true);
+    assert.equal(payload.lineage.empty_interval_policy, "provider_previous_close_zero_volume");
+    assert.equal(payload.candle_series.raven_observations_are_candles, false);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

@@ -105,14 +105,14 @@ No provider becomes chart-ready because a marketing page names a chain. An exact
 
 ## CoinGecko exact-pool anchor matrix
 
-The original Demo evaluation matrix completed at `2026-07-22T17:00:36Z` with zero failures. The full matrix was repeated against the paid Basic Pro endpoint at `2026-07-22T19:45:16Z`, again with zero failures and no keyless fallback. Counts are observations from the qualified run, not availability guarantees.
+The original Demo evaluation matrix completed at `2026-07-22T17:00:36Z` with zero failures. The full matrix was repeated against the paid Basic Pro endpoint at `2026-07-22T19:45:16Z`, then repeated after adding the exact Robinhood Chain adapter on `2026-07-23`, again with zero failures and no keyless fallback. Counts are observations from the latest qualified run, not availability guarantees.
 
 | Exact market | 1m | 5m | 15m | 1h | 4h | 1d | Result |
 |---|---:|---:|---:|---:|---:|---:|---|
 | RETIRE/SOL, Solana pool `6Hfa…7gtw` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
 | cbBTC/USDC, Base pool `0x4e96…E778` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
 | WETH/USDC, Ethereum pool `0x88e6…5640` | 480 | 480 | 480 | 360 | 240 | 180 | Exact identity and full interval matrix passed |
-| RUNNER/WETH, Robinhood Chain pool `0x6026…E6a9` | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | Expected unavailable: selected provider has no Robinhood network route; no alternate pool or provider was substituted |
+| RUNNER/WETH, Robinhood Chain pool `0x6026…E6a9` | 480 | 480 | 243 | 62 | 16 | 3 | Exact identity and full available-age matrix passed; the short 4h/1d depth reflects the pool's real age |
 | SOL-PERP, Hyperliquid | 480 | 480 | 289 | 337 | 127 | 181 | Native venue matrix passed |
 | SPY, exact NYSE Arca ETF | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | Exact identity passed; public candles fail closed because no commercially qualified listed-data display license is configured |
 

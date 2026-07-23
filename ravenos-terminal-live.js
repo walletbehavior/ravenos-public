@@ -5,6 +5,7 @@ import {
   resolveChartCapability,
 } from "./ravenos-chart-data-plane.js";
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
+import { mountTradingViewChart } from "./ravenos-tradingview-adapter.js";
 
 document.body.classList.add("ros-terminal-live-shell");
 
@@ -22,6 +23,7 @@ const state = {
   searchGeneration: 0,
   selectionGeneration: 0,
   searchTimer: null,
+  externalChart: null,
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -55,6 +57,51 @@ function finite(value) {
 function setText(id, value, fallback = "--") {
   const element = document.getElementById(id);
   if (element) element.textContent = value === null || value === undefined || value === "" ? fallback : String(value);
+}
+
+function hasOperatorValue(value) {
+  if (value === null || value === undefined || value === "") return false;
+  const clean = String(value).trim().toLowerCase();
+  return Boolean(clean) && !new Set([
+    "--",
+    "—",
+    "unavailable",
+    "unknown",
+    "not projected",
+    "checking",
+    "resolving",
+    "timestamp unavailable",
+  ]).has(clean);
+}
+
+function setOptionalField(id, value, { fallback = "", show = hasOperatorValue(value) } = {}) {
+  const element = document.getElementById(id);
+  if (!element) return false;
+  element.textContent = show ? String(value) : fallback;
+  const cell = element.closest("div");
+  if (cell) cell.hidden = !show;
+  return show;
+}
+
+function setLastMetric(value) {
+  const label = formatPrice(value);
+  const show = hasOperatorValue(label);
+  setText("terminalLast", show ? label : "");
+  const cell = document.getElementById("terminalLastMetric");
+  if (cell) cell.hidden = !show;
+}
+
+function setMarketMetric(index, label, value, { show = hasOperatorValue(value) } = {}) {
+  setText(`terminalMetric${index}Label`, label, "");
+  setText(`terminalMetric${index}`, show ? value : "", "");
+  const cell = document.getElementById(`terminalMetric${index}Cell`);
+  if (cell) cell.hidden = !show;
+  return show;
+}
+
+function clearMarketMetrics() {
+  setLastMetric(null);
+  for (let index = 2; index <= 6; index += 1) setMarketMetric(index, "", "", { show: false });
 }
 
 function setState(id, value, label = null) {
@@ -163,9 +210,126 @@ function operatorList(value, fallback = "Unavailable") {
   return customerFacingText(value, fallback);
 }
 
-function setAnatomySlot(index, label, value) {
-  setText(`terminalAnatomy${index}Label`, label);
-  setText(`terminalAnatomy${index}`, value, "Unavailable");
+function setAnatomySlot(index, label, value, { show = hasOperatorValue(value) } = {}) {
+  setText(`terminalAnatomy${index}Label`, show ? label : "", "");
+  setText(`terminalAnatomy${index}`, show ? value : "", "");
+  const cell = document.getElementById(`terminalAnatomy${index}`)?.closest("div");
+  if (cell) cell.hidden = !show;
+  return show;
+}
+
+function setAnatomyRows(rows = []) {
+  const useful = rows.filter((row) => row && (row.show ?? hasOperatorValue(row.value)));
+  for (let index = 1; index <= 6; index += 1) {
+    const row = useful[index - 1];
+    setAnatomySlot(index, row?.label || "", row?.value || "", { show: Boolean(row) });
+  }
+  const section = document.getElementById("terminalAnatomySection");
+  if (section) section.hidden = useful.length === 0;
+  return useful.length;
+}
+
+function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven Read" } = {}) {
+  const cell = document.getElementById("terminalContextStateCell");
+  const section = document.getElementById("terminalContextSection");
+  const triggerNode = document.getElementById("terminalReadTrigger");
+  const shellTrigger = document.getElementById("rosContextTrigger");
+  if (cell) cell.hidden = !visible;
+  if (section) section.hidden = !visible;
+  if (triggerNode) {
+    triggerNode.hidden = !visible;
+    if (visible) triggerNode.textContent = trigger;
+  }
+  if (shellTrigger) shellTrigger.hidden = !visible;
+  setText("terminalContextKindLabel", kind, "");
+  if (!visible) document.body.classList.remove("ros-context-open");
+}
+
+function setComparableVisible(visible) {
+  const section = document.getElementById("terminalComparableSection");
+  if (section) section.hidden = !visible;
+}
+
+function setContextField(id, value, label = "") {
+  if (label) setText(`${id}Label`, label, "");
+  return setOptionalField(id, value);
+}
+
+function clearExternalChart() {
+  state.externalChart?.remove?.();
+  state.externalChart = null;
+  if (state.workspace?.root) state.workspace.root.hidden = false;
+  const credit = document.getElementById("terminalChartCredit");
+  if (credit) {
+    credit.textContent = "Lightweight Charts™ by TradingView";
+    credit.href = "https://www.tradingview.com/";
+  }
+}
+
+function tradingViewInterval(timeframe = state.timeframe) {
+  return ({
+    "1m": "1",
+    "5m": "5",
+    "15m": "15",
+    "1h": "60",
+    "4h": "240",
+    "1d": "D",
+    "1w": "W",
+    "1M": "W",
+  })[timeframe] || "60";
+}
+
+function showListedVisualChart(row = state.selected) {
+  clearExternalChart();
+  const subject = atlasSubject(row || {});
+  const exactInstrument = row?.instrument?.schema_version === "ravenos.instrument.v1" ? row.instrument : row;
+  const entity = {
+    entity_id: `${subject.instrumentType}:us:${subject.symbol}`,
+    entity_kind: subject.instrumentType,
+    symbol: subject.symbol,
+    name: exactInstrument?.display_name || subject.label,
+  };
+  const host = document.getElementById("terminalChart");
+  if (!host || !subject.symbol || !subject.instrumentId) return null;
+  const panel = document.createElement("section");
+  panel.className = "terminal-external-chart";
+  const chart = document.createElement("div");
+  chart.className = "terminal-external-chart-host";
+  const footer = document.createElement("footer");
+  const note = document.createElement("span");
+  note.textContent = "Visual market context · timing shown in chart";
+  const link = document.createElement("a");
+  link.textContent = "Chart by TradingView";
+  link.target = "_blank";
+  link.rel = "noopener nofollow";
+  footer.append(note, link);
+  panel.append(chart, footer);
+  host.append(panel);
+  const resolved = mountTradingViewChart(chart, entity, {
+    interval: tradingViewInterval(),
+    exactInstrument,
+  });
+  if (!resolved) {
+    panel.remove();
+    return null;
+  }
+  link.href = resolved.attribution_url;
+  if (state.workspace?.root) state.workspace.root.hidden = true;
+  const credit = document.getElementById("terminalChartCredit");
+  if (credit) {
+    credit.textContent = "Chart by TradingView";
+    credit.href = resolved.attribution_url;
+  }
+  state.externalChart = panel;
+  return resolved;
+}
+
+function renderExternalSourceDetails(resolved) {
+  setText("terminalSourceSummary", "Chart details");
+  setText("terminalSourceProvider", "TradingView");
+  setText("terminalSourceInterval", `${state.timeframe} visual context`);
+  setText("terminalSourceContinuity", "Displayed by TradingView · not extracted by RavenOS");
+  setText("terminalSourceFreshness", resolved?.timing || "Timing shown in chart");
 }
 
 function renderSourceDetails(workspace = state.workspace?.state || {}) {
@@ -203,12 +367,17 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
       state.context?.market_data?.book?.summary?.spread_bps
       ?? workspace?.orderBook?.summary?.spread_bps,
     );
-    setAnatomySlot(1, "Open interest", compact(market.openInterestUsd, { currency: true }));
-    setAnatomySlot(2, "24h volume", compact(market.volume, { currency: true }));
-    setAnatomySlot(3, "Funding", percent(market.funding, { ratio: true }));
-    setAnatomySlot(4, "Book spread", spread === null ? "Unavailable" : `${spread.toFixed(spread < 1 ? 3 : 2)} bps`);
-    setAnatomySlot(5, "Collateral", "USDC · venue custody");
-    setAnatomySlot(6, "Route", "Read only · no order review");
+    const mark = finite(market.mark);
+    const oracle = finite(market.oracle);
+    const basis = mark !== null && oracle !== null && oracle > 0 ? ((mark / oracle) - 1) * 100 : null;
+    setAnatomyRows([
+      { label: "Open interest", value: compact(market.openInterestUsd, { currency: true }) },
+      { label: "24h volume", value: compact(market.volume, { currency: true }) },
+      { label: "Funding", value: percent(market.funding, { ratio: true }) },
+      { label: "Book spread", value: spread === null ? null : `${spread.toFixed(spread < 1 ? 3 : 2)} bps` },
+      { label: "Mark / oracle", value: basis === null ? null : percent(basis) },
+      { label: "24h move", value: percent(market.change) },
+    ]);
     setText("terminalFingerprint", state.selected?.instrument_id, "Exact contract unavailable");
     setText("terminalAnatomyState", `${chartProvider} · exact contract`);
     return;
@@ -216,14 +385,24 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
 
   if (state.lane === "spot") {
     const holderState = anatomy.holder_distribution?.state === "available"
-      ? operatorList(anatomy.holder_distribution?.summary)
-      : "Not projected";
-    setAnatomySlot(1, "Liquidity", compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }));
-    setAnatomySlot(2, "24h volume", compact(anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }));
-    setAnatomySlot(3, "24h transactions", compact(anatomy.transactions_24h ?? state.selected?.txns24h));
-    setAnatomySlot(4, "Pool age", ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs));
-    setAnatomySlot(5, "Holder distribution", holderState);
-    setAnatomySlot(6, "Route", routeStateLabel(anatomy.route?.state));
+      ? operatorList(anatomy.holder_distribution?.summary, "")
+      : null;
+    const marketCap = finite(state.selected?.marketCap);
+    const fdv = finite(state.selected?.fdv);
+    const routeState = String(anatomy.route?.state || "").toLowerCase();
+    setAnatomyRows([
+      { label: "Liquidity", value: compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }) },
+      { label: "24h volume", value: compact(anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }) },
+      { label: "24h transactions", value: compact(anatomy.transactions_24h ?? state.selected?.txns24h) },
+      { label: "Pool age", value: ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs) },
+      { label: marketCap !== null ? "Market cap" : "FDV", value: compact(marketCap ?? fdv, { currency: true }) },
+      { label: "Holder distribution", value: holderState },
+      {
+        label: "Route",
+        value: routeStateLabel(routeState),
+        show: Boolean(routeState),
+      },
+    ]);
     setText("terminalFingerprint", anatomy.pool_fingerprint || `${state.selected?.chainId || "unknown"}:pool:${state.selected?.pairAddress || "unresolved"}`);
     setText("terminalAnatomyState", anatomy.exact_identity === false ? "Identity unavailable" : `${chartProvider} · exact pool`);
     return;
@@ -232,12 +411,15 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
   const subject = atlasSubject(state.selected || {});
   const instrument = state.selected?.instrument?.schema_version === "ravenos.instrument.v1" ? state.selected.instrument : state.selected || {};
   const options = atlasOptionsFor(state.selected);
-  setAnatomySlot(1, "Session", titleCase(instrument.market_session?.state));
-  setAnatomySlot(2, "5d move", percent(state.selected?.change_5d, { ratio: true }));
-  setAnatomySlot(3, "Options context", options ? titleCase(options.regime) : "Unavailable");
-  setAnatomySlot(4, "Settlement", `${subject.settlementAsset || "USD"} · broker custody`);
-  setAnatomySlot(5, "Atlas context", state.context?.atlas_context?.context_available ? "Available" : "Unavailable");
-  setAnatomySlot(6, "Route", "Broker order review unavailable");
+  const session = String(instrument.market_session?.state || "").toLowerCase();
+  setAnatomyRows([
+    { label: "Session", value: titleCase(session), show: Boolean(session) && session !== "unknown" },
+    { label: "5d move", value: percent(state.selected?.change_5d, { ratio: true }) },
+    { label: "21d move", value: percent(state.selected?.change_21d, { ratio: true }) },
+    { label: "63d move", value: percent(state.selected?.change_63d, { ratio: true }) },
+    { label: "Options", value: options ? titleCase(options.regime) : null },
+    { label: "Settlement", value: `${subject.settlementAsset || "USD"} · broker custody` },
+  ]);
   setText("terminalFingerprint", subject.instrumentId, "Exact listing unavailable");
   setText("terminalAnatomyState", `${chartProvider} · exact listing`);
 }
@@ -282,15 +464,19 @@ function renderMarkerDetail(marker = {}) {
   const inspection = marker.inspection || {};
   const read = marker.raven_read || {};
   const source = inspection.source_evidence || read.evidence?.[0] || marker.metadata || {};
-  const sourceLabel = source.label || source.source || marker.source || "Public Raven evidence unavailable";
+  const sourceLabel = source.label || source.source || marker.source || "";
   const sourceTime = source.observed_at || marker.exact_observed_at || marker.observed_at;
   setText("terminalMarkerTitle", marker.label || read.title || "Raven decision detail");
-  setText("terminalMarkerSource", `${customerFacingText(sourceLabel, "Public Raven evidence unavailable")}${sourceTime ? ` · ${timestamp(sourceTime)}` : ""}`);
-  setText("terminalMarkerMaturity", titleCase(inspection.evidence_maturity || read.confidence, "Unavailable"));
-  setText("terminalMarkerPath", pathTransitionText(inspection.path_transition));
-  setText("terminalMarkerOutcome", historicalOutcomeText(inspection.historical_outcome));
-  setText("terminalMarkerSupport", operatorList(inspection.support, "No public supporting detail is projected"));
-  setText("terminalMarkerContradiction", operatorList(inspection.contradiction, "No public contradiction detail is projected"));
+  setOptionalField(
+    "terminalMarkerSource",
+    `${customerFacingText(sourceLabel, "")}${sourceTime ? `${sourceLabel ? " · " : ""}${timestamp(sourceTime)}` : ""}`,
+  );
+  setOptionalField("terminalMarkerMaturity", titleCase(inspection.evidence_maturity || read.confidence, ""));
+  setOptionalField("terminalMarkerPath", pathTransitionText(inspection.path_transition));
+  const historical = inspection.historical_outcome || {};
+  setOptionalField("terminalMarkerOutcome", finite(historical.sample_size) > 0 ? historicalOutcomeText(historical) : "");
+  setOptionalField("terminalMarkerSupport", operatorList(inspection.support, ""));
+  setOptionalField("terminalMarkerContradiction", operatorList(inspection.contradiction, ""));
   detail.hidden = false;
 }
 
@@ -425,17 +611,12 @@ function renderPerpFacts() {
   setText("terminalPickerMeta", row?.instrument_id, "Search any supported market");
   setText("terminalVenueLabel", "Hyperliquid");
   setText("terminalCapabilityLabel", "Perpetual · USDC collateral · exact contract");
-  setText("terminalLast", formatPrice(market.last));
-  setText("terminalMetric2Label", "Mark");
-  setText("terminalMetric2", formatPrice(market.mark));
-  setText("terminalMetric3Label", "Funding");
-  setText("terminalMetric3", percent(market.funding, { ratio: true }));
-  setText("terminalMetric4Label", "Open interest");
-  setText("terminalMetric4", compact(market.openInterestUsd, { currency: true }));
-  setText("terminalMetric5Label", "24h volume");
-  setText("terminalMetric5", compact(market.volume, { currency: true }));
-  setText("terminalMetric6Label", "24h change");
-  setText("terminalMetric6", percent(market.change));
+  setLastMetric(market.last);
+  setMarketMetric(2, "Mark", formatPrice(market.mark));
+  setMarketMetric(3, "Funding", percent(market.funding, { ratio: true }));
+  setMarketMetric(4, "Open interest", compact(market.openInterestUsd, { currency: true }));
+  setMarketMetric(5, "24h volume", compact(market.volume, { currency: true }));
+  setMarketMetric(6, "24h change", percent(market.change));
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", market.change !== null && market.change >= 0);
   changeNode?.classList.toggle("terminal-negative", market.change !== null && market.change < 0);
@@ -452,17 +633,12 @@ function renderSpotFacts(row = state.selected) {
   setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
   setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartRequestSupported ? "coverage check on open" : "chart unavailable"} · USDC economic intent` : "No chain or venue selected");
-  setText("terminalLast", formatPrice(row?.priceUsd));
-  setText("terminalMetric2Label", "Market cap");
-  setText("terminalMetric2", compact(row?.marketCap ?? row?.fdv, { currency: true }));
-  setText("terminalMetric3Label", "Liquidity");
-  setText("terminalMetric3", compact(row?.liquidityUsd, { currency: true }));
-  setText("terminalMetric4Label", "24h volume");
-  setText("terminalMetric4", compact(row?.volume24h, { currency: true }));
-  setText("terminalMetric5Label", "24h transactions");
-  setText("terminalMetric5", compact(row?.txns24h));
-  setText("terminalMetric6Label", "24h change");
-  setText("terminalMetric6", percent(row?.priceChange24h));
+  setLastMetric(row?.priceUsd);
+  setMarketMetric(2, finite(row?.marketCap) !== null ? "Market cap" : "FDV", compact(row?.marketCap ?? row?.fdv, { currency: true }));
+  setMarketMetric(3, "Liquidity", compact(row?.liquidityUsd, { currency: true }));
+  setMarketMetric(4, "24h volume", compact(row?.volume24h, { currency: true }));
+  setMarketMetric(5, "24h transactions", compact(row?.txns24h));
+  setMarketMetric(6, "24h change", percent(row?.priceChange24h));
   const change = finite(row?.priceChange24h);
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", change !== null && change >= 0);
@@ -491,17 +667,12 @@ function renderAtlasFacts(row = state.selected) {
   setText("terminalPickerMeta", subject.instrumentId, "Search equities and ETFs");
   setText("terminalVenueLabel", titleCase(instrument.market_identity?.listing || subject.venue));
   setText("terminalCapabilityLabel", `${titleCase(subject.instrumentType)} · ${subject.settlementAsset} settlement · ${titleCase(session)} session`);
-  setText("terminalLast", formatPrice(row?.price));
-  setText("terminalMetric2Label", "5d change");
-  setText("terminalMetric2", percent(row?.change_5d, { ratio: true }));
-  setText("terminalMetric3Label", "21d change");
-  setText("terminalMetric3", percent(row?.change_21d, { ratio: true }));
-  setText("terminalMetric4Label", "63d change");
-  setText("terminalMetric4", percent(row?.change_63d, { ratio: true }));
-  setText("terminalMetric5Label", "Options context");
-  setText("terminalMetric5", options ? titleCase(options.regime) : "Unavailable");
-  setText("terminalMetric6Label", "Market session");
-  setText("terminalMetric6", titleCase(session));
+  setLastMetric(row?.price);
+  setMarketMetric(2, "5d change", percent(row?.change_5d, { ratio: true }));
+  setMarketMetric(3, "21d change", percent(row?.change_21d, { ratio: true }));
+  setMarketMetric(4, "63d change", percent(row?.change_63d, { ratio: true }));
+  setMarketMetric(5, "Options context", options ? titleCase(options.regime) : null);
+  setMarketMetric(6, "Market session", titleCase(session), { show: Boolean(session) && session !== "unknown" });
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.remove("terminal-positive", "terminal-negative");
   renderMarketAnatomy();
@@ -520,70 +691,62 @@ function renderListedFacts(row = state.selected) {
   setText("terminalPickerMeta", subject.instrumentId, "Search equities and ETFs");
   setText("terminalVenueLabel", titleCase(listing));
   setText("terminalCapabilityLabel", `${titleCase(subject.instrumentType)} · ${subject.settlementAsset} settlement · market-data inspection only`);
-  setText("terminalLast", "--");
-  setText("terminalMetric2Label", "Settlement");
-  setText("terminalMetric2", subject.settlementAsset);
-  setText("terminalMetric3Label", "Economic view");
-  setText("terminalMetric3", subject.economicNumeraire);
-  setText("terminalMetric4Label", "Market session");
-  setText("terminalMetric4", titleCase(session));
-  setText("terminalMetric5Label", "Atlas context");
-  setText("terminalMetric5", "Unavailable");
-  setText("terminalMetric6Label", "Execution");
-  setText("terminalMetric6", "Read only");
+  setLastMetric(null);
+  setMarketMetric(2, "Settlement", subject.settlementAsset);
+  setMarketMetric(3, "Economic view", subject.economicNumeraire);
+  setMarketMetric(4, "Market session", titleCase(session), { show: Boolean(session) && session !== "unknown" });
+  setMarketMetric(5, "", "", { show: false });
+  setMarketMetric(6, "", "", { show: false });
   document.getElementById("terminalMetric6")?.classList.remove("terminal-positive", "terminal-negative");
   renderMarketAnatomy();
   renderTradeConsequences();
 }
 
 function resetComparableEvidence() {
-  setText("terminalComparableState", "Unavailable");
-  setText("terminalComparableN", "0");
-  setText("terminalComparableChange", "--");
-  setText("terminalComparableFavorable", "--");
-  setText("terminalComparableAdverse", "--");
-  setText("terminalComparableNote", "No exact matured sample has been verified.");
+  setComparableVisible(false);
+  setText("terminalComparableState", "");
+  setText("terminalComparableN", "");
+  setText("terminalComparableChange", "");
+  setText("terminalComparableFavorable", "");
+  setText("terminalComparableAdverse", "");
+  setText("terminalComparableNote", "");
 }
 
 function renderComparables(comparables = {}) {
   const sample = Math.max(0, Math.trunc(finite(comparables.sample_size) || 0));
+  if (!sample) {
+    resetComparableEvidence();
+    return false;
+  }
+  setComparableVisible(true);
   setText("terminalComparableState", titleCase(comparables.evidence_maturity, sample ? "Observed" : "Forming"));
   setText("terminalComparableN", sample.toLocaleString());
   setText("terminalComparableChange", percent(comparables.median_observed_change_pct));
   setText("terminalComparableFavorable", percent(comparables.median_favorable_excursion_pct));
   setText("terminalComparableAdverse", percent(comparables.median_adverse_excursion_pct));
-  setText("terminalComparableNote", sample
-    ? `${sample} completed future-only path${sample === 1 ? "" : "s"}; matured through ${timestamp(comparables.matured_through)}.`
-    : "No exact matured sample has been verified.");
+  setText("terminalComparableNote", `${sample} completed future-only path${sample === 1 ? "" : "s"}${comparables.matured_through ? `; matured through ${timestamp(comparables.matured_through)}` : ""}.`);
+  return true;
 }
 
-function setContextUnavailable({ headline, summary, identity, reason = "No exact public Raven decision context is available for this market." } = {}) {
+function setContextUnavailable() {
   state.context = null;
-  setText("terminalReadHeadline", headline || "Raven context unavailable");
-  setText("terminalReadSummary", summary || "The provider-backed chart remains available independently.");
-  setText("terminalWhy", reason);
-  setText("terminalContextIdentity", identity || "Unavailable");
-  setText("terminalBehavior", "Unavailable");
-  setText("terminalPath", "Unavailable");
-  setText("terminalEvidenceMaturity", "Unavailable");
-  setText("terminalEvidenceState", "Unavailable");
-  setState("terminalContextFreshness", "unavailable", "Unavailable");
+  setContextControlsVisible(false);
+  setContextField("terminalContextIdentity", "", "Market");
+  setContextField("terminalBehavior", "", "Behavior");
+  setContextField("terminalPath", "", "Path");
+  setContextField("terminalEvidenceMaturity", "", "Evidence");
+  setText("terminalReadHeadline", "");
+  setText("terminalReadSummary", "");
+  setText("terminalWhy", "");
+  setText("terminalEvidenceState", "");
   resetComparableEvidence();
 }
 
 function setContextChecking({ identity } = {}) {
   state.context = null;
-  setText("terminalReadHeadline", "Resolving Raven context");
-  setText("terminalReadSummary", "The live market and timestamped Raven evidence are loading independently.");
-  setText("terminalWhy", "Raven is checking for an exact decision-time observation for this instrument.");
-  setText("terminalContextIdentity", identity || "Exact instrument resolving");
-  setText("terminalBehavior", "Checking");
-  setText("terminalPath", "Checking");
-  setText("terminalEvidenceMaturity", "Checking");
-  setText("terminalEvidenceState", "Checking current evidence");
-  setState("terminalContextFreshness", "loading", "Checking");
+  setContextControlsVisible(false);
+  setContextField("terminalContextIdentity", identity || "");
   resetComparableEvidence();
-  setText("terminalComparableNote", "Checking for exact matured comparisons.");
 }
 
 function contextChartEvent(payload) {
@@ -630,20 +793,38 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   const read = payload?.raven_read || {};
   const delivery = payload?.delivery || {};
   const available = context.context_available === true;
+  if (!available) {
+    setContextUnavailable();
+    applyContextChartEvent(payload);
+    renderMarketAnatomy();
+    updateShell({
+      subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
+      marketLabel: `${state.selected?.asset || "Instrument"} market`,
+      thesis: "",
+      setup: "",
+      supporting: [],
+      contradicting: [],
+      evidenceState: "",
+      freshnessState: payload?.market_data?.freshness_state || "live",
+      observedAt: payload?.market_data?.generated_at || null,
+    }, { updateUrl });
+    return;
+  }
   const observationLabel = context.context_state === "fresh"
     ? "Current observation"
     : finite(context.context_age_seconds) !== null
       ? `Observed ${durationLabel(context.context_age_seconds)}`
       : "Timestamped observation";
   const deliveryLabel = delivery.freshness_state === "fresh" ? "current feed" : `${titleCase(delivery.freshness_state)} feed`;
-  setText("terminalReadHeadline", read.headline || `${state.selected?.asset || "Instrument"} · Raven context unavailable`);
-  setText("terminalReadSummary", customerFacingText(read.summary, "Live market data remains available, but no timestamped Raven observation matches this instrument."));
-  setText("terminalWhy", customerFacingText(read.why_raven_noticed || context.why_raven_noticed, "No current Raven observation is available for this instrument."));
-  setText("terminalContextIdentity", payload?.instrument?.instrument_id || state.selected?.instrument_id);
-  setText("terminalBehavior", available ? context.behavior_family || "Observed, family unavailable" : "Unavailable");
-  setText("terminalPath", available ? context.current_path || context.pressure_state || context.context_state : "Unavailable");
-  setText("terminalEvidenceMaturity", available ? titleCase(context.outcomes?.evidence_maturity, "Forming") : "Unavailable");
-  setText("terminalEvidenceState", available ? `${observationLabel} · ${deliveryLabel}` : "Context unavailable");
+  setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
+  setText("terminalReadHeadline", customerFacingText(read.headline, `${state.selected?.asset || "Instrument"} · current Raven read`));
+  setText("terminalReadSummary", customerFacingText(read.summary, ""));
+  setText("terminalWhy", customerFacingText(read.why_raven_noticed || context.why_raven_noticed, ""));
+  setContextField("terminalContextIdentity", payload?.instrument?.instrument_id || state.selected?.instrument_id, "Market");
+  setContextField("terminalBehavior", titleCase(context.behavior_family, ""), "Behavior");
+  setContextField("terminalPath", titleCase(context.current_path || context.pressure_state || context.context_state, ""), "Path");
+  setContextField("terminalEvidenceMaturity", titleCase(context.outcomes?.evidence_maturity, ""), "Evidence");
+  setText("terminalEvidenceState", `${observationLabel} · ${deliveryLabel}`);
   setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderComparables(payload?.matured_comparables || {});
   applyContextChartEvent(payload);
@@ -652,10 +833,10 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
     subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
     marketLabel: read.headline || `${state.selected?.asset} market`,
     thesis: customerFacingText(read.summary, "No exact Raven thesis is currently available."),
-    setup: available ? context.context_state || "observed" : "unavailable",
+    setup: context.context_state || "observed",
     supporting: Array.isArray(read.what_would_strengthen) ? read.what_would_strengthen : [],
     contradicting: Array.isArray(read.what_would_weaken) ? read.what_would_weaken : [],
-    evidenceState: available ? context.outcomes?.evidence_maturity || "forming" : "unavailable",
+    evidenceState: context.outcomes?.evidence_maturity || "forming",
     freshnessState: delivery.freshness_state || "data_unavailable",
     observedAt: context.observed_at || payload?.market_data?.generated_at || null,
   }, { updateUrl });
@@ -663,32 +844,41 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
 
 function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, observedAt }, { updateUrl = true } = {}) {
   ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
+  const hasIntelligence = Boolean(
+    hasOperatorValue(thesis)
+    || hasOperatorValue(setup)
+    || supporting.length
+    || contradicting.length
+    || hasOperatorValue(evidenceState),
+  );
   window.RavenOSShell?.setCapabilities?.({
     market: state.workspace?.state?.state === "live" ? `Live · ${state.workspace.state.source}` : titleCase(state.workspace?.state?.state),
     wallet: "No customer session",
     mode: "Read only",
     signing: "Sign off",
     broadcast: "Broadcast off",
-    evidence: evidenceState === "atlas_context" ? "Atlas context linked · Raven unavailable" : evidenceState && evidenceState !== "unavailable" ? "Exact evidence linked" : "Evidence unavailable",
+    evidence: evidenceState === "atlas_context" ? "Atlas context linked" : hasOperatorValue(evidenceState) ? "Exact evidence linked" : "",
   });
   window.RavenOSShell?.setIntelligence?.({
     subject,
     evidenceRole: "selected_market_context",
     marketState: { label: marketLabel || "Market data available", regime: state.lane },
-    setupState: { state: setup || "unavailable", confirmation: "read only" },
-    thesis: thesis || "No verified Raven thesis is available for this selection.",
+    setupState: { state: setup || "market_data_only", confirmation: "read only" },
+    thesis: customerFacingText(thesis, marketLabel || "Market data available"),
     supportingEvidence: supporting,
     contradictingEvidence: contradicting,
     invalidation: [],
     timeHorizon: state.timeframe,
-    confidence: { label: evidenceState || "unrated" },
-    evidenceQuality: { state: evidenceState || "unavailable", lineageComplete: Boolean(state.context?.raven_context?.context_available || state.context?.atlas_context?.context_available) },
+    confidence: { label: evidenceState || "market_data_only" },
+    evidenceQuality: { state: evidenceState || "market_data_only", lineageComplete: Boolean(state.context?.raven_context?.context_available || state.context?.atlas_context?.context_available) },
     freshness: { state: freshnessState || "data_unavailable", observedAt },
-    nextExpectedTransition: state.lane === "perps"
-      ? "Wait for the next timestamped Raven context or market update."
-      : state.lane === "equity"
-        ? "Atlas context is current; Raven has no exact behavioral read for this listing."
-        : "Raven has no exact behavioral read for this spot market yet.",
+    nextExpectedTransition: hasIntelligence
+      ? state.lane === "perps"
+        ? "Watch for the next market or evidence transition."
+        : state.lane === "equity"
+          ? "Use the selected market and available Atlas context together."
+          : "Use exact-pool market data and any admitted Raven marker separately."
+      : "Continue monitoring the selected exact market.",
   });
 }
 
@@ -698,6 +888,8 @@ function updateQuoteBoundary() {
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
   const selectedSolanaSpot = state.lane === "spot" && String(state.selected?.chainId || "").toLowerCase() === "solana";
+  const section = document.getElementById("terminalTradeReviewSection");
+  if (section) section.hidden = !enabled;
   setText("terminalQuoteState", enabled ? "Review only" : "Read only");
   setText("terminalQuoteContract", enabled ? "Read-only quote review" : "Quote preview not enabled");
   setText("terminalQuoteNote", enabled && selectedSolanaSpot
@@ -725,6 +917,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   state.lane = "perps";
   state.selected = row;
   state.context = null;
+  clearExternalChart();
   setWhyLabel("Why Raven noticed this");
   setText("terminalReadTrigger", "Raven Read");
   document.getElementById("assetSelect").value = row.asset;
@@ -753,13 +946,13 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   renderWorkspaceState(state.workspace?.state || chartState);
   if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload, { updateUrl });
   else {
-    setContextUnavailable({ identity: row.instrument_id });
+    setContextUnavailable();
     updateShell({
       subject: perpSubject(row),
       marketLabel: `${row.asset} provider market`,
-      thesis: "Live market data is available; exact Raven context is unavailable.",
-      setup: "unavailable",
-      evidenceState: "unavailable",
+      thesis: "",
+      setup: "",
+      evidenceState: "",
       freshnessState: chartState?.state || "data_unavailable",
       observedAt: chartState?.observedAt || row.observed_at,
     }, { updateUrl });
@@ -790,25 +983,22 @@ function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   }
   ++state.selectionGeneration;
   state.selected = null;
+  clearExternalChart();
   document.getElementById("venueSelect").replaceChildren(new Option("Select exact pool", "unavailable"));
   renderSpotFacts(null);
   setText("terminalChartTitle", "Spot pool · no selection");
   setText("terminalChartStatus", "Search for an exact public pool. No default token or synthetic chart is substituted.");
   setText("terminalDeepLink", "Open Spot coverage");
   document.getElementById("terminalDeepLink").href = "/chains/solana/";
-  setContextUnavailable({
-    headline: "Exact spot context unavailable",
-    summary: "Select a verified public pool to load provider-backed candles. Exact Raven decision context is not yet projected for spot markets.",
-    reason: "Raven will not infer a token-level decision context from an unrelated pool or aggregate row.",
-  });
+  setContextUnavailable();
   state.workspace.load({ market: "crypto_spot", asset: "", timeframe: state.timeframe, instrumentScope: "exact_pool" });
   updateQuoteBoundary();
   updateShell({
     subject: { id: "spot-pool-unselected", label: "No spot pool selected", type: "market", assetClass: "crypto", instrumentType: "exact_pool", identityScope: "unselected", chain: "all", venue: "all", marketType: "spot", economicNumeraire: "USDC", capabilities: {} },
     marketLabel: "Exact spot pool required",
-    thesis: "No market data or Raven context is shown until an exact public pool is selected.",
-    setup: "unavailable",
-    evidenceState: "unavailable",
+    thesis: "",
+    setup: "",
+    evidenceState: "",
     freshnessState: "data_unavailable",
     observedAt: null,
   }, { updateUrl });
@@ -902,6 +1092,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.lane = "spot";
   state.selected = row;
   state.context = null;
+  clearExternalChart();
   setWhyLabel("Why Raven noticed this");
   setText("terminalReadTrigger", "Raven Read");
   document.getElementById("terminalSpotResults").hidden = true;
@@ -914,12 +1105,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   const hasChartCoverage = chartCapability.chart_request_supported;
   setText("terminalDeepLink", hasChartCoverage ? `Open ${chainDisplayName(row.chainId)} coverage` : "Coverage unavailable");
   document.getElementById("terminalDeepLink").href = hasChartCoverage ? `/chains/${String(row.chainId).toLowerCase()}/` : "/docs/#availability";
-  setContextUnavailable({
-    headline: `${row.symbol || "Spot"} · Raven context unavailable`,
-    summary: "The exact public pool chart is independent from Raven decision evidence.",
-    identity: `${row.chainId || "chain"}:pool:${row.pairAddress}`,
-    reason: "No deterministic exact-pool Raven decision join is currently projected. Aggregate token or chain evidence is not substituted.",
-  });
+  setContextUnavailable();
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: spotSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const chartState = await state.workspace.load({
@@ -941,9 +1127,9 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   updateShell({
     subject: spotSubject(row),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
-    thesis: "Provider-backed market data is available. Exact Raven decision context is unavailable and has not been inferred.",
-    setup: "unavailable",
-    evidenceState: "unavailable",
+    thesis: "",
+    setup: "",
+    evidenceState: "",
     freshnessState: chartState?.state || "data_unavailable",
     observedAt: chartState?.observedAt || row.lastUpdated,
   }, { updateUrl });
@@ -1060,52 +1246,68 @@ async function resolveListedSelection({ instrumentId = "", asset = "" } = {}) {
 }
 
 async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
-  const subject = atlasSubject(row);
-  const atlasRow = row?.instrument?.schema_version === "ravenos.instrument.v1"
-    && state.atlas?.market_context?.rows?.some((candidate) => candidate?.instrument_id === subject.instrumentId);
+  const requestedSubject = atlasSubject(row);
+  const atlasRow = state.atlas?.market_context?.rows?.find(
+    (candidate) => candidate?.instrument_id === requestedSubject.instrumentId,
+  ) || null;
+  const selectedRow = atlasRow || row;
+  const subject = atlasSubject(selectedRow);
   if (!subject.instrumentId || !subject.symbol) {
     await renderExplicitSelectionUnavailable({ instrumentId: subject.instrumentId, asset: subject.symbol, lane: "equity", reason: "The selected row does not contain a complete exact listed-instrument identity." });
     return;
   }
   const generation = ++state.selectionGeneration;
   state.lane = "equity";
-  state.selected = row;
-  const options = atlasRow ? atlasOptionsFor(row) : null;
+  state.selected = selectedRow;
+  clearExternalChart();
+  const options = atlasRow ? atlasOptionsFor(selectedRow) : null;
   state.context = atlasRow ? { atlas_context: { context_available: true, instrument_id: subject.instrumentId } } : null;
   document.getElementById("terminalModeSelect").value = "equity";
   document.getElementById("terminalSpotControl").hidden = true;
   document.getElementById("terminalSpotResults").hidden = true;
-  const instrument = row?.instrument?.schema_version === "ravenos.instrument.v1" ? row.instrument : row;
+  const instrument = selectedRow?.instrument?.schema_version === "ravenos.instrument.v1" ? selectedRow.instrument : selectedRow;
   document.getElementById("venueSelect").replaceChildren(new Option(titleCase(instrument?.market_identity?.listing || subject.venue), subject.venue));
-  setWhyLabel(atlasRow ? "What Atlas adds" : "Why this market");
-  setText("terminalReadTrigger", atlasRow ? "Atlas Context" : "Market Context");
-  if (atlasRow) renderAtlasFacts(row);
-  else renderListedFacts(row);
+  if (atlasRow) renderAtlasFacts(selectedRow);
+  else renderListedFacts(selectedRow);
   setText("terminalChartTitle", `${subject.symbol} · ${state.timeframe}`);
   setText("terminalChartStatus", "Requesting provider-backed candles for the exact listing.");
-  setText("terminalDeepLink", atlasRow ? "Open Atlas context" : "Atlas context unavailable");
-  document.getElementById("terminalDeepLink").href = atlasRow
-    ? `/atlas/?instrument_id=${encodeURIComponent(subject.instrumentId)}&asset=${encodeURIComponent(subject.symbol)}`
-    : "/docs/#availability";
-  setText("terminalReadHeadline", atlasRow ? `${subject.symbol} · Atlas cross-market context` : `${subject.symbol} · exact listed market`);
-  setText("terminalReadSummary", atlasRow
-    ? `Current ${titleCase(state.atlas?.market_context?.equity_regime).toLowerCase()} equity regime and ${titleCase(state.atlas?.posture?.alignment).toLowerCase()} cross-market alignment. Atlas context is research-only.`
-    : `RavenOS resolved ${subject.symbol} to ${titleCase(instrument?.market_identity?.listing || subject.venue)} with USD settlement. Current Raven and Atlas intelligence are unavailable for this exact listing.`);
-  setText("terminalWhy", atlasRow
-    ? options
-      ? `Atlas adds ${titleCase(options.regime).toLowerCase()} aggregate options context and current rail posture. No Raven behavioral claim has been substituted.`
-      : "Atlas adds current market and cross-asset context. No Raven behavioral claim or options context has been substituted."
-    : "The exact provider listing matched the selected symbol and identity. RavenOS is showing market data only; no behavioral claim, analogue, or broker capability was inferred.");
-  setText("terminalContextIdentity", subject.instrumentId);
-  setText("terminalBehavior", "Raven evidence unavailable");
-  setText("terminalPath", atlasRow ? titleCase(state.atlas?.market_context?.equity_regime) : "Unavailable");
-  setText("terminalEvidenceMaturity", atlasRow ? "Atlas context only" : "Market data only");
-  setText("terminalEvidenceState", atlasRow ? "Atlas context · Raven unavailable" : "Intelligence unavailable");
-  setState("terminalContextFreshness", atlasRow ? state.atlas?.freshness?.state || "unavailable" : "unavailable", atlasRow ? titleCase(state.atlas?.freshness?.state) : "Unavailable");
+  setText("terminalDeepLink", "Open in Atlas");
+  document.getElementById("terminalDeepLink").href = `/atlas/?asset=${encodeURIComponent(subject.symbol)}`;
   resetComparableEvidence();
-  setText("terminalComparableNote", atlasRow
-    ? "No exact matured Raven behavioral sample is projected for this listing. Atlas context is not presented as a comparable outcome set."
-    : "No exact Raven or Atlas comparison is projected for this listing. Market-price history is not presented as behavioral evidence.");
+  if (atlasRow) {
+    const risk = titleCase(state.atlas?.market_context?.risk_regime, "");
+    const equity = titleCase(state.atlas?.market_context?.equity_regime, "");
+    const breadth = titleCase(state.atlas?.market_context?.sector_breadth, "");
+    const participation = titleCase(state.atlas?.market_context?.participation_quality, "");
+    const alignment = titleCase(state.atlas?.posture?.alignment, "");
+    const summary = [
+      risk ? `${risk} risk regime` : "",
+      equity ? `${equity.toLowerCase()} equities` : "",
+      breadth ? `${breadth.toLowerCase()} breadth` : "",
+      participation ? `${participation.toLowerCase()} participation` : "",
+    ].filter(Boolean).join(" · ");
+    const optionParts = [
+      titleCase(options?.regime, ""),
+      titleCase(options?.skew_state, ""),
+      titleCase(options?.demand_state, ""),
+    ].filter(Boolean);
+    setContextControlsVisible(true, { kind: "Atlas", trigger: "Atlas Context" });
+    setWhyLabel("Why it matters");
+    setText("terminalReadHeadline", `${subject.symbol} · ${equity || "cross-market"} context`);
+    setText("terminalReadSummary", summary);
+    setText("terminalWhy", optionParts.length
+      ? `Options are ${optionParts.join(" · ").toLowerCase()}; cross-market alignment is ${alignment.toLowerCase() || "mixed"}.`
+      : `Cross-market alignment is ${alignment.toLowerCase() || "mixed"} with ${breadth.toLowerCase() || "current"} breadth.`);
+    setContextField("terminalContextIdentity", risk, "Risk regime");
+    setContextField("terminalBehavior", breadth, "Breadth");
+    setContextField("terminalPath", participation, "Participation");
+    setContextField("terminalEvidenceMaturity", optionParts.join(" · "), "Options");
+    const atlasFreshness = state.atlas?.freshness?.state || "delayed";
+    setText("terminalEvidenceState", `${atlasFreshness === "fresh" ? "Current" : titleCase(atlasFreshness)}${state.atlas?.generated_at ? ` · ${timestamp(state.atlas.generated_at)}` : ""}`);
+    setState("terminalContextFreshness", atlasFreshness, atlasFreshness === "fresh" ? "Current" : titleCase(atlasFreshness));
+  } else {
+    setContextUnavailable();
+  }
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const chartState = await state.workspace.load({
@@ -1135,19 +1337,29 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact ${titleCase(subject.instrumentType)}`
     : chartState?.message || "Exact listed-instrument candles unavailable.");
-  if (!atlasRow && chartState?.candles?.length) setText("terminalLast", formatPrice(chartState.candles.at(-1)?.close));
+  let visualChart = null;
+  if (!chartState?.candles?.length) {
+    visualChart = showListedVisualChart(selectedRow);
+    if (visualChart) {
+      setText("terminalChartStatus", `TradingView visual chart · exact ${titleCase(subject.instrumentType)} · ${visualChart.timing}`);
+      setState("terminalMarketFreshness", "available", "Chart");
+      renderExternalSourceDetails(visualChart);
+      setText("terminalAnatomyState", "TradingView · exact listing");
+    }
+  }
+  if (!atlasRow && chartState?.candles?.length) setLastMetric(chartState.candles.at(-1)?.close);
   updateShell({
     subject,
     marketLabel: atlasRow ? `${subject.symbol} · ${titleCase(state.atlas?.market_context?.equity_regime)} equity regime` : `${subject.symbol} · exact listed market`,
     thesis: atlasRow
-      ? `Atlas cross-market alignment is ${titleCase(state.atlas?.posture?.alignment).toLowerCase()}. Raven behavioral evidence is unavailable for this exact listing and has not been inferred.`
-      : "Provider-backed candles are available for the exact listing. Raven and Atlas intelligence are unavailable and have not been inferred.",
-    setup: atlasRow ? state.atlas?.posture?.state || "atlas_context" : "market_data_only",
+      ? `Cross-market alignment is ${titleCase(state.atlas?.posture?.alignment).toLowerCase()}.`
+      : "",
+    setup: atlasRow ? state.atlas?.posture?.state || "atlas_context" : "",
     supporting: atlasRow ? Object.entries(state.atlas?.rail_breadth || {}).slice(0, 4).map(([rail, value]) => `${titleCase(rail)}: ${titleCase(value?.trend)} trend · ${titleCase(value?.participation)} participation.`) : [],
-    contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} provider rail is degraded.`) : ["Raven and Atlas intelligence are unavailable for this exact listing."],
-    evidenceState: atlasRow ? "atlas_context" : "unavailable",
-    freshnessState: atlasRow ? state.atlas?.freshness?.state === "fresh" ? "live" : "delayed" : chartState?.state || "data_unavailable",
-    observedAt: atlasRow ? row.observed_at || state.atlas?.generated_at : chartState?.observedAt,
+    contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} market data is degraded.`) : [],
+    evidenceState: atlasRow ? "atlas_context" : "",
+    freshnessState: atlasRow ? state.atlas?.freshness?.state === "fresh" ? "live" : "delayed" : visualChart ? "visual_context" : chartState?.state || "data_unavailable",
+    observedAt: atlasRow ? selectedRow.observed_at || state.atlas?.generated_at : chartState?.observedAt,
   }, { updateUrl });
 }
 
@@ -1260,6 +1472,7 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
   state.lane = lane;
   state.selected = null;
   state.context = null;
+  clearExternalChart();
   document.getElementById("terminalModeSelect").value = lane;
   document.getElementById("terminalSpotControl").hidden = true;
   document.getElementById("terminalSpotResults").hidden = true;
@@ -1275,15 +1488,12 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
   setText("terminalInstrumentMeta", subject.id);
   setText("terminalChartTitle", `${subject.label} · unavailable`);
   setText("terminalChartStatus", reason || "The exact requested market is unavailable. RavenOS did not choose a substitute.");
-  setText("terminalLast", "--");
-  for (const id of ["terminalMetric2", "terminalMetric3", "terminalMetric4", "terminalMetric5", "terminalMetric6"]) setText(id, "--");
+  clearMarketMetrics();
+  setAnatomyRows([]);
+  document.getElementById("terminalAnatomySection").hidden = true;
   setState("terminalMarketFreshness", "unavailable", "Unavailable");
-  setContextUnavailable({
-    headline: "Exact market unavailable",
-    summary: "The requested identity could not be resolved against the current provider registry.",
-    identity: subject.id,
-    reason: reason || "No alternate symbol, pool, venue, or instrument was substituted.",
-  });
+  setContextUnavailable();
+  updateQuoteBoundary();
   state.workspace.showUnavailable({
     message: reason || "The exact requested market is unavailable. No substitute data was loaded.",
     marketIdentity: subject.id,
@@ -1367,12 +1577,12 @@ function renderWorkspaceState(workspace = {}) {
   if (!boundary) return;
   const connection = String(workspace?.connectionState || "").toLowerCase();
   const liveLabel = connection === "snapshot_only"
-    ? "Provider snapshot available"
+    ? "Market snapshot current"
     : ["live", "connected"].includes(connection)
-      ? "Provider market connected"
+      ? "Live market feed"
       : connection === "connecting"
-        ? "Provider live feed connecting"
-        : "Provider market data available";
+        ? "Market feed connecting"
+        : "Market data available";
   boundary.dataset.state = workspaceState;
   boundary.querySelector("strong").textContent = workspaceState === "live" ? liveLabel : titleCase(workspaceState);
 }

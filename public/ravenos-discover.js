@@ -163,12 +163,12 @@ function createOpportunityRow(row) {
   append(evidence, "span", "", "What supports it");
   const comparableCount = finite(row.matured_comparables?.sample_size);
   append(evidence, "strong", "", atlas
-    ? "Atlas context · Raven behavior unavailable"
+    ? text(row.context_note, row.market_state)
     : comparableCount !== null && comparableCount > 0
       ? `${title(row.context_state)} evidence · ${compact(comparableCount)} comparable outcomes`
-      : `${title(row.context_state)} evidence · Similar history unavailable`);
+      : `${title(row.context_state)} evidence`);
   append(evidence, "small", "", atlas
-    ? text(row.context_note, "Atlas context only")
+    ? text(row.market_state, "")
     : pathStateLabel(row.path_review?.state));
 
   const market = append(anchor, "div", "discover-market", "");
@@ -324,10 +324,17 @@ function currentAtlasPayload(payload) {
       instrument_contract: instrument,
       market_type: instrument.instrument_type,
       context_state: payload.freshness.state,
-      what_changed: changes.length ? changes.join(" · ") : "Current price context is available; period change fields are unavailable.",
-      context_note: option ? `${title(option.regime)} options · ${option.delayed ? "delayed" : "current"}` : "Options context unavailable",
+      what_changed: changes.length
+        ? changes.join(" · ")
+        : finite(row.price) !== null
+          ? `Current price $${Number(row.price).toLocaleString("en-US", { maximumFractionDigits: 4 })}`
+          : `${title(payload.market_context?.equity_regime)} equity regime`,
+      context_note: option ? `${title(option.regime)} options · ${option.delayed ? "delayed" : "current"}` : "",
       market_state: `${title(payload.market_context?.equity_regime)} equity regime`,
-      market_detail: `${text(instrument.market_identity?.listing, title(instrument.venue))} · ${row.price === null || row.price === undefined ? "price unavailable" : `$${Number(row.price).toLocaleString("en-US", { maximumFractionDigits: 4 })}`}`,
+      market_detail: [
+        text(instrument.market_identity?.listing, title(instrument.venue)),
+        finite(row.price) !== null ? `$${Number(row.price).toLocaleString("en-US", { maximumFractionDigits: 4 })}` : "",
+      ].filter(Boolean).join(" · "),
       observed_at: row.observed_at || payload.generated_at,
     }];
   });

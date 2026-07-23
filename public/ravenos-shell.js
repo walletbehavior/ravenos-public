@@ -1,6 +1,7 @@
 import {
   RavenDataStateLabels,
   adaptLegacyNarrator,
+  customerFacingText,
   createIntelligenceRecord,
   createTerminalIntelligence,
   renderIntelligence,
@@ -805,7 +806,7 @@ export function mountRavenOSShell(options = {}) {
         return {
           ...row,
           label: row.asset,
-          detail: raven?.why_raven_noticed || `${row.instrument_id} · live Hyperliquid market`,
+          detail: customerFacingText(raven?.why_raven_noticed, `${row.instrument_id} · live Hyperliquid market`),
           state: raven ? `Raven ${raven.context_state || "observed"}` : "Live market",
           group: raven ? "Raven now" : "Hyperliquid",
           raven_context: Boolean(raven),

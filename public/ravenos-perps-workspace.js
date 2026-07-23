@@ -299,7 +299,7 @@ function renderContext(payload) {
       : "Live market data may remain available while Raven context is explicitly unavailable.");
 
   setText("perpsReadHeadline", read.headline || `${state.row?.asset || "Instrument"} · Raven context unavailable`);
-  setText("perpsReadSummary", read.summary || "Live market data remains available, but no current frozen Raven observation is available.");
+  setText("perpsReadSummary", read.summary || "Live market data remains available, but no current Raven observation is available.");
   setText("perpsWhy", read.why_raven_noticed || context.why_raven_noticed || "No current decision-time Raven observation is available for this instrument.");
   setText("perpsPathFamily", context.behavior_family || "Unavailable");
   setText("perpsPathPressure", context.pressure_state || "Unavailable");
@@ -367,7 +367,7 @@ function dispatchContext() {
     thesis: read.summary || "No current Raven thesis is available for this exact instrument.",
     supportingEvidence: read.what_would_strengthen || [],
     contradictingEvidence: read.what_would_weaken || [],
-    invalidation: context.context_available ? ["The frozen decision-time structure fades or reverses."] : [],
+    invalidation: context.context_available ? ["The observed decision-time structure fades or reverses."] : [],
     timeHorizon: state.timeframe,
     confidence: { label: titleCase(context.outcomes?.evidence_maturity, "unrated") },
     evidenceQuality: { state: context.context_available ? context.context_state : "unavailable", lineageComplete: Boolean(context.public_context_id) },

@@ -60,7 +60,9 @@ function dynamicExactListing(entity = {}, exactInstrument = null) {
 
 export function resolveTradingViewChart(entity = {}, { exactInstrument = null } = {}) {
   const entityId = clean(entity.entity_id);
-  const entry = EXACT_SYMBOLS[entityId] || dynamicExactListing(entity, exactInstrument);
+  const entry = exactInstrument
+    ? dynamicExactListing(entity, exactInstrument)
+    : EXACT_SYMBOLS[entityId];
   if (!entry || !SYMBOL_PATTERN.test(entry.symbol)) return null;
   const canonicalSymbol = clean(entity.symbol || entity.canonical_symbol || entity.display_symbol).toUpperCase();
   const expectedSymbol = entityId.split(":").at(-1)?.toUpperCase() || "";

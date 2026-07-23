@@ -18,7 +18,7 @@
       </div>
       <div class="terminal-state-pair" aria-label="Current market and intelligence state">
         <div><span>Market</span><strong id="terminalMarketFreshness">Connecting</strong></div>
-        <div><span>Raven</span><strong id="terminalContextFreshness">Checking</strong></div>
+        <div id="terminalContextStateCell" hidden><span id="terminalContextKindLabel">Raven</span><strong id="terminalContextFreshness">Checking</strong></div>
       </div>
       <div class="terminal-boundary" id="terminalBoundary" data-state="loading">
         <span>Read only</span>
@@ -51,7 +51,7 @@
       </label>
       <div class="terminal-resolved-control"><span>Resolved market</span><strong id="terminalVenueLabel">Hyperliquid</strong><small id="terminalCapabilityLabel">Perpetual · USDC collateral</small></div>
       <div class="terminal-actions">
-        <button type="button" id="terminalReadTrigger">Raven Read</button>
+        <button type="button" id="terminalReadTrigger" hidden>Raven Read</button>
         <a id="terminalDeepLink" href="/perps/">Market depth</a>
       </div>
     </section>
@@ -64,12 +64,12 @@
         <strong id="terminalInstrument">SOL-PERP</strong>
         <small id="terminalInstrumentMeta">Hyperliquid perpetual · connecting</small>
       </div>
-      <div><span>Last</span><strong id="terminalLast">--</strong></div>
-      <div><span id="terminalMetric2Label">Mark</span><strong id="terminalMetric2">--</strong></div>
-      <div><span id="terminalMetric3Label">Funding</span><strong id="terminalMetric3">--</strong></div>
-      <div><span id="terminalMetric4Label">Open interest</span><strong id="terminalMetric4">--</strong></div>
-      <div><span id="terminalMetric5Label">24h volume</span><strong id="terminalMetric5">--</strong></div>
-      <div><span id="terminalMetric6Label">24h change</span><strong id="terminalMetric6">--</strong></div>
+      <div id="terminalLastMetric" hidden><span>Last</span><strong id="terminalLast">--</strong></div>
+      <div id="terminalMetric2Cell" hidden><span id="terminalMetric2Label">Mark</span><strong id="terminalMetric2">--</strong></div>
+      <div id="terminalMetric3Cell" hidden><span id="terminalMetric3Label">Funding</span><strong id="terminalMetric3">--</strong></div>
+      <div id="terminalMetric4Cell" hidden><span id="terminalMetric4Label">Open interest</span><strong id="terminalMetric4">--</strong></div>
+      <div id="terminalMetric5Cell" hidden><span id="terminalMetric5Label">24h volume</span><strong id="terminalMetric5">--</strong></div>
+      <div id="terminalMetric6Cell" hidden><span id="terminalMetric6Label">24h change</span><strong id="terminalMetric6">--</strong></div>
     </section>
 
     <section class="terminal-workspace">
@@ -85,7 +85,7 @@
                 <div><dt>Bars</dt><dd id="terminalSourceInterval">Checking</dd></div>
                 <div><dt>Continuity</dt><dd id="terminalSourceContinuity">Checking</dd></div>
                 <div><dt>Freshness</dt><dd id="terminalSourceFreshness">Checking</dd></div>
-                <div><dt>Chart</dt><dd><a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">Lightweight Charts™ by TradingView</a></dd></div>
+                <div><dt>Chart</dt><dd><a id="terminalChartCredit" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">Lightweight Charts™ by TradingView</a></dd></div>
               </dl>
             </details>
           </div>
@@ -94,15 +94,15 @@
       </article>
 
       <aside class="terminal-intelligence" aria-label="Selected market intelligence">
-        <section class="terminal-anatomy">
+        <section class="terminal-anatomy" id="terminalAnatomySection">
           <header><div><span>Market anatomy</span><h2>What this market is made of</h2></div><strong id="terminalAnatomyState">Resolving</strong></header>
           <dl class="terminal-anatomy-grid">
-            <div><dt id="terminalAnatomy1Label">Liquidity</dt><dd id="terminalAnatomy1">--</dd></div>
-            <div><dt id="terminalAnatomy2Label">Volume</dt><dd id="terminalAnatomy2">--</dd></div>
-            <div><dt id="terminalAnatomy3Label">Transactions</dt><dd id="terminalAnatomy3">--</dd></div>
-            <div><dt id="terminalAnatomy4Label">Market age</dt><dd id="terminalAnatomy4">--</dd></div>
-            <div><dt id="terminalAnatomy5Label">Holders</dt><dd id="terminalAnatomy5">--</dd></div>
-            <div><dt id="terminalAnatomy6Label">Route</dt><dd id="terminalAnatomy6">--</dd></div>
+            <div hidden><dt id="terminalAnatomy1Label"></dt><dd id="terminalAnatomy1"></dd></div>
+            <div hidden><dt id="terminalAnatomy2Label"></dt><dd id="terminalAnatomy2"></dd></div>
+            <div hidden><dt id="terminalAnatomy3Label"></dt><dd id="terminalAnatomy3"></dd></div>
+            <div hidden><dt id="terminalAnatomy4Label"></dt><dd id="terminalAnatomy4"></dd></div>
+            <div hidden><dt id="terminalAnatomy5Label"></dt><dd id="terminalAnatomy5"></dd></div>
+            <div hidden><dt id="terminalAnatomy6Label"></dt><dd id="terminalAnatomy6"></dd></div>
           </dl>
           <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
         </section>
@@ -110,28 +110,28 @@
         <section class="terminal-marker-detail" id="terminalMarkerDetail" hidden>
           <header><div><span>Raven marker</span><h2 id="terminalMarkerTitle">Decision detail</h2></div><button type="button" id="terminalMarkerClose" aria-label="Close marker detail">Close</button></header>
           <dl class="terminal-marker-grid">
-            <div><dt>Source evidence</dt><dd id="terminalMarkerSource">Unavailable</dd></div>
-            <div><dt>Evidence maturity</dt><dd id="terminalMarkerMaturity">Unavailable</dd></div>
-            <div><dt>Path transition</dt><dd id="terminalMarkerPath">Unavailable</dd></div>
-            <div><dt>Historical outcome</dt><dd id="terminalMarkerOutcome">Unavailable</dd></div>
-            <div><dt>What supports it</dt><dd id="terminalMarkerSupport">Unavailable</dd></div>
-            <div><dt>What contradicts it</dt><dd id="terminalMarkerContradiction">Unavailable</dd></div>
+            <div hidden><dt>Source evidence</dt><dd id="terminalMarkerSource"></dd></div>
+            <div hidden><dt>Evidence maturity</dt><dd id="terminalMarkerMaturity"></dd></div>
+            <div hidden><dt>Path transition</dt><dd id="terminalMarkerPath"></dd></div>
+            <div hidden><dt>Historical outcome</dt><dd id="terminalMarkerOutcome"></dd></div>
+            <div hidden><dt>What supports it</dt><dd id="terminalMarkerSupport"></dd></div>
+            <div hidden><dt>What contradicts it</dt><dd id="terminalMarkerContradiction"></dd></div>
           </dl>
         </section>
 
-        <section>
+        <section id="terminalContextSection" hidden>
           <header><div><span>Why now</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
           <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
           <div class="terminal-why"><span id="terminalWhyLabel">Why Raven noticed this</span><strong id="terminalWhy">No verified context yet.</strong></div>
           <dl class="terminal-context-grid">
-            <div><dt>Market</dt><dd id="terminalContextIdentity">SOL perpetual</dd></div>
-            <div><dt>Behavior</dt><dd id="terminalBehavior">Unavailable</dd></div>
-            <div><dt>Path</dt><dd id="terminalPath">Unavailable</dd></div>
-            <div><dt>Evidence</dt><dd id="terminalEvidenceMaturity">Unavailable</dd></div>
+            <div hidden><dt id="terminalContextIdentityLabel">Market</dt><dd id="terminalContextIdentity"></dd></div>
+            <div hidden><dt id="terminalBehaviorLabel">Behavior</dt><dd id="terminalBehavior"></dd></div>
+            <div hidden><dt id="terminalPathLabel">Path</dt><dd id="terminalPath"></dd></div>
+            <div hidden><dt id="terminalEvidenceMaturityLabel">Evidence</dt><dd id="terminalEvidenceMaturity"></dd></div>
           </dl>
         </section>
 
-        <section>
+        <section id="terminalComparableSection" hidden>
           <header><div><span>Similar history</span><h2>What followed before</h2></div><strong id="terminalComparableState">Forming</strong></header>
           <dl class="terminal-context-grid">
             <div><dt>Sample</dt><dd id="terminalComparableN">0</dd></div>
@@ -142,7 +142,7 @@
           <p id="terminalComparableNote">No exact historical sample is available yet.</p>
         </section>
 
-        <section>
+        <section id="terminalTradeReviewSection" hidden>
           <header><div><span>Available action</span><h2>Trade review</h2></div><strong id="terminalQuoteState">Checking</strong></header>
           <dl class="terminal-boundary-list">
             <div><dt>Review</dt><dd id="terminalQuoteContract">Checking availability</dd></div>

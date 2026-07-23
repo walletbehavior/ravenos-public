@@ -36,6 +36,10 @@ test("an arbitrary U.S. listing resolves only after one exact RavenOS instrument
   assert.equal(resolveTradingViewChart(entity, { exactInstrument: { ...exactInstrument, venue: "unknown" } }), null);
   assert.equal(resolveTradingViewChart(entity, { exactInstrument: { ...exactInstrument, symbol: "AAPL" } }), null);
   assert.equal(resolveTradingViewChart(entity, { exactInstrument: { ...exactInstrument, instrument_id: "equity:nasdaq:aapl" } }), null);
+  assert.equal(resolveTradingViewChart(
+    { entity_id: "equity:us:AAPL", symbol: "AAPL", name: "Apple Inc." },
+    { exactInstrument: { ...exactInstrument, symbol: "AAPL", instrument_id: "equity:nyse:aapl", venue: "nasdaq" } },
+  ), null);
 });
 
 test("TradingView code is isolated from the RavenOS application origin", () => {

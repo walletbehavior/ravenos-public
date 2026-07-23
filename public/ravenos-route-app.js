@@ -108,8 +108,13 @@ function traderText(value, fallback = FORMING_TEXT) {
     .replace(/^No completed live cohort yet; current observations remain in research sample forming state\.?$/i, "No completed live cohort yet; current observations are still in evidence-forming research state.")
     .replace(/^Research sample forming; latest completed cohort remains visible when available\.?$/i, "Research evidence is still forming; the latest completed cohort remains visible when available.")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
-    .replace(/^Raven froze a behavioral setup observation while (.+?) was present\.?$/i, "Market behavior changed while $1 remained visible.")
+    .replace(
+      /^Raven froze an? (.+?) observation while (.+?) was present\.?$/i,
+      (_match, behavior, context) => `${titleCase(behavior)} appeared while ${String(context || "").trim().replace(/\s+visible$/i, "")} was in place.`,
+    )
+    .replace(/\bRaven froze\b/gi, "Raven observed")
     .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
+    .replace(/\bfrozen observation\b/gi, "timestamped observation")
     .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")
     .replace(/\bOutcomes Unclear\b/gi, "similar conditions remain mixed")
     .replace(/\bReplay\b/gi, "similar history")
@@ -815,7 +820,7 @@ function renderOpportunityCensus(payload, census) {
     ? `${top.instrument} · ${topFamily}`
     : "Current opportunity rows are unavailable.";
   const summary = top
-    ? top.why_raven_noticed || `Raven preserved a ${String(topFamily).toLowerCase()} observation on ${top.instrument}.`
+    ? traderText(top.why_raven_noticed, `${titleCase(topFamily)} appeared on ${top.instrument}.`)
     : "Raven has current aggregate market coverage, but no exact market can be shown.";
   document.getElementById("routeHeadline").textContent = headline;
   document.getElementById("routeHeroSummary").textContent = summary;

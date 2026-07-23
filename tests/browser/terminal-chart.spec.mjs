@@ -107,7 +107,7 @@ test("live chart connection status reaches the visible Terminal instead of remai
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
   await expect(page.locator("#terminalChartStatus")).toContainText(/Live/i);
-  await expect(page.locator("#terminalBoundary strong")).toHaveText("Provider market connected");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Live market feed");
 });
 
 test("hidden Terminal pauses its shared live feed and resumes the exact market without replacing the chart", async ({ page }) => {
@@ -227,6 +227,41 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(chart).not.toHaveClass(/rpw-focus-mode/);
 });
 
+test("mobile long hold inspects exact OHLCV and returns to latest on release", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
+
+  const stage = page.locator("#terminalChart .rpw-stage");
+  const legend = page.locator("#terminalChart [data-rpw-crosshair]");
+  await expect(stage).toBeVisible();
+  await expect(legend).toHaveAttribute("data-mode", "latest");
+
+  const bounds = await stage.boundingBox();
+  const client = await page.context().newCDPSession(page);
+  await client.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  const start = {
+    x: Math.round(bounds.x + bounds.width * 0.58),
+    y: Math.round(bounds.y + bounds.height * 0.5),
+  };
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ ...start, radiusX: 2, radiusY: 2, force: 1 }],
+  });
+  await page.waitForTimeout(650);
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: start.x - 24, y: start.y, radiusX: 2, radiusY: 2, force: 1 }],
+  });
+
+  await expect(legend).toHaveAttribute("data-mode", "inspect");
+  await expect(legend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect(legend).toHaveAttribute("data-mode", "latest");
+});
+
 test("instrument and timeframe changes repaint the chart and exact context", async ({ page }) => {
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
@@ -280,15 +315,21 @@ test("spot search loads only the selected exact pool and does not infer Raven co
 
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
-  await expect(page.locator("#terminalReadHeadline")).toContainText("Raven context unavailable");
-  await expect(page.locator("#terminalWhy")).toContainText(/not substituted/i);
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  await expect(page.locator("#terminalReadTrigger")).toBeHidden();
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
   await expect(page.locator("#terminalAnatomy2")).toContainText("16.5M");
   await expect(page.locator("#terminalAnatomy3")).toContainText("12.4K");
-  await expect(page.locator("#terminalAnatomy5")).toContainText("Not projected");
+  await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Market cap");
+  await expect(page.locator("#terminalAnatomy5")).toContainText("3.1B");
+  const anatomyFacts = await Promise.all(
+    [1, 2, 3, 4, 5].map((index) => page.locator(`#terminalAnatomy${index}`).textContent()),
+  );
+  expect(anatomyFacts.join(" ")).not.toMatch(/Unavailable|Not projected/i);
+  await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
   await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token:fixture-quote");
   await page.locator("#terminalSourceDetail > summary").click();
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");

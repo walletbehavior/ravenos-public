@@ -68,8 +68,18 @@ export function customerFacingText(value, fallback = "") {
     .replace(/\bLive Activity\b/gi, "market activity")
     .replace(/\bCurrent Raven Read\b/gi, "Current market read")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
-    .replace(/^Raven froze a behavioral setup observation while (.+?) was present\.?$/i, "Market behavior changed while $1 remained visible.")
+    .replace(
+      /^Raven froze an? (.+?) observation while (.+?) was present\.?$/i,
+      (_match, behavior, context) => {
+        const cleanBehavior = String(behavior || "").trim();
+        const cleanContext = String(context || "").trim().replace(/\s+visible$/i, "");
+        const subject = cleanBehavior ? `${cleanBehavior.charAt(0).toUpperCase()}${cleanBehavior.slice(1)}` : "Market behavior";
+        return cleanContext ? `${subject} appeared while ${cleanContext} was in place.` : `${subject} appeared.`;
+      },
+    )
+    .replace(/\bRaven froze\b/gi, "Raven observed")
     .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
+    .replace(/\bfrozen observation\b/gi, "timestamped observation")
     .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")
     .replace(/\bRaven currently believes\b/gi, "Current evidence indicates");
   return normalized || fallback;
