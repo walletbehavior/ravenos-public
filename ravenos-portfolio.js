@@ -12,6 +12,7 @@ function renderSelection(context) {
 ravenOSContext.subscribe(renderSelection);
 window.RavenOSShell?.setCapabilities?.({ market: "Public market context only", wallet: "No customer session", mode: "Portfolio unavailable", signing: "Sign off", broadcast: "Broadcast off", evidence: "No customer holdings" });
 window.RavenOSShell?.setIntelligence?.({
+  presentation: { status: false, context: false },
   subject: ravenOSContext.getState().subject,
   marketState: { label: "No portfolio connected", regime: "unavailable" },
   setupState: { state: "unavailable", confirmation: "no customer data" },

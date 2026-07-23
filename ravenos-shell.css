@@ -55,6 +55,17 @@ body.ros-shell-active button { cursor: pointer; }
   backdrop-filter: blur(18px);
   color: var(--ros-text);
 }
+.ros-freshness[hidden],
+.ros-context-trigger[hidden] { display: none !important; }
+.ros-topbar[data-freshness-visible="false"][data-context-visible="false"] {
+  grid-template-columns: 132px minmax(300px, 1fr) minmax(320px, 680px) 82px 42px;
+}
+.ros-topbar[data-freshness-visible="false"][data-context-visible="true"] {
+  grid-template-columns: 132px minmax(300px, 1fr) minmax(320px, 680px) 92px 82px 42px;
+}
+.ros-topbar[data-freshness-visible="true"][data-context-visible="false"] {
+  grid-template-columns: 132px minmax(300px, 1fr) minmax(320px, 680px) 126px 82px 42px;
+}
 
 .ros-brand {
   min-width: 0;
@@ -460,11 +471,28 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
 
 @media (max-width: 1280px) {
   .ros-topbar { grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 112px 82px 42px 42px; }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="false"] {
+    grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 42px 42px;
+  }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="true"] {
+    grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 82px 42px 42px;
+  }
+  .ros-topbar[data-freshness-visible="true"][data-context-visible="false"] {
+    grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 112px 42px 42px;
+  }
   .ros-provider-label { display: none; }
 }
 
 @media (max-width: 980px) {
   .ros-topbar { grid-template-columns: 52px minmax(220px, 1fr) minmax(200px, 380px) 82px 42px 42px; }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="false"],
+  .ros-topbar[data-freshness-visible="true"][data-context-visible="false"] {
+    grid-template-columns: 52px minmax(220px, 1fr) minmax(200px, 380px) 42px 42px;
+  }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="true"],
+  .ros-topbar[data-freshness-visible="true"][data-context-visible="true"] {
+    grid-template-columns: 52px minmax(220px, 1fr) minmax(200px, 380px) 82px 42px 42px;
+  }
   .ros-brand { padding: 0; justify-content: center; }
   .ros-brand-type { display: none; }
   .ros-freshness { display: none; }
@@ -477,6 +505,14 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
     padding: var(--ros-topbar-height) 0 calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom));
   }
   .ros-topbar { grid-template-columns: 48px minmax(0, 1fr) 38px 42px 38px; }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="false"],
+  .ros-topbar[data-freshness-visible="true"][data-context-visible="false"] {
+    grid-template-columns: 48px minmax(0, 1fr) 42px 38px;
+  }
+  .ros-topbar[data-freshness-visible="false"][data-context-visible="true"],
+  .ros-topbar[data-freshness-visible="true"][data-context-visible="true"] {
+    grid-template-columns: 48px minmax(0, 1fr) 38px 42px 38px;
+  }
   .ros-brand { padding: 0; justify-content: center; border-right: 1px solid var(--ros-line); }
   .ros-brand-mark { width: 28px; height: 28px; }
   .ros-brand-type,

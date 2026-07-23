@@ -460,11 +460,13 @@ export class PriceWorkspace {
 
   paintTrades() {
     const host = this.container.querySelector("[data-rpw-trades]");
+    const activity = this.container.querySelector("[data-rpw-activity]");
     const trades = this.tradeBuffer.values().slice(-12).reverse();
+    const tradeFeedAvailable = this.state.capabilities?.live_trades === true || trades.length > 0;
+    this.root.classList.toggle("rpw-no-activity", !tradeFeedAvailable);
+    if (activity) activity.hidden = !tradeFeedAvailable;
     if (!trades.length) {
-      host.textContent = this.state.capabilities?.live_trades
-        ? "Waiting for the first venue trade."
-        : "Trade-level feed unavailable for this source; price and market state still update.";
+      host.textContent = tradeFeedAvailable ? "Waiting for the first venue trade." : "";
       return;
     }
     host.replaceChildren(...trades.map((trade) => {

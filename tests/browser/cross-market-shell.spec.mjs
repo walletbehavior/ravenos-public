@@ -255,6 +255,7 @@ test("Terminal resolves an exact pool identity directly without a lane selector"
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator("#terminalChart [data-rpw-activity]")).toBeHidden();
   expect(calls.some((call) => call.pairAddress === "fixture-pair-address")).toBe(true);
 });
 
@@ -265,6 +266,8 @@ test("Portfolio is one truthful empty state and never a seeded customer account"
   await expect(page.locator(".connection-row, .connection-list, .workspace-ledger")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Connections unavailable" })).toBeDisabled();
   await expect(page.locator("body")).not.toContainText(/demo portfolio|sample holding|connected wallet/i);
+  await expect(page.locator("#rosFreshness")).toBeHidden();
+  await expect(page.locator("#rosContextTrigger")).toBeHidden();
   const contract = await page.evaluate(() => window.__RAVENOS_PORTFOLIO__);
   expect(contract.customerDataLoaded).toBe(false);
   expect(contract.connectorsAvailable).toBe(false);

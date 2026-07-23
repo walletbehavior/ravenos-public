@@ -1086,6 +1086,7 @@ function renderDetail(payload) {
   ravenOSContext.setSelection({ subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind }, workspace: "atlas" }, { updateUrl: false });
   window.RavenOSShell?.setCapabilities?.({ market: `${entityKindLabel(row.entity_kind)} · ${timingLabel(row)}`, mode: "Read only", evidence: `${providerLabel(row.provider)} provenance`, wallet: "No customer session", signing: "Sign off", broadcast: "Broadcast off" });
   window.RavenOSShell?.setIntelligence?.({
+    presentation: { status: false, context: false },
     subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind },
     marketState: { label: timingLabel(row), regime: entityKindLabel(row.entity_kind) },
     setupState: { state: payload.snapshot?.state || "unavailable", confirmation: "Atlas context only" },

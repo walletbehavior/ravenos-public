@@ -150,7 +150,7 @@ function providerCreditMarkup() {
 
 function createShellMarkup(slug) {
   return `
-    <header class="ros-topbar" data-ros-shell>
+    <header class="ros-topbar" data-ros-shell data-freshness-visible="false" data-context-visible="false">
       <a class="ros-brand" href="/discover/" aria-label="RavenOS Discover">
         <span class="ros-brand-mark" aria-hidden="true">R</span>
         <span class="ros-brand-type"><strong>RavenOS</strong></span>
@@ -161,8 +161,8 @@ function createShellMarkup(slug) {
         <span class="ros-command-copy"><strong>Search instruments</strong><small>Symbol, name, or contract address</small></span>
         <kbd>⌘ K</kbd>
       </button>
-      <div class="ros-freshness" id="rosFreshness"><span class="ros-state-dot"></span><span><strong>Data unavailable</strong><time>No timestamp</time></span></div>
-      <button class="ros-context-trigger" id="rosContextTrigger" type="button" aria-controls="rosContextRail" aria-expanded="false"><span>Raven Read</span></button>
+      <div class="ros-freshness" id="rosFreshness" hidden><span class="ros-state-dot"></span><span><strong>Data unavailable</strong><time>No timestamp</time></span></div>
+      <button class="ros-context-trigger" id="rosContextTrigger" type="button" aria-controls="rosContextRail" aria-expanded="false" hidden><span>Raven Read</span></button>
       ${providerCreditMarkup()}
       <button class="ros-profile-trigger" id="rosProfileTrigger" type="button" aria-label="Open account and settings">R</button>
     </header>
@@ -463,9 +463,37 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function setIntelligence(next) {
+    const presentation = next?.presentation && typeof next.presentation === "object" ? next.presentation : {};
     intelligence = next?.schemaVersion ? next : createIntelligenceRecord(next || {}, { subject: ravenOSContext.getState().subject });
     const freshness = intelligence.freshness;
     const freshnessHost = document.getElementById("rosFreshness");
+    const contextTrigger = document.getElementById("rosContextTrigger");
+    const shell = document.querySelector("[data-ros-shell]");
+    const exactSubjectSelected = Boolean(intelligence.subject?.id && intelligence.subject.id !== "unselected");
+    const decisionContextAvailable = Boolean(
+      intelligence.supportingEvidence.length
+      || intelligence.contradictingEvidence.length
+      || intelligence.invalidation.length
+      || !["unavailable", "unqualified", "market_data_only", "unknown"].includes(intelligence.setupState.state)
+      || !["unavailable", "market_data_only", "unknown"].includes(intelligence.evidenceQuality.state)
+    );
+    const showFreshness = presentation.status === true || (
+      presentation.status !== false
+      && Boolean(freshness.observedAt)
+      && freshness.state !== "data_unavailable"
+    );
+    const showContext = presentation.context === true || (
+      presentation.context !== false
+      && exactSubjectSelected
+      && decisionContextAvailable
+    );
+    freshnessHost.hidden = !showFreshness;
+    contextTrigger.hidden = !showContext;
+    contextTrigger.querySelector("span").textContent = presentation.contextLabel || "Raven Read";
+    contextTrigger.setAttribute("aria-label", presentation.contextLabel || "Open Raven Read");
+    shell.dataset.freshnessVisible = String(showFreshness);
+    shell.dataset.contextVisible = String(showContext);
+    if (!showContext && document.body.classList.contains("ros-context-open")) closeDrawers();
     freshnessHost.dataset.state = freshness.state;
     freshnessHost.querySelector("strong").textContent = freshness.label || RavenDataStateLabels[freshness.state] || "Data unavailable";
     freshnessHost.querySelector("time").textContent = formatObservedAt(freshness.observedAt);

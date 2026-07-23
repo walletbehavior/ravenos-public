@@ -122,8 +122,7 @@ test("generated routes use the mobile primary navigation and context sheet", asy
   await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "AAtlas"]);
   await expect(page.locator("#rosContextRail")).toBeHidden();
   await expect(page.locator("#rosUtilityDrawer")).toBeHidden();
-  await page.locator("#rosContextTrigger").click();
-  await expect(page.locator("#rosContextRail")).toBeVisible();
+  await expect(page.locator("#rosContextTrigger")).toBeHidden();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });
