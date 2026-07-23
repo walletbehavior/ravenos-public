@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const workspace = readFileSync(new URL("../ravenos-price-workspace.js", import.meta.url), "utf8");
+const priceChart = readFileSync(new URL("../raven-price-chart.js", import.meta.url), "utf8");
+const landing = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const landingRuntime = readFileSync(new URL("../ravenos-landing.js", import.meta.url), "utf8");
+const atlas = readFileSync(new URL("../ravenos-atlas.js", import.meta.url), "utf8");
 const terminal = readFileSync(new URL("../terminal/index.html", import.meta.url), "utf8");
 const terminalRuntime = readFileSync(new URL("../ravenos-terminal-live.js", import.meta.url), "utf8");
 const overlays = readFileSync(new URL("../raven-chart-overlays.js", import.meta.url), "utf8");
@@ -24,6 +28,8 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /new CustomEvent\("ravenos:priceworkspace", \{ detail: \{ \.\.\.this\.state \} \}\)/);
   assert.match(workspace, /acceptProviderTransition/);
   assert.match(workspace, /chart_provider_transition_pool_mismatch/);
+  assert.match(workspace, /validateExpectedInstrument/);
+  assert.match(workspace, /different exact market than the one selected/);
   assert.match(workspace, /onMarkerSelect/);
   assert.match(workspace, /visibilitychange/);
   assert.match(workspace, /paused_hidden/);
@@ -45,6 +51,20 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.doesNotMatch(terminal, /Synthetic fallback/);
   assert.match(terminal, /Lightweight Charts™ by TradingView/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
+});
+
+test("all native RavenOS chart surfaces use the shared price or series renderer", () => {
+  assert.match(landing, /ravenos-price-workspace\.css/);
+  assert.match(landing, /raven-price-chart\.js/);
+  assert.doesNotMatch(landing, /<canvas[^>]+id="landingChart"/);
+  assert.match(landingRuntime, /createPriceWorkspace/);
+  assert.match(landingRuntime, /expectedCanonicalId/);
+  assert.doesNotMatch(landingRuntime, /getContext\("2d"\)|fillRect|drawChart/);
+  assert.match(priceChart, /function RavenPriceChart/);
+  assert.match(priceChart, /function RavenSeriesChart/);
+  assert.match(priceChart, /TrackingModeExitMode/);
+  assert.match(atlas, /window\.RavenSeriesChart/);
+  assert.doesNotMatch(atlas, /LightweightCharts\.createChart/);
 });
 
 test("chart annotations require exact identity, timestamp, and lineage", () => {

@@ -132,6 +132,38 @@ function exactRavenAnnotations(value, instrument) {
   return value;
 }
 
+function sameExpectedIdentity(chain, left, right) {
+  const first = String(left || "").trim();
+  const second = String(right || "").trim();
+  if (!first || !second) return false;
+  const network = String(chain || "").trim().toLowerCase();
+  return ["base", "ethereum", "arbitrum", "optimism", "polygon", "robinhood"].includes(network)
+    ? first.toLowerCase() === second.toLowerCase()
+    : first === second;
+}
+
+function validateExpectedInstrument(instrument, expected = {}) {
+  if (!expected || typeof expected !== "object") return true;
+  const checks = [
+    ["canonicalId", "canonical_id"],
+    ["instrumentType", "instrument_type"],
+    ["identityScope", "identity_scope"],
+    ["chain", "chain"],
+    ["venue", "venue"],
+    ["baseAsset", "base_asset"],
+    ["quoteAsset", "quote_asset"],
+  ];
+  for (const [expectedKey, instrumentKey] of checks) {
+    if (expected[expectedKey] === null || expected[expectedKey] === undefined || expected[expectedKey] === "") continue;
+    if (String(expected[expectedKey]).toLowerCase() !== String(instrument?.[instrumentKey] || "").toLowerCase()) return false;
+  }
+  for (const [expectedKey, instrumentKey] of [["poolAddress", "pool_address"], ["tokenAddress", "token_address"]]) {
+    if (expected[expectedKey] === null || expected[expectedKey] === undefined || expected[expectedKey] === "") continue;
+    if (!sameExpectedIdentity(expected.chain || instrument?.chain, expected[expectedKey], instrument?.[instrumentKey])) return false;
+  }
+  return true;
+}
+
 function createMarkup() {
   return `
     <section class="rpw" data-price-workspace-state="data_unavailable">
@@ -619,6 +651,12 @@ export class PriceWorkspace {
         tokenAddress: request.tokenAddress,
         pairAddress: request.pairAddress,
       });
+      if (request.expectedCanonicalId && instrument.canonical_id !== request.expectedCanonicalId) {
+        throw new Error("The chart provider returned a different exact market than the one selected.");
+      }
+      if (!validateExpectedInstrument(instrument, request.expectedIdentity)) {
+        throw new Error("The chart provider returned a different exact market than the one selected.");
+      }
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
       const state = this.setState({
         state: cleanState(payload.freshness_state, payload.stale ? PRICE_WORKSPACE_STATES.DELAYED : PRICE_WORKSPACE_STATES.LIVE),

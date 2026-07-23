@@ -415,6 +415,14 @@ async function selectInstrument(asset, { updateContext = true } = {}) {
     chain: "hyperliquid",
     marketIdentity: row.instrument_id,
     limit: 240,
+    expectedIdentity: {
+      instrumentType: "perpetual",
+      identityScope: "venue_market",
+      chain: "hyperliquid",
+      venue: "hyperliquid",
+      baseAsset: String(row.asset || "").replace(/-PERP$/i, ""),
+      quoteAsset: "USD",
+    },
   });
   const contextPromise = fetchSelectedContext(row, generation);
   const chartResult = await chartPromise;

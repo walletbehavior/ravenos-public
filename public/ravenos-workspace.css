@@ -443,6 +443,44 @@
 .atlas-visual-chart-meta small { justify-self: end; text-align: right; line-height: 1.4; }
 
 .atlas-history-chart { width: 100%; min-height: 420px; border-bottom: 1px solid var(--ws-border); }
+.raven-series-chart-shell {
+  --raven-series-height: 420px;
+  width: 100%;
+  height: var(--raven-series-height);
+  display: grid;
+  grid-template-rows: 46px minmax(0, 1fr);
+  overflow: hidden;
+  background: #080a0d;
+}
+.raven-series-chart-inspector {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid rgba(148, 163, 184, .18);
+  background: #0b0e12;
+  color: #aab4bf;
+  font: 10px var(--ws-mono);
+  scrollbar-width: none;
+}
+.raven-series-chart-inspector::-webkit-scrollbar { display: none; }
+.raven-series-chart-inspector > span {
+  flex: 0 0 auto;
+  min-width: 92px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  padding: 4px 10px;
+  border-right: 1px solid rgba(148, 163, 184, .14);
+}
+.raven-series-chart-inspector > span:last-child { border-right: 0; }
+.raven-series-chart-inspector small { color: #697584; font: 700 7px var(--ws-mono); text-transform: uppercase; }
+.raven-series-chart-inspector strong { overflow: hidden; color: #c5cdd5; font: 700 9px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.raven-series-chart-time { min-width: 160px !important; }
+.raven-series-chart-inspector[data-mode="inspect"] { background: #0d1116; box-shadow: inset 0 -1px rgba(166, 177, 190, .22); }
+.raven-series-chart-stage,
+.raven-series-chart-host { min-width: 0; min-height: 0; width: 100%; height: 100%; }
 .atlas-history-list { display: grid; }
 .atlas-history-list > div { display: flex; justify-content: space-between; gap: 20px; padding: 10px 14px; border-bottom: 1px solid var(--ws-border); font: 9px var(--ws-mono); }
 .atlas-history-list span { color: var(--ws-muted); }
@@ -611,6 +649,25 @@
   .atlas-decision-grid { grid-template-columns: 1fr; }
   .atlas-decision-grid > div { min-height: 0; border-right: 0; }
   .atlas-history-chart { min-height: 330px; }
+  .raven-series-chart-shell { --raven-series-height: 360px !important; grid-template-rows: 72px minmax(0, 1fr); }
+  .raven-series-chart-inspector {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .raven-series-chart-inspector > span {
+    min-width: 0;
+    padding: 3px 6px;
+    border-bottom: 1px solid rgba(148, 163, 184, .1);
+  }
+  .raven-series-chart-inspector > span:nth-child(5) { border-right: 0; }
+  .raven-series-chart-time {
+    grid-column: 1 / -1;
+    min-width: 0 !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+  .raven-series-chart-time strong { text-align: right; }
   .atlas-visual-chart { min-height: 390px; grid-template-rows: minmax(330px, 1fr) auto; }
   .atlas-visual-chart-host,
   .atlas-tv-frame { min-height: 330px; }

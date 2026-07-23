@@ -6,6 +6,7 @@
   <title>RavenOS · See what changed before the market explains it</title>
   <meta name="description" content="A current, evidence-bound market intelligence workspace for crypto, perpetuals, equities, ETFs, and options context." />
   <meta name="theme-color" content="#080a08" />
+  <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-landing.css" />
 </head>
 <body>
@@ -51,9 +52,7 @@
             <div class="landing-quote"><strong id="landingPrice">—</strong><span id="landingChange">—</span></div>
           </header>
           <div class="landing-chart-wrap" id="landingChartWrap" data-state="loading">
-            <canvas id="landingChart" aria-label="Provider-backed selected market price chart"></canvas>
-            <div class="landing-chart-state" id="landingChartState">Requesting provider-backed candles</div>
-            <div class="landing-chart-axis"><span>Provider history</span><span id="landingChartTimeframe">1h</span></div>
+            <div id="landingChart" aria-label="Provider-backed selected market price chart"></div>
           </div>
           <dl class="landing-market-facts">
             <div><dt>Venue</dt><dd id="landingVenue">—</dd></div>
@@ -111,6 +110,10 @@
   </main>
 
   <footer class="landing-footer"><a class="landing-brand" href="/"><span>R</span><strong>RavenOS</strong></a><p>Evidence-bound market intelligence. Research only. Not investment advice.</p><nav><a href="/docs/">Methodology</a><a href="/faq/">FAQ</a><a href="/pricing/">Access</a><a href="/account/">Account</a></nav></footer>
+  <script src="/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/raven-chart-overlays.js"></script>
+  <script src="/raven-reads.js"></script>
+  <script src="/raven-price-chart.js"></script>
   <script type="module" src="/ravenos-landing.js"></script>
 </body>
 </html>

@@ -330,7 +330,7 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   );
   expect(anatomyFacts.join(" ")).not.toMatch(/Unavailable|Not projected/i);
   await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
-  await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token:fixture-quote");
+  await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token-address:fixture-quote-address");
   await page.locator("#terminalSourceDetail > summary").click();
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");

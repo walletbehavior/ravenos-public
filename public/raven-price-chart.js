@@ -821,6 +821,140 @@
     return apiRef;
   }
 
+  function RavenSeriesChart(container, options = {}) {
+    if (!container) return null;
+    const api = window.LightweightCharts;
+    const rows = (Array.isArray(options.rows) ? options.rows : [])
+      .map((row) => ({
+        time: row?.time,
+        value: Number(row?.value),
+        period: row?.period || null,
+      }))
+      .filter((row) => row.time !== null && row.time !== undefined && Number.isFinite(row.value))
+      .sort((left, right) => Number(left.time) - Number(right.time));
+    if (!api?.createChart || rows.length < 2) return null;
+
+    container.replaceChildren();
+    const shell = document.createElement("div");
+    shell.className = "raven-series-chart-shell";
+    const inspector = document.createElement("div");
+    inspector.className = "raven-series-chart-inspector";
+    inspector.setAttribute("aria-live", "polite");
+    const stage = document.createElement("div");
+    stage.className = "raven-series-chart-stage";
+    const chartHost = document.createElement("div");
+    chartHost.className = "raven-series-chart-host";
+    stage.append(chartHost);
+    shell.append(inspector, stage);
+    container.append(shell);
+
+    const valueFormatter = typeof options.valueFormatter === "function"
+      ? options.valueFormatter
+      : (value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 });
+    const units = String(options.units || "Published value");
+    const byTime = new Map(rows.map((row, index) => [String(row.time), { row, index }]));
+    const renderInspector = (selected = null) => {
+      const active = selected || rows.at(-1);
+      const index = byTime.get(String(active.time))?.index ?? rows.length - 1;
+      const previous = index > 0 ? rows[index - 1] : null;
+      const absolute = previous ? active.value - previous.value : null;
+      const percent = previous && previous.value !== 0 ? (absolute / previous.value) * 100 : null;
+      const fields = [
+        [selected ? "Inspect" : "Latest", active.period || crosshairTimeLabel(active.time)],
+        ["Value", valueFormatter(active.value)],
+        ["Δ", absolute === null ? "—" : `${absolute >= 0 ? "+" : ""}${valueFormatter(absolute)}`],
+        ["Change", percent === null ? "—" : `${percent >= 0 ? "+" : ""}${percent.toFixed(2)}%`],
+        ["Units", units],
+      ];
+      inspector.dataset.mode = selected ? "inspect" : "latest";
+      inspector.replaceChildren(...fields.map(([label, value], indexValue) => {
+        const cell = document.createElement("span");
+        if (indexValue === 0) cell.className = "raven-series-chart-time";
+        const key = document.createElement("small");
+        key.textContent = label;
+        const result = document.createElement("strong");
+        result.textContent = value;
+        cell.append(key, result);
+        return cell;
+      }));
+    };
+
+    const height = Math.max(280, Number(options.height) || 420);
+    shell.style.setProperty("--raven-series-height", `${height}px`);
+    const chart = api.createChart(chartHost, {
+      width: chartHost.clientWidth || container.clientWidth || 720,
+      height: Math.max(230, height - 46),
+      layout: {
+        background: { color: "#080a0d" },
+        textColor: "#929daa",
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: "rgba(183, 194, 208, 0.05)" },
+        horzLines: { color: "rgba(183, 194, 208, 0.05)" },
+      },
+      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
+      timeScale: {
+        borderColor: "rgba(148, 163, 184, 0.18)",
+        timeVisible: options.timeVisible === true,
+        secondsVisible: false,
+      },
+      crosshair: { mode: 0 },
+      trackingMode: {
+        exitMode: api.TrackingModeExitMode?.OnTouchEnd ?? 0,
+      },
+      localization: { priceFormatter: valueFormatter },
+    });
+    const series = chart.addSeries(api.LineSeries, {
+      color: "#8da6b8",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 4,
+      priceFormat: { type: "custom", formatter: valueFormatter },
+    });
+    series.setData(rows.map(({ time, value }) => ({ time, value })));
+    chart.timeScale().fitContent();
+    renderInspector();
+
+    const crosshairHandler = (param) => {
+      const value = param?.seriesData?.get?.(series);
+      if (!param?.time || !value || !Number.isFinite(Number(value.value))) {
+        renderInspector();
+        return;
+      }
+      const record = byTime.get(String(param.time))?.row || {
+        time: param.time,
+        value: Number(value.value),
+        period: null,
+      };
+      renderInspector(record);
+    };
+    chart.subscribeCrosshairMove?.(crosshairHandler);
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      const width = Math.max(1, Math.floor(entry.contentRect.width));
+      const stageHeight = Math.max(230, Math.floor(stage.getBoundingClientRect().height));
+      chart.applyOptions({ width, height: stageHeight });
+    });
+    resizeObserver.observe(stage);
+
+    return {
+      chart,
+      series,
+      destroy() {
+        resizeObserver.disconnect();
+        chart.unsubscribeCrosshairMove?.(crosshairHandler);
+        chart.remove();
+        shell.remove();
+      },
+      remove() {
+        this.destroy();
+      },
+    };
+  }
+
   window.RavenChartOverlayRenderers = OVERLAY_RENDERER_REGISTRY;
   window.RavenPriceChart = RavenPriceChart;
+  window.RavenSeriesChart = RavenSeriesChart;
 })();

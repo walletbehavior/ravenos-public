@@ -9,6 +9,7 @@ import {
   expectedReleaseFromEnv,
 } from "../lib/release_contract.mjs";
 import { cloudflareReleaseEnv } from "../scripts/lib/cloudflare-release-env.mjs";
+import { onchainChartProviderEnv } from "../scripts/lib/onchain-chart-provider-env.mjs";
 
 const RELEASE_ID = "ravenos-abc123def456-0123456789abcdef";
 const SOURCE_COMMIT = "abc123def456abc123def456abc123def456abcd";
@@ -232,6 +233,19 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(preview, /candle_series\?\.provider !== "coingecko_onchain"/);
   assert.match(preview, /commercial_state !== "commercial_qualified"/);
   assert.match(preview, /Server-only chart-provider secret entered the preview response/);
+});
+
+test("local provider validation inherits the qualified release contract without changing parent env", () => {
+  const env = onchainChartProviderEnv(process.cwd(), {
+    COINGECKO_API_KEY: "server-only-qualified-key",
+    RAVEN_APP_ENV_PATH: "/does/not/exist",
+  });
+  assert.equal(env.ONCHAIN_CHART_PROVIDER, "coingecko");
+  assert.equal(env.ONCHAIN_CHART_PROVIDER_PLAN, "basic");
+  assert.equal(env.ONCHAIN_CHART_PROVIDER_COMMERCIAL, "true");
+  assert.equal(env.ONCHAIN_CHART_PROVIDER_SECRET, "server-only-qualified-key");
+  assert.equal(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER, "coingecko");
+  assert.equal(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED, "1");
 });
 
 test("release environment keeps Cloudflare aliases and the protected-origin token server-side", () => {

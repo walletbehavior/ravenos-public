@@ -201,6 +201,8 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const timeframe = url.searchParams.get("timeframe") || "1h";
     const market = url.searchParams.get("market") || "perpetuals";
     const pairAddress = url.searchParams.get("pair_address");
+    const tokenAddress = url.searchParams.get("token_address");
+    const quoteAddress = url.searchParams.get("quote_address");
     const instrumentId = url.searchParams.get("instrument_id");
     const chain = url.searchParams.get("chain");
     calls.push({ asset, timeframe, market, pairAddress, instrumentId });
@@ -225,7 +227,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           ? { canonical_id: instrumentId, instrument_type: String(instrumentId || "").startsWith("etf:") ? "etf" : "equity", identity_scope: "exact_instrument", chain: "none", venue: String(instrumentId || "").split(":")[1] || "traditional", symbol: asset, quote_asset: "USD" }
           : perp
           ? { instrument_type: "perpetual", chain: "hyperliquid", venue: "hyperliquid", symbol: asset }
-          : { instrument_type: "spot_pool", chain: spotChain, venue: "fixture-dex", symbol: asset.split("/")[0], quote_asset: asset.split("/")[1] || "USDC", pair_address: pairAddress, token_address: "fixture-token" },
+          : { instrument_type: "spot_pool", chain: spotChain, venue: "fixture-dex", symbol: asset.split("/")[0], quote_asset: asset.split("/")[1] || "USDC", pair_address: pairAddress, token_address: tokenAddress },
         capabilities: { live_bars: liveBars, older_bar_backfill: false, live_trades: liveBars && perp },
         candle_series: {
           schema_version: "ravenos.chart_candle_series.v1",
@@ -241,7 +243,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
         continuity: pairAddress ? {
           schema_version: "ravenos.chart_continuity.v1",
           state: "verified",
-          exact_pool_fingerprint: `${spotChain}:${pairAddress}:fixture-token:fixture-quote`,
+          exact_pool_fingerprint: `${spotChain}:${pairAddress}:${tokenAddress}:${quoteAddress || "fixture-quote"}`,
           token_orientation: "selected_token_usd",
           selected_token_decimals: 9,
           quote_token_decimals: 6,
@@ -252,7 +254,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
         market_anatomy: pairAddress ? {
           schema_version: "ravenos.market_anatomy.v1",
           exact_identity: true,
-          pool_fingerprint: `${spotChain}:${pairAddress}:fixture-token:fixture-quote`,
+          pool_fingerprint: `${spotChain}:${pairAddress}:${tokenAddress}:${quoteAddress || "fixture-quote"}`,
           liquidity_usd: 4_200_000,
           volume_24h_usd: 16_500_000,
           transactions_24h: 12_400,

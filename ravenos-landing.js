@@ -1,7 +1,16 @@
 import { canonicalInstrumentId, RAVENOS_CHART_INSTRUMENT_SCHEMA } from "./ravenos-chart-data-plane.js";
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
+import { createPriceWorkspace } from "./ravenos-price-workspace.js";
 
-const state = { opportunities: [], markets: new Map(), atlas: null, selected: null, candles: [], chartRequest: 0 };
+const state = {
+  opportunities: [],
+  markets: new Map(),
+  atlas: null,
+  selected: null,
+  timeframe: "1h",
+  chartRequest: 0,
+  workspace: null,
+};
 
 function text(value, fallback = "Unavailable") { const clean = String(value ?? "").trim(); return clean || fallback; }
 function finite(value) { if (value === null || value === undefined || value === "") return null; const number = Number(value); return Number.isFinite(number) ? number : null; }
@@ -22,13 +31,13 @@ function pathLabel(value) {
   return title(normalized);
 }
 
-function exactHyperliquidChartIdentity(row, payload) {
+function exactHyperliquidChartIdentity(row, chartState) {
   const match = /^hyperliquid:perp:([A-Z0-9._-]+)$/.exec(String(row?.instrument_id || ""));
-  if (!match || !payload?.instrument) return false;
+  if (!match || !chartState?.instrument) return false;
   const asset = match[1];
-  const instrument = payload.instrument;
+  const instrument = chartState.instrument;
   const canonicalId = canonicalInstrumentId({ instrumentType: "perpetual", chain: "hyperliquid", venue: "hyperliquid", baseAsset: asset, quoteAsset: "USD" });
-  return payload.instrument_scope === "exact_instrument"
+  return chartState.instrumentScope === "exact_instrument"
     && instrument.schema_version === RAVENOS_CHART_INSTRUMENT_SCHEMA
     && instrument.canonical_id === canonicalId
     && instrument.instrument_type === "perpetual"
@@ -78,110 +87,48 @@ function renderOpportunityList() {
   }
 }
 
-function drawChart() {
-  const canvas = document.getElementById("landingChart");
-  const wrap = document.getElementById("landingChartWrap");
-  const candles = state.candles
-    .map((row) => ({
-      time: finite(row.time),
-      open: finite(row.open),
-      high: finite(row.high),
-      low: finite(row.low),
-      close: finite(row.close),
-    }))
-    .filter((row) => Object.values(row).every((value) => value !== null)
-      && row.high >= Math.max(row.open, row.close)
-      && row.low <= Math.min(row.open, row.close));
-  if (!candles.length || !canvas.clientWidth || !canvas.clientHeight) return;
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const width = canvas.clientWidth; const height = canvas.clientHeight;
-  canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
-  const context = canvas.getContext("2d"); context.scale(ratio, ratio); context.clearRect(0, 0, width, height);
-  const plot = { top: 14, right: 10, bottom: 22, left: 10 };
-  const plotWidth = Math.max(1, width - plot.left - plot.right);
-  const plotHeight = Math.max(1, height - plot.top - plot.bottom);
-  const targetSlotWidth = width < 600 ? 4.2 : 5.8;
-  const visibleCount = Math.max(1, Math.min(candles.length, Math.floor(plotWidth / targetSlotWidth)));
-  const visible = candles.slice(-visibleCount);
-  const rawLow = Math.min(...visible.map((row) => row.low));
-  const rawHigh = Math.max(...visible.map((row) => row.high));
-  const rawSpread = Math.max(rawHigh - rawLow, Math.abs(rawHigh) * .002, 1e-9);
-  const low = rawLow - rawSpread * .055;
-  const high = rawHigh + rawSpread * .055;
-  const spread = high - low;
-  const slotWidth = plotWidth / visible.length;
-  const bodyWidth = Math.max(1.25, Math.min(5, slotWidth * .64));
-  const y = (value) => plot.top + (high - value) / spread * plotHeight;
-  const styles = getComputedStyle(document.documentElement);
-  const upColor = styles.getPropertyValue("--green").trim() || "#3fa675";
-  const downColor = styles.getPropertyValue("--red").trim() || "#cf5968";
-
-  visible.forEach((row, index) => {
-    const x = plot.left + (index + .5) * slotWidth;
-    const color = row.close >= row.open ? upColor : downColor;
-    context.strokeStyle = color;
-    context.lineWidth = Math.max(1, Math.min(1.35, slotWidth * .18));
-    context.beginPath();
-    context.moveTo(x, y(row.high));
-    context.lineTo(x, y(row.low));
-    context.stroke();
-
-    const openY = y(row.open);
-    const closeY = y(row.close);
-    const bodyTop = Math.min(openY, closeY);
-    const bodyHeight = Math.max(1.25, Math.abs(closeY - openY));
-    context.fillStyle = color;
-    context.fillRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
-  });
-
-  const last = visible.at(-1);
-  const lastY = y(last.close);
-  context.save();
-  context.setLineDash([3, 4]);
-  context.strokeStyle = last.close >= last.open ? "rgba(63,166,117,.45)" : "rgba(207,89,104,.45)";
-  context.lineWidth = 1;
-  context.beginPath();
-  context.moveTo(plot.left, lastY);
-  context.lineTo(width - plot.right, lastY);
-  context.stroke();
-  context.restore();
-
-  canvas.dataset.chartType = "candlestick";
-  canvas.dataset.instrumentId = state.selected?.instrument_id || "";
-  canvas.dataset.renderedCandles = String(visible.length);
-  wrap.dataset.state = "live";
-}
-
-function clearChart() {
-  const canvas = document.getElementById("landingChart");
-  const context = canvas.getContext("2d");
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  delete canvas.dataset.chartType;
-  delete canvas.dataset.instrumentId;
-  delete canvas.dataset.renderedCandles;
-}
-
 async function loadChart(row) {
   const generation = ++state.chartRequest;
-  state.candles = [];
-  clearChart();
-  const wrap = document.getElementById("landingChartWrap"); wrap.dataset.state = "loading";
-  setText("landingChartState", "Requesting provider-backed candles");
-  try {
-    const params = new URLSearchParams({ market: "perpetuals", asset: row.instrument, instrument_id: row.instrument_id, timeframe: "1h", limit: "120", instrument_scope: "exact_instrument" });
-    const { response, payload: outer } = await json(`/api/terminal/chart?${params.toString()}`);
-    const payload = outer?.data || outer;
-    if (generation !== state.chartRequest) return;
-    if (!response.ok || !payload?.ok || !exactHyperliquidChartIdentity(row, payload) || !Array.isArray(payload.candles) || !payload.candles.length) throw new Error("Exact provider chart unavailable");
-    state.candles = payload.candles.filter((candle) => [candle.time, candle.open, candle.high, candle.low, candle.close].every((value) => finite(value) !== null));
-    if (!state.candles.length) throw new Error("No admissible provider candles");
-    setText("landingFreshness", title(payload.freshness_state));
-    drawChart();
-  } catch (error) {
-    clearChart();
+  const wrap = document.getElementById("landingChartWrap");
+  wrap.dataset.state = "loading";
+  const asset = /^hyperliquid:perp:([A-Z0-9._-]+)$/.exec(String(row.instrument_id || ""))?.[1];
+  const expectedCanonicalId = asset
+    ? canonicalInstrumentId({ instrumentType: "perpetual", chain: "hyperliquid", venue: "hyperliquid", baseAsset: asset, quoteAsset: "USD" })
+    : null;
+  const chartState = await state.workspace.load({
+    market: "perpetuals",
+    asset: row.instrument,
+    instrumentId: row.instrument_id,
+    expectedCanonicalId,
+    timeframe: state.timeframe,
+    limit: 240,
+    chain: "hyperliquid",
+    source: "Hyperliquid",
+    marketIdentity: row.instrument_id,
+    instrumentScope: "exact_instrument",
+    expectedIdentity: {
+      instrumentType: "perpetual",
+      identityScope: "venue_market",
+      chain: "hyperliquid",
+      venue: "hyperliquid",
+      baseAsset: asset,
+      quoteAsset: "USD",
+    },
+  });
+  if (generation !== state.chartRequest) return;
+  if (!chartState?.candles?.length || !exactHyperliquidChartIdentity(row, chartState)) {
+    state.workspace.showUnavailable({
+      message: "Exact market history is unavailable. No other market was substituted.",
+      marketIdentity: row.instrument_id,
+      instrumentScope: "exact_instrument",
+      source: "Hyperliquid",
+      timeframe: state.timeframe,
+    });
     wrap.dataset.state = "unavailable";
-    setText("landingChartState", `${error.message}. The chart stays unavailable until exact provider history is verified.`);
+    return;
   }
+  wrap.dataset.state = chartState.state;
+  setText("landingFreshness", title(chartState.state));
 }
 
 function selectOpportunity(row) {
@@ -220,6 +167,15 @@ function renderAtlas(rows, payload) {
 }
 
 async function boot() {
+  state.workspace = createPriceWorkspace(document.getElementById("landingChart"), {
+    timeframe: state.timeframe,
+    tradeLimit: 60,
+    onTimeframeChange: async (timeframe) => {
+      if (!state.selected || timeframe === state.timeframe) return;
+      state.timeframe = timeframe;
+      await loadChart(state.selected);
+    },
+  });
   const [opportunityResult, marketResult, atlasResult, healthResult] = await Promise.allSettled([json("/api/opportunity"), json("/api/hyperliquid/perps"), json("/api/atlas"), json("/api/health")]);
   const marketPayload = marketResult.status === "fulfilled" && marketResult.value.response.ok ? marketResult.value.payload : null;
   for (const row of marketPayload?.results || []) if (row?.instrument_id) state.markets.set(row.instrument_id, row);
@@ -235,10 +191,33 @@ async function boot() {
   setText("landingGeneratedAt", when(opportunityPayload?.census?.generated_at || atlasPayload?.generated_at));
   if (state.opportunities[0]) selectOpportunity(state.opportunities[0]);
   else {
-    setText("landingReadState", "Unavailable"); setText("landingWhy", "Current Raven opportunity evidence is unavailable."); setText("landingReadSummary", "No older observation was substituted. Live provider markets remain available separately."); document.getElementById("landingChartWrap").dataset.state = "unavailable"; setText("landingChartState", "No exact Raven opportunity is selected. The chart remains unavailable rather than showing a substitute market.");
+    setText("landingReadState", "Unavailable"); setText("landingWhy", "Current Raven opportunity evidence is unavailable."); setText("landingReadSummary", "No older observation was substituted. Live provider markets remain available separately."); document.getElementById("landingChartWrap").dataset.state = "unavailable";
+    state.workspace.showUnavailable({
+      message: "No exact current opportunity is selected. No substitute market was loaded.",
+      instrumentScope: "exact_instrument",
+      source: "Hyperliquid",
+      timeframe: state.timeframe,
+    });
   }
-  window.__RAVENOS_LANDING__ = Object.freeze({ getState: () => ({ opportunityCount: state.opportunities.length, marketCount: state.markets.size, atlasCount: validAtlas(state.atlas)?.length || 0, instrumentId: state.selected?.instrument_id || null, candleCount: state.candles.length, chartType: document.getElementById("landingChart").dataset.chartType || null, chartInstrumentId: document.getElementById("landingChart").dataset.instrumentId || null, renderedCandles: finite(document.getElementById("landingChart").dataset.renderedCandles), signingAvailable: false, submissionAvailable: false }) });
+  window.__RAVENOS_LANDING__ = Object.freeze({
+    getState: () => {
+      const diagnostics = state.workspace?.diagnostics?.() || {};
+      return {
+        opportunityCount: state.opportunities.length,
+        marketCount: state.markets.size,
+        atlasCount: validAtlas(state.atlas)?.length || 0,
+        instrumentId: state.selected?.instrument_id || null,
+        candleCount: state.workspace?.state?.candles?.length || 0,
+        chartType: diagnostics.chart ? "candlestick" : null,
+        chartInstrumentId: state.workspace?.state?.instrument?.canonical_id || null,
+        renderedCandles: diagnostics.chart?.loaded_bars || 0,
+        timeframe: state.workspace?.state?.timeframe || state.timeframe,
+        connectionState: state.workspace?.state?.connectionState || null,
+        signingAvailable: false,
+        submissionAvailable: false,
+      };
+    },
+  });
 }
 
-new ResizeObserver(() => { if (state.candles.length) drawChart(); }).observe(document.getElementById("landingChartWrap"));
 boot().catch(() => { setText("landingOriginState", "Current opportunities unavailable"); document.getElementById("landingOriginDot").dataset.state = "unavailable"; });

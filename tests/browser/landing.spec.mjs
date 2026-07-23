@@ -120,14 +120,17 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingWhy")).toContainText("Behavior changed");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
-  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
+  await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
+  await expect.poll(() => page.locator("#landingChart .rpw-chart canvas").count()).toBeGreaterThan(1);
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("Base vol");
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("Quote vol");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toContainText("SPY");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.instrumentId).toBe("hyperliquid:perp:SOL");
   expect(product.candleCount).toBeGreaterThan(20);
   expect(product.chartType).toBe("candlestick");
-  expect(product.chartInstrumentId).toBe("hyperliquid:perp:SOL");
+  expect(product.chartInstrumentId).toBe("perpetual:hyperliquid:hyperliquid:SOL:USD:aggregate");
   expect(product.renderedCandles).toBeGreaterThan(20);
   expect(product.signingAvailable).toBe(false);
   expect(product.submissionAvailable).toBe(false);
@@ -137,17 +140,32 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
 test("every selected landing opportunity redraws exact provider OHLC as candlesticks", async ({ page }) => {
   await mockLanding(page, { opportunities: [OPPORTUNITY, BTC_OPPORTUNITY], markets: [MARKET, BTC_MARKET] });
   await page.goto("/");
-  await expect(page.locator("#landingChart")).toHaveAttribute("data-instrument-id", "hyperliquid:perp:SOL");
+  await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   await page.locator('.landing-opportunity[data-instrument-id="hyperliquid:perp:BTC"]').click();
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:BTC");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
-  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
-  await expect(page.locator("#landingChart")).toHaveAttribute("data-instrument-id", "hyperliquid:perp:BTC");
+  await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.instrumentId).toBe("hyperliquid:perp:BTC");
-  expect(product.chartInstrumentId).toBe("hyperliquid:perp:BTC");
+  expect(product.chartInstrumentId).toBe("perpetual:hyperliquid:hyperliquid:BTC:USD:aggregate");
   expect(product.candleCount).toBeGreaterThan(20);
   expect(product.renderedCandles).toBeGreaterThan(20);
+});
+
+test("landing chart uses the shared timeframe controls and keeps exact identity", async ({ page }) => {
+  const requested = [];
+  await mockLanding(page);
+  page.on("request", (request) => {
+    if (request.url().includes("/api/terminal/chart")) requested.push(new URL(request.url()).searchParams.get("timeframe"));
+  });
+  await page.goto("/");
+  await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
+  await page.locator('#landingChart [data-timeframe="15m"]').click();
+  await expect.poll(() => requested.at(-1)).toBe("15m");
+  await expect(page.locator('#landingChart [data-timeframe="15m"]')).toHaveAttribute("aria-pressed", "true");
+  const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
+  expect(product.timeframe).toBe("15m");
+  expect(product.chartInstrumentId).toBe("perpetual:hyperliquid:hyperliquid:SOL:USD:aggregate");
 });
 
 test("landing page keeps current-origin failure explicit and generates no fallback chart", async ({ page }) => {
@@ -169,7 +187,7 @@ test("landing page rejects a chart whose normalized exact identity belongs to an
   await page.goto("/");
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
-  await expect(page.locator("#landingChartState")).toContainText("stays unavailable until exact provider history is verified");
+  await expect(page.locator("#landingChart [data-rpw-state-panel]")).toContainText("No other market was substituted");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
   expect(product.chartType).toBeNull();
@@ -181,7 +199,8 @@ test("landing page is composed for a 390px mobile viewport without horizontal ov
   await page.goto("/");
   await expect(page.locator(".landing-launch")).toBeVisible();
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
-  await expect(page.locator("#landingChart")).toHaveAttribute("data-chart-type", "candlestick");
+  await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("O");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });

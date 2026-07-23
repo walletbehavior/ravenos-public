@@ -173,7 +173,8 @@ async function fetchJson(path, { signal, viewer = false } = {}) {
 function destroyChart() {
   state.chartObserver?.disconnect();
   state.chartObserver = null;
-  state.chart?.remove?.();
+  state.chart?.destroy?.();
+  if (!state.chart?.destroy) state.chart?.remove?.();
   state.chart = null;
 }
 
@@ -607,7 +608,7 @@ function renderHistoryChart(host, observations, label) {
     return;
   }
   const rows = [...byTime.values()].sort((left, right) => left.time - right.time);
-  if (rows.length < 2 || !window.LightweightCharts?.createChart) {
+  if (rows.length < 2 || typeof window.RavenSeriesChart !== "function") {
     const table = append(host, "div", "atlas-history-list");
     for (const row of rows.slice(-20).reverse()) {
       const item = append(table, "div");
@@ -619,20 +620,13 @@ function renderHistoryChart(host, observations, label) {
   }
   const wrap = append(host, "div", "atlas-history-chart");
   wrap.setAttribute("aria-label", `${label} historical chart`);
-  state.chart = window.LightweightCharts.createChart(wrap, {
-    width: wrap.clientWidth || 720,
+  state.chart = window.RavenSeriesChart(wrap, {
+    rows,
+    label,
+    units: (Array.isArray(observations) ? observations : []).find((row) => row?.unit)?.unit || "Published value",
     height: 420,
-    layout: { background: { color: "#0a1019" }, textColor: "#8793a4", fontFamily: "IBM Plex Mono, monospace" },
-    grid: { vertLines: { color: "rgba(255,255,255,.035)" }, horzLines: { color: "rgba(255,255,255,.035)" } },
-    rightPriceScale: { borderColor: "rgba(255,255,255,.09)" },
-    timeScale: { borderColor: "rgba(255,255,255,.09)", timeVisible: false },
-    crosshair: { vertLine: { color: "#77889d" }, horzLine: { color: "#77889d" } },
+    timeVisible: false,
   });
-  const series = state.chart.addSeries(window.LightweightCharts.LineSeries, { color: "#9eabbc", lineWidth: 2, priceLineVisible: false });
-  series.setData(rows.map(({ time, value }) => ({ time, value })));
-  state.chart.timeScale().fitContent();
-  state.chartObserver = new ResizeObserver(([entry]) => state.chart?.applyOptions?.({ width: Math.floor(entry.contentRect.width) }));
-  state.chartObserver.observe(wrap);
 }
 
 function option(select, value, label, { selected = false, disabled = false } = {}) {

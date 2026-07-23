@@ -37,6 +37,26 @@ function selectedDotenvValues(path) {
   return values;
 }
 
+function releaseProviderDefaults(repoRoot) {
+  const path = join(repoRoot, "config", "release.json");
+  if (!existsSync(path)) return {};
+  try {
+    const provider = JSON.parse(readFileSync(path, "utf8"))?.onchain_chart_provider || {};
+    const productionQualified = provider.production_promotion_eligible === true;
+    return {
+      provider: productionQualified ? provider.production_provider : provider.preview_provider,
+      plan: productionQualified ? provider.production_provider_plan : provider.preview_provider_plan,
+      commercial: productionQualified
+        ? provider.production_provider_commercial
+        : provider.preview_provider_commercial,
+      productionProvider: provider.production_provider,
+      productionQualified,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function onchainChartProviderEnv(repoRoot, baseEnv = process.env) {
   const parentEnvPath = baseEnv.RAVEN_APP_ENV_PATH || join(repoRoot, "..", ".env");
   const parentValues = selectedDotenvValues(parentEnvPath);
@@ -45,10 +65,19 @@ export function onchainChartProviderEnv(repoRoot, baseEnv = process.env) {
     if (!String(env[name] || "").trim() && String(parentValues[name] || "").trim()) env[name] = parentValues[name];
   }
   if (!String(env.ONCHAIN_CHART_PROVIDER_SECRET || "").trim() && String(env.COINGECKO_API_KEY || "").trim()) {
+    const defaults = releaseProviderDefaults(repoRoot);
     env.ONCHAIN_CHART_PROVIDER_SECRET = env.COINGECKO_API_KEY;
-    if (!String(env.ONCHAIN_CHART_PROVIDER || "").trim()) env.ONCHAIN_CHART_PROVIDER = "coingecko";
-    if (!String(env.ONCHAIN_CHART_PROVIDER_PLAN || "").trim()) env.ONCHAIN_CHART_PROVIDER_PLAN = "demo";
-    if (!String(env.ONCHAIN_CHART_PROVIDER_COMMERCIAL || "").trim()) env.ONCHAIN_CHART_PROVIDER_COMMERCIAL = "false";
+    if (!String(env.ONCHAIN_CHART_PROVIDER || "").trim()) env.ONCHAIN_CHART_PROVIDER = defaults.provider || "coingecko";
+    if (!String(env.ONCHAIN_CHART_PROVIDER_PLAN || "").trim()) env.ONCHAIN_CHART_PROVIDER_PLAN = defaults.plan || "demo";
+    if (!String(env.ONCHAIN_CHART_PROVIDER_COMMERCIAL || "").trim()) {
+      env.ONCHAIN_CHART_PROVIDER_COMMERCIAL = String(defaults.commercial === true);
+    }
+    if (!String(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER || "").trim() && defaults.productionProvider) {
+      env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER = defaults.productionProvider;
+    }
+    if (!String(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED || "").trim()) {
+      env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED = defaults.productionQualified ? "1" : "0";
+    }
   }
   return env;
 }

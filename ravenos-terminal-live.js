@@ -938,6 +938,14 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
     chain: "hyperliquid",
     marketIdentity: row.instrument_id,
     instrumentScope: "exact_instrument",
+    expectedIdentity: {
+      instrumentType: "perpetual",
+      identityScope: "venue_market",
+      chain: "hyperliquid",
+      venue: "hyperliquid",
+      baseAsset: String(row.asset || "").replace(/-PERP$/i, ""),
+      quoteAsset: "USD",
+    },
   });
   const contextPromise = fetchJson(`/api/perps/instrument?symbol=${encodeURIComponent(row.asset)}`).catch(() => null);
   const [chartState, contextResult] = await Promise.all([chartPromise, contextPromise]);
@@ -1118,6 +1126,13 @@ async function selectSpot(row, { updateUrl = true } = {}) {
     quoteAddress: row.quoteTokenAddress,
     instrumentScope: "exact_pool",
     marketIdentity: `${row.chainId}:pool:${row.pairAddress}`,
+    expectedIdentity: {
+      instrumentType: "spot_pool",
+      identityScope: "exact_pool",
+      chain: row.chainId,
+      poolAddress: row.pairAddress,
+      tokenAddress: row.tokenAddress,
+    },
   });
   if (generation !== state.selectionGeneration) return;
   setText("terminalChartStatus", chartState?.candles?.length
@@ -1319,6 +1334,15 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     chain: "none",
     marketIdentity: subject.instrumentId,
     instrumentScope: "exact_instrument",
+    expectedIdentity: {
+      canonicalId: subject.instrumentId,
+      instrumentType: subject.instrumentType,
+      identityScope: "venue_market",
+      chain: "none",
+      venue: subject.venue,
+      baseAsset: subject.symbol,
+      quoteAsset: "USD",
+    },
   });
   if (generation !== state.selectionGeneration) return;
   state.workspace.render({

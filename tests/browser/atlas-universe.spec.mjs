@@ -248,6 +248,13 @@ test("Periodic series history loads only on demand and renders a real chart", as
   expect(calls.some((call) => call.startsWith("/api/atlas/history"))).toBe(false);
   await page.getByRole("tab", { name: "History" }).click();
   await expect(page.locator(".atlas-history-chart canvas").first()).toBeVisible();
+  await expect(page.locator(".raven-series-chart-inspector")).toContainText("Latest");
+  await expect(page.locator(".raven-series-chart-inspector")).toContainText("Value");
+  await expect(page.locator(".raven-series-chart-inspector")).toContainText("Change");
+  const chartBox = await page.locator(".raven-series-chart-stage").boundingBox();
+  expect(chartBox).not.toBeNull();
+  await page.mouse.move(chartBox.x + chartBox.width * .45, chartBox.y + chartBox.height * .5);
+  await expect(page.locator(".raven-series-chart-inspector")).toHaveAttribute("data-mode", "inspect");
   expect(calls.filter((call) => call.startsWith("/api/atlas/history")).length).toBe(1);
   await expect(page.locator(".atlas-provider-state")).toContainText("FRED");
 });
