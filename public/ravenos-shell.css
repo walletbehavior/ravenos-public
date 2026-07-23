@@ -459,7 +459,8 @@ body.ros-shell-active .terminal-live,
 body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height)); }
 
 @media (max-width: 1280px) {
-  .ros-topbar { grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 112px 82px 74px 42px; }
+  .ros-topbar { grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 112px 82px 42px 42px; }
+  .ros-provider-label { display: none; }
 }
 
 @media (max-width: 980px) {
