@@ -266,6 +266,8 @@ if (
   || chart?.provider_selection?.selected !== "coingecko_onchain"
   || chart?.provider_selection?.fallback !== false
   || chart?.lineage?.provider_plan !== expectedChartPlan
+  || (chartProviderContract.production_promotion_eligible === true && chart?.lineage?.commercial_state !== "commercial_qualified")
+  || (chartProviderContract.production_promotion_eligible === true && chart?.provider_selection?.production_state !== "qualified_for_production")
   || chart?.lineage?.empty_interval_policy !== "provider_previous_close_zero_volume"
   || chart?.attribution?.required !== true
   || chart?.attribution?.label !== "Data provided by CoinGecko"

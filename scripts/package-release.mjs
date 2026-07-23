@@ -107,6 +107,8 @@ const releaseWrangler = {
     RAVENOS_PUBLIC_ORIGIN_CONTRACT_VERSION: release.public_origin_contract_version,
     RAVENOS_PUBLIC_ORIGIN_URL: releaseConfig.public_origin.base_url,
     RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: (chartProviderConfig.evaluation_provider_order || []).join(","),
+    RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER: chartProviderConfig.production_provider || "",
+    RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED: productionChartProvider ? "1" : "0",
     ONCHAIN_CHART_PROVIDER: runtimeChartProvider || "",
     ONCHAIN_CHART_PROVIDER_PLAN: runtimeChartPlan || "",
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),

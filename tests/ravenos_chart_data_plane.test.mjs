@@ -1094,6 +1094,30 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
   }
 });
 
+test("an immutable release reports CoinGecko Basic as qualified only when the exact release gate agrees", () => {
+  const base = {
+    ONCHAIN_CHART_PROVIDER: "coingecko",
+    ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+    ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+    ONCHAIN_CHART_PROVIDER_SECRET: "server-only-provider-secret",
+    RAVENOS_RELEASE_ENFORCE: "1",
+    RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER: "coingecko",
+    RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED: "1",
+  };
+  const qualified = onchainProviderRuntime("coingecko_onchain", base);
+  assert.equal(qualified.commercial_state, "commercial_qualified");
+  assert.equal(qualified.production_qualified, true);
+  assert.equal(qualified.production_state, "qualified_for_production");
+
+  const wrongProvider = onchainProviderRuntime("coingecko_onchain", {
+    ...base,
+    RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER: "dexpaprika",
+  });
+  assert.equal(wrongProvider.commercial_state, "commercial_configured_unverified");
+  assert.equal(wrongProvider.production_qualified, false);
+  assert.equal(wrongProvider.production_state, "blocked_pending_plan_rights_and_binding_verification");
+});
+
 test("dense provider OHLCV remains the base series while Raven observations attach only as annotations", async () => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;
