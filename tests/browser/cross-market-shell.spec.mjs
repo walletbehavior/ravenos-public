@@ -630,7 +630,22 @@ test("an exact listed instrument uses TradingView visual context when native pub
   expect(response?.headers()["content-security-policy"]).toContain("frame-src https://www.tradingview-widget.com https://s.tradingview.com");
   await expect(page.locator("#terminalInstrument")).toHaveText("AAPL");
   await expect(page.locator(".terminal-external-chart iframe")).toBeVisible();
+  await expect(page.locator("#terminalChart > .rpw")).toBeHidden();
   await expect(page.locator("#terminalChart canvas")).toHaveCount(0);
+  const chartComposition = await page.evaluate(() => {
+    const host = document.getElementById("terminalChart")?.getBoundingClientRect();
+    const panel = document.querySelector(".terminal-external-chart")?.getBoundingClientRect();
+    const frame = document.querySelector(".terminal-external-chart iframe")?.getBoundingClientRect();
+    return host && panel && frame ? {
+      panelOffset: Math.abs(panel.top - host.top),
+      frameHeight: frame.height,
+      panelBottomOverflow: panel.bottom - host.bottom,
+    } : null;
+  });
+  expect(chartComposition).not.toBeNull();
+  expect(chartComposition.panelOffset).toBeLessThanOrEqual(1);
+  expect(chartComposition.frameHeight).toBeGreaterThanOrEqual(328);
+  expect(chartComposition.panelBottomOverflow).toBeLessThanOrEqual(1);
   await expect(page.locator("#terminalChartStatus")).toContainText("TradingView visual chart");
   await expect(page.locator("#terminalChartCredit")).toHaveText("Chart by TradingView");
   await expect(page.locator("#terminalContextSection")).toBeHidden();
