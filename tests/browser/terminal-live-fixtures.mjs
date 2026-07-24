@@ -113,6 +113,7 @@ function marketRow(asset, overrides = {}) {
     open_interest_usd: asset === "BTC-PERP" ? 820_000_000 : 192_000_000,
     day_notional_volume_usd: asset === "BTC-PERP" ? 1_400_000_000 : 480_000_000,
     day_change_pct: asset === "BTC-PERP" ? -0.8 : 2.4,
+    max_leverage: asset === "BTC-PERP" ? 40 : 20,
     observed_at: "2026-07-21T12:20:00Z",
     provider: "Hyperliquid public info endpoint",
     coverage: "live",
@@ -295,6 +296,8 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     body: JSON.stringify({
       ok: true,
       quote_only: true,
+      market_preview_available: true,
+      market_preview_markets: ["hyperliquid_perpetual"],
       signing_available: false,
       submission_available: false,
       flags: {
@@ -306,6 +309,87 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       },
     }),
   }));
+  await page.route("**/api/trade/market-preview", async (route) => {
+    const request = route.request();
+    const input = request.postDataJSON();
+    const coin = String(input.instrument_id || "hyperliquid:perp:SOL").split(":").pop();
+    const side = input.side === "short" ? "short" : "long";
+    const notional = Number(input.notional_usdc || 500);
+    const leverage = Number(input.leverage || 3);
+    const mid = coin === "BTC" ? 67_500 : 148.25;
+    const vwap = side === "long" ? mid * 1.00008 : mid * 0.99992;
+    const observedAt = new Date().toISOString();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.hyperliquid_market_preview.v1",
+        state: "market_preview_available",
+        preview_id: `hlmp_fixture_${coin}_${side}_${notional}_${leverage}`,
+        generated_at: observedAt,
+        expires_at: new Date(Date.now() + 30_000).toISOString(),
+        instrument: {
+          instrument_id: input.instrument_id,
+          exact_market_id: coin,
+          symbol: `${coin}-PERP`,
+          venue: "hyperliquid",
+          instrument_type: "perpetual",
+          identity_scope: "exact_instrument",
+          collateral_asset: "USDC",
+          price_denominator: "USD reference",
+        },
+        intent: {
+          side,
+          requested_notional_usdc: notional,
+          leverage,
+          estimated_initial_margin_usdc: notional / leverage,
+          margin_estimate_excludes_existing_exposure: true,
+        },
+        fill_estimate: {
+          base_size: notional / vwap,
+          vwap_price: vwap,
+          worst_price: side === "long" ? vwap * 1.00002 : vwap * 0.99998,
+          mid_price: mid,
+          best_bid: mid * 0.99995,
+          best_ask: mid * 1.00005,
+          spread_bps: 1,
+          price_impact_bps: 0.8,
+          visible_levels_consumed: 2,
+          visible_side_notional_usdc: 500_000,
+        },
+        route: {
+          venue: "hyperliquid",
+          exact_market_id: coin,
+          consumed_book_side: side === "long" ? "asks" : "bids",
+          order_assumption: "immediate_or_cancel_market_equivalent",
+          market_order_submitted: false,
+        },
+        provenance: {
+          provider: "Hyperliquid",
+          source: "live_l2_book",
+          observed_at: observedAt,
+          age_ms: 0,
+          freshness: "current",
+          exact_identity: true,
+          levels_available: 20,
+        },
+        review: {
+          state: "market_preview_only",
+          review_ready: false,
+          blockers: ["venue_account_required", "account_fee_tier_required"],
+        },
+        execution_boundary: {
+          market_preview_only: true,
+          account_connected: false,
+          prepared_order_available: false,
+          signing_available: false,
+          submission_available: false,
+          position_monitoring_available: false,
+        },
+      }),
+    });
+  });
   return { calls, markets };
 }
 

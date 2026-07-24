@@ -56,6 +56,13 @@ const checks = [
   ["GET", "/api/chains/base"],
   ["GET", "/api/chains/ethereum"],
   ["GET", "/api/trade/flags"],
+  ["POST", "/api/trade/market-preview", {
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    notional_usdc: 500,
+    leverage: 3,
+    max_impact_bps: 100,
+  }],
   ["GET", "/api/access"],
   ["GET", "/api/not-a-route"],
   ["POST", "/api/trade/quote", {}],

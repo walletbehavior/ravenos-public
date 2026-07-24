@@ -142,15 +142,48 @@
           <p id="terminalComparableNote">No exact historical sample is available yet.</p>
         </section>
 
-        <section id="terminalTradeReviewSection" hidden>
-          <header><div><span>Available action</span><h2>Trade review</h2></div><strong id="terminalQuoteState">Checking</strong></header>
-          <dl class="terminal-boundary-list">
-            <div><dt>Review</dt><dd id="terminalQuoteContract">Checking availability</dd></div>
-            <div><dt>Settlement</dt><dd id="terminalSettlementConsequence">Resolved by exact market; no transaction prepared</dd></div>
-            <div><dt>Portfolio consequence</dt><dd id="terminalPortfolioConsequence">No customer portfolio is connected or inferred</dd></div>
-            <div><dt>Action</dt><dd>No order can be signed or sent</dd></div>
-          </dl>
-          <p id="terminalQuoteNote">RavenOS will explain why review is available or unavailable for this exact market.</p>
+        <section class="terminal-order-preview" id="terminalTradeReviewSection" hidden>
+          <header>
+            <div><span>Order preview</span><h2 id="terminalPreviewTitle">Model a Hyperliquid fill</h2></div>
+            <strong id="terminalQuoteState">Live book</strong>
+          </header>
+          <div class="terminal-side-toggle" role="group" aria-label="Preview direction">
+            <button type="button" class="active" id="terminalPreviewLong" data-side="long" aria-pressed="true">Long</button>
+            <button type="button" id="terminalPreviewShort" data-side="short" aria-pressed="false">Short</button>
+          </div>
+          <div class="terminal-preview-inputs">
+            <label>
+              <span>Size</span>
+              <span class="terminal-input-shell"><input id="terminalPreviewNotional" type="number" min="10" max="250000" step="10" value="500" inputmode="decimal" /><b>USDC</b></span>
+            </label>
+            <label>
+              <span>Leverage</span>
+              <select id="terminalPreviewLeverage" aria-label="Preview leverage"></select>
+            </label>
+          </div>
+          <button class="terminal-preview-action" id="terminalPreviewAction" type="button">Preview long</button>
+          <div class="terminal-preview-result" id="terminalPreviewResult" hidden>
+            <div class="terminal-preview-fill">
+              <span>Estimated fill</span>
+              <strong id="terminalPreviewFill">--</strong>
+              <small id="terminalPreviewVwap">--</small>
+            </div>
+            <dl>
+              <div><dt>Margin</dt><dd id="terminalPreviewMargin">--</dd></div>
+              <div><dt>Impact</dt><dd id="terminalPreviewImpact">--</dd></div>
+              <div><dt>Spread</dt><dd id="terminalPreviewSpread">--</dd></div>
+              <div><dt>Depth used</dt><dd id="terminalPreviewDepth">--</dd></div>
+            </dl>
+            <p id="terminalPreviewTiming">Current book</p>
+          </div>
+          <p class="terminal-preview-message" id="terminalPreviewMessage">Uses the exact live book. Fees and liquidation require a connected account.</p>
+          <div class="terminal-preview-boundary">
+            <strong>Preview only</strong>
+            <span id="terminalQuoteNote">No wallet connected. Nothing is prepared, signed, or sent.</span>
+          </div>
+          <span id="terminalQuoteContract" hidden>Live-book market preview</span>
+          <span id="terminalSettlementConsequence" hidden>USDC margin remains at Hyperliquid</span>
+          <span id="terminalPortfolioConsequence" hidden>No customer position is connected</span>
         </section>
       </aside>
     </section>

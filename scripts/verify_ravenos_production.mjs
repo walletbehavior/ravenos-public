@@ -43,8 +43,15 @@ async function fetchText(path) {
   return { res, text };
 }
 
-async function fetchJson(path) {
-  const res = await fetch(new URL(path, baseUrl), { headers: { "cache-control": "no-cache" } });
+async function fetchJson(path, { method = "GET", body = undefined } = {}) {
+  const res = await fetch(new URL(path, baseUrl), {
+    method,
+    headers: {
+      "cache-control": "no-cache",
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   const json = await res.json().catch(() => null);
   return { res, json };
 }
@@ -91,6 +98,41 @@ if (
   || healthJson?.execution_health?.signing_available !== false
   || healthJson?.execution_health?.submission_available !== false
 ) throw new Error("/api/health does not report a complete fresh read-only production product");
+
+const { res: flagsRes, json: flagsJson } = await fetchJson("/api/trade/flags");
+if (
+  !flagsRes.ok
+  || flagsJson?.market_preview_available !== true
+  || !flagsJson?.market_preview_markets?.includes("hyperliquid_perpetual")
+  || flagsJson?.signing_available !== false
+  || flagsJson?.submission_available !== false
+) throw new Error("/api/trade/flags does not preserve the market-preview-only execution boundary");
+
+const { res: marketPreviewRes, json: marketPreviewJson } = await fetchJson("/api/trade/market-preview", {
+  method: "POST",
+  body: {
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    notional_usdc: 500,
+    leverage: 3,
+    max_impact_bps: 100,
+  },
+});
+if (
+  !marketPreviewRes.ok
+  || marketPreviewJson?.schema_version !== "ravenos.hyperliquid_market_preview.v1"
+  || marketPreviewJson?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || marketPreviewJson?.provenance?.source !== "live_l2_book"
+  || marketPreviewJson?.provenance?.exact_identity !== true
+  || marketPreviewJson?.execution_boundary?.prepared_order_available !== false
+  || marketPreviewJson?.execution_boundary?.signing_available !== false
+  || marketPreviewJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/trade/market-preview is not an exact, live-book, non-executable preview");
+const marketPreviewNoLeakFindings = scanJsonValue(marketPreviewJson, "production:/api/trade/market-preview");
+if (marketPreviewNoLeakFindings.length) {
+  const fields = marketPreviewNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production market preview failed the public no-leak gate: ${fields}`);
+}
 
 const { json: claimsJson } = await fetchJson("/api/claims");
 if (claimsJson?.schema_version !== "ravenos_claim_lineage_public_origin_v2" || claimsJson?.data?.lineage_version !== "2.0") {

@@ -24,6 +24,10 @@ const state = {
   selectionGeneration: 0,
   searchTimer: null,
   externalChart: null,
+  marketPreview: null,
+  marketPreviewSide: "long",
+  marketPreviewGeneration: 0,
+  marketPreviewExpiryTimer: null,
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -884,20 +888,183 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
 
 function updateQuoteBoundary() {
   const flags = state.flags?.flags || {};
-  const enabled = state.flags?.quote_only === true
+  const customerQuoteEnabled = state.flags?.quote_only === true
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
-  const selectedSolanaSpot = state.lane === "spot" && String(state.selected?.chainId || "").toLowerCase() === "solana";
+  const marketPreviewEnabled = state.flags?.market_preview_available === true
+    && Array.isArray(state.flags?.market_preview_markets)
+    && state.flags.market_preview_markets.includes("hyperliquid_perpetual")
+    && state.lane === "perps"
+    && String(state.selected?.instrument_id || "").startsWith("hyperliquid:perp:");
   const section = document.getElementById("terminalTradeReviewSection");
-  if (section) section.hidden = !enabled;
-  setText("terminalQuoteState", enabled ? "Review only" : "Read only");
-  setText("terminalQuoteContract", enabled ? "Read-only quote review" : "Quote preview not enabled");
-  setText("terminalQuoteNote", enabled && selectedSolanaSpot
-    ? "A current route and quote may be reviewed. No transaction is prepared, signed, or sent."
-    : enabled
-      ? "Quote review is available only for supported Solana pairs. No order can be signed or sent."
-      : "RavenOS cannot review a current route for this exact market. No transaction is prepared, signed, or sent.");
+  if (section) section.hidden = !marketPreviewEnabled;
+  if (!marketPreviewEnabled) {
+    clearTimeout(state.marketPreviewExpiryTimer);
+    state.marketPreviewExpiryTimer = null;
+  }
+  setText("terminalQuoteState", marketPreviewEnabled ? "Live book" : customerQuoteEnabled ? "Review only" : "Read only");
+  setText("terminalQuoteContract", marketPreviewEnabled ? "Live-book market preview" : customerQuoteEnabled ? "Read-only route review" : "Quote preview not enabled");
+  setText("terminalQuoteNote", marketPreviewEnabled
+    ? "No wallet connected. Nothing is prepared, signed, or sent."
+    : customerQuoteEnabled
+      ? "A current route may be reviewed where supported. No order can be signed or sent."
+      : "No transaction is prepared, signed, or sent.");
+  if (marketPreviewEnabled) syncMarketPreviewControls();
   renderTradeConsequences();
+}
+
+function syncMarketPreviewControls() {
+  const select = document.getElementById("terminalPreviewLeverage");
+  if (!select || state.lane !== "perps" || !state.selected) return;
+  const maximum = Math.max(1, Math.trunc(finite(state.selected.max_leverage ?? state.selected.maxLeverage) || 1));
+  const previous = Math.trunc(finite(select.value) || 3);
+  const choices = [...new Set([1, 2, 3, 5, 10, 20, 25, 40, 50, maximum])]
+    .filter((value) => value <= maximum)
+    .sort((left, right) => left - right);
+  select.replaceChildren(...choices.map((value) => new Option(`${value}×`, String(value))));
+  const next = choices.includes(previous) ? previous : choices.includes(3) ? 3 : choices.at(-1);
+  select.value = String(next);
+  setText("terminalPreviewTitle", `Model a ${state.selected.asset || "perpetual"} fill`);
+}
+
+function setMarketPreviewSide(side, { refresh = false } = {}) {
+  const next = side === "short" ? "short" : "long";
+  state.marketPreviewSide = next;
+  for (const button of document.querySelectorAll(".terminal-side-toggle [data-side]")) {
+    const active = button.dataset.side === next;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  const action = document.getElementById("terminalPreviewAction");
+  if (action) {
+    action.dataset.side = next;
+    action.textContent = `Preview ${next}`;
+  }
+  if (refresh) void requestMarketPreview();
+}
+
+function marketPreviewReason(reason) {
+  const messages = {
+    book_stale: "The live book moved before this preview could be shown. Refresh it.",
+    current_exact_book_unavailable: "The exact live book is temporarily unavailable. No alternate market was used.",
+    market_preview_timeout: "The live book did not respond in time. Try again.",
+    insufficient_visible_depth: "The visible book cannot cover that size. Reduce the amount.",
+    price_impact_limit_exceeded: "Estimated impact exceeds the preview limit. Reduce the amount.",
+    notional_out_of_bounds: "Enter a size between 10 and 250,000 USDC.",
+    leverage_invalid: "Choose a whole-number leverage supported by this market.",
+    leverage_exceeds_market_maximum: "That leverage exceeds this market's current maximum.",
+    exact_instrument_identity_mismatch: "The exact Hyperliquid instrument could not be confirmed. No substitute was used.",
+    market_identity_mismatch: "The market response did not match the selected instrument. No substitute was used.",
+    book_order_invalid: "The live book failed continuity checks. Refresh before relying on it.",
+    book_summary_invalid: "The current bid and ask could not be verified.",
+  };
+  return messages[reason] || "A current exact-market preview is unavailable. Nothing was prepared.";
+}
+
+function formatBaseSize(value) {
+  const amount = finite(value);
+  if (!(amount > 0)) return "--";
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: amount >= 100 ? 2 : 4,
+    maximumFractionDigits: amount >= 100 ? 2 : amount >= 1 ? 6 : 8,
+  });
+}
+
+function clearMarketPreviewResult(message = "Uses the exact live book. Fees and liquidation require a connected account.") {
+  state.marketPreview = null;
+  clearTimeout(state.marketPreviewExpiryTimer);
+  state.marketPreviewExpiryTimer = null;
+  const result = document.getElementById("terminalPreviewResult");
+  if (result) {
+    result.hidden = true;
+    delete result.dataset.state;
+  }
+  const status = document.getElementById("terminalPreviewMessage");
+  if (status) {
+    status.textContent = message;
+    delete status.dataset.state;
+  }
+}
+
+function renderMarketPreview(preview) {
+  state.marketPreview = preview;
+  const result = document.getElementById("terminalPreviewResult");
+  const message = document.getElementById("terminalPreviewMessage");
+  if (!preview?.ok) {
+    if (result) result.hidden = true;
+    if (message) {
+      message.textContent = marketPreviewReason(preview?.unavailable_reason);
+      message.dataset.state = "error";
+    }
+    setText("terminalQuoteState", "Refresh");
+    return;
+  }
+  const coin = preview.instrument?.exact_market_id || String(state.selected?.asset || "").replace(/-PERP$/i, "");
+  setText("terminalPreviewFill", `${formatBaseSize(preview.fill_estimate?.base_size)} ${coin}`);
+  setText("terminalPreviewVwap", `VWAP ${formatPrice(preview.fill_estimate?.vwap_price)} · worst ${formatPrice(preview.fill_estimate?.worst_price)}`);
+  setText("terminalPreviewMargin", `${compact(preview.intent?.estimated_initial_margin_usdc, { currency: true })} USDC`);
+  setText("terminalPreviewImpact", `${(finite(preview.fill_estimate?.price_impact_bps) || 0).toFixed(2)} bps`);
+  setText("terminalPreviewSpread", finite(preview.fill_estimate?.spread_bps) === null ? "Not reported" : `${Number(preview.fill_estimate.spread_bps).toFixed(2)} bps`);
+  setText("terminalPreviewDepth", `${Math.max(0, Math.trunc(finite(preview.fill_estimate?.visible_levels_consumed) || 0))} level${preview.fill_estimate?.visible_levels_consumed === 1 ? "" : "s"}`);
+  setText("terminalPreviewTiming", `Book ${timestamp(preview.provenance?.observed_at)} · expires in a few seconds`);
+  setText("terminalQuoteState", "Current book");
+  if (result) {
+    result.hidden = false;
+    result.dataset.state = "current";
+  }
+  if (message) {
+    message.textContent = "Fill and initial margin are estimated from the exact live book. Account fees and liquidation are not included.";
+    delete message.dataset.state;
+  }
+  clearTimeout(state.marketPreviewExpiryTimer);
+  const remaining = Math.max(0, Date.parse(preview.expires_at || "") - Date.now());
+  state.marketPreviewExpiryTimer = setTimeout(() => {
+    if (state.marketPreview?.preview_id !== preview.preview_id) return;
+    if (result) result.dataset.state = "expired";
+    setText("terminalQuoteState", "Refresh");
+    setText("terminalPreviewTiming", "Preview expired · refresh against the current book");
+  }, remaining + 50);
+}
+
+async function requestMarketPreview({ automatic = false } = {}) {
+  if (
+    state.lane !== "perps"
+    || !state.selected?.instrument_id
+    || state.flags?.market_preview_available !== true
+  ) return;
+  const notional = finite(document.getElementById("terminalPreviewNotional")?.value);
+  const leverage = finite(document.getElementById("terminalPreviewLeverage")?.value);
+  const action = document.getElementById("terminalPreviewAction");
+  const generation = ++state.marketPreviewGeneration;
+  if (action) {
+    action.disabled = true;
+    action.textContent = automatic ? "Loading live book…" : "Refreshing live book…";
+  }
+  setText("terminalQuoteState", "Checking book");
+  try {
+    const { payload } = await fetchJson("/api/trade/market-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        instrument_id: state.selected.instrument_id,
+        side: state.marketPreviewSide,
+        notional_usdc: notional,
+        leverage,
+        max_impact_bps: 100,
+      }),
+    });
+    if (generation !== state.marketPreviewGeneration) return;
+    renderMarketPreview(payload);
+  } catch {
+    if (generation !== state.marketPreviewGeneration) return;
+    renderMarketPreview({ ok: false, unavailable_reason: "current_exact_book_unavailable" });
+  } finally {
+    if (generation === state.marketPreviewGeneration && action) {
+      action.disabled = false;
+      action.dataset.side = state.marketPreviewSide;
+      action.textContent = `Preview ${state.marketPreviewSide}`;
+    }
+  }
 }
 
 async function loadTradeFlags() {
@@ -917,6 +1084,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   state.lane = "perps";
   state.selected = row;
   state.context = null;
+  clearMarketPreviewResult();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
   setText("terminalReadTrigger", "Raven Read");
@@ -965,6 +1133,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
       observedAt: chartState?.observedAt || row.observed_at,
     }, { updateUrl });
   }
+  void requestMarketPreview({ automatic: true });
 }
 
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
@@ -1586,6 +1755,14 @@ function bindControls() {
   document.getElementById("terminalMarkerClose")?.addEventListener("click", () => {
     document.getElementById("terminalMarkerDetail").hidden = true;
   });
+  document.getElementById("terminalPreviewLong")?.addEventListener("click", () => setMarketPreviewSide("long", { refresh: true }));
+  document.getElementById("terminalPreviewShort")?.addEventListener("click", () => setMarketPreviewSide("short", { refresh: true }));
+  document.getElementById("terminalPreviewAction")?.addEventListener("click", () => requestMarketPreview());
+  document.getElementById("terminalPreviewNotional")?.addEventListener("input", () => clearMarketPreviewResult("Size changed. Preview again against the current book."));
+  document.getElementById("terminalPreviewNotional")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") void requestMarketPreview();
+  });
+  document.getElementById("terminalPreviewLeverage")?.addEventListener("change", () => requestMarketPreview());
 }
 
 function renderWorkspaceState(workspace = {}) {
@@ -1650,6 +1827,7 @@ async function boot() {
   });
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   bindControls();
+  setMarketPreviewSide("long");
   bindWorkspaceEvents();
   const instrumentId = String(params.get("instrument_id") || params.get("subject_id") || "").trim();
   const poolIdentity = parsePoolIdentity(instrumentId);
@@ -1725,6 +1903,9 @@ async function boot() {
       providerTransitionCount: state.workspace?.state?.providerTransitionCount || 0,
       contextState: state.context?.raven_context?.context_state || (state.context?.atlas_context?.context_available ? "atlas_context" : "unavailable"),
       quoteOnly: state.flags?.quote_only === true,
+      marketPreviewAvailable: state.flags?.market_preview_available === true,
+      marketPreviewState: state.marketPreview?.state || "unavailable",
+      marketPreviewId: state.marketPreview?.preview_id || null,
       signingAvailable: false,
       submissionAvailable: false,
       diagnostics: state.workspace?.diagnostics?.() || null,

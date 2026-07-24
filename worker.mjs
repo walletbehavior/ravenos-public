@@ -24,6 +24,10 @@ import {
   timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
 import { resolveCustomerTradeFlags } from "./lib/customer_trade/feature_flags.mjs";
+import {
+  createHyperliquidMarketPreview,
+  HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
+} from "./lib/customer_trade/hyperliquid_quote_preview.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
@@ -3169,6 +3173,8 @@ function handleTradeFlags(env = {}) {
   return terminalJson(context, {
     ok: true,
     quote_only: true,
+    market_preview_available: true,
+    market_preview_markets: ["hyperliquid_perpetual"],
     signing_available: false,
     submission_available: false,
     fees_enabled: false,
@@ -3178,6 +3184,154 @@ function handleTradeFlags(env = {}) {
 
 function quoteFeatureDisabled(flags) {
   return !flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE || !flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE;
+}
+
+function marketPreviewStatus(preview = {}) {
+  if (preview.ok) return 200;
+  if (new Set([
+    "exact_instrument_identity_mismatch",
+    "market_identity_mismatch",
+    "side_invalid",
+    "notional_out_of_bounds",
+    "leverage_invalid",
+    "leverage_exceeds_market_maximum",
+    "impact_limit_invalid",
+  ]).has(preview.unavailable_reason)) return 400;
+  if (preview.unavailable_reason === "price_impact_limit_exceeded") return 409;
+  if (preview.unavailable_reason === "insufficient_visible_depth") return 422;
+  return 503;
+}
+
+async function handleTradeMarketPreview(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_market_preview",
+    buildId,
+    schemaVersion: HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
+    clientOperationType: "market_fill_preview",
+    providerComponent: "hyperliquid_market_preview",
+  });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_market_preview").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      error: error?.code === "request_too_large"
+        ? "market_preview_request_too_large"
+        : badType
+          ? "market_preview_unsupported_content_type"
+          : "invalid_market_preview_json",
+      market_preview_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400 }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "invalid_market_preview_json",
+    });
+  }
+
+  const instrumentId = String(body?.instrument_id || "").trim();
+  const match = instrumentId.match(/^hyperliquid:perp:([A-Z0-9][A-Z0-9._:-]{0,31})$/);
+  if (!match) {
+    const preview = createHyperliquidMarketPreview({ ...body, instrument_id: instrumentId });
+    return terminalJson(context, preview, { status: 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: preview.unavailable_reason,
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const instrument = await runProviderOperation({
+        component: "hyperliquid_market_preview",
+        operation_key: match[1],
+        fn: () => hyperliquidInstrument(match[1]),
+      });
+      if (!instrument?.ok || !instrument?.book || !instrument?.market) {
+        return terminalJson(context, {
+          ok: false,
+          schema_version: HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
+          state: "unavailable",
+          unavailable_reason: "current_exact_book_unavailable",
+          instrument: {
+            instrument_id: instrumentId,
+            exact_market_id: match[1],
+            venue: "hyperliquid",
+            identity_scope: "exact_instrument",
+          },
+          execution_boundary: {
+            market_preview_only: true,
+            prepared_order_available: false,
+            signing_available: false,
+            submission_available: false,
+            position_monitoring_available: false,
+          },
+        }, { status: 503, headers: { "cache-control": "no-store" } }, {
+          resultCategory: "provider_error",
+          degradedReason: "current_exact_book_unavailable",
+          providerComponent: "hyperliquid_market_preview",
+        });
+      }
+      const preview = createHyperliquidMarketPreview({
+        ...body,
+        instrument_id: instrumentId,
+        book: instrument.book,
+        market: instrument.market,
+      });
+      const status = marketPreviewStatus(preview);
+      return terminalJson(context, preview, { status, headers: { "cache-control": "no-store" } }, {
+        resultCategory: preview.ok ? "ok" : "unavailable",
+        degradedReason: preview.ok ? null : preview.unavailable_reason,
+        providerComponent: "hyperliquid_market_preview",
+      });
+    } catch {
+      return terminalJson(context, {
+        ok: false,
+        schema_version: HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
+        state: "unavailable",
+        unavailable_reason: "current_exact_book_unavailable",
+        instrument: {
+          instrument_id: instrumentId,
+          exact_market_id: match[1],
+          venue: "hyperliquid",
+          identity_scope: "exact_instrument",
+        },
+        execution_boundary: {
+          market_preview_only: true,
+          prepared_order_available: false,
+          signing_available: false,
+          submission_available: false,
+          position_monitoring_available: false,
+        },
+      }, { status: 503, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "provider_error",
+        degradedReason: "current_exact_book_unavailable",
+        providerComponent: "hyperliquid_market_preview",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_market_preview").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
+      state: "unavailable",
+      unavailable_reason: "market_preview_timeout",
+      execution_boundary: {
+        market_preview_only: true,
+        prepared_order_available: false,
+        signing_available: false,
+        submission_available: false,
+        position_monitoring_available: false,
+      },
+    }, { status: 504, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "market_preview_timeout",
+      providerComponent: "hyperliquid_market_preview",
+    }),
+  });
 }
 
 async function handleTradeQuote(request, env = {}) {
@@ -4063,6 +4217,7 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/terminal/chart" && request.method === "GET") return handleTerminalChart(request, env);
   if (url.pathname.startsWith("/api/chains/") && request.method === "GET") return handleChain(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/trade/flags" && request.method === "GET") return handleTradeFlags(env);
+  if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
   if (url.pathname === "/api/trade/quote" && request.method === "POST") return handleTradeQuote(request, env);
   if (url.pathname === "/api/trade/inspect" && request.method === "POST") return handleTradeInspect(request, env);
   if (url.pathname === "/api/trade/review" && (request.method === "POST" || request.method === "GET")) return handleTradeReview(request, env);

@@ -420,15 +420,35 @@ test("universal exact-market search dismisses on Escape and explicit close", asy
   await expect(palette).not.toBeVisible();
 });
 
-test("quote-preview capability stays non-signing even when the review flags are enabled", async ({ page }) => {
+test("live-book market preview stays non-signing even when dormant route-review flags are enabled", async ({ page }) => {
   await mockTerminalLiveApis(page, { flagsEnabled: true });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
-  await expect(page.locator("#terminalQuoteState")).toHaveText("Review only");
-  await expect(page.locator("#terminalQuoteContract")).toHaveText("Read-only quote review");
-  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order can be signed or sent/i);
-  await expect(page.getByRole("button", { name: /sign|submit|execute|buy|sell|long|short/i })).toHaveCount(0);
+  await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
+  await expect(page.locator("#terminalQuoteState")).toHaveText("Current book");
+  await expect(page.locator("#terminalQuoteContract")).toHaveText("Live-book market preview");
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/Nothing is prepared, signed, or sent/i);
+  await expect(page.locator("#terminalPreviewFill")).toContainText("SOL");
+  await expect(page.getByRole("button", { name: /sign|submit|execute|buy|sell/i })).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"], script[src*="ravenos-access"]')).toHaveCount(0);
+});
+
+test("Hyperliquid preview recomputes exact direction, size, and margin without creating an order", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await expect(page.locator("#terminalPreviewResult")).toBeVisible();
+  await page.locator("#terminalPreviewNotional").fill("900");
+  await page.locator("#terminalPreviewShort").click();
+  await expect(page.locator("#terminalPreviewShort")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalPreviewAction")).toHaveText("Preview short");
+  await expect(page.locator("#terminalPreviewMargin")).toContainText("$300");
+  await expect(page.locator("#terminalPreviewMessage")).toContainText(/Account fees and liquidation are not included/i);
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.marketPreviewAvailable).toBe(true);
+  expect(state.marketPreviewState).toBe("market_preview_available");
+  expect(state.signingAvailable).toBe(false);
+  expect(state.submissionAvailable).toBe(false);
 });
 
 test("Terminal ships no seeded market model or synthetic replay client", async ({ page }) => {

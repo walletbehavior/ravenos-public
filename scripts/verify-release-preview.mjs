@@ -22,15 +22,22 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function capture(path, { expectedStatus = 200 } = {}) {
+async function capture(path, { expectedStatus = 200, method = "GET", body = undefined } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: { "cache-control": "no-cache", "user-agent": "RavenOS-Release-Preflight/1.0" },
+    method,
+    headers: {
+      "cache-control": "no-cache",
+      "user-agent": "RavenOS-Release-Preflight/1.0",
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
   });
   const bytes = Buffer.from(await response.arrayBuffer());
   capturedBodies.push({ path, text: bytes.toString("utf8") });
   const record = {
     path,
+    method,
     status: response.status,
     content_type: response.headers.get("content-type"),
     cache_control: response.headers.get("cache-control"),
@@ -139,11 +146,44 @@ const flagsCapture = await capture("/api/trade/flags");
 const flags = JSON.parse(flagsCapture.text);
 if (
   flags?.quote_only !== true
+  || flags?.market_preview_available !== true
+  || !flags?.market_preview_markets?.includes("hyperliquid_perpetual")
   || flags?.signing_available !== false
   || flags?.submission_available !== false
   || flags?.fees_enabled !== false
 ) {
   throw new Error("Customer execution boundary is not read-only and non-signing");
+}
+const marketPreviewCapture = await capture("/api/trade/market-preview", {
+  method: "POST",
+  body: {
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    notional_usdc: 500,
+    leverage: 3,
+    max_impact_bps: 100,
+  },
+});
+const marketPreview = JSON.parse(marketPreviewCapture.text);
+if (
+  marketPreview?.ok !== true
+  || marketPreview?.schema_version !== "ravenos.hyperliquid_market_preview.v1"
+  || marketPreview?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || marketPreview?.instrument?.identity_scope !== "exact_instrument"
+  || marketPreview?.provenance?.provider !== "Hyperliquid"
+  || marketPreview?.provenance?.source !== "live_l2_book"
+  || marketPreview?.provenance?.exact_identity !== true
+  || marketPreview?.review?.review_ready !== false
+  || marketPreview?.execution_boundary?.prepared_order_available !== false
+  || marketPreview?.execution_boundary?.signing_available !== false
+  || marketPreview?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Hyperliquid live-book preview did not preserve exact identity and the non-execution boundary");
+}
+const marketPreviewNoLeakFindings = scanJsonValue(marketPreview, "preview:/api/trade/market-preview");
+if (marketPreviewNoLeakFindings.length) {
+  const fields = marketPreviewNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Hyperliquid market preview failed the public no-leak gate: ${fields}`);
 }
 
 const atlasFeaturedCapture = await capture("/api/atlas/featured?limit=8");
