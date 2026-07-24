@@ -354,6 +354,15 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.locator("#terminalSourceContinuity")).toContainText(/Verified/i);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
+  const spotPriceScale = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.price_axis);
+  expect(spotPriceScale).toMatchObject({
+    side: "right",
+    visible: true,
+    auto_scale: "visible_range",
+    quote_asset: "USDC",
+  });
+  expect(spotPriceScale.precision).toBeGreaterThanOrEqual(4);
+  expect(spotPriceScale.min_move).toBeLessThanOrEqual(0.0001);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address")).toBe(true);
 
   const initialHash = await chartHash(page);

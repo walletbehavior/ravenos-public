@@ -187,11 +187,14 @@
       || instrument.currency
       || (series ? "" : "USD"),
     ) || (series ? "" : "USD");
-    const explicitPrecision = Number(
-      options.pricePrecision
+    const explicitPrecisionValue = options.pricePrecision
       ?? instrument.price_precision
-      ?? instrument.pricePrecision,
-    );
+      ?? instrument.pricePrecision;
+    const explicitPrecision = explicitPrecisionValue === null
+      || explicitPrecisionValue === undefined
+      || String(explicitPrecisionValue).trim() === ""
+      ? Number.NaN
+      : Number(explicitPrecisionValue);
     const finiteValues = values.map(Number).filter(Number.isFinite);
     const nonZero = finiteValues.map(Math.abs).filter((value) => value > 0);
     const smallest = nonZero.length ? Math.min(...nonZero) : 1;
@@ -558,6 +561,8 @@
       volumeSeries = chart.addSeries(api.HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "volume",
+        lastValueVisible: false,
+        priceLineVisible: false,
       });
       volumeSeries.setData(normalizeVolume(rawCandles));
       chart.priceScale("volume").applyOptions({
