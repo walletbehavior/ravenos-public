@@ -39,6 +39,40 @@
       <button class="workspace-refresh" id="discoverRefresh" type="button">Refresh now</button>
     </div>
 
+    <section class="discover-spot-pulse" id="discoverSpotPulse" aria-labelledby="discoverSpotPulseTitle" hidden>
+      <header class="discover-spot-pulse-head">
+        <div>
+          <span class="workspace-label">Spot pulse</span>
+          <h2 id="discoverSpotPulseTitle">Solana movement leaders</h2>
+          <p>Current markets Raven is tracking — not a whole-chain ranking.</p>
+        </div>
+        <div class="discover-spot-pulse-controls">
+          <span class="discover-chain-chip">Solana</span>
+          <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
+            <button class="active" type="button" data-spot-timeframe="5m" aria-pressed="true">5m</button>
+            <button type="button" data-spot-timeframe="1h" aria-pressed="false">1h</button>
+            <button type="button" data-spot-timeframe="24h" aria-pressed="false">24h</button>
+          </div>
+        </div>
+      </header>
+      <div class="discover-spot-leader-grid">
+        <section class="discover-spot-leader-panel" aria-labelledby="discoverVelocityTitle">
+          <header>
+            <div><span>Top velocity</span><strong id="discoverVelocityTitle">Fastest directional moves</strong></div>
+            <small id="discoverVelocityWindow">5m move</small>
+          </header>
+          <div class="discover-spot-leader-list" id="discoverVelocityLeaders"></div>
+        </section>
+        <section class="discover-spot-leader-panel" aria-labelledby="discoverTrendingTitle">
+          <header>
+            <div><span>Top trending</span><strong id="discoverTrendingTitle">Most active traders</strong></div>
+            <small id="discoverTrendingWindow">5m activity</small>
+          </header>
+          <div class="discover-spot-leader-list" id="discoverTrendingLeaders"></div>
+        </section>
+      </div>
+    </section>
+
     <section class="workspace-layout">
       <div class="workspace-main">
         <header class="workspace-section-head">

@@ -115,7 +115,24 @@ test("Worker opportunity route is backed by the current Census projection", asyn
             movement_state: "Activity accelerating",
             what_changed: "Price rose while volume and independent activity expanded.",
             risk: "Short-window movement still needs follow-through.",
-            market: { liquidity_usd: 80_000, buys_5m: 64, sells_5m: 26, traders_5m: 72 },
+            market: {
+              liquidity_usd: 80_000,
+              price_change_5m_pct: 8.5,
+              price_change_1h_pct: 18,
+              price_change_24h_pct: 31,
+              buys_5m: 64,
+              sells_5m: 26,
+              traders_5m: 72,
+              buys_1h: 320,
+              sells_1h: 130,
+              traders_1h: 240,
+              buys_24h: 1_280,
+              sells_24h: 520,
+              traders_24h: 680,
+              volume_usd_5m: 14_000,
+              volume_usd_1h: 92_000,
+              volume_usd_24h: 510_000,
+            },
             broader_attention: {
               state: "raven_observed_first",
               raven_observed_first: true,
@@ -165,6 +182,8 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.census.opportunities.rows[0].execution_available, false);
     assert.equal(body.census.spot_attention.schema_version, "ravenos.token_attention.v1");
     assert.equal(body.census.spot_attention.rows[0].identity_scope, "exact_pool");
+    assert.equal(body.census.spot_attention.rows[0].market.traders_24h, 680);
+    assert.equal(body.census.spot_attention.rows[0].market.volume_usd_1h, 92_000);
     assert.equal(body.census.spot_attention.rows[0].broader_attention.raven_observed_first, true);
     assert.equal(body.census.spot_attention.selection.broader_attention_affects_ranking, false);
     assert.equal(body.census.spot_attention.execution_boundary.signing_available, false);

@@ -69,9 +69,19 @@ const spotAttentionRows = [
       price_usd: 0.0012,
       price_change_5m_pct: 8.5,
       price_change_1h_pct: 18,
+      price_change_24h_pct: 31,
       buys_5m: 64,
       sells_5m: 26,
       traders_5m: 72,
+      buys_1h: 320,
+      sells_1h: 130,
+      traders_1h: 240,
+      buys_24h: 1_280,
+      sells_24h: 520,
+      traders_24h: 300,
+      volume_usd_5m: 14_000,
+      volume_usd_1h: 92_000,
+      volume_usd_24h: 510_000,
       liquidity_usd: 82_000,
       holder_count: 1_240,
     },
@@ -107,9 +117,19 @@ const spotAttentionRows = [
       price_usd: 0.0008,
       price_change_5m_pct: 4.1,
       price_change_1h_pct: 12,
+      price_change_24h_pct: 88,
       buys_5m: 31,
       sells_5m: 18,
       traders_5m: 44,
+      buys_1h: 190,
+      sells_1h: 110,
+      traders_1h: 180,
+      buys_24h: 2_400,
+      sells_24h: 1_100,
+      traders_24h: 700,
+      volume_usd_5m: 8_000,
+      volume_usd_1h: 48_000,
+      volume_usd_24h: 940_000,
       liquidity_usd: 41_000,
       holder_count: 620,
     },
@@ -330,9 +350,24 @@ test("Discover surfaces exact-token movement and never silently chooses an unres
   });
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(3);
+  await expect(page.locator("#discoverSpotPulse")).toBeVisible();
+  await expect(page.locator(".discover-chain-chip")).toHaveText("Solana");
+  await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
+  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("RETIRE");
+  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("+8.50%");
+  await expect(page.locator("#discoverTrendingLeaders .discover-spot-leader").first()).toContainText("72 traders");
+  await page.locator("[data-spot-timeframe='24h']").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
+  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("BIRD");
+  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("+88.00%");
+  await expect(page.locator("#discoverTrendingLeaders .discover-spot-leader").first()).toContainText("700 traders");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("not a whole-chain ranking");
+  await page.locator("[data-discover-filter='perpetual']").click();
+  await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   const spotFilter = page.locator("[data-discover-filter='spot']");
   await expect(spotFilter).toBeEnabled();
   await spotFilter.click();
+  await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   const spotRows = page.locator(".discover-row[data-source-type='raven-spot']");
   await expect(spotRows).toHaveCount(2);
   await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven recorded this market 20m before broader attention appeared");

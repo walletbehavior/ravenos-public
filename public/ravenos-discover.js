@@ -7,6 +7,8 @@ const state = {
   order: [],
   markets: new Map(),
   atlasRows: [],
+  spotRows: [],
+  spotTimeframe: "5m",
   paused: false,
   expanded: false,
   loading: false,
@@ -239,6 +241,135 @@ function spotEvidenceHeadline(row = {}) {
   return spotParticipation(row);
 }
 
+function spotTimingLabel(row = {}) {
+  if (row.broader_attention?.raven_observed_first !== true) return "";
+  const seconds = finite(row.broader_attention.lead_seconds);
+  if (seconds === null || seconds <= 0) return "";
+  if (seconds >= 3600) return `Raven ${(seconds / 3600).toFixed(seconds % 3600 === 0 ? 0 : 1)}h earlier`;
+  if (seconds >= 60) return `Raven ${Math.max(1, Math.round(seconds / 60))}m earlier`;
+  return `Raven ${Math.round(seconds)}s earlier`;
+}
+
+function spotMetric(row, metric, timeframe = state.spotTimeframe) {
+  const suffix = ["price_change", "volume_change", "liquidity_change", "holder_change"].includes(metric) ? "_pct" : "";
+  return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
+}
+
+function configureSpotLink(anchor, row) {
+  anchor.href = terminalHref(row);
+  if (anchor.getAttribute("href") !== "#") return;
+  anchor.addEventListener("click", (event) => {
+    event.preventDefault();
+    window.RavenOSShell?.openCommandPalette?.(row.token_address);
+  });
+}
+
+function spotLeaderRows(kind) {
+  const current = state.spotRows.filter((row) => {
+    const age = finite(row.age_seconds);
+    const liquidity = finite(row.market?.liquidity_usd);
+    return row.chain === "Solana"
+      && (age === null || age <= 3_600)
+      && liquidity !== null
+      && liquidity > 0;
+  });
+  if (kind === "velocity") {
+    return current
+      .filter((row) => spotMetric(row, "price_change") !== null)
+      .sort((left, right) => {
+        const movement = Math.abs(spotMetric(right, "price_change")) - Math.abs(spotMetric(left, "price_change"));
+        if (movement) return movement;
+        return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
+      })
+      .slice(0, 4);
+  }
+  return current
+    .filter((row) => spotMetric(row, "traders") !== null)
+    .sort((left, right) => {
+      const traders = (spotMetric(right, "traders") || 0) - (spotMetric(left, "traders") || 0);
+      if (traders) return traders;
+      const rightTransactions = (spotMetric(right, "buys") || 0) + (spotMetric(right, "sells") || 0);
+      const leftTransactions = (spotMetric(left, "buys") || 0) + (spotMetric(left, "sells") || 0);
+      if (rightTransactions !== leftTransactions) return rightTransactions - leftTransactions;
+      return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
+    })
+    .slice(0, 4);
+}
+
+function createSpotLeaderRow(row, kind, index) {
+  const anchor = document.createElement("a");
+  anchor.className = "discover-spot-leader";
+  anchor.dataset.leaderType = kind;
+  anchor.dataset.identityScope = row.identity_scope;
+  configureSpotLink(anchor, row);
+  anchor.setAttribute("aria-label", `${text(row.symbol)} ${kind === "velocity" ? "velocity" : "trending activity"} details`);
+
+  append(anchor, "span", "discover-spot-rank", String(index + 1).padStart(2, "0"));
+  const identity = append(anchor, "div", "discover-spot-leader-identity", "");
+  identity.textContent = "";
+  append(identity, "strong", "", text(row.symbol));
+  const identityFacts = [
+    text(row.venue, row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token"),
+    `${compact(row.market?.liquidity_usd, { currency: true })} liq`,
+    spotTimingLabel(row),
+  ].filter(Boolean);
+  append(identity, "span", "", identityFacts.join(" · "));
+
+  const metric = append(anchor, "div", "discover-spot-leader-metric", "");
+  metric.textContent = "";
+  if (kind === "velocity") {
+    const movement = spotMetric(row, "price_change");
+    const value = append(metric, "strong", "", percent(movement));
+    if (movement !== null) value.classList.add(movement >= 0 ? "positive" : "negative");
+    append(metric, "span", "", `${state.spotTimeframe} move`);
+  } else {
+    const traders = spotMetric(row, "traders");
+    const buys = spotMetric(row, "buys");
+    const sells = spotMetric(row, "sells");
+    const transactions = buys === null && sells === null ? null : (buys || 0) + (sells || 0);
+    append(metric, "strong", "", `${compact(traders)} traders`);
+    append(metric, "span", "", [
+      transactions === null ? null : `${compact(transactions)} tx`,
+      spotMetric(row, "volume_usd") === null ? null : `${compact(spotMetric(row, "volume_usd"), { currency: true })} vol`,
+    ].filter(Boolean).join(" · "));
+  }
+  append(anchor, "span", "discover-spot-leader-open", row.identity_scope === "exact_pool" ? "→" : "⌕");
+  return anchor;
+}
+
+function renderSpotLeaderList(id, kind) {
+  const host = document.getElementById(id);
+  host.replaceChildren();
+  const rows = spotLeaderRows(kind);
+  if (!rows.length) {
+    append(host, "p", "discover-spot-leader-empty", `No current ${state.spotTimeframe} ${kind === "velocity" ? "movement" : "activity"} values.`);
+    return;
+  }
+  rows.forEach((row, index) => host.append(createSpotLeaderRow(row, kind, index)));
+}
+
+function renderSpotPulse(rows = state.spotRows) {
+  const host = document.getElementById("discoverSpotPulse");
+  state.spotRows = Array.isArray(rows) ? rows : [];
+  if (!state.spotRows.length) {
+    host.hidden = true;
+    document.getElementById("discoverVelocityLeaders").replaceChildren();
+    document.getElementById("discoverTrendingLeaders").replaceChildren();
+    return;
+  }
+  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
+  host.hidden = !["all", "spot"].includes(activeFilter);
+  document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
+    const active = button.dataset.spotTimeframe === state.spotTimeframe;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.getElementById("discoverVelocityWindow").textContent = `${state.spotTimeframe} move`;
+  document.getElementById("discoverTrendingWindow").textContent = `${state.spotTimeframe} activity`;
+  renderSpotLeaderList("discoverVelocityLeaders", "velocity");
+  renderSpotLeaderList("discoverTrendingLeaders", "trending");
+}
+
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
   const spot = row.source_type === "raven_spot_attention";
@@ -248,13 +379,8 @@ function createOpportunityRow(row) {
   anchor.dataset.marketType = atlas ? "equity" : spot ? "spot" : text(row.market_type, "unknown").toLowerCase();
   anchor.dataset.sourceType = atlas ? "atlas" : spot ? "raven-spot" : "raven";
   anchor.dataset.freshness = text(row.context_state, "unavailable").toLowerCase();
-  anchor.href = terminalHref(row);
-  if (spot && anchor.getAttribute("href") === "#") {
-    anchor.addEventListener("click", (event) => {
-      event.preventDefault();
-      window.RavenOSShell?.openCommandPalette?.(row.token_address);
-    });
-  }
+  if (spot) configureSpotLink(anchor, row);
+  else anchor.href = terminalHref(row);
 
   const identity = append(anchor, "div", "discover-identity", "");
   identity.textContent = "";
@@ -341,6 +467,7 @@ function renderSourceNotice(source, detail) {
 
 function applyFilter() {
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
+  document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || !["all", "spot"].includes(active);
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
   const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
@@ -542,13 +669,16 @@ async function refresh({ manual = false } = {}) {
         market_snapshot: state.markets.get(row.instrument_id) || null,
       }));
       ravenRows = [...current.spotRows, ...ravenRows];
+      renderSpotPulse(current.spotRows);
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", "fresh", "Current");
     } catch {
+      renderSpotPulse([]);
       setState("discoverCensusState", "unavailable", "Unavailable");
       ravenFailure = "Current Raven data did not meet freshness or identity requirements. Older observations were not substituted.";
     }
   } else {
+    renderSpotPulse([]);
     setState("discoverCensusState", "unavailable", "Unavailable");
     const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
     ravenFailure = `The current Raven read could not be reached${status === "network" ? "" : ` (${status})`}. Older observations were not substituted.`;
@@ -634,6 +764,10 @@ function bind() {
     state.expanded = false;
     applyFilter();
   }));
+  document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
+    state.spotTimeframe = button.dataset.spotTimeframe;
+    renderSpotPulse();
+  }));
   document.getElementById("discoverStreamControl").addEventListener("click", () => {
     state.expanded = !state.expanded;
     applyFilter();
@@ -652,6 +786,6 @@ bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
 window.__RAVENOS_DISCOVER__ = Object.freeze({
-  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
+  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, spotTimeframe: state.spotTimeframe, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
   refresh: () => refresh({ manual: true }),
 });
