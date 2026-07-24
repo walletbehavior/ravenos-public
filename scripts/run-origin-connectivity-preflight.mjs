@@ -277,16 +277,27 @@ function validateHealth(captured) {
   const body = captured.json;
   if (
     captured.status !== 200
+    || body?.status !== "ok"
     || body?.process_health?.state !== "operational"
+    || body?.market_data_health?.state !== "fresh"
     || body?.intelligence_freshness?.state !== "fresh"
+    || body?.atlas_health?.state !== "fresh"
+    || body?.raven_read_health?.state !== "fresh"
+    || body?.narrator_freshness?.state !== "not_required"
     || body?.projection_health?.state !== "operational"
-  ) throw new Error("Staging health did not report operational projection and fresh intelligence");
+    || body?.publisher_health?.state !== "operational"
+    || body?.execution_health?.state !== "disabled"
+    || body?.execution_health?.signing_available !== false
+    || body?.execution_health?.submission_available !== false
+  ) throw new Error("Staging health did not report a complete fresh read-only product");
   return {
     status: captured.status,
     overall: body.status,
     process: body.process_health.state,
     market_data: body.market_data_health?.state || null,
     intelligence: body.intelligence_freshness.state,
+    atlas: body.atlas_health?.state || null,
+    raven_read: body.raven_read_health?.state || null,
     narrator: body.narrator_freshness?.state || null,
     projection: body.projection_health.state,
     publisher: body.publisher_health?.state || null,

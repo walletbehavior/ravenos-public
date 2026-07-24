@@ -76,6 +76,11 @@ export function resolveTradingViewChart(entity = {}, { exactInstrument = null } 
     attribution: "Chart by TradingView",
     attribution_url: entry.href,
     visual_context_only: true,
+    price_axis: Object.freeze({
+      side: "right",
+      auto_scale: "visible_range",
+      precision: "instrument_native",
+    }),
   });
 }
 

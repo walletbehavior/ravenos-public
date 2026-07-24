@@ -155,7 +155,7 @@ test("Worker does not relabel an older claim as a current opportunity when Censu
   }
 });
 
-test("Worker health separates fresh intelligence from stale research and narrator state", async () => {
+test("Worker health measures current product lanes without penalizing archival or retired services", async () => {
   const manifest = {
     schema_version: "ravenos_public_origin_manifest_v1",
     generated_at: isoAgo(2),
@@ -169,6 +169,12 @@ test("Worker health separates fresh intelligence from stale research and narrato
         freshness_target_seconds: key === "perps" ? 120 : 900,
       })),
       {
+        key: "atlas",
+        endpoint_path: "/public/ravenos/atlas.json",
+        payload_age_seconds: 10,
+        freshness_target_seconds: 900,
+      },
+      {
         key: "research",
         endpoint_path: "/public/ravenos/research.json",
         payload_age_seconds: 2_300_000,
@@ -181,7 +187,7 @@ test("Worker health separates fresh intelligence from stale research and narrato
   const status = {
     schema_version: "ravenos_public_publish_status_v1",
     generated_at: isoAgo(2),
-    endpoints_published: 9,
+    endpoints_published: 10,
     endpoints_failed: 0,
     private_leak_guard_passed: true,
     output_dir: "/srv/raven/app/private/path-that-must-not-leak",
@@ -210,27 +216,41 @@ test("Worker health separates fresh intelligence from stale research and narrato
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => jsonResponse(byPath[new URL(url).pathname] || {}, byPath[new URL(url).pathname] ? 200 : 404);
   try {
-    const env = environment({
-      "/ravenos/ravenos_narrator_terminal.json": {
-        schema_version: "1",
-        generated_at: "2026-07-04T14:41:26Z",
-      },
-    });
+    const env = environment();
     const response = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.ok, true);
-    assert.equal(body.status, "degraded");
+    assert.equal(body.status, "ok");
     assert.equal(body.process_health.state, "operational");
     assert.equal(body.process_health.checks.customerAccounts, "not_configured");
     assert.equal(body.process_health.checks.accessApi, "not_configured");
     assert.equal(body.market_data_health.state, "fresh");
     assert.equal(body.intelligence_freshness.state, "fresh");
-    assert.equal(body.intelligence_freshness.research.state, "stale");
-    assert.equal(body.narrator_freshness.state, "stale");
+    assert.equal(body.intelligence_freshness.research.state, "historical");
+    assert.equal(body.intelligence_freshness.research.source_freshness_state, "stale");
+    assert.equal(body.intelligence_freshness.research.blocking, false);
+    assert.equal(body.atlas_health.state, "fresh");
+    assert.equal(body.atlas_health.blocking, true);
+    assert.equal(body.raven_read_health.state, "fresh");
+    assert.equal(body.raven_read_health.mode, "deterministic_structured_projection");
+    assert.equal(body.narrator_freshness.state, "not_required");
+    assert.equal(body.narrator_freshness.blocking, false);
     assert.equal(body.projection_health.state, "operational");
-    assert.equal(body.publisher_health.state, "unknown");
+    assert.equal(body.publisher_health.state, "operational");
+    assert.equal(body.publisher_health.blocking, true);
+    assert.equal(body.execution_health.state, "disabled");
+    assert.equal(body.execution_health.blocking, false);
+    assert.equal(body.execution_health.signing_available, false);
+    assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
+
+    status.generated_at = isoAgo(5_000);
+    const missedPublisherResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const missedPublisher = await missedPublisherResponse.json();
+    assert.equal(missedPublisher.status, "degraded");
+    assert.equal(missedPublisher.publisher_health.state, "degraded");
+    assert.equal(missedPublisher.publisher_health.blocking, true);
   } finally {
     globalThis.fetch = previousFetch;
   }

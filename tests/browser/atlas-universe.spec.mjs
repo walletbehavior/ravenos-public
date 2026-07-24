@@ -248,6 +248,14 @@ test("Periodic series history loads only on demand and renders a real chart", as
   expect(calls.some((call) => call.startsWith("/api/atlas/history"))).toBe(false);
   await page.getByRole("tab", { name: "History" }).click();
   await expect(page.locator(".atlas-history-chart canvas").first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_PRICE_SCALE__?.side)).toBe("right");
+  const priceScale = await page.evaluate(() => window.__RAVENOS_LAST_PRICE_SCALE__);
+  expect(priceScale).toMatchObject({
+    visible: true,
+    auto_scale: "visible_range",
+    instrument_type: "reference_series",
+  });
+  expect(priceScale.quote_asset).toBe("");
   await expect(page.locator(".raven-series-chart-inspector")).toContainText("Latest");
   await expect(page.locator(".raven-series-chart-inspector")).toContainText("Value");
   await expect(page.locator(".raven-series-chart-inspector")).toContainText("Change");

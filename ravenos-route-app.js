@@ -698,7 +698,7 @@ function renderBrief(payload) {
     helius_profile_thin: "Some participant profiles remain incomplete.",
     outcome_pending: "Followthrough is still maturing.",
     raw_wallet_redacted: "Participant identities remain aggregated for privacy.",
-    stale_sweep_dependency: "Part of this read depends on a delayed evidence sweep.",
+    stale_sweep_dependency: "Some supporting market observations have not refreshed yet.",
   };
   const warnings = [...new Set((Array.isArray(data.warnings) ? data.warnings : []).slice(0, 4).map((item) => warningLabels[String(item || "").toLowerCase()] || "A source or maturity limitation remains attached to this read."))];
   const structuredThesis = `${titleCase(data.participation_quality || "forming")} participation. ${titleCase(data.outcome_status || "unproven")} followthrough.`;
@@ -1023,7 +1023,7 @@ function renderBehavior(payload) {
     helius_profile_thin: "Some participant profiles remain incomplete.",
     outcome_pending: "Participant followthrough is not yet proven.",
     raw_wallet_redacted: "Raw wallet identities remain private; this surface uses aggregates.",
-    stale_sweep_dependency: "Part of the participant sweep is delayed.",
+    stale_sweep_dependency: "Some participant activity has not refreshed yet.",
   };
   const warnings = [...new Set((data.warnings || []).map((item) => limitations[item] || "A participant-evidence limitation remains attached to this read."))];
   const focusLabel = focus ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.cap_band)}`) : "Participation context";

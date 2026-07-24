@@ -96,10 +96,23 @@ for (const assetUrl of referencedAssets) {
 const healthCapture = await capture("/api/health");
 const health = JSON.parse(healthCapture.text);
 if (!health || typeof health !== "object") throw new Error("/api/health returned invalid JSON");
+if (health.status !== "ok") throw new Error("/api/health does not report a healthy complete product");
+if (health.market_data_health?.state !== "fresh") throw new Error("/api/health does not report fresh market data");
 if (health.intelligence_freshness?.state !== "fresh") throw new Error("/api/health does not report fresh current intelligence");
+if (health.atlas_health?.state !== "fresh") throw new Error("/api/health does not report fresh Atlas context");
+if (health.raven_read_health?.state !== "fresh") throw new Error("/api/health does not report fresh deterministic Raven Reads");
+if (health.narrator_freshness?.state !== "not_required" || health.narrator_freshness?.blocking !== false) {
+  throw new Error("/api/health does not classify the retired narrator sidecar as non-blocking");
+}
 if (health.projection_health?.state !== "operational") throw new Error("/api/health does not report an operational projection");
+if (health.publisher_health?.state !== "operational") throw new Error("/api/health does not report an operational public publisher");
 if (health.projection_health?.source_status !== "current_public_origin") throw new Error("/api/health is not reading current-origin status");
 if (health.projection_health?.manifest_status !== "current_public_origin") throw new Error("/api/health is not reading the current-origin manifest");
+if (
+  health.execution_health?.state !== "disabled"
+  || health.execution_health?.signing_available !== false
+  || health.execution_health?.submission_available !== false
+) throw new Error("/api/health does not preserve the disabled execution boundary");
 const opportunityCapture = await capture("/api/opportunity");
 const opportunity = JSON.parse(opportunityCapture.text);
 if (opportunity?.delivery?.fallback !== false || opportunity?.delivery?.source !== "current_public_origin") {
@@ -309,7 +322,11 @@ const report = {
   referenced_assets_verified: referencedAssets.size,
   health_status: health.status || null,
   intelligence_freshness: health.intelligence_freshness.state,
+  market_data_health: health.market_data_health.state,
+  atlas_health: health.atlas_health.state,
+  raven_read_health: health.raven_read_health.state,
   projection_health: health.projection_health.state,
+  publisher_health: health.publisher_health.state,
   opportunity_source: opportunity.delivery.source,
   opportunity_fallback: opportunity.delivery.fallback,
   opportunity_freshness: opportunity.delivery.freshness_state,

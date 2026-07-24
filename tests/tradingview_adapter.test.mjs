@@ -14,6 +14,11 @@ test("TradingView visual context resolves only explicit exact Atlas identities",
   assert.equal(aapl.schema_version, TradingViewAdapterVersion);
   assert.equal(aapl.tradingview_symbol, "NASDAQ:AAPL");
   assert.equal(aapl.visual_context_only, true);
+  assert.deepEqual(aapl.price_axis, {
+    side: "right",
+    auto_scale: "visible_range",
+    precision: "instrument_native",
+  });
   assert.equal(resolveTradingViewChart({ entity_id: "equity:us:AAPL", symbol: "MSFT" }), null);
   assert.equal(resolveTradingViewChart({ entity_id: "equity:us:UNKNOWN", symbol: "UNKNOWN" }), null);
   assert.equal(resolveTradingViewSymbol("NASDAQ:AAPL").entity_id, "equity:us:AAPL");

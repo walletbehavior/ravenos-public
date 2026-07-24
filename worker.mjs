@@ -2782,6 +2782,58 @@ function worstFreshness(states = []) {
   ), states.length ? "fresh" : "unavailable");
 }
 
+function publicPublisherHealth(projectionStatus, projectionState, nowMs = Date.now()) {
+  const cadenceTargetSeconds = 1_200;
+  const freshness = projectionFreshness({
+    generated_at: projectionStatus?.last_success_at
+      || projectionStatus?.last_publish_at
+      || projectionStatus?.generated_at,
+    freshness_target_seconds: cadenceTargetSeconds,
+  }, { nowMs, defaultTargetSeconds: cadenceTargetSeconds });
+  const successful = projectionState === "operational"
+    && Number(projectionStatus?.endpoints_published || 0) > 0
+    && Number(projectionStatus?.endpoints_failed || 0) === 0
+    && projectionStatus?.private_leak_guard_passed === true;
+  const state = successful && freshness.state === "fresh"
+    ? "operational"
+    : successful && freshness.state === "delayed"
+      ? "delayed"
+      : projectionState === "unavailable" || freshness.state === "unavailable"
+        ? "unavailable"
+        : "degraded";
+  return {
+    state,
+    blocking: true,
+    observation: "current_protected_projection",
+    last_success_at: freshness.generated_at,
+    age_seconds: freshness.age_seconds,
+    cadence_target_seconds: freshness.target_seconds,
+    endpoints_published: Number(projectionStatus?.endpoints_published || 0),
+    endpoints_failed: Number(projectionStatus?.endpoints_failed || 0),
+    private_leak_guard_passed: projectionStatus?.private_leak_guard_passed === true,
+    process_visibility: "indirect",
+    reason: state === "operational"
+      ? null
+      : freshness.reason || (successful ? "publisher_cadence_missed" : "publisher_output_not_healthy"),
+  };
+}
+
+function archivalResearchHealth(researchEndpoint = {}) {
+  const sourceFreshnessState = String(researchEndpoint.state || "unavailable");
+  return {
+    ...researchEndpoint,
+    state: sourceFreshnessState === "fresh"
+      ? "fresh"
+      : sourceFreshnessState === "unavailable"
+        ? "unavailable"
+        : "historical",
+    source_freshness_state: sourceFreshnessState,
+    role: "historical_archive",
+    current_intelligence: sourceFreshnessState === "fresh",
+    blocking: false,
+  };
+}
+
 function validateCurrentAtlasProjection(result = {}) {
   const payload = result.payload;
   const delivery = result.delivery || {};
@@ -2946,11 +2998,10 @@ async function handleHealth(request, env = {}) {
   const stripeConfigured = billingEnabled && Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
   const tokenConfigured = accountsEnabled && Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
   const dbConfigured = accountsEnabled && Boolean(env.RAVENOS_DB);
-  const [manifestResult, statusResult, terminalHealthResult, narratorPayload] = await Promise.all([
+  const [manifestResult, statusResult, terminalHealthResult] = await Promise.all([
     loadOriginControlDocument({ env, key: "manifest" }),
     loadOriginControlDocument({ env, key: "status" }),
     loadOriginControlDocument({ env, key: "terminal_health" }),
-    readAssetPayload(env, request, "/ravenos/ravenos_narrator_terminal.json"),
   ]);
   const manifest = manifestResult.ok ? sanitizeOriginControlDocument("manifest", manifestResult.payload) : null;
   const projectionStatus = statusResult.ok ? sanitizeOriginControlDocument("status", statusResult.payload) : null;
@@ -2975,10 +3026,11 @@ async function handleHealth(request, env = {}) {
   const intelligenceState = coreEndpointHealth.length === coreKeys.size
     ? worstFreshness(coreEndpointHealth.map((row) => row.state))
     : "unavailable";
-  const narratorFreshness = projectionFreshness({
-    generated_at: narratorPayload?.generated_at || narratorPayload?.updated_at,
-    freshness_target_seconds: 3600,
-  }, { defaultTargetSeconds: 3600 });
+  const ravenReadKeys = new Set(["brief", "opportunities", "claims"]);
+  const ravenReadEndpoints = endpointHealth.filter((row) => ravenReadKeys.has(row.key));
+  const ravenReadState = ravenReadEndpoints.length === ravenReadKeys.size
+    ? worstFreshness(ravenReadEndpoints.map((row) => row.state))
+    : "unavailable";
   const marketState = String(terminalHealth?.market_data_availability || "unavailable");
   const projectionState = manifestResult.ok
     && statusResult.ok
@@ -2988,6 +3040,8 @@ async function handleHealth(request, env = {}) {
       : manifestResult.ok || statusResult.ok
         ? "degraded"
         : "unavailable";
+  const publisherHealth = publicPublisherHealth(projectionStatus, projectionState);
+  const researchHealth = archivalResearchHealth(researchEndpoint);
   const checks = {
     worker: "ok",
     assets: env.ASSETS ? "ok" : "unavailable",
@@ -3000,9 +3054,15 @@ async function handleHealth(request, env = {}) {
     database: dbConfigured ? "configured" : "not_configured",
   };
   const requiredHealthy = checks.worker === "ok" && checks.assets === "ok";
+  const productHealthy = intelligenceState === "fresh"
+    && ravenReadState === "fresh"
+    && marketState === "fresh"
+    && atlasEndpoint.state === "fresh"
+    && projectionState === "operational"
+    && publisherHealth.state === "operational";
   const status = !requiredHealthy
     ? "unavailable"
-    : intelligenceState === "fresh" && marketState === "fresh" && narratorFreshness.state === "fresh" && projectionState === "operational"
+    : productHealthy
       ? "ok"
       : "degraded";
   return terminalJson(context, {
@@ -3026,20 +3086,32 @@ async function handleHealth(request, env = {}) {
     intelligence_freshness: {
       state: intelligenceState,
       core_endpoints: coreEndpointHealth,
-      research: researchEndpoint,
-      note: researchEndpoint.state === "stale" ? "Research is historical and is not counted as current intelligence." : null,
+      research: researchHealth,
+      note: researchHealth.state === "historical"
+        ? "Research is an explicitly historical archive and does not affect current site health."
+        : null,
     },
     atlas_health: {
       ...atlasEndpoint,
+      blocking: true,
       independent: true,
-      note: "Atlas availability does not determine Raven opportunity or market-data health.",
+      note: "Atlas is measured independently and is required for complete RavenOS site health.",
+    },
+    raven_read_health: {
+      state: ravenReadState,
+      blocking: true,
+      mode: "deterministic_structured_projection",
+      endpoints: ravenReadEndpoints,
+      note: "Current Raven Reads are rendered from structured public-safe evidence rather than a generated-prose sidecar.",
     },
     narrator_freshness: {
-      state: narratorFreshness.state,
-      generated_at: narratorFreshness.generated_at,
-      age_seconds: narratorFreshness.age_seconds,
-      freshness_target_seconds: narratorFreshness.target_seconds,
-      reason: narratorFreshness.reason,
+      state: "not_required",
+      blocking: false,
+      mode: "legacy_sidecar_retired",
+      generated_at: null,
+      age_seconds: null,
+      freshness_target_seconds: null,
+      reason: "current_product_uses_deterministic_structured_reads",
     },
     projection_health: {
       state: projectionState,
@@ -3050,10 +3122,15 @@ async function handleHealth(request, env = {}) {
       source_status: statusResult.ok ? "current_public_origin" : "unavailable",
       manifest_status: manifestResult.ok ? "current_public_origin" : "unavailable",
     },
-    publisher_health: {
-      state: "unknown",
-      reason: "repository_publisher_state_not_exposed_to_worker",
-      note: "The protected public-origin projection is authoritative for current Worker intelligence.",
+    publisher_health: publisherHealth,
+    execution_health: {
+      state: "disabled",
+      blocking: false,
+      mode: "read_only_review",
+      quote_only: true,
+      signing_available: false,
+      submission_available: false,
+      note: "Disabled customer execution is an intentional safety boundary, not a site-health failure.",
     },
     checks,
     terminal_diagnostics: getTerminalDiagnosticsSummary(),

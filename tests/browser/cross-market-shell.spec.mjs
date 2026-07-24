@@ -29,10 +29,15 @@ const opportunityRows = [
     market_type: "perpetual",
     identity_scope: "exact venue instrument",
     context_state: "fresh",
-    why_raven_noticed: "Behavior changed while provider-backed pressure remained observable.",
+    why_raven_noticed: "Raven froze a behavioral setup observation while mixed pressure was present.",
     pressure_state: "Mixed pressure",
     path_review: { state: "forward path reviewing" },
-    matured_comparables: { sample_size: 128 },
+    matured_comparables: {
+      sample_size: 128,
+      positive_followthrough_rate: 0.57,
+      median_favorable_excursion_pct: 1.42,
+      median_adverse_excursion_pct: -0.71,
+    },
     market_context: { funding_rate: -0.000012, open_interest: 192_000_000 },
     research_only: true,
     execution_available: false,
@@ -188,7 +193,9 @@ test("Discover joins only current Census rows to exact live venue identities", a
   const row = page.locator(".discover-row").first();
   await expect(row).toContainText("SOL-PERP");
   await expect(row).toContainText("+2.40% over 24h");
-  await expect(row).toContainText("Outcome window still maturing");
+  await expect(row).toContainText("128 similar periods · 57% finished higher");
+  await expect(row).toContainText("A new setup is forming, but long and short pressure remain mixed");
+  await expect(row).toContainText("Choppy / mixed");
   await expect(row.locator(".discover-thesis > span")).toHaveText("What changed");
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");

@@ -201,6 +201,15 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(chart.locator('[data-rpw-timeframes] button[data-timeframe="1h"]')).toHaveAttribute("aria-pressed", "true");
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
+  const initialGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
+  expect(initialGeometry.price_axis).toMatchObject({
+    side: "right",
+    visible: true,
+    auto_scale: "visible_range",
+    quote_asset: "USD",
+  });
+  expect(initialGeometry.price_axis.precision).toBeGreaterThanOrEqual(2);
+  expect(initialGeometry.price_axis.min_move).toBeGreaterThan(0);
 
   const candleLegend = chart.locator("[data-rpw-crosshair]");
   await expect(candleLegend).toBeVisible();
@@ -217,6 +226,15 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45);
   await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
   await expect(candleLegend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  for (let index = 0; index < 12; index += 1) await page.mouse.wheel(0, -500);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.visible_bars || 0))
+    .toBeLessThan(Math.floor(initialGeometry.visible_bars * 0.7));
+  await expect.poll(() => page.evaluate(() => {
+    const geometry = window.__RAVENOS_CHART_GEOMETRY__;
+    return geometry?.price_range ? geometry.price_range.max - geometry.price_range.min : null;
+  })).not.toBe(initialGeometry.price_range.max - initialGeometry.price_range.min);
+  const zoomedGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
+  expect(zoomedGeometry.price_axis.auto_scale).toBe("visible_range");
   await page.mouse.move(1, 1);
   await expect(candleLegend).toHaveAttribute("data-mode", "latest");
 

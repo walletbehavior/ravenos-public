@@ -68,6 +68,11 @@ export function customerFacingText(value, fallback = "") {
     .replace(/\bLive Activity\b/gi, "market activity")
     .replace(/\bCurrent Raven Read\b/gi, "Current market read")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
+    .replace(/^Raven froze a behavioral setup observation while mixed pressure was present\.?$/i, "A new setup is forming, but long and short pressure remain mixed; waiting for follow-through.")
+    .replace(/^Raven froze a pressure reversal observation while mixed pressure was present\.?$/i, "Pressure is trying to reverse, but the market is still choppy; waiting for confirmation.")
+    .replace(/^Raven froze a crowding fade observation while mixed pressure was present\.?$/i, "Crowding risk appeared in a choppy market; direction is still unconfirmed.")
+    .replace(/^Raven froze a crowding fade observation while long crowding watch was present\.?$/i, "Long positioning looks crowded; watching for a fade unless price confirms the move.")
+    .replace(/^Raven froze a crowding fade observation while short crowding watch was present\.?$/i, "Short positioning looks crowded; watching for a squeeze unless price confirms the move lower.")
     .replace(
       /^Raven froze an? (.+?) observation while (.+?) was present\.?$/i,
       (_match, behavior, context) => {

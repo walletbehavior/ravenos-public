@@ -19,6 +19,7 @@ const pageRoutes = [
 
 const apiRoutes = [
   "/api/status",
+  "/api/health",
   "/api/brief",
   "/api/opportunity",
   "/api/terminal",
@@ -72,6 +73,21 @@ const { json: statusJson } = await fetchJson("/api/status");
 if (statusJson?.schema_version !== "customer_trade_terminal_health_snapshot.v1") {
   throw new Error("/api/status missing current Terminal health contract");
 }
+
+const { json: healthJson } = await fetchJson("/api/health");
+if (
+  healthJson?.status !== "ok"
+  || healthJson?.market_data_health?.state !== "fresh"
+  || healthJson?.intelligence_freshness?.state !== "fresh"
+  || healthJson?.atlas_health?.state !== "fresh"
+  || healthJson?.raven_read_health?.state !== "fresh"
+  || healthJson?.narrator_freshness?.state !== "not_required"
+  || healthJson?.projection_health?.state !== "operational"
+  || healthJson?.publisher_health?.state !== "operational"
+  || healthJson?.execution_health?.state !== "disabled"
+  || healthJson?.execution_health?.signing_available !== false
+  || healthJson?.execution_health?.submission_available !== false
+) throw new Error("/api/health does not report a complete fresh read-only production product");
 
 const { json: claimsJson } = await fetchJson("/api/claims");
 if (claimsJson?.schema_version !== "ravenos_claim_lineage_public_origin_v2" || claimsJson?.data?.lineage_version !== "2.0") {

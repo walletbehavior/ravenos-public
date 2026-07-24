@@ -77,7 +77,15 @@ test("legacy implementation language is normalized for customer renderings", () 
   assert.equal(customerFacingText("The closest comparable has sample depth is public-safe."), "The closest prior case has sample depth is available.");
   assert.equal(
     customerFacingText("Raven froze a crowding fade observation while mixed pressure was present."),
-    "Crowding fade appeared while mixed pressure was in place.",
+    "Crowding risk appeared in a choppy market; direction is still unconfirmed.",
+  );
+  assert.equal(
+    customerFacingText("Raven froze a crowding fade observation while long crowding watch was present."),
+    "Long positioning looks crowded; watching for a fade unless price confirms the move.",
+  );
+  assert.equal(
+    customerFacingText("Raven froze a pressure reversal observation while mixed pressure was present."),
+    "Pressure is trying to reverse, but the market is still choppy; waiting for confirmation.",
   );
   assert.equal(
     customerFacingText("A frozen decision observation is joined to this exact venue instrument."),

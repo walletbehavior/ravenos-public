@@ -63,6 +63,12 @@ test("all native RavenOS chart surfaces use the shared price or series renderer"
   assert.match(priceChart, /function RavenPriceChart/);
   assert.match(priceChart, /function RavenSeriesChart/);
   assert.match(priceChart, /TrackingModeExitMode/);
+  assert.match(priceChart, /defaultVisiblePriceScaleId: "right"/);
+  assert.match(priceChart, /rightPriceScale:\s*\{[\s\S]*?visible: true,[\s\S]*?autoScale: true/);
+  assert.match(priceChart, /priceScaleId: "right"/);
+  assert.match(priceChart, /minMove: scaleContract\.min_move/);
+  assert.match(priceChart, /auto_scale: "visible_range"/);
+  assert.match(workspace, /instrument: this\.state\.instrument/);
   assert.match(atlas, /window\.RavenSeriesChart/);
   assert.doesNotMatch(atlas, /LightweightCharts\.createChart/);
 });

@@ -764,6 +764,7 @@ export class PriceWorkspace {
     this.chartHandle = window.RavenPriceChart(this.chartHost, {
       ...this.renderInput,
       candles: this.state.candles,
+      instrument: this.state.instrument,
       timeframe: this.state.timeframe,
       height,
       compact: mobile,
@@ -841,6 +842,10 @@ export class PriceWorkspace {
 
   handleVisibleRange(range) {
     if (!range || !Number.isFinite(Number(range.from))) return;
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => requestAnimationFrame(() => this.publishGeometry?.()));
+    }
+    else setTimeout(() => this.publishGeometry?.(), 0);
     const nearLeftEdge = Number(range.from) <= 12;
     if (nearLeftEdge && this.backfillArmed) this.backfill();
     if (Number(range.to) < this.state.candles.length - 2) {

@@ -158,17 +158,82 @@
     container.innerHTML = `<div class="chart-state ${className || ""}">${message}</div>`;
   }
 
-  function adaptivePriceFormatter(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n) || n === 0) return "$0";
-    const abs = Math.abs(n);
-    if (abs >= 1000) return `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-    if (abs >= 1) return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: abs >= 100 ? 2 : 4 })}`;
-    const decimals = abs >= 0.01 ? 4 : abs >= 0.000001 ? 6 : 8;
-    return `$${n.toLocaleString("en-US", {
-      minimumFractionDigits: Math.min(2, decimals),
-      maximumFractionDigits: decimals,
-    })}`;
+  function cleanAssetSymbol(value) {
+    if (value && typeof value === "object") return String(value.symbol || value.code || "").trim().toUpperCase();
+    return String(value || "").trim().toUpperCase();
+  }
+
+  function decimalPlaces(value) {
+    const raw = String(value);
+    if (/e-/i.test(raw)) {
+      const exponent = Number(raw.split(/e-/i)[1]);
+      return Number.isFinite(exponent) ? exponent : 0;
+    }
+    return (raw.split(".")[1] || "").replace(/0+$/, "").length;
+  }
+
+  function priceScaleContract(options = {}, values = [], { series = false } = {}) {
+    const instrument = options.instrument && typeof options.instrument === "object" ? options.instrument : {};
+    const instrumentType = String(
+      options.instrumentType
+      || instrument.instrument_type
+      || instrument.asset_class
+      || "",
+    ).trim().toLowerCase();
+    const quoteAsset = cleanAssetSymbol(
+      options.quoteAsset
+      || instrument.quote_asset
+      || instrument.settlement_asset
+      || instrument.currency
+      || (series ? "" : "USD"),
+    ) || (series ? "" : "USD");
+    const explicitPrecision = Number(
+      options.pricePrecision
+      ?? instrument.price_precision
+      ?? instrument.pricePrecision,
+    );
+    const finiteValues = values.map(Number).filter(Number.isFinite);
+    const nonZero = finiteValues.map(Math.abs).filter((value) => value > 0);
+    const smallest = nonZero.length ? Math.min(...nonZero) : 1;
+    let precision;
+    if (Number.isInteger(explicitPrecision) && explicitPrecision >= 0) {
+      precision = explicitPrecision;
+    } else if (["equity", "etf", "index", "option", "future", "future_contract"].includes(instrumentType)) {
+      precision = 2;
+    } else if (instrumentType === "forex_pair" || instrumentType === "forex" || instrumentType === "fx") {
+      precision = /JPY$/.test(String(instrument.symbol || instrument.canonical_symbol || "")) ? 3 : 5;
+    } else if (series) {
+      precision = Math.max(0, ...finiteValues.slice(-160).map(decimalPlaces));
+      precision = Math.min(6, precision);
+    } else if (smallest >= 100) {
+      precision = 2;
+    } else if (smallest >= 1) {
+      precision = 4;
+    } else {
+      precision = Math.min(14, Math.max(4, Math.ceil(-Math.log10(smallest)) + 2));
+    }
+    precision = Math.min(14, Math.max(0, precision));
+    const minMove = 10 ** -precision;
+    const usesDollar = ["USD", "USDC", "USDT", "BUSD", "FDUSD"].includes(quoteAsset);
+    const formatter = (value) => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return "—";
+      const formatted = numeric.toLocaleString("en-US", {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      });
+      return usesDollar ? `$${formatted}` : formatted;
+    };
+    return Object.freeze({
+      side: "right",
+      visible: true,
+      auto_scale: "visible_range",
+      precision,
+      min_move: minMove,
+      quote_asset: quoteAsset,
+      instrument_type: instrumentType || (series ? "reference_series" : "market"),
+      formatter,
+    });
   }
 
   function createTooltip(chartHost) {
@@ -397,7 +462,8 @@
         .filter(Boolean);
     }
     const activeTypes = new Set(Array.isArray(options?.visibleOverlayTypes) ? options.visibleOverlayTypes : []);
-    const priceFormatter = typeof options?.priceFormatter === "function" ? options.priceFormatter : adaptivePriceFormatter;
+    const scaleContract = priceScaleContract(options, candles.flatMap((row) => [row.open, row.high, row.low, row.close]));
+    const priceFormatter = typeof options?.priceFormatter === "function" ? options.priceFormatter : scaleContract.formatter;
 
     if (options?.loading) {
       setState(container, "Loading chart...", "loading");
@@ -437,7 +503,20 @@
         vertLines: { color: "rgba(183, 194, 208, 0.05)" },
         horzLines: { color: "rgba(183, 194, 208, 0.05)" },
       },
-      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
+      defaultVisiblePriceScaleId: "right",
+      leftPriceScale: { visible: false },
+      rightPriceScale: {
+        visible: true,
+        autoScale: true,
+        alignLabels: true,
+        ticksVisible: true,
+        borderVisible: true,
+        borderColor: "rgba(148, 163, 184, 0.18)",
+        scaleMargins: {
+          top: 0.08,
+          bottom: options?.showVolume === false ? 0.08 : options?.compact ? 0.18 : 0.2,
+        },
+      },
       timeScale: {
         borderColor: "rgba(148, 163, 184, 0.18)",
         timeVisible: true,
@@ -461,12 +540,18 @@
       borderDownColor: "#cf5968",
       wickUpColor: "#75b996",
       wickDownColor: "#d8848e",
+      priceScaleId: "right",
+      lastValueVisible: true,
+      priceLineVisible: true,
       priceFormat: {
         type: "custom",
         formatter: priceFormatter,
+        minMove: scaleContract.min_move,
       },
     });
     candleSeries.setData(candles);
+    chart.priceScale("right").applyOptions({ visible: true, autoScale: true });
+    if (typeof window !== "undefined") window.__RAVENOS_LAST_PRICE_SCALE__ = scaleContract;
 
     let volumeSeries = null;
     if (options?.showVolume !== false) {
@@ -523,6 +608,7 @@
         priceFormat: {
           type: "custom",
           formatter: priceFormatter,
+          minMove: scaleContract.min_move,
         },
       });
       lineSeries.setData(values);
@@ -565,7 +651,7 @@
     const markerLookup = new Map();
     eventMarkers.forEach((marker, index) => markerLookup.set(marker.id, events.filter((event) => event && event.time)[index]));
     overlayMarkers.forEach((marker, index) => markerLookup.set(marker.id, overlayMarkerRows[index]));
-    if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers);
+    if (typeof api.createSeriesMarkers === "function") api.createSeriesMarkers(candleSeries, markers, { autoScale: false });
     else if (typeof candleSeries.setMarkers === "function") candleSeries.setMarkers(markers);
 
     events
@@ -681,6 +767,8 @@
     if (options?.showOverlayLegend !== false) redrawLegend();
     chart.timeScale().subscribeVisibleTimeRangeChange(renderRegions);
     const logicalRangeHandler = (range) => {
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      renderRegions();
       options?.onVisibleLogicalRangeChange?.(range);
     };
     if (typeof chart.timeScale().subscribeVisibleLogicalRangeChange === "function") {
@@ -797,6 +885,15 @@
           height: rect.height,
           canvas_count: chartHost.querySelectorAll("canvas").length,
           marker_count: markers.length,
+          price_axis: {
+            side: scaleContract.side,
+            visible: scaleContract.visible,
+            auto_scale: scaleContract.auto_scale,
+            precision: scaleContract.precision,
+            min_move: scaleContract.min_move,
+            quote_asset: scaleContract.quote_asset,
+            instrument_type: scaleContract.instrument_type,
+          },
         };
       },
       resize() {
@@ -848,9 +945,10 @@
     shell.append(inspector, stage);
     container.append(shell);
 
+    const scaleContract = priceScaleContract(options, rows.map((row) => row.value), { series: true });
     const valueFormatter = typeof options.valueFormatter === "function"
       ? options.valueFormatter
-      : (value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 });
+      : scaleContract.formatter;
     const units = String(options.units || "Published value");
     const byTime = new Map(rows.map((row, index) => [String(row.time), { row, index }]));
     const renderInspector = (selected = null) => {
@@ -893,7 +991,17 @@
         vertLines: { color: "rgba(183, 194, 208, 0.05)" },
         horzLines: { color: "rgba(183, 194, 208, 0.05)" },
       },
-      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.18)" },
+      defaultVisiblePriceScaleId: "right",
+      leftPriceScale: { visible: false },
+      rightPriceScale: {
+        visible: true,
+        autoScale: true,
+        alignLabels: true,
+        ticksVisible: true,
+        borderVisible: true,
+        borderColor: "rgba(148, 163, 184, 0.18)",
+        scaleMargins: { top: 0.08, bottom: 0.08 },
+      },
       timeScale: {
         borderColor: "rgba(148, 163, 184, 0.18)",
         timeVisible: options.timeVisible === true,
@@ -912,11 +1020,16 @@
       lastValueVisible: true,
       crosshairMarkerVisible: true,
       crosshairMarkerRadius: 4,
-      priceFormat: { type: "custom", formatter: valueFormatter },
+      priceScaleId: "right",
+      priceFormat: { type: "custom", formatter: valueFormatter, minMove: scaleContract.min_move },
     });
     series.setData(rows.map(({ time, value }) => ({ time, value })));
+    chart.priceScale("right").applyOptions({ visible: true, autoScale: true });
+    if (typeof window !== "undefined") window.__RAVENOS_LAST_PRICE_SCALE__ = scaleContract;
     chart.timeScale().fitContent();
     renderInspector();
+    const logicalRangeHandler = () => chart.priceScale("right").applyOptions({ autoScale: true });
+    chart.timeScale().subscribeVisibleLogicalRangeChange?.(logicalRangeHandler);
 
     const crosshairHandler = (param) => {
       const value = param?.seriesData?.get?.(series);
@@ -942,9 +1055,24 @@
     return {
       chart,
       series,
+      measure() {
+        return {
+          loaded_points: rows.length,
+          price_axis: {
+            side: scaleContract.side,
+            visible: scaleContract.visible,
+            auto_scale: scaleContract.auto_scale,
+            precision: scaleContract.precision,
+            min_move: scaleContract.min_move,
+            quote_asset: scaleContract.quote_asset,
+            instrument_type: scaleContract.instrument_type,
+          },
+        };
+      },
       destroy() {
         resizeObserver.disconnect();
         chart.unsubscribeCrosshairMove?.(crosshairHandler);
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange?.(logicalRangeHandler);
         chart.remove();
         shell.remove();
       },

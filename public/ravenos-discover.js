@@ -48,15 +48,6 @@ function when(value) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(parsed) + " UTC";
 }
 
-function pathStateLabel(value) {
-  const normalized = text(value, "").trim().toLowerCase().replaceAll("_", " ");
-  if (!normalized || normalized === "unavailable" || normalized === "not established") return "Path not established";
-  if (normalized === "forward path reviewing" || normalized === "forward outcome reviewing") return "Outcome window still maturing";
-  if (normalized === "matured" || normalized === "complete") return "Comparable outcomes matured";
-  if (normalized === "rejected" || normalized === "invalidated") return "Earlier path did not hold";
-  return title(normalized);
-}
-
 async function json(url) {
   const response = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } });
   return { response, payload: await response.json().catch(() => null) };
@@ -132,6 +123,63 @@ function actualOpportunityDelta(row = {}) {
   return customerFacingText(row.why_raven_noticed, "No current instrument delta is available.");
 }
 
+function opportunityTraderRead(row = {}) {
+  const translated = customerFacingText(row.why_raven_noticed, "");
+  if (translated) return translated;
+  const pressure = text(row.pressure_state, "").toLowerCase();
+  const move = finite(row.market_snapshot?.day_change_pct);
+  if (pressure.includes("mixed") || pressure.includes("choppy")) {
+    if (move !== null && move >= 2) return `Price is up ${percent(move)}, but pressure is still mixed; waiting for follow-through.`;
+    if (move !== null && move <= -2) return `Price is down ${Math.abs(move).toFixed(2)}%, but pressure is still mixed; direction remains choppy and unconfirmed.`;
+    return "Long and short pressure remain mixed; the market is choppy and Raven is waiting for confirmation.";
+  }
+  if (pressure.includes("long crowding")) return "Long positioning looks crowded; watching for either a clean breakout or a fade.";
+  if (pressure.includes("short crowding")) return "Short positioning looks crowded; watching for either a clean breakdown or a squeeze.";
+  return "A current market change is visible, but direction still needs confirmation.";
+}
+
+function comparableSupport(row = {}) {
+  const comparable = row.matured_comparables || {};
+  const sample = finite(comparable.sample_size);
+  const positiveRate = finite(comparable.positive_followthrough_rate);
+  const favorable = finite(comparable.median_favorable_excursion_pct);
+  const adverse = finite(comparable.median_adverse_excursion_pct);
+  if (sample !== null && sample >= 10) {
+    return {
+      headline: positiveRate === null
+        ? `${compact(sample)} similar periods`
+        : `${compact(sample)} similar periods · ${Math.round(positiveRate * 100)}% finished higher`,
+      detail: favorable !== null && adverse !== null
+        ? `Median range ${percent(favorable)} favorable / ${percent(adverse)} adverse`
+        : "Historical range is available in the full inspection.",
+    };
+  }
+  if (sample !== null && sample > 1) {
+    return {
+      headline: `${compact(sample)} prior periods · early sample`,
+      detail: "Useful for context, not enough to treat as confirmation.",
+    };
+  }
+  if (sample === 1) {
+    return {
+      headline: "One prior period · too little to lean on",
+      detail: "Current price and pressure still need to confirm the read.",
+    };
+  }
+  return {
+    headline: "No reliable comparison yet",
+    detail: "Watching current price and pressure for confirmation.",
+  };
+}
+
+function pressureLabel(value) {
+  const pressure = text(value, "").toLowerCase();
+  if (pressure.includes("mixed") || pressure.includes("choppy")) return "Choppy / mixed";
+  if (pressure.includes("long crowding")) return "Long crowding";
+  if (pressure.includes("short crowding")) return "Short crowding";
+  return title(value, "Direction forming");
+}
+
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
   const anchor = document.createElement("a");
@@ -156,25 +204,23 @@ function createOpportunityRow(row) {
   append(thesis, "strong", "", actualOpportunityDelta(row));
   append(thesis, "small", "", atlas
     ? "Broader-market context only; no Raven behavior is implied."
-    : customerFacingText(row.why_raven_noticed, "The exact reason for admission is unavailable."));
+    : opportunityTraderRead(row));
 
   const evidence = append(anchor, "div", "discover-evidence", "");
   evidence.textContent = "";
   append(evidence, "span", "", "What supports it");
-  const comparableCount = finite(row.matured_comparables?.sample_size);
+  const support = comparableSupport(row);
   append(evidence, "strong", "", atlas
     ? text(row.context_note, row.market_state)
-    : comparableCount !== null && comparableCount > 0
-      ? `${title(row.context_state)} evidence · ${compact(comparableCount)} comparable outcomes`
-      : `${title(row.context_state)} evidence`);
+    : support.headline);
   append(evidence, "small", "", atlas
     ? text(row.market_state, "")
-    : pathStateLabel(row.path_review?.state));
+    : support.detail);
 
   const market = append(anchor, "div", "discover-market", "");
   market.textContent = "";
   append(market, "span", "", "Market state");
-  append(market, "strong", "", atlas ? text(row.market_state) : text(row.pressure_state));
+  append(market, "strong", "", atlas ? text(row.market_state) : pressureLabel(row.pressure_state));
   append(market, "small", "", atlas
     ? text(row.market_detail, "Current exact listing")
     : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);

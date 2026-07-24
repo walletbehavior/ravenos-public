@@ -57,6 +57,13 @@ test("mobile Terminal chart has visible candles and bounded controls", async ({ 
   expect(result.diagnostics.loaded_bars).toBeGreaterThanOrEqual(30);
   expect(result.diagnostics.visible_bars).toBeGreaterThan(20);
   expect(result.diagnostics.price_range.max).toBeGreaterThan(result.diagnostics.price_range.min);
+  expect(result.diagnostics.price_axis).toMatchObject({
+    side: "right",
+    visible: true,
+    auto_scale: "visible_range",
+    quote_asset: "USD",
+  });
+  expect(result.diagnostics.price_axis.min_move).toBeGreaterThan(0);
   expect(result.activityOverflow).toBeLessThanOrEqual(1);
   expect(result.navTop).toBeGreaterThan(780);
 
