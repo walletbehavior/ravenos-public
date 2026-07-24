@@ -7,6 +7,8 @@ const state = {
   order: [],
   markets: new Map(),
   atlasRows: [],
+  featuredRows: [],
+  featuredRefreshedAt: 0,
   spotRows: [],
   spotTimeframe: "5m",
   paused: false,
@@ -102,6 +104,37 @@ function terminalHref(row) {
     timeframe: "1h",
   });
   return `/terminal/?${params.toString()}`;
+}
+
+function atlasEntityHref(row) {
+  return `/atlas/?entity_id=${encodeURIComponent(text(row.entity_id, ""))}`;
+}
+
+async function resolveExactListedInstrument(row) {
+  const symbol = text(row.symbol, "").toUpperCase();
+  const kind = text(row.entity_kind, "").toLowerCase();
+  if (!symbol || !["equity", "etf"].includes(kind)) return null;
+  const { response, payload } = await json(`/api/instruments/search?q=${encodeURIComponent(symbol)}`);
+  if (!response.ok || payload?.schema_version !== "ravenos.instrument_lookup.v1") return null;
+  const matches = (payload.results || []).filter((candidate) => (
+    candidate?.schema_version === "ravenos.instrument.v1"
+    && candidate.identity_scope === "exact_instrument"
+    && String(candidate.symbol || "").toUpperCase() === symbol
+    && candidate.instrument_type === kind
+    && candidate.chain === "none"
+    && candidate.instrument_id
+  ));
+  const unique = [...new Map(matches.map((candidate) => [candidate.instrument_id, candidate])).values()];
+  return unique.length === 1 ? unique[0] : null;
+}
+
+function exactListedTerminalHref(row, instrument) {
+  return terminalHref({
+    source_type: "atlas_context",
+    instrument: row.symbol,
+    instrument_id: instrument.instrument_id,
+    instrument_contract: instrument,
+  });
 }
 
 function spotPoolHref(row, timeframe = "1m") {
@@ -469,6 +502,53 @@ function renderSpotPulse(rows = state.spotRows) {
   renderSpotLeaderList("discoverTrendingLeaders", "trending");
 }
 
+function createListedMarketCard(row) {
+  const anchor = document.createElement("a");
+  anchor.className = "discover-listed-card";
+  anchor.href = atlasEntityHref(row);
+  anchor.dataset.entityKind = row.entity_kind;
+  anchor.dataset.entityId = row.entity_id;
+  const identity = append(anchor, "div", "", "");
+  identity.textContent = "";
+  append(identity, "strong", "", text(row.symbol));
+  append(identity, "span", "", text(row.name));
+  const detail = append(anchor, "div", "", "");
+  detail.textContent = "";
+  append(detail, "span", "", row.entity_kind === "etf" ? "ETF" : "Equity");
+  append(detail, "small", "", row.optionable ? "Options · chart on open" : "Chart on open");
+  append(anchor, "b", "", "→");
+  anchor.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (anchor.dataset.resolving === "true") return;
+    anchor.dataset.resolving = "true";
+    anchor.setAttribute("aria-busy", "true");
+    const status = detail.querySelector("small");
+    if (status) status.textContent = "Resolving exact listing…";
+    const instrument = await resolveExactListedInstrument(row).catch(() => null);
+    if (instrument) {
+      ravenOSContext.navigate(exactListedTerminalHref(row, instrument));
+      return;
+    }
+    ravenOSContext.navigate(atlasEntityHref(row));
+  });
+  return anchor;
+}
+
+function renderListedUniverse(rows = []) {
+  const section = document.getElementById("discoverListedUniverse");
+  const host = document.getElementById("discoverListedGrid");
+  state.featuredRows = Array.isArray(rows) ? rows : [];
+  host.replaceChildren();
+  if (!state.featuredRows.length) {
+    section.hidden = true;
+    return;
+  }
+  state.featuredRows.forEach((row) => host.append(createListedMarketCard(row)));
+  document.getElementById("discoverListedCount").textContent = `${state.featuredRows.length} exact listings`;
+  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
+  section.hidden = !["all", "equity"].includes(active);
+}
+
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
   const spot = row.source_type === "raven_spot_attention";
@@ -567,6 +647,7 @@ function renderSourceNotice(source, detail) {
 function applyFilter() {
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
   document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || !["all", "spot"].includes(active);
+  document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || !["all", "equity"].includes(active);
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
   const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
@@ -579,7 +660,8 @@ function applyFilter() {
   });
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
-  if (!matching.length && rows.length) {
+  const hasFeaturedEquities = active === "equity" && state.featuredRows.length > 0;
+  if (!matching.length && rows.length && !hasFeaturedEquities) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
     const inner = append(empty, "div", "", "");
@@ -736,15 +818,62 @@ function currentAtlasPayload(payload) {
   return { rows: exactRows, generatedAt: payload.generated_at, state: payload.state, freshness: payload.freshness.state };
 }
 
+function currentFeaturedAtlasPayload(payload) {
+  const execution = payload?.execution_boundary || {};
+  if (
+    payload?.schema_version !== "atlas_featured_state_v1"
+    || payload?.safe_public !== true
+    || !Array.isArray(payload?.sections)
+    || execution.signing_available !== false
+    || execution.submission_available !== false
+  ) throw new Error("atlas_featured_contract_rejected");
+  const byKind = { etf: [], equity: [] };
+  for (const section of payload.sections) {
+    for (const row of section?.entities || []) {
+      const kind = text(row?.entity_kind, "").toLowerCase();
+      const expectedPrefix = kind === "etf" ? "etf:us:" : kind === "equity" ? "equity:us:" : "";
+      if (
+        !expectedPrefix
+        || !String(row?.entity_id || "").startsWith(expectedPrefix)
+        || !row?.symbol
+        || row.selectable === false
+        || row.public_display_eligibility !== "allowed"
+      ) continue;
+      byKind[kind].push(row);
+    }
+  }
+  const rows = [];
+  for (let index = 0; index < 10; index += 1) {
+    if (byKind.etf[index]) rows.push(byKind.etf[index]);
+    if (byKind.equity[index]) rows.push(byKind.equity[index]);
+  }
+  return rows;
+}
+
 async function refresh({ manual = false } = {}) {
   if (state.loading || (state.paused && !manual)) return;
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
-  const [opportunities, markets, atlas] = await Promise.allSettled([
+  const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;
+  const [opportunities, markets, atlas, featured] = await Promise.allSettled([
     json("/api/opportunity"),
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
+    shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
   ]);
+
+  if (shouldRefreshFeatured) {
+    if (featured.status === "fulfilled" && featured.value?.response?.ok) {
+      try {
+        renderListedUniverse(currentFeaturedAtlasPayload(featured.value.payload));
+        state.featuredRefreshedAt = Date.now();
+      } catch {
+        renderListedUniverse([]);
+      }
+    } else {
+      renderListedUniverse([]);
+    }
+  }
 
   if (markets.status === "fulfilled" && markets.value.response.ok && Array.isArray(markets.value.payload?.results)) {
     state.markets.clear();

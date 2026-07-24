@@ -223,6 +223,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
         observed_at: "2026-07-21T12:20:00Z",
         market_identity: traditional ? instrumentId : pairAddress ? `${spotChain}:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
         instrument_scope: pairAddress ? "exact_pool" : "exact_instrument",
+        available_scopes: pairAddress ? { exact_pool: true, token_aggregate: true } : {},
         instrument: traditional
           ? { canonical_id: instrumentId, instrument_type: String(instrumentId || "").startsWith("etf:") ? "etf" : "equity", identity_scope: "exact_instrument", chain: "none", venue: String(instrumentId || "").split(":")[1] || "traditional", symbol: asset, quote_asset: "USD" }
           : perp

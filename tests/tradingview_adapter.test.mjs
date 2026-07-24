@@ -26,6 +26,26 @@ test("TradingView visual context resolves only explicit exact Atlas identities",
   assert.equal(resolveTradingViewSymbol("javascript:alert(1)"), null);
 });
 
+test("featured futures, FX, indices, and rates retain exact TradingView visual context when structured values are unavailable", () => {
+  const cases = [
+    [{ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "ES" }, "CME_MINI:ES1!"],
+    [{ entity_id: "future:CME:NQ", entity_kind: "future_root", symbol: "NQ" }, "CME_MINI:NQ1!"],
+    [{ entity_id: "future:CBOT:YM", entity_kind: "future_root", symbol: "YM" }, "CBOT_MINI:YM1!"],
+    [{ entity_id: "future:CME:RTY", entity_kind: "future_root", symbol: "RTY" }, "CME_MINI:RTY1!"],
+    [{ entity_id: "fx:USDJPY", entity_kind: "forex_pair", symbol: "USDJPY" }, "FX_IDC:USDJPY"],
+    [{ entity_id: "index:us:VIX", entity_kind: "index", symbol: "VIX" }, "CBOE:VIX"],
+    [{ entity_id: "fred:DGS5", entity_kind: "rate_series", symbol: "DGS5" }, "TVC:US05Y"],
+  ];
+  for (const [entity, symbol] of cases) {
+    const resolved = resolveTradingViewChart(entity);
+    assert.equal(resolved?.tradingview_symbol, symbol);
+    assert.equal(resolved?.visual_context_only, true);
+    assert.equal(resolveTradingViewSymbol(symbol)?.entity_id, entity.entity_id);
+  }
+  assert.equal(resolveTradingViewChart({ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "NQ" }), null);
+  assert.equal(resolveTradingViewChart({ entity_id: "future:CME:UNKNOWN", entity_kind: "future_root", symbol: "UNKNOWN" }), null);
+});
+
 test("an arbitrary U.S. listing resolves only after one exact RavenOS instrument match", () => {
   const entity = { entity_id: "equity:us:MSFT", symbol: "MSFT", name: "Microsoft Corporation" };
   const exactInstrument = {

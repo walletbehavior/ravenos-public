@@ -178,12 +178,12 @@ function createMarkup() {
         <button type="button" data-rpw-focus aria-pressed="false" aria-label="Open chart focus mode">Focus</button>
         <button type="button" data-rpw-overlays aria-expanded="false" aria-label="Open Raven overlay controls">Raven</button>
       </header>
-      <div class="rpw-scope-control" data-rpw-scopes hidden aria-label="Spot chart identity scope">
-        <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
-        <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
-      </div>
       <div class="rpw-chart-tools">
         <div class="rpw-mobile-timeframes" data-rpw-timeframes aria-label="Chart timeframe"></div>
+        <div class="rpw-scope-control" data-rpw-scopes hidden aria-label="Spot chart identity scope">
+          <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
+          <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
+        </div>
         <div class="rpw-indicators" data-rpw-indicators aria-label="Chart indicators">
           <span>Indicators</span>
           <button type="button" data-rpw-indicator="ema20" aria-pressed="true">EMA 20</button>

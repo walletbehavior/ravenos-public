@@ -32,6 +32,16 @@ async function visibleBodyText(page) {
   });
 }
 
+function boxesOverlap(left, right) {
+  if (!left || !right) return true;
+  return !(
+    left.x + left.width <= right.x
+    || right.x + right.width <= left.x
+    || left.y + left.height <= right.y
+    || right.y + right.height <= left.y
+  );
+}
+
 test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven context", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
@@ -370,6 +380,26 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
+});
+
+test("spot scope controls never cover the OHLCV candle inspector", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await openExactSpotSearch(page, "JUP");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  const scope = page.locator("#terminalChart [data-rpw-scopes]");
+  const legend = page.locator("#terminalChart [data-rpw-crosshair]");
+  await expect(scope).toBeVisible();
+  await expect(legend).toBeVisible();
+  expect(boxesOverlap(await scope.boundingBox(), await legend.boundingBox())).toBe(false);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(scope).toBeVisible();
+  await expect(legend).toBeVisible();
+  expect(boxesOverlap(await scope.boundingBox(), await legend.boundingBox())).toBe(false);
+  await expect(legend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
 });
 
 test("universal exact-market search dismisses on Escape and explicit close", async ({ page }) => {

@@ -462,6 +462,86 @@ test("Discover combines Raven opportunities with exact Atlas rows without mergin
   await expect(page.locator(".discover-row[data-source-type='raven']")).toBeHidden();
 });
 
+test("Discover exposes a bounded featured stock and ETF universe and opens one exact listing directly", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await mockWorkspaceApis(page);
+  const featuredRows = [
+    { entity_id: "etf:us:SPY", entity_kind: "etf", symbol: "SPY", name: "SPDR S&P 500 ETF Trust", optionable: true },
+    { entity_id: "etf:us:QQQ", entity_kind: "etf", symbol: "QQQ", name: "Invesco QQQ Trust", optionable: true },
+    { entity_id: "equity:us:AAPL", entity_kind: "equity", symbol: "AAPL", name: "Apple Inc.", optionable: true },
+    { entity_id: "equity:us:NVDA", entity_kind: "equity", symbol: "NVDA", name: "NVIDIA Corporation", optionable: true },
+  ].map((row) => ({
+    schema_version: "atlas_search_result_v1",
+    entity_class: row.entity_kind === "etf" ? "proxy" : "tradable_quote",
+    provider: "tradier",
+    data_frequency: "market session",
+    status: "SEARCHABLE",
+    cached_snapshot_available: false,
+    public_display_eligibility: "allowed",
+    featured: true,
+    selectable: true,
+    refusal_reason: null,
+    ...row,
+  }));
+  await page.route("**/api/atlas/featured**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      safe_public: true,
+      schema_version: "atlas_featured_state_v1",
+      generated_at: "2026-07-21T12:20:00Z",
+      execution_boundary: { signing_available: false, submission_available: false },
+      sections: [
+        { section_id: "major_etfs", label: "Major ETFs", entities: featuredRows.filter((row) => row.entity_kind === "etf") },
+        { section_id: "core_us_stocks", label: "Core U.S. Stocks", entities: featuredRows.filter((row) => row.entity_kind === "equity") },
+      ],
+    }),
+  }));
+  await page.route("**/api/instruments/search**", (route) => {
+    const symbol = new URL(route.request().url()).searchParams.get("q")?.toUpperCase() || "";
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.instrument_lookup.v1",
+        results: [{
+          schema_version: "ravenos.instrument.v1",
+          instrument_id: `equity:nasdaq:${symbol.toLowerCase()}`,
+          symbol,
+          display_name: symbol === "AAPL" ? "Apple Inc." : symbol,
+          asset_class: "equity",
+          instrument_type: "equity",
+          identity_scope: "exact_instrument",
+          venue: "nasdaq",
+          chain: "none",
+          market_identity: { market_id: symbol, listing: "Nasdaq" },
+          quote_asset: { symbol: "USD" },
+          settlement_asset: { symbol: "USD" },
+          capabilities: { chart: false, execution: false },
+        }],
+      }),
+    });
+  });
+  await page.goto("/discover/");
+  const listed = page.locator("#discoverListedUniverse");
+  await expect(listed).toBeVisible();
+  await expect(page.locator(".discover-listed-card")).toHaveCount(4);
+  await expect(listed).toContainText("SPY");
+  await expect(listed).toContainText("QQQ");
+  await expect(listed).toContainText("AAPL");
+  await expect(listed).toContainText("NVDA");
+  await page.locator("[data-discover-filter='perpetual']").click();
+  await expect(listed).toBeHidden();
+  await page.locator("[data-discover-filter='equity']").click();
+  await expect(listed).toBeVisible();
+  await page.locator(".discover-listed-card").filter({ hasText: "AAPL" }).click();
+  await page.waitForURL((url) => url.pathname === "/terminal/" && url.searchParams.get("instrument_id") === "equity:nasdaq:aapl");
+  await expect(page.locator("#terminalInstrument")).toHaveText("AAPL");
+  await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+});
+
 test("Discover retains current Atlas rows when Raven Census is unavailable", async ({ page }) => {
   await mockWorkspaceApis(page, { opportunityStatus: 503 });
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(atlasPayload()) }));

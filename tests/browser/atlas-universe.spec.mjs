@@ -110,6 +110,7 @@ async function mockAtlas(page, { restricted = true } = {}) {
   const calls = [];
   const spy = searchRow();
   const msft = searchRow({ entity_id: "equity:us:MSFT", name: "Microsoft Corporation", symbol: "MSFT", entity_kind: "equity", entity_class: "tradable_quote", featured: false });
+  const es = searchRow({ entity_id: "future:CME:ES", name: "E-mini S&P 500", symbol: "ES", entity_kind: "future_root", entity_class: "tradable_quote", provider: "massive", data_frequency: "market session", status: "UNAVAILABLE", optionable: false, public_display_eligibility: "allowed", featured: true });
   const fred = searchRow({ entity_id: "fred:DGS10", name: "Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity", symbol: "DGS10", entity_kind: "rate_series", entity_class: "reference_series", provider: "fred", data_frequency: "Daily", status: "PERIODIC", optionable: false, public_display_eligibility: "allowed", featured: true });
   const eia = searchRow({ entity_id: "eia:petroleum.pri.spt", name: "Petroleum spot prices", symbol: "PETROLEUM/PRI/SPT", entity_kind: "energy_series", entity_class: "reference_series", provider: "eia", data_frequency: "Daily, weekly", status: "PERIODIC", optionable: false, public_display_eligibility: "allowed", featured: false });
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(legacyAtlas()) }));
@@ -118,23 +119,26 @@ async function mockAtlas(page, { restricted = true } = {}) {
     calls.push(url.pathname + url.search);
     let payload;
     if (url.pathname === "/api/atlas/featured") {
-      payload = base("atlas_featured_state_v1", { state: "available", sections: [{ section_id: "major_etfs", label: "Major ETFs", entities: [{ ...spy, snapshot: null }] }, { section_id: "rates", label: "Rates", entities: [{ ...fred, snapshot: null }] }], catalog_only_entities_do_not_refresh: true, featured_refresh: "bounded_existing_atlas_cycle", public_projection_generated_at: NOW });
+      payload = base("atlas_featured_state_v1", { state: "available", sections: [{ section_id: "major_etfs", label: "Major ETFs", entities: [{ ...spy, snapshot: null }] }, { section_id: "futures", label: "Futures", entities: [{ ...es, snapshot: null }] }, { section_id: "rates", label: "Rates", entities: [{ ...fred, snapshot: null }] }], catalog_only_entities_do_not_refresh: true, featured_refresh: "bounded_existing_atlas_cycle", public_projection_generated_at: NOW });
     } else if (url.pathname === "/api/atlas/search") {
       const q = url.searchParams.get("q")?.toLowerCase();
-      const rows = q?.includes("dgs") || q?.includes("yield") ? [fred] : q?.includes("wti") || q?.includes("petroleum") ? [eia] : q?.includes("msft") || q?.includes("microsoft") ? [msft] : [spy];
-      const group = rows[0].entity_kind === "rate_series" ? "Rates" : rows[0].entity_kind === "energy_series" ? "Energy" : "Stocks & ETFs";
+      const rows = q === "es" || q?.includes("e-mini") ? [es] : q?.includes("dgs") || q?.includes("yield") ? [fred] : q?.includes("wti") || q?.includes("petroleum") ? [eia] : q?.includes("msft") || q?.includes("microsoft") ? [msft] : [spy];
+      const group = rows[0].entity_kind === "future_root" ? "Futures" : rows[0].entity_kind === "rate_series" ? "Rates" : rows[0].entity_kind === "energy_series" ? "Energy" : "Stocks & ETFs";
       payload = base("atlas_search_result_v1", { query: q, results: rows, groups: { [group]: rows }, local_first: true, provider_assisted: false, assisted_provider: null, provider_refusal: null, quote_fetch_triggered: false, observer_created: false, elapsed_ms: 1 });
     } else if (url.pathname === "/api/atlas/entity") {
       const isFred = url.searchParams.get("entity_id") === fred.entity_id;
       const isEia = url.searchParams.get("entity_id") === eia.entity_id;
       const isMsft = url.searchParams.get("entity_id") === msft.entity_id;
+      const isEs = url.searchParams.get("entity_id") === es.entity_id;
       payload = base("atlas_entity_detail_v1", {
-        entity: isFred ? fred : isEia ? eia : isMsft ? msft : spy,
+        entity: isFred ? fred : isEia ? eia : isMsft ? msft : isEs ? es : spy,
         snapshot: isFred
           ? { ...providerView({ provider: "fred", decision: "allowed", delayClass: "periodic", data: { series_id: "DGS10", observations: [{ period: "2026-07-20", value: 4.31 }, { period: "2026-07-21", value: 4.28 }] } }), schema_version: "atlas_series_snapshot_v1", latest: { period: "2026-07-21", value: 4.28 }, previous: { period: "2026-07-20", value: 4.31 } }
           : isEia
             ? { ...providerView({ provider: "eia", decision: "allowed", delayClass: "periodic", data: { dataset: true, route: "petroleum/pri/spt", facets: [{ id: "series", name: "Published series" }, { id: "product", name: "Product" }], frequencies: [{ id: "daily", description: "Daily" }], data_fields: ["value"], requires_facet_selection: true, observations: [] } }), schema_version: "atlas_series_snapshot_v1", latest: null, previous: null }
-          : providerView({ decision: restricted ? "restricted" : "allowed", data: { symbol: "SPY", last: 640.25, high: 642, low: 637, open: 638, volume: 71_000_000, change: 2.1, change_percent: .33 } }),
+          : isEs
+            ? { ...providerView({ provider: "massive", decision: "restricted", data: null }), state: "unavailable", refusal_reasons: ["business_display_rights_not_configured"] }
+            : providerView({ decision: restricted ? "restricted" : "allowed", data: { symbol: "SPY", last: 640.25, high: 642, low: 637, open: 638, volume: 71_000_000, change: 2.1, change_percent: .33 } }),
         lease: isFred || isEia ? { ...lease(), entity_id: isFred ? fred.entity_id : eia.entity_id, requested_cadence: 300 } : lease(),
         searchable: true,
         hydrated: true,
@@ -220,6 +224,22 @@ test("Atlas gives an arbitrary equity a chart only after one exact listing resol
   await expect(page.locator(".atlas-detail-identity")).toContainText("Microsoft Corporation");
   await expect(page.locator(".atlas-detail-identity")).toContainText("NASDAQ · MSFT");
   await expect(page.locator(".atlas-tv-frame")).toHaveAttribute("src", /NASDAQ%3AMSFT/);
+});
+
+test("Atlas preserves an exact ES futures chart when Massive structured values are unavailable", async ({ page }) => {
+  await mockAtlas(page);
+  await page.goto("/atlas/");
+  await page.locator("#atlasSearchInput").fill("ES");
+  const result = page.locator(".atlas-search-row").filter({ hasText: "E-mini S&P 500" });
+  await expect(result).toHaveCount(1);
+  await result.click();
+  await expect(page).toHaveURL(/entity_id=future%3ACME%3AES/);
+  await expect(page.locator(".atlas-detail-identity")).toContainText("E-mini S&P 500");
+  const frame = page.locator(".atlas-tv-frame");
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute("src", /CME_MINI%3AES1!/);
+  await expect(page.locator(".atlas-visual-chart-meta")).toContainText("Continuous front contract");
+  await expect(page.locator(".atlas-detail-refusal")).toHaveCount(0);
 });
 
 test("Options remain lazy and a restricted expiration response never triggers a chain", async ({ page }) => {
