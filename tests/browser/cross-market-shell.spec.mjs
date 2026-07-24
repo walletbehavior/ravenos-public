@@ -157,10 +157,10 @@ function opportunityPayload({ withSpot = false } = {}) {
       state: "current",
       public_safe: true,
       headline: "Participation payoff",
-      summary: "Solana cohorts are showing the cleanest follow-through. Solana fresh pairs are split: the median held up, but the downside tail remains broad. Ethereum large caps are punishing recent participation.",
+      summary: "Solana cohorts lead. Solana fresh pairs are split. Ethereum large caps are punishing.",
       comparison: "Solana cohorts have settled follow-through; Ethereum cohorts and Base cohorts remain mixed.",
       measurement: {
-        display_window: "Current outcome windows",
+        display_window: "Latest samples",
         minimum_usable_sample: 20,
         population: "Sampled public markets; not a comprehensive market census.",
         causal_claim: false,
