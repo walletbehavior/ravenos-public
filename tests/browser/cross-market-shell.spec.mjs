@@ -44,7 +44,90 @@ const opportunityRows = [
   },
 ];
 
-function opportunityPayload() {
+const spotTokenAddress = "11111111111111111111111111111111";
+const spotPoolAddress = "22222222222222222222222222222222";
+const spotTokenOnlyAddress = "33333333333333333333333333333333";
+
+const spotAttentionRows = [
+  {
+    public_attention_id: "rta_retire_fixture",
+    instrument_id: "spot_retire_fixture",
+    market_type: "spot",
+    chain: "Solana",
+    venue: "Meteora",
+    identity_scope: "exact_pool",
+    symbol: "RETIRE",
+    name: "Retire",
+    token_address: spotTokenAddress,
+    pool_address: spotPoolAddress,
+    observed_at: "2026-07-21T12:20:00Z",
+    age_seconds: 20,
+    movement_state: "Activity accelerating",
+    what_changed: "Price rose 8.50% in 5m. Volume expanded 42.0% · buys led 64 to 26 · 72 active traders.",
+    risk: "Short-window movement can reverse before broader follow-through develops.",
+    market: {
+      price_usd: 0.0012,
+      price_change_5m_pct: 8.5,
+      price_change_1h_pct: 18,
+      buys_5m: 64,
+      sells_5m: 26,
+      traders_5m: 72,
+      liquidity_usd: 82_000,
+      holder_count: 1_240,
+    },
+    broader_attention: {
+      state: "raven_observed_first",
+      raven_observed_first: true,
+      lead_seconds: 1_200,
+      observed_at: "2026-07-21T12:19:00Z",
+      summary: "Raven recorded this market 20m before broader attention appeared.",
+    },
+    inspection: { state: "exact_pool_ready", silent_pool_selection: false },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  },
+  {
+    public_attention_id: "rta_search_fixture",
+    instrument_id: "spot_search_fixture",
+    market_type: "spot",
+    chain: "Solana",
+    venue: null,
+    identity_scope: "exact_token",
+    symbol: "BIRD",
+    name: "Bird",
+    token_address: spotTokenOnlyAddress,
+    pool_address: null,
+    observed_at: "2026-07-21T12:20:00Z",
+    age_seconds: 35,
+    movement_state: "Fast expansion",
+    what_changed: "Price rose 4.10% in 5m. Buys led 31 to 18 · 44 active traders.",
+    risk: "Short-window movement can reverse before broader follow-through develops.",
+    market: {
+      price_usd: 0.0008,
+      price_change_5m_pct: 4.1,
+      price_change_1h_pct: 12,
+      buys_5m: 31,
+      sells_5m: 18,
+      traders_5m: 44,
+      liquidity_usd: 41_000,
+      holder_count: 620,
+    },
+    broader_attention: {
+      state: "not_confirmed",
+      raven_observed_first: false,
+      lead_seconds: null,
+      observed_at: null,
+      summary: "Broader attention has not been confirmed in the retained comparison.",
+    },
+    inspection: { state: "exact_market_selection_required", silent_pool_selection: false },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  },
+];
+
+function opportunityPayload({ withSpot = false } = {}) {
   return {
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
@@ -53,6 +136,27 @@ function opportunityPayload() {
       generated_at: "2026-07-21T12:20:00Z",
       source_state: "current",
       opportunities: { rows: opportunityRows },
+      ...(withSpot ? {
+        spot_attention: {
+          schema_version: "ravenos.token_attention.v1",
+          generated_at: "2026-07-21T12:20:00Z",
+          state: "current",
+          age_seconds: 20,
+          row_count: spotAttentionRows.length,
+          rows: spotAttentionRows,
+          selection: {
+            ranked_trade_list: false,
+            broader_attention_affects_ranking: false,
+          },
+          execution_boundary: {
+            research_only: true,
+            actionable: false,
+            signing_available: false,
+            submission_available: false,
+            capital_assigned: 0,
+          },
+        },
+      } : {}),
     },
     current_opportunity: opportunityRows[0],
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
@@ -123,17 +227,17 @@ function atlasPayload() {
   };
 }
 
-async function mockWorkspaceApis(page, { opportunityStatus = 200 } = {}) {
+async function mockWorkspaceApis(page, { opportunityStatus = 200, withSpot = false, spotSearchResults = [] } = {}) {
   await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ ok: true, results: [] }),
+    body: JSON.stringify({ ok: true, results: spotSearchResults }),
   }));
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: markets }) }));
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: opportunityStatus,
     contentType: "application/json",
-    body: JSON.stringify(opportunityStatus === 200 ? opportunityPayload() : {
+    body: JSON.stringify(opportunityStatus === 200 ? opportunityPayload({ withSpot }) : {
       ok: false,
       status: "unavailable",
       error: "opportunity_census_projection_unavailable",
@@ -200,6 +304,52 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
   await expect(page.locator("#discoverMarketState")).toHaveText("Live provider");
+  await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+});
+
+test("Discover surfaces exact-token movement and never silently chooses an unresolved pool", async ({ page }) => {
+  await mockWorkspaceApis(page, {
+    withSpot: true,
+    spotSearchResults: [{
+      chainId: "solana",
+      dexId: "raydium",
+      pairAddress: "44444444444444444444444444444444",
+      tokenAddress: spotTokenOnlyAddress,
+      quoteTokenAddress: "55555555555555555555555555555555",
+      symbol: "BIRD",
+      name: "Bird",
+      quoteSymbol: "USDC",
+      priceUsd: 0.0008,
+      liquidityUsd: 41_000,
+      volume24h: 920_000,
+      txns24h: 1_260,
+      marketCap: 480_000,
+      priceChange24h: 18,
+      lastUpdated: "2026-07-21T12:20:00Z",
+    }],
+  });
+  await page.goto("/discover/");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(3);
+  const spotFilter = page.locator("[data-discover-filter='spot']");
+  await expect(spotFilter).toBeEnabled();
+  await spotFilter.click();
+  const spotRows = page.locator(".discover-row[data-source-type='raven-spot']");
+  await expect(spotRows).toHaveCount(2);
+  await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven recorded this market 20m before broader attention appeared");
+  await expect(spotRows.filter({ hasText: "RETIRE" })).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotPoolAddress}`));
+  const tokenOnly = spotRows.filter({ hasText: "BIRD" });
+  await expect(tokenOnly).toContainText("Choose market");
+  await expect(tokenOnly).toHaveAttribute("href", "#");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toBeVisible();
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toContainText("20m before broader attention");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  await tokenOnly.click();
+  await expect(page.locator("#rosCommandPalette")).toBeVisible();
+  await expect(page.locator("#rosCommandInput")).toHaveValue(spotTokenOnlyAddress);
+  await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "BIRD/USDC" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/comparison source|provider payload|wallet address/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
 

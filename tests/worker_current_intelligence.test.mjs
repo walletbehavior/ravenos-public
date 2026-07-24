@@ -94,6 +94,50 @@ test("Worker opportunity route is backed by the current Census projection", asyn
             execution_available: false,
           }],
         },
+        spot_attention: {
+          schema_version: "ravenos.token_attention.v1",
+          generated_at: isoAgo(10),
+          state: "current",
+          age_seconds: 10,
+          row_count: 1,
+          rows: [{
+            public_attention_id: "rta_fixture",
+            instrument_id: "spot_fixture",
+            market_type: "spot",
+            chain: "Solana",
+            venue: "Meteora",
+            identity_scope: "exact_pool",
+            symbol: "RETIRE",
+            name: "Retire",
+            token_address: "11111111111111111111111111111111",
+            pool_address: "22222222222222222222222222222222",
+            observed_at: isoAgo(10),
+            movement_state: "Activity accelerating",
+            what_changed: "Price rose while volume and independent activity expanded.",
+            risk: "Short-window movement still needs follow-through.",
+            market: { liquidity_usd: 80_000, buys_5m: 64, sells_5m: 26, traders_5m: 72 },
+            broader_attention: {
+              state: "raven_observed_first",
+              raven_observed_first: true,
+              lead_seconds: 1_200,
+              summary: "Raven recorded this market 20m before broader attention appeared.",
+            },
+            research_only: true,
+            actionable: false,
+            execution_available: false,
+          }],
+          selection: {
+            ranked_trade_list: false,
+            broader_attention_affects_ranking: false,
+          },
+          execution_boundary: {
+            research_only: true,
+            actionable: false,
+            signing_available: false,
+            submission_available: false,
+            capital_assigned: 0,
+          },
+        },
       },
       isoAgo(10),
       3600,
@@ -119,6 +163,12 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.census.population.decision_observations, 1200);
     assert.equal(body.census.opportunities.rows[0].instrument_id, "hyperliquid:perp:SOL");
     assert.equal(body.census.opportunities.rows[0].execution_available, false);
+    assert.equal(body.census.spot_attention.schema_version, "ravenos.token_attention.v1");
+    assert.equal(body.census.spot_attention.rows[0].identity_scope, "exact_pool");
+    assert.equal(body.census.spot_attention.rows[0].broader_attention.raven_observed_first, true);
+    assert.equal(body.census.spot_attention.selection.broader_attention_affects_ranking, false);
+    assert.equal(body.census.spot_attention.execution_boundary.signing_available, false);
+    assert.equal(body.census.spot_attention.execution_boundary.submission_available, false);
     assert.equal(body.current_claim_context.headline, "Older claim context");
     assert.equal(body.current_opportunity.instrument_id, "hyperliquid:perp:SOL");
     assert.equal(body.selection.state, "default_current_row");

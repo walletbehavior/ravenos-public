@@ -620,6 +620,29 @@
   .discover-thesis small { display: none; }
   .discover-open { font-size: 0; }
   .discover-open::after { font-size: 17px; }
+  .discover-row[data-market-type="spot"] {
+    min-height: 112px;
+    grid-template-areas:
+      "identity thesis open"
+      "identity evidence open";
+    align-items: start;
+  }
+  .discover-row[data-market-type="spot"] .discover-identity { grid-area: identity; align-self: center; }
+  .discover-row[data-market-type="spot"] .discover-thesis { grid-area: thesis; }
+  .discover-row[data-market-type="spot"] .discover-evidence {
+    grid-area: evidence;
+    display: grid;
+    align-self: start;
+  }
+  .discover-row[data-market-type="spot"] .discover-evidence > span,
+  .discover-row[data-market-type="spot"] .discover-evidence > small { display: none; }
+  .discover-row[data-market-type="spot"] .discover-evidence > strong {
+    color: var(--ws-accent);
+    font-size: 8px;
+    font-weight: 620;
+    -webkit-line-clamp: 2;
+  }
+  .discover-row[data-market-type="spot"] .discover-open { grid-area: open; align-self: center; }
   .discover-stream-control { width: calc(100% - 18px); margin: 9px 9px 14px; }
   .portfolio-summary { grid-template-columns: 1fr; }
   .portfolio-total,

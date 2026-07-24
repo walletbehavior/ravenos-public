@@ -880,7 +880,9 @@ export function mountRavenOSShell(options = {}) {
     renderCommands(commandInput.value);
   }
 
-  function openPalette() {
+  function openPalette(query = "") {
+    const requestedQuery = typeof query === "string" ? query.trim() : "";
+    if (requestedQuery) commandInput.value = requestedQuery;
     closeDrawers();
     scheduleSpotSearch(commandInput.value);
     renderCommands(commandInput.value);
@@ -889,7 +891,7 @@ export function mountRavenOSShell(options = {}) {
     if (!searchReady && !searchFailure) hydrateInstrumentSearch();
   }
 
-  document.getElementById("rosCommandTrigger").addEventListener("click", openPalette);
+  document.getElementById("rosCommandTrigger").addEventListener("click", () => openPalette());
   document.getElementById("rosCommandClose").addEventListener("click", () => palette.close());
   commandInput.addEventListener("input", () => {
     scheduleSpotSearch(commandInput.value);

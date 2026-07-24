@@ -80,6 +80,23 @@ function terminalHref(row) {
     });
     return `/terminal/?${params.toString()}`;
   }
+  if (row.source_type === "raven_spot_attention") {
+    if (row.identity_scope !== "exact_pool" || !row.pool_address) return "#";
+    const params = new URLSearchParams({
+      asset: text(row.symbol, ""),
+      instrument_id: `solana:pool:${row.pool_address}`,
+      instrument_type: "exact_pool",
+      asset_class: "crypto",
+      identity_scope: "exact_pool",
+      chain: "solana",
+      venue: text(row.venue, ""),
+      market: "spot",
+      cash: "USDC",
+      numeraire: "USDC",
+      timeframe: "15m",
+    });
+    return `/terminal/?${params.toString()}`;
+  }
   const params = new URLSearchParams({
     asset: text(row.instrument, ""),
     instrument_id: text(row.instrument_id, ""),
@@ -108,6 +125,7 @@ function append(node, tag, className, value) {
 
 function actualOpportunityDelta(row = {}) {
   if (row.source_type === "atlas_context") return text(row.what_changed, "Current Atlas context is available.");
+  if (row.source_type === "raven_spot_attention") return text(row.what_changed, "Current spot activity is accelerating.");
   const market = row.market_snapshot || state.markets.get(row.instrument_id) || {};
   const current = finite(market.last_price ?? market.mark_price);
   const observed = finite(row.market_context?.entry_reference_price);
@@ -124,6 +142,12 @@ function actualOpportunityDelta(row = {}) {
 }
 
 function opportunityTraderRead(row = {}) {
+  if (row.source_type === "raven_spot_attention") {
+    if (row.broader_attention?.raven_observed_first === true) {
+      return text(row.broader_attention.summary, row.risk);
+    }
+    return text(row.risk, "Short-window movement still needs follow-through.");
+  }
   const translated = customerFacingText(row.why_raven_noticed, "");
   if (translated) return translated;
   const pressure = text(row.pressure_state, "").toLowerCase();
@@ -180,23 +204,69 @@ function pressureLabel(value) {
   return title(value, "Direction forming");
 }
 
+function spotParticipation(row = {}) {
+  const market = row.market || {};
+  const buys = finite(market.buys_5m);
+  const sells = finite(market.sells_5m);
+  const traders = finite(market.traders_5m);
+  const parts = [];
+  if (buys !== null && sells !== null) parts.push(`${compact(buys)} buys · ${compact(sells)} sells`);
+  if (traders !== null) parts.push(`${compact(traders)} traders`);
+  return parts.join(" · ") || "Current activity is developing";
+}
+
+function spotAnatomy(row = {}) {
+  const market = row.market || {};
+  return [
+    finite(market.liquidity_usd) === null ? null : `${compact(market.liquidity_usd, { currency: true })} liquidity`,
+    finite(market.holder_count) === null ? null : `${compact(market.holder_count)} holders`,
+    finite(market.price_change_1h_pct) === null ? null : `${percent(market.price_change_1h_pct)} over 1h`,
+  ].filter(Boolean).join(" · ") || "Exact token activity";
+}
+
+function spotEvidenceHeadline(row = {}) {
+  if (row.broader_attention?.raven_observed_first === true) {
+    const seconds = finite(row.broader_attention.lead_seconds);
+    if (seconds !== null && seconds > 0) {
+      const duration = seconds >= 3600
+        ? `${(seconds / 3600).toFixed(seconds % 3600 === 0 ? 0 : 1)}h`
+        : seconds >= 60
+          ? `${Math.max(1, Math.round(seconds / 60))}m`
+          : `${Math.round(seconds)}s`;
+      return `${duration} before broader attention`;
+    }
+  }
+  return spotParticipation(row);
+}
+
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
+  const spot = row.source_type === "raven_spot_attention";
   const anchor = document.createElement("a");
   anchor.className = "discover-row";
-  anchor.dataset.opportunityId = text(row.public_opportunity_id, row.instrument_id);
-  anchor.dataset.marketType = atlas ? "equity" : text(row.market_type, "unknown").toLowerCase();
-  anchor.dataset.sourceType = atlas ? "atlas" : "raven";
+  anchor.dataset.opportunityId = text(row.public_opportunity_id || row.public_attention_id, row.instrument_id);
+  anchor.dataset.marketType = atlas ? "equity" : spot ? "spot" : text(row.market_type, "unknown").toLowerCase();
+  anchor.dataset.sourceType = atlas ? "atlas" : spot ? "raven-spot" : "raven";
   anchor.dataset.freshness = text(row.context_state, "unavailable").toLowerCase();
   anchor.href = terminalHref(row);
+  if (spot && anchor.getAttribute("href") === "#") {
+    anchor.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.RavenOSShell?.openCommandPalette?.(row.token_address);
+    });
+  }
 
   const identity = append(anchor, "div", "discover-identity", "");
   identity.textContent = "";
-  append(identity, "span", "", atlas ? `${title(row.market_type)} · Atlas` : title(row.market_type));
-  append(identity, "strong", "", text(row.instrument));
+  append(identity, "span", "", atlas ? `${title(row.market_type)} · Atlas` : spot ? "Spot · Solana" : title(row.market_type));
+  append(identity, "strong", "", spot ? text(row.symbol) : text(row.instrument));
   append(identity, "small", "", atlas
     ? `${text(row.instrument_contract?.market_identity?.listing, title(row.instrument_contract?.venue))} · exact listing`
-    : "Hyperliquid · exact perpetual");
+    : spot
+      ? row.identity_scope === "exact_pool"
+        ? `${text(row.venue, "Spot market")} · exact pool`
+        : "Exact token · choose pool"
+      : "Hyperliquid · exact perpetual");
 
   const thesis = append(anchor, "div", "discover-thesis", "");
   thesis.textContent = "";
@@ -208,24 +278,32 @@ function createOpportunityRow(row) {
 
   const evidence = append(anchor, "div", "discover-evidence", "");
   evidence.textContent = "";
-  append(evidence, "span", "", "What supports it");
+  append(evidence, "span", "", spot && row.broader_attention?.raven_observed_first === true ? "Raven timing" : "What supports it");
   const support = comparableSupport(row);
   append(evidence, "strong", "", atlas
     ? text(row.context_note, row.market_state)
-    : support.headline);
+    : spot
+      ? spotEvidenceHeadline(row)
+      : support.headline);
   append(evidence, "small", "", atlas
     ? text(row.market_state, "")
-    : support.detail);
+    : spot
+      ? row.broader_attention?.raven_observed_first === true
+        ? "The same exact token appeared in broader attention later."
+        : ""
+      : support.detail);
 
   const market = append(anchor, "div", "discover-market", "");
   market.textContent = "";
   append(market, "span", "", "Market state");
-  append(market, "strong", "", atlas ? text(row.market_state) : pressureLabel(row.pressure_state));
+  append(market, "strong", "", atlas ? text(row.market_state) : spot ? text(row.movement_state, "Activity moving") : pressureLabel(row.pressure_state));
   append(market, "small", "", atlas
     ? text(row.market_detail, "Current exact listing")
-    : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);
+    : spot
+      ? spotAnatomy(row)
+      : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);
 
-  append(anchor, "span", "discover-open", "Inspect");
+  append(anchor, "span", "discover-open", spot && row.identity_scope !== "exact_pool" ? "Choose market" : "Inspect");
   return anchor;
 }
 
@@ -263,6 +341,7 @@ function renderSourceNotice(source, detail) {
 
 function applyFilter() {
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
+  document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
   const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
   const limit = state.expanded ? Number.POSITIVE_INFINITY : window.matchMedia("(max-width: 560px)").matches ? 8 : 12;
@@ -274,6 +353,17 @@ function applyFilter() {
   });
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
+  if (!matching.length && rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "workspace-state discover-filter-empty";
+    const inner = append(empty, "div", "", "");
+    append(inner, "span", "workspace-state-mark", "R");
+    append(inner, "h2", "", active === "spot" ? "No spot movement meets the current filter" : "No current markets meet this filter");
+    append(inner, "p", "", active === "spot"
+      ? "Search any token or contract to inspect its exact supported markets."
+      : "Try another market class or search for an exact instrument.");
+    document.getElementById("discoverStream").append(empty);
+  }
   control.hidden = matching.length <= (Number.isFinite(limit) ? limit : 12);
   control.textContent = state.expanded
     ? "Show the attention queue"
@@ -341,7 +431,40 @@ function currentOpportunityPayload(payload) {
   if (delivery.source !== "current_public_origin" || delivery.fallback !== false) throw new Error("current_origin_contract_rejected");
   if (delivery.freshness_state !== "fresh") throw new Error(`current_origin_${delivery.freshness_state || "unavailable"}`);
   if (!census || census.source_state !== "current" || !Array.isArray(rows)) throw new Error("current_census_schema_rejected");
-  return { census, rows, generatedAt: census.generated_at || delivery.generated_at };
+  const spot = census.spot_attention;
+  const spotBoundary = spot?.execution_boundary || {};
+  const spotRows = (
+    spot?.schema_version === "ravenos.token_attention.v1"
+    && ["current", "delayed"].includes(spot?.state)
+    && Array.isArray(spot?.rows)
+    && spotBoundary.research_only === true
+    && spotBoundary.actionable === false
+    && spotBoundary.signing_available === false
+    && spotBoundary.submission_available === false
+    && Number(spotBoundary.capital_assigned || 0) === 0
+  )
+    ? spot.rows.filter((row) => (
+      row?.market_type === "spot"
+      && row?.chain === "Solana"
+      && ["exact_token", "exact_pool"].includes(row?.identity_scope)
+      && row?.token_address
+      && row?.research_only === true
+      && row?.actionable === false
+      && row?.execution_available === false
+    )).map((row) => ({
+      ...row,
+      context_state: spot.state,
+      source_type: "raven_spot_attention",
+    }))
+    : [];
+  return {
+    census,
+    rows,
+    spotRows,
+    generatedAt: [census.generated_at, spot?.generated_at]
+      .filter(Boolean)
+      .sort((left, right) => Date.parse(right) - Date.parse(left))[0] || delivery.generated_at,
+  };
 }
 
 function currentAtlasPayload(payload) {
@@ -418,6 +541,7 @@ async function refresh({ manual = false } = {}) {
         source_type: "raven_opportunity",
         market_snapshot: state.markets.get(row.instrument_id) || null,
       }));
+      ravenRows = [...current.spotRows, ...ravenRows];
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", "fresh", "Current");
     } catch {
