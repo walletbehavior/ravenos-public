@@ -216,6 +216,14 @@ test("public build gate rejects known synthetic Terminal payload signatures", ()
   assert.deepEqual(scanHighRiskText("No synthetic fallback is used.", "terminal.js"), []);
 });
 
+test("public build gate rejects the legacy Solana live label", () => {
+  assert.ok(
+    scanHighRiskText("Solana Live Activity", "discover.json")
+      .some((finding) => finding.term === "legacy_solana_live_copy"),
+  );
+  assert.deepEqual(scanHighRiskText("Solana spot movement", "discover.json"), []);
+});
+
 test("public build gate rejects private comparison-provider branding", () => {
   for (const value of ["gmgn", "GMGN", "Powered by GMGN"]) {
     assert.ok(

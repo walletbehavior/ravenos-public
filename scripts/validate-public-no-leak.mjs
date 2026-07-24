@@ -36,6 +36,7 @@ const highRiskTextPatterns = [
   ["live_secret_value", /\b(?:sk_live|rk_live|whsec|AKIA)[A-Za-z0-9_/-]{8,}\b/],
   ["model_identifier", /\b(?:gpt-[45]|o[134]-|claude-[0-9]|gemini-[0-9])[A-Za-z0-9_.:-]*\b/i],
   ["synthetic_terminal_payload", /\b(?:samplePrices|perpsInputVector|replayMatches|pressureComposition|smart-wallet-distribution|Raven Paper Candidates)\b|(?:May 2026 compression|March 2026 pressure|January 2026 crowded)/i],
+  ["legacy_solana_live_copy", /\bSolana Live Activity\b/i],
 ];
 
 const forbiddenKeyPatterns = [
