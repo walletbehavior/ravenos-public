@@ -313,6 +313,7 @@ function cleanAsset(value, fallback = "UNKNOWN") {
 }
 
 function cleanPrecision(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
   const result = Number(value);
   return Number.isInteger(result) && result >= 0 && result <= 30 ? result : null;
 }
@@ -358,8 +359,8 @@ export function normalizeChartInstrument(input = {}) {
     token_address: tokenAddress,
     pool_address: poolAddress,
     market_address: marketAddress,
-    price_precision: cleanPrecision(input.pricePrecision || input.price_precision),
-    size_precision: cleanPrecision(input.sizePrecision || input.size_precision),
+    price_precision: cleanPrecision(input.pricePrecision ?? input.price_precision),
+    size_precision: cleanPrecision(input.sizePrecision ?? input.size_precision),
     identity_scope: aggregate ? "token_aggregate" : instrumentType === CHART_INSTRUMENT_TYPES.SPOT_POOL ? "exact_pool" : "venue_market",
     aggregate_token: aggregate,
     market_status: text(input.marketStatus || input.market_status, "unknown").toLowerCase(),

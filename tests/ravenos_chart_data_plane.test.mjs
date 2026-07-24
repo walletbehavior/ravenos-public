@@ -61,8 +61,22 @@ test("canonical chart identity preserves exact-pool, aggregate-token, and perp s
   assert.equal(pool.identity_scope, "exact_pool");
   assert.equal(pool.pool_address, "0xPool");
   assert.equal(pool.chain, "base");
+  assert.equal(pool.price_precision, null);
+  assert.equal(pool.size_precision, null);
   assert.equal(perp.instrument_type, CHART_INSTRUMENT_TYPES.PERPETUAL);
   assert.equal(perp.symbol, "SOL-PERP");
+  assert.equal(perp.price_precision, null);
+  const precisePool = normalizeChartInstrument({
+    chain: "solana",
+    venue: "raydium",
+    symbol: "MICRO",
+    quoteAsset: "USDC",
+    pairAddress: "ExactPool",
+    pricePrecision: 8,
+    sizePrecision: 0,
+  });
+  assert.equal(precisePool.price_precision, 8);
+  assert.equal(precisePool.size_precision, 0);
   assert.equal(etf.instrument_type, CHART_INSTRUMENT_TYPES.ETF);
   assert.equal(etf.canonical_id, "etf:nyse-arca:spy");
   assert.notEqual(aggregate.canonical_id, pool.canonical_id);
