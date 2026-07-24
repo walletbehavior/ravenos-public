@@ -1229,6 +1229,13 @@ test("dense provider OHLCV remains the base series while Raven observations atta
           freshness_state: "live",
           observed_at: new Date().toISOString(),
           available_scopes: { exact_pool: true, token_aggregate: false },
+          lineage: {
+            identity_scope: "exact_pool",
+            price_unit: "quote_per_token",
+            latest_source_event_id: "private:event:123",
+            latest_source_name: "private-source.json",
+            source_registry_paths: ["/srv/raven/app/data/runtime/private-registry.json"],
+          },
           candles: [{ time: 1_900_000_000, open: 999, high: 999, low: 999, close: 999, volume: 1 }],
           recent_trades: [{ id: "raven-event", time: providerRows[120][0] + 100, price: 999, size: 1, side: "buy" }],
         }), { status: 200, headers: { "content-type": "application/json" } });
@@ -1258,7 +1265,8 @@ test("dense provider OHLCV remains the base series while Raven observations atta
     assert.equal(payload.raven_annotations.candle_replacement_allowed, false);
     assert.equal(payload.raven_annotations.instrument_id, payload.instrument.canonical_id);
     assert.equal(payload.raven_annotations.market_identity, payload.market_identity);
-    assert.equal(payload.raven_annotations.lineage.source, "Raven EVM exact swap");
+    assert.equal(payload.raven_annotations.lineage.source, "Raven exact-pool observations");
+    assert.equal(payload.raven_annotations.lineage.role, "annotation_only");
     assert.equal(payload.raven_annotations.price_axis_compatible, false);
     assert.equal(payload.raven_annotations.event_count, 1);
     assert.equal(payload.raven_annotations.events.length, 1);
@@ -1268,6 +1276,13 @@ test("dense provider OHLCV remains the base series while Raven observations atta
     assert.equal(Object.hasOwn(payload.raven_annotations.events[0], "price"), false);
     assert.deepEqual(payload.recent_trades, []);
     assert.equal(payload.lineage.source_precedence, "provider_ohlcv_base_raven_annotations_only");
+    assert.equal(payload.lineage.raven_projection.role, "annotation_only");
+    assert.equal(Object.hasOwn(payload.raven_annotations.lineage, "source_registry_paths"), false);
+    assert.equal(Object.hasOwn(payload.lineage.raven_projection, "source_registry_paths"), false);
+    assert.equal(JSON.stringify(payload).includes("source_registry_paths"), false);
+    assert.equal(JSON.stringify(payload).includes("/srv/raven/app"), false);
+    assert.equal(JSON.stringify(payload).includes("private-source.json"), false);
+    assert.equal(JSON.stringify(payload).includes("private:event:123"), false);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

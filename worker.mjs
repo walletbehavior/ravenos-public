@@ -1079,6 +1079,16 @@ function ravenAnnotationEvents(ravenPayload, candles = [], { timeframe = "1h", i
     .filter(Boolean);
 }
 
+function publicRavenChartLineage(ravenPayload = {}) {
+  const observedAt = String(ravenPayload.observed_at || "").trim();
+  const observedTimestamp = Date.parse(observedAt);
+  return {
+    role: "annotation_only",
+    identity_scope: "exact_pool",
+    ...(Number.isFinite(observedTimestamp) ? { observed_at: new Date(observedTimestamp).toISOString() } : {}),
+  };
+}
+
 function attachRavenChartAnnotations(providerPayload, ravenPayload) {
   if (!providerPayload?.ok || !ravenPayload?.ok || !sameExactPool(providerPayload, ravenPayload)) return providerPayload;
   const comparableUsdPrices = ravenPayload.price_unit === "usd_per_token";
@@ -1086,10 +1096,15 @@ function attachRavenChartAnnotations(providerPayload, ravenPayload) {
     timeframe: providerPayload.timeframe,
     instrumentId: providerPayload.instrument?.canonical_id || null,
   });
+  const publicLineage = publicRavenChartLineage(ravenPayload);
+  const publicSource = "Raven exact-pool observations";
   return {
     ...providerPayload,
     recent_trades: comparableUsdPrices ? (ravenPayload.recent_trades || []) : [],
-    available_scopes: ravenPayload.available_scopes || {},
+    available_scopes: {
+      exact_pool: ravenPayload.available_scopes?.exact_pool === true,
+      token_aggregate: ravenPayload.available_scopes?.token_aggregate === true,
+    },
     capabilities: {
       ...(providerPayload.capabilities || {}),
       raven_overlays: true,
@@ -1098,8 +1113,8 @@ function attachRavenChartAnnotations(providerPayload, ravenPayload) {
     raven_annotations: {
       schema_version: "ravenos.chart_annotations.v1",
       role: "annotation_only",
-      source: ravenPayload.source || "Raven exact observations",
-      observed_at: ravenPayload.observed_at || null,
+      source: publicSource,
+      observed_at: publicLineage.observed_at || null,
       freshness_state: ravenPayload.freshness_state || "unknown",
       identity_scope: "exact_pool",
       instrument_id: providerPayload.instrument?.canonical_id || null,
@@ -1111,15 +1126,14 @@ function attachRavenChartAnnotations(providerPayload, ravenPayload) {
       price_axis_compatible: comparableUsdPrices,
       candle_replacement_allowed: false,
       lineage: {
-        ...(ravenPayload.lineage || {}),
-        source: ravenPayload.source || "Raven exact observations",
-        observed_at: ravenPayload.observed_at || null,
+        ...publicLineage,
+        source: publicSource,
       },
     },
     lineage: {
       ...(providerPayload.lineage || {}),
-      raven_projection: ravenPayload.lineage || null,
-      raven_observed_at: ravenPayload.observed_at || null,
+      raven_projection: publicLineage,
+      raven_observed_at: publicLineage.observed_at || null,
       source_precedence: "provider_ohlcv_base_raven_annotations_only",
     },
   };

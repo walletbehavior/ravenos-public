@@ -1,3 +1,5 @@
+import { scanJsonValue } from "./validate-public-no-leak.mjs";
+
 const baseUrl = process.argv[2] || process.env.RAVENOS_VERIFY_BASE_URL || "https://ravenos.xyz";
 
 const pageRoutes = [
@@ -111,6 +113,44 @@ if (!/Followthrough check|Outcomes tracks whether earlier Raven reads followed t
 const { text: researchHtml } = await fetchText("/research/");
 if (/0 findings|0 forward observations/.test(researchHtml) && !/No zero should be interpreted as measured evidence/.test(researchHtml)) {
   throw new Error("/research/ is serving false zero fallback text");
+}
+
+const chartAnchor = {
+  chain: "solana",
+  pair: "6HfaJiUuTXFZEfmdkQSNbvfe6i95Nh2wUVJ5dWMf7gtw",
+  token: "zGh48JtNHVBb5evgoZLXwgPD2Qu4MhkWdJLGDAupump",
+  quote: "So11111111111111111111111111111111111111112",
+};
+const chartParams = new URLSearchParams({
+  market: "crypto_spot",
+  asset: "RETIRE/SOL",
+  timeframe: "1m",
+  limit: "480",
+  chain: chartAnchor.chain,
+  pair_address: chartAnchor.pair,
+  token_address: chartAnchor.token,
+  quote_address: chartAnchor.quote,
+});
+const { res: chartRes, json: chartEnvelope } = await fetchJson(`/api/terminal/chart?${chartParams.toString()}`);
+const chart = chartEnvelope?.data || chartEnvelope;
+if (
+  !chartRes.ok
+  || chart?.ok !== true
+  || chart?.market_identity !== `${chartAnchor.chain}:${chartAnchor.pair}`
+  || chart?.instrument?.pool_address !== chartAnchor.pair
+  || chart?.candle_series?.provider !== "coingecko_onchain"
+  || chart?.candle_series?.role !== "base_ohlcv"
+  || chart?.candle_series?.raven_observations_are_candles !== false
+  || chart?.provider_selection?.fallback !== false
+  || !Array.isArray(chart?.candles)
+  || chart.candles.length < 120
+) {
+  throw new Error("/api/terminal/chart did not return the exact current provider-backed production anchor");
+}
+const chartNoLeakFindings = scanJsonValue(chartEnvelope, "production:/api/terminal/chart");
+if (chartNoLeakFindings.length) {
+  const fields = chartNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production chart response failed the public no-leak gate: ${fields}`);
 }
 
 console.log(`RavenOS production verification passed for ${baseUrl}`);

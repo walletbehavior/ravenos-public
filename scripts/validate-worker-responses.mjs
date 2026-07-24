@@ -30,6 +30,8 @@ const env = {
   ONCHAIN_CHART_PROVIDER_SECRET: "worker-response-provider-validation-token",
   RAVENOS_PUBLIC_ORIGIN_URL: "https://validation-origin.example/public/ravenos",
   RAVENOS_PUBLIC_ORIGIN_TOKEN: "worker-response-validation-token",
+  RAVENOS_SPOT_CHART_ORIGIN_URL: "https://validation-origin.example/public/ravenos/chart.json",
+  RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "worker-response-validation-token",
 };
 const checks = [
   ["GET", "/api/health"],
@@ -64,6 +66,30 @@ const checks = [
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input?.url || input);
+  if (url.includes("validation-origin.example/public/ravenos/chart.json")) {
+    const now = Math.floor(Date.now() / 900_000) * 900;
+    return new Response(JSON.stringify({
+      schema_version: "ravenos.spot_chart_projection.v1",
+      ok: true,
+      chain: "base",
+      instrument_scope: "exact_pool",
+      pair_address: "0x1111111111111111111111111111111111111111",
+      token_address: "0x2222222222222222222222222222222222222222",
+      quote_address: "0x3333333333333333333333333333333333333333",
+      price_unit: "quote_per_token",
+      source: "Raven EVM exact swap",
+      freshness_state: "live",
+      observed_at: new Date(now * 1_000).toISOString(),
+      available_scopes: { exact_pool: true, token_aggregate: false },
+      lineage: {
+        identity_scope: "exact_pool",
+        latest_source_event_id: "private:event:123",
+        latest_source_name: "private-source.json",
+        source_registry_paths: ["/srv/raven/app/data/runtime/private-registry.json"],
+      },
+      recent_trades: [{ id: "raven-event", time: now - 900, price: 1, size: 1, side: "buy" }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.includes("api.dexpaprika.com") && url.includes("/ohlcv?")) {
     const now = Math.floor(Date.now() / 900_000) * 900;
     const rows = Array.from({ length: 120 }, (_, index) => ({

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { onchainChartProviderEnv } from "./lib/onchain-chart-provider-env.mjs";
+import { scanJsonValue } from "./validate-public-no-leak.mjs";
 
 const baseUrl = String(process.argv[2] || "").replace(/\/+$/, "");
 const bundleRoot = resolve(process.argv[3] || "");
@@ -266,6 +267,11 @@ const chartParams = new URLSearchParams({
 });
 const chartCapture = await capture(`/api/terminal/chart?${chartParams.toString()}`);
 const chartEnvelope = JSON.parse(chartCapture.text);
+const chartNoLeakFindings = scanJsonValue(chartEnvelope, "preview:/api/terminal/chart");
+if (chartNoLeakFindings.length) {
+  const fields = chartNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Isolated preview chart response failed the public no-leak gate: ${fields}`);
+}
 const chart = chartEnvelope?.data || chartEnvelope;
 const chartProviderContract = packageManifest.onchain_chart_provider || {};
 const expectedChartPlan = chartProviderContract.production_promotion_eligible === true
