@@ -1,5 +1,9 @@
 import { ravenOSContext } from "/ravenos-context-store.js";
-import { mountTradingViewChart, resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
+import {
+  mountTradingViewChart,
+  resolveTradingViewChart,
+  resolveTradingViewReference,
+} from "/ravenos-tradingview-adapter.js";
 
 const SEARCH_DELAY_MS = 240;
 const SEARCH_MIN_LENGTH = 2;
@@ -139,6 +143,7 @@ function entityKindLabel(kind) {
 function timingLabel(row = {}) {
   const status = String(row.data_timing || row.status || "").toUpperCase();
   if (row.entity_class === "document_entity" || status === "DOCUMENT") return "Document record";
+  if (["future_root", "future_contract"].includes(row.entity_kind) && status === "PERIODIC") return "Exact futures identity";
   if (status === "DELAYED") return "Delayed when opened";
   if (status === "PERIODIC") return "Periodic series";
   if (status === "LIVE") return row.public_display_eligibility === "allowed" ? "Market timing shown at source" : "Identity resolved";
@@ -487,7 +492,10 @@ function renderOverview(host, payload) {
   const copy = append(head, "div");
   append(copy, "span", "workspace-label", "Market context");
   append(copy, "h2", "", row.entity_class === "reference_series" ? "Latest published observation" : row.entity_class === "document_entity" ? "Issuer document context" : "See the exact market before the narrative");
-  const externalChart = !data && ["equity", "etf", "index", "forex_pair", "future_root"].includes(row.entity_kind)
+  const externalReference = !data && ["equity", "etf", "index", "forex_pair", "future_root"].includes(row.entity_kind)
+    ? resolveTradingViewReference(row, { exactInstrument: payload.exact_instrument })
+    : null;
+  const externalChart = externalReference?.widget_supported
     ? resolveTradingViewChart(row, { exactInstrument: payload.exact_instrument })
     : null;
   if (data) {
@@ -526,6 +534,14 @@ function renderOverview(host, payload) {
     link.target = "_blank";
     link.rel = "noopener nofollow";
     append(footer, "small", "", "Visual context only. It is not Raven evidence, an order price, or a portfolio valuation.");
+  } else if (externalReference) {
+    const unavailable = append(primary, "div", "atlas-detail-refusal atlas-external-only");
+    append(unavailable, "strong", "", `${row.symbol} remains exact`);
+    append(unavailable, "p", "", `This exchange feed cannot be displayed inside RavenOS. We will not replace ${row.symbol} with a different index, ETF, contract, or CFD.`);
+    const link = append(unavailable, "a", "atlas-source-link", `Open exact ${row.symbol} chart on TradingView ↗`);
+    link.href = externalReference.attribution_url;
+    link.target = "_blank";
+    link.rel = "noopener nofollow";
   } else {
     const unavailable = append(primary, "div", "atlas-detail-refusal");
     append(unavailable, "strong", "", view.state === "document_entity" ? "Open a filing view for source documents" : "Market values are not shown");
@@ -548,9 +564,11 @@ function renderOverview(host, payload) {
   providerStateView(side, view, "Source & timing");
   const meaning = append(side, "section", "atlas-market-meaning");
   append(meaning, "span", "workspace-label", "What this view can answer");
-  append(meaning, "strong", "", externalChart ? "Price structure is visible" : data ? "A source-qualified observation is available" : "Identity is established; values are not");
+  append(meaning, "strong", "", externalChart ? "Price structure is visible" : externalReference ? "Exact identity is preserved" : data ? "A source-qualified observation is available" : "Identity is established; values are not");
   append(meaning, "p", "", externalChart
     ? "Use the chart for visual market context. Atlas events, filings, options, and Raven evidence remain separate so their authority stays clear."
+    : externalReference
+      ? `The exact ${row.symbol} market is retained even though its chart cannot be embedded. No proxy is shown in its place.`
     : data
       ? "The source and its timing travel with the observation. A successful data retrieval does not become a recommendation."
       : "RavenOS will not fill the gap with another listing, a stale snapshot, or a proxy that was not selected.");
@@ -1054,8 +1072,8 @@ function renderDetail(payload) {
   const copy = append(identity, "div");
   append(copy, "span", "workspace-label", entityKindLabel(row.entity_kind));
   append(copy, "h2", "", row.name);
-  const visualIdentity = resolveTradingViewChart(row, { exactInstrument: payload.exact_instrument });
-  append(copy, "p", "", `${visualIdentity ? visualIdentity.tradingview_symbol.replace(":", " · ") : row.symbol} · ${providerLabel(row.provider)} · ${text(row.data_frequency)}`);
+  const visualIdentity = resolveTradingViewReference(row, { exactInstrument: payload.exact_instrument });
+  append(copy, "p", "", `${visualIdentity ? visualIdentity.tradingview_symbol.replace(":", " · ") : row.symbol} · ${providerLabel(row.provider)} · ${timingLabel(row)}`);
   const badges = append(identity, "div", "atlas-detail-badges");
   [timingLabel(row), row.optionable ? "Options available" : null].filter(Boolean).forEach((label) => append(badges, "span", "", label));
   const tabs = append(host, "nav", "atlas-detail-tabs");

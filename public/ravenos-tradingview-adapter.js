@@ -1,4 +1,4 @@
-export const TradingViewAdapterVersion = "ravenos.tradingview_symbol_adapter.v2";
+export const TradingViewAdapterVersion = "ravenos.tradingview_symbol_adapter.v3";
 
 const EXACT_SYMBOLS = Object.freeze({
   "equity:us:AAPL": Object.freeze({ symbol: "NASDAQ:AAPL", timing: "Timing shown in chart", session: "U.S. equities", href: "https://www.tradingview.com/symbols/NASDAQ-AAPL/" }),
@@ -47,6 +47,28 @@ const EXACT_SYMBOLS = Object.freeze({
 
 const SYMBOL_PATTERN = /^[A-Z0-9_!.-]{1,24}:[A-Z0-9_!.-]{1,32}$/;
 const LISTED_ENTITY_PATTERN = /^(equity|etf):us:([A-Z0-9._-]{1,24})$/;
+const WIDGET_RESTRICTED_SYMBOLS = new Set([
+  "TVC:US02Y",
+  "TVC:US05Y",
+  "TVC:US10Y",
+  "TVC:US30Y",
+  "CME_MINI:ES1!",
+  "CME_MINI:NQ1!",
+  "CBOT_MINI:YM1!",
+  "CME_MINI:RTY1!",
+  "NYMEX:CL1!",
+  "NYMEX:NG1!",
+  "COMEX:GC1!",
+  "COMEX:SI1!",
+  "COMEX:HG1!",
+  "CBOT:ZN1!",
+  "DJ:DJI",
+  "TVC:DXY",
+  "NASDAQ:NDX",
+  "CBOEFTSE:RUT",
+  "SP:SPX",
+  "CBOE:VIX",
+]);
 const EXACT_LISTING_VENUES = Object.freeze({
   nasdaq: "NASDAQ",
   nyse: "NYSE",
@@ -90,7 +112,7 @@ function dynamicExactListing(entity = {}, exactInstrument = null) {
   });
 }
 
-export function resolveTradingViewChart(entity = {}, { exactInstrument = null } = {}) {
+export function resolveTradingViewReference(entity = {}, { exactInstrument = null } = {}) {
   const entityId = clean(entity.entity_id);
   const entry = exactInstrument
     ? dynamicExactListing(entity, exactInstrument)
@@ -107,6 +129,7 @@ export function resolveTradingViewChart(entity = {}, { exactInstrument = null } 
     session: entry.session,
     attribution: "Chart by TradingView",
     attribution_url: entry.href,
+    widget_supported: !WIDGET_RESTRICTED_SYMBOLS.has(entry.symbol),
     visual_context_only: true,
     price_axis: Object.freeze({
       side: "right",
@@ -116,12 +139,21 @@ export function resolveTradingViewChart(entity = {}, { exactInstrument = null } 
   });
 }
 
+export function resolveTradingViewChart(entity = {}, { exactInstrument = null } = {}) {
+  const reference = resolveTradingViewReference(entity, { exactInstrument });
+  return reference?.widget_supported ? reference : null;
+}
+
 export function resolveTradingViewSymbol(symbol = "") {
   const requested = clean(symbol).toUpperCase();
   if (!SYMBOL_PATTERN.test(requested)) return null;
   const match = Object.entries(EXACT_SYMBOLS).find(([, entry]) => entry.symbol === requested);
   if (!match) return null;
-  return Object.freeze({ entity_id: match[0], ...match[1] });
+  return Object.freeze({
+    entity_id: match[0],
+    ...match[1],
+    widget_supported: !WIDGET_RESTRICTED_SYMBOLS.has(match[1].symbol),
+  });
 }
 
 export function mountTradingViewChart(host, entity, { interval = "60", exactInstrument = null } = {}) {
@@ -159,3 +191,4 @@ export function mountTradingViewChart(host, entity, { interval = "60", exactInst
 
 export const TradingViewExactSymbols = EXACT_SYMBOLS;
 export const TradingViewExactListingVenues = EXACT_LISTING_VENUES;
+export const TradingViewWidgetRestrictedSymbols = Object.freeze([...WIDGET_RESTRICTED_SYMBOLS]);

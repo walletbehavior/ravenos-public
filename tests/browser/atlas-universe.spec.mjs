@@ -226,7 +226,7 @@ test("Atlas gives an arbitrary equity a chart only after one exact listing resol
   await expect(page.locator(".atlas-tv-frame")).toHaveAttribute("src", /NASDAQ%3AMSFT/);
 });
 
-test("Atlas preserves an exact ES futures chart when Massive structured values are unavailable", async ({ page }) => {
+test("Atlas preserves exact ES identity without mounting TradingView's restricted futures widget", async ({ page }) => {
   await mockAtlas(page);
   await page.goto("/atlas/");
   await page.locator("#atlasSearchInput").fill("ES");
@@ -235,11 +235,10 @@ test("Atlas preserves an exact ES futures chart when Massive structured values a
   await result.click();
   await expect(page).toHaveURL(/entity_id=future%3ACME%3AES/);
   await expect(page.locator(".atlas-detail-identity")).toContainText("E-mini S&P 500");
-  const frame = page.locator(".atlas-tv-frame");
-  await expect(frame).toBeVisible();
-  await expect(frame).toHaveAttribute("src", /CME_MINI%3AES1!/);
-  await expect(page.locator(".atlas-visual-chart-meta")).toContainText("Continuous front contract");
-  await expect(page.locator(".atlas-detail-refusal")).toHaveCount(0);
+  await expect(page.locator(".atlas-tv-frame")).toHaveCount(0);
+  await expect(page.locator(".atlas-detail-refusal")).toContainText("ES remains exact");
+  await expect(page.locator(".atlas-detail-refusal")).toContainText("will not replace ES");
+  await expect(page.locator(".atlas-detail-refusal a")).toHaveAttribute("href", /CME_MINI-ES1!/);
 });
 
 test("Options remain lazy and a restricted expiration response never triggers a chain", async ({ page }) => {

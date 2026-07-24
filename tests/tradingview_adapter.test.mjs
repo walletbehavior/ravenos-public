@@ -6,6 +6,7 @@ import { applyAssetSecurityHeaders } from "../lib/customer_trade/terminal_runtim
 import {
   TradingViewAdapterVersion,
   resolveTradingViewChart,
+  resolveTradingViewReference,
   resolveTradingViewSymbol,
 } from "../ravenos-tradingview-adapter.js";
 
@@ -26,23 +27,28 @@ test("TradingView visual context resolves only explicit exact Atlas identities",
   assert.equal(resolveTradingViewSymbol("javascript:alert(1)"), null);
 });
 
-test("featured futures, FX, indices, and rates retain exact TradingView visual context when structured values are unavailable", () => {
+test("featured markets retain exact TradingView references without embedding exchange-restricted feeds", () => {
   const cases = [
-    [{ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "ES" }, "CME_MINI:ES1!"],
-    [{ entity_id: "future:CME:NQ", entity_kind: "future_root", symbol: "NQ" }, "CME_MINI:NQ1!"],
-    [{ entity_id: "future:CBOT:YM", entity_kind: "future_root", symbol: "YM" }, "CBOT_MINI:YM1!"],
-    [{ entity_id: "future:CME:RTY", entity_kind: "future_root", symbol: "RTY" }, "CME_MINI:RTY1!"],
-    [{ entity_id: "fx:USDJPY", entity_kind: "forex_pair", symbol: "USDJPY" }, "FX_IDC:USDJPY"],
-    [{ entity_id: "index:us:VIX", entity_kind: "index", symbol: "VIX" }, "CBOE:VIX"],
-    [{ entity_id: "fred:DGS5", entity_kind: "rate_series", symbol: "DGS5" }, "TVC:US05Y"],
+    [{ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "ES" }, "CME_MINI:ES1!", false],
+    [{ entity_id: "future:CME:NQ", entity_kind: "future_root", symbol: "NQ" }, "CME_MINI:NQ1!", false],
+    [{ entity_id: "future:CBOT:YM", entity_kind: "future_root", symbol: "YM" }, "CBOT_MINI:YM1!", false],
+    [{ entity_id: "future:CME:RTY", entity_kind: "future_root", symbol: "RTY" }, "CME_MINI:RTY1!", false],
+    [{ entity_id: "fx:USDJPY", entity_kind: "forex_pair", symbol: "USDJPY" }, "FX_IDC:USDJPY", true],
+    [{ entity_id: "index:us:VIX", entity_kind: "index", symbol: "VIX" }, "CBOE:VIX", false],
+    [{ entity_id: "fred:DGS5", entity_kind: "rate_series", symbol: "DGS5" }, "TVC:US05Y", false],
+    [{ entity_id: "fred:DFF", entity_kind: "rate_series", symbol: "DFF" }, "FRED:DFF", true],
   ];
-  for (const [entity, symbol] of cases) {
-    const resolved = resolveTradingViewChart(entity);
-    assert.equal(resolved?.tradingview_symbol, symbol);
-    assert.equal(resolved?.visual_context_only, true);
+  for (const [entity, symbol, widgetSupported] of cases) {
+    const reference = resolveTradingViewReference(entity);
+    assert.equal(reference?.tradingview_symbol, symbol);
+    assert.equal(reference?.visual_context_only, true);
+    assert.equal(reference?.widget_supported, widgetSupported);
+    assert.equal(resolveTradingViewChart(entity)?.tradingview_symbol || null, widgetSupported ? symbol : null);
     assert.equal(resolveTradingViewSymbol(symbol)?.entity_id, entity.entity_id);
+    assert.equal(resolveTradingViewSymbol(symbol)?.widget_supported, widgetSupported);
   }
   assert.equal(resolveTradingViewChart({ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "NQ" }), null);
+  assert.equal(resolveTradingViewReference({ entity_id: "future:CME:ES", entity_kind: "future_root", symbol: "NQ" }), null);
   assert.equal(resolveTradingViewChart({ entity_id: "future:CME:UNKNOWN", entity_kind: "future_root", symbol: "UNKNOWN" }), null);
 });
 
