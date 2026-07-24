@@ -21,7 +21,7 @@ This review combined the current RavenOS build, its browser suite, live read-onl
 Current official references:
 
 - [DEX Screener multicharts, watchlist, alerts, and chain surface](https://dexscreener.com/multicharts/)
-- [GMGN token chart, multichart, activity, traders, holders, and trading workflow](https://docs.gmgn.ai/index/token-page-chart-multicharts-activity-trading-system)
+- Fast on-chain terminals: token chart, multichart, activity, traders, holders, and trading workflow
 - [Axiom product overview](https://docs.axiom.trade/) and [Trader Scan](https://docs.axiom.trade/trader-scan)
 - [Hyperliquid order-book model](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/order-book)
 - [TradingView Supercharts workflow](https://www.tradingview.com/support/solutions/43000746464-getting-started-with-supercharts/)
@@ -36,7 +36,7 @@ Current official references:
 | Product | What it makes fast | Why an operator leaves RavenOS for it today | What RavenOS should absorb | What RavenOS should not copy |
 |---|---|---|---|---|
 | DEX Screener | Contract search, exact pair chart, liquidity/volume/transactions, multicharts, watchlists, alerts, very broad chain discovery | A token can usually be found and assessed immediately | Near-infallible address/name search, pair alternatives, immediate market anatomy, multi-chart inspection later | Chain-first navigation and unqualified pair substitution |
-| GMGN | Token chart plus live activity, trader classes, holders, wallet P&L, security facts, chart markers, fast trade controls | It answers “who is trading this and is the token structurally dangerous?” beside the chart | Holder distribution, public-safe participant change, chart-linked behavior, compact trade tape | Unqualified “smart money,” insider, ownership, or coordination labels |
+| Fast on-chain terminals | Token chart plus live activity, trader classes, holders, wallet P&L, security facts, chart markers, fast trade controls | They answer “who is trading this and is the token structurally dangerous?” beside the chart | Holder distribution, public-safe participant change, chart-linked behavior, compact trade tape | Unqualified “smart money,” insider, ownership, or coordination labels |
 | Axiom | New-market discovery, one-click workflow, wallet tracking, Trader Scan, token filters | It compresses discovery → participant scan → action | Fast stable feeds, wallet-event-to-chart workflow, token risk essentials, intentional presets once authorized | Custodial/security shortcuts or action-first claims that exceed evidence |
 | Photon / Phantom Terminal | Low-chrome discovery, persistent search, quick presets, Solana token and Hyperliquid perp workflow | The interface exposes the common actions immediately | Persistent search, minimal shell, compact position/follow context, route presets later | Auto-confirm or execution semantics before RavenOS transaction security is complete |
 | Hyperliquid | Chart, book, tape, ticket, positions, funding, OI, and collateral in one dense screen | It is faster for continuous perp operation | Chart-first layout, live book/tape adjacency, one selected market broadcasting everywhere, low-latency interaction | Perp-specific assumptions in the universal Terminal |

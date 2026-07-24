@@ -11,8 +11,25 @@ const OPPORTUNITY = {
   context_state: "fresh",
   why_raven_noticed: "Behavior changed while pressure remained observable.",
   pressure_state: "Mixed pressure",
+  observed_direction: "long",
+  raven_atoms: ["Pressure reversal"],
+  market_context: { roundtrip_bps: 17.1 },
   path_review: { state: "forward path reviewing" },
   matured_comparables: { sample_size: 128 },
+};
+
+const ATTENTION_BENCHMARK = {
+  schema_version: "ravenos_market_attention_benchmark_public_v1",
+  generated_at: "2026-07-21T12:19:00Z",
+  freshness: { state: "current", age_seconds: 60, target_seconds: 3600 },
+  reference_scope: { label: "Third-party market-attention episodes", episode_count: 3795, distinct_markets: 3307 },
+  raven_lead: {
+    observation: { episodes: 1139, share_of_reference_episodes: 1139 / 3795, median_lead_seconds: 20557 },
+    behavior: { episodes: 532, share_of_reference_episodes: 532 / 3795, median_lead_seconds: 9429 },
+    exact_decision_context: { episodes: 277, share_of_reference_episodes: 277 / 3795, median_lead_seconds: 15290 },
+  },
+  interpretation: { profitability_claimed: false, tradeable_rule_claimed: false, selected_instrument_claimed: false },
+  public_safety: { reference_source_identity_exposed: false },
 };
 
 const MARKET = {
@@ -78,7 +95,7 @@ async function mockLanding(page, { current = true, chartIdentityMismatch = false
     status: current ? 200 : 503,
     contentType: "application/json",
     body: JSON.stringify(current ? {
-      census: { generated_at: "2026-07-21T12:20:00Z", source_state: "current", opportunities: { rows: opportunities } },
+      census: { generated_at: "2026-07-21T12:20:00Z", source_state: "current", opportunities: { rows: opportunities }, attention_benchmark: ATTENTION_BENCHMARK },
       delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
     } : { ok: false, error: "opportunity_census_projection_unavailable", census: null }),
   }));
@@ -119,6 +136,12 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await expect(page.locator("#landingInstrument")).toHaveText("SOL-PERP");
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingWhy")).toContainText("Behavior changed");
+  await expect(page.locator("#landingEvidence")).toHaveText("Pressure Reversal");
+  await expect(page.locator("#landingEdge")).toBeVisible();
+  await expect(page.locator("#landingEdgeObserved")).toHaveText("1,139");
+  await expect(page.locator("#landingEdgeLead")).toHaveText("5h 43m");
+  await expect(page.locator("#landingEdgeExact")).toHaveText("277");
+  await expect(page.locator("body")).not.toContainText(/gmgn/i);
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
   await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   await expect.poll(() => page.locator("#landingChart .rpw-chart canvas").count()).toBeGreaterThan(1);
@@ -171,11 +194,12 @@ test("landing chart uses the shared timeframe controls and keeps exact identity"
 test("landing page keeps current-origin failure explicit and generates no fallback chart", async ({ page }) => {
   await mockLanding(page, { current: false });
   await page.goto("/");
-  await expect(page.locator("#landingOriginState")).toHaveText("Current opportunities unavailable");
-  await expect(page.locator("#landingOpportunityList")).toContainText("Current opportunities unavailable");
-  await expect(page.locator("#landingWhy")).toContainText("Current Raven opportunity evidence is unavailable");
+  await expect(page.locator("#landingOriginState")).toHaveText("Raven refreshing");
+  await expect(page.locator("#landingOpportunityList")).toContainText("Raven is refreshing current attention");
+  await expect(page.locator(".landing-read")).toBeHidden();
+  await expect(page.locator(".landing-atlas-band")).toBeHidden();
+  await expect(page.locator("#landingEdge")).toBeHidden();
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
-  await expect(page.locator("#landingAtlasList")).toContainText("Atlas context unavailable");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.candleCount).toBe(0);
   expect(product.chartType).toBeNull();

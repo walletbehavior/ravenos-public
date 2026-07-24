@@ -28,6 +28,7 @@ const internalTerms = [
 ];
 
 const highRiskTextPatterns = [
+  ["private_benchmark_provider", /\bgmgn\b/i],
   ["private_filesystem_path", /(?:\/srv\/raven\/app|\/root\/|\/home\/[A-Za-z0-9_.-]+\/|\/etc\/(?:systemd|cloudflared|raven))/i],
   ["private_runtime_route", /\/(?:data\/runtime|services|logs)\/[A-Za-z0-9_./-]+/i],
   ["protected_origin_host", /https?:\/\/ravenos-public-origin\.ravenos\.xyz/i],

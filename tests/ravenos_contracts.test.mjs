@@ -207,3 +207,13 @@ test("public build gate rejects known synthetic Terminal payload signatures", ()
   }
   assert.deepEqual(scanHighRiskText("No synthetic fallback is used.", "terminal.js"), []);
 });
+
+test("public build gate rejects private comparison-provider branding", () => {
+  for (const value of ["gmgn", "GMGN", "Powered by GMGN"]) {
+    assert.ok(
+      scanHighRiskText(value, "landing.js").some((finding) => finding.term === "private_benchmark_provider"),
+      `expected private comparison-provider finding for ${value}`,
+    );
+  }
+  assert.deepEqual(scanHighRiskText("Independent market-attention benchmark", "landing.js"), []);
+});

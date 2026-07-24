@@ -40,15 +40,15 @@
 
       <div class="landing-product-grid">
         <aside class="landing-live-list">
-          <header><span>Discover</span><strong>Current attention</strong><small id="landingOpportunityCount">Awaiting current Census</small></header>
+          <header><span>Discover</span><strong>Current attention</strong><small id="landingOpportunityCount">Loading live attention</small></header>
           <div id="landingOpportunityList" class="landing-opportunity-list" aria-live="polite">
-            <div class="landing-unavailable"><strong>Connecting</strong><span>Older observations will not substitute for current opportunities.</span></div>
+            <div class="landing-skeleton" aria-label="Loading current opportunities"><i></i><i></i><i></i></div>
           </div>
         </aside>
 
         <section class="landing-market-preview">
           <header>
-            <div><span id="landingInstrumentType">Exact instrument</span><h2 id="landingInstrument">No market selected</h2><small id="landingInstrumentId">Current identity pending</small></div>
+            <div><span id="landingInstrumentType">Exact instrument</span><h2 id="landingInstrument">Loading market</h2><small id="landingInstrumentId">Resolving exact identity</small></div>
             <div class="landing-quote"><strong id="landingPrice">—</strong><span id="landingChange">—</span></div>
           </header>
           <div class="landing-chart-wrap" id="landingChartWrap" data-state="loading">
@@ -70,14 +70,14 @@
             <p id="landingReadSummary">Live market facts and Raven evidence hydrate independently.</p>
           </div>
           <dl>
-            <div><dt>Path</dt><dd id="landingPath">—</dd></div>
-            <div><dt>Evidence</dt><dd id="landingEvidence">—</dd></div>
-            <div><dt>Comparable paths</dt><dd id="landingComparables">—</dd></div>
+            <div id="landingPathFact"><dt>Path</dt><dd id="landingPath">—</dd></div>
+            <div id="landingEvidenceFact"><dt>Evidence</dt><dd id="landingEvidence">—</dd></div>
+            <div id="landingComparablesFact"><dt>Comparable paths</dt><dd id="landingComparables">—</dd></div>
           </dl>
           <a id="landingInspect" href="/terminal/">Inspect exact market <span>→</span></a>
         </aside>
       </div>
-      <footer class="landing-product-foot"><span>Current market context</span><span id="landingGeneratedAt">Source timestamp pending</span><span>Missing current data stays visibly unavailable</span></footer>
+      <footer class="landing-product-foot"><span>Current market context</span><span id="landingGeneratedAt">Updating source time</span><span>No substitute markets or synthetic candles</span></footer>
     </section>
 
     <section class="landing-sequence" id="method">
@@ -92,14 +92,22 @@
 
     <section class="landing-atlas-band">
       <div><span class="landing-eyebrow">Atlas / market around the market</span><h2>Crypto does not trade in a vacuum.</h2><p>See how equities, options, rates, sectors, and broader market movement change the meaning of the selected instrument.</p></div>
-      <div id="landingAtlasList" class="landing-atlas-list"><div class="landing-unavailable"><strong>Atlas checking</strong><span>Older market context will not replace missing current data.</span></div></div>
+      <div id="landingAtlasList" class="landing-atlas-list"><div class="landing-skeleton" aria-label="Loading cross-market context"><i></i><i></i><i></i></div></div>
     </section>
 
-    <section class="landing-principles">
-      <article><span>01 / Current</span><h3>Freshness is a product feature.</h3><p>Every important view says when its source was observed and whether it is current, delayed, stale, historical, or unavailable.</p></article>
-      <article><span>02 / Exact</span><h3>A symbol is not a market.</h3><p>Pools, perpetual contracts, ETF listings, and future option contracts retain their exact identity from search through chart and context.</p></article>
-      <article><span>03 / Evidence</span><h3>Interpretation stays attached to proof.</h3><p>Raven claims, matured outcomes, and Atlas context remain distinct even when the interface turns them into one coherent read.</p></article>
-      <article><span>04 / Boundary</span><h3>Read-only means read-only.</h3><p>No customer signing, submission, confirmed trading, or position monitoring is presented as available.</p></article>
+    <section class="landing-edge" id="landingEdge" hidden>
+      <header>
+        <span class="landing-eyebrow">Measured Raven edge</span>
+        <h2>Raven was often already watching.</h2>
+        <p id="landingEdgeSummary">Timing is measured against deduplicated third-party market-attention episodes with exact chain and market identity.</p>
+      </header>
+      <div class="landing-edge-metrics">
+        <article><strong id="landingEdgeObserved">—</strong><span>earlier Raven observations</span><small id="landingEdgeObservedShare"></small></article>
+        <article><strong id="landingEdgeLead">—</strong><span>median observation lead</span><small>when Raven had prior evidence</small></article>
+        <article><strong id="landingEdgeBehavior">—</strong><span>earlier behavioral changes</span><small id="landingEdgeBehaviorLead"></small></article>
+        <article><strong id="landingEdgeExact">—</strong><span>exact decision contexts</span><small id="landingEdgeExactLead"></small></article>
+      </div>
+      <footer><span id="landingEdgeSample"></span><span>Descriptive timing study · not a profitability or trading claim</span></footer>
     </section>
 
     <section class="landing-close">
