@@ -151,6 +151,26 @@ function opportunityPayload({ withSpot = false } = {}) {
   return {
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
+    participation_payoff: {
+      schema_version: "ravenos.participation_payoff.v1",
+      generated_at: "2026-07-21T12:20:00Z",
+      state: "current",
+      public_safe: true,
+      headline: "Where participation is working",
+      summary: "Solana cohorts are showing the cleanest follow-through. Solana fresh pairs are strong over six hours, but the 24-hour downside tail remains broad. Ethereum large caps are punishing recent participation.",
+      comparison: "Solana cohorts have settled follow-through; Ethereum cohorts and Base cohorts remain mixed.",
+      measurement: {
+        display_window: "Current outcome windows",
+        minimum_usable_sample: 20,
+        population: "Sampled public markets; not a comprehensive market census.",
+        causal_claim: false,
+      },
+      insights: [
+        { insight_id: "participation:solana:participant_cohorts:rewarding", state: "rewarding", label: "Working", subject: "Solana cohorts", operator_detail: "88 settled observations", usable_sample: 88, observed_sample: 94, observation_window: "current", confidence: "medium" },
+        { insight_id: "participation:solana:fresh_pairs:fragile", state: "fragile", label: "Fragile", subject: "Solana fresh pairs", operator_detail: "6h median +6.6% · 43% fell 10%+ over 24h", usable_sample: 31, observed_sample: 44, observation_window: "24h", confidence: "medium" },
+        { insight_id: "participation:eth:large:punishing", state: "punishing", label: "Punishing", subject: "Ethereum large caps", operator_detail: "6h -1.3% · 24h -2.8%", usable_sample: 33, observed_sample: 39, observation_window: "24h", confidence: "medium" },
+      ],
+    },
     census: {
       schema_version: "ravenos_opportunity_census_public_v1",
       generated_at: "2026-07-21T12:20:00Z",
@@ -323,7 +343,14 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(row.locator(".discover-thesis > span")).toHaveText("What changed");
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
-  await expect(page.locator("#discoverMarketState")).toHaveText("Live provider");
+  await expect(page.locator("#discoverMarketState")).toHaveText("Current");
+  await expect(page.locator("#discoverPayoff")).toBeVisible();
+  await expect(page.locator("#discoverPayoffSummary")).toContainText("Solana fresh pairs are strong over six hours");
+  await expect(page.locator("#discoverPayoffStrip article")).toHaveCount(3);
+  await expect(page.locator("#discoverPayoffStrip")).toContainText("Solana cohorts");
+  await expect(page.locator("#discoverPayoffStrip")).toContainText("6h median +6.6%");
+  await expect(page.locator("#discoverPayoffStrip")).toContainText("Ethereum large caps");
+  await expect(page.locator("#discoverPayoff")).not.toContainText(/solana live/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
 
@@ -394,7 +421,8 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(3);
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator(".discover-chain-chip")).toHaveText("Solana");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Solana spot movement");
+  await expect(page.locator(".discover-chain-chip")).toHaveCount(0);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("RETIRE");
   await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("+8.50%");

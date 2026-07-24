@@ -64,6 +64,7 @@ import {
   validateExactCandleIdentity,
 } from "./lib/chart_continuity.mjs";
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
+import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
@@ -3982,6 +3983,10 @@ async function handleOpportunity(request, env) {
   const requested = requestedOpportunityIdentity(request);
   const selected = selectOpportunityRow(rows, requested);
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
+  const participationPayoff = buildParticipationPayoffProjection(
+    outcomesPayload?.data || {},
+    behaviorPayload?.data || {},
+  );
   return json({
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
@@ -4003,6 +4008,7 @@ async function handleOpportunity(request, env) {
     recent_raven_reads: (claimsPayload?.data || {}).recent_raven_reads || [],
     outcomes_context: outcomesPayload?.data?.recent_raven_reads?.slice(0, 12) || [],
     behavior_context: behaviorPayload?.data || null,
+    participation_payoff: participationPayoff,
     context_delivery: contextDelivery,
     delivery,
   }, { headers: projectionRouteHeaders("/api/opportunity", delivery) });

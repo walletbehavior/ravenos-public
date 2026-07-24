@@ -11,6 +11,7 @@ const state = {
   featuredRefreshedAt: 0,
   spotRows: [],
   spotTimeframe: "5m",
+  payoff: null,
   paused: false,
   expanded: false,
   loading: false,
@@ -502,6 +503,55 @@ function renderSpotPulse(rows = state.spotRows) {
   renderSpotLeaderList("discoverTrendingLeaders", "trending");
 }
 
+function currentParticipationPayoff(value) {
+  if (
+    value?.schema_version !== "ravenos.participation_payoff.v1"
+    || value?.state !== "current"
+    || value?.public_safe !== true
+    || value?.measurement?.causal_claim !== false
+    || !Array.isArray(value?.insights)
+    || value.insights.length < 1
+    || value.insights.length > 4
+  ) return null;
+  const insights = value.insights.filter((row) => (
+    ["rewarding", "fragile", "punishing"].includes(row?.state)
+    && text(row?.subject, "") !== ""
+    && finite(row?.usable_sample) >= 20
+  ));
+  if (!insights.length) return null;
+  return { ...value, insights };
+}
+
+function renderParticipationPayoff(value) {
+  const section = document.getElementById("discoverPayoff");
+  const strip = document.getElementById("discoverPayoffStrip");
+  const payoff = currentParticipationPayoff(value);
+  state.payoff = payoff;
+  strip.replaceChildren();
+  if (!payoff) {
+    section.hidden = true;
+    document.getElementById("discoverPayoffSummary").textContent = "";
+    document.getElementById("discoverPayoffDetail").textContent = "";
+    return;
+  }
+  document.getElementById("discoverPayoffTitle").textContent = text(payoff.headline, "Where participation is working");
+  document.getElementById("discoverPayoffSummary").textContent = text(payoff.summary, "");
+  document.getElementById("discoverPayoffWindow").textContent = text(payoff.measurement?.display_window, "Current outcomes");
+  document.getElementById("discoverPayoffDetail").textContent = text(
+    payoff.comparison,
+    "Comparative market sample; not a causal claim.",
+  );
+  for (const insight of payoff.insights) {
+    const item = document.createElement("article");
+    item.dataset.payoffState = insight.state;
+    append(item, "span", "", insight.state === "rewarding" ? "Working" : insight.state === "fragile" ? "Fragile" : "Punishing");
+    append(item, "strong", "", insight.subject);
+    append(item, "small", "", text(insight.operator_detail, `${compact(insight.usable_sample)} observations`));
+    strip.append(item);
+  }
+  section.hidden = false;
+}
+
 function createListedMarketCard(row) {
   const anchor = document.createElement("a");
   anchor.className = "discover-listed-card";
@@ -725,11 +775,11 @@ function renderMarkets(rows) {
   const ranked = [...rows].sort((left, right) => (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0)).slice(0, 10);
   if (!ranked.length) {
     const container = append(host, "div", "workspace-state", "");
-    container.textContent = "Live venue markets unavailable.";
+    container.textContent = "Current venue markets unavailable.";
     return;
   }
   ranked.forEach((row) => host.append(createPulseRow(row)));
-  setState("discoverMarketState", "live", "Live provider");
+  setState("discoverMarketState", "fresh", "Current");
 }
 
 function currentOpportunityPayload(payload) {
@@ -769,6 +819,7 @@ function currentOpportunityPayload(payload) {
     census,
     rows,
     spotRows,
+    participationPayoff: currentParticipationPayoff(payload?.participation_payoff),
     generatedAt: [census.generated_at, spot?.generated_at]
       .filter(Boolean)
       .sort((left, right) => Date.parse(right) - Date.parse(left))[0] || delivery.generated_at,
@@ -898,15 +949,18 @@ async function refresh({ manual = false } = {}) {
       }));
       ravenRows = [...current.spotRows, ...ravenRows];
       renderSpotPulse(current.spotRows);
+      renderParticipationPayoff(current.participationPayoff);
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", "fresh", "Current");
     } catch {
       renderSpotPulse([]);
+      renderParticipationPayoff(null);
       setState("discoverCensusState", "unavailable", "Unavailable");
       ravenFailure = "Current Raven data did not meet freshness or identity requirements. Older observations were not substituted.";
     }
   } else {
     renderSpotPulse([]);
+    renderParticipationPayoff(null);
     setState("discoverCensusState", "unavailable", "Unavailable");
     const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
     ravenFailure = `The current Raven read could not be reached${status === "network" ? "" : ` (${status})`}. Older observations were not substituted.`;
@@ -945,7 +999,7 @@ async function refresh({ manual = false } = {}) {
     const firstRaven = ravenRows[0];
     const firstAtlas = atlasRows[0];
     window.RavenOSShell?.setCapabilities?.({
-      market: "Live markets + current projections",
+      market: "Current markets + Raven",
       mode: "Read only",
       evidence: `${ravenRows.length} Raven · ${atlasRows.length} Atlas`,
       wallet: "No customer session",
@@ -1014,6 +1068,6 @@ bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
 window.__RAVENOS_DISCOVER__ = Object.freeze({
-  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, spotTimeframe: state.spotTimeframe, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
+  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, payoffCount: state.payoff?.insights?.length || 0, spotTimeframe: state.spotTimeframe, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
   refresh: () => refresh({ manual: true }),
 });

@@ -164,8 +164,59 @@ test("Worker opportunity route is backed by the current Census projection", asyn
       current_claims: [{ surface: "opportunity", headline: "Older claim context" }],
       recent_raven_reads: [],
     }),
-    outcomes: projection("outcomes", "ravenos_outcomes_public_origin_v1", { recent_raven_reads: [] }),
-    behavior: projection("behavior", "ravenos_behavior_public_origin_v1", { rows: [] }),
+    outcomes: projection("outcomes", "ravenos_outcomes_public_origin_v1", {
+      recent_raven_reads: [],
+      outcomes: [{
+        chain: "solana",
+        cap_band: "fresh_pairs",
+        window: "24h",
+        public_safe: true,
+        usable_sample: 31,
+        median_h6_move_pct: -1.4,
+        claim_id: "claim_spot_fixture",
+        evidence_contract: {
+          observation_window: { label: "24h" },
+          settlement_window: { label: "6h post-observation measurement" },
+        },
+      }, {
+        chain: "solana",
+        cap_band: "participant_cohorts",
+        window: "live",
+        public_safe: true,
+        usable_sample: 88,
+        source: "jupiter_helius_public_cohort_validation",
+        median_mfe_pct: 21.7,
+        claim_id: "claim_cohort_fixture",
+        evidence_contract: {
+          observation_window: { label: "live" },
+          settlement_window: { label: "6h post-observation measurement" },
+        },
+      }],
+    }),
+    behavior: projection("behavior", "ravenos_behavior_public_origin_v1", {
+      rows: [
+        {
+          chain: "solana",
+          cap_band: "participant_cohorts",
+          window: "live",
+          public_safe: true,
+          usable_sample: 88,
+          observed_sample: 94,
+          confidence: "medium",
+          derived_state: "participation rewarding",
+        },
+        {
+          chain: "solana",
+          cap_band: "fresh_pairs",
+          window: "24h",
+          public_safe: true,
+          usable_sample: 31,
+          observed_sample: 44,
+          confidence: "medium",
+          derived_state: "participation punishing",
+        },
+      ],
+    }),
   };
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -189,6 +240,12 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.census.spot_attention.execution_boundary.signing_available, false);
     assert.equal(body.census.spot_attention.execution_boundary.submission_available, false);
     assert.equal(body.current_claim_context.headline, "Older claim context");
+    assert.equal(body.participation_payoff.schema_version, "ravenos.participation_payoff.v1");
+    assert.deepEqual(
+      body.participation_payoff.insights.map((row) => [row.state, row.subject]),
+      [["rewarding", "Solana cohorts"], ["punishing", "Solana fresh pairs"]],
+    );
+    assert.equal(body.participation_payoff.measurement.causal_claim, false);
     assert.equal(body.current_opportunity.instrument_id, "hyperliquid:perp:SOL");
     assert.equal(body.selection.state, "default_current_row");
     assert.equal(body.delivery.source, "current_public_origin");

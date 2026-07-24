@@ -23,7 +23,7 @@
 
     <section class="workspace-statusline" aria-label="Current Discover coverage">
       <div><span>Raven</span><strong id="discoverCensusState" data-state="unavailable">Checking</strong></div>
-      <div><span>Live markets</span><strong id="discoverMarketState" data-state="unavailable">Checking</strong></div>
+      <div><span>Venue data</span><strong id="discoverMarketState" data-state="unavailable">Checking</strong></div>
       <div><span>Atlas</span><strong id="discoverAtlasState" data-state="unavailable">Checking</strong></div>
       <div><span>Now showing</span><strong><span id="discoverRowCount">—</span> markets</strong></div>
     </section>
@@ -39,15 +39,27 @@
       <button class="workspace-refresh" id="discoverRefresh" type="button">Refresh now</button>
     </div>
 
+    <section class="discover-payoff" id="discoverPayoff" aria-labelledby="discoverPayoffTitle" hidden>
+      <header>
+        <div>
+          <span class="workspace-label">Participation</span>
+          <h2 id="discoverPayoffTitle">Where participation is working</h2>
+        </div>
+        <strong id="discoverPayoffWindow">Current read</strong>
+      </header>
+      <p id="discoverPayoffSummary"></p>
+      <div class="discover-payoff-strip" id="discoverPayoffStrip"></div>
+      <small id="discoverPayoffDetail"></small>
+    </section>
+
     <section class="discover-spot-pulse" id="discoverSpotPulse" aria-labelledby="discoverSpotPulseTitle" hidden>
       <header class="discover-spot-pulse-head">
         <div>
           <span class="workspace-label">Spot pulse</span>
-          <h2 id="discoverSpotPulseTitle">Solana movement leaders</h2>
-          <p>Current markets Raven is tracking — not a whole-chain ranking.</p>
+          <h2 id="discoverSpotPulseTitle">Solana spot movement</h2>
+          <p>Markets Raven is tracking—not a whole-chain ranking.</p>
         </div>
         <div class="discover-spot-pulse-controls">
-          <span class="discover-chain-chip">Solana</span>
           <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
             <button class="active" type="button" data-spot-timeframe="5m" aria-pressed="true">5m</button>
             <button type="button" data-spot-timeframe="1h" aria-pressed="false">1h</button>
@@ -101,7 +113,7 @@
       </div>
 
       <aside class="workspace-side">
-        <header class="workspace-section-head"><div><span class="workspace-label">Moving now</span><h2>Live perpetuals</h2><small>Current venue activity, whether or not Raven has a read</small></div></header>
+        <header class="workspace-section-head"><div><span class="workspace-label">Moving now</span><h2>Perpetual markets</h2><small>Current venue activity, whether or not Raven has a read</small></div></header>
         <div class="pulse-list" id="discoverPulse"><div class="workspace-state"><div><span class="workspace-state-mark">↗</span><p>Connecting live venue markets.</p></div></div></div>
       </aside>
     </section>
