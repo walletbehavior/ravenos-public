@@ -99,7 +99,9 @@ if (!health || typeof health !== "object") throw new Error("/api/health returned
 if (health.status !== "ok") throw new Error("/api/health does not report a healthy complete product");
 if (health.market_data_health?.state !== "fresh") throw new Error("/api/health does not report fresh market data");
 if (health.intelligence_freshness?.state !== "fresh") throw new Error("/api/health does not report fresh current intelligence");
-if (health.atlas_health?.state !== "fresh") throw new Error("/api/health does not report fresh Atlas context");
+if (!["fresh", "delayed"].includes(health.atlas_health?.state) || health.atlas_health?.operational !== true) {
+  throw new Error("/api/health does not report usable fresh-or-delayed Atlas context");
+}
 if (health.raven_read_health?.state !== "fresh") throw new Error("/api/health does not report fresh deterministic Raven Reads");
 if (health.narrator_freshness?.state !== "not_required" || health.narrator_freshness?.blocking !== false) {
   throw new Error("/api/health does not classify the retired narrator sidecar as non-blocking");

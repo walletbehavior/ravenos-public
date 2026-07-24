@@ -281,7 +281,8 @@ function validateHealth(captured) {
     || body?.process_health?.state !== "operational"
     || body?.market_data_health?.state !== "fresh"
     || body?.intelligence_freshness?.state !== "fresh"
-    || body?.atlas_health?.state !== "fresh"
+    || !["fresh", "delayed"].includes(body?.atlas_health?.state)
+    || body?.atlas_health?.operational !== true
     || body?.raven_read_health?.state !== "fresh"
     || body?.narrator_freshness?.state !== "not_required"
     || body?.projection_health?.state !== "operational"

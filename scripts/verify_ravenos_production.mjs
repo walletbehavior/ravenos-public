@@ -79,7 +79,8 @@ if (
   healthJson?.status !== "ok"
   || healthJson?.market_data_health?.state !== "fresh"
   || healthJson?.intelligence_freshness?.state !== "fresh"
-  || healthJson?.atlas_health?.state !== "fresh"
+  || !["fresh", "delayed"].includes(healthJson?.atlas_health?.state)
+  || healthJson?.atlas_health?.operational !== true
   || healthJson?.raven_read_health?.state !== "fresh"
   || healthJson?.narrator_freshness?.state !== "not_required"
   || healthJson?.projection_health?.state !== "operational"

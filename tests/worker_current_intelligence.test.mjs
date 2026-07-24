@@ -232,6 +232,7 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.intelligence_freshness.research.blocking, false);
     assert.equal(body.atlas_health.state, "fresh");
     assert.equal(body.atlas_health.blocking, true);
+    assert.equal(body.atlas_health.operational, true);
     assert.equal(body.raven_read_health.state, "fresh");
     assert.equal(body.raven_read_health.mode, "deterministic_structured_projection");
     assert.equal(body.narrator_freshness.state, "not_required");
@@ -245,6 +246,21 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
 
+    manifest.endpoints.find((row) => row.key === "atlas").payload_age_seconds = 1_900;
+    const delayedAtlasResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const delayedAtlas = await delayedAtlasResponse.json();
+    assert.equal(delayedAtlas.status, "ok");
+    assert.equal(delayedAtlas.atlas_health.state, "delayed");
+    assert.equal(delayedAtlas.atlas_health.operational, true);
+
+    manifest.endpoints.find((row) => row.key === "atlas").payload_age_seconds = 8_000;
+    const staleAtlasResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const staleAtlas = await staleAtlasResponse.json();
+    assert.equal(staleAtlas.status, "degraded");
+    assert.equal(staleAtlas.atlas_health.state, "stale");
+    assert.equal(staleAtlas.atlas_health.operational, false);
+
+    manifest.endpoints.find((row) => row.key === "atlas").payload_age_seconds = 10;
     status.generated_at = isoAgo(5_000);
     const missedPublisherResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
     const missedPublisher = await missedPublisherResponse.json();

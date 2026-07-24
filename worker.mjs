@@ -3054,10 +3054,11 @@ async function handleHealth(request, env = {}) {
     database: dbConfigured ? "configured" : "not_configured",
   };
   const requiredHealthy = checks.worker === "ok" && checks.assets === "ok";
+  const atlasOperational = atlasEndpoint.state === "fresh" || atlasEndpoint.state === "delayed";
   const productHealthy = intelligenceState === "fresh"
     && ravenReadState === "fresh"
     && marketState === "fresh"
-    && atlasEndpoint.state === "fresh"
+    && atlasOperational
     && projectionState === "operational"
     && publisherHealth.state === "operational";
   const status = !requiredHealthy
@@ -3095,7 +3096,10 @@ async function handleHealth(request, env = {}) {
       ...atlasEndpoint,
       blocking: true,
       independent: true,
-      note: "Atlas is measured independently and is required for complete RavenOS site health.",
+      operational: atlasOperational,
+      note: atlasEndpoint.state === "delayed"
+        ? "Atlas remains usable with its source delay exposed; stale or unavailable Atlas degrades site health."
+        : "Atlas is measured independently and is required for complete RavenOS site health.",
     },
     raven_read_health: {
       state: ravenReadState,
