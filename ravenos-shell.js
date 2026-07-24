@@ -8,6 +8,7 @@ import {
 } from "/ravenos-intelligence-contract.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
+import { resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
 
 const NAV_ITEMS = Object.freeze([
   {
@@ -279,6 +280,13 @@ function traditionalSearchInstrument(instrument = {}) {
     || subject.identityScope !== "exact_instrument"
     || subject.capabilities.execution !== false
   ) return null;
+  const visualChart = resolveTradingViewChart({
+    entity_id: `${subject.instrumentType}:us:${subject.symbol}`,
+    entity_kind: subject.instrumentType,
+    symbol: subject.symbol,
+    name: instrument.display_name || subject.symbol,
+  }, { exactInstrument: instrument });
+  const chartAvailable = instrument.capabilities?.chart === true || Boolean(visualChart);
   return {
     instrument_id: subject.id,
     asset: subject.symbol,
@@ -286,7 +294,7 @@ function traditionalSearchInstrument(instrument = {}) {
     label: `${subject.symbol} · ${instrument.display_name || subject.instrumentType.toUpperCase()}`,
     name: instrument.display_name || subject.symbol,
     detail: `${instrument.market_identity?.listing || subject.venue} · USD settlement · USDC economic view`,
-    state: instrument.capabilities?.chart === true ? "Exact listing · chart available" : "Exact listing · chart unavailable",
+    state: chartAvailable ? "Exact listing · chart available" : "Exact listing · chart unavailable",
     group: "Listed markets",
     raven_context: false,
     subject,

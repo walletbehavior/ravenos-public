@@ -58,5 +58,11 @@ test("TradingView code is isolated from the RavenOS application origin", () => {
   assert.match(atlasCsp, /script-src 'self'/);
   assert.match(atlasCsp, /frame-src https:\/\/www\.tradingview-widget\.com https:\/\/s\.tradingview\.com/);
   assert(!atlasCsp.includes("s3.tradingview.com"));
+  const terminal = applyAssetSecurityHeaders(new Response("terminal"), "/terminal/");
+  const terminalCsp = terminal.headers.get("content-security-policy") || "";
+  assert.match(terminalCsp, /script-src 'self'/);
+  assert.match(terminalCsp, /frame-src https:\/\/www\.tradingview-widget\.com https:\/\/s\.tradingview\.com/);
+  assert(!terminalCsp.includes("s3.tradingview.com"));
   assert.equal(atlas.headers.get("x-frame-options"), "DENY");
+  assert.equal(terminal.headers.get("x-frame-options"), "DENY");
 });

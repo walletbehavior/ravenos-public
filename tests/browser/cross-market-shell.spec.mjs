@@ -560,8 +560,46 @@ test("universal search resolves an arbitrary exact equity even when Atlas contex
 });
 
 test("an exact listed instrument uses TradingView visual context when native public candles are display-restricted", async ({ page }) => {
+  const cspErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && /tradingview-widget|frame-src/i.test(message.text())) cspErrors.push(message.text());
+  });
   await mockWorkspaceApis(page);
   await mockTerminalLiveApis(page);
+  await page.route("**/api/instruments/search**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q") || "";
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.instrument_lookup.v1",
+        query,
+        delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+        execution_boundary: { broker_connection_available: false, quote_preview_available: false, signing_available: false, submission_available: false },
+        results: [{
+          schema_version: "ravenos.instrument.v1",
+          instrument_id: "equity:nasdaq:aapl",
+          symbol: "AAPL",
+          display_name: "Apple Inc.",
+          asset_class: "equity",
+          instrument_type: "equity",
+          identity_scope: "exact_instrument",
+          venue: "nasdaq",
+          chain: "none",
+          market_identity: { market_id: "AAPL", listing: "Nasdaq" },
+          quote_asset: { symbol: "USD" },
+          settlement_asset: { symbol: "USD" },
+          capabilities: { chart: false, quote_preview: false, execution: false },
+        }],
+      }),
+    });
+  });
+  await page.route("**/api/atlas/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, schema_version: "atlas_search_result_v1", query: "AAPL", results: [], groups: {} }),
+  }));
   await page.route("**/api/atlas", (route) => route.fulfill({
     status: 503,
     contentType: "application/json",
@@ -578,7 +616,18 @@ test("an exact listed instrument uses TradingView visual context when native pub
       candles: [],
     }),
   }));
-  await page.goto("/terminal/?asset=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&instrument_type=equity&asset_class=equity&market=equities&timeframe=1h");
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("AAPL");
+  const result = page.locator(".ros-command-result.instrument").filter({ hasText: "AAPL" }).first();
+  await expect(result).toContainText("Exact listing · chart available");
+  const navigation = page.waitForResponse((candidate) => (
+    candidate.request().resourceType() === "document"
+    && new URL(candidate.url()).pathname === "/terminal/"
+  ));
+  await result.click();
+  const response = await navigation;
+  expect(response?.headers()["content-security-policy"]).toContain("frame-src https://www.tradingview-widget.com https://s.tradingview.com");
   await expect(page.locator("#terminalInstrument")).toHaveText("AAPL");
   await expect(page.locator(".terminal-external-chart iframe")).toBeVisible();
   await expect(page.locator("#terminalChart canvas")).toHaveCount(0);
@@ -587,6 +636,7 @@ test("an exact listed instrument uses TradingView visual context when native pub
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   const source = await page.locator(".terminal-external-chart iframe").getAttribute("src");
   expect(decodeURIComponent(source || "")).toContain('"symbol":"NASDAQ:AAPL"');
+  expect(cspErrors).toEqual([]);
 });
 
 test("universal search resolves an exact supported spot pool without a second mode search", async ({ page }) => {
