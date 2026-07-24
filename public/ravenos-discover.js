@@ -534,7 +534,7 @@ function renderParticipationPayoff(value) {
     document.getElementById("discoverPayoffDetail").textContent = "";
     return;
   }
-  document.getElementById("discoverPayoffTitle").textContent = text(payoff.headline, "Where participation is working");
+  document.getElementById("discoverPayoffTitle").textContent = text(payoff.headline, "Participation payoff");
   document.getElementById("discoverPayoffSummary").textContent = text(payoff.summary, "");
   document.getElementById("discoverPayoffWindow").textContent = text(payoff.measurement?.display_window, "Current outcomes");
   document.getElementById("discoverPayoffDetail").textContent = text(

@@ -156,8 +156,8 @@ function opportunityPayload({ withSpot = false } = {}) {
       generated_at: "2026-07-21T12:20:00Z",
       state: "current",
       public_safe: true,
-      headline: "Where participation is working",
-      summary: "Solana cohorts are showing the cleanest follow-through. Solana fresh pairs are strong over six hours, but the 24-hour downside tail remains broad. Ethereum large caps are punishing recent participation.",
+      headline: "Participation payoff",
+      summary: "Solana cohorts are showing the cleanest follow-through. Solana fresh pairs are split: the median held up, but the downside tail remains broad. Ethereum large caps are punishing recent participation.",
       comparison: "Solana cohorts have settled follow-through; Ethereum cohorts and Base cohorts remain mixed.",
       measurement: {
         display_window: "Current outcome windows",
@@ -345,7 +345,8 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
   await expect(page.locator("#discoverMarketState")).toHaveText("Current");
   await expect(page.locator("#discoverPayoff")).toBeVisible();
-  await expect(page.locator("#discoverPayoffSummary")).toContainText("Solana fresh pairs are strong over six hours");
+  await expect(page.locator("#discoverPayoffTitle")).toHaveText("Participation payoff");
+  await expect(page.locator("#discoverPayoffSummary")).toContainText("Solana fresh pairs are split");
   await expect(page.locator("#discoverPayoffStrip article")).toHaveCount(3);
   await expect(page.locator("#discoverPayoffStrip")).toContainText("Solana cohorts");
   await expect(page.locator("#discoverPayoffStrip")).toContainText("6h median +6.6%");

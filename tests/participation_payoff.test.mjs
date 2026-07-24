@@ -85,7 +85,8 @@ test("participation payoff selects mature rewarded and punished surfaces without
     ],
   );
   assert.match(projection.summary, /Solana cohorts are showing the cleanest follow-through/);
-  assert.match(projection.summary, /Solana fresh pairs are strong over six hours, but the 24-hour downside tail remains broad/);
+  assert.equal(projection.headline, "Participation payoff");
+  assert.match(projection.summary, /Solana fresh pairs are split: the median held up, but the downside tail remains broad/);
   assert.match(projection.summary, /Ethereum large caps are punishing recent participation/);
   assert.equal(projection.comparison, "Solana cohorts have settled follow-through; Ethereum cohorts and Base cohorts remain mixed.");
   assert.equal(projection.insights[0].observation_window, "current");
