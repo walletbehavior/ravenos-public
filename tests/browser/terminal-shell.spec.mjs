@@ -20,7 +20,7 @@ test("desktop shell wraps the Terminal without replacing the analytical workspac
   await expect(page.locator(".terminal-continuity")).toHaveCount(0);
   await expect(page.locator("#rosContextSubject")).toHaveText("SOL-PERP");
   const dataState = ((await page.locator("#rosFreshness strong").textContent()) || "").trim();
-  expect(["Live", "Delayed", "Data unavailable"]).toContain(dataState);
+  expect(["Live", "Delayed", "Data unavailable", "Raven read"]).toContain(dataState);
   if (dataState === "Live") await expect(page.locator("#rosFreshness time")).toContainText("UTC");
 
   await page.keyboard.press("Control+K");

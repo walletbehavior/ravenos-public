@@ -148,7 +148,20 @@ button, input, select { font: inherit; }
 .terminal-intelligence #terminalTradeReviewSection { order: 2; }
 .terminal-intelligence #terminalMarkerDetail { order: 3; }
 .terminal-intelligence #terminalContextSection { order: 4; }
-.terminal-intelligence #terminalComparableSection { order: 5; }
+.terminal-intelligence #terminalPlanSection { order: 5; }
+.terminal-intelligence #terminalComparableSection { order: 6; }
+
+.terminal-plan-levels { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 9px 0 0; background: var(--terminal-line); }
+.terminal-plan-levels > div { min-width: 0; padding: 8px; background: #0a1019; }
+.terminal-plan-levels dt { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.terminal-plan-levels dd { margin: 5px 0 0; color: var(--terminal-text); font: 750 11px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-plan-toggle { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: center; margin-top: 9px; padding: 9px; border: 1px solid var(--terminal-line); background: #090e15; cursor: pointer; }
+.terminal-plan-toggle input { width: 16px; height: 16px; accent-color: var(--terminal-accent); }
+.terminal-plan-toggle span,
+.terminal-plan-toggle strong,
+.terminal-plan-toggle small { display: block; min-width: 0; }
+.terminal-plan-toggle strong { color: var(--terminal-text); font-size: 10px; }
+.terminal-plan-toggle small { margin-top: 3px; color: var(--terminal-muted); font-size: 9px; line-height: 1.35; }
 
 .terminal-order-preview { border-color: rgba(143, 164, 186, .28) !important; }
 .terminal-side-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px; }

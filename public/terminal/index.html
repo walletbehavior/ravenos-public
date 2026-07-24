@@ -103,6 +103,7 @@
             <div hidden><dt id="terminalAnatomy4Label"></dt><dd id="terminalAnatomy4"></dd></div>
             <div hidden><dt id="terminalAnatomy5Label"></dt><dd id="terminalAnatomy5"></dd></div>
             <div hidden><dt id="terminalAnatomy6Label"></dt><dd id="terminalAnatomy6"></dd></div>
+            <div hidden><dt id="terminalAnatomy7Label"></dt><dd id="terminalAnatomy7"></dd></div>
           </dl>
           <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
         </section>
@@ -129,6 +130,24 @@
             <div hidden><dt id="terminalPathLabel">Path</dt><dd id="terminalPath"></dd></div>
             <div hidden><dt id="terminalEvidenceMaturityLabel">Evidence</dt><dd id="terminalEvidenceMaturity"></dd></div>
           </dl>
+        </section>
+
+        <section class="terminal-plan-preview" id="terminalPlanSection" hidden>
+          <header>
+            <div><span>Plan preview</span><h2>What similar paths suggest</h2></div>
+            <strong id="terminalPlanState">Research only</strong>
+          </header>
+          <dl class="terminal-plan-levels">
+            <div><dt>Decision reference</dt><dd id="terminalPlanEntry"></dd></div>
+            <div><dt>TP reference</dt><dd id="terminalPlanTarget"></dd></div>
+            <div><dt>SL reference</dt><dd id="terminalPlanRisk"></dd></div>
+            <div><dt>Evidence</dt><dd id="terminalPlanEvidence"></dd></div>
+          </dl>
+          <label class="terminal-plan-toggle">
+            <input id="terminalPlanToggle" type="checkbox" />
+            <span><strong>Show on chart</strong><small>Add these levels to the current chart.</small></span>
+          </label>
+          <p>Based on completed paths for this market. Research only—not personalized targets, stops, or orders.</p>
         </section>
 
         <section id="terminalComparableSection" hidden>

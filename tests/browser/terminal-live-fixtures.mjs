@@ -131,17 +131,21 @@ function contextPayload(asset) {
     schema_version: "ravenos.perp_terminal_context.v1",
     instrument: { instrument_id: `hyperliquid:perp:${coin}`, asset, symbol: coin },
     raven_context: {
+      public_context_id: `context:${coin}:fixture`,
+      instrument_id: `hyperliquid:perp:${coin}`,
       context_available: true,
       context_state: "fresh",
       observed_at: "2026-07-21T12:18:00Z",
+      observed_side: "long",
       behavior_family: asset === "BTC-PERP" ? "Pressure reset" : "Behavioral setup",
       pressure_state: asset === "BTC-PERP" ? "Balanced pressure" : "Mixed pressure",
       current_path: asset === "BTC-PERP" ? "Reset forming" : "Followthrough forming",
+      entry_reference: { price: 148, observed_at: "2026-07-21T12:18:00Z", source: "decision-time mark" },
       outcomes: { evidence_maturity: "matured", sample_size: asset === "BTC-PERP" ? 84 : 128 },
     },
     raven_read: {
       headline: `${asset} · ${asset === "BTC-PERP" ? "Pressure reset" : "Behavioral setup"}`,
-      summary: "A frozen decision observation is joined to this exact venue instrument.",
+      summary: "A timestamped market observation is joined to this exact venue instrument.",
       why_raven_noticed: "Behavior changed while provider-backed pressure remained observable.",
       what_would_strengthen: ["Pressure broadens without immediate fade."],
       what_would_weaken: ["The observed path loses confirmation."],
@@ -154,7 +158,29 @@ function contextPayload(asset) {
       median_adverse_excursion_pct: -1.2,
       matured_through: "2026-07-20T12:00:00Z",
     },
-    plan_preview: { state: "research_only", executable: false },
+    plan_preview: {
+      schema_version: "ravenos.plan_preview.v1",
+      plan_id: `context:${coin}:fixture:plan:v1`,
+      state: "research_only",
+      enabled_by_default: false,
+      opt_in_required: true,
+      instrument_id: `hyperliquid:perp:${coin}`,
+      direction: "long",
+      as_of: "2026-07-21T12:18:00Z",
+      frozen_context_id: `context:${coin}:fixture`,
+      sample_size: asset === "BTC-PERP" ? 84 : 128,
+      evidence_maturity: "matured",
+      levels: {
+        entry_reference: { price: 148, observed_at: "2026-07-21T12:18:00Z", source: "decision-time mark" },
+        target_reference: { price: 152.588, excursion_pct: 3.1, source: "median favorable excursion" },
+        risk_reference: { price: 146.224, excursion_pct: -1.2, source: "median adverse excursion" },
+      },
+      production_qualified: false,
+      personalized: false,
+      executable: false,
+      signing_available: false,
+      submission_available: false,
+    },
     chart_event: {
       event_id: `event:${coin}:fixture`,
       instrument_id: `hyperliquid:perp:${coin}`,
@@ -172,14 +198,30 @@ function contextPayload(asset) {
     },
     market_data: {
       generated_at: "2026-07-21T12:20:00Z",
-      book: { summary: { best_bid: 148.23, best_ask: 148.27, spread_bps: 2.664 } },
+      book: {
+        observed_at: "2026-07-21T12:20:00Z",
+        summary: { best_bid: 148.23, best_ask: 148.27, spread_bps: 2.664 },
+        bids: [{ price: 148.23, notional_usd: 12_000 }, { price: 148.2, notional_usd: 8_000 }],
+        asks: [{ price: 148.27, notional_usd: 10_000 }, { price: 148.3, notional_usd: 7_000 }],
+      },
       components: { market: "fresh", book: "fresh", tape: "fresh" },
+    },
+    chart_overlays: {
+      schema_version: "ravenos.chart_overlays.v1",
+      instrument_id: `hyperliquid:perp:${coin}`,
+      role: "annotation_only",
+      candle_replacement_allowed: false,
+      overlays: [
+        { id: `context:${coin}:fixture:plan:v1:plan-entry`, instrument_id: `hyperliquid:perp:${coin}`, type: "plan-entry", label: "Decision reference", summary: "decision-time mark", severity: "info", priceMin: 148, priceMax: 148, startTime: 1_784_592_000, observed_at: "2026-07-21T12:18:00Z", lineage: { public_context_id: `context:${coin}:fixture` } },
+        { id: `context:${coin}:fixture:plan:v1:plan-target`, instrument_id: `hyperliquid:perp:${coin}`, type: "plan-target", label: "Historical favorable reference", summary: "median favorable excursion", severity: "success", priceMin: 152.588, priceMax: 152.588, startTime: 1_784_592_000, observed_at: "2026-07-21T12:18:00Z", lineage: { public_context_id: `context:${coin}:fixture` } },
+        { id: `context:${coin}:fixture:plan:v1:plan-risk`, instrument_id: `hyperliquid:perp:${coin}`, type: "plan-risk", label: "Historical adverse reference", summary: "median adverse excursion", severity: "danger", priceMin: 146.224, priceMax: 146.224, startTime: 1_784_592_000, observed_at: "2026-07-21T12:18:00Z", lineage: { public_context_id: `context:${coin}:fixture` } },
+      ],
     },
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false } = {}) {
+export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({
@@ -211,6 +253,7 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const perp = asset.endsWith("-PERP");
     const traditional = market === "equities";
     const spotChain = chain || "solana";
+    const quietExactPool = Boolean(pairAddress && quietSpot);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -220,6 +263,21 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
         source: perp ? "Hyperliquid" : traditional ? "Yahoo Finance" : "DexPaprika",
         source_label: perp ? "Live perps market price" : traditional ? "Live market price" : "Exact public pool",
         freshness_state: "fresh",
+        provider_freshness_state: pairAddress ? "current" : null,
+        candle_freshness_state: pairAddress ? quietExactPool ? "delayed" : "current" : null,
+        market_activity_state: pairAddress ? quietExactPool ? "no_recent_trades" : "active" : null,
+        last_candle_at: pairAddress ? "2026-07-21T11:58:00Z" : null,
+        last_candle_age_seconds: pairAddress ? quietExactPool ? 1_320 : 0 : null,
+        market_health: pairAddress ? {
+          schema_version: "ravenos.onchain_market_state.v1",
+          provider_delivery_state: "current",
+          market_snapshot_state: "current",
+          candle_recency_state: quietExactPool ? "delayed" : "current",
+          market_activity_state: quietExactPool ? "no_recent_trades" : "active",
+          chart_state: quietExactPool ? "current_no_recent_trades" : "current",
+          operator_label: quietExactPool ? "No recent trades" : "Current",
+          last_candle_age_seconds: quietExactPool ? 1_320 : 0,
+        } : null,
         timeframe,
         observed_at: "2026-07-21T12:20:00Z",
         market_identity: traditional ? instrumentId : pairAddress ? `${spotChain}:pool:${pairAddress}` : `hyperliquid:perp:${asset.replace(/-PERP$/, "")}`,
@@ -263,6 +321,11 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           pool_age_ms: 180 * 86_400_000,
           holder_distribution: { state: "unavailable", reason: "Private enrichment is not projected." },
           route: { state: spotChain === "solana" ? "review_capability_check_required" : "unavailable", signing_available: false, submission_available: false },
+          provider_freshness_state: "current",
+          candle_freshness_state: quietExactPool ? "delayed" : "current",
+          market_activity_state: quietExactPool ? "no_recent_trades" : "active",
+          last_candle_at: "2026-07-21T11:58:00Z",
+          last_candle_age_seconds: quietExactPool ? 1_320 : 0,
         } : null,
         raven_annotations: pairAddress && spotChain === "solana" ? {
           schema_version: "ravenos.chart_annotations.v1",

@@ -1109,6 +1109,75 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
   }
 });
 
+test("current exact-pool delivery labels an unchanged quiet market separately from candle recency", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const secret = "server-only-quiet-market-secret";
+  const pairAddress = "0xdddddddddddddddddddddddddddddddddddddddd";
+  const tokenAddress = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const quoteAddress = "0xffffffffffffffffffffffffffffffffffffffff";
+  const oldBucket = Math.floor(Date.now() / 60_000) * 60 - 1_800;
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("pro-api.coingecko.com")) {
+        if (!url.includes("/ohlcv/")) {
+          return new Response(JSON.stringify(geckoPoolIdentity({
+            network: "base",
+            pairAddress,
+            baseAddress: tokenAddress,
+            quoteAddress,
+          })), { status: 200 });
+        }
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [
+          [oldBucket, 2, 2.2, 1.9, 2.1, 12],
+          [oldBucket - 60, 1.9, 2.1, 1.8, 2, 10],
+          [oldBucket - 120, 1.8, 2, 1.7, 1.9, 8],
+        ] } } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("dexscreener.com")) {
+        return new Response(JSON.stringify({ pairs: [{
+          chainId: "base",
+          dexId: "aerodrome",
+          pairAddress,
+          baseToken: { address: tokenAddress, symbol: "QUIET", name: "Quiet" },
+          quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+          priceUsd: "2.1",
+          liquidity: { usd: 100_000 },
+          volume: { h24: 4_000 },
+          txns: { h24: { buys: 10, sells: 5 } },
+          pairCreatedAt: Date.now() - 86_400_000,
+        }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=QUIET%2FUSDC&timeframe=1m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: secret,
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.provider_freshness_state, "current");
+    assert.equal(payload.candle_freshness_state, "delayed");
+    assert.equal(payload.market_activity_state, "no_recent_trades");
+    assert.equal(payload.market_health.chart_state, "current_no_recent_trades");
+    assert.equal(payload.market_health.operator_label, "No recent trades");
+    assert.equal(payload.freshness_state, "live");
+    assert.equal(payload.stale, false);
+    assert.equal(payload.market_anatomy.provider_freshness_state, "current");
+    assert.equal(payload.market_anatomy.candle_freshness_state, "delayed");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("Robinhood exact pools use the qualified CoinGecko network without identity substitution", async () => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;

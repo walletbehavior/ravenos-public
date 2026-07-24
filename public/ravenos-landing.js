@@ -50,6 +50,15 @@ function duration(seconds) {
   return `${Math.max(1, minutes)}m`;
 }
 
+function ravenReadTiming(row = {}) {
+  const age = duration(row.context_age_seconds);
+  const contextState = String(row.context_state || "").toLowerCase();
+  if (contextState === "fresh" || contextState === "current") return "New read";
+  if (age) return `Observed ${age} ago`;
+  if (contextState === "stale" || contextState === "delayed") return "Earlier read";
+  return "Raven read";
+}
+
 function validAttentionBenchmark(payload) {
   const benchmark = payload?.census?.attention_benchmark;
   const observation = benchmark?.raven_lead?.observation;
@@ -146,7 +155,7 @@ function renderOpportunityList() {
   for (const row of state.opportunities.slice(0, 5)) {
     const button = document.createElement("button"); button.type = "button"; button.className = "landing-opportunity"; button.dataset.instrumentId = row.instrument_id;
     const copy = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.instrument; const small = document.createElement("small"); small.textContent = customerFacingText(row.why_raven_noticed, "Current Raven observation"); copy.append(strong, small);
-    const freshness = document.createElement("span"); freshness.textContent = title(row.context_state || "current"); button.append(copy, freshness);
+    const freshness = document.createElement("span"); freshness.textContent = ravenReadTiming(row); button.append(copy, freshness);
     button.addEventListener("click", () => selectOpportunity(row)); host.append(button);
   }
 }
@@ -192,7 +201,7 @@ async function loadChart(row) {
     return;
   }
   wrap.dataset.state = chartState.state;
-  setText("landingFreshness", title(chartState.state));
+  setText("landingFreshness", chartState.operatorStateLabel || title(chartState.state));
 }
 
 function selectOpportunity(row) {
@@ -202,13 +211,13 @@ function selectOpportunity(row) {
   setText("landingInstrumentType", "Hyperliquid perpetual / exact contract"); setText("landingInstrument", row.instrument); setText("landingInstrumentId", row.instrument_id);
   setText("landingPrice", price(market.last_price ?? market.lastPrice)); const change = finite(market.day_change_pct ?? market.dayChangePct); setText("landingChange", percent(change));
   const changeNode = document.getElementById("landingChange"); changeNode.classList.toggle("positive", change !== null && change >= 0); changeNode.classList.toggle("negative", change !== null && change < 0);
-  setText("landingVenue", "Hyperliquid"); setText("landingFunding", percent(market.funding_rate ?? market.funding, { ratio: true })); setText("landingOpenInterest", compact(market.open_interest_usd)); setText("landingFreshness", title(row.context_state));
+  setText("landingVenue", "Hyperliquid"); setText("landingFunding", percent(market.funding_rate ?? market.funding, { ratio: true })); setText("landingOpenInterest", compact(market.open_interest_usd)); setText("landingFreshness", "Checking chart");
   const why = customerFacingText(row.why_raven_noticed, "");
   const read = document.querySelector(".landing-read");
   const productGrid = document.querySelector(".landing-product-grid");
   if (read) read.hidden = !why;
   if (productGrid) productGrid.dataset.read = why ? "visible" : "hidden";
-  setText("landingReadState", title(row.context_state, "Current"));
+  setText("landingReadState", ravenReadTiming(row));
   setText("landingWhy", why, "");
   const pressure = title(row.pressure_state);
   const friction = finite(row.market_context?.roundtrip_bps);
@@ -258,7 +267,7 @@ async function boot() {
   const health = healthResult.status === "fulfilled" && healthResult.value.response.ok ? healthResult.value.payload : null;
   const marketState = health?.market_data_health?.state || (state.markets.size ? "live" : "waiting"); const intelligenceState = health?.intelligence_freshness?.state || (state.opportunities.length ? "fresh" : "waiting");
   setText("landingMarketState", `Market ${title(marketState)}`); document.getElementById("landingMarketState").dataset.state = marketState;
-  setText("landingIntelligenceState", `Raven ${title(intelligenceState)}`); document.getElementById("landingIntelligenceState").dataset.state = intelligenceState;
+  setText("landingIntelligenceState", intelligenceState === "delayed" ? "Raven updating" : `Raven ${title(intelligenceState)}`); document.getElementById("landingIntelligenceState").dataset.state = intelligenceState;
   const originCurrent = state.opportunities.length > 0 || Boolean(validAtlas(atlasPayload)?.length); setText("landingOriginState", originCurrent ? "Current opportunities" : "Raven refreshing"); document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "waiting";
   setText("landingGeneratedAt", when(opportunityPayload?.census?.generated_at || atlasPayload?.generated_at), "Updating source time");
   if (state.opportunities[0]) selectOpportunity(state.opportunities[0]);

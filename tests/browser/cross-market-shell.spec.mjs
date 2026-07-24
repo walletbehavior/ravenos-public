@@ -981,8 +981,8 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
   await expect(page.locator("#terminalContextSection")).toBeHidden();
-  await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
-  await expect(page.locator("#terminalAnatomy6")).not.toContainText(/capability|check|required/i);
+  await expect(page.locator("#terminalAnatomy7")).toHaveText("Review unavailable");
+  await expect(page.locator("#terminalAnatomy7")).not.toContainText(/capability|check|required/i);
 });
 
 test("token-name search ranks chartable active pools ahead of unsupported inactive listings", async ({ page }) => {

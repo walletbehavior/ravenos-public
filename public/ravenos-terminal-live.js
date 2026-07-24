@@ -28,6 +28,7 @@ const state = {
   marketPreviewSide: "long",
   marketPreviewGeneration: 0,
   marketPreviewExpiryTimer: null,
+  planOverlayEnabled: false,
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -224,7 +225,7 @@ function setAnatomySlot(index, label, value, { show = hasOperatorValue(value) } 
 
 function setAnatomyRows(rows = []) {
   const useful = rows.filter((row) => row && (row.show ?? hasOperatorValue(row.value)));
-  for (let index = 1; index <= 6; index += 1) {
+  for (let index = 1; index <= 7; index += 1) {
     const row = useful[index - 1];
     setAnatomySlot(index, row?.label || "", row?.value || "", { show: Boolean(row) });
   }
@@ -350,8 +351,17 @@ function renderSourceDetails(workspace = state.workspace?.state || {}) {
   const continuityLabel = continuity.state
     ? `${titleCase(continuity.state)}${gaps ? ` · ${gaps} missing source bucket${gaps === 1 ? "" : "s"}` : ""}${duplicates ? ` · ${duplicates} conflicting duplicate${duplicates === 1 ? "" : "s"}` : ""}`
     : "Not reported by this venue";
-  const age = finite(workspace?.ageSeconds ?? candleAudit.age_seconds);
-  const freshness = workspace?.state || series.freshness_state || candleAudit.freshness_state || "unavailable";
+  const age = finite(workspace?.lastCandleAgeSeconds ?? candleAudit.age_seconds);
+  const providerFreshness = workspace?.providerFreshnessState || "unavailable";
+  const candleFreshness = workspace?.candleFreshnessState || series.freshness_state || candleAudit.freshness_state || workspace?.state || "unavailable";
+  const activity = workspace?.marketActivityState;
+  const activityLabel = activity === "no_recent_trades"
+    ? "no recent trades"
+    : activity === "activity_reported_chart_lagging"
+      ? "chart catching up"
+      : activity === "active"
+        ? "active market"
+        : null;
 
   setText("terminalSourceSummary", "Source details");
   setText("terminalSourceProvider", provider);
@@ -359,7 +369,10 @@ function renderSourceDetails(workspace = state.workspace?.state || {}) {
     ? `${requestedInterval} from complete ${sourceInterval} bars`
     : `${mode} ${sourceInterval} bars`);
   setText("terminalSourceContinuity", continuityLabel);
-  setText("terminalSourceFreshness", `${titleCase(freshness)}${age !== null ? ` · ${durationLabel(age)}` : workspace?.observedAt ? ` · ${timestamp(workspace.observedAt)}` : ""}`);
+  setText(
+    "terminalSourceFreshness",
+    `${providerFreshness === "current" ? "Provider current" : titleCase(providerFreshness)} · ${titleCase(candleFreshness)} candles${age !== null ? ` · last bar ${durationLabel(age)}` : ""}${activityLabel ? ` · ${activityLabel}` : ""}`,
+  );
 }
 
 function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
@@ -394,12 +407,21 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     const marketCap = finite(state.selected?.marketCap);
     const fdv = finite(state.selected?.fdv);
     const routeState = String(anatomy.route?.state || "").toLowerCase();
+    const activityState = String(workspace?.marketActivityState || anatomy.market_activity_state || "").toLowerCase();
+    const activityLabel = activityState === "no_recent_trades"
+      ? "No recent trades"
+      : activityState === "activity_reported_chart_lagging"
+        ? "Chart catching up"
+        : activityState === "active"
+          ? "Active"
+          : null;
     setAnatomyRows([
       { label: "Liquidity", value: compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }) },
       { label: "24h volume", value: compact(anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }) },
       { label: "24h transactions", value: compact(anatomy.transactions_24h ?? state.selected?.txns24h) },
       { label: "Pool age", value: ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs) },
       { label: marketCap !== null ? "Market cap" : "FDV", value: compact(marketCap ?? fdv, { currency: true }) },
+      { label: "Activity", value: activityLabel },
       { label: "Holder distribution", value: holderState },
       {
         label: "Route",
@@ -732,6 +754,46 @@ function renderComparables(comparables = {}) {
   return true;
 }
 
+function resetPlanPreview() {
+  state.planOverlayEnabled = false;
+  const section = document.getElementById("terminalPlanSection");
+  const toggle = document.getElementById("terminalPlanToggle");
+  if (section) section.hidden = true;
+  if (toggle) toggle.checked = false;
+  setText("terminalPlanEntry", "");
+  setText("terminalPlanTarget", "");
+  setText("terminalPlanRisk", "");
+  setText("terminalPlanEvidence", "");
+}
+
+function renderPlanPreview(plan = {}) {
+  const levels = plan?.levels;
+  const sample = Math.max(0, Math.trunc(finite(plan?.sample_size) || 0));
+  if (
+    plan?.schema_version !== "ravenos.plan_preview.v1"
+    || plan?.state !== "research_only"
+    || plan?.executable !== false
+    || plan?.signing_available !== false
+    || plan?.submission_available !== false
+    || !levels
+    || !(finite(levels.entry_reference?.price) > 0)
+    || !(finite(levels.target_reference?.price) > 0)
+    || !(finite(levels.risk_reference?.price) > 0)
+    || sample <= 0
+  ) {
+    resetPlanPreview();
+    return false;
+  }
+  const section = document.getElementById("terminalPlanSection");
+  if (section) section.hidden = false;
+  setText("terminalPlanState", `${titleCase(plan.direction)} · research only`);
+  setText("terminalPlanEntry", formatPrice(levels.entry_reference.price));
+  setText("terminalPlanTarget", `${formatPrice(levels.target_reference.price)} · ${percent(levels.target_reference.excursion_pct)}`);
+  setText("terminalPlanRisk", `${formatPrice(levels.risk_reference.price)} · ${percent(levels.risk_reference.excursion_pct)}`);
+  setText("terminalPlanEvidence", `${sample.toLocaleString()} paths · ${titleCase(plan.evidence_maturity)}`);
+  return true;
+}
+
 function setContextUnavailable() {
   state.context = null;
   setContextControlsVisible(false);
@@ -744,10 +806,12 @@ function setContextUnavailable() {
   setText("terminalWhy", "");
   setText("terminalEvidenceState", "");
   resetComparableEvidence();
+  resetPlanPreview();
 }
 
 function setContextChecking({ identity } = {}) {
   state.context = null;
+  resetPlanPreview();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", identity || "");
   resetComparableEvidence();
@@ -776,6 +840,18 @@ function contextChartEvent(payload) {
 
 function applyContextChartEvent(payload) {
   const event = contextChartEvent(payload);
+  const sourceOverlays = payload?.chart_overlays?.role === "annotation_only"
+    && payload?.chart_overlays?.candle_replacement_allowed === false
+    && payload?.chart_overlays?.instrument_id === payload?.instrument?.instrument_id
+    && Array.isArray(payload?.chart_overlays?.overlays)
+    ? payload.chart_overlays.overlays
+    : [];
+  const overlays = sourceOverlays.filter((overlay) => (
+    !String(overlay?.type || "").startsWith("plan-") || state.planOverlayEnabled
+  ));
+  const visibleOverlayTypes = state.planOverlayEnabled
+    ? ["plan-entry", "plan-target", "plan-risk"]
+    : [];
   state.workspace?.render?.({
     asset: state.selected?.asset,
     market: "perp",
@@ -783,8 +859,8 @@ function applyContextChartEvent(payload) {
     chain: "hyperliquid",
     timeframe: state.timeframe,
     events: event ? [event] : [],
-    overlays: [],
-    visibleOverlayTypes: [],
+    overlays,
+    visibleOverlayTypes,
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
@@ -831,6 +907,7 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   setText("terminalEvidenceState", `${observationLabel} · ${deliveryLabel}`);
   setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderComparables(payload?.matured_comparables || {});
+  renderPlanPreview(payload?.plan_preview || {});
   applyContextChartEvent(payload);
   renderMarketAnatomy();
   updateShell({
@@ -842,11 +919,12 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
     contradicting: Array.isArray(read.what_would_weaken) ? read.what_would_weaken : [],
     evidenceState: context.outcomes?.evidence_maturity || "forming",
     freshnessState: delivery.freshness_state || "data_unavailable",
+    freshnessLabel: "Raven read",
     observedAt: context.observed_at || payload?.market_data?.generated_at || null,
   }, { updateUrl });
 }
 
-function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, observedAt }, { updateUrl = true } = {}) {
+function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, freshnessLabel = "", observedAt }, { updateUrl = true } = {}) {
   ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const hasIntelligence = Boolean(
     hasOperatorValue(thesis)
@@ -875,7 +953,7 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
     timeHorizon: state.timeframe,
     confidence: { label: evidenceState || "market_data_only" },
     evidenceQuality: { state: evidenceState || "market_data_only", lineageComplete: Boolean(state.context?.raven_context?.context_available || state.context?.atlas_context?.context_available) },
-    freshness: { state: freshnessState || "data_unavailable", observedAt },
+    freshness: { state: freshnessState || "data_unavailable", label: freshnessLabel, observedAt },
     nextExpectedTransition: hasIntelligence
       ? state.lane === "perps"
         ? "Watch for the next market or evidence transition."
@@ -1130,6 +1208,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
       setup: "",
       evidenceState: "",
       freshnessState: chartState?.state || "data_unavailable",
+      freshnessLabel: chartState?.operatorStateLabel || "Market data",
       observedAt: chartState?.observedAt || row.observed_at,
     }, { updateUrl });
   }
@@ -1315,6 +1394,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
     setup: "",
     evidenceState: "",
     freshnessState: chartState?.state || "data_unavailable",
+    freshnessLabel: chartState?.operatorStateLabel || "",
     observedAt: chartState?.observedAt || row.lastUpdated,
   }, { updateUrl });
 }
@@ -1552,6 +1632,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} market data is degraded.`) : [],
     evidenceState: atlasRow ? "atlas_context" : "",
     freshnessState: atlasRow ? state.atlas?.freshness?.state === "fresh" ? "live" : "delayed" : visualChart ? "visual_context" : chartState?.state || "data_unavailable",
+    freshnessLabel: atlasRow ? "Atlas context" : visualChart ? "Chart context" : chartState?.operatorStateLabel || "",
     observedAt: atlasRow ? selectedRow.observed_at || state.atlas?.generated_at : chartState?.observedAt,
   }, { updateUrl });
 }
@@ -1763,13 +1844,18 @@ function bindControls() {
     if (event.key === "Enter") void requestMarketPreview();
   });
   document.getElementById("terminalPreviewLeverage")?.addEventListener("change", () => requestMarketPreview());
+  document.getElementById("terminalPlanToggle")?.addEventListener("change", (event) => {
+    state.planOverlayEnabled = event.target.checked === true;
+    if (state.context) applyContextChartEvent(state.context);
+  });
 }
 
 function renderWorkspaceState(workspace = {}) {
   const workspaceState = workspace?.state || "unavailable";
-  setState("terminalMarketFreshness", workspaceState, titleCase(workspaceState));
+  const operatorState = workspace?.operatorStateLabel || titleCase(workspaceState);
+  setState("terminalMarketFreshness", workspaceState, operatorState);
   setText("terminalChartStatus", workspace?.candles?.length
-    ? `${workspace.candles.length.toLocaleString()} provider-backed bars · ${titleCase(workspace.connectionState)}`
+    ? `${workspace.candles.length.toLocaleString()} provider-backed bars · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade bar ${durationLabel(workspace.lastCandleAgeSeconds)}` : titleCase(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState));
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);
@@ -1785,7 +1871,13 @@ function renderWorkspaceState(workspace = {}) {
         ? "Market feed connecting"
         : "Market data available";
   boundary.dataset.state = workspaceState;
-  boundary.querySelector("strong").textContent = workspaceState === "live" ? liveLabel : titleCase(workspaceState);
+  boundary.querySelector("strong").textContent = workspace?.marketActivityState === "no_recent_trades"
+    ? "Market current · no recent trades"
+    : workspaceState === "live"
+      ? liveLabel
+      : workspaceState === "delayed"
+        ? "Chart delayed"
+        : titleCase(workspaceState);
 }
 
 function bindWorkspaceEvents() {

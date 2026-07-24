@@ -19,6 +19,9 @@
     "regime-marker": { label: "Risk", color: "#c4a05c" },
     "liquidity-zone": { label: "Risk", color: "#c4a05c" },
     "participant-shift": { label: "Participation", color: "#68a585" },
+    "plan-entry": { label: "Entry reference", color: "#8da6b8" },
+    "plan-target": { label: "Favorable reference", color: "#3fa675" },
+    "plan-risk": { label: "Adverse reference", color: "#d96070" },
   };
 
   const OVERLAY_RENDERER_REGISTRY = {
@@ -29,17 +32,23 @@
     "regime-marker": { renderAs: "marker" },
     "liquidity-zone": { renderAs: "price-region" },
     "participant-shift": { renderAs: "marker" },
+    "plan-entry": { renderAs: "price-region" },
+    "plan-target": { renderAs: "price-region" },
+    "plan-risk": { renderAs: "price-region" },
   };
 
-  const RAVEN_OVERLAY_GROUPS = ["Flow", "Structure", "Participants", "History", "Risk"];
+  const RAVEN_OVERLAY_GROUPS = ["Raven", "Actors", "Liquidity", "Structure", "Risk", "Trade path"];
   const RAVEN_OVERLAY_LIBRARY = [
-    { id: "pressure", label: "Pressure", group: "Flow", keys: ["pressure", "pressure-zone"] },
-    { id: "liquidity", label: "Liquidity", group: "Flow", keys: ["liquidity-zone"] },
+    { id: "pressure", label: "Pressure", group: "Raven", keys: ["pressure", "pressure-zone"] },
+    { id: "liquidity", label: "Book liquidity", group: "Liquidity", keys: ["liquidity-zone"] },
     { id: "structure", label: "Structure", group: "Structure", keys: ["structure"] },
     { id: "compression", label: "Compression", group: "Structure", keys: ["compression-band"] },
-    { id: "participants", label: "Participants", group: "Participants", keys: ["participation", "participant-shift", "breadth-line"] },
-    { id: "similar-history", label: "Similar history", group: "History", keys: ["replay", "history-window"] },
+    { id: "participants", label: "Participants", group: "Actors", keys: ["participation", "participant-shift", "breadth-line"] },
+    { id: "similar-history", label: "Similar history", group: "Raven", keys: ["replay", "history-window"] },
     { id: "risk", label: "Risk", group: "Risk", keys: ["risk", "regime-marker"] },
+    { id: "plan-entry", label: "Entry reference", group: "Trade path", keys: ["plan-entry"] },
+    { id: "plan-target", label: "Favorable reference", group: "Trade path", keys: ["plan-target"] },
+    { id: "plan-risk", label: "Adverse reference", group: "Trade path", keys: ["plan-risk"] },
   ];
 
   function overlayType(type) {
@@ -261,19 +270,36 @@
   }
 
   function showTooltip(tooltip, chartHost, overlay) {
+    tooltip.replaceChildren();
     const read = overlay.raven_read;
     if (read) {
       const modeLabel = OVERLAY_META[read.mode]?.label || read.mode || "Raven";
       const shortLabel = String(read.short_label || read.title || "context").replace(/\s+/g, " ");
       const status = [read.status, read.confidence].filter(Boolean).join(" · ") || "forming";
-      tooltip.innerHTML = `
-        <span style="display:block;color:#8f9db2;font-size:10px;font-weight:850;text-transform:uppercase;margin-bottom:3px">${modeLabel}</span>
-        <strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${shortLabel}</strong>
-        <span style="display:block;color:#b6c2d2">${status}</span>`;
+      const mode = document.createElement("span");
+      mode.textContent = modeLabel;
+      Object.assign(mode.style, { display: "block", color: "#8f9db2", fontSize: "10px", fontWeight: "850", textTransform: "uppercase", marginBottom: "3px" });
+      const title = document.createElement("strong");
+      title.textContent = shortLabel;
+      Object.assign(title.style, { display: "block", color: colorFor(overlay), marginBottom: "4px" });
+      const state = document.createElement("span");
+      state.textContent = status;
+      Object.assign(state.style, { display: "block", color: "#b6c2d2" });
+      tooltip.append(mode, title, state);
     } else {
       const title = overlay.label || OVERLAY_META[overlayType(overlay.type)]?.label || "Overlay";
-      const score = Number.isFinite(Number(overlay.value)) ? `<div style="color:#8f9db2;margin-top:4px">Score ${Math.round(Number(overlay.value))}</div>` : "";
-      tooltip.innerHTML = `<strong style="display:block;color:${colorFor(overlay)};margin-bottom:4px">${title}</strong><span>${overlay.summary || ""}</span>${score}`;
+      const titleNode = document.createElement("strong");
+      titleNode.textContent = title;
+      Object.assign(titleNode.style, { display: "block", color: colorFor(overlay), marginBottom: "4px" });
+      const summary = document.createElement("span");
+      summary.textContent = overlay.summary || "";
+      tooltip.append(titleNode, summary);
+      if (Number.isFinite(Number(overlay.value))) {
+        const score = document.createElement("div");
+        score.textContent = `Score ${Math.round(Number(overlay.value))}`;
+        Object.assign(score.style, { color: "#8f9db2", marginTop: "4px" });
+        tooltip.append(score);
+      }
     }
     tooltip.style.left = "8px";
     tooltip.style.top = "8px";
@@ -452,6 +478,7 @@
     const readTranslator = window.RavenReads?.translateOverlayToRavenRead;
     const enrichedOverlays = overlays.map((overlay) => {
       if (overlay.raven_read) return overlay;
+      if (String(overlay.type || "").startsWith("plan-")) return overlay;
       if (typeof readTranslator !== "function") return overlay;
       try {
         return { ...overlay, raven_read: readTranslator(overlay, context) };
@@ -675,24 +702,25 @@
     visibleOverlays()
       .filter((overlay) => Number.isFinite(Number(overlay.priceMin)) || Number.isFinite(Number(overlay.priceMax)))
       .forEach((overlay) => {
+        const isPlan = String(overlay.type || "").startsWith("plan-");
         if (Number.isFinite(Number(overlay.priceMin))) {
           candleSeries.createPriceLine({
             price: Number(overlay.priceMin),
             color: colorFor(overlay),
-            lineWidth: 1,
+            lineWidth: isPlan ? 2 : 1,
             lineStyle: api.LineStyle?.Dotted || 1,
-            axisLabelVisible: false,
-            title: "",
+            axisLabelVisible: isPlan,
+            title: isPlan ? overlay.label || "" : "",
           });
         }
-        if (Number.isFinite(Number(overlay.priceMax))) {
+        if (Number.isFinite(Number(overlay.priceMax)) && Number(overlay.priceMax) !== Number(overlay.priceMin)) {
           candleSeries.createPriceLine({
             price: Number(overlay.priceMax),
             color: colorFor(overlay),
-            lineWidth: 1,
+            lineWidth: isPlan ? 2 : 1,
             lineStyle: api.LineStyle?.Dotted || 1,
-            axisLabelVisible: false,
-            title: "",
+            axisLabelVisible: isPlan,
+            title: isPlan ? overlay.label || "" : "",
           });
         }
       });
@@ -890,6 +918,9 @@
           height: rect.height,
           canvas_count: chartHost.querySelectorAll("canvas").length,
           marker_count: markers.length,
+          available_overlay_count: enrichedOverlays.length,
+          active_overlay_count: visibleOverlays().length,
+          active_overlay_types: Array.from(activeTypes),
           price_axis: {
             side: scaleContract.side,
             visible: scaleContract.visible,

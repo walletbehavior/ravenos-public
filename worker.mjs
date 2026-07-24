@@ -63,6 +63,7 @@ import {
   deriveCompleteCandleInterval,
   validateExactCandleIdentity,
 } from "./lib/chart_continuity.mjs";
+import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
@@ -1446,6 +1447,9 @@ async function fetchDexPaprikaPoolCandles({ env = {}, chain = "", pairAddress = 
           coverage: delayed ? "Delayed" : "Live",
           stale: delayed,
           freshness_state: delayed ? "delayed" : "live",
+          provider_freshness_state: "current",
+          candle_freshness_state: delayed ? "delayed" : "current",
+          market_activity_state: "unavailable",
           timeframe,
           updated_at: fetchedAt,
           observed_at: fetchedAt,
@@ -2602,6 +2606,27 @@ async function terminalChartPayload({
           fully_diluted_value: pair.fdv,
           pool_age_ms: pair.pairAgeMs,
         };
+        const marketHealth = classifyOnchainMarketState({
+          providerRequestSucceeded: true,
+          lastCandleAgeSeconds: payload.last_candle_age_seconds,
+          intervalSeconds: timeframeSeconds(payload.timeframe || timeframe),
+          lastCandleClose: payload.candles?.at(-1)?.close,
+          snapshotPrice: pair?.priceUsd,
+          transactions24h: pair?.txns24h,
+        });
+        payload.market_health = marketHealth;
+        payload.provider_freshness_state = marketHealth.provider_delivery_state;
+        payload.candle_freshness_state = marketHealth.candle_recency_state;
+        payload.market_activity_state = marketHealth.market_activity_state;
+        if (marketHealth.chart_state === "current_no_recent_trades") {
+          payload.freshness_state = "live";
+          payload.stale = false;
+          payload.coverage = "Current · no recent trades";
+        } else if (marketHealth.chart_state === "delayed") {
+          payload.freshness_state = "delayed";
+          payload.stale = true;
+          payload.coverage = "Chart delayed";
+        }
       }
       payload.market_anatomy = {
         schema_version: "ravenos.market_anatomy.v1",
@@ -2625,6 +2650,11 @@ async function terminalChartPayload({
         source_interval: payload.candle_series?.source_interval || payload.timeframe || null,
         derivation_state: payload.candle_series?.derivation?.state || null,
         freshness_state: payload.freshness_state || "unavailable",
+        provider_freshness_state: payload.provider_freshness_state || "unavailable",
+        candle_freshness_state: payload.candle_freshness_state || "unavailable",
+        market_activity_state: payload.market_activity_state || "unavailable",
+        last_candle_at: payload.last_candle_at || null,
+        last_candle_age_seconds: payload.last_candle_age_seconds ?? null,
         continuity_state: payload.continuity?.state || "unavailable",
       };
       return payload;

@@ -56,6 +56,17 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalReadHeadline")).toContainText("SOL-PERP · Behavioral setup");
   await expect(page.locator("#terminalWhy")).toContainText("Behavior changed");
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
+  await expect(page.locator("#terminalPlanSection")).toBeVisible();
+  await expect(page.locator("#terminalPlanEntry")).toContainText("$148");
+  await expect(page.locator("#terminalPlanTarget")).toContainText("+3.10%");
+  await expect(page.locator("#terminalPlanRisk")).toContainText("-1.20%");
+  await expect(page.locator("#terminalPlanToggle")).not.toBeChecked();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  await page.locator("#terminalPlanToggle").check();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["plan-entry", "plan-target", "plan-risk"]);
   await expect(page.locator("#terminalEvidenceState")).toContainText(/Current observation · current feed/i);
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Open interest");
   await expect(page.locator("#terminalAnatomy1")).toContainText("192M");
@@ -357,7 +368,7 @@ test("spot search loads only the selected exact pool and does not infer Raven co
     [1, 2, 3, 4, 5].map((index) => page.locator(`#terminalAnatomy${index}`).textContent()),
   );
   expect(anatomyFacts.join(" ")).not.toMatch(/Unavailable|Not projected/i);
-  await expect(page.locator("#terminalAnatomy6")).toHaveText("Review unavailable");
+  await expect(page.locator("#terminalAnatomy7")).toHaveText("Review unavailable");
   await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token-address:fixture-quote-address");
   await page.locator("#terminalSourceDetail > summary").click();
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
@@ -380,6 +391,21 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
+});
+
+test("a quiet exact pool stays current without presenting an old candle as a site-wide delay", async ({ page }) => {
+  await mockTerminalLiveApis(page, { quietSpot: true });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page);
+  await openExactSpotSearch(page, "JUP");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator("#terminalMarketFreshness")).toHaveText("No recent trades");
+  await expect(page.locator("#terminalSourceFreshness")).toContainText("Provider current");
+  await expect(page.locator("#terminalSourceFreshness")).toContainText("Delayed candles");
+  await expect(page.locator("#terminalSourceFreshness")).toContainText("no recent trades");
+  await expect(page.locator("#rosFreshness strong")).toHaveText("No recent trades");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Market current · no recent trades");
 });
 
 test("spot scope controls never cover the OHLCV candle inspector", async ({ page }) => {

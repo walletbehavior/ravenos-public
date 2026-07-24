@@ -455,7 +455,7 @@ export class PriceWorkspace {
   }
 
   paintState() {
-    const label = STATE_LABELS[this.state.state] || "Data unavailable";
+    const label = this.state.operatorStateLabel || STATE_LABELS[this.state.state] || "Data unavailable";
     this.root.dataset.priceWorkspaceState = this.state.state;
     this.container.querySelector("[data-rpw-state]").textContent = label;
     this.container.querySelector("[data-rpw-source]").textContent = this.state.source || "No provider selected";
@@ -608,6 +608,13 @@ export class PriceWorkspace {
       providerSelection: null,
       providerUsage: null,
       marketAnatomy: null,
+      marketHealth: null,
+      operatorStateLabel: null,
+      providerFreshnessState: null,
+      candleFreshnessState: null,
+      marketActivityState: null,
+      lastCandleAt: null,
+      lastCandleAgeSeconds: null,
     });
     if (request.demo === true) {
       const candles = normalizeCandles(request.demoCandles);
@@ -682,6 +689,13 @@ export class PriceWorkspace {
         providerSelection: payload.provider_selection || null,
         providerUsage: payload.provider_usage || null,
         marketAnatomy: payload.market_anatomy || null,
+        marketHealth: payload.market_health || null,
+        operatorStateLabel: payload.market_health?.operator_label || null,
+        providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || null,
+        candleFreshnessState: payload.candle_freshness_state || payload.market_health?.candle_recency_state || null,
+        marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || null,
+        lastCandleAt: payload.last_candle_at || null,
+        lastCandleAgeSeconds: finite(payload.last_candle_age_seconds),
       });
       this.renderInput = {
         ...this.renderInput,
