@@ -84,20 +84,7 @@ function terminalHref(row) {
   }
   if (row.source_type === "raven_spot_attention") {
     if (row.identity_scope !== "exact_pool" || !row.pool_address) return "#";
-    const params = new URLSearchParams({
-      asset: text(row.symbol, ""),
-      instrument_id: `solana:pool:${row.pool_address}`,
-      instrument_type: "exact_pool",
-      asset_class: "crypto",
-      identity_scope: "exact_pool",
-      chain: "solana",
-      venue: text(row.venue, ""),
-      market: "spot",
-      cash: "USDC",
-      numeraire: "USDC",
-      timeframe: "15m",
-    });
-    return `/terminal/?${params.toString()}`;
+    return spotPoolHref(row);
   }
   const params = new URLSearchParams({
     asset: text(row.instrument, ""),
@@ -115,6 +102,127 @@ function terminalHref(row) {
     timeframe: "1h",
   });
   return `/terminal/?${params.toString()}`;
+}
+
+function spotPoolHref(row, timeframe = "1m") {
+  const chain = text(row.chainId || row.chain, "solana").toLowerCase();
+  const pairAddress = text(row.pairAddress || row.pool_address, "");
+  const symbol = text(row.symbol, "");
+  const quote = text(row.quoteSymbol, "");
+  if (!pairAddress) return "#";
+  const params = new URLSearchParams({
+    asset: quote ? `${symbol}/${quote}` : symbol,
+    instrument_id: `${chain}:pool:${pairAddress}`,
+    instrument_type: "exact_pool",
+    asset_class: "crypto",
+    identity_scope: "exact_pool",
+    chain,
+    venue: text(row.dexId || row.venue, ""),
+    market: "spot",
+    quote,
+    settlement: quote,
+    cash: "USDC",
+    numeraire: "USDC",
+    timeframe,
+  });
+  return `/terminal/?${params.toString()}`;
+}
+
+function sameTokenAddress(chain, left, right) {
+  const expected = String(left || "").trim();
+  const actual = String(right || "").trim();
+  if (!expected || !actual) return false;
+  return chain === "solana" ? expected === actual : expected.toLowerCase() === actual.toLowerCase();
+}
+
+function exactChartCandidates(row, results = []) {
+  const chain = text(row.chain, "solana").toLowerCase();
+  const tokenAddress = text(row.token_address, "");
+  return results
+    .filter((candidate) => {
+      const candidateChain = text(candidate.chainId, "").toLowerCase();
+      const coverage = candidate.chart_coverage || {};
+      return candidateChain === chain
+        && sameTokenAddress(chain, tokenAddress, candidate.tokenAddress)
+        && text(candidate.pairAddress, "") !== ""
+        && finite(candidate.liquidityUsd) > 0
+        && coverage.state !== "unavailable"
+        && coverage.one_minute_request_supported !== false;
+    })
+    .sort((left, right) => {
+      const liquidity = (finite(right.liquidityUsd) || 0) - (finite(left.liquidityUsd) || 0);
+      if (liquidity) return liquidity;
+      const volume = (finite(right.volume24h) || 0) - (finite(left.volume24h) || 0);
+      if (volume) return volume;
+      const transactions = (finite(right.txns24h) || 0) - (finite(left.txns24h) || 0);
+      if (transactions) return transactions;
+      return text(left.pairAddress, "").localeCompare(text(right.pairAddress, ""));
+    });
+}
+
+async function chartCandidateWorks(candidate) {
+  const params = new URLSearchParams({
+    market: "crypto_spot",
+    asset: `${text(candidate.symbol, "TOKEN")}/${text(candidate.quoteSymbol, "QUOTE")}`,
+    timeframe: "1m",
+    limit: "240",
+    chain: text(candidate.chainId, ""),
+    pair_address: text(candidate.pairAddress, ""),
+    token_address: text(candidate.tokenAddress, ""),
+    quote_address: text(candidate.quoteTokenAddress, ""),
+    instrument_scope: "exact_pool",
+  });
+  const { response, payload } = await json(`/api/terminal/chart?${params.toString()}`);
+  const expectedChain = text(candidate.chainId, "").toLowerCase();
+  const exactPair = text(payload?.pair_address || payload?.instrument?.pair_address, "");
+  const exactToken = text(payload?.token_address || payload?.instrument?.token_address, "");
+  return response.ok
+    && payload?.ok === true
+    && Array.isArray(payload.candles)
+    && payload.candles.length > 0
+    && sameTokenAddress(expectedChain, candidate.pairAddress, exactPair)
+    && sameTokenAddress(expectedChain, candidate.tokenAddress, exactToken);
+}
+
+async function resolveSpotChart(row) {
+  const { response, payload } = await json(`/api/dexscreener/search?q=${encodeURIComponent(text(row.token_address, ""))}`);
+  if (!response.ok || !Array.isArray(payload?.results)) return null;
+  const candidates = exactChartCandidates(row, payload.results);
+  for (const candidate of candidates.slice(0, 3)) {
+    try {
+      if (await chartCandidateWorks(candidate)) return candidate;
+    } catch {
+      // Try the next exact market. No alternate token or aggregate chart is allowed.
+    }
+  }
+  return null;
+}
+
+function setSpotLinkPending(anchor, pending) {
+  anchor.toggleAttribute("aria-busy", pending);
+  if (pending) anchor.dataset.chartResolving = "true";
+  else delete anchor.dataset.chartResolving;
+  const label = anchor.querySelector(".discover-open");
+  if (label) label.textContent = pending ? "Opening chart…" : "Open chart";
+  const leaderLabel = anchor.querySelector(".discover-spot-leader-open");
+  if (leaderLabel) leaderLabel.textContent = pending ? "…" : "→";
+}
+
+function configureSpotLink(anchor, row) {
+  anchor.href = terminalHref(row);
+  if (anchor.getAttribute("href") !== "#") return;
+  anchor.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (anchor.dataset.chartResolving === "true") return;
+    setSpotLinkPending(anchor, true);
+    const exactPool = await resolveSpotChart(row).catch(() => null);
+    if (exactPool) {
+      ravenOSContext.navigate(spotPoolHref(exactPool, "1m"));
+      return;
+    }
+    setSpotLinkPending(anchor, false);
+    window.RavenOSShell?.openCommandPalette?.(row.token_address);
+  });
 }
 
 function append(node, tag, className, value) {
@@ -255,15 +363,6 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
   return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
 }
 
-function configureSpotLink(anchor, row) {
-  anchor.href = terminalHref(row);
-  if (anchor.getAttribute("href") !== "#") return;
-  anchor.addEventListener("click", (event) => {
-    event.preventDefault();
-    window.RavenOSShell?.openCommandPalette?.(row.token_address);
-  });
-}
-
 function spotLeaderRows(kind) {
   const current = state.spotRows.filter((row) => {
     const age = finite(row.age_seconds);
@@ -333,7 +432,7 @@ function createSpotLeaderRow(row, kind, index) {
       spotMetric(row, "volume_usd") === null ? null : `${compact(spotMetric(row, "volume_usd"), { currency: true })} vol`,
     ].filter(Boolean).join(" · "));
   }
-  append(anchor, "span", "discover-spot-leader-open", row.identity_scope === "exact_pool" ? "→" : "⌕");
+  append(anchor, "span", "discover-spot-leader-open", "→");
   return anchor;
 }
 
@@ -391,7 +490,7 @@ function createOpportunityRow(row) {
     : spot
       ? row.identity_scope === "exact_pool"
         ? `${text(row.venue, "Spot market")} · exact pool`
-        : "Exact token · choose pool"
+        : "Exact token · opens chart directly"
       : "Hyperliquid · exact perpetual");
 
   const thesis = append(anchor, "div", "discover-thesis", "");
@@ -429,7 +528,7 @@ function createOpportunityRow(row) {
       ? spotAnatomy(row)
       : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);
 
-  append(anchor, "span", "discover-open", spot && row.identity_scope !== "exact_pool" ? "Choose market" : "Inspect");
+  append(anchor, "span", "discover-open", spot ? "Open chart" : "Inspect");
   return anchor;
 }
 

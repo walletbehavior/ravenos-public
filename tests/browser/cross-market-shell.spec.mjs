@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { mockTerminalLiveApis, ROBINHOOD_CONTRACT } from "./terminal-live-fixtures.mjs";
+import { mockTerminalLiveApis, ROBINHOOD_CONTRACT, waitForTerminalLive } from "./terminal-live-fixtures.mjs";
 
 const markets = [
   {
@@ -327,27 +327,70 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
 
-test("Discover surfaces exact-token movement and never silently chooses an unresolved pool", async ({ page }) => {
+test("Discover resolves an exact-token movement directly to its best chartable pool", async ({ page }) => {
+  const resolvedPool = {
+    chainId: "solana",
+    dexId: "raydium",
+    pairAddress: "44444444444444444444444444444444",
+    tokenAddress: spotTokenOnlyAddress,
+    quoteTokenAddress: "55555555555555555555555555555555",
+    symbol: "BIRD",
+    name: "Bird",
+    quoteSymbol: "USDC",
+    priceUsd: 0.0008,
+    liquidityUsd: 41_000,
+    volume24h: 920_000,
+    txns24h: 1_260,
+    marketCap: 480_000,
+    priceChange24h: 18,
+    lastUpdated: "2026-07-21T12:20:00Z",
+    chart_coverage: {
+      schema_version: "ravenos.search_chart_coverage.v1",
+      state: "probe_required",
+      one_minute_request_supported: true,
+      one_hour_request_supported: true,
+    },
+  };
+  await mockTerminalLiveApis(page);
   await mockWorkspaceApis(page, {
     withSpot: true,
     spotSearchResults: [{
+      ...resolvedPool,
+      pairAddress: "66666666666666666666666666666666",
+      tokenAddress: "77777777777777777777777777777777",
+      symbol: "BIRD",
+      name: "Bird lookalike",
+      liquidityUsd: 5_000_000,
+    }, resolvedPool, {
       chainId: "solana",
-      dexId: "raydium",
-      pairAddress: "44444444444444444444444444444444",
+      dexId: "meteora",
+      pairAddress: "88888888888888888888888888888888",
       tokenAddress: spotTokenOnlyAddress,
-      quoteTokenAddress: "55555555555555555555555555555555",
+      quoteTokenAddress: "99999999999999999999999999999999",
       symbol: "BIRD",
       name: "Bird",
       quoteSymbol: "USDC",
       priceUsd: 0.0008,
-      liquidityUsd: 41_000,
-      volume24h: 920_000,
-      txns24h: 1_260,
+      liquidityUsd: 12_000,
+      volume24h: 240_000,
+      txns24h: 510,
       marketCap: 480_000,
       priceChange24h: 18,
       lastUpdated: "2026-07-21T12:20:00Z",
+      chart_coverage: {
+        schema_version: "ravenos.search_chart_coverage.v1",
+        state: "probe_required",
+        one_minute_request_supported: true,
+        one_hour_request_supported: true,
+      },
     }],
   });
+  await page.unroute("**/api/dexscreener/pair**");
+  await page.route("**/api/dexscreener/pair**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, results: [resolvedPool] }),
+  }));
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(3);
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
@@ -373,17 +416,21 @@ test("Discover surfaces exact-token movement and never silently chooses an unres
   await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven recorded this market 20m before broader attention appeared");
   await expect(spotRows.filter({ hasText: "RETIRE" })).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotPoolAddress}`));
   const tokenOnly = spotRows.filter({ hasText: "BIRD" });
-  await expect(tokenOnly).toContainText("Choose market");
+  await expect(tokenOnly).toContainText("Open chart");
+  await expect(tokenOnly).toContainText("opens chart directly");
   await expect(tokenOnly).toHaveAttribute("href", "#");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toBeVisible();
   await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toContainText("20m before broader attention");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
-  await tokenOnly.click();
-  await expect(page.locator("#rosCommandPalette")).toBeVisible();
-  await expect(page.locator("#rosCommandInput")).toHaveValue(spotTokenOnlyAddress);
-  await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "BIRD/USDC" })).toBeVisible();
+  await page.locator("#discoverVelocityLeaders .discover-spot-leader").first().click();
+  await page.waitForURL((url) => url.pathname === "/terminal/"
+    && url.searchParams.get("instrument_id") === `solana:pool:${resolvedPool.pairAddress}`
+    && url.searchParams.get("timeframe") === "1m");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "BIRD/USDC", timeframe: "1m" });
+  await expect(page.locator("#rosCommandPalette")).not.toBeVisible();
+  expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   await expect(page.locator("body")).not.toContainText(/comparison source|provider payload|wallet address/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
