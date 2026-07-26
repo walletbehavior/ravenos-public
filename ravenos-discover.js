@@ -187,7 +187,6 @@ function exactChartCandidates(row, results = []) {
       return candidateChain === chain
         && sameTokenAddress(chain, tokenAddress, candidate.tokenAddress)
         && text(candidate.pairAddress, "") !== ""
-        && finite(candidate.liquidityUsd) > 0
         && coverage.state !== "unavailable"
         && coverage.one_minute_request_supported !== false;
     })
