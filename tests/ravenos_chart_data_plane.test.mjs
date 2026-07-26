@@ -626,6 +626,76 @@ test("DexPaprika discovery resolves the supplied Robinhood Chain contract when D
   }
 });
 
+test("token-tape metadata is batched, exact-address bound, and strips unsafe provider fields", async () => {
+  const originalFetch = globalThis.fetch;
+  const firstAddress = "4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP";
+  const secondAddress = "7YttLkHDoV4WL7Bq5JrM7hh7sQEJPAjW5DDr9gWjTnUQ";
+  let providerCalls = 0;
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      assert.match(url, /token-pairs|tokens\/v1/);
+      providerCalls += 1;
+      return new Response(JSON.stringify([
+        {
+          chainId: "solana",
+          dexId: "meteora",
+          pairAddress: "7nZP2q2w6Kc3yYF4tQ8rR1vV5bD9mA2pE6uH3xJ8sL4N",
+          baseToken: { address: firstAddress, name: "First Token", symbol: "FIRST" },
+          quoteToken: { address: "So11111111111111111111111111111111111111112", name: "Wrapped SOL", symbol: "SOL" },
+          liquidity: { usd: 82_000 },
+          info: {
+            imageUrl: "https://cdn.dexscreener.com/cms/images/first-token?width=200",
+            websites: [{ url: "https://private-provider-payload.example" }],
+            socials: [{ type: "twitter", url: "https://social.example/first" }],
+          },
+        },
+        {
+          chainId: "solana",
+          dexId: "raydium",
+          pairAddress: "8pM1yR7sW2uD5vF9bK3nT6cH4qJ8xL2eA7gZ1mV5oP9Q",
+          baseToken: { address: secondAddress, name: "Second Token", symbol: "SECOND" },
+          quoteToken: { address: "So11111111111111111111111111111111111111112", name: "Wrapped SOL", symbol: "SOL" },
+          liquidity: { usd: 41_000 },
+          info: { imageUrl: "https://tracking.example/token.png" },
+        },
+      ]), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/onchain/token-metadata?chain=solana&addresses=${firstAddress},${secondAddress}`), {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.schema_version, "ravenos.onchain_token_metadata.v1");
+    assert.equal(body.results.length, 2);
+    assert.equal(body.results[0].token_address, firstAddress);
+    assert.equal(body.results[0].image_url, "https://cdn.dexscreener.com/cms/images/first-token?width=200");
+    assert.equal(body.results[1].token_address, secondAddress);
+    assert.equal(body.results[1].image_url, null);
+    assert.equal("websites" in body.results[0], false);
+    assert.equal("socials" in body.results[0], false);
+    assert.equal(providerCalls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("token-tape metadata rejects unsupported chains before provider access", async () => {
+  const originalFetch = globalThis.fetch;
+  let providerCalls = 0;
+  try {
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      throw new Error("provider must not be called");
+    };
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/onchain/token-metadata?chain=ethereum&addresses=0x1111111111111111111111111111111111111111"), {});
+    const body = await response.json();
+    assert.equal(response.status, 400);
+    assert.equal(body.error, "token_metadata_chain_unsupported");
+    assert.equal(providerCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("one-minute and one-month intervals remain distinct", () => {
   assert.equal(timeframeSeconds("1m"), 60);
   assert.equal(timeframeSeconds("1M"), 2_592_000);

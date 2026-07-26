@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Discover · RavenOS</title>
-  <meta name="description" content="Current public-safe Raven opportunities and live supported markets in one cross-market discovery stream." />
+  <meta name="description" content="Live Raven opportunities, exact token movement, and supported markets in one cross-market discovery stream." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
 </head>
@@ -52,14 +52,19 @@
       <small id="discoverPayoffDetail"></small>
     </section>
 
-    <section class="discover-spot-pulse" id="discoverSpotPulse" aria-labelledby="discoverSpotPulseTitle" hidden>
-      <header class="discover-spot-pulse-head">
+    <section class="discover-token-tape" id="discoverSpotPulse" aria-labelledby="discoverSpotPulseTitle" hidden>
+      <header class="discover-token-tape-head">
         <div>
-          <span class="workspace-label">Spot pulse</span>
-          <h2 id="discoverSpotPulseTitle">Solana spot movement</h2>
-          <p>Markets Raven is tracking—not a whole-chain ranking.</p>
+          <span class="workspace-label">Tokens</span>
+          <h2 id="discoverSpotPulseTitle">Tokens Raven noticed</h2>
+          <p>Current exact-token movement, ranked by Raven’s read or the market window you choose.</p>
         </div>
-        <div class="discover-spot-pulse-controls">
+        <div class="discover-token-tape-controls">
+          <div class="discover-token-sort" role="group" aria-label="Token ranking">
+            <button class="active" type="button" data-spot-sort="raven" aria-pressed="true">Raven</button>
+            <button type="button" data-spot-sort="velocity" aria-pressed="false">Velocity</button>
+            <button type="button" data-spot-sort="activity" aria-pressed="false">Activity</button>
+          </div>
           <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
             <button class="active" type="button" data-spot-timeframe="5m" aria-pressed="true">5m</button>
             <button type="button" data-spot-timeframe="1h" aria-pressed="false">1h</button>
@@ -67,22 +72,11 @@
           </div>
         </div>
       </header>
-      <div class="discover-spot-leader-grid">
-        <section class="discover-spot-leader-panel" aria-labelledby="discoverVelocityTitle">
-          <header>
-            <div><span>Top velocity</span><strong id="discoverVelocityTitle">Fastest directional moves</strong></div>
-            <small id="discoverVelocityWindow">5m move</small>
-          </header>
-          <div class="discover-spot-leader-list" id="discoverVelocityLeaders"></div>
-        </section>
-        <section class="discover-spot-leader-panel" aria-labelledby="discoverTrendingTitle">
-          <header>
-            <div><span>Top trending</span><strong id="discoverTrendingTitle">Most active traders</strong></div>
-            <small id="discoverTrendingWindow">5m activity</small>
-          </header>
-          <div class="discover-spot-leader-list" id="discoverTrendingLeaders"></div>
-        </section>
+      <div class="discover-token-tape-columns" aria-hidden="true">
+        <span>Market</span><span>Move</span><span>Market anatomy</span><span>Why Raven noticed</span><span></span>
       </div>
+      <div class="discover-token-tape-list" id="discoverTokenTapeList"></div>
+      <button class="discover-token-updates" id="discoverTokenUpdates" type="button" hidden>Apply refreshed ranking</button>
     </section>
 
     <section class="discover-listed-universe" id="discoverListedUniverse" aria-labelledby="discoverListedTitle" hidden>

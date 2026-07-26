@@ -472,6 +472,7 @@ async function cachedDexPaprika(path, { ttlMs = 30_000, maxBytes = 768 * 1024 } 
 function normalizeDexPair(pair = {}) {
   const base = pair.baseToken || {};
   const quote = pair.quoteToken || {};
+  const imageUrl = safeDexImageUrl(pair.info?.imageUrl);
   return {
     id: `${pair.chainId || "unknown"}:${pair.pairAddress || base.address || ""}`,
     chainId: pair.chainId || "unknown",
@@ -490,6 +491,7 @@ function normalizeDexPair(pair = {}) {
     fdv: num(pair.fdv),
     priceChange24h: num(pair.priceChange?.h24),
     pairAgeMs: pair.pairCreatedAt ? Date.now() - Number(pair.pairCreatedAt) : null,
+    imageUrl,
     provider: "Dexscreener",
     coverage: "Public fallback",
     isLive: false,
@@ -498,6 +500,47 @@ function normalizeDexPair(pair = {}) {
     lastUpdated: new Date().toISOString(),
     warning: "Limited public coverage",
   };
+}
+
+function safeDexImageUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    if (url.protocol !== "https:" || url.hostname !== "cdn.dexscreener.com") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function boundedSolanaTokenAddresses(value) {
+  const deduped = new Set();
+  for (const address of String(value || "").split(",")) {
+    const clean = address.trim();
+    if (!SOLANA_ADDRESS_RE.test(clean)) continue;
+    deduped.add(clean);
+    if (deduped.size >= 30) break;
+  }
+  return [...deduped];
+}
+
+async function solanaTokenMetadata(addresses = []) {
+  if (!addresses.length) return [];
+  const rows = await tokensDex("solana", addresses.join(","));
+  const requested = new Set(addresses);
+  const selected = new Map();
+  for (const row of rows) {
+    if (!requested.has(row.tokenAddress) || selected.has(row.tokenAddress)) continue;
+    selected.set(row.tokenAddress, {
+      token_address: row.tokenAddress,
+      symbol: row.symbol,
+      name: row.name,
+      image_url: row.imageUrl,
+      pair_address: row.pairAddress,
+      venue: row.dexId,
+      observed_at: row.lastUpdated,
+    });
+  }
+  return addresses.flatMap((address) => selected.has(address) ? [selected.get(address)] : []);
 }
 
 function matchingDexPaprikaToken(pool = {}, query = "") {
@@ -4283,6 +4326,31 @@ async function routeApi(request, env) {
       });
     } catch (error) {
       return json({ ok: false, error: "onchain_market_search_unavailable", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/onchain/token-metadata" && request.method === "GET") {
+    const chain = String(url.searchParams.get("chain") || "").trim().toLowerCase();
+    if (chain !== "solana") {
+      return json({ ok: false, error: "token_metadata_chain_unsupported", results: [] }, { status: 400 });
+    }
+    const addresses = boundedSolanaTokenAddresses(url.searchParams.get("addresses") || "");
+    if (!addresses.length) {
+      return json({ ok: false, error: "token_metadata_addresses_required", results: [] }, { status: 400 });
+    }
+    try {
+      return json({
+        ok: true,
+        schema_version: "ravenos.onchain_token_metadata.v1",
+        chain,
+        generated_at: new Date().toISOString(),
+        results: await solanaTokenMetadata(addresses),
+      }, { headers: { "cache-control": "public, max-age=30, s-maxage=300, stale-while-revalidate=900" } });
+    } catch {
+      return json({
+        ok: false,
+        error: "token_metadata_unavailable",
+        results: [],
+      }, { status: 502 });
     }
   }
   if (url.pathname === "/api/dexscreener/token" && request.method === "GET") {

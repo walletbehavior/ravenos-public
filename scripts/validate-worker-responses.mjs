@@ -49,6 +49,7 @@ const checks = [
   ["GET", "/api/opportunity"],
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
+  ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],
   ["GET", "/api/terminal"],
@@ -145,6 +146,30 @@ globalThis.fetch = async (input, init = {}) => {
     return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: rows } } }), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (url.includes("api.dexscreener.com")) {
+    if (url.includes("/tokens/v1/")) {
+      return new Response(JSON.stringify([{
+        chainId: "solana",
+        dexId: "validation_pool",
+        pairAddress: "7nZP2q2w6Kc3yYF4tQ8rR1vV5bD9mA2pE6uH3xJ8sL4N",
+        baseToken: {
+          address: "4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP",
+          name: "Validation Token",
+          symbol: "VALID",
+        },
+        quoteToken: {
+          address: "So11111111111111111111111111111111111111112",
+          name: "Wrapped SOL",
+          symbol: "SOL",
+        },
+        liquidity: { usd: 82_000 },
+        info: {
+          imageUrl: "https://cdn.dexscreener.com/cms/images/validation-token?width=200",
+          websites: [{ url: "https://must-not-reach-public-response.example" }],
+          socials: [{ type: "twitter", url: "https://must-not-reach-public-response.example/social" }],
+        },
+        provider_payload: { credential: "must-be-stripped" },
+      }]), { status: 200, headers: { "content-type": "application/json" } });
+    }
     return new Response(JSON.stringify({ pairs: [] }), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (url.includes("/instrument_chart.json?q=AAPL&instrument_id=equity%3Anasdaq%3Aaapl&timeframe=1h&limit=360")) {

@@ -1,7 +1,7 @@
 import { ravenOSContext } from "/ravenos-context-store.js";
 import { customerFacingText } from "/ravenos-intelligence-contract.js";
 
-const REFRESH_MS = 45_000;
+const REFRESH_MS = 45 * 1_000;
 const state = {
   rows: new Map(),
   order: [],
@@ -11,6 +11,14 @@ const state = {
   featuredRefreshedAt: 0,
   spotRows: [],
   spotTimeframe: "5m",
+  spotSort: "raven",
+  spotMetadata: new Map(),
+  spotMetadataPending: null,
+  spotDisplayOrder: [],
+  spotPendingOrder: null,
+  spotResolution: new Map(),
+  scrolling: false,
+  scrollTimer: null,
   payoff: null,
   paused: false,
   expanded: false,
@@ -238,24 +246,57 @@ function setSpotLinkPending(anchor, pending) {
   else delete anchor.dataset.chartResolving;
   const label = anchor.querySelector(".discover-open");
   if (label) label.textContent = pending ? "Opening chart…" : "Open chart";
-  const leaderLabel = anchor.querySelector(".discover-spot-leader-open");
-  if (leaderLabel) leaderLabel.textContent = pending ? "…" : "→";
+  const tokenLabel = anchor.querySelector(".discover-token-open");
+  if (tokenLabel) tokenLabel.textContent = pending ? "Opening…" : "Chart";
+}
+
+function resolveSpotChartCached(row) {
+  const key = `${text(row.chain, "solana").toLowerCase()}:${text(row.token_address, "")}`;
+  if (!state.spotResolution.has(key)) {
+    state.spotResolution.set(key, resolveSpotChart(row).catch(() => null));
+  }
+  return state.spotResolution.get(key);
+}
+
+async function primeSpotLink(anchor) {
+  const row = anchor.__ravenSpotRow;
+  if (!row || anchor.getAttribute("href") !== "#" || anchor.dataset.chartResolving === "true") return;
+  const exactPool = await resolveSpotChartCached(row);
+  if (!exactPool || anchor.__ravenSpotRow !== row) return;
+  anchor.__ravenResolvedPool = exactPool;
+  anchor.href = spotPoolHref(exactPool, "1m");
 }
 
 function configureSpotLink(anchor, row) {
+  const previous = anchor.__ravenSpotRow;
+  const sameToken = previous
+    && text(previous.chain, "").toLowerCase() === text(row.chain, "").toLowerCase()
+    && sameTokenAddress(text(row.chain, "").toLowerCase(), previous.token_address, row.token_address);
+  if (!sameToken) anchor.__ravenResolvedPool = null;
+  anchor.__ravenSpotRow = row;
   anchor.href = terminalHref(row);
-  if (anchor.getAttribute("href") !== "#") return;
+  if (anchor.getAttribute("href") === "#" && anchor.__ravenResolvedPool) {
+    anchor.href = spotPoolHref(anchor.__ravenResolvedPool, "1m");
+  }
+  if (anchor.dataset.spotLinkConfigured === "true") return;
+  anchor.dataset.spotLinkConfigured = "true";
+  const prime = () => { void primeSpotLink(anchor); };
+  anchor.addEventListener("pointerenter", prime, { passive: true });
+  anchor.addEventListener("focus", prime, { passive: true });
+  anchor.addEventListener("touchstart", prime, { passive: true });
   anchor.addEventListener("click", async (event) => {
+    const current = anchor.__ravenSpotRow;
+    if (!current || anchor.getAttribute("href") !== "#") return;
     event.preventDefault();
     if (anchor.dataset.chartResolving === "true") return;
     setSpotLinkPending(anchor, true);
-    const exactPool = await resolveSpotChart(row).catch(() => null);
+    const exactPool = anchor.__ravenResolvedPool || await resolveSpotChartCached(current);
     if (exactPool) {
       ravenOSContext.navigate(spotPoolHref(exactPool, "1m"));
       return;
     }
     setSpotLinkPending(anchor, false);
-    window.RavenOSShell?.openCommandPalette?.(row.token_address);
+    window.RavenOSShell?.openCommandPalette?.(current.token_address);
   });
 }
 
@@ -397,7 +438,35 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
   return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
 }
 
-function spotLeaderRows(kind) {
+function spotRowId(row = {}) {
+  return text(row.public_attention_id, `${text(row.chain, "solana")}:${text(row.token_address, row.instrument_id)}`);
+}
+
+function spotTokenFingerprint(value) {
+  const clean = text(value, "");
+  if (!clean) return "";
+  return clean.length <= 13 ? clean : `${clean.slice(0, 5)}…${clean.slice(-4)}`;
+}
+
+function tokenPrice(value) {
+  const result = finite(value);
+  if (result === null) return "";
+  if (result >= 1000) return `$${result.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  if (result >= 1) return `$${result.toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
+  if (result >= 0.01) return `$${result.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 5 })}`;
+  return `$${result.toLocaleString("en-US", { minimumSignificantDigits: 2, maximumSignificantDigits: 5 })}`;
+}
+
+function safeTokenImage(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && url.hostname === "cdn.dexscreener.com" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function spotRankedRows() {
   const current = state.spotRows.filter((row) => {
     const age = finite(row.age_seconds);
     const liquidity = finite(row.market?.liquidity_usd);
@@ -406,15 +475,15 @@ function spotLeaderRows(kind) {
       && liquidity !== null
       && liquidity > 0;
   });
-  if (kind === "velocity") {
+  if (state.spotSort === "raven") return current;
+  if (state.spotSort === "velocity") {
     return current
       .filter((row) => spotMetric(row, "price_change") !== null)
       .sort((left, right) => {
         const movement = Math.abs(spotMetric(right, "price_change")) - Math.abs(spotMetric(left, "price_change"));
         if (movement) return movement;
         return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
-      })
-      .slice(0, 4);
+      });
   }
   return current
     .filter((row) => spotMetric(row, "traders") !== null)
@@ -425,69 +494,206 @@ function spotLeaderRows(kind) {
       const leftTransactions = (spotMetric(left, "buys") || 0) + (spotMetric(left, "sells") || 0);
       if (rightTransactions !== leftTransactions) return rightTransactions - leftTransactions;
       return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
-    })
-    .slice(0, 4);
+    });
 }
 
-function createSpotLeaderRow(row, kind, index) {
-  const anchor = document.createElement("a");
-  anchor.className = "discover-spot-leader";
-  anchor.dataset.leaderType = kind;
-  anchor.dataset.identityScope = row.identity_scope;
+function momentumGlyph(row) {
+  const values = ["5m", "1h", "24h"].map((window) => finite(row?.market?.[`price_change_${window}_pct`]));
+  const available = values.filter((value) => value !== null);
+  if (!available.length) return null;
+  const max = Math.max(1, ...available.map((value) => Math.abs(value)));
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("discover-token-momentum");
+  svg.setAttribute("viewBox", "0 0 54 24");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", ["5 minute", "1 hour", "24 hour"].map((label, index) => (
+    values[index] === null ? null : `${label} ${percent(values[index])}`
+  )).filter(Boolean).join(", "));
+  const baseline = document.createElementNS(svg.namespaceURI, "line");
+  baseline.setAttribute("x1", "1");
+  baseline.setAttribute("x2", "53");
+  baseline.setAttribute("y1", "12");
+  baseline.setAttribute("y2", "12");
+  baseline.setAttribute("class", "discover-token-momentum-axis");
+  svg.append(baseline);
+  values.forEach((value, index) => {
+    if (value === null) return;
+    const height = Math.max(2, Math.round((Math.abs(value) / max) * 10));
+    const bar = document.createElementNS(svg.namespaceURI, "rect");
+    bar.setAttribute("x", String(5 + index * 18));
+    bar.setAttribute("width", "9");
+    bar.setAttribute("y", String(value >= 0 ? 12 - height : 12));
+    bar.setAttribute("height", String(height));
+    bar.setAttribute("rx", "1.5");
+    bar.setAttribute("class", value >= 0 ? "positive" : "negative");
+    svg.append(bar);
+  });
+  return svg;
+}
+
+function spotRavenRead(row = {}) {
+  const timing = spotTimingLabel(row);
+  const changed = text(row.what_changed, "")
+    .replace(/^Price\s+(?:rose|fell|moved)\s+.+?\s+in\s+(?:5m|1h|24h)\.\s*/i, "")
+    .replace(/^./, (letter) => letter.toUpperCase());
+  if (timing && changed) return `${timing}. ${changed}`;
+  if (timing) return `${timing} than broader attention.`;
+  return changed || text(row.movement_state, "Current participation is changing.");
+}
+
+function tokenMetadata(row) {
+  return state.spotMetadata.get(text(row.token_address, "")) || {};
+}
+
+function renderTokenAvatar(host, row) {
+  const avatar = append(host, "span", "discover-token-avatar", "");
+  avatar.textContent = "";
+  append(avatar, "span", "discover-token-avatar-fallback", text(row.symbol, "?").slice(0, 2).toUpperCase());
+  const imageUrl = safeTokenImage(tokenMetadata(row).image_url);
+  if (!imageUrl) return;
+  const image = document.createElement("img");
+  image.src = imageUrl;
+  image.alt = "";
+  image.width = 38;
+  image.height = 38;
+  image.loading = "lazy";
+  image.decoding = "async";
+  image.referrerPolicy = "no-referrer";
+  image.addEventListener("load", () => avatar.dataset.imageReady = "true", { once: true });
+  image.addEventListener("error", () => image.remove(), { once: true });
+  avatar.append(image);
+}
+
+function renderTokenStat(host, label, value) {
+  if (!value) return;
+  const node = append(host, "span", "discover-token-stat", "");
+  node.textContent = "";
+  append(node, "small", "", label);
+  append(node, "strong", "", value);
+}
+
+function updateSpotTokenRow(anchor, row, index) {
+  anchor.className = "discover-token-row";
+  anchor.dataset.tokenRowId = spotRowId(row);
+  anchor.dataset.tokenAddress = text(row.token_address, "");
+  anchor.dataset.identityScope = text(row.identity_scope, "");
+  anchor.dataset.freshness = text(row.context_state, "current").toLowerCase();
+  anchor.setAttribute("aria-label", `${text(row.symbol)} exact token chart`);
+  anchor.replaceChildren();
   configureSpotLink(anchor, row);
-  anchor.setAttribute("aria-label", `${text(row.symbol)} ${kind === "velocity" ? "velocity" : "trending activity"} details`);
 
-  append(anchor, "span", "discover-spot-rank", String(index + 1).padStart(2, "0"));
-  const identity = append(anchor, "div", "discover-spot-leader-identity", "");
+  const identity = append(anchor, "div", "discover-token-identity", "");
   identity.textContent = "";
-  append(identity, "strong", "", text(row.symbol));
-  const identityFacts = [
+  append(identity, "span", "discover-token-rank", String(index + 1).padStart(2, "0"));
+  renderTokenAvatar(identity, row);
+  const copy = append(identity, "span", "discover-token-copy", "");
+  copy.textContent = "";
+  const name = append(copy, "span", "discover-token-name", "");
+  name.textContent = "";
+  append(name, "strong", "", text(row.symbol));
+  append(name, "small", "", text(row.name, ""));
+  append(copy, "span", "discover-token-market-id", [
+    text(row.chain, ""),
     text(row.venue, row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token"),
-    `${compact(row.market?.liquidity_usd, { currency: true })} liq`,
-    spotTimingLabel(row),
-  ].filter(Boolean);
-  append(identity, "span", "", identityFacts.join(" · "));
+    spotTokenFingerprint(row.pool_address || row.token_address),
+  ].filter(Boolean).join(" · "));
 
-  const metric = append(anchor, "div", "discover-spot-leader-metric", "");
-  metric.textContent = "";
-  if (kind === "velocity") {
-    const movement = spotMetric(row, "price_change");
-    const value = append(metric, "strong", "", percent(movement));
-    if (movement !== null) value.classList.add(movement >= 0 ? "positive" : "negative");
-    append(metric, "span", "", `${state.spotTimeframe} move`);
-  } else {
-    const traders = spotMetric(row, "traders");
-    const buys = spotMetric(row, "buys");
-    const sells = spotMetric(row, "sells");
-    const transactions = buys === null && sells === null ? null : (buys || 0) + (sells || 0);
-    append(metric, "strong", "", `${compact(traders)} traders`);
-    append(metric, "span", "", [
-      transactions === null ? null : `${compact(transactions)} tx`,
-      spotMetric(row, "volume_usd") === null ? null : `${compact(spotMetric(row, "volume_usd"), { currency: true })} vol`,
-    ].filter(Boolean).join(" · "));
-  }
-  append(anchor, "span", "discover-spot-leader-open", "→");
+  const move = append(anchor, "div", "discover-token-move", "");
+  move.textContent = "";
+  const movement = spotMetric(row, "price_change");
+  const movementValue = append(move, "strong", "", percent(movement));
+  if (movement !== null) movementValue.classList.add(movement >= 0 ? "positive" : "negative");
+  const currentPrice = tokenPrice(row.market?.price_usd);
+  if (currentPrice) append(move, "span", "", currentPrice);
+  const glyph = momentumGlyph(row);
+  if (glyph) move.append(glyph);
+  append(move, "small", "", `${state.spotTimeframe} move`);
+
+  const anatomy = append(anchor, "div", "discover-token-anatomy", "");
+  anatomy.textContent = "";
+  renderTokenStat(anatomy, "Vol", finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
+  renderTokenStat(anatomy, "Liq", finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
+  renderTokenStat(anatomy, "MCap", finite(row.market?.market_cap_usd) === null ? "" : compact(row.market.market_cap_usd, { currency: true }));
+  renderTokenStat(anatomy, "Traders", finite(spotMetric(row, "traders")) === null ? "" : compact(spotMetric(row, "traders")));
+
+  const raven = append(anchor, "div", "discover-token-raven", "");
+  raven.textContent = "";
+  append(raven, "span", "", row.broader_attention?.raven_observed_first === true ? "Raven saw it earlier" : "Why now");
+  append(raven, "strong", "", spotRavenRead(row));
+  const risk = text(row.risk, "");
+  if (risk) append(raven, "small", "", risk);
+
+  const open = append(anchor, "span", "discover-token-open", "Chart");
+  open.setAttribute("aria-hidden", "true");
   return anchor;
 }
 
-function renderSpotLeaderList(id, kind) {
-  const host = document.getElementById(id);
-  host.replaceChildren();
-  const rows = spotLeaderRows(kind);
-  if (!rows.length) {
-    append(host, "p", "discover-spot-leader-empty", `No current ${state.spotTimeframe} ${kind === "velocity" ? "movement" : "activity"} values.`);
-    return;
-  }
-  rows.forEach((row, index) => host.append(createSpotLeaderRow(row, kind, index)));
+function sameOrder(left = [], right = []) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function renderSpotPulse(rows = state.spotRows) {
+function renderSpotTokenTape({ forceOrder = false } = {}) {
+  const host = document.getElementById("discoverTokenTapeList");
+  const updates = document.getElementById("discoverTokenUpdates");
+  const ranked = spotRankedRows();
+  const rankedIds = ranked.map(spotRowId);
+  if (state.scrolling && !forceOrder && host.childElementCount) {
+    const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
+    [...host.querySelectorAll(".discover-token-row")].forEach((node, index) => {
+      const row = byId.get(node.dataset.tokenRowId);
+      if (row) updateSpotTokenRow(node, row, index);
+    });
+    if (!sameOrder(rankedIds, state.spotDisplayOrder)) {
+      state.spotPendingOrder = rankedIds;
+      updates.hidden = false;
+    }
+    return;
+  }
+  state.spotDisplayOrder = rankedIds;
+  state.spotPendingOrder = null;
+  updates.hidden = true;
+  const existing = new Map([...host.querySelectorAll(".discover-token-row")].map((node) => [node.dataset.tokenRowId, node]));
+  const fragment = document.createDocumentFragment();
+  ranked.forEach((row, index) => {
+    const id = spotRowId(row);
+    const node = existing.get(id) || document.createElement("a");
+    updateSpotTokenRow(node, row, index);
+    fragment.append(node);
+  });
+  if (!ranked.length) {
+    append(fragment, "p", "discover-token-empty", `No current ${state.spotTimeframe} token movement is available.`);
+  }
+  host.replaceChildren(fragment);
+}
+
+async function hydrateSpotMetadata(rows = state.spotRows) {
+  if (state.spotMetadataPending) return state.spotMetadataPending;
+  const addresses = [...new Set(rows.map((row) => text(row.token_address, "")).filter(Boolean))]
+    .filter((address) => !state.spotMetadata.has(address))
+    .slice(0, 30);
+  if (!addresses.length) return null;
+  state.spotMetadataPending = fetch(`/api/onchain/token-metadata?chain=solana&addresses=${encodeURIComponent(addresses.join(","))}`, {
+    headers: { accept: "application/json" },
+  }).then(async (response) => {
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.schema_version !== "ravenos.onchain_token_metadata.v1" || !Array.isArray(payload.results)) return;
+    const byAddress = new Map(payload.results.map((row) => [text(row.token_address, ""), row]));
+    addresses.forEach((address) => state.spotMetadata.set(address, byAddress.get(address) || {}));
+    renderSpotTokenTape();
+  }).catch(() => {
+    addresses.forEach((address) => state.spotMetadata.set(address, {}));
+  }).finally(() => {
+    state.spotMetadataPending = null;
+  });
+  return state.spotMetadataPending;
+}
+
+function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
   state.spotRows = Array.isArray(rows) ? rows : [];
   if (!state.spotRows.length) {
     host.hidden = true;
-    document.getElementById("discoverVelocityLeaders").replaceChildren();
-    document.getElementById("discoverTrendingLeaders").replaceChildren();
+    document.getElementById("discoverTokenTapeList").replaceChildren();
     return;
   }
   const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
@@ -497,10 +703,13 @@ function renderSpotPulse(rows = state.spotRows) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-  document.getElementById("discoverVelocityWindow").textContent = `${state.spotTimeframe} move`;
-  document.getElementById("discoverTrendingWindow").textContent = `${state.spotTimeframe} activity`;
-  renderSpotLeaderList("discoverVelocityLeaders", "velocity");
-  renderSpotLeaderList("discoverTrendingLeaders", "trending");
+  document.querySelectorAll("[data-spot-sort]").forEach((button) => {
+    const active = button.dataset.spotSort === state.spotSort;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  renderSpotTokenTape({ forceOrder });
+  void hydrateSpotMetadata(state.spotRows);
 }
 
 function currentParticipationPayoff(value) {
@@ -711,7 +920,8 @@ function applyFilter() {
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
   const hasFeaturedEquities = active === "equity" && state.featuredRows.length > 0;
-  if (!matching.length && rows.length && !hasFeaturedEquities) {
+  const hasTokenTape = active === "spot" && state.spotRows.length > 0;
+  if (!matching.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
     const inner = append(empty, "div", "", "");
@@ -722,7 +932,7 @@ function applyFilter() {
       : "Try another market class or search for an exact instrument.");
     document.getElementById("discoverStream").append(empty);
   }
-  control.hidden = matching.length <= (Number.isFinite(limit) ? limit : 12);
+  control.hidden = hasTokenTape || matching.length <= (Number.isFinite(limit) ? limit : 12);
   control.textContent = state.expanded
     ? "Show the attention queue"
     : `Show ${Math.max(0, matching.length - limit).toLocaleString()} more exact markets`;
@@ -749,7 +959,7 @@ function renderOpportunities(rows, { generatedAt, appendOnly = false } = {}) {
     state.order = state.order.filter((value) => value !== id);
     host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`)?.remove();
   }
-  document.getElementById("discoverRowCount").textContent = rows.length.toLocaleString();
+  document.getElementById("discoverRowCount").textContent = (rows.length + state.spotRows.length).toLocaleString();
   document.getElementById("discoverUpdatedAt").textContent = when(generatedAt);
   document.getElementById("discoverStreamControl").hidden = false;
   applyFilter();
@@ -937,6 +1147,7 @@ async function refresh({ manual = false } = {}) {
   }
 
   let ravenRows = [];
+  let spotAttentionRows = [];
   let ravenGeneratedAt = null;
   let ravenFailure = "";
   if (opportunities.status === "fulfilled" && opportunities.value.response.ok) {
@@ -947,7 +1158,7 @@ async function refresh({ manual = false } = {}) {
         source_type: "raven_opportunity",
         market_snapshot: state.markets.get(row.instrument_id) || null,
       }));
-      ravenRows = [...current.spotRows, ...ravenRows];
+      spotAttentionRows = current.spotRows;
       renderSpotPulse(current.spotRows);
       renderParticipationPayoff(current.participationPayoff);
       ravenGeneratedAt = current.generatedAt;
@@ -997,11 +1208,12 @@ async function refresh({ manual = false } = {}) {
     renderSourceNotice("raven", ravenFailure);
     renderSourceNotice("atlas", atlasFailure);
     const firstRaven = ravenRows[0];
+    const firstSpot = spotAttentionRows[0];
     const firstAtlas = atlasRows[0];
     window.RavenOSShell?.setCapabilities?.({
       market: "Current markets + Raven",
       mode: "Read only",
-      evidence: `${ravenRows.length} Raven · ${atlasRows.length} Atlas`,
+      evidence: `${ravenRows.length + spotAttentionRows.length} Raven · ${atlasRows.length} Atlas`,
       wallet: "No customer session",
       signing: "Sign off",
       broadcast: "Broadcast off",
@@ -1010,9 +1222,10 @@ async function refresh({ manual = false } = {}) {
       subject: ravenOSContext.getState().subject,
       marketState: { label: `${combinedRows.length} current cross-market rows`, regime: "cross-market discovery" },
       setupState: { state: firstRaven ? "current_signal" : "broader_market_context", confirmation: "research only" },
-      thesis: customerFacingText(firstRaven?.why_raven_noticed || firstAtlas?.what_changed, "Current market context is available."),
+      thesis: customerFacingText(firstRaven?.why_raven_noticed || firstSpot?.what_changed || firstAtlas?.what_changed, "Current market context is available."),
       supportingEvidence: [
         firstRaven ? `${firstRaven.instrument} retains exact ${firstRaven.identity_scope || "instrument"} identity.` : null,
+        firstSpot ? `${firstSpot.symbol} retains exact ${firstSpot.identity_scope === "exact_pool" ? "pool" : "token"} identity.` : null,
         firstAtlas ? `${firstAtlas.instrument} retains exact listed identity; Atlas provenance remains separate.` : null,
       ].filter(Boolean),
       contradictingEvidence: [ravenFailure, atlasFailure].filter(Boolean),
@@ -1022,6 +1235,14 @@ async function refresh({ manual = false } = {}) {
       evidenceQuality: { state: ravenRows.length ? "current" : "atlas_context", lineageComplete: true },
       freshness: { state: "live", observedAt: generatedAt },
       nextExpectedTransition: "Open an exact market to inspect its available Raven and Atlas context.",
+    });
+  } else if (spotAttentionRows.length) {
+    state.rows.clear();
+    state.order = [];
+    document.getElementById("discoverRowCount").textContent = spotAttentionRows.length.toLocaleString();
+    renderOpportunityState({
+      heading: "No additional setups are current",
+      detail: "Current token movement is available above. Raven is not filling the rest of the screen with older observations.",
     });
   } else {
     state.rows.clear();
@@ -1048,8 +1269,13 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
     state.spotTimeframe = button.dataset.spotTimeframe;
-    renderSpotPulse();
+    renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
+  document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
+    state.spotSort = button.dataset.spotSort;
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }));
+  document.getElementById("discoverTokenUpdates").addEventListener("click", () => renderSpotPulse(state.spotRows, { forceOrder: true }));
   document.getElementById("discoverStreamControl").addEventListener("click", () => {
     state.expanded = !state.expanded;
     applyFilter();
@@ -1062,12 +1288,19 @@ function bind() {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !state.paused && state.lastRefresh && Date.now() - Date.parse(state.lastRefresh) > REFRESH_MS) refresh();
   });
+  window.addEventListener("scroll", () => {
+    state.scrolling = true;
+    window.clearTimeout(state.scrollTimer);
+    state.scrollTimer = window.setTimeout(() => {
+      state.scrolling = false;
+    }, 650);
+  }, { passive: true });
 }
 
 bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
 window.__RAVENOS_DISCOVER__ = Object.freeze({
-  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, payoffCount: state.payoff?.insights?.length || 0, spotTimeframe: state.spotTimeframe, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
+  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, payoffCount: state.payoff?.insights?.length || 0, spotTimeframe: state.spotTimeframe, spotSort: state.spotSort, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
   refresh: () => refresh({ manual: true }),
 });

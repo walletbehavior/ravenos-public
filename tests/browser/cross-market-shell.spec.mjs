@@ -420,40 +420,46 @@ test("Discover resolves an exact-token movement directly to its best chartable p
     body: JSON.stringify({ ok: true, results: [resolvedPool] }),
   }));
   await page.goto("/discover/");
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Solana spot movement");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Tokens Raven noticed");
   await expect(page.locator(".discover-chain-chip")).toHaveCount(0);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
-  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("RETIRE");
-  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("+8.50%");
-  await expect(page.locator("#discoverTrendingLeaders .discover-spot-leader").first()).toContainText("72 traders");
+  await expect(page.locator("[data-spot-sort]")).toHaveText(["Raven", "Velocity", "Activity"]);
+  await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
+  await expect(page.locator(".discover-token-row").first()).toContainText("+8.50%");
+  await expect(page.locator(".discover-token-row").first()).toContainText("72");
   await page.locator("[data-spot-timeframe='24h']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
-  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("BIRD");
-  await expect(page.locator("#discoverVelocityLeaders .discover-spot-leader").first()).toContainText("+88.00%");
-  await expect(page.locator("#discoverTrendingLeaders .discover-spot-leader").first()).toContainText("700 traders");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("not a whole-chain ranking");
+  await page.locator("[data-spot-sort='velocity']").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotSort)).toBe("velocity");
+  await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
+  await expect(page.locator(".discover-token-row").first()).toContainText("+88.00%");
+  await page.locator("[data-spot-sort='activity']").click();
+  await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
+  await expect(page.locator(".discover-token-row").first()).toContainText("700");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("ranked by Raven");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   const spotFilter = page.locator("[data-discover-filter='spot']");
   await expect(spotFilter).toBeEnabled();
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  const spotRows = page.locator(".discover-row[data-source-type='raven-spot']");
+  const spotRows = page.locator(".discover-token-row");
   await expect(spotRows).toHaveCount(2);
-  await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven recorded this market 20m before broader attention appeared");
+  await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven 20m earlier");
   await expect(spotRows.filter({ hasText: "RETIRE" })).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotPoolAddress}`));
   const tokenOnly = spotRows.filter({ hasText: "BIRD" });
-  await expect(tokenOnly).toContainText("Open chart");
-  await expect(tokenOnly).toContainText("opens chart directly");
+  await expect(tokenOnly).toContainText("Chart");
+  await expect(tokenOnly).toContainText("Exact token");
   await expect(tokenOnly).toHaveAttribute("href", "#");
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toBeVisible();
-  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-evidence")).toContainText("20m before broader attention");
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toBeVisible();
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toContainText("Raven 20m earlier");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
-  await page.locator("#discoverVelocityLeaders .discover-spot-leader").first().click();
+  await tokenOnly.click();
   await page.waitForURL((url) => url.pathname === "/terminal/"
     && url.searchParams.get("instrument_id") === `solana:pool:${resolvedPool.pairAddress}`
     && url.searchParams.get("timeframe") === "1m");
@@ -462,6 +468,37 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   await expect(page.locator("body")).not.toContainText(/comparison source|provider payload|wallet address/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+});
+
+test("Discover updates token facts without reordering the tape under an active scroll", async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.goto("/discover/");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
+  const rows = page.locator(".discover-token-row");
+  await expect(rows.first()).toContainText("RETIRE");
+
+  const refreshed = structuredClone(opportunityPayload({ withSpot: true }));
+  const retire = refreshed.census.spot_attention.rows[0];
+  retire.market.price_change_5m_pct = 9.25;
+  retire.what_changed = "Price rose 9.25% in 5m. Buys led 70 to 29 · 78 active traders.";
+  refreshed.census.spot_attention.rows.reverse();
+  await page.unroute("**/api/opportunity**");
+  await page.route("**/api/opportunity**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(refreshed),
+  }));
+
+  await page.evaluate(async () => {
+    window.dispatchEvent(new Event("scroll"));
+    await window.__RAVENOS_DISCOVER__.refresh();
+  });
+  await expect(rows.first()).toContainText("RETIRE");
+  await expect(rows.first()).toContainText("+9.25%");
+  await expect(page.locator("#discoverTokenUpdates")).toBeVisible();
+  await page.locator("#discoverTokenUpdates").click();
+  await expect(rows.first()).toContainText("BIRD");
+  await expect(page.locator("#discoverTokenUpdates")).toBeHidden();
 });
 
 test("Discover keeps live market pulse but refuses stale opportunity substitution", async ({ page }) => {
