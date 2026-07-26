@@ -12,6 +12,7 @@ const state = {
   spotRows: [],
   spotTimeframe: "5m",
   spotSort: "raven",
+  spotChain: "all",
   spotMetadata: new Map(),
   spotMetadataPending: null,
   spotDisplayOrder: [],
@@ -93,7 +94,11 @@ function terminalHref(row) {
     });
     return `/terminal/?${params.toString()}`;
   }
-  if (row.source_type === "raven_spot_attention") {
+  if (
+    row.source_type === "raven_spot_attention"
+    || row.source_type === "market_activity"
+    || (row.market_type === "spot" && row.identity_scope === "exact_pool")
+  ) {
     if (row.identity_scope !== "exact_pool" || !row.pool_address) return "#";
     return spotPoolHref(row);
   }
@@ -150,7 +155,7 @@ function spotPoolHref(row, timeframe = "1m") {
   const chain = text(row.chainId || row.chain, "solana").toLowerCase();
   const pairAddress = text(row.pairAddress || row.pool_address, "");
   const symbol = text(row.symbol, "");
-  const quote = text(row.quoteSymbol, "");
+  const quote = text(row.quoteSymbol || row.quote_symbol, "");
   if (!pairAddress) return "#";
   const params = new URLSearchParams({
     asset: quote ? `${symbol}/${quote}` : symbol,
@@ -459,7 +464,11 @@ function tokenPrice(value) {
 function safeTokenImage(value) {
   try {
     const url = new URL(String(value || ""));
-    return url.protocol === "https:" && url.hostname === "cdn.dexscreener.com" ? url.toString() : "";
+    return url.protocol === "https:" && [
+      "cdn.dexscreener.com",
+      "coin-images.coingecko.com",
+      "assets.coingecko.com",
+    ].includes(url.hostname) ? url.toString() : "";
   } catch {
     return "";
   }
@@ -469,12 +478,26 @@ function spotRankedRows() {
   const current = state.spotRows.filter((row) => {
     const age = finite(row.age_seconds);
     const liquidity = finite(row.market?.liquidity_usd);
-    return row.chain === "Solana"
+    const chain = text(row.chain_id || row.chain, "").toLowerCase();
+    return ["solana", "base", "ethereum"].includes(chain)
+      && (state.spotChain === "all" || chain === state.spotChain)
       && (age === null || age <= 3_600)
       && liquidity !== null
       && liquidity > 0;
   });
-  if (state.spotSort === "raven") return current;
+  if (state.spotSort === "raven") {
+    return current.sort((left, right) => {
+      const leftRaven = left.source_type === "raven_spot_attention" ? 1 : 0;
+      const rightRaven = right.source_type === "raven_spot_attention" ? 1 : 0;
+      if (leftRaven !== rightRaven) return rightRaven - leftRaven;
+      if (!leftRaven) {
+        const movement = Math.abs(spotMetric(right, "price_change") || 0) - Math.abs(spotMetric(left, "price_change") || 0);
+        if (movement) return movement;
+        return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
+      }
+      return 0;
+    });
+  }
   if (state.spotSort === "velocity") {
     return current
       .filter((row) => spotMetric(row, "price_change") !== null)
@@ -485,7 +508,11 @@ function spotRankedRows() {
       });
   }
   return current
-    .filter((row) => spotMetric(row, "traders") !== null)
+    .filter((row) => (
+      spotMetric(row, "traders") !== null
+      || spotMetric(row, "buys") !== null
+      || spotMetric(row, "sells") !== null
+    ))
     .sort((left, right) => {
       const traders = (spotMetric(right, "traders") || 0) - (spotMetric(left, "traders") || 0);
       if (traders) return traders;
@@ -531,6 +558,9 @@ function momentumGlyph(row) {
 }
 
 function spotRavenRead(row = {}) {
+  if (row.source_type === "market_activity") {
+    return text(row.what_changed, `Current ${state.spotTimeframe} exact-pool activity is available.`);
+  }
   const timing = spotTimingLabel(row);
   const changed = text(row.what_changed, "")
     .replace(/^Price\s+(?:rose|fell|moved)\s+.+?\s+in\s+(?:5m|1h|24h)\.\s*/i, "")
@@ -541,7 +571,10 @@ function spotRavenRead(row = {}) {
 }
 
 function tokenMetadata(row) {
-  return state.spotMetadata.get(text(row.token_address, "")) || {};
+  return {
+    ...(state.spotMetadata.get(text(row.token_address, "")) || {}),
+    ...(row.image_url ? { image_url: row.image_url } : {}),
+  };
 }
 
 function renderTokenAvatar(host, row) {
@@ -613,11 +646,19 @@ function updateSpotTokenRow(anchor, row, index) {
   renderTokenStat(anatomy, "Vol", finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
   renderTokenStat(anatomy, "Liq", finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
   renderTokenStat(anatomy, "MCap", finite(row.market?.market_cap_usd) === null ? "" : compact(row.market.market_cap_usd, { currency: true }));
-  renderTokenStat(anatomy, "Traders", finite(spotMetric(row, "traders")) === null ? "" : compact(spotMetric(row, "traders")));
+  const traders = spotMetric(row, "traders");
+  const transactions = (spotMetric(row, "buys") || 0) + (spotMetric(row, "sells") || 0);
+  renderTokenStat(
+    anatomy,
+    traders === null ? "Tx" : "Traders",
+    traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
+  );
 
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
-  append(raven, "span", "", row.broader_attention?.raven_observed_first === true ? "Raven saw it earlier" : "Why now");
+  append(raven, "span", "", row.source_type === "market_activity"
+    ? "Market pulse"
+    : row.broader_attention?.raven_observed_first === true ? "Raven saw it earlier" : "Why now");
   append(raven, "strong", "", spotRavenRead(row));
   const risk = text(row.risk, "");
   if (risk) append(raven, "small", "", risk);
@@ -667,7 +708,10 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
 
 async function hydrateSpotMetadata(rows = state.spotRows) {
   if (state.spotMetadataPending) return state.spotMetadataPending;
-  const addresses = [...new Set(rows.map((row) => text(row.token_address, "")).filter(Boolean))]
+  const addresses = [...new Set(rows
+    .filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "solana")
+    .map((row) => text(row.token_address, ""))
+    .filter(Boolean))]
     .filter((address) => !state.spotMetadata.has(address))
     .slice(0, 30);
   if (!addresses.length) return null;
@@ -704,6 +748,11 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   });
   document.querySelectorAll("[data-spot-sort]").forEach((button) => {
     const active = button.dataset.spotSort === state.spotSort;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-spot-chain]").forEach((button) => {
+    const active = button.dataset.spotChain === state.spotChain;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
@@ -1035,6 +1084,42 @@ function currentOpportunityPayload(payload) {
   };
 }
 
+function currentOnchainPulsePayload(payload) {
+  const execution = payload?.execution_boundary || {};
+  const provenance = payload?.provenance || {};
+  if (
+    payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== "ravenos.onchain_market_pulse.v1"
+    || !["current", "degraded"].includes(payload?.state)
+    || payload?.freshness?.state !== "current"
+    || !Array.isArray(payload?.rows)
+    || execution.research_only !== true
+    || execution.signing_available !== false
+    || execution.submission_available !== false
+    || provenance.role !== "exact_pool_market_activity"
+    || provenance.raven_signal !== false
+  ) throw new Error("onchain_market_pulse_contract_rejected");
+  const rows = payload.rows.filter((row) => {
+    const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
+    return row?.source_type === "market_activity"
+      && row?.market_type === "spot"
+      && ["base", "ethereum"].includes(chain)
+      && row?.identity_scope === "exact_pool"
+      && row?.instrument_id === `${chain}:pool:${text(row?.pool_address, "")}`
+      && row?.token_address
+      && row?.quote_token_address
+      && row?.research_only === true
+      && row?.actionable === false
+      && row?.execution_available === false;
+  });
+  return {
+    rows,
+    generatedAt: payload.generated_at,
+    state: payload.state,
+  };
+}
+
 function currentAtlasPayload(payload) {
   const rows = payload?.market_context?.rows;
   const execution = payload?.execution_boundary || {};
@@ -1115,11 +1200,12 @@ async function refresh({ manual = false } = {}) {
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
   const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;
-  const [opportunities, markets, atlas, featured] = await Promise.allSettled([
+  const [opportunities, markets, atlas, featured, onchainPulse] = await Promise.allSettled([
     json("/api/opportunity"),
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
+    json(`/api/onchain/trending?chains=base,ethereum&duration=${encodeURIComponent(state.spotTimeframe)}`),
   ]);
 
   if (shouldRefreshFeatured) {
@@ -1147,7 +1233,9 @@ async function refresh({ manual = false } = {}) {
 
   let ravenRows = [];
   let spotAttentionRows = [];
+  let marketPulseRows = [];
   let ravenGeneratedAt = null;
+  let marketPulseGeneratedAt = null;
   let ravenFailure = "";
   if (opportunities.status === "fulfilled" && opportunities.value.response.ok) {
     try {
@@ -1158,23 +1246,32 @@ async function refresh({ manual = false } = {}) {
         market_snapshot: state.markets.get(row.instrument_id) || null,
       }));
       spotAttentionRows = current.spotRows;
-      renderSpotPulse(current.spotRows);
       renderParticipationPayoff(current.participationPayoff);
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", "fresh", "Current");
     } catch {
-      renderSpotPulse([]);
       renderParticipationPayoff(null);
       setState("discoverCensusState", "unavailable", "Unavailable");
       ravenFailure = "Current Raven data did not meet freshness or identity requirements. Older observations were not substituted.";
     }
   } else {
-    renderSpotPulse([]);
     renderParticipationPayoff(null);
     setState("discoverCensusState", "unavailable", "Unavailable");
     const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
     ravenFailure = `The current Raven read could not be reached${status === "network" ? "" : ` (${status})`}. Older observations were not substituted.`;
   }
+
+  if (onchainPulse.status === "fulfilled" && onchainPulse.value.response.ok) {
+    try {
+      const current = currentOnchainPulsePayload(onchainPulse.value.payload);
+      marketPulseRows = current.rows;
+      marketPulseGeneratedAt = current.generatedAt;
+    } catch {
+      marketPulseRows = [];
+    }
+  }
+  const tokenRows = [...spotAttentionRows, ...marketPulseRows];
+  renderSpotPulse(tokenRows);
 
   let atlasRows = [];
   let atlasGeneratedAt = null;
@@ -1200,7 +1297,7 @@ async function refresh({ manual = false } = {}) {
 
   const combinedRows = [...ravenRows, ...atlasRows];
   if (combinedRows.length) {
-    const generatedAt = [ravenGeneratedAt, atlasGeneratedAt]
+    const generatedAt = [ravenGeneratedAt, atlasGeneratedAt, marketPulseGeneratedAt]
       .filter(Boolean)
       .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
     renderOpportunities(combinedRows, { generatedAt, appendOnly: state.rows.size > 0 });
@@ -1212,7 +1309,11 @@ async function refresh({ manual = false } = {}) {
     window.RavenOSShell?.setCapabilities?.({
       market: "Current markets + Raven",
       mode: "Read only",
-      evidence: `${ravenRows.length + spotAttentionRows.length} Raven · ${atlasRows.length} Atlas`,
+      evidence: [
+        `${ravenRows.length + spotAttentionRows.length} Raven`,
+        marketPulseRows.length ? `${marketPulseRows.length} live pools` : null,
+        `${atlasRows.length} Atlas`,
+      ].filter(Boolean).join(" · "),
       wallet: "No customer session",
       signing: "Sign off",
       broadcast: "Broadcast off",
@@ -1235,10 +1336,10 @@ async function refresh({ manual = false } = {}) {
       freshness: { state: "live", observedAt: generatedAt },
       nextExpectedTransition: "Open an exact market to inspect its available Raven and Atlas context.",
     });
-  } else if (spotAttentionRows.length) {
+  } else if (tokenRows.length) {
     state.rows.clear();
     state.order = [];
-    document.getElementById("discoverRowCount").textContent = spotAttentionRows.length.toLocaleString();
+    document.getElementById("discoverRowCount").textContent = tokenRows.length.toLocaleString();
     renderOpportunityState({
       heading: "No additional setups are current",
       detail: "Current token movement is available above. Raven is not filling the rest of the screen with older observations.",
@@ -1269,9 +1370,14 @@ function bind() {
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
     state.spotTimeframe = button.dataset.spotTimeframe;
     renderSpotPulse(state.spotRows, { forceOrder: true });
+    void refresh({ manual: true });
   }));
   document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
     state.spotSort = button.dataset.spotSort;
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }));
+  document.querySelectorAll("[data-spot-chain]").forEach((button) => button.addEventListener("click", () => {
+    state.spotChain = button.dataset.spotChain;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
   document.getElementById("discoverTokenUpdates").addEventListener("click", () => renderSpotPulse(state.spotRows, { forceOrder: true }));
@@ -1300,6 +1406,19 @@ bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
 window.__RAVENOS_DISCOVER__ = Object.freeze({
-  getState: () => ({ rowCount: state.rows.size, marketCount: state.markets.size, spotCount: state.spotRows.length, payoffCount: state.payoff?.insights?.length || 0, spotTimeframe: state.spotTimeframe, spotSort: state.spotSort, paused: state.paused, expanded: state.expanded, loading: state.loading, lastRefresh: state.lastRefresh }),
+  getState: () => ({
+    rowCount: state.rows.size,
+    marketCount: state.markets.size,
+    spotCount: state.spotRows.length,
+    evmSpotCount: state.spotRows.filter((row) => ["base", "ethereum"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
+    payoffCount: state.payoff?.insights?.length || 0,
+    spotTimeframe: state.spotTimeframe,
+    spotSort: state.spotSort,
+    spotChain: state.spotChain,
+    paused: state.paused,
+    expanded: state.expanded,
+    loading: state.loading,
+    lastRefresh: state.lastRefresh,
+  }),
   refresh: () => refresh({ manual: true }),
 });

@@ -49,6 +49,68 @@ function environment(assets = {}) {
   };
 }
 
+function geckoTrendingFixture(network, {
+  pool = "0x1111111111111111111111111111111111111111",
+  token = "0x2222222222222222222222222222222222222222",
+  quote = "0x3333333333333333333333333333333333333333",
+  symbol = "TOKEN",
+  name = "Test Token",
+} = {}) {
+  return {
+    data: [{
+      id: `${network}_${pool}`,
+      type: "pool",
+      attributes: {
+        address: pool,
+        name: `${symbol} / USDC`,
+        pool_created_at: "2026-01-01T00:00:00Z",
+        base_token_price_usd: "1.25",
+        quote_token_price_usd: "1",
+        fdv_usd: "125000000",
+        market_cap_usd: "84000000",
+        reserve_in_usd: "920000",
+        price_change_percentage: { m5: "4.2", h1: "8.4", h24: "14.8" },
+        volume_usd: { m5: "42000", h1: "280000", h24: "2100000" },
+        transactions: {
+          m5: { buys: 48, sells: 20, buyers: 36, sellers: 18 },
+          h1: { buys: 210, sells: 122, buyers: 140, sellers: 90 },
+          h24: { buys: 1200, sells: 880, buyers: 620, sellers: 490 },
+        },
+      },
+      relationships: {
+        base_token: { data: { id: `${network}_${token}`, type: "token" } },
+        quote_token: { data: { id: `${network}_${quote}`, type: "token" } },
+        dex: { data: { id: `${network}-dex`, type: "dex" } },
+      },
+    }],
+    included: [{
+      id: `${network}_${token}`,
+      type: "token",
+      attributes: {
+        address: token,
+        symbol,
+        name,
+        decimals: 18,
+        image_url: "https://coin-images.coingecko.com/coins/images/1/large/test.png",
+      },
+    }, {
+      id: `${network}_${quote}`,
+      type: "token",
+      attributes: {
+        address: quote,
+        symbol: "USDC",
+        name: "USD Coin",
+        decimals: 6,
+        image_url: "https://coin-images.coingecko.com/coins/images/2/large/usdc.png",
+      },
+    }, {
+      id: `${network}-dex`,
+      type: "dex",
+      attributes: { name: network === "base" ? "Aerodrome" : "Uniswap V3" },
+    }],
+  };
+}
+
 test("Worker serves current origin intelligence with explicit delivery provenance", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -250,6 +312,58 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.selection.state, "default_current_row");
     assert.equal(body.delivery.source, "current_public_origin");
     assert.equal(body.delivery.fallback, false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker serves bounded exact-pool Base and Ethereum market activity without relabeling it as Raven", async () => {
+  const providerSecret = "server-only-market-pulse-test-token";
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
+    assert.equal(url.searchParams.get("duration"), "5m");
+    assert.equal(url.searchParams.get("include"), "base_token,quote_token,dex");
+    if (url.pathname.includes("/networks/base/")) return jsonResponse(geckoTrendingFixture("base"));
+    if (url.pathname.includes("/networks/eth/")) {
+      return jsonResponse(geckoTrendingFixture("eth", {
+        pool: "0x4444444444444444444444444444444444444444",
+        token: "0x5555555555555555555555555555555555555555",
+        quote: "0x6666666666666666666666666666666666666666",
+        symbol: "WETH",
+        name: "Wrapped Ether",
+      }));
+    }
+    throw new Error(`unexpected_url:${url.pathname}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=base,ethereum&duration=5m"),
+      {
+        ...environment(),
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      },
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("cache-control"), /s-maxage=30/);
+    const body = await response.json();
+    assert.equal(body.schema_version, "ravenos.onchain_market_pulse.v1");
+    assert.equal(body.safe_public, true);
+    assert.equal(body.state, "current");
+    assert.equal(body.rows.length, 2);
+    assert.deepEqual(body.rows.map((row) => row.chain_id), ["base", "ethereum"]);
+    assert.ok(body.rows.every((row) => row.identity_scope === "exact_pool"));
+    assert.ok(body.rows.every((row) => row.source_type === "market_activity"));
+    assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
+    assert.ok(body.rows.every((row) => row.research_only === true && row.execution_available === false));
+    assert.equal(body.provenance.raven_signal, false);
+    assert.equal(body.execution_boundary.signing_available, false);
+    assert.equal(body.execution_boundary.submission_available, false);
+    assert.equal(JSON.stringify(body).includes(providerSecret), false);
   } finally {
     globalThis.fetch = previousFetch;
   }

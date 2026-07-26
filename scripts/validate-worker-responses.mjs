@@ -49,6 +49,7 @@ const checks = [
   ["GET", "/api/opportunity"],
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
+  ["GET", "/api/onchain/trending?chains=base,ethereum&duration=5m"],
   ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],
@@ -128,6 +129,65 @@ globalThis.fetch = async (input, init = {}) => {
   if (url.includes("api.coingecko.com/api/v3/onchain")) {
     if (init.headers?.["x-cg-demo-api-key"] !== env.ONCHAIN_CHART_PROVIDER_SECRET) throw new Error("server-only provider credential was not bound to the provider request");
     if (url.includes(env.ONCHAIN_CHART_PROVIDER_SECRET)) throw new Error("provider credential entered the request URL");
+    if (url.includes("/trending_pools")) {
+      const network = url.includes("/networks/eth/") ? "eth" : "base";
+      const pool = network === "eth"
+        ? "0x4444444444444444444444444444444444444444"
+        : "0x1111111111111111111111111111111111111111";
+      const token = network === "eth"
+        ? "0x5555555555555555555555555555555555555555"
+        : "0x2222222222222222222222222222222222222222";
+      const quote = network === "eth"
+        ? "0x6666666666666666666666666666666666666666"
+        : "0x3333333333333333333333333333333333333333";
+      return new Response(JSON.stringify({
+        data: [{
+          id: `${network}_${pool}`,
+          type: "pool",
+          attributes: {
+            address: pool,
+            name: "VALID / USDC",
+            pool_created_at: "2026-01-01T00:00:00Z",
+            base_token_price_usd: "1.25",
+            quote_token_price_usd: "1",
+            fdv_usd: "125000000",
+            market_cap_usd: "84000000",
+            reserve_in_usd: "920000",
+            price_change_percentage: { m5: "4.2", h1: "8.4", h24: "14.8" },
+            volume_usd: { m5: "42000", h1: "280000", h24: "2100000" },
+            transactions: {
+              m5: { buys: 48, sells: 20, buyers: 36, sellers: 18 },
+              h1: { buys: 210, sells: 122, buyers: 140, sellers: 90 },
+              h24: { buys: 1200, sells: 880, buyers: 620, sellers: 490 },
+            },
+          },
+          relationships: {
+            base_token: { data: { id: `${network}_${token}`, type: "token" } },
+            quote_token: { data: { id: `${network}_${quote}`, type: "token" } },
+            dex: { data: { id: `${network}-dex`, type: "dex" } },
+          },
+        }],
+        included: [{
+          id: `${network}_${token}`,
+          type: "token",
+          attributes: {
+            address: token,
+            symbol: "VALID",
+            name: "Validation Token",
+            decimals: 18,
+            image_url: "https://coin-images.coingecko.com/coins/images/1/large/test.png",
+          },
+        }, {
+          id: `${network}_${quote}`,
+          type: "token",
+          attributes: { address: quote, symbol: "USDC", name: "USD Coin", decimals: 6 },
+        }, {
+          id: `${network}-dex`,
+          type: "dex",
+          attributes: { name: "Validation DEX" },
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (!url.includes("/ohlcv/")) {
       return new Response(JSON.stringify({
         data: {

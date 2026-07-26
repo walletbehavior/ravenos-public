@@ -56,10 +56,16 @@
       <header class="discover-token-tape-head">
         <div>
           <span class="workspace-label">Tokens</span>
-          <h2 id="discoverSpotPulseTitle">Tokens Raven noticed</h2>
-          <p>Current exact-token movement, ranked by Raven’s read or the market window you choose.</p>
+          <h2 id="discoverSpotPulseTitle">Token movement</h2>
+          <p>Raven signals and current exact-pool activity across supported chains.</p>
         </div>
         <div class="discover-token-tape-controls">
+          <div class="discover-token-chains" role="group" aria-label="Token chain">
+            <button class="active" type="button" data-spot-chain="all" aria-pressed="true">All</button>
+            <button type="button" data-spot-chain="solana" aria-pressed="false">Solana</button>
+            <button type="button" data-spot-chain="base" aria-pressed="false">Base</button>
+            <button type="button" data-spot-chain="ethereum" aria-pressed="false">Ethereum</button>
+          </div>
           <div class="discover-token-sort" role="group" aria-label="Token ranking">
             <button class="active" type="button" data-spot-sort="raven" aria-pressed="true">Raven</button>
             <button type="button" data-spot-sort="velocity" aria-pressed="false">Velocity</button>
@@ -73,7 +79,7 @@
         </div>
       </header>
       <div class="discover-token-tape-columns" aria-hidden="true">
-        <span>Market</span><span>Move</span><span>Market anatomy</span><span>Why Raven noticed</span><span></span>
+        <span>Market</span><span>Move</span><span>Market anatomy</span><span>Why now</span><span></span>
       </div>
       <div class="discover-token-tape-list" id="discoverTokenTapeList"></div>
       <button class="discover-token-updates" id="discoverTokenUpdates" type="button" hidden>Apply refreshed ranking</button>

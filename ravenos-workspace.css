@@ -245,9 +245,11 @@
 .discover-token-tape-head > div:first-child { min-width: 0; display: grid; gap: 4px; }
 .discover-token-tape-head h2 { font-size: 16px; letter-spacing: -.025em; }
 .discover-token-tape-head p { max-width: 620px; color: var(--ws-muted); font-size: 9px; line-height: 1.45; }
-.discover-token-tape-controls { display: flex; align-items: center; gap: 8px; }
+.discover-token-tape-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.discover-token-chains,
 .discover-token-sort,
 .discover-timeframes { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--ws-border); border-radius: 7px; background: var(--ws-panel); }
+.discover-token-chains button,
 .discover-token-sort button,
 .discover-timeframes button {
   min-width: 34px;
@@ -259,7 +261,9 @@
   color: var(--ws-dim);
   font: 700 8px var(--ws-mono);
 }
+.discover-token-chains button { min-width: 42px; }
 .discover-token-sort button { min-width: 58px; }
+.discover-token-chains button.active,
 .discover-token-sort button.active,
 .discover-timeframes button.active { background: rgba(166, 177, 190, .11); color: var(--ws-text); }
 .discover-token-tape-columns,
@@ -946,6 +950,8 @@
   .discover-token-tape-head { align-items: flex-start; flex-direction: column; gap: 10px; padding: 12px; }
   .discover-token-tape-head p { max-width: 310px; }
   .discover-token-tape-controls { width: 100%; justify-content: space-between; gap: 6px; }
+  .discover-token-chains { width: 100%; }
+  .discover-token-chains button { min-width: 0; flex: 1; padding-inline: 5px; }
   .discover-token-sort { min-width: 0; }
   .discover-token-sort button { min-width: 0; padding-inline: 9px; }
   .discover-timeframes button { min-width: 30px; min-height: 22px; padding-inline: 5px; }

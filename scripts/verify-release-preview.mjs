@@ -340,6 +340,63 @@ if (
 ) {
   throw new Error(`Isolated preview did not return the exact keyed CoinGecko ${expectedChartPlan || "configured"} one-minute chart contract`);
 }
+
+const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,ethereum&duration=5m");
+const onchainPulse = JSON.parse(onchainPulseCapture.text);
+const onchainPulseFindings = scanJsonValue(onchainPulse, "preview:/api/onchain/trending");
+if (onchainPulseFindings.length) {
+  const fields = onchainPulseFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Isolated preview on-chain market pulse failed the public no-leak gate: ${fields}`);
+}
+if (
+  onchainPulse?.schema_version !== "ravenos.onchain_market_pulse.v1"
+  || onchainPulse?.safe_public !== true
+  || onchainPulse?.freshness?.state !== "current"
+  || onchainPulse?.provenance?.raven_signal !== false
+  || onchainPulse?.execution_boundary?.signing_available !== false
+  || onchainPulse?.execution_boundary?.submission_available !== false
+  || !Array.isArray(onchainPulse?.rows)
+) {
+  throw new Error("Isolated preview on-chain market pulse contract is incomplete");
+}
+const evmChartRows = ["base", "ethereum"].map((chain) => onchainPulse.rows.find((row) => (
+  row?.chain_id === chain
+  && row?.identity_scope === "exact_pool"
+  && row?.source_type === "market_activity"
+  && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
+)));
+if (evmChartRows.some((row) => !row)) {
+  throw new Error("Isolated preview did not return exact-pool Base and Ethereum activity");
+}
+for (const row of evmChartRows) {
+  const params = new URLSearchParams({
+    market: "crypto_spot",
+    asset: `${row.symbol}/${row.quote_symbol}`,
+    timeframe: "1m",
+    limit: "240",
+    chain: row.chain_id,
+    pair_address: row.pool_address,
+    token_address: row.token_address,
+    quote_address: row.quote_token_address,
+    instrument_scope: "exact_pool",
+  });
+  const evmChartCapture = await capture(`/api/terminal/chart?${params.toString()}`);
+  const evmChartEnvelope = JSON.parse(evmChartCapture.text);
+  const evmChart = evmChartEnvelope?.data || evmChartEnvelope;
+  if (
+    evmChart?.ok !== true
+    || evmChart?.market_identity !== `${row.chain_id}:${row.pool_address}`
+    || evmChart?.instrument?.pool_address !== row.pool_address
+    || evmChart?.instrument?.token_address?.toLowerCase() !== row.token_address.toLowerCase()
+    || evmChart?.candle_series?.provider !== "coingecko_onchain"
+    || evmChart?.candle_series?.raven_observations_are_candles !== false
+    || !Array.isArray(evmChart?.candles)
+    || evmChart.candles.length < 120
+  ) {
+    throw new Error(`Isolated preview ${row.chain_id} market pulse row did not open a dense exact-pool one-minute chart`);
+  }
+}
+
 const localProviderEnv = onchainChartProviderEnv(dirname(dirname(bundleRoot)));
 const localProviderSecret = String(localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRET || "").trim();
 if (localProviderSecret && chartCapture.text.includes(localProviderSecret)) {
@@ -380,6 +437,10 @@ const report = {
   opportunity_freshness: opportunity.delivery.freshness_state,
   exact_instrument_verified: selectedRow.instrument_id,
   provider_attribution_verified: true,
+  onchain_market_pulse: {
+    chains: evmChartRows.map((row) => row.chain_id),
+    exact_pool_charts_verified: evmChartRows.length,
+  },
   atlas_universe: {
     featured_sections: atlasFeatured.sections.length,
     search_identity: atlasSpy.entity_id,

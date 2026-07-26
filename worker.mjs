@@ -69,6 +69,7 @@ import { buildParticipationPayoffProjection } from "./lib/participation_payoff.m
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
+const onchainPulseCache = new Map();
 const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
@@ -85,6 +86,16 @@ const CHAIN_ROUTE_MAP = {
   base: { aliases: ["base"], label: "Base" },
   ethereum: { aliases: ["eth", "ethereum"], label: "Ethereum" },
 };
+const ONCHAIN_PULSE_NETWORKS = Object.freeze({
+  base: Object.freeze({ provider_network: "base", label: "Base" }),
+  ethereum: Object.freeze({ provider_network: "eth", label: "Ethereum" }),
+});
+const ONCHAIN_PULSE_DURATIONS = Object.freeze({
+  "5m": "m5",
+  "1h": "h1",
+  "24h": "h24",
+});
+const STABLE_TOKEN_SYMBOLS = new Set(["USDC", "USDT", "DAI", "USDE", "USDS", "FDUSD", "USDBC"]);
 const EXACT_TRADITIONAL_INSTRUMENTS = Object.freeze({
   SPY: Object.freeze({ instrument_id: "etf:nyse-arca:spy", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
   QQQ: Object.freeze({ instrument_id: "etf:nasdaq:qqq", instrument_type: "etf", venue: "nasdaq", listing: "Nasdaq Stock Market" }),
@@ -1637,6 +1648,296 @@ function geckoIncludedToken(payload, address, network) {
   };
 }
 
+function optionalFiniteNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const result = Number(value);
+  return Number.isFinite(result) ? result : null;
+}
+
+function boundedPublicLabel(value, fallback = "", limit = 80) {
+  const clean = String(value || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (clean || fallback).slice(0, limit);
+}
+
+function safeGeckoImageUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    if (
+      url.protocol !== "https:"
+      || !["coin-images.coingecko.com", "assets.coingecko.com"].includes(url.hostname)
+    ) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function geckoIncludedResource(payload, id, type) {
+  if (!id) return null;
+  return (Array.isArray(payload?.included) ? payload.included : []).find((row) => (
+    row?.id === id && row?.type === type
+  )) || null;
+}
+
+function pulseTransactionMetrics(attributes = {}, providerWindow = "") {
+  const row = attributes?.transactions?.[providerWindow] || {};
+  const buys = optionalFiniteNumber(row.buys);
+  const sells = optionalFiniteNumber(row.sells);
+  const buyers = optionalFiniteNumber(row.buyers);
+  const sellers = optionalFiniteNumber(row.sellers);
+  return {
+    buys: buys === null ? null : Math.max(0, Math.round(buys)),
+    sells: sells === null ? null : Math.max(0, Math.round(sells)),
+    buyers: buyers === null ? null : Math.max(0, Math.round(buyers)),
+    sellers: sellers === null ? null : Math.max(0, Math.round(sellers)),
+  };
+}
+
+function marketPulseRead({ duration, movement, buys, sells, volumeUsd }) {
+  const parts = [];
+  if (movement !== null) {
+    const direction = movement > 0.05 ? "up" : movement < -0.05 ? "down" : "nearly flat";
+    parts.push(direction === "nearly flat"
+      ? `Price is nearly flat over ${duration}`
+      : `Price is ${direction} ${Math.abs(movement).toFixed(Math.abs(movement) < 0.1 ? 3 : 2)}% over ${duration}`);
+  }
+  if (buys !== null && sells !== null) {
+    if (buys >= sells * 1.35 && buys - sells >= 5) parts.push(`buy flow leads ${buys} to ${sells}`);
+    else if (sells >= buys * 1.35 && sells - buys >= 5) parts.push(`sell flow leads ${sells} to ${buys}`);
+    else parts.push(`${buys + sells} trades are balanced`);
+  }
+  if (volumeUsd !== null) {
+    const formatted = new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(volumeUsd);
+    parts.push(`$${formatted} volume`);
+  }
+  if (!parts.length) return `Current ${duration} pool activity is available.`;
+  return `${parts.join(" · ")}.`;
+}
+
+function marketPulseRisk({ liquidityUsd, movement }) {
+  if (liquidityUsd !== null && liquidityUsd < 25_000) {
+    return "Liquidity is thin; slippage and reversals can be sharp.";
+  }
+  if (movement !== null && Math.abs(movement) >= 20) {
+    return "The short-window move is extended and can reverse quickly.";
+  }
+  return null;
+}
+
+function normalizeGeckoTrendingPool(payload, row, {
+  chain,
+  chainLabel,
+  duration,
+  providerWindow,
+  providerRank,
+  fetchedAt,
+} = {}) {
+  if (row?.type !== "pool") return null;
+  const poolAddress = String(row?.attributes?.address || "").trim().toLowerCase();
+  if (!EVM_ADDRESS_RE.test(poolAddress)) return null;
+  const baseRelationship = row?.relationships?.base_token?.data?.id;
+  const quoteRelationship = row?.relationships?.quote_token?.data?.id;
+  const dexRelationship = row?.relationships?.dex?.data?.id;
+  const base = geckoIncludedResource(payload, baseRelationship, "token");
+  const quote = geckoIncludedResource(payload, quoteRelationship, "token");
+  if (!base || !quote) return null;
+  const baseAddress = String(base?.attributes?.address || geckoRelationshipAddress(base?.id, chain)).trim().toLowerCase();
+  const quoteAddress = String(quote?.attributes?.address || geckoRelationshipAddress(quote?.id, chain)).trim().toLowerCase();
+  if (!EVM_ADDRESS_RE.test(baseAddress) || !EVM_ADDRESS_RE.test(quoteAddress) || baseAddress === quoteAddress) return null;
+  const baseSymbol = boundedPublicLabel(base?.attributes?.symbol, "TOKEN", 24);
+  const quoteSymbol = boundedPublicLabel(quote?.attributes?.symbol, "TOKEN", 24);
+  const baseStable = STABLE_TOKEN_SYMBOLS.has(baseSymbol.toUpperCase());
+  const quoteStable = STABLE_TOKEN_SYMBOLS.has(quoteSymbol.toUpperCase());
+  if (baseStable && quoteStable) return null;
+  const selectQuote = baseStable && !quoteStable;
+  const selected = selectQuote ? quote : base;
+  const counter = selectQuote ? base : quote;
+  const tokenAddress = selectQuote ? quoteAddress : baseAddress;
+  const quoteTokenAddress = selectQuote ? baseAddress : quoteAddress;
+  const symbol = boundedPublicLabel(selected?.attributes?.symbol, "TOKEN", 24);
+  const quoteAsset = boundedPublicLabel(counter?.attributes?.symbol, "TOKEN", 24);
+  const name = boundedPublicLabel(selected?.attributes?.name, symbol, 80);
+  const attributes = row.attributes || {};
+  const movement = optionalFiniteNumber(attributes?.price_change_percentage?.[providerWindow]);
+  const transaction = pulseTransactionMetrics(attributes, providerWindow);
+  const volumeUsd = optionalFiniteNumber(attributes?.volume_usd?.[providerWindow]);
+  const liquidityUsd = optionalFiniteNumber(attributes.reserve_in_usd);
+  const priceUsd = optionalFiniteNumber(
+    selectQuote ? attributes.quote_token_price_usd : attributes.base_token_price_usd,
+  );
+  if (liquidityUsd === null || liquidityUsd <= 0 || priceUsd === null || priceUsd <= 0) return null;
+  const poolCreatedAt = Date.parse(attributes.pool_created_at || "");
+  const marketAgeSeconds = Number.isFinite(poolCreatedAt)
+    ? Math.max(0, Math.round((Date.now() - poolCreatedAt) / 1_000))
+    : null;
+  const dex = geckoIncludedResource(payload, dexRelationship, "dex");
+  const venue = boundedPublicLabel(dex?.attributes?.name, boundedPublicLabel(dexRelationship, "On-chain pool", 60), 60);
+  const windowMetrics = {};
+  for (const [publicWindow, sourceWindow] of Object.entries(ONCHAIN_PULSE_DURATIONS)) {
+    const tx = pulseTransactionMetrics(attributes, sourceWindow);
+    windowMetrics[`price_change_${publicWindow}_pct`] = optionalFiniteNumber(
+      attributes?.price_change_percentage?.[sourceWindow],
+    );
+    windowMetrics[`volume_usd_${publicWindow}`] = optionalFiniteNumber(attributes?.volume_usd?.[sourceWindow]);
+    windowMetrics[`buys_${publicWindow}`] = tx.buys;
+    windowMetrics[`sells_${publicWindow}`] = tx.sells;
+    windowMetrics[`buyers_${publicWindow}`] = tx.buyers;
+    windowMetrics[`sellers_${publicWindow}`] = tx.sellers;
+  }
+  return {
+    public_attention_id: `market:${chain}:${poolAddress}`,
+    instrument_id: `${chain}:pool:${poolAddress}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: chainLabel,
+    chain_id: chain,
+    venue,
+    identity_scope: "exact_pool",
+    symbol,
+    name,
+    token_address: tokenAddress,
+    quote_token_address: quoteTokenAddress,
+    quote_symbol: quoteAsset,
+    pool_address: poolAddress,
+    image_url: safeGeckoImageUrl(selected?.attributes?.image_url),
+    observed_at: fetchedAt,
+    age_seconds: 0,
+    context_state: "current",
+    movement_state: movement === null
+      ? "Active pool"
+      : movement > 0.5 ? "Rising activity" : movement < -0.5 ? "Falling activity" : "Active and range-bound",
+    what_changed: marketPulseRead({
+      duration,
+      movement,
+      buys: transaction.buys,
+      sells: transaction.sells,
+      volumeUsd,
+    }),
+    risk: marketPulseRisk({ liquidityUsd, movement }),
+    provider_rank: providerRank,
+    ranking_duration: duration,
+    market: {
+      price_usd: priceUsd,
+      liquidity_usd: liquidityUsd,
+      market_cap_usd: selectQuote ? null : optionalFiniteNumber(attributes.market_cap_usd),
+      fdv_usd: selectQuote ? null : optionalFiniteNumber(attributes.fdv_usd),
+      market_age_seconds: marketAgeSeconds,
+      pool_created_at: Number.isFinite(poolCreatedAt) ? new Date(poolCreatedAt).toISOString() : null,
+      ...windowMetrics,
+    },
+    inspection: {
+      state: "exact_pool_ready",
+      silent_pool_selection: false,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  };
+}
+
+function parseOnchainPulseChains(value) {
+  const requested = String(value || "base,ethereum")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (!requested.length || requested.some((chain) => !ONCHAIN_PULSE_NETWORKS[chain])) return null;
+  return [...new Set(requested)].slice(0, 2);
+}
+
+async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {}) {
+  const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
+  if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
+  const runtime = onchainProviderRuntime("coingecko_onchain", env);
+  if (!runtime.runtime_allowed || !runtime.credential_present) {
+    throw new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable");
+  }
+  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}`;
+  const cached = cacheGet(onchainPulseCache, cacheKey);
+  if (cached) return cached;
+  const fetchedAt = new Date().toISOString();
+  const settled = await Promise.allSettled(chains.map(async (chain) => {
+    const network = ONCHAIN_PULSE_NETWORKS[chain];
+    const payload = await runProviderOperation({
+      component: "onchain_market_pulse",
+      operation_key: `trending:${runtime.provider_tier}:${network.provider_network}:${duration}`,
+      fn: () => boundedProviderJson(
+        `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/trending_pools?include=base_token%2Cquote_token%2Cdex&duration=${encodeURIComponent(duration)}&page=1`,
+        {
+          headers: runtime.request_headers,
+          maxBytes: 384 * 1024,
+          timeoutMs: 5_000,
+          errorPrefix: "coingecko_trending",
+        },
+      ),
+    });
+    const deduped = new Set();
+    const rows = [];
+    for (const [index, row] of (Array.isArray(payload?.data) ? payload.data : []).slice(0, 20).entries()) {
+      const normalized = normalizeGeckoTrendingPool(payload, row, {
+        chain,
+        chainLabel: network.label,
+        duration,
+        providerWindow,
+        providerRank: index + 1,
+        fetchedAt,
+      });
+      if (!normalized || deduped.has(normalized.token_address)) continue;
+      deduped.add(normalized.token_address);
+      rows.push(normalized);
+      if (rows.length >= 8) break;
+    }
+    if (!rows.length) throw new Error("coingecko_trending_rows_unavailable");
+    return { chain, rows };
+  }));
+  const rows = [];
+  const failures = [];
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") rows.push(...result.value.rows);
+    else failures.push({
+      chain: chains[index],
+      state: "temporarily_unavailable",
+    });
+  });
+  if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
+  const result = {
+    ok: true,
+    safe_public: true,
+    schema_version: "ravenos.onchain_market_pulse.v1",
+    generated_at: fetchedAt,
+    state: failures.length ? "degraded" : "current",
+    freshness: {
+      state: "current",
+      observed_at: fetchedAt,
+      expected_update_seconds: 30,
+    },
+    duration,
+    chains,
+    rows,
+    unavailable: failures,
+    provenance: {
+      provider: "coingecko_onchain",
+      role: "exact_pool_market_activity",
+      raven_signal: false,
+      attribution_required: true,
+      attribution_label: runtime.attribution_label,
+      attribution_url: runtime.attribution_url,
+    },
+    execution_boundary: {
+      research_only: true,
+      signing_available: false,
+      submission_available: false,
+    },
+  };
+  cacheSet(onchainPulseCache, cacheKey, result, 30_000);
+  return result;
+}
+
 async function fetchGeckoPoolIdentity({ env = {}, chain = "", pairAddress = "", tokenAddress = "", quoteAddress = "" } = {}) {
   const providerId = "coingecko_onchain";
   const runtime = onchainProviderRuntime(providerId, env);
@@ -1803,7 +2104,7 @@ async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", t
           ok: candles.length > 0,
           asset,
           provider_asset: tokenAddress || null,
-          market_identity: `${network}:${pool}`,
+          market_identity: `${String(chain || "").toLowerCase()}:${pool}`,
           chain: String(chain || "").toLowerCase(),
           pair_address: pool,
           token_address: identity.selected_token_address,
@@ -4326,6 +4627,39 @@ async function routeApi(request, env) {
       });
     } catch (error) {
       return json({ ok: false, error: "onchain_market_search_unavailable", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === "/api/onchain/trending" && request.method === "GET") {
+    const chains = parseOnchainPulseChains(url.searchParams.get("chains") || "");
+    const duration = String(url.searchParams.get("duration") || "5m").trim().toLowerCase();
+    if (!chains || !ONCHAIN_PULSE_DURATIONS[duration]) {
+      return json({
+        ok: false,
+        error: "onchain_market_pulse_request_invalid",
+        allowed_chains: Object.keys(ONCHAIN_PULSE_NETWORKS),
+        allowed_durations: Object.keys(ONCHAIN_PULSE_DURATIONS),
+      }, { status: 400 });
+    }
+    try {
+      return json(await onchainMarketPulse({ env, chains, duration }), {
+        headers: {
+          "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60",
+        },
+      });
+    } catch {
+      return json({
+        ok: false,
+        safe_public: true,
+        schema_version: "ravenos.onchain_market_pulse.v1",
+        state: "unavailable",
+        error: "onchain_market_pulse_unavailable",
+        rows: [],
+        execution_boundary: {
+          research_only: true,
+          signing_available: false,
+          submission_available: false,
+        },
+      }, { status: 502 });
     }
   }
   if (url.pathname === "/api/onchain/token-metadata" && request.method === "GET") {

@@ -32,6 +32,7 @@ const apiRoutes = [
   "/api/behavior",
   "/api/research",
   "/api/perps",
+  "/api/onchain/trending?chains=base,ethereum&duration=5m",
   "/api/chains/solana",
   "/api/chains/base",
   "/api/chains/ethereum",
@@ -107,6 +108,28 @@ if (
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
 ) throw new Error("/api/trade/flags does not preserve the market-preview-only execution boundary");
+
+const { res: onchainPulseRes, json: onchainPulseJson } = await fetchJson(
+  "/api/onchain/trending?chains=base,ethereum&duration=5m",
+);
+const pulseRows = onchainPulseJson?.rows;
+if (
+  !onchainPulseRes.ok
+  || onchainPulseJson?.schema_version !== "ravenos.onchain_market_pulse.v1"
+  || onchainPulseJson?.safe_public !== true
+  || onchainPulseJson?.freshness?.state !== "current"
+  || onchainPulseJson?.provenance?.raven_signal !== false
+  || !Array.isArray(pulseRows)
+  || !["base", "ethereum"].every((chain) => pulseRows.some((row) => (
+    row?.chain_id === chain
+    && row?.identity_scope === "exact_pool"
+    && row?.source_type === "market_activity"
+    && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
+    && row?.execution_available === false
+  )))
+  || onchainPulseJson?.execution_boundary?.signing_available !== false
+  || onchainPulseJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/onchain/trending did not return current exact-pool Base and Ethereum activity");
 
 const { res: marketPreviewRes, json: marketPreviewJson } = await fetchJson("/api/trade/market-preview", {
   method: "POST",
@@ -193,6 +216,39 @@ const chartNoLeakFindings = scanJsonValue(chartEnvelope, "production:/api/termin
 if (chartNoLeakFindings.length) {
   const fields = chartNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Production chart response failed the public no-leak gate: ${fields}`);
+}
+
+for (const chain of ["base", "ethereum"]) {
+  const row = pulseRows.find((candidate) => candidate?.chain_id === chain && candidate?.identity_scope === "exact_pool");
+  const params = new URLSearchParams({
+    market: "crypto_spot",
+    asset: `${row.symbol}/${row.quote_symbol}`,
+    timeframe: "1m",
+    limit: "240",
+    chain,
+    pair_address: row.pool_address,
+    token_address: row.token_address,
+    quote_address: row.quote_token_address,
+    instrument_scope: "exact_pool",
+  });
+  const { res, json: envelope } = await fetchJson(`/api/terminal/chart?${params.toString()}`);
+  const payload = envelope?.data || envelope;
+  if (
+    !res.ok
+    || payload?.ok !== true
+    || payload?.market_identity !== `${chain}:${row.pool_address}`
+    || payload?.instrument?.pool_address !== row.pool_address
+    || payload?.instrument?.token_address?.toLowerCase() !== row.token_address.toLowerCase()
+    || payload?.candle_series?.provider !== "coingecko_onchain"
+    || payload?.candle_series?.raven_observations_are_candles !== false
+    || !Array.isArray(payload?.candles)
+    || payload.candles.length < 120
+  ) throw new Error(`Production ${chain} market pulse row did not open a dense exact-pool one-minute chart`);
+  const findings = scanJsonValue(envelope, `production:/api/terminal/chart:${chain}`);
+  if (findings.length) {
+    const fields = findings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+    throw new Error(`Production ${chain} chart response failed the public no-leak gate: ${fields}`);
+  }
 }
 
 console.log(`RavenOS production verification passed for ${baseUrl}`);

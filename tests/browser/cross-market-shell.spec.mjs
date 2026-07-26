@@ -47,6 +47,12 @@ const opportunityRows = [
 const spotTokenAddress = "11111111111111111111111111111111";
 const spotPoolAddress = "22222222222222222222222222222222";
 const spotTokenOnlyAddress = "33333333333333333333333333333333";
+const basePulsePool = "0x1111111111111111111111111111111111111111";
+const basePulseToken = "0x2222222222222222222222222222222222222222";
+const basePulseQuote = "0x3333333333333333333333333333333333333333";
+const ethereumPulsePool = "0x4444444444444444444444444444444444444444";
+const ethereumPulseToken = "0x5555555555555555555555555555555555555555";
+const ethereumPulseQuote = "0x6666666666666666666666666666666666666666";
 
 const spotAttentionRows = [
   {
@@ -141,6 +147,123 @@ const spotAttentionRows = [
       summary: "Broader attention has not been confirmed in the retained comparison.",
     },
     inspection: { state: "exact_market_selection_required", silent_pool_selection: false },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  },
+];
+
+function onchainPulsePayload(rows = []) {
+  return {
+    ok: true,
+    safe_public: true,
+    schema_version: "ravenos.onchain_market_pulse.v1",
+    generated_at: "2026-07-21T12:20:00Z",
+    state: "current",
+    freshness: { state: "current", observed_at: "2026-07-21T12:20:00Z", expected_update_seconds: 30 },
+    duration: "5m",
+    chains: ["base", "ethereum"],
+    rows,
+    unavailable: [],
+    provenance: {
+      provider: "coingecko_onchain",
+      role: "exact_pool_market_activity",
+      raven_signal: false,
+      attribution_required: true,
+      attribution_label: "Data provided by CoinGecko",
+      attribution_url: "https://www.coingecko.com/",
+    },
+    execution_boundary: { research_only: true, signing_available: false, submission_available: false },
+  };
+}
+
+const evmPulseRows = [
+  {
+    public_attention_id: `market:base:${basePulsePool}`,
+    instrument_id: `base:pool:${basePulsePool}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Base",
+    chain_id: "base",
+    venue: "Aerodrome",
+    identity_scope: "exact_pool",
+    symbol: "AERO",
+    name: "Aerodrome",
+    token_address: basePulseToken,
+    quote_token_address: basePulseQuote,
+    quote_symbol: "USDC",
+    pool_address: basePulsePool,
+    observed_at: "2026-07-21T12:20:00Z",
+    age_seconds: 0,
+    context_state: "current",
+    movement_state: "Rising activity",
+    what_changed: "Price is up 6.20% over 5m · buy flow leads 62 to 21 · $184K volume.",
+    risk: null,
+    provider_rank: 1,
+    ranking_duration: "5m",
+    market: {
+      price_usd: 0.84,
+      price_change_5m_pct: 6.2,
+      price_change_1h_pct: 12.4,
+      price_change_24h_pct: 18.8,
+      volume_usd_5m: 184_000,
+      volume_usd_1h: 940_000,
+      volume_usd_24h: 8_400_000,
+      buys_5m: 62,
+      sells_5m: 21,
+      buys_1h: 241,
+      sells_1h: 118,
+      buys_24h: 1_200,
+      sells_24h: 840,
+      liquidity_usd: 3_200_000,
+      market_cap_usd: 420_000_000,
+    },
+    inspection: { state: "exact_pool_ready", silent_pool_selection: false },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  },
+  {
+    public_attention_id: `market:ethereum:${ethereumPulsePool}`,
+    instrument_id: `ethereum:pool:${ethereumPulsePool}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Ethereum",
+    chain_id: "ethereum",
+    venue: "Uniswap V3",
+    identity_scope: "exact_pool",
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    token_address: ethereumPulseToken,
+    quote_token_address: ethereumPulseQuote,
+    quote_symbol: "USDC",
+    pool_address: ethereumPulsePool,
+    observed_at: "2026-07-21T12:20:00Z",
+    age_seconds: 0,
+    context_state: "current",
+    movement_state: "Active and range-bound",
+    what_changed: "Price is nearly flat over 5m · 184 trades are balanced · $2.4M volume.",
+    risk: null,
+    provider_rank: 1,
+    ranking_duration: "5m",
+    market: {
+      price_usd: 3_850,
+      price_change_5m_pct: 0.02,
+      price_change_1h_pct: 0.8,
+      price_change_24h_pct: 2.4,
+      volume_usd_5m: 2_400_000,
+      volume_usd_1h: 18_000_000,
+      volume_usd_24h: 210_000_000,
+      buys_5m: 94,
+      sells_5m: 90,
+      buys_1h: 520,
+      sells_1h: 498,
+      buys_24h: 6_200,
+      sells_24h: 6_010,
+      liquidity_usd: 86_000_000,
+      market_cap_usd: 460_000_000_000,
+    },
+    inspection: { state: "exact_pool_ready", silent_pool_selection: false },
     research_only: true,
     actionable: false,
     execution_available: false,
@@ -267,13 +390,23 @@ function atlasPayload() {
   };
 }
 
-async function mockWorkspaceApis(page, { opportunityStatus = 200, withSpot = false, spotSearchResults = [] } = {}) {
+async function mockWorkspaceApis(page, {
+  opportunityStatus = 200,
+  withSpot = false,
+  withEvmPulse = false,
+  spotSearchResults = [],
+} = {}) {
   await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ ok: true, results: spotSearchResults }),
   }));
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: markets }) }));
+  await page.route("**/api/onchain/trending**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(onchainPulsePayload(withEvmPulse ? evmPulseRows : [])),
+  }));
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: opportunityStatus,
     contentType: "application/json",
@@ -423,8 +556,8 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Tokens Raven noticed");
-  await expect(page.locator(".discover-chain-chip")).toHaveCount(0);
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Token movement");
+  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum"]);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("[data-spot-sort]")).toHaveText(["Raven", "Velocity", "Activity"]);
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
@@ -439,7 +572,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.locator("[data-spot-sort='activity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("ranked by Raven");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("Raven signals and current exact-pool activity");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   const spotFilter = page.locator("[data-discover-filter='spot']");
@@ -468,6 +601,75 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   await expect(page.locator("body")).not.toContainText(/comparison source|provider payload|wallet address/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+});
+
+test("Discover adds live Base and Ethereum exact pools without presenting them as Raven signals", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await mockWorkspaceApis(page, { withSpot: true, withEvmPulse: true });
+  await page.unroute("**/api/dexscreener/pair**");
+  await page.route("**/api/dexscreener/pair**", (route) => {
+    const url = new URL(route.request().url());
+    const chain = url.searchParams.get("chainId");
+    const pair = url.searchParams.get("pairAddress");
+    const source = chain === "base"
+      ? evmPulseRows[0]
+      : chain === "ethereum" ? evmPulseRows[1] : null;
+    return route.fulfill({
+      status: source && source.pool_address === pair ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: Boolean(source && source.pool_address === pair),
+        results: source ? [{
+          chainId: source.chain_id,
+          dexId: source.venue,
+          pairAddress: source.pool_address,
+          tokenAddress: source.token_address,
+          quoteTokenAddress: source.quote_token_address,
+          symbol: source.symbol,
+          name: source.name,
+          quoteSymbol: source.quote_symbol,
+          priceUsd: source.market.price_usd,
+          liquidityUsd: source.market.liquidity_usd,
+          volume24h: source.market.volume_usd_24h,
+          txns24h: source.market.buys_24h + source.market.sells_24h,
+          marketCap: source.market.market_cap_usd,
+          priceChange24h: source.market.price_change_24h_pct,
+        }] : [],
+      }),
+    });
+  });
+  await page.goto("/discover/");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(2);
+  await expect(page.locator(".discover-token-row")).toHaveCount(4);
+
+  await page.locator("[data-spot-chain='base']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  const base = page.locator(".discover-token-row").first();
+  await expect(base).toContainText("AERO");
+  await expect(base).toContainText("Base · Aerodrome");
+  await expect(base).toContainText("Market pulse");
+  await expect(base).not.toContainText("Raven saw it earlier");
+  await expect(base).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${basePulsePool}`));
+
+  await page.locator("[data-spot-chain='ethereum']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row").first()).toContainText("WETH");
+  await expect(page.locator(".discover-token-row").first()).toHaveAttribute("href", new RegExp(`instrument_id=ethereum%3Apool%3A${ethereumPulsePool}`));
+
+  await page.locator("[data-spot-chain='base']").click();
+  await page.locator(".discover-token-row").first().click();
+  await page.waitForURL((url) => (
+    url.pathname === "/terminal/"
+    && url.searchParams.get("instrument_id") === `base:pool:${basePulsePool}`
+  ));
+  await waitForTerminalLive(page, { lane: "spot", instrument: "AERO/USDC", timeframe: "1m" });
+  await expect(page.locator("#terminalInstrument")).toHaveText("AERO/USDC");
+  expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
 });
 
 test("Discover updates token facts without reordering the tape under an active scroll", async ({ page }) => {
