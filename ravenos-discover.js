@@ -452,6 +452,20 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
   return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
 }
 
+function hasDecisionUsefulSpotActivity(row) {
+  if (row?.source_type === "raven_spot_attention") return true;
+  const priceChange = spotMetric(row, "price_change");
+  const volume = spotMetric(row, "volume_usd");
+  const buys = spotMetric(row, "buys");
+  const sells = spotMetric(row, "sells");
+  const traders = spotMetric(row, "traders");
+  return (priceChange !== null && Math.abs(priceChange) > 0)
+    || (volume !== null && volume > 0)
+    || (buys !== null && buys > 0)
+    || (sells !== null && sells > 0)
+    || (traders !== null && traders > 0);
+}
+
 function spotRowId(row = {}) {
   return text(row.public_attention_id, `${text(row.chain, "solana")}:${text(row.token_address, row.instrument_id)}`);
 }
@@ -502,7 +516,8 @@ function spotRankedRows() {
       && (state.spotChain === "all" || chain === state.spotChain)
       && (age === null || age <= 3_600)
       && liquidity !== null
-      && liquidity > 0;
+      && liquidity > 0
+      && hasDecisionUsefulSpotActivity(row);
   });
   if (state.spotSort === "raven") {
     return current.sort((left, right) => {

@@ -678,6 +678,44 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
+test("Discover omits zero-activity pools and lets available anatomy fill the row", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await mockWorkspaceApis(page, { withSpot: true, withEvmPulse: true });
+  const dormant = structuredClone(evmPulseRows[0]);
+  dormant.public_attention_id = "market:base:0x000000000000000000000000000000000000d001";
+  dormant.instrument_id = "base:pool:0x000000000000000000000000000000000000d001";
+  dormant.pool_address = "0x000000000000000000000000000000000000d001";
+  dormant.token_address = "0x000000000000000000000000000000000000d002";
+  dormant.symbol = "DORMANT";
+  dormant.name = "Dormant pool";
+  dormant.what_changed = "No current movement.";
+  dormant.market.price_change_5m_pct = 0;
+  dormant.market.volume_usd_5m = 0;
+  dormant.market.buys_5m = 0;
+  dormant.market.sells_5m = 0;
+  dormant.market.traders_5m = 0;
+  await page.unroute("**/api/onchain/trending**");
+  await page.route("**/api/onchain/trending**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(onchainPulsePayload([...evmPulseRows, dormant])),
+  }));
+
+  await page.goto("/discover/");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(3);
+  await expect(page.locator(".discover-token-row")).toHaveCount(4);
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText("DORMANT");
+
+  const base = page.locator(".discover-token-row").filter({ hasText: "AERO" });
+  const fill = await base.locator(".discover-token-anatomy").evaluate((node) => {
+    const cells = [...node.children].filter((child) => !child.hidden);
+    const grid = node.getBoundingClientRect();
+    const last = cells.at(-1)?.getBoundingClientRect();
+    return last ? Math.abs(grid.right - last.right) : Number.POSITIVE_INFINITY;
+  });
+  expect(fill).toBeLessThanOrEqual(1);
+});
+
 test("Discover updates token facts without reordering the tape under an active scroll", async ({ page }) => {
   await mockWorkspaceApis(page, { withSpot: true });
   await page.goto("/discover/");
