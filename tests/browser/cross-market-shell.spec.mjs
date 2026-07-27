@@ -90,6 +90,7 @@ const spotAttentionRows = [
       volume_usd_24h: 510_000,
       liquidity_usd: 82_000,
       holder_count: 1_240,
+      market_age_seconds: 7_200,
     },
     broader_attention: {
       state: "raven_observed_first",
@@ -563,6 +564,8 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
   await expect(page.locator(".discover-token-row").first()).toContainText("+8.50%");
   await expect(page.locator(".discover-token-row").first()).toContainText("72");
+  await expect(page.locator(".discover-token-row").first()).toContainText("1.24K");
+  await expect(page.locator(".discover-token-row").first()).toContainText("2h old");
   await page.locator("[data-spot-timeframe='24h']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
   await page.locator("[data-spot-sort='velocity']").click();
@@ -1250,8 +1253,10 @@ test("universal search resolves an exact supported spot pool without a second mo
   await result.click();
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
-  await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
-  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
+  await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomy7")).toHaveText("Review unavailable");
   await expect(page.locator("#terminalAnatomy7")).not.toContainText(/capability|check|required/i);
 });

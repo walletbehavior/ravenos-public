@@ -105,7 +105,7 @@ button, input, select { font: inherit; }
 .terminal-positive { color: var(--terminal-positive) !important; }
 .terminal-negative { color: var(--terminal-negative) !important; }
 
-.terminal-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 370px); gap: 6px; margin-top: 4px; }
+.terminal-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 370px); gap: 6px; align-items: start; margin-top: 4px; }
 .terminal-chart-panel,
 .terminal-intelligence > section { min-width: 0; border: 1px solid var(--terminal-line); background: var(--terminal-surface); }
 .terminal-chart-panel > header { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 5px 8px; border-bottom: 1px solid var(--terminal-line); }
@@ -258,6 +258,7 @@ button, input, select { font: inherit; }
 .terminal-marker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 9px 0 0; background: var(--terminal-line); }
 .terminal-anatomy-grid > div,
 .terminal-marker-grid > div { min-width: 0; padding: 7px; background: #0d1219; }
+.terminal-anatomy-grid > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .terminal-anatomy-grid dt,
 .terminal-marker-grid dt,
 .terminal-fingerprint span { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }

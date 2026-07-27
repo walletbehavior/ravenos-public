@@ -300,6 +300,7 @@ test("/atlas/ explains an outage without inventing unsupported research", async 
   }));
   await page.goto("/atlas/");
   await expect(page.locator("h1")).toContainText(/one market, resolved in context/i);
+  await expect(page.locator("main")).toContainText(/Follow the issuer behind the move/i);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);
   expect(body).not.toMatch(/bounded market frame|catalog-only|hydrates on selection/i);

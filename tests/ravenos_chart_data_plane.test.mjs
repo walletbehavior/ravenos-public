@@ -1182,6 +1182,159 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
   }
 });
 
+test("exact spot charts join current public token anatomy without changing candle authority", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const providerSecret = "server-only-chart-secret";
+  const originSecret = "server-only-origin-secret";
+  const pairAddress = "AttentionPool1111111111111111111111111111";
+  const tokenAddress = "AttentionToken111111111111111111111111111";
+  const quoteAddress = "AttentionQuote111111111111111111111111111";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  const nowIso = new Date().toISOString();
+  const observedAt = new Date(Date.now() - 45_000).toISOString();
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input, init = {}) => {
+      const url = String(input?.url || input);
+      if (url.includes("pro-api.coingecko.com")) {
+        assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
+        if (!url.includes("/ohlcv/")) {
+          return new Response(JSON.stringify(geckoPoolIdentity({
+            network: "solana",
+            pairAddress,
+            baseAddress: tokenAddress,
+            quoteAddress,
+          })), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: Array.from({ length: 180 }, (_, index) => {
+          const close = 0.012 + (179 - index) * 0.000001;
+          return [now - index * 60, close, close * 1.01, close * 0.99, close * 1.002, 1_000 + index];
+        }) } } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/public/ravenos/opportunities.json")) {
+        assert.equal(init.headers["x-ravenos-public-token"], originSecret);
+        return new Response(JSON.stringify({
+          ok: true,
+          safe_public: true,
+          key: "opportunities",
+          schema_version: "ravenos_opportunity_census_public_origin_v1",
+          generated_at: nowIso,
+          updated_at: nowIso,
+          freshness_target_seconds: 3_600,
+          redaction_policy: "aggregate_public_market_context_only",
+          source_artifact: "raven_opportunity_projection",
+          data: {
+            spot_attention: {
+              schema_version: "ravenos.token_attention.v1",
+              state: "current",
+              generated_at: nowIso,
+              rows: [{
+                public_attention_id: "must-not-propagate",
+                instrument_id: "must-not-propagate",
+                market_type: "spot",
+                chain: "Solana",
+                venue: null,
+                identity_scope: "exact_token",
+                symbol: "ATTN",
+                name: "Attention",
+                token_address: tokenAddress,
+                pool_address: null,
+                observed_at: observedAt,
+                movement_state: "Activity accelerating",
+                what_changed: "Buyers and active traders expanded over the last five minutes.",
+                risk: "Short-window movement still needs follow-through.",
+                market: {
+                  price_usd: 0.012,
+                  market_cap_usd: 1_200_000,
+                  liquidity_usd: 180_000,
+                  market_age_seconds: 86_400,
+                  holder_count: 1_240,
+                  holder_change_5m_pct: 1.8,
+                  holder_change_1h_pct: 6.4,
+                  holder_change_24h_pct: 18.2,
+                  volume_usd_5m: 140_000,
+                  volume_usd_1h: 920_000,
+                  volume_usd_24h: 5_100_000,
+                  buys_5m: 64,
+                  sells_5m: 26,
+                  traders_5m: 72,
+                  buys_1h: 320,
+                  sells_1h: 130,
+                  traders_1h: 240,
+                },
+                broader_attention: {
+                  state: "raven_observed_first",
+                  raven_observed_first: true,
+                  lead_seconds: 1_200,
+                  observed_at: observedAt,
+                  summary: "Raven recorded this market 20m before broader attention appeared.",
+                },
+                research_only: true,
+                actionable: false,
+                execution_available: false,
+              }],
+              execution_boundary: {
+                research_only: true,
+                actionable: false,
+                signing_available: false,
+                submission_available: false,
+              },
+            },
+          },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("dexscreener.com")) {
+        return new Response(JSON.stringify({ pairs: [{
+          chainId: "solana",
+          dexId: "fixture-dex",
+          pairAddress,
+          baseToken: { address: tokenAddress, symbol: "ATTN", name: "Attention" },
+          quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+          priceUsd: "0.012",
+          liquidity: { usd: 180_000 },
+          volume: { h24: 5_100_000 },
+          txns: { h24: { buys: 2_400, sells: 1_100 } },
+          marketCap: 1_200_000,
+          pairCreatedAt: Date.now() - 86_400_000,
+        }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      RAVENOS_PUBLIC_ORIGIN_TOKEN: originSecret,
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(responseText, new RegExp(providerSecret));
+    assert.doesNotMatch(responseText, new RegExp(originSecret));
+    assert.doesNotMatch(responseText, /must-not-propagate/);
+    const body = JSON.parse(responseText);
+    const payload = body.data || body;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.candle_series.provider, "coingecko_onchain");
+    assert.equal(payload.candle_series.raven_observations_are_candles, false);
+    assert.equal(payload.market_anatomy.holder_distribution.state, "available");
+    assert.equal(payload.market_anatomy.holder_distribution.holder_count, 1_240);
+    assert.equal(payload.market_anatomy.current_activity.traders_5m, 72);
+    assert.equal(payload.market_anatomy.raven_context.evidence_scope, "exact_token");
+    assert.equal(payload.market_anatomy.raven_context.scope_label, "Token-wide activity");
+    assert.equal(payload.market_anatomy.raven_context.token_address, tokenAddress);
+    assert.equal(payload.market_anatomy.raven_context.selected_pool_address, pairAddress);
+    assert.equal(payload.market_anatomy.raven_context.evidence_pool_address, null);
+    assert.equal(payload.market_anatomy.raven_context.signing_available, false);
+    assert.equal(payload.market_anatomy.raven_context.submission_available, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("current exact-pool delivery labels an unchanged quiet market separately from candle recency", async () => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;

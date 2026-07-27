@@ -462,6 +462,15 @@ function spotTokenFingerprint(value) {
   return clean.length <= 13 ? clean : `${clean.slice(0, 5)}…${clean.slice(-4)}`;
 }
 
+function spotMarketAge(seconds) {
+  const value = finite(seconds);
+  if (value === null || value < 0) return "";
+  if (value < 3_600) return `${Math.max(1, Math.round(value / 60))}m old`;
+  if (value < 86_400) return `${Math.max(1, Math.round(value / 3_600))}h old`;
+  if (value < 31_536_000) return `${Math.max(1, Math.round(value / 86_400))}d old`;
+  return `${Math.max(1, Math.round(value / 31_536_000))}y old`;
+}
+
 function tokenPrice(value) {
   const result = finite(value);
   if (result === null) return "";
@@ -638,6 +647,7 @@ function updateSpotTokenRow(anchor, row, index) {
     text(row.chain, ""),
     text(row.venue, row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token"),
     spotTokenFingerprint(row.pool_address || row.token_address),
+    spotMarketAge(row.market?.market_age_seconds),
   ].filter(Boolean).join(" · "));
 
   const move = append(anchor, "div", "discover-token-move", "");
@@ -662,6 +672,11 @@ function updateSpotTokenRow(anchor, row, index) {
     anatomy,
     traders === null ? "Tx" : "Traders",
     traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
+  );
+  renderTokenStat(
+    anatomy,
+    "Holders",
+    finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count),
   );
 
   const raven = append(anchor, "div", "discover-token-raven", "");

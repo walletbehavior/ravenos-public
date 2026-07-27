@@ -343,7 +343,7 @@ test("provider failure remains explicit and never creates substitute candles", a
   await expect(page.locator("#terminalMarketFreshness")).not.toHaveText("Live");
 });
 
-test("spot search loads only the selected exact pool and does not infer Raven context", async ({ page }) => {
+test("spot search loads one exact pool and joins only its admitted current Raven context", async ({ page }) => {
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
@@ -352,18 +352,27 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await expect(page.locator("#terminalPerpControl")).toBeHidden();
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
 
-  await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact public pool");
+  await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
-  await expect(page.locator("#terminalContextSection")).toBeHidden();
-  await expect(page.locator("#terminalReadTrigger")).toBeHidden();
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await expect(page.locator("#terminalReadTrigger")).toBeVisible();
+  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
+  await expect(page.locator("#terminalReadSummary")).toContainText("volume, buyers, and active traders expanded");
+  await expect(page.locator("#terminalWhy")).toContainText("20m before broader attention");
+  await expect(page.locator("#terminalContextIdentity")).toHaveText("This exact pool");
+  await expect(page.locator("#terminalEvidenceMaturity")).toContainText("needs follow-through");
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
-  await expect(page.locator("#terminalAnatomy2")).toContainText("16.5M");
-  await expect(page.locator("#terminalAnatomy3")).toContainText("12.4K");
-  await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Market cap");
-  await expect(page.locator("#terminalAnatomy5")).toContainText("3.1B");
+  await expect(page.locator("#terminalAnatomy2Label")).toHaveText("Market cap");
+  await expect(page.locator("#terminalAnatomy2")).toContainText("3.1B");
+  await expect(page.locator("#terminalAnatomy3Label")).toHaveText("5m volume");
+  await expect(page.locator("#terminalAnatomy3")).toContainText("140K");
+  await expect(page.locator("#terminalAnatomy4Label")).toHaveText("5m flow");
+  await expect(page.locator("#terminalAnatomy4")).toContainText("64 buy · 26 sell · 72 traders");
+  await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
+  await expect(page.locator("#terminalAnatomy5")).toContainText("1.24K · 1h +6.40%");
   const anatomyFacts = await Promise.all(
     [1, 2, 3, 4, 5].map((index) => page.locator(`#terminalAnatomy${index}`).textContent()),
   );
@@ -391,6 +400,20 @@ test("spot search loads only the selected exact pool and does not infer Raven co
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
+});
+
+test("spot markets without matching Raven evidence keep useful anatomy and omit empty intelligence", async ({ page }) => {
+  await mockTerminalLiveApis(page, { spotRavenContext: false });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await openExactSpotSearch(page, "JUP");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  await expect(page.locator("#terminalReadTrigger")).toBeHidden();
+  await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
+  await expect(page.locator("#terminalAnatomySection")).not.toContainText(/holders|unknown|not projected/i);
 });
 
 test("a quiet exact pool stays current without presenting an old candle as a site-wide delay", async ({ page }) => {

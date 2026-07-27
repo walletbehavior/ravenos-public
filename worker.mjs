@@ -72,6 +72,7 @@ const geckoIdentityCache = new Map();
 const onchainPulseCache = new Map();
 const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
+const spotAttentionCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -952,6 +953,171 @@ function sameOnchainAddress(chain, left, right) {
   const b = String(right || "").trim();
   if (!a || !b) return false;
   return String(chain || "").toLowerCase() === "solana" ? a === b : a.toLowerCase() === b.toLowerCase();
+}
+
+function boundedOperatorText(value, maxLength = 320) {
+  const clean = String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/[<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return clean ? clean.slice(0, maxLength) : null;
+}
+
+function boundedPublicNumber(value, { minimum = -1_000_000_000, maximum = 1_000_000_000_000_000 } = {}) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : null;
+}
+
+function publicIsoTimestamp(value) {
+  const parsed = Date.parse(String(value || ""));
+  if (!Number.isFinite(parsed) || parsed > Date.now() + 300_000) return null;
+  return new Date(parsed).toISOString();
+}
+
+function sanitizeSpotAttentionRow(row, {
+  chain = "",
+  pairAddress = "",
+  tokenAddress = "",
+  projectionGeneratedAt = null,
+  sourceAgeSeconds = null,
+} = {}) {
+  if (!row || typeof row !== "object" || row.market_type !== "spot") return null;
+  const requestedChain = String(chain || "").trim().toLowerCase();
+  const rowChain = String(row.chain || "").trim().toLowerCase();
+  if (!requestedChain || requestedChain !== rowChain) return null;
+  if (!sameOnchainAddress(requestedChain, row.token_address, tokenAddress)) return null;
+  const identityScope = row.identity_scope === "exact_pool" ? "exact_pool" : row.identity_scope === "exact_token" ? "exact_token" : null;
+  if (!identityScope) return null;
+  if (
+    identityScope === "exact_pool"
+    && (!row.pool_address || !sameOnchainAddress(requestedChain, row.pool_address, pairAddress))
+  ) return null;
+  if (row.research_only !== true || row.actionable !== false || row.execution_available !== false) return null;
+
+  const market = row.market && typeof row.market === "object" ? row.market : {};
+  const broader = row.broader_attention && typeof row.broader_attention === "object"
+    ? row.broader_attention
+    : {};
+  const observedAt = publicIsoTimestamp(row.observed_at);
+  const currentProjectionAt = publicIsoTimestamp(projectionGeneratedAt);
+  if (!observedAt || !currentProjectionAt) return null;
+
+  const publicMarket = {
+    price_usd: boundedPublicNumber(market.price_usd, { minimum: 0 }),
+    market_cap_usd: boundedPublicNumber(market.market_cap_usd, { minimum: 0 }),
+    liquidity_usd: boundedPublicNumber(market.liquidity_usd, { minimum: 0 }),
+    market_age_seconds: boundedPublicNumber(market.market_age_seconds, { minimum: 0 }),
+    holder_count: boundedPublicNumber(market.holder_count, { minimum: 0 }),
+    holder_change_5m_pct: boundedPublicNumber(market.holder_change_5m_pct),
+    holder_change_1h_pct: boundedPublicNumber(market.holder_change_1h_pct),
+    holder_change_24h_pct: boundedPublicNumber(market.holder_change_24h_pct),
+    price_change_5m_pct: boundedPublicNumber(market.price_change_5m_pct),
+    price_change_1h_pct: boundedPublicNumber(market.price_change_1h_pct),
+    price_change_24h_pct: boundedPublicNumber(market.price_change_24h_pct),
+    liquidity_change_5m_pct: boundedPublicNumber(market.liquidity_change_5m_pct),
+    liquidity_change_1h_pct: boundedPublicNumber(market.liquidity_change_1h_pct),
+    liquidity_change_24h_pct: boundedPublicNumber(market.liquidity_change_24h_pct),
+    volume_usd_5m: boundedPublicNumber(market.volume_usd_5m, { minimum: 0 }),
+    volume_usd_1h: boundedPublicNumber(market.volume_usd_1h, { minimum: 0 }),
+    volume_usd_24h: boundedPublicNumber(market.volume_usd_24h, { minimum: 0 }),
+    buys_5m: boundedPublicNumber(market.buys_5m, { minimum: 0 }),
+    sells_5m: boundedPublicNumber(market.sells_5m, { minimum: 0 }),
+    traders_5m: boundedPublicNumber(market.traders_5m, { minimum: 0 }),
+    buys_1h: boundedPublicNumber(market.buys_1h, { minimum: 0 }),
+    sells_1h: boundedPublicNumber(market.sells_1h, { minimum: 0 }),
+    traders_1h: boundedPublicNumber(market.traders_1h, { minimum: 0 }),
+    buys_24h: boundedPublicNumber(market.buys_24h, { minimum: 0 }),
+    sells_24h: boundedPublicNumber(market.sells_24h, { minimum: 0 }),
+    traders_24h: boundedPublicNumber(market.traders_24h, { minimum: 0 }),
+  };
+  return {
+    schema_version: "ravenos.spot_market_context.v1",
+    state: "current",
+    evidence_scope: identityScope,
+    scope_label: identityScope === "exact_pool" ? "This exact pool" : "Token-wide activity",
+    chain: requestedChain,
+    token_address: String(tokenAddress || ""),
+    selected_pool_address: String(pairAddress || ""),
+    evidence_pool_address: identityScope === "exact_pool" ? String(row.pool_address || "") : null,
+    symbol: boundedOperatorText(row.symbol, 32),
+    name: boundedOperatorText(row.name, 120),
+    observed_at: observedAt,
+    projection_generated_at: currentProjectionAt,
+    source_age_seconds: boundedPublicNumber(sourceAgeSeconds, { minimum: 0, maximum: 86_400 }),
+    movement_state: boundedOperatorText(row.movement_state, 120),
+    what_changed: boundedOperatorText(row.what_changed, 420),
+    risk: boundedOperatorText(row.risk, 320),
+    market: publicMarket,
+    broader_attention: {
+      state: boundedOperatorText(broader.state, 64),
+      raven_observed_first: broader.raven_observed_first === true,
+      lead_seconds: boundedPublicNumber(broader.lead_seconds, { minimum: 0, maximum: 31_536_000 }),
+      observed_at: publicIsoTimestamp(broader.observed_at),
+      summary: boundedOperatorText(broader.summary, 320),
+    },
+    evidence_state: "observed",
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+    signing_available: false,
+    submission_available: false,
+  };
+}
+
+async function loadCurrentSpotAttentionContext({
+  env = {},
+  chain = "",
+  pairAddress = "",
+  tokenAddress = "",
+} = {}) {
+  if (!chain || !pairAddress || !tokenAddress) return null;
+  const cacheKey = `spot-attention:${String(chain).toLowerCase()}:${String(pairAddress)}:${String(tokenAddress)}`;
+  const cached = cacheGet(spotAttentionCache, cacheKey);
+  if (cached) return cached;
+  const result = await loadPublicProjection({
+    env,
+    key: "opportunities",
+    fallbackPayload: null,
+    timeoutMs: 1_200,
+  }).catch(() => null);
+  if (
+    !result?.available
+    || result.delivery?.source !== "current_public_origin"
+    || result.delivery?.fallback !== false
+    || result.delivery?.freshness_state !== "fresh"
+  ) return null;
+  const attention = result.payload?.data?.spot_attention;
+  if (
+    attention?.schema_version !== "ravenos.token_attention.v1"
+    || attention?.state !== "current"
+    || !Array.isArray(attention?.rows)
+    || attention.rows.length > 100
+  ) return null;
+  const generatedAt = publicIsoTimestamp(attention.generated_at);
+  const generatedMs = Date.parse(generatedAt || "");
+  if (!Number.isFinite(generatedMs) || Date.now() - generatedMs > 3_600_000) return null;
+  const boundary = attention.execution_boundary;
+  if (boundary && (
+    boundary.research_only !== true
+    || boundary.actionable !== false
+    || boundary.signing_available !== false
+    || boundary.submission_available !== false
+  )) return null;
+  const candidates = attention.rows
+    .map((row) => sanitizeSpotAttentionRow(row, {
+      chain,
+      pairAddress,
+      tokenAddress,
+      projectionGeneratedAt: generatedAt,
+      sourceAgeSeconds: result.delivery.age_seconds,
+    }))
+    .filter(Boolean)
+    .sort((left, right) => (left.evidence_scope === "exact_pool" ? -1 : 0) - (right.evidence_scope === "exact_pool" ? -1 : 0));
+  const context = candidates[0] || null;
+  if (context) cacheSet(spotAttentionCache, cacheKey, context, 20_000);
+  return context;
 }
 
 function minimumUsefulProviderBars(timeframe, requestedLimit, { poolCreatedAt = null, windowStartSeconds, windowEndSeconds } = {}) {
@@ -2887,6 +3053,9 @@ async function terminalChartPayload({
   }
   if (cleanMarket === "crypto_spot") {
     const requestedScope = instrumentScope === "token_aggregate" ? "token_aggregate" : "exact_pool";
+    const spotAttentionPromise = requestedScope === "exact_pool" && !before && pairAddress && tokenAddress
+      ? loadCurrentSpotAttentionContext({ env, chain, pairAddress, tokenAddress }).catch(() => null)
+      : Promise.resolve(null);
     const ravenPayload = await fetchRavenSpotProjection({
       env,
       chain,
@@ -2945,6 +3114,7 @@ async function terminalChartPayload({
         token_aggregate: Boolean(ravenPayload?.available_scopes?.token_aggregate || aggregateProbe?.ok),
       };
       payload.instrument_scope = "exact_pool";
+      let spotAttention = null;
       if (!before && payload.ok) {
         const pair = (await pairDex(String(chain || "").toLowerCase(), pairAddress).catch(() => []))[0];
         if (pair) payload.market_state = {
@@ -2980,7 +3150,10 @@ async function terminalChartPayload({
           payload.stale = true;
           payload.coverage = "Chart delayed";
         }
+        spotAttention = await spotAttentionPromise.catch(() => null);
       }
+      const attentionMarket = spotAttention?.market || {};
+      const holderCount = attentionMarket.holder_count;
       payload.market_anatomy = {
         schema_version: "ravenos.market_anatomy.v1",
         exact_identity: payload.ok && payload.instrument?.identity_scope === "exact_pool",
@@ -2990,12 +3163,36 @@ async function terminalChartPayload({
         transactions_24h: payload.market_state?.transactions_24h ?? null,
         buys_24h: payload.market_state?.buys_24h ?? null,
         sells_24h: payload.market_state?.sells_24h ?? null,
+        market_cap_usd: payload.market_state?.market_cap ?? attentionMarket.market_cap_usd ?? null,
+        fully_diluted_value_usd: payload.market_state?.fully_diluted_value ?? null,
         pool_created_at: payload.market_state?.pool_created_at || null,
         pool_age_ms: payload.market_state?.pool_age_ms ?? null,
-        holder_distribution: {
-          state: "unavailable",
-          reason: "Private wallet and holder enrichment is not projected to this public exact-pool contract.",
-        },
+        holder_distribution: holderCount !== null && holderCount !== undefined ? {
+          state: "available",
+          scope: spotAttention.evidence_scope,
+          observed_at: spotAttention.projection_generated_at,
+          holder_count: holderCount,
+          change_5m_pct: attentionMarket.holder_change_5m_pct,
+          change_1h_pct: attentionMarket.holder_change_1h_pct,
+          change_24h_pct: attentionMarket.holder_change_24h_pct,
+        } : { state: "unavailable" },
+        current_activity: spotAttention ? {
+          observed_at: spotAttention.projection_generated_at,
+          market_age_seconds: attentionMarket.market_age_seconds,
+          volume_usd_5m: attentionMarket.volume_usd_5m,
+          volume_usd_1h: attentionMarket.volume_usd_1h,
+          volume_usd_24h: attentionMarket.volume_usd_24h,
+          buys_5m: attentionMarket.buys_5m,
+          sells_5m: attentionMarket.sells_5m,
+          traders_5m: attentionMarket.traders_5m,
+          buys_1h: attentionMarket.buys_1h,
+          sells_1h: attentionMarket.sells_1h,
+          traders_1h: attentionMarket.traders_1h,
+          buys_24h: attentionMarket.buys_24h,
+          sells_24h: attentionMarket.sells_24h,
+          traders_24h: attentionMarket.traders_24h,
+        } : null,
+        raven_context: spotAttention,
         route: {
           state: String(chain || "").toLowerCase() === "solana" ? "review_capability_check_required" : "unavailable",
           signing_available: false,
