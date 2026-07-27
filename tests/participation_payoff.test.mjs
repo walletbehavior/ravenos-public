@@ -85,7 +85,7 @@ test("participation payoff selects mature rewarded and punished surfaces without
     ],
   );
   assert.equal(projection.headline, "Participation payoff");
-  assert.equal(projection.summary, "Solana cohorts lead. Solana fresh pairs are split. Ethereum large caps are punishing.");
+  assert.equal(projection.summary, "Leadership: Solana cohorts. Mixed follow-through: Solana fresh pairs. Weakest follow-through: Ethereum large caps.");
   assert.equal(projection.measurement.display_window, "Latest samples");
   assert.equal(projection.comparison, "Solana cohorts have settled follow-through; Ethereum cohorts and Base cohorts remain mixed.");
   assert.equal(projection.insights[0].observation_window, "current");
