@@ -572,13 +572,16 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.locator("[data-spot-sort='activity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("Raven signals and current exact-pool activity");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("Raven signals and current market activity");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
+  await expect(page.locator("#discoverPerpPulse")).toBeVisible();
   const spotFilter = page.locator("[data-discover-filter='spot']");
   await expect(spotFilter).toBeEnabled();
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
+  await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
+  await expect(page.locator("#discoverPerpPulse")).toBeHidden();
   const spotRows = page.locator(".discover-token-row");
   await expect(spotRows).toHaveCount(2);
   await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven 20m earlier");
@@ -707,7 +710,7 @@ test("Discover keeps live market pulse but refuses stale opportunity substitutio
   await mockWorkspaceApis(page, { opportunityStatus: 503 });
   await page.goto("/discover/");
   await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
-  await expect(page.locator("#discoverStream")).toContainText("Older observations were not substituted");
+  await expect(page.locator("#discoverStream")).toContainText("No current opportunities can be shown");
   await expect(page.locator("#discoverPulse .pulse-row")).toHaveCount(2);
   await expect(page.locator(".discover-row")).toHaveCount(0);
 });
@@ -817,7 +820,7 @@ test("Discover retains current Atlas rows when Raven Census is unavailable", asy
   await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
   await expect(page.locator("#discoverAtlasState")).toHaveText("Fresh");
   await expect(page.locator(".discover-row[data-source-type='atlas']")).toHaveCount(1);
-  await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Older observations were not substituted");
+  await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Historical reads are not shown as current");
   await expect(page.locator(".discover-row[data-source-type='raven']")).toHaveCount(0);
 });
 
@@ -849,9 +852,9 @@ test("Terminal resolves an exact pool identity directly without a lane selector"
 test("Portfolio is one truthful empty state and never a seeded customer account", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/portfolio/");
-  await expect(page.locator(".portfolio-empty-workspace")).toContainText("There is nothing truthful to total yet");
+  await expect(page.locator(".portfolio-empty-workspace")).toContainText("Connections are not open yet");
   await expect(page.locator(".connection-row, .connection-list, .workspace-ledger")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Connections unavailable" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Inspect a market" })).toBeEnabled();
   await expect(page.locator("body")).not.toContainText(/demo portfolio|sample holding|connected wallet/i);
   await expect(page.locator("#rosFreshness")).toBeHidden();
   await expect(page.locator("#rosContextTrigger")).toBeHidden();
@@ -1368,7 +1371,7 @@ test("contract-address search resolves a provider-backed Robinhood Chain chart w
   await expect(page.locator("#terminalInstrument")).toHaveText("RUNNER/WETH");
   await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText("exact chart verified");
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText("current chart");
   await expect(page.locator("#terminalChartStatus")).not.toContainText(/unavailable/i);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
@@ -1401,6 +1404,7 @@ test("Atlas outage is isolated and explicit", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "atlas_projection_unavailable" }) }));
   await page.goto("/atlas/");
-  await expect(page.locator("#atlasContent")).toContainText("Search can still resolve supported entities");
-  await expect(page.locator("#atlasContent")).toContainText("no old posture was substituted");
+  await expect(page.locator(".atlas-pulse")).toHaveCount(0);
+  await expect(page.locator("#atlasSearchInput")).toBeVisible();
+  await expect(page.locator("#atlasContent")).toContainText("Follow the issuer behind the move");
 });

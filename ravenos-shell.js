@@ -142,11 +142,11 @@ function providerCreditMarkup() {
     { mark: "T", name: "Tradier + Atlas", role: "Listed-market data and context", href: "https://tradier.com/" },
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },
     { mark: "K", name: "Constant-K + Raven", role: "Evidence and participant interpretation", href: "/docs/" },
-    { mark: "CF", name: "Cloudflare", role: "Edge delivery and bounded caching", href: "https://www.cloudflare.com/" },
+    { mark: "CF", name: "Cloudflare", role: "Edge delivery and caching", href: "https://www.cloudflare.com/" },
     { mark: "TV", name: "TradingView", role: "Listed-market visual context and chart renderer", href: "https://www.tradingview.com/" },
   ];
   const rows = providers.map((provider) => `<a class="ros-provider-row" href="${provider.href}" ${provider.href.startsWith("http") ? 'target="_blank" rel="noopener noreferrer"' : ""}><span class="ros-provider-mark${provider.official ? " official" : ""}">${provider.official ? '<img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" />' : escapeHtml(provider.mark)}</span><span><strong>${escapeHtml(provider.name)}</strong><small>${escapeHtml(provider.role)}</small></span></a>`).join("");
-  return `<details class="ros-provider-credit"><summary aria-label="Data sources and attribution" title="Data sources and attribution"><img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" /><span class="ros-provider-label" aria-hidden="true">Sources</span><span class="ros-provider-attribution">Data by DexPaprika + CoinGecko</span></summary><section class="ros-provider-panel" aria-label="RavenOS data providers"><header><span>Data sources</span><strong>The pipes beneath RavenOS</strong><p>Each source has a bounded job. Raven supplies the evidence and interpretation.</p></header><div class="ros-provider-grid">${rows}</div><footer>Provider attribution describes data sources, not endorsement or partnership.</footer></section></details>`;
+  return `<details class="ros-provider-credit"><summary aria-label="Data sources and attribution" title="Data sources and attribution"><img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" /><span class="ros-provider-label" aria-hidden="true">Sources</span><span class="ros-provider-attribution">Data by DexPaprika + CoinGecko</span></summary><section class="ros-provider-panel" aria-label="RavenOS data providers"><header><span>Data sources</span><strong>Market data behind RavenOS</strong><p>RavenOS combines market data, filings, and participant signals into one decision workspace.</p></header><div class="ros-provider-grid">${rows}</div><footer>Provider attribution describes data sources, not endorsement or partnership.</footer></section></details>`;
 }
 
 function createShellMarkup(slug) {
@@ -187,7 +187,7 @@ function createShellMarkup(slug) {
       <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, or 0x…" /></label>
       <div class="ros-search-status" id="rosSearchStatus">Loading live supported instruments…</div>
       <div class="ros-command-results" id="rosCommandResults"></div>
-      <footer><span>Exact market or unavailable</span><span>No silent substitutions</span><span>Read only</span></footer>
+      <footer><span>Exact identity</span><span>Source and freshness shown</span><span>No signing</span></footer>
     </dialog>`;
 }
 

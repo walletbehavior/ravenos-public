@@ -433,7 +433,7 @@ function getEvidenceContract(payload) {
     return {
       evidence_mode: "decision-time observations",
       as_of: census.generated_at,
-      observation_window: { label: "bounded current projection" },
+      observation_window: { label: "current public view" },
       sample: {
         observed: census.population?.decision_observations || 0,
         usable: census.population?.paths_with_evidence || 0,
@@ -918,7 +918,7 @@ function renderReplay(payload) {
         <div><span>Identity</span><strong>Same market and decision boundary</strong><small>No present-day backfill</small></div>
         <div><span>Time</span><strong>As-of evidence reconstruction</strong><small>Only evidence available then</small></div>
         <div><span>Outcome</span><strong>Future-only matured path</strong><small>Declared window and sample quality</small></div>
-        <div><span>Safety</span><strong>Bounded lineage</strong><small>No private evidence IDs or proprietary thresholds</small></div>
+        <div><span>Evidence</span><strong>Public source history</strong><small>Private identities and thresholds stay private</small></div>
       </div>`;
     return;
   }
@@ -1117,7 +1117,7 @@ function renderResearch(payload) {
         <div><span>Followthrough</span><strong>Measured only after the declared window</strong><small>Open observations remain visibly open</small></div>
         <div><span>Language</span><strong>Structured approved projection</strong><small>No private thresholds, paths, prompts, or raw identities</small></div>
       </div>
-      <div class="route-boundary"><span>Fail-closed state</span><strong>Stale research cannot hydrate Raven Read, Plan Preview, or current opportunity authority.</strong></div>
+      <div class="route-boundary"><span>Current data required</span><strong>Raven Read and Plan Preview remain hidden when current research is unavailable.</strong></div>
     `;
     return;
   }
@@ -1308,7 +1308,7 @@ function renderOutcomes(payload) {
     <div class="route-table-wrap route-outcome-table"><table class="route-table route-settled-table"><thead><tr><th>Surface</th><th>Outcome</th><th>Usable / observed</th><th>Median / tails</th><th>Liquidity</th><th></th></tr></thead><tbody>${settledRows.slice(0, 12).map(settledRow).join("")}</tbody></table></div>
     <div class="route-mobile-card-list">${settledRows.slice(0, 8).map(settledMobileCard).join("")}</div>
     <div class="route-boundary"><span>Performance boundary</span><strong>Post-observation movement is descriptive evidence, not capturable return, a target, or an executable plan.</strong></div>
-    <p class="route-caveat">${escapeHtml(data.population_note || "Outcome coverage is bounded to the declared public population.")}</p>
+    <p class="route-caveat">${escapeHtml(data.population_note || "Outcome coverage reflects the stated public sample.")}</p>
   `;
 }
 

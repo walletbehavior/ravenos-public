@@ -13,27 +13,34 @@
     <header class="workspace-operator-head">
       <div>
         <span class="workspace-question">What do I own, what changed, and where is my risk?</span>
-        <h1>No portfolio connected.</h1>
-        <p>RavenOS has no verified holdings, balances, or positions for you. Nothing below is inferred from the market you are viewing.</p>
+        <h1>One portfolio. Every venue.</h1>
+        <p>Wallets, perpetual accounts, and brokerage positions will share one economic view while keeping their real custody and settlement clear.</p>
       </div>
       <div class="workspace-mast-actions">
-        <a class="workspace-primary-action" href="/discover/"><span>Browse markets</span><span>Discover →</span></a>
+        <a class="workspace-primary-action" href="/discover/"><span>Explore markets</span><span>Discover →</span></a>
       </div>
     </header>
 
     <section class="portfolio-empty-workspace">
       <div class="portfolio-empty-primary">
-        <span class="portfolio-empty-mark">0</span>
-        <span class="workspace-label">Your economic view</span>
-        <h2>There is nothing truthful to total yet.</h2>
-        <p>Secure, read-only account connections are not available. RavenOS will never present sample balances, positions, profit, or risk as yours.</p>
-        <button type="button" disabled>Connections unavailable</button>
+        <span class="portfolio-empty-mark">P</span>
+        <span class="workspace-label">Portfolio access</span>
+        <h2>Connections are not open yet.</h2>
+        <p>RavenOS will not infer balances or positions. When secure connections launch, each asset will retain its actual venue, custody, collateral, and settlement.</p>
+        <button class="portfolio-search-action" id="portfolioSearchTrigger" type="button">Inspect a market</button>
       </div>
       <aside class="portfolio-selection">
         <span class="workspace-label">Market in focus</span>
-        <h3 id="portfolioSelected">No instrument selected</h3>
-        <p id="portfolioSelectedMeta">Use universal search to inspect a market. Selection does not imply ownership or a portfolio position.</p>
-        <small>When portfolio connections become available, RavenOS will preserve the actual venue, custody, collateral, and settlement beneath one economic view.</small>
+        <h3 id="portfolioSelected">Start with a market</h3>
+        <p id="portfolioSelectedMeta">Search any supported instrument to inspect its market and risk context.</p>
+        <dl class="portfolio-selection-ledger" id="portfolioSelectionLedger" hidden>
+          <div><dt>Market</dt><dd id="portfolioSelectionMarket"></dd></div>
+          <div><dt>Venue</dt><dd id="portfolioSelectionVenue"></dd></div>
+          <div><dt>Settlement</dt><dd id="portfolioSelectionSettlement"></dd></div>
+          <div><dt>Portfolio view</dt><dd id="portfolioSelectionNumeraire"></dd></div>
+        </dl>
+        <a class="portfolio-terminal-action" id="portfolioOpenTerminal" href="/terminal/" hidden>Open in Terminal →</a>
+        <small>Market selection is for inspection only. RavenOS does not treat it as ownership.</small>
       </aside>
     </section>
   </main>

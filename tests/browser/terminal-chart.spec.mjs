@@ -532,8 +532,8 @@ test("sparse 15m coverage explains the gap without filling missing history", asy
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().candleCount)).toBe(12);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("[data-rpw-coverage-note]")).toBeVisible();
-  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("15m coverage is limited to 12 provider-backed bars");
-  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("Missing history was not filled");
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("15m history currently contains 12 real candles");
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("No missing bars were invented");
 });
 
 test("mobile Raven overlay sheet closes after an available overlay is selected", async ({ page }) => {

@@ -171,7 +171,14 @@ async function fetchJson(path, { signal, viewer = false } = {}) {
     error.payload = payload;
     throw error;
   }
-  if (payload?.execution_boundary && Object.values(payload.execution_boundary).some(Boolean)) throw new Error("atlas_execution_boundary_rejected");
+  const unsafeBoundary = Object.entries(payload?.execution_boundary || {}).some(([key, value]) => (
+    value === true
+    && (
+      key.endsWith("_available")
+      || ["execution", "signing", "submission", "broadcast", "order_submission"].includes(key)
+    )
+  ));
+  if (unsafeBoundary) throw new Error("atlas_execution_boundary_rejected");
   return payload;
 }
 
@@ -244,7 +251,7 @@ function renderSearchResults(payload) {
       const semantics = append(button, "span", "atlas-search-semantics");
       append(semantics, "strong", "", entityKindLabel(row.entity_kind));
       append(semantics, "small", "", `${providerLabel(row.provider)} · ${timingLabel(row)}`);
-      const stateLabel = row.cached_snapshot_available ? "Snapshot cached" : "Open to hydrate";
+      const stateLabel = row.cached_snapshot_available ? "Recent snapshot" : "Open context";
       append(button, "span", "atlas-search-open", stateLabel);
       button.addEventListener("click", () => selectEntity(row.entity_id));
     }
@@ -262,7 +269,7 @@ async function runSearch(query, { autoSelect = false } = {}) {
   state.searchController = new AbortController();
   const host = document.getElementById("atlasSearchResults");
   host.replaceChildren();
-  const loading = append(host, "div", "atlas-search-progress", "Searching the local Atlas catalog…");
+  const loading = append(host, "div", "atlas-search-progress", "Searching Atlas…");
   loading.setAttribute("role", "status");
   host.hidden = false;
   try {
@@ -279,7 +286,7 @@ async function runSearch(query, { autoSelect = false } = {}) {
     host.replaceChildren();
     const message = append(host, "div", "atlas-search-empty");
     append(message, "strong", "", "Search is temporarily unavailable");
-    append(message, "span", "", "No provider guess or cached price was substituted. Try again shortly.");
+    append(message, "span", "", "Try again shortly. No alternate market was loaded.");
     host.hidden = false;
     return null;
   }
@@ -306,17 +313,70 @@ function bindSearch() {
   });
 }
 
+function relativeAge(value) {
+  const parsed = Date.parse(String(value || ""));
+  if (!Number.isFinite(parsed)) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+  if (seconds < 60) return "Updated just now";
+  if (seconds < 3600) return `Updated ${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `Updated ${Math.floor(seconds / 3600)}h ago`;
+  return `Updated ${Math.floor(seconds / 86_400)}d ago`;
+}
+
+function marketFrameHeading(projection) {
+  const risk = String(projection?.market_context?.risk_regime || "").toLowerCase();
+  const alignment = String(projection?.posture?.alignment || "").toLowerCase();
+  if (risk.includes("risk_on") || risk === "constructive") return "Risk appetite is expanding.";
+  if (risk.includes("risk_off") || risk === "defensive") return "Risk appetite is defensive.";
+  if (risk === "mixed" || alignment === "fragmented") return "Risk appetite is fragmented.";
+  if (alignment === "aligned") return "Cross-market signals are aligned.";
+  return "Cross-market signals are mixed.";
+}
+
+function marketFrameSummary(projection) {
+  const context = projection?.market_context || {};
+  const parts = [
+    context.equity_regime ? `Equities are ${title(context.equity_regime).toLowerCase()}` : "",
+    context.sector_breadth ? `breadth is ${title(context.sector_breadth).toLowerCase()}` : "",
+    context.participation_quality ? `participation is ${title(context.participation_quality).toLowerCase()}` : "",
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(", ")}.` : "Broader signals are still taking shape.";
+}
+
+function marketReturn(value) {
+  const result = finite(value);
+  if (result === null) return "—";
+  const percentValue = result * 100;
+  return `${percentValue >= 0 ? "+" : ""}${percentValue.toFixed(2)}%`;
+}
+
 function renderPosture(host, projection) {
+  if (!projection) return null;
   const overview = append(host, "section", "atlas-overview");
   const posture = append(overview, "article", "atlas-posture");
-  append(posture, "span", "workspace-label", "Current market frame");
-  append(posture, "h2", "", title(projection?.posture?.state, "Cross-market context forming"));
-  append(posture, "p", "", projection
-    ? `Risk, breadth, rates, energy, and participation currently read as ${title(projection.posture?.alignment, "mixed").toLowerCase()}. Atlas is context—not a trade instruction—and never replaces missing Raven evidence.`
-    : "The bounded market frame is unavailable. Search remains usable, and no old posture was substituted.");
+  const postureHead = append(posture, "div", "atlas-posture-head");
+  append(postureHead, "span", "workspace-label", "Market backdrop");
+  const freshness = append(postureHead, "span", "atlas-frame-freshness", relativeAge(projection.generated_at));
+  freshness.dataset.state = projection?.freshness?.state || "available";
+  append(posture, "h2", "", marketFrameHeading(projection));
+  append(posture, "p", "", marketFrameSummary(projection));
+  const contextRows = Array.isArray(projection?.market_context?.rows)
+    ? projection.market_context.rows
+      .filter((row) => finite(row?.change_5d) !== null || finite(row?.change_21d) !== null)
+      .slice(0, 4)
+    : [];
+  if (contextRows.length) {
+    const tape = append(posture, "div", "atlas-frame-tape");
+    for (const row of contextRows) {
+      const cell = append(tape, "div");
+      append(cell, "strong", "", text(row.symbol, "Market"));
+      append(cell, "span", "", `5d ${marketReturn(row.change_5d)}`);
+      append(cell, "small", "", `21d ${marketReturn(row.change_21d)}`);
+    }
+  }
   const regimes = append(overview, "div", "atlas-regime-grid");
   const facts = [
-    ["Risk", projection?.market_context?.risk_regime],
+    ["Risk tone", projection?.market_context?.risk_regime],
     ["Equities", projection?.market_context?.equity_regime],
     ["Breadth", projection?.market_context?.sector_breadth],
     ["Participation", projection?.market_context?.participation_quality],
@@ -335,20 +395,17 @@ function featuredValue(row) {
 }
 
 function renderFeatured(host, featured) {
+  const sections = Array.isArray(featured?.sections) ? featured.sections : [];
+  if (!sections.length) return;
   const shell = append(host, "section", "atlas-pulse");
   const head = append(shell, "header", "workspace-section-head");
   const copy = append(head, "div");
-  append(copy, "span", "workspace-label", "Market pulse");
-  append(copy, "h2", "", "Move across markets without changing tools");
-  append(copy, "p", "", "Featured markets refresh on a bounded schedule. Everything else stays catalog-only until you open it.");
+  append(copy, "span", "workspace-label", "Market map");
+  append(copy, "h2", "", "Explore the broader market");
+  append(copy, "p", "", "Open a market for its chart, events, options, filings, and cross-market context.");
   const nav = append(shell, "div", "atlas-section-tabs");
   nav.setAttribute("role", "tablist");
   const board = append(shell, "div", "atlas-pulse-board");
-  const sections = Array.isArray(featured?.sections) ? featured.sections : [];
-  if (!sections.length) {
-    stateNode(board, "Market pulse unavailable", "Search can still resolve supported entities. No older featured state was inserted.");
-    return;
-  }
   if (!sections.some((section) => section.section_id === state.selectedSection)) state.selectedSection = sections[0].section_id;
   const draw = (sectionId) => {
     state.selectedSection = sectionId;
@@ -372,7 +429,7 @@ function renderFeatured(host, featured) {
       const value = append(button, "span", "atlas-pulse-value");
       value.dataset.state = shown.state;
       append(value, "strong", "", shown.value);
-      append(value, "small", "", shown.change || (row.public_display_eligibility === "allowed" ? "Hydrates on selection" : "Metadata only"));
+      append(value, "small", "", shown.change || (row.public_display_eligibility === "allowed" ? "Open chart and context" : "Identity available"));
       append(button, "span", "atlas-pulse-open", "→");
       button.addEventListener("click", () => selectEntity(row.entity_id));
     }
@@ -393,7 +450,7 @@ function renderLanding() {
   state.entity = null;
   setHeader({
     title: "One market, resolved in context.",
-    summary: "Search listed markets, rates, energy, companies, options, and filings. Atlas hydrates detail only when you ask for it.",
+    summary: "Search markets, rates, energy, companies, options, and filings from one research desk.",
   });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
@@ -402,8 +459,8 @@ function renderLanding() {
   const sec = append(host, "section", "atlas-sec-entry");
   const secCopy = append(sec, "div");
   append(secCopy, "span", "workspace-label", "SEC context");
-  append(secCopy, "h2", "", "Start with the issuer, not a firehose");
-  append(secCopy, "p", "", "Search a company, ticker, or CIK to inspect recent filings and normalized insider transactions. Filing time and transaction time remain separate.");
+  append(secCopy, "h2", "", "Follow the issuer behind the move");
+  append(secCopy, "p", "", "Search a company, ticker, or CIK to inspect recent filings and reported insider activity. Filing time and transaction time remain separate.");
   const trigger = append(sec, "button", "workspace-secondary-action", "Search SEC issuers");
   trigger.type = "button";
   trigger.addEventListener("click", () => {
@@ -413,8 +470,8 @@ function renderLanding() {
   });
   setState("atlasProjectionState", state.featured ? "available" : "unavailable", state.featured ? "Searchable" : "Unavailable");
   setState("atlasMarketState", state.projection?.freshness?.state || (state.featured ? "available" : "unavailable"), state.projection ? title(state.projection.freshness?.state) : state.featured ? "Catalog ready" : "Unavailable");
-  setState("atlasOptionsState", "available", "Fail closed");
-  window.RavenOSShell?.setCapabilities?.({ market: "Atlas searchable", mode: "Read only", evidence: "Source timing visible", wallet: "No customer session", signing: "Sign off", broadcast: "Broadcast off" });
+  setState("atlasOptionsState", "available", "Protected");
+  window.RavenOSShell?.setCapabilities?.({ market: "Atlas searchable", mode: "Research", evidence: "Source timing visible", signing: "Unavailable", broadcast: "Unavailable" });
 }
 
 function providerStateView(host, view, heading = "Current observation") {
@@ -683,8 +740,8 @@ async function renderEiaDatasetHistory(host, payload, dataset) {
 
   if (!exactFacet || !frequencies.length || !dataFields.length) {
     const reason = !exactFacet
-      ? "This dataset has multiple independent dimensions without a unique series identifier. The current bounded selector will not guess a partial combination."
-      : "The EIA route did not provide a complete frequency and data-field contract.";
+      ? "This dataset needs one exact series selection. Atlas will not guess a partial combination."
+      : "The source did not provide enough information to select an exact series.";
     stateNode(host, "Exact series selection unavailable", reason);
     return;
   }
@@ -704,7 +761,7 @@ async function renderEiaDatasetHistory(host, payload, dataset) {
   const load = append(controls, "button", "workspace-primary-action", "Load exact series");
   load.type = "button";
   load.disabled = true;
-  const status = append(explorer, "p", "atlas-eia-status", "Loading bounded facet metadata. No observations requested.");
+  const status = append(explorer, "p", "atlas-eia-status", "Loading available series choices.");
   const output = append(explorer, "div", "atlas-eia-output");
 
   try {
@@ -718,7 +775,7 @@ async function renderEiaDatasetHistory(host, payload, dataset) {
     facetValue.disabled = !values.length;
     load.disabled = !values.length;
     status.textContent = values.length
-      ? `${values.length} published series available${view.data.truncated ? " · bounded result" : ""}. Still no observations fetched.`
+      ? `${values.length} published series available${view.data.truncated ? " · refine the selection for more" : ""}.`
       : "No public series identifiers were returned. Atlas did not broaden the query.";
     if (!values.length) providerStateView(output, view || { state: "unavailable", provider: "eia", refusal_reasons: ["series_identifiers_unavailable"] }, "EIA facet source");
   } catch (error) {
@@ -726,7 +783,7 @@ async function renderEiaDatasetHistory(host, payload, dataset) {
     facetValue.replaceChildren();
     option(facetValue, "", "Series lookup unavailable", { selected: true, disabled: true });
     status.textContent = "EIA series identifiers are unavailable. No observation query was attempted.";
-    stateNode(output, "Series lookup unavailable", "Atlas could not retrieve the bounded facet list and did not issue a broader EIA query.");
+    stateNode(output, "Series lookup unavailable", "Atlas could not retrieve the available series choices. Try again shortly.");
   }
 
   load.addEventListener("click", async () => {
@@ -737,7 +794,7 @@ async function renderEiaDatasetHistory(host, payload, dataset) {
     state.tabController = new AbortController();
     load.disabled = true;
     output.replaceChildren();
-    stateNode(output, "Loading exact EIA series", "Atlas is requesting only the selected series and bounded history.");
+    stateNode(output, "Loading the selected series", "Retrieving its published observations and history.");
     const params = new URLSearchParams({
       entity_id: payload.entity.entity_id,
       frequency: frequency.value,
@@ -1063,7 +1120,7 @@ function renderDetail(payload) {
   destroyChart();
   state.entity = payload;
   const row = payload.entity;
-  setHeader({ title: `${row.symbol} · ${row.name}`, summary: `${entityKindLabel(row.entity_kind)} context, events, options, and source timing for the exact selected market.`, detail: true });
+  setHeader({ title: `${row.symbol} · ${row.name}`, summary: `Chart, events, options, filings, and cross-market context for this market.`, detail: true });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
   const identity = append(host, "section", "atlas-detail-identity");
@@ -1096,7 +1153,7 @@ function renderDetail(payload) {
   setState("atlasOptionsState", row.public_display_eligibility === "allowed" ? "available" : "degraded", row.public_display_eligibility === "allowed" ? "Rights checked" : "Restricted");
   resolveTerminalLink(row, payload.exact_instrument);
   ravenOSContext.setSelection({ subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind }, workspace: "atlas" }, { updateUrl: false });
-  window.RavenOSShell?.setCapabilities?.({ market: `${entityKindLabel(row.entity_kind)} · ${timingLabel(row)}`, mode: "Read only", evidence: `${providerLabel(row.provider)} provenance`, wallet: "No customer session", signing: "Sign off", broadcast: "Broadcast off" });
+  window.RavenOSShell?.setCapabilities?.({ market: `${entityKindLabel(row.entity_kind)} · ${timingLabel(row)}`, mode: "Research", evidence: `${providerLabel(row.provider)} source`, signing: "Unavailable", broadcast: "Unavailable" });
   window.RavenOSShell?.setIntelligence?.({
     presentation: { status: false, context: false },
     subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind },
@@ -1130,7 +1187,7 @@ async function selectEntity(entityId, { updateHistory = true } = {}) {
   if (updateHistory) updateUrl(exact);
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
-  stateNode(host, "Resolving exact Atlas entity", "Atlas is hydrating one selected entity. No broad observer is starting.");
+  stateNode(host, "Opening market context", "Loading the chart, source timing, events, and available research.");
   try {
     const payload = await fetchJson(`/api/atlas/entity?entity_id=${encodeURIComponent(exact)}`, { signal: state.detailController.signal, viewer: true });
     if (payload.entity?.entity_id !== exact) throw new Error("atlas_entity_identity_mismatch");
@@ -1182,10 +1239,10 @@ async function boot() {
 boot().catch(() => {
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
-  stateNode(host, "Atlas unavailable", "The current searchable universe could not be established. No older market state or private provider data was substituted.");
+  stateNode(host, "Atlas is temporarily unavailable", "Search and market context could not be reached. Try again shortly.");
   setState("atlasProjectionState", "unavailable", "Unavailable");
   setState("atlasMarketState", "unavailable", "Unavailable");
-  setState("atlasOptionsState", "available", "Fail closed");
-  window.RavenOSShell?.setCapabilities?.({ market: "Atlas unavailable · Raven independent", mode: "Read only", evidence: "No substitute", wallet: "No customer session", signing: "Sign off", broadcast: "Broadcast off" });
+  setState("atlasOptionsState", "available", "Protected");
+  window.RavenOSShell?.setCapabilities?.({ market: "Atlas unavailable", mode: "Research", evidence: "No alternate market loaded", signing: "Unavailable", broadcast: "Unavailable" });
   window.__RAVENOS_ATLAS__ = Object.freeze({ state: "unavailable", signingAvailable: false, submissionAvailable: false });
 });

@@ -379,9 +379,19 @@ function comparableSupport(row = {}) {
       detail: "Current price and pressure still need to confirm the read.",
     };
   }
+  const atom = Array.isArray(row.raven_atoms)
+    ? row.raven_atoms.map((value) => customerFacingText(value, "")).find(Boolean)
+    : "";
+  const maturity = text(comparable.evidence_maturity, "");
+  const direction = text(row.observed_direction, "");
+  const friction = finite(row.market_context?.roundtrip_bps);
   return {
-    headline: "No reliable comparison yet",
-    detail: "Watching current price and pressure for confirmation.",
+    headline: atom ? `${atom} observed` : "Current behavior observed",
+    detail: [
+      direction ? `${title(direction)} setup` : "",
+      maturity ? `${title(maturity)} evidence` : "",
+      friction === null ? "" : `${friction.toFixed(1)} bps observed round trip`,
+    ].filter(Boolean).join(" · ") || "Price and pressure are being tracked for follow-through.",
   };
 }
 
@@ -851,7 +861,7 @@ function renderListedUniverse(rows = []) {
     return;
   }
   state.featuredRows.forEach((row) => host.append(createListedMarketCard(row)));
-  document.getElementById("discoverListedCount").textContent = `${state.featuredRows.length} exact listings`;
+  document.getElementById("discoverListedCount").textContent = `${state.featuredRows.length} markets`;
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
   section.hidden = !["all", "equity"].includes(active);
 }
@@ -955,6 +965,12 @@ function applyFilter() {
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
   document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || !["all", "spot"].includes(active);
   document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || !["all", "equity"].includes(active);
+  const opportunityLayout = document.getElementById("discoverOpportunityLayout");
+  const perpPulse = document.getElementById("discoverPerpPulse");
+  const spotOwnsView = active === "spot" && state.spotRows.length > 0;
+  opportunityLayout.hidden = spotOwnsView;
+  perpPulse.hidden = !["all", "perpetual"].includes(active);
+  opportunityLayout.dataset.side = perpPulse.hidden ? "hidden" : "visible";
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
   const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
@@ -1252,13 +1268,13 @@ async function refresh({ manual = false } = {}) {
     } catch {
       renderParticipationPayoff(null);
       setState("discoverCensusState", "unavailable", "Unavailable");
-      ravenFailure = "Current Raven data did not meet freshness or identity requirements. Older observations were not substituted.";
+      ravenFailure = "Current Raven opportunities are temporarily unavailable. Historical reads are not shown as current.";
     }
   } else {
     renderParticipationPayoff(null);
     setState("discoverCensusState", "unavailable", "Unavailable");
     const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
-    ravenFailure = `The current Raven read could not be reached${status === "network" ? "" : ` (${status})`}. Older observations were not substituted.`;
+    ravenFailure = `Current Raven opportunities could not be reached${status === "network" ? "" : ` (${status})`}. Historical reads are not shown as current.`;
   }
 
   if (onchainPulse.status === "fulfilled" && onchainPulse.value.response.ok) {
@@ -1342,7 +1358,7 @@ async function refresh({ manual = false } = {}) {
     document.getElementById("discoverRowCount").textContent = tokenRows.length.toLocaleString();
     renderOpportunityState({
       heading: "No additional setups are current",
-      detail: "Current token movement is available above. Raven is not filling the rest of the screen with older observations.",
+      detail: "Current token movement remains available above. Historical Raven reads are not shown as current.",
     });
   } else {
     state.rows.clear();
@@ -1350,7 +1366,7 @@ async function refresh({ manual = false } = {}) {
     document.getElementById("discoverRowCount").textContent = "0";
     renderOpportunityState({
       heading: "No current opportunities can be shown",
-      detail: "Raven and Atlas did not return current exact markets. Older observations were not substituted; live venue prices may still be available.",
+      detail: "Raven and Atlas did not return a current market read. Live venue activity may still be available.",
     });
   }
 
@@ -1366,6 +1382,14 @@ function bind() {
     document.querySelectorAll("[data-discover-filter]").forEach((item) => item.classList.toggle("active", item === button));
     state.expanded = false;
     applyFilter();
+    if (window.matchMedia("(max-width: 820px)").matches) {
+      const target = button.dataset.discoverFilter === "spot"
+        ? document.getElementById("discoverSpotPulse")
+        : button.dataset.discoverFilter === "equity"
+          ? document.getElementById("discoverListedUniverse")
+          : document.getElementById("discoverOpportunityLayout");
+      if (target && !target.hidden) requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
     state.spotTimeframe = button.dataset.spotTimeframe;

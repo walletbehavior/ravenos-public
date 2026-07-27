@@ -99,7 +99,13 @@ function legacyAtlas() {
     state: "available",
     freshness: { state: "fresh", age_seconds: 10, target_seconds: 1800 },
     posture: { state: "risk selective", confidence: "moderate", alignment: "mixed" },
-    market_context: { risk_regime: "mixed", equity_regime: "constructive", sector_breadth: "broad", participation_quality: "healthy", rows: [] },
+    market_context: {
+      risk_regime: "mixed",
+      equity_regime: "constructive",
+      sector_breadth: "broad",
+      participation_quality: "healthy",
+      rows: [{ symbol: "SPY", change_5d: .012, change_21d: .031 }],
+    },
     capabilities: { market_map: true, options_summary: true },
     execution_boundary: { research_only: true, broker_connection_available: false, signing_available: false, submission_available: false },
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
@@ -196,6 +202,10 @@ async function mockAtlas(page, { restricted = true } = {}) {
 test("Atlas search is the front door and selecting metadata hydrates only one exact entity", async ({ page }) => {
   const calls = await mockAtlas(page);
   await page.goto("/atlas/");
+  await expect(page.locator(".atlas-posture")).toContainText("Risk appetite is fragmented");
+  await expect(page.locator(".atlas-frame-tape")).toContainText("SPY");
+  await expect(page.locator(".atlas-frame-tape")).toContainText("5d +1.20%");
+  await expect(page.locator("#atlasContent")).not.toContainText(/bounded market frame|catalog-only|hydrates on selection/i);
   await expect(page.locator(".atlas-pulse-row")).toHaveCount(1);
   await page.locator("#atlasSearchInput").fill("SPY");
   await expect(page.locator(".atlas-search-row")).toHaveCount(1);

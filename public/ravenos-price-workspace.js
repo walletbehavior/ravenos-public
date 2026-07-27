@@ -199,7 +199,7 @@ function createMarkup() {
         <div class="rpw-coverage-note" data-rpw-coverage-note hidden aria-live="polite"></div>
         <div class="rpw-state-panel" data-rpw-state-panel>
           <strong>Market data unavailable</strong>
-          <span>Select a provider-backed market or retry the current feed.</span>
+          <span>Select another supported market or retry the current feed.</span>
         </div>
       </div>
       <div class="rpw-activity" data-rpw-activity aria-live="polite">
@@ -239,7 +239,7 @@ export class PriceWorkspace {
       marketIdentity: "",
       timeframe: options.timeframe || "1h",
       candles: [],
-      message: "Select a provider-backed market.",
+      message: "Select a supported market.",
       lineage: null,
       instrument: null,
       capabilities: {},
@@ -468,7 +468,7 @@ export class PriceWorkspace {
     const coverageNote = this.container.querySelector("[data-rpw-coverage-note]");
     coverageNote.hidden = !sparse;
     coverageNote.textContent = sparse
-      ? `${this.state.timeframe} coverage is limited to ${returnedBars} provider-backed bars. Missing history was not filled.`
+      ? `${this.state.timeframe} history currently contains ${returnedBars} real candles. No missing bars were invented.`
       : "";
     this.container.querySelector("[data-rpw-connection]").textContent = String(this.state.connectionState || "disconnected").replaceAll("_", " ");
     this.container.querySelector("[data-rpw-time]").textContent = timestampLabel(this.state.observedAt);
@@ -485,7 +485,7 @@ export class PriceWorkspace {
     const showPanel = ["loading", "empty", "error", "data_unavailable"].includes(this.state.state);
     panel.hidden = !showPanel;
     panel.querySelector("strong").textContent = label === "Loading" ? "Loading market data" : label;
-    panel.querySelector("span").textContent = this.state.message || "No provider-backed candles are available for this market.";
+    panel.querySelector("span").textContent = this.state.message || "Current candles are not available for this market.";
     if (showPanel) this.container.querySelector("[data-rpw-crosshair]").hidden = true;
     this.paintTrades();
   }
@@ -593,7 +593,7 @@ export class PriceWorkspace {
       observedAt: null,
       candles: [],
       returnedBars: 0,
-      message: "Requesting provider-backed candles.",
+      message: "Loading current candles.",
       instrument: null,
       capabilities: {},
       marketState: {},

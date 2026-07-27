@@ -14,7 +14,7 @@
       <div>
         <span class="workspace-question">What deserves my attention?</span>
         <h1>Movement worth understanding now.</h1>
-        <p>Current opportunities and broader-market changes, ranked without replacing missing data with older observations.</p>
+        <p>Live Raven opportunities, token movement, and cross-market signals in one ranked workspace.</p>
       </div>
       <div class="workspace-mast-actions">
         <button class="workspace-primary-action" id="discoverSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
@@ -57,7 +57,7 @@
         <div>
           <span class="workspace-label">Tokens</span>
           <h2 id="discoverSpotPulseTitle">Token movement</h2>
-          <p>Raven signals and current exact-pool activity across supported chains.</p>
+          <p>Raven signals and current market activity across Solana, Base, and Ethereum.</p>
         </div>
         <div class="discover-token-tape-controls">
           <div class="discover-token-chains" role="group" aria-label="Token chain">
@@ -90,7 +90,7 @@
         <div>
           <span class="workspace-label">Listed markets</span>
           <h2 id="discoverListedTitle">Stocks &amp; ETFs</h2>
-          <p>Open an exact U.S. listing directly in the shared Terminal. Values hydrate only when needed.</p>
+          <p>Open any listed market in the shared Terminal for its chart and context.</p>
         </div>
         <div>
           <strong id="discoverListedCount">— exact listings</strong>
@@ -100,19 +100,19 @@
       <div class="discover-listed-grid" id="discoverListedGrid"></div>
     </section>
 
-    <section class="workspace-layout">
+    <section class="workspace-layout" id="discoverOpportunityLayout">
       <div class="workspace-main">
         <header class="workspace-section-head">
-          <div><span class="workspace-label">Why now</span><h2>Current opportunities</h2><p>Each row retains its exact market and source.</p></div>
+          <div><span class="workspace-label">Why now</span><h2>Current opportunities</h2><p>What changed, why it matters, and the market behind the read.</p></div>
           <strong class="workspace-count" id="discoverUpdatedAt">Awaiting current data</strong>
         </header>
         <div class="discover-stream" id="discoverStream" aria-live="polite">
-          <div class="workspace-state"><div><span class="workspace-state-mark">R</span><h2>Checking what deserves attention</h2><p>Older observations will not be presented as current if today's read is unavailable.</p></div></div>
+          <div class="workspace-state"><div><span class="workspace-state-mark">R</span><h2>Building the current market view</h2><p>Loading Raven opportunities and live venue activity.</p></div></div>
         </div>
         <button class="discover-stream-control" id="discoverStreamControl" type="button" hidden>Show more exact markets</button>
       </div>
 
-      <aside class="workspace-side">
+      <aside class="workspace-side" id="discoverPerpPulse">
         <header class="workspace-section-head"><div><span class="workspace-label">Moving now</span><h2>Perpetual markets</h2><small>Current venue activity, whether or not Raven has a read</small></div></header>
         <div class="pulse-list" id="discoverPulse"><div class="workspace-state"><div><span class="workspace-state-mark">↗</span><p>Connecting live venue markets.</p></div></div></div>
       </aside>

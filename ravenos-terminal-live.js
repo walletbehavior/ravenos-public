@@ -415,10 +415,15 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
         : activityState === "active"
           ? "Active"
           : null;
+    const buys24h = finite(anatomy.buys_24h ?? state.selected?.buys24h);
+    const sells24h = finite(anatomy.sells_24h ?? state.selected?.sells24h);
+    const tradeFlow = buys24h !== null && sells24h !== null
+      ? `${compact(buys24h)} buy · ${compact(sells24h)} sell`
+      : compact(anatomy.transactions_24h ?? state.selected?.txns24h);
     setAnatomyRows([
       { label: "Liquidity", value: compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }) },
       { label: "24h volume", value: compact(anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }) },
-      { label: "24h transactions", value: compact(anatomy.transactions_24h ?? state.selected?.txns24h) },
+      { label: buys24h !== null && sells24h !== null ? "24h buy / sell" : "24h transactions", value: tradeFlow },
       { label: "Pool age", value: ageLabel(anatomy.pool_age_ms ?? state.selected?.pairAgeMs) },
       { label: marketCap !== null ? "Market cap" : "FDV", value: compact(marketCap ?? fdv, { currency: true }) },
       { label: "Activity", value: activityLabel },
@@ -654,7 +659,7 @@ function renderSpotFacts(row = state.selected) {
   const chartRequestSupported = spotChartCapability(row, state.timeframe).chart_request_supported;
   setText("terminalInstrumentScope", "Exact public pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
-  setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · lookup snapshot` : "Search for a symbol, token, or contract");
+  setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · market snapshot` : "Search for a symbol, token, or contract");
   setText("terminalPickerSymbol", row ? `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}` : "Exact spot market required");
   setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
@@ -663,7 +668,13 @@ function renderSpotFacts(row = state.selected) {
   setMarketMetric(2, finite(row?.marketCap) !== null ? "Market cap" : "FDV", compact(row?.marketCap ?? row?.fdv, { currency: true }));
   setMarketMetric(3, "Liquidity", compact(row?.liquidityUsd, { currency: true }));
   setMarketMetric(4, "24h volume", compact(row?.volume24h, { currency: true }));
-  setMarketMetric(5, "24h transactions", compact(row?.txns24h));
+  const buys24h = finite(row?.buys24h);
+  const sells24h = finite(row?.sells24h);
+  setMarketMetric(
+    5,
+    buys24h !== null && sells24h !== null ? "24h buy / sell" : "24h transactions",
+    buys24h !== null && sells24h !== null ? `${compact(buys24h)} / ${compact(sells24h)}` : compact(row?.txns24h),
+  );
   setMarketMetric(6, "24h change", percent(row?.priceChange24h));
   const change = finite(row?.priceChange24h);
   const changeNode = document.getElementById("terminalMetric6");
@@ -1169,7 +1180,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   document.getElementById("assetSelect").value = row.asset;
   document.getElementById("venueSelect").replaceChildren(new Option("Hyperliquid", "hyperliquid"));
   setText("terminalChartTitle", `${row.asset} · ${state.timeframe}`);
-  setText("terminalChartStatus", "Requesting provider-backed candles and exact Raven context.");
+  setText("terminalChartStatus", "Loading current candles and Raven context.");
   setText("terminalDeepLink", "Perp depth");
   document.getElementById("terminalDeepLink").href = `/perps/?asset=${encodeURIComponent(row.asset)}&timeframe=${encodeURIComponent(state.timeframe)}`;
   renderPerpFacts();
@@ -1384,9 +1395,9 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   });
   if (generation !== state.selectionGeneration) return;
   setText("terminalChartStatus", chartState?.candles?.length
-    ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact pool`
+    ? `${chartState.candles.length.toLocaleString()} candles · exact pool`
     : chartState?.message || "Exact-pool candles unavailable.");
-  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartState?.candles?.length ? "exact chart verified" : "chart unavailable"} · USDC economic intent`);
+  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} quote · ${chartState?.candles?.length ? "current chart" : "chart unavailable"} · USDC trade intent`);
   updateShell({
     subject: spotSubject(row),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
@@ -1534,7 +1545,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   if (atlasRow) renderAtlasFacts(selectedRow);
   else renderListedFacts(selectedRow);
   setText("terminalChartTitle", `${subject.symbol} · ${state.timeframe}`);
-  setText("terminalChartStatus", "Requesting provider-backed candles for the exact listing.");
+  setText("terminalChartStatus", "Loading current candles for this listing.");
   setText("terminalDeepLink", "Open in Atlas");
   document.getElementById("terminalDeepLink").href = `/atlas/?asset=${encodeURIComponent(subject.symbol)}`;
   resetComparableEvidence();
@@ -1608,7 +1619,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     indicatorSourceState: "provider_backed",
   });
   setText("terminalChartStatus", chartState?.candles?.length
-    ? `${chartState.candles.length.toLocaleString()} provider-backed bars · exact ${titleCase(subject.instrumentType)}`
+    ? `${chartState.candles.length.toLocaleString()} candles · ${titleCase(subject.instrumentType)}`
     : chartState?.message || "Exact listed-instrument candles unavailable.");
   let visualChart = null;
   if (!chartState?.candles?.length) {
@@ -1855,7 +1866,7 @@ function renderWorkspaceState(workspace = {}) {
   const operatorState = workspace?.operatorStateLabel || titleCase(workspaceState);
   setState("terminalMarketFreshness", workspaceState, operatorState);
   setText("terminalChartStatus", workspace?.candles?.length
-    ? `${workspace.candles.length.toLocaleString()} provider-backed bars · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade bar ${durationLabel(workspace.lastCandleAgeSeconds)}` : titleCase(workspace.connectionState)}`
+    ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : titleCase(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState));
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);

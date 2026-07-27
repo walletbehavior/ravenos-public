@@ -18,7 +18,7 @@ test("PriceWorkspace declares provenance states and never generates fallback can
     assert.match(workspace, new RegExp(`\\b${state}\\b`));
   }
   assert.doesNotMatch(workspace, /Math\.sin|Math\.cos|local_fallback|structure_proxy/);
-  assert.match(workspace, /Provider-backed candles are unavailable|No provider-backed candles/);
+  assert.match(workspace, /Current candles are not available for this market/);
   assert.match(workspace, /data-rpw-focus/);
   assert.match(workspace, /Limited history/);
   assert.match(workspace, /payload\.instrument\?\.identity_scope/);

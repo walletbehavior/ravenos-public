@@ -300,10 +300,11 @@ test("/atlas/ explains an outage without inventing unsupported research", async 
   }));
   await page.goto("/atlas/");
   await expect(page.locator("h1")).toContainText(/one market, resolved in context/i);
-  await expect(page.locator("#atlasContent")).toContainText(/bounded market frame is unavailable/i);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);
-  expect(body).toMatch(/Search remains usable, and no old posture was substituted/i);
+  expect(body).not.toMatch(/bounded market frame|catalog-only|hydrates on selection/i);
+  expect(body).toMatch(/Follow the issuer behind the move/i);
+  expect(body).not.toMatch(/Market pulse unavailable/i);
   expect(body).not.toMatch(/Use Atlas as a regime router|placeholder company|sample options chain/i);
 });
 

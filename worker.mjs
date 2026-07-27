@@ -484,6 +484,8 @@ function normalizeDexPair(pair = {}) {
   const base = pair.baseToken || {};
   const quote = pair.quoteToken || {};
   const imageUrl = safeDexImageUrl(pair.info?.imageUrl);
+  const buys24h = optionalFiniteNumber(pair.txns?.h24?.buys);
+  const sells24h = optionalFiniteNumber(pair.txns?.h24?.sells);
   return {
     id: `${pair.chainId || "unknown"}:${pair.pairAddress || base.address || ""}`,
     chainId: pair.chainId || "unknown",
@@ -497,7 +499,9 @@ function normalizeDexPair(pair = {}) {
     priceUsd: num(pair.priceUsd),
     liquidityUsd: num(pair.liquidity?.usd),
     volume24h: num(pair.volume?.h24),
-    txns24h: num(pair.txns?.h24?.buys) + num(pair.txns?.h24?.sells),
+    txns24h: (buys24h || 0) + (sells24h || 0),
+    buys24h,
+    sells24h,
     marketCap: num(pair.marketCap),
     fdv: num(pair.fdv),
     priceChange24h: num(pair.priceChange?.h24),
@@ -584,6 +588,8 @@ function normalizeDexPaprikaPool(pool = {}, query = "") {
     liquidityUsd: null,
     volume24h: num(pool.volume_usd),
     txns24h: num(pool.transactions),
+    buys24h: null,
+    sells24h: null,
     marketCap: null,
     fdv: Number.isFinite(Number(base.fdv)) ? Number(base.fdv) : null,
     priceChange24h: Number.isFinite(Number(pool.last_price_change_usd_24h)) ? Number(pool.last_price_change_usd_24h) : null,
@@ -594,7 +600,7 @@ function normalizeDexPaprikaPool(pool = {}, query = "") {
     isCached: false,
     isSample: false,
     lastUpdated: new Date().toISOString(),
-    warning: "Exact pool identity; current price hydrates from the selected market.",
+    warning: "Exact pool identity; current price loads from the selected market.",
   };
 }
 
@@ -2655,7 +2661,7 @@ async function fetchPublicListedCandles(env, ticker, timeframe, {
         asset: assetLabel,
         source: projection.provider,
         source_type: "provider",
-        source_label: "Provider-backed market history",
+        source_label: "Market history",
         coverage: "Current provider response",
         stale: false,
         freshness_state: "fresh",
@@ -2895,7 +2901,7 @@ async function terminalChartPayload({
     }).catch(() => null);
     if (requestedScope === "token_aggregate") {
       if (ravenPayload?.ok) return ravenPayload;
-      return unresolvedChart(cleanAsset, `${cleanAsset} has no bounded Raven-native aggregate swap history for this exact token and quote orientation.`, {
+      return unresolvedChart(cleanAsset, `${cleanAsset} does not have enough exact-market trading history for this token and quote orientation.`, {
         source: "Raven exact observations",
         sourceType: ravenPayload?.error || "instrument_not_observed",
         timeframe,
@@ -2947,6 +2953,8 @@ async function terminalChartPayload({
           liquidity_usd: pair.liquidityUsd,
           volume_24h: pair.volume24h,
           transactions_24h: pair.txns24h,
+          buys_24h: pair.buys24h,
+          sells_24h: pair.sells24h,
           market_cap: pair.marketCap,
           fully_diluted_value: pair.fdv,
           pool_age_ms: pair.pairAgeMs,
@@ -2980,6 +2988,8 @@ async function terminalChartPayload({
         liquidity_usd: payload.market_state?.liquidity_usd ?? null,
         volume_24h_usd: payload.market_state?.volume_24h ?? null,
         transactions_24h: payload.market_state?.transactions_24h ?? null,
+        buys_24h: payload.market_state?.buys_24h ?? null,
+        sells_24h: payload.market_state?.sells_24h ?? null,
         pool_created_at: payload.market_state?.pool_created_at || null,
         pool_age_ms: payload.market_state?.pool_age_ms ?? null,
         holder_distribution: {

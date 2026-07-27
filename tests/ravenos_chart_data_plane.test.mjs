@@ -747,7 +747,7 @@ test("search reports per-provider exact-market coverage without silently switchi
 
 test("exact EVM contract search discovers provider-listed chains without substituting another token", async () => {
   const originalFetch = globalThis.fetch;
-  const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
+  const tokenAddress = "0x730442c8133a9efb4c278b3723043444749ca08b";
   const pair = {
     chainId: "robinhood",
     dexId: "uniswap",
@@ -781,6 +781,9 @@ test("exact EVM contract search discovers provider-listed chains without substit
     assert.equal(body.results[0].tokenAddress.toLowerCase(), tokenAddress);
     assert.equal(body.results[0].pairAddress.toLowerCase(), pair.pairAddress.toLowerCase());
     assert.equal(body.results[0].symbol, "RUNNER");
+    assert.equal(body.results[0].buys24h, 120);
+    assert.equal(body.results[0].sells24h, 121);
+    assert.equal(body.results[0].txns24h, 241);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1241,6 +1244,8 @@ test("current exact-pool delivery labels an unchanged quiet market separately fr
     assert.equal(payload.stale, false);
     assert.equal(payload.market_anatomy.provider_freshness_state, "current");
     assert.equal(payload.market_anatomy.candle_freshness_state, "delayed");
+    assert.equal(payload.market_anatomy.buys_24h, 10);
+    assert.equal(payload.market_anatomy.sells_24h, 5);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

@@ -322,7 +322,7 @@ function renderContext(payload) {
   marker.setAttribute("aria-pressed", eventAvailable ? "true" : "false");
   setText("perpsChartEventState", eventAvailable ? `Exact observation ${timestamp(payload.chart_event.observed_at)}` : "No exact event for this instrument");
 
-  setText("perpsProofMarket", [marketData.components?.book, marketData.components?.tape].every((value) => value === "fresh") ? "Live, privacy-bounded" : "Partially unavailable");
+  setText("perpsProofMarket", [marketData.components?.book, marketData.components?.tape].every((value) => value === "fresh") ? "Live market flow" : "Partially unavailable");
   setText("perpsProofContext", context.context_available ? `${titleCase(context.context_state)} public projection` : "Explicitly unavailable");
   renderChartLayers();
   dispatchContext();

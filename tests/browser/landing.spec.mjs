@@ -132,7 +132,7 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /See the move.*Understand the behavior/i })).toBeVisible();
   await expect(page.locator("#landingOriginState")).toHaveText("Current opportunities");
-  await expect(page.locator("#landingOpportunityCount")).toHaveText("1 current exact rows");
+  await expect(page.locator("#landingOpportunityCount")).toHaveText("1 current markets");
   await expect(page.locator("#landingInstrument")).toHaveText("SOL-PERP");
   await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
   await expect(page.locator("#landingWhy")).toContainText("Behavior changed");

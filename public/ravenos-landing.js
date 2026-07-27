@@ -240,7 +240,7 @@ function renderAtlas(rows, payload) {
   for (const row of rows.slice(0, 4)) {
     const instrument = row.instrument; const params = new URLSearchParams({ asset: row.symbol, instrument_id: row.instrument_id, instrument_type: instrument.instrument_type, asset_class: instrument.asset_class, identity_scope: "exact_instrument", venue: instrument.venue, market: "equities", quote: instrument.quote_asset?.symbol || "USD", settlement: instrument.settlement_asset?.symbol || "USD", numeraire: instrument.economic_numeraire || "USDC" });
     const link = document.createElement("a"); link.className = "landing-atlas-row"; link.href = `/terminal/?${params.toString()}`;
-    const identity = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.symbol; const small = document.createElement("small"); small.textContent = `${instrument.market_identity?.listing || instrument.venue} · exact listing`; identity.append(strong, small);
+    const identity = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.symbol; const small = document.createElement("small"); small.textContent = `${instrument.market_identity?.listing || instrument.venue} · listed market`; identity.append(strong, small);
     const value = document.createElement("span"); value.textContent = price(row.price); const change = document.createElement("span"); const amount = finite(row.change_21d); change.textContent = percent(amount, { ratio: true }); if (amount !== null) change.className = amount >= 0 ? "positive" : "negative";
     link.append(identity, value, change); host.append(link);
   }
@@ -262,12 +262,18 @@ async function boot() {
   for (const row of marketPayload?.results || []) if (row?.instrument_id) state.markets.set(row.instrument_id, row);
   const opportunityPayload = opportunityResult.status === "fulfilled" && opportunityResult.value.response.ok ? opportunityResult.value.payload : null;
   state.opportunities = validOpportunities(opportunityPayload) || [];
-  renderOpportunityList(); renderAttentionBenchmark(opportunityPayload); setText("landingOpportunityCount", state.opportunities.length ? `${state.opportunities.length} current exact rows` : "Refreshing");
+  renderOpportunityList(); renderAttentionBenchmark(opportunityPayload); setText("landingOpportunityCount", state.opportunities.length ? `${state.opportunities.length} current markets` : "Refreshing");
   const atlasPayload = atlasResult.status === "fulfilled" && atlasResult.value.response.ok ? atlasResult.value.payload : null; renderAtlas(validAtlas(atlasPayload), atlasPayload);
   const health = healthResult.status === "fulfilled" && healthResult.value.response.ok ? healthResult.value.payload : null;
   const marketState = health?.market_data_health?.state || (state.markets.size ? "live" : "waiting"); const intelligenceState = health?.intelligence_freshness?.state || (state.opportunities.length ? "fresh" : "waiting");
-  setText("landingMarketState", `Market ${title(marketState)}`); document.getElementById("landingMarketState").dataset.state = marketState;
-  setText("landingIntelligenceState", intelligenceState === "delayed" ? "Raven updating" : `Raven ${title(intelligenceState)}`); document.getElementById("landingIntelligenceState").dataset.state = intelligenceState;
+  const marketStateNode = document.getElementById("landingMarketState");
+  setText("landingMarketState", `Market ${title(marketState)}`);
+  marketStateNode.dataset.state = marketState;
+  marketStateNode.hidden = ["waiting", "unavailable", "unknown"].includes(String(marketState).toLowerCase());
+  const intelligenceStateNode = document.getElementById("landingIntelligenceState");
+  setText("landingIntelligenceState", intelligenceState === "delayed" ? "Raven updating" : `Raven ${title(intelligenceState)}`);
+  intelligenceStateNode.dataset.state = intelligenceState;
+  intelligenceStateNode.hidden = ["waiting", "unavailable", "unknown"].includes(String(intelligenceState).toLowerCase());
   const originCurrent = state.opportunities.length > 0 || Boolean(validAtlas(atlasPayload)?.length); setText("landingOriginState", originCurrent ? "Current opportunities" : "Raven refreshing"); document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "waiting";
   setText("landingGeneratedAt", when(opportunityPayload?.census?.generated_at || atlasPayload?.generated_at), "Updating source time");
   if (state.opportunities[0]) selectOpportunity(state.opportunities[0]);
