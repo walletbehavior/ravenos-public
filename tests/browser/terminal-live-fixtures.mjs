@@ -224,6 +224,11 @@ function contextPayload(asset) {
 export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
+  await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
+    status: 200,
+    contentType: "image/png",
+    body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+  }));
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -322,15 +327,60 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           sells_24h: 5_100,
           market_cap_usd: 3_100_000_000,
           pool_age_ms: 180 * 86_400_000,
-          holder_distribution: spotRavenContext && spotChain === "solana" ? {
+          holder_distribution: {
             state: "available",
-            scope: "exact_pool",
+            scope: "exact_token",
             observed_at: new Date().toISOString(),
-            holder_count: 1_240,
-            change_5m_pct: 1.8,
-            change_1h_pct: 6.4,
-            change_24h_pct: 18.2,
-          } : { state: "unavailable" },
+            holder_count: 4_852,
+            top_10_pct: 29.95,
+            next_10_pct: 12.4593,
+            next_20_pct: 15.1691,
+            rest_pct: 42.4216,
+            change_5m_pct: spotRavenContext && spotChain === "solana" ? 1.8 : null,
+            change_1h_pct: spotRavenContext && spotChain === "solana" ? 6.4 : null,
+            change_24h_pct: spotRavenContext && spotChain === "solana" ? 18.2 : null,
+          },
+          market_profile: {
+            schema_version: "ravenos.onchain_market_profile.v1",
+            identity: {
+              state: "exact",
+              chain: spotChain,
+              pool_address: pairAddress,
+              token_address: tokenAddress,
+              quote_token_address: quoteAddress,
+            },
+            token: {
+              name: asset.split("/")[0],
+              symbol: asset.split("/")[0],
+              decimals: 9,
+              image_url: "https://assets.geckoterminal.com/token-fixture.png",
+            },
+            holder_distribution: {
+              state: "available",
+              holder_count: 4_852,
+              observed_at: new Date().toISOString(),
+              top_10_pct: 29.95,
+              next_10_pct: 12.4593,
+              next_20_pct: 15.1691,
+              rest_pct: 42.4216,
+            },
+            token_controls: {
+              mint_authority: "disabled",
+              freeze_authority: "disabled",
+              honeypot: "not_flagged",
+              developer_holding_pct: 1.74,
+            },
+            launch: { completed: true, completed_at: new Date().toISOString() },
+            links: [
+              { kind: "website", label: "jup.ag", url: "https://jup.ag/" },
+              { kind: "x", label: "X", url: "https://x.com/JupiterExchange" },
+            ],
+            attribution: {
+              required: true,
+              label: "Data provided by CoinGecko",
+              url: "https://www.coingecko.com/",
+            },
+          },
           current_activity: spotRavenContext && spotChain === "solana" ? {
             observed_at: new Date().toISOString(),
             market_age_seconds: 180 * 86_400,

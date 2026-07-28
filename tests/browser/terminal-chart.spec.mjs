@@ -354,6 +354,8 @@ test("spot search loads one exact pool and joins only its admitted current Raven
 
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
+  await expect(page.locator("#terminalInstrumentImage")).toBeVisible();
+  await expect(page.locator("#terminalInstrumentImage")).toHaveAttribute("src", "https://assets.geckoterminal.com/token-fixture.png");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadTrigger")).toBeVisible();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
@@ -372,12 +374,25 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalAnatomy4Label")).toHaveText("5m flow");
   await expect(page.locator("#terminalAnatomy4")).toContainText("64 buy · 26 sell · 72 traders");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
-  await expect(page.locator("#terminalAnatomy5")).toContainText("1.24K · 1h +6.40%");
+  await expect(page.locator("#terminalAnatomy5")).toContainText("4.85K · 1h +6.40%");
+  await expect(page.locator("#terminalHolderMap")).toBeVisible();
+  await expect(page.locator("#terminalHolderMapState")).toContainText("4.85K holders");
+  await expect(page.locator("#terminalHolderTop10")).toHaveText("29.9%");
+  await expect(page.locator("#terminalHolderNext10")).toHaveText("12.5%");
+  await expect(page.locator("#terminalHolderNext20")).toHaveText("15.2%");
+  await expect(page.locator("#terminalHolderRest")).toHaveText("42.4%");
+  await expect(page.locator("#terminalHolderBar > span")).toHaveCount(4);
+  await expect(page.locator("#terminalProfileChips")).toContainText("Mint locked");
+  await expect(page.locator("#terminalProfileChips")).toContainText("Freeze locked");
+  await expect(page.locator("#terminalProfileChips")).toContainText("Developer holds 1.7%");
+  await expect(page.locator("#terminalProfileLinks a")).toHaveCount(2);
+  await expect(page.locator("#terminalProfileLinks")).toContainText("jup.ag");
+  await expect(page.locator("#terminalProfileCredit")).toHaveText("Data provided by CoinGecko");
   const anatomyFacts = await Promise.all(
     [1, 2, 3, 4, 5].map((index) => page.locator(`#terminalAnatomy${index}`).textContent()),
   );
   expect(anatomyFacts.join(" ")).not.toMatch(/Unavailable|Not projected/i);
-  await expect(page.locator("#terminalAnatomy7")).toHaveText("Review unavailable");
+  await expect(page.locator("#terminalAnatomySection")).not.toContainText("Review unavailable");
   await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token-address:fixture-quote-address");
   await page.locator("#terminalSourceDetail > summary").click();
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
@@ -413,7 +428,10 @@ test("spot markets without matching Raven evidence keep useful anatomy and omit 
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalReadTrigger")).toBeHidden();
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
-  await expect(page.locator("#terminalAnatomySection")).not.toContainText(/holders|unknown|not projected/i);
+  await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
+  await expect(page.locator("#terminalAnatomy5")).toContainText("4.85K");
+  await expect(page.locator("#terminalHolderMap")).toBeVisible();
+  await expect(page.locator("#terminalAnatomySection")).not.toContainText(/unknown|not projected/i);
 });
 
 test("a quiet exact pool stays current without presenting an old candle as a site-wide delay", async ({ page }) => {
@@ -445,9 +463,8 @@ test("spot scope controls never cover the OHLCV candle inspector", async ({ page
   expect(boxesOverlap(await scope.boundingBox(), await legend.boundingBox())).toBe(false);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(scope).toBeVisible();
+  await expect(scope).toBeHidden();
   await expect(legend).toBeVisible();
-  expect(boxesOverlap(await scope.boundingBox(), await legend.boundingBox())).toBe(false);
   await expect(legend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
 });
 

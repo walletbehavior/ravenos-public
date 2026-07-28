@@ -92,6 +92,38 @@ Existing consumers may continue to read `candles`. New consumers must validate `
     "fallback_event": true,
     "active_viewer_measurement": "request_signal_only"
   },
+  "market_anatomy": {
+    "schema_version": "ravenos.market_anatomy.v1",
+    "exact_identity": true,
+    "market_profile": {
+      "schema_version": "ravenos.onchain_market_profile.v1",
+      "identity": {
+        "state": "exact",
+        "chain": "base",
+        "pool_address": "<exact-pool>",
+        "token_address": "<selected-token>",
+        "quote_token_address": "<quote-token>"
+      },
+      "holder_distribution": {
+        "state": "available",
+        "holder_count": 4852,
+        "observed_at": "2026-07-28T04:00:00Z",
+        "top_10_pct": 29.95,
+        "next_10_pct": 12.4593,
+        "next_20_pct": 15.1691,
+        "rest_pct": 42.4216
+      },
+      "token_controls": {
+        "mint_authority": "disabled",
+        "freeze_authority": "disabled",
+        "honeypot": "unknown",
+        "developer_holding_pct": 1.74
+      },
+      "links": [
+        { "kind": "website", "label": "example.com", "url": "https://example.com/" }
+      ]
+    }
+  },
   "candles": [
     { "time": 1784696400, "open": 1, "high": 1.1, "low": 0.9, "close": 1.05, "volume": 10 }
   ],
@@ -149,6 +181,25 @@ Existing consumers may continue to read `candles`. New consumers must validate `
 21. Search may expose `probe_required` or `unavailable`; only a validated exact-market response may expose `verified_current` or `verified_with_visible_staleness`.
 22. A provider-specific request cannot silently fall back to a different provider merely because that provider supports the network.
 23. CoinGecko's provider-defined empty intervals are accepted only when explicitly requested, attributed in lineage, and returned as previous-close, zero-volume bars. RavenOS itself never manufactures them.
+24. Exact-pool profile data is accepted only when the selected token and quote both match the exact requested pool response.
+25. Holder concentration is aggregate-only. Raw holder wallets, developer addresses, provider prose, scores, payloads, and migration targets never enter the public chart response.
+26. Submitted token links are bounded to HTTPS, reject local/private destinations, and are rendered as inert text links rather than HTML.
+27. Missing, malformed, or stale profile enrichment never changes candle authority, chart identity, or chart availability. The absent profile section is omitted.
+
+## Exact-pool market profile
+
+`ravenos.onchain_market_profile.v1` is a bounded optional enrichment attached to `market_anatomy`. It uses the same exact chain, pool, selected-token, and quote-token identity as the candle request. The current CoinGecko Basic implementation may project:
+
+- token name, symbol, decimals, and an allowlisted image URL;
+- holder count and the aggregate top-10, ranks 11–20, ranks 21–40, and remaining-holder shares;
+- mint and freeze authority state without exposing authority addresses;
+- honeypot flag state as reported by the provider;
+- developer holding percentage without exposing the developer address;
+- completed launch state and timestamp;
+- bounded HTTPS website and social links;
+- required provider attribution and cache accounting.
+
+The profile is cached for ten minutes in the Worker and Cloudflare Cache API. It is a market-anatomy enrichment, never price history, Raven evidence, actor identity, wallet attribution, or execution authority. An enrichment error fails open only for this optional section; exact-pool candles retain their existing fail-closed identity and continuity rules.
 
 ## Capability registries
 

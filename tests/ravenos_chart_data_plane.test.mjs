@@ -43,6 +43,66 @@ function geckoPoolIdentity({ network, pairAddress, baseAddress, quoteAddress }) 
   };
 }
 
+function geckoPoolInfo({
+  network,
+  tokenAddress,
+  quoteAddress,
+  observedAt = new Date().toISOString(),
+} = {}) {
+  return {
+    data: [{
+      id: `${network}_${tokenAddress}`,
+      type: "token",
+      attributes: {
+        address: tokenAddress,
+        name: "Attention",
+        symbol: "ATTN",
+        decimals: 9,
+        image_url: "https://assets.geckoterminal.com/token-fixture.png",
+        holders: {
+          count: 4_852,
+          distribution_percentage: {
+            top_10: "29.95",
+            "11_20": "12.4593",
+            "21_40": "15.1691",
+            rest: "42.4216",
+          },
+          last_updated: observedAt,
+        },
+        developer_address: "private-provider-wallet-must-not-propagate",
+        developer_holding_percentage: "1.74",
+        mint_authority: "no",
+        freeze_authority: "no",
+        is_honeypot: false,
+        websites: [
+          "https://attention.example/",
+          "javascript:alert(1)",
+          "https://127.0.0.1/private",
+        ],
+        twitter_handle: "attention_token",
+        telegram_handle: null,
+        discord_url: "https://malicious.example/not-discord",
+        description: "raw provider prose must not propagate",
+        gt_score: 99,
+        launchpad_details: {
+          completed: true,
+          completed_at: observedAt,
+          migrated_destination_pool_address: "private-provider-migration-must-not-propagate",
+        },
+      },
+    }, {
+      id: `${network}_${quoteAddress}`,
+      type: "token",
+      attributes: {
+        address: quoteAddress,
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+      },
+    }],
+  };
+}
+
 test("canonical chart identity preserves exact-pool, aggregate-token, and perp scope", () => {
   const aggregate = normalizeChartInstrument({ chain: "solana", venue: "jupiter", symbol: "RAVEN", tokenAddress: "MintA" });
   const pool = normalizeChartInstrument({ chain: "base", venue: "uniswap_v3", symbol: "RAVEN", quoteAsset: "USDC", tokenAddress: "0xToken", pairAddress: "0xPool" });
@@ -1175,6 +1235,7 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     assert.equal(payload.candles.length, 3);
     assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
     assert.equal(payload.candles.some((candle) => candle.close === 99), false);
+    assert.equal(payload.market_anatomy.market_profile, null);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;
@@ -1193,12 +1254,22 @@ test("exact spot charts join current public token anatomy without changing candl
   const now = Math.floor(Date.now() / 60_000) * 60;
   const nowIso = new Date().toISOString();
   const observedAt = new Date(Date.now() - 45_000).toISOString();
+  let profileCalls = 0;
   try {
     globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
     globalThis.fetch = async (input, init = {}) => {
       const url = String(input?.url || input);
       if (url.includes("pro-api.coingecko.com")) {
         assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
+        if (url.endsWith("/info")) {
+          profileCalls += 1;
+          return new Response(JSON.stringify(geckoPoolInfo({
+            network: "solana",
+            tokenAddress,
+            quoteAddress,
+            observedAt,
+          })), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (!url.includes("/ohlcv/")) {
           return new Response(JSON.stringify(geckoPoolIdentity({
             network: "solana",
@@ -1313,13 +1384,39 @@ test("exact spot charts join current public token anatomy without changing candl
     assert.doesNotMatch(responseText, new RegExp(providerSecret));
     assert.doesNotMatch(responseText, new RegExp(originSecret));
     assert.doesNotMatch(responseText, /must-not-propagate/);
+    assert.doesNotMatch(responseText, /private-provider-wallet/);
+    assert.doesNotMatch(responseText, /private-provider-migration/);
+    assert.doesNotMatch(responseText, /raw provider prose/);
+    assert.doesNotMatch(responseText, /gt_score/);
+    assert.doesNotMatch(responseText, /javascript:/);
+    assert.doesNotMatch(responseText, /127\.0\.0\.1/);
+    assert.doesNotMatch(responseText, /malicious\.example/);
     const body = JSON.parse(responseText);
     const payload = body.data || body;
     assert.equal(payload.ok, true);
     assert.equal(payload.candle_series.provider, "coingecko_onchain");
     assert.equal(payload.candle_series.raven_observations_are_candles, false);
     assert.equal(payload.market_anatomy.holder_distribution.state, "available");
-    assert.equal(payload.market_anatomy.holder_distribution.holder_count, 1_240);
+    assert.equal(payload.market_anatomy.holder_distribution.holder_count, 4_852);
+    assert.equal(payload.market_anatomy.holder_distribution.top_10_pct, 29.95);
+    assert.equal(payload.market_anatomy.holder_distribution.next_10_pct, 12.4593);
+    assert.equal(payload.market_anatomy.holder_distribution.next_20_pct, 15.1691);
+    assert.equal(payload.market_anatomy.holder_distribution.rest_pct, 42.4216);
+    assert.equal(payload.market_anatomy.holder_distribution.change_1h_pct, 6.4);
+    assert.equal(payload.market_anatomy.market_profile.identity.state, "exact");
+    assert.equal(payload.market_anatomy.market_profile.identity.pool_address, pairAddress);
+    assert.equal(payload.market_anatomy.market_profile.identity.token_address, tokenAddress);
+    assert.equal(payload.market_anatomy.market_profile.identity.quote_token_address, quoteAddress);
+    assert.equal(payload.market_anatomy.market_profile.token_controls.mint_authority, "disabled");
+    assert.equal(payload.market_anatomy.market_profile.token_controls.freeze_authority, "disabled");
+    assert.equal(payload.market_anatomy.market_profile.token_controls.honeypot, "not_flagged");
+    assert.equal(payload.market_anatomy.market_profile.token_controls.developer_holding_pct, 1.74);
+    assert.equal(payload.market_anatomy.market_profile.launch.completed, true);
+    assert.deepEqual(payload.market_anatomy.market_profile.links.map((link) => link.label), ["attention.example", "X"]);
+    assert.equal(payload.market_anatomy.market_profile.attribution.label, "Data provided by CoinGecko");
+    assert.equal(payload.provider_usage.provider_request_count, 3);
+    assert.equal(payload.provider_usage.market_profile_cache_hit, false);
+    assert.equal(payload.provider_usage.market_profile_request_count, 1);
     assert.equal(payload.market_anatomy.current_activity.traders_5m, 72);
     assert.equal(payload.market_anatomy.raven_context.evidence_scope, "exact_token");
     assert.equal(payload.market_anatomy.raven_context.scope_label, "Token-wide activity");
@@ -1328,6 +1425,19 @@ test("exact spot charts join current public token anatomy without changing candl
     assert.equal(payload.market_anatomy.raven_context.evidence_pool_address, null);
     assert.equal(payload.market_anatomy.raven_context.signing_available, false);
     assert.equal(payload.market_anatomy.raven_context.submission_available, false);
+    const cachedResponse = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      RAVENOS_PUBLIC_ORIGIN_TOKEN: originSecret,
+    });
+    const cachedBody = await cachedResponse.json();
+    const cachedPayload = cachedBody.data || cachedBody;
+    assert.equal(cachedResponse.status, 200);
+    assert.equal(profileCalls, 1);
+    assert.equal(cachedPayload.provider_usage.market_profile_cache_hit, true);
+    assert.equal(cachedPayload.provider_usage.market_profile_request_count, 0);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

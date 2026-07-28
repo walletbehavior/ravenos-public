@@ -375,9 +375,166 @@ function renderSourceDetails(workspace = state.workspace?.state || {}) {
   );
 }
 
+function profilePercent(value) {
+  const result = finite(value);
+  if (result === null || result < 0 || result > 100) return null;
+  return `${result.toFixed(result < 1 ? 2 : 1)}%`;
+}
+
+function safeProfileLink(value) {
+  try {
+    const url = new URL(String(value || ""));
+    if (
+      url.protocol !== "https:"
+      || url.username
+      || url.password
+      || !url.hostname
+      || url.hostname === "localhost"
+      || url.hostname.endsWith(".local")
+    ) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function setInstrumentImage(value) {
+  const image = document.getElementById("terminalInstrumentImage");
+  const root = image?.closest(".terminal-instrument");
+  if (!image || !root) return;
+  let source = null;
+  try {
+    const url = new URL(String(value || ""));
+    if (
+      url.protocol === "https:"
+      && ["assets.geckoterminal.com", "coin-images.coingecko.com", "assets.coingecko.com", "cdn.dexscreener.com"].includes(url.hostname)
+    ) source = url.toString();
+  } catch {
+    source = null;
+  }
+  image.hidden = !source;
+  root.classList.toggle("has-image", Boolean(source));
+  if (source) {
+    image.onerror = () => setInstrumentImage(null);
+    image.src = source;
+  }
+  else image.removeAttribute("src");
+}
+
+function renderSpotMarketProfile(anatomy = {}) {
+  const distributionRoot = document.getElementById("terminalHolderMap");
+  const bar = document.getElementById("terminalHolderBar");
+  const facts = document.getElementById("terminalProfileFacts");
+  const chips = document.getElementById("terminalProfileChips");
+  const links = document.getElementById("terminalProfileLinks");
+  const credit = document.getElementById("terminalProfileCredit");
+  const distribution = anatomy?.holder_distribution || {};
+  const parts = [
+    finite(distribution.top_10_pct),
+    finite(distribution.next_10_pct),
+    finite(distribution.next_20_pct),
+    finite(distribution.rest_pct),
+  ];
+  const distributionTotal = parts.every((value) => value !== null)
+    ? parts.reduce((sum, value) => sum + value, 0)
+    : null;
+  const distributionVisible = distribution.state === "available"
+    && distributionTotal !== null
+    && distributionTotal >= 99
+    && distributionTotal <= 101;
+
+  if (distributionRoot) distributionRoot.hidden = !distributionVisible;
+  if (bar) {
+    bar.replaceChildren();
+    if (distributionVisible) {
+      for (const value of parts) {
+        const segment = document.createElement("span");
+        segment.style.flex = `${value} 1 0`;
+        bar.append(segment);
+      }
+      bar.setAttribute(
+        "aria-label",
+        `Holder distribution: top 10 ${profilePercent(parts[0])}, ranks 11 to 20 ${profilePercent(parts[1])}, ranks 21 to 40 ${profilePercent(parts[2])}, remaining holders ${profilePercent(parts[3])}.`,
+      );
+    }
+  }
+  setText("terminalHolderTop10", distributionVisible ? profilePercent(parts[0]) : "", "");
+  setText("terminalHolderNext10", distributionVisible ? profilePercent(parts[1]) : "", "");
+  setText("terminalHolderNext20", distributionVisible ? profilePercent(parts[2]) : "", "");
+  setText("terminalHolderRest", distributionVisible ? profilePercent(parts[3]) : "", "");
+  const holderCount = finite(distribution.holder_count);
+  const holderObservedMs = Date.parse(String(distribution.observed_at || ""));
+  const holderAgeSeconds = Number.isFinite(holderObservedMs)
+    ? Math.max(0, Math.round((Date.now() - holderObservedMs) / 1_000))
+    : null;
+  setText(
+    "terminalHolderMapState",
+    distributionVisible
+      ? `${holderCount === null ? "" : `${compact(holderCount)} holders · `}${holderAgeSeconds === null ? timestamp(distribution.observed_at) : `updated ${durationLabel(holderAgeSeconds)}`}`
+      : "",
+    "",
+  );
+  const holderState = document.getElementById("terminalHolderMapState");
+  if (holderState) holderState.title = distributionVisible ? timestamp(distribution.observed_at) : "";
+
+  if (chips) chips.replaceChildren();
+  const controls = anatomy?.market_profile?.token_controls || {};
+  const profileImage = anatomy?.market_profile?.token?.image_url;
+  if (profileImage) setInstrumentImage(profileImage);
+  const chipRows = [];
+  if (controls.mint_authority === "disabled") chipRows.push(["Mint locked", "positive"]);
+  else if (controls.mint_authority === "enabled") chipRows.push(["Mint authority active", "warning"]);
+  if (controls.freeze_authority === "disabled") chipRows.push(["Freeze locked", "positive"]);
+  else if (controls.freeze_authority === "enabled") chipRows.push(["Freeze authority active", "warning"]);
+  if (controls.honeypot === "flagged") chipRows.push(["Honeypot flag", "danger"]);
+  else if (controls.honeypot === "not_flagged") chipRows.push(["No honeypot flag", "positive"]);
+  const developerHolding = finite(controls.developer_holding_pct);
+  if (developerHolding !== null && developerHolding >= 0 && developerHolding <= 100) {
+    chipRows.push([`Developer holds ${developerHolding.toFixed(developerHolding < 1 ? 2 : 1)}%`, developerHolding >= 5 ? "warning" : "neutral"]);
+  }
+  if (anatomy?.market_profile?.launch?.completed === true) chipRows.push(["Launch complete", "neutral"]);
+  for (const [label, tone] of chipRows) {
+    const chip = document.createElement("span");
+    chip.className = "terminal-profile-chip";
+    chip.dataset.tone = tone;
+    chip.textContent = label;
+    chips?.append(chip);
+  }
+
+  if (links) links.replaceChildren();
+  let linkCount = 0;
+  for (const link of (Array.isArray(anatomy?.market_profile?.links) ? anatomy.market_profile.links : []).slice(0, 6)) {
+    const href = safeProfileLink(link?.url);
+    const label = customerFacingText(link?.label, "");
+    if (!href || !label) continue;
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer nofollow";
+    anchor.textContent = label;
+    links?.append(anchor);
+    linkCount += 1;
+  }
+
+  const attribution = anatomy?.market_profile?.attribution || {};
+  const attributionUrl = safeProfileLink(attribution.url);
+  const creditVisible = attribution.required === true && Boolean(attributionUrl);
+  if (credit) {
+    credit.hidden = !creditVisible;
+    credit.textContent = creditVisible ? customerFacingText(attribution.label, "Token data source") : "";
+    if (creditVisible) credit.href = attributionUrl;
+    else credit.removeAttribute("href");
+  }
+  const factsVisible = chipRows.length > 0 || linkCount > 0 || creditVisible;
+  if (facts) facts.hidden = !factsVisible;
+  const section = document.getElementById("terminalAnatomySection");
+  if (section && (distributionVisible || factsVisible)) section.hidden = false;
+}
+
 function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
   const anatomy = workspace?.marketAnatomy || {};
   const chartProvider = readableProvider(workspace?.candleSeries?.provider || workspace?.source);
+  renderSpotMarketProfile({});
   if (state.lane === "perps") {
     const market = selectedPerpSnapshot();
     const spread = finite(
@@ -454,11 +611,12 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
       {
         label: "Route",
         value: routeStateLabel(routeState),
-        show: Boolean(routeState),
+        show: ["preview_available", "route_available"].includes(routeState),
       },
     ]);
+    renderSpotMarketProfile(anatomy);
     setText("terminalFingerprint", anatomy.pool_fingerprint || `${state.selected?.chainId || "unknown"}:pool:${state.selected?.pairAddress || "unresolved"}`);
-    setText("terminalAnatomyState", anatomy.exact_identity === false ? "Identity unavailable" : `${chartProvider} · exact pool`);
+    setText("terminalAnatomyState", anatomy.exact_identity === false ? "Identity unavailable" : "Exact pool");
     return;
   }
 
@@ -475,7 +633,7 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     { label: "Settlement", value: `${subject.settlementAsset || "USD"} · broker custody` },
   ]);
   setText("terminalFingerprint", subject.instrumentId, "Exact listing unavailable");
-  setText("terminalAnatomyState", `${chartProvider} · exact listing`);
+  setText("terminalAnatomyState", "Exact listing");
 }
 
 function renderTradeConsequences() {
@@ -658,13 +816,14 @@ function selectedPerpSnapshot(row = state.selected, streamed = state.workspace?.
 function renderPerpFacts() {
   const row = state.selected;
   const market = selectedPerpSnapshot(row);
+  setInstrumentImage(null);
   setText("terminalInstrumentScope", "Exact instrument");
   setText("terminalInstrument", row?.asset);
   setText("terminalInstrumentMeta", row ? `${row.instrument_id} · ${timestamp(row.observed_at)}` : "Hyperliquid perpetual · unavailable");
   setText("terminalPickerSymbol", row?.asset, "No instrument");
   setText("terminalPickerMeta", row?.instrument_id, "Search any supported market");
   setText("terminalVenueLabel", "Hyperliquid");
-  setText("terminalCapabilityLabel", "Perpetual · USDC collateral · exact contract");
+  setText("terminalCapabilityLabel", "Perpetual · USDC margin");
   setLastMetric(market.last);
   setMarketMetric(2, "Mark", formatPrice(market.mark));
   setMarketMetric(3, "Funding", percent(market.funding, { ratio: true }));
@@ -680,13 +839,14 @@ function renderPerpFacts() {
 
 function renderSpotFacts(row = state.selected) {
   const chartRequestSupported = spotChartCapability(row, state.timeframe).chart_request_supported;
+  setInstrumentImage(row?.imageUrl);
   setText("terminalInstrumentScope", "Exact pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
   setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · market snapshot` : "Search for a symbol, token, or contract");
   setText("terminalPickerSymbol", row ? `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}` : "Exact spot market required");
   setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
-  setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} pool quote · ${chartRequestSupported ? "coverage check on open" : "chart unavailable"} · USDC economic intent` : "No chain or venue selected");
+  setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} quote · ${chartRequestSupported ? "exact pool" : "chart unavailable"}` : "Search any supported market");
   setLastMetric(row?.priceUsd);
   setMarketMetric(2, finite(row?.marketCap) !== null ? "Market cap" : "FDV", compact(row?.marketCap ?? row?.fdv, { currency: true }));
   setMarketMetric(3, "Liquidity", compact(row?.liquidityUsd, { currency: true }));
@@ -717,6 +877,7 @@ function atlasOptionsFor(row = state.selected) {
 
 function renderAtlasFacts(row = state.selected) {
   const subject = atlasSubject(row || {});
+  setInstrumentImage(null);
   const instrument = row?.instrument || {};
   const options = atlasOptionsFor(row);
   const session = instrument.market_session?.state || "unknown";
@@ -741,6 +902,7 @@ function renderAtlasFacts(row = state.selected) {
 
 function renderListedFacts(row = state.selected) {
   const subject = atlasSubject(row || {});
+  setInstrumentImage(null);
   const instrument = row?.instrument?.schema_version === "ravenos.instrument.v1" ? row.instrument : row || {};
   const session = instrument.market_session?.state || "unknown";
   const listing = instrument.market_identity?.listing || subject.venue;
@@ -1489,8 +1651,8 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   setText("terminalChartStatus", "Requesting exact-pool provider candles.");
   const chartCapability = spotChartCapability(row, state.timeframe);
   const hasChartCoverage = chartCapability.chart_request_supported;
-  setText("terminalDeepLink", hasChartCoverage ? `Open ${chainDisplayName(row.chainId)} coverage` : "Coverage unavailable");
-  document.getElementById("terminalDeepLink").href = hasChartCoverage ? `/chains/${String(row.chainId).toLowerCase()}/` : "/docs/#availability";
+  setText("terminalDeepLink", hasChartCoverage ? "Market anatomy" : "Coverage unavailable");
+  document.getElementById("terminalDeepLink").href = hasChartCoverage ? "#terminalAnatomySection" : "/docs/#availability";
   setContextUnavailable();
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: spotSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
@@ -1516,7 +1678,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} candles · exact pool`
     : chartState?.message || "Exact-pool candles unavailable.");
-  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} quote · ${chartState?.candles?.length ? "current chart" : "chart unavailable"} · USDC trade intent`);
+  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} quote · ${chartState?.candles?.length ? `${chartState.candles.length.toLocaleString()} candles` : "chart unavailable"}`);
   renderSpotContext(chartState, row, { updateUrl });
 }
 

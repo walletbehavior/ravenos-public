@@ -304,6 +304,8 @@ body.raven-chart-focus { overflow: hidden; }
   .rpw-crosshair small { font-size: 6px; }
   .rpw-crosshair strong { overflow: hidden; text-overflow: ellipsis; font-size: 8px; }
   .rpw-chart-tools { justify-content: start; }
+  .rpw-scope-control,
+  .rpw-indicators { display: none !important; }
   .rpw-mobile-timeframes button,
   .rpw-indicators button { flex: 0 0 42px; min-width: 42px; padding: 0 6px; }
   .rpw-indicators > span { display: none; }

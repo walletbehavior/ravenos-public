@@ -1295,8 +1295,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
-  await expect(page.locator("#terminalAnatomy7")).toHaveText("Review unavailable");
-  await expect(page.locator("#terminalAnatomy7")).not.toContainText(/capability|check|required/i);
+  await expect(page.locator("#terminalAnatomySection")).not.toContainText(/Review unavailable|capability check|required/i);
 });
 
 test("token-name search ranks chartable active pools ahead of unsupported inactive listings", async ({ page }) => {
@@ -1414,7 +1413,7 @@ test("contract-address search resolves a provider-backed Robinhood Chain chart w
   await expect(page.locator("#terminalInstrument")).toHaveText("RUNNER/WETH");
   await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText("current chart");
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · WETH quote · \d+ candles/);
   await expect(page.locator("#terminalChartStatus")).not.toContainText(/unavailable/i);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());

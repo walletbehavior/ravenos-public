@@ -60,6 +60,7 @@
 
     <section class="terminal-market-head" aria-label="Selected market facts">
       <div class="terminal-instrument">
+        <img id="terminalInstrumentImage" alt="" width="30" height="30" hidden />
         <span id="terminalInstrumentScope">Exact instrument</span>
         <strong id="terminalInstrument">SOL-PERP</strong>
         <small id="terminalInstrumentMeta">Hyperliquid perpetual · connecting</small>
@@ -105,6 +106,24 @@
             <div hidden><dt id="terminalAnatomy6Label"></dt><dd id="terminalAnatomy6"></dd></div>
             <div hidden><dt id="terminalAnatomy7Label"></dt><dd id="terminalAnatomy7"></dd></div>
           </dl>
+          <div class="terminal-holder-map" id="terminalHolderMap" hidden>
+            <div class="terminal-holder-map-head">
+              <span>Holder distribution</span>
+              <strong id="terminalHolderMapState"></strong>
+            </div>
+            <div class="terminal-holder-bar" id="terminalHolderBar" role="img" aria-label="Holder distribution"></div>
+            <dl class="terminal-holder-legend">
+              <div><dt>Top 10</dt><dd id="terminalHolderTop10"></dd></div>
+              <div><dt>11–20</dt><dd id="terminalHolderNext10"></dd></div>
+              <div><dt>21–40</dt><dd id="terminalHolderNext20"></dd></div>
+              <div><dt>Rest</dt><dd id="terminalHolderRest"></dd></div>
+            </dl>
+          </div>
+          <div class="terminal-profile-facts" id="terminalProfileFacts" hidden>
+            <div class="terminal-profile-chips" id="terminalProfileChips"></div>
+            <nav class="terminal-profile-links" id="terminalProfileLinks" aria-label="Token links"></nav>
+            <a class="terminal-profile-credit" id="terminalProfileCredit" target="_blank" rel="noopener nofollow" hidden></a>
+          </div>
           <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
         </section>
 

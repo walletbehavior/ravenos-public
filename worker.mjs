@@ -69,6 +69,7 @@ import { buildParticipationPayoffProjection } from "./lib/participation_payoff.m
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
+const geckoMarketProfileCache = new Map();
 const onchainPulseCache = new Map();
 const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
@@ -1839,12 +1840,273 @@ function safeGeckoImageUrl(value) {
     const url = new URL(String(value || ""));
     if (
       url.protocol !== "https:"
-      || !["coin-images.coingecko.com", "assets.coingecko.com"].includes(url.hostname)
+      || !["coin-images.coingecko.com", "assets.coingecko.com", "assets.geckoterminal.com"].includes(url.hostname)
     ) return null;
     return url.toString();
   } catch {
     return null;
   }
+}
+
+function safePublicLink(value, kind = "website") {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  let candidate = raw;
+  if (kind === "x" && !/^https?:\/\//i.test(candidate)) {
+    const handle = candidate.replace(/^@/, "");
+    if (!/^[A-Za-z0-9_]{1,32}$/.test(handle)) return null;
+    candidate = `https://x.com/${handle}`;
+  } else if (kind === "telegram" && !/^https?:\/\//i.test(candidate)) {
+    const handle = candidate.replace(/^@/, "");
+    if (!/^[A-Za-z0-9_]{3,64}$/.test(handle)) return null;
+    candidate = `https://t.me/${handle}`;
+  }
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:"
+      || url.username
+      || url.password
+      || !host
+      || host === "localhost"
+      || host.endsWith(".local")
+      || host === "0.0.0.0"
+      || host === "127.0.0.1"
+      || host === "::1"
+      || host === "[::1]"
+      || host.startsWith("[")
+      || /^10\./.test(host)
+      || /^192\.168\./.test(host)
+      || /^169\.254\./.test(host)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    ) return null;
+    const allowed = {
+      x: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
+      telegram: ["t.me", "www.t.me", "telegram.me", "www.telegram.me"],
+      discord: ["discord.gg", "www.discord.gg", "discord.com", "www.discord.com"],
+      farcaster: ["warpcast.com", "www.warpcast.com", "farcaster.xyz", "www.farcaster.xyz"],
+      zora: ["zora.co", "www.zora.co"],
+    };
+    if (allowed[kind] && !allowed[kind].includes(host)) return null;
+    url.hash = "";
+    const normalized = url.toString();
+    return normalized.length <= 512 ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+function publicPercentage(value) {
+  const parsed = optionalFiniteNumber(value);
+  return parsed !== null && parsed >= 0 && parsed <= 100 ? parsed : null;
+}
+
+function normalizeTokenControl(value) {
+  if (value === false || String(value || "").trim().toLowerCase() === "no") return "disabled";
+  if (value === true || String(value || "").trim().toLowerCase() === "yes") return "enabled";
+  if (
+    typeof value === "string"
+    && value.trim()
+    && !["unknown", "null", "none"].includes(value.trim().toLowerCase())
+  ) return "enabled";
+  return "unknown";
+}
+
+function normalizeHoneypotState(value) {
+  if (value === true || String(value || "").trim().toLowerCase() === "true") return "flagged";
+  if (value === false || String(value || "").trim().toLowerCase() === "false") return "not_flagged";
+  return "unknown";
+}
+
+function normalizeGeckoHolderDistribution(value = {}) {
+  const count = optionalFiniteNumber(value?.count);
+  const distribution = value?.distribution_percentage || {};
+  const top10 = publicPercentage(distribution.top_10);
+  const next10 = publicPercentage(distribution["11_20"]);
+  const next20 = publicPercentage(distribution["21_40"]);
+  const rest = publicPercentage(distribution.rest);
+  const percentages = [top10, next10, next20, rest];
+  const complete = percentages.every((item) => item !== null);
+  const total = complete ? percentages.reduce((sum, item) => sum + item, 0) : null;
+  const observedAt = publicIsoTimestamp(value?.last_updated);
+  if (
+    count === null
+    || count < 0
+    || count > 10_000_000_000
+    || !complete
+    || total < 99
+    || total > 101
+    || !observedAt
+  ) return null;
+  return {
+    state: "available",
+    holder_count: Math.round(count),
+    observed_at: observedAt,
+    top_10_pct: top10,
+    next_10_pct: next10,
+    next_20_pct: next20,
+    rest_pct: rest,
+  };
+}
+
+function geckoProfileLinks(attributes = {}) {
+  const links = [];
+  const seen = new Set();
+  const add = (kind, label, value) => {
+    const url = safePublicLink(value, kind);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    links.push({ kind, label, url });
+  };
+  for (const website of (Array.isArray(attributes.websites) ? attributes.websites : []).slice(0, 2)) {
+    const url = safePublicLink(website, "website");
+    if (!url) continue;
+    let label = "Website";
+    try {
+      label = new URL(url).hostname.replace(/^www\./, "").slice(0, 48);
+    } catch {
+      // The URL was already validated; retain the generic label.
+    }
+    add("website", label, url);
+  }
+  add("x", "X", attributes.twitter_handle);
+  add("telegram", "Telegram", attributes.telegram_handle);
+  add("discord", "Discord", attributes.discord_url);
+  add("farcaster", "Farcaster", attributes.farcaster_url);
+  add("zora", "Zora", attributes.zora_url);
+  return links.slice(0, 6);
+}
+
+async function fetchGeckoPoolMarketProfile({
+  env = {},
+  chain = "",
+  pairAddress = "",
+  tokenAddress = "",
+  quoteAddress = "",
+} = {}) {
+  const providerId = "coingecko_onchain";
+  const runtime = onchainProviderRuntime(providerId, env);
+  const network = onchainProviderNetwork(providerId, chain);
+  const pool = normalizeProviderPoolAddress(chain, pairAddress);
+  if (!network || !pool || !String(tokenAddress || "").trim()) {
+    throw new Error("coingecko_market_profile_identity_required");
+  }
+  if (!runtime.runtime_allowed || !runtime.credential_present) {
+    throw new Error(runtime.runtime_block_reason || "coingecko_market_profile_provider_unavailable");
+  }
+  const canonicalToken = String(chain || "").toLowerCase() === "solana"
+    ? String(tokenAddress)
+    : String(tokenAddress).toLowerCase();
+  const cacheKey = `${runtime.provider_tier}:${network}:${pool}:${canonicalToken}`;
+  const cached = cacheGet(geckoMarketProfileCache, cacheKey);
+  if (cached) {
+    return {
+      ...cached,
+      usage: {
+        provider: providerId,
+        cache_hit: true,
+        provider_request_count: 0,
+      },
+    };
+  }
+  const edgeCacheKey = `market-profile:${cacheKey}`;
+  const edgeCached = await chartEdgeCacheRead(edgeCacheKey, "fresh");
+  if (edgeCached?.schema_version === "ravenos.onchain_market_profile.v1") {
+    const { ok: _edgeOk, ...profile } = edgeCached;
+    const result = {
+      ...profile,
+      usage: {
+        provider: providerId,
+        cache_hit: true,
+        provider_request_count: 0,
+      },
+    };
+    cacheSet(geckoMarketProfileCache, cacheKey, result, 10 * 60 * 1_000);
+    return result;
+  }
+  const payload = await runProviderOperation({
+    component: "onchain_market_profile",
+    operation_key: `profile:${cacheKey}`,
+    fn: () => boundedProviderJson(
+      `${runtime.base_url}/networks/${encodeURIComponent(network)}/pools/${encodeURIComponent(pool)}/info`,
+      {
+        headers: {
+          "user-agent": "RavenOS/1.0 exact-market-profile",
+          ...runtime.request_headers,
+        },
+        maxBytes: 256 * 1024,
+        timeoutMs: 3_500,
+        errorPrefix: "coingecko_market_profile",
+      },
+    ),
+  });
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  const tokenRows = rows.filter((row) => row?.type === "token" && String(row?.attributes?.address || "").trim());
+  const selected = tokenRows.find((row) => (
+    row?.type === "token"
+    && sameOnchainAddress(chain, row?.attributes?.address, tokenAddress)
+  ));
+  if (!selected) throw new Error("coingecko_market_profile_token_identity_mismatch");
+  const counterRows = tokenRows.filter((row) => !sameOnchainAddress(chain, row?.attributes?.address, tokenAddress));
+  if (counterRows.length !== 1) throw new Error("coingecko_market_profile_quote_identity_malformed");
+  const providerQuoteAddress = String(counterRows[0]?.attributes?.address || "");
+  if (
+    quoteAddress
+    && !sameOnchainAddress(chain, providerQuoteAddress, quoteAddress)
+  ) throw new Error("coingecko_market_profile_quote_identity_mismatch");
+  const attributes = selected.attributes || {};
+  const developerHolding = publicPercentage(attributes.developer_holding_percentage);
+  const launchCompletedAt = publicIsoTimestamp(attributes.launchpad_details?.completed_at);
+  const result = {
+    schema_version: "ravenos.onchain_market_profile.v1",
+    identity: {
+      state: "exact",
+      chain: String(chain || "").toLowerCase(),
+      pool_address: pool,
+      token_address: String(tokenAddress),
+      quote_token_address: String(quoteAddress || providerQuoteAddress),
+    },
+    token: {
+      name: boundedPublicLabel(attributes.name, "", 80) || null,
+      symbol: boundedPublicLabel(attributes.symbol, "", 24) || null,
+      decimals: Number.isInteger(Number(attributes.decimals)) && Number(attributes.decimals) >= 0 && Number(attributes.decimals) <= 36
+        ? Number(attributes.decimals)
+        : null,
+      image_url: safeGeckoImageUrl(attributes.image_url || attributes.image),
+    },
+    holder_distribution: normalizeGeckoHolderDistribution(attributes.holders),
+    token_controls: {
+      mint_authority: normalizeTokenControl(attributes.mint_authority),
+      freeze_authority: normalizeTokenControl(attributes.freeze_authority),
+      honeypot: normalizeHoneypotState(attributes.is_honeypot),
+      developer_holding_pct: developerHolding,
+    },
+    launch: attributes.launchpad_details && typeof attributes.launchpad_details === "object"
+      ? {
+        completed: attributes.launchpad_details.completed === true,
+        completed_at: launchCompletedAt,
+      }
+      : null,
+    links: geckoProfileLinks(attributes),
+    fetched_at: new Date().toISOString(),
+    attribution: {
+      required: runtime.attribution_required === true,
+      label: runtime.attribution_label,
+      url: runtime.attribution_url,
+    },
+    usage: {
+      provider: providerId,
+      cache_hit: false,
+      provider_request_count: 1,
+    },
+  };
+  cacheSet(geckoMarketProfileCache, cacheKey, result, 10 * 60 * 1_000);
+  await chartEdgeCacheWrite(edgeCacheKey, { ...result, ok: true }, {
+    freshTtlSeconds: 10 * 60,
+    rescueTtlSeconds: 10 * 60,
+  });
+  return result;
 }
 
 function geckoIncludedResource(payload, id, type) {
@@ -3056,6 +3318,9 @@ async function terminalChartPayload({
     const spotAttentionPromise = requestedScope === "exact_pool" && !before && pairAddress && tokenAddress
       ? loadCurrentSpotAttentionContext({ env, chain, pairAddress, tokenAddress }).catch(() => null)
       : Promise.resolve(null);
+    const marketProfilePromise = requestedScope === "exact_pool" && !before && pairAddress && tokenAddress
+      ? fetchGeckoPoolMarketProfile({ env, chain, pairAddress, tokenAddress, quoteAddress }).catch(() => null)
+      : Promise.resolve(null);
     const ravenPayload = await fetchRavenSpotProjection({
       env,
       chain,
@@ -3115,6 +3380,7 @@ async function terminalChartPayload({
       };
       payload.instrument_scope = "exact_pool";
       let spotAttention = null;
+      let marketProfile = null;
       if (!before && payload.ok) {
         const pair = (await pairDex(String(chain || "").toLowerCase(), pairAddress).catch(() => []))[0];
         if (pair) payload.market_state = {
@@ -3152,8 +3418,20 @@ async function terminalChartPayload({
         }
         spotAttention = await spotAttentionPromise.catch(() => null);
       }
+      if (!before) marketProfile = await marketProfilePromise.catch(() => null);
+      if (marketProfile && payload.provider_usage) {
+        const profileRequests = Math.max(0, Math.round(optionalFiniteNumber(marketProfile.usage?.provider_request_count) || 0));
+        payload.provider_usage = {
+          ...payload.provider_usage,
+          provider_request_count: Math.max(0, Math.round(optionalFiniteNumber(payload.provider_usage.provider_request_count) || 0)) + profileRequests,
+          market_profile_provider: marketProfile.usage?.provider || null,
+          market_profile_cache_hit: marketProfile.usage?.cache_hit === true,
+          market_profile_request_count: profileRequests,
+        };
+      }
       const attentionMarket = spotAttention?.market || {};
-      const holderCount = attentionMarket.holder_count;
+      const profileHolderDistribution = marketProfile?.holder_distribution || null;
+      const holderCount = profileHolderDistribution?.holder_count ?? attentionMarket.holder_count;
       payload.market_anatomy = {
         schema_version: "ravenos.market_anatomy.v1",
         exact_identity: payload.ok && payload.instrument?.identity_scope === "exact_pool",
@@ -3167,7 +3445,13 @@ async function terminalChartPayload({
         fully_diluted_value_usd: payload.market_state?.fully_diluted_value ?? null,
         pool_created_at: payload.market_state?.pool_created_at || null,
         pool_age_ms: payload.market_state?.pool_age_ms ?? null,
-        holder_distribution: holderCount !== null && holderCount !== undefined ? {
+        holder_distribution: profileHolderDistribution ? {
+          ...profileHolderDistribution,
+          scope: "exact_token",
+          change_5m_pct: attentionMarket.holder_change_5m_pct ?? null,
+          change_1h_pct: attentionMarket.holder_change_1h_pct ?? null,
+          change_24h_pct: attentionMarket.holder_change_24h_pct ?? null,
+        } : holderCount !== null && holderCount !== undefined ? {
           state: "available",
           scope: spotAttention.evidence_scope,
           observed_at: spotAttention.projection_generated_at,
@@ -3176,6 +3460,7 @@ async function terminalChartPayload({
           change_1h_pct: attentionMarket.holder_change_1h_pct,
           change_24h_pct: attentionMarket.holder_change_24h_pct,
         } : { state: "unavailable" },
+        market_profile: marketProfile,
         current_activity: spotAttention ? {
           observed_at: spotAttention.projection_generated_at,
           market_age_seconds: attentionMarket.market_age_seconds,
