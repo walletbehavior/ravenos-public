@@ -119,17 +119,20 @@
 }
 .rpw-marker-index[hidden] { display: none; }
 .rpw-marker-index button {
-  max-width: 180px;
+  width: 30px;
+  min-width: 30px;
   height: 24px;
   overflow: hidden;
   border: 1px solid rgba(166,177,190,.24);
   background: rgba(10,13,17,.92);
   color: #a8b3be;
-  padding: 0 7px;
+  padding: 0;
   font: 9px ui-monospace, SFMono-Regular, Consolas, monospace;
-  text-overflow: ellipsis;
+  text-align: center;
+  text-overflow: clip;
   white-space: nowrap;
 }
+.rpw-marker-index button::before { content: "✦"; margin-right: 2px; color: #8ca6b8; }
 .rpw-marker-index button:hover,
 .rpw-marker-index button:focus-visible { border-color: rgba(166,177,190,.5); color: #e1e6eb; outline: none; }
 .rpw-marker-index > span { color: #818c99; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; }

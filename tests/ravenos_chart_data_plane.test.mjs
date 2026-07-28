@@ -76,6 +76,8 @@ function geckoPoolInfo({
         is_honeypot: false,
         websites: [
           "https://attention.example/",
+          "https://attention.example/about",
+          "https://x.com/duplicate-profile",
           "javascript:alert(1)",
           "https://127.0.0.1/private",
         ],

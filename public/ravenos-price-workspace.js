@@ -528,8 +528,10 @@ export class PriceWorkspace {
     rows.forEach((row, index) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = row.label || row.raven_read?.title || `Raven marker ${index + 1}`;
-      button.title = `Inspect ${button.textContent}`;
+      const label = row.label || row.raven_read?.title || `Raven marker ${index + 1}`;
+      button.textContent = String(index + 1);
+      button.title = `Inspect ${label}`;
+      button.setAttribute("aria-label", `Inspect ${label}`);
       button.addEventListener("click", () => this.options.onMarkerSelect?.(row));
       host.append(button);
     });

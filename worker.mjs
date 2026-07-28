@@ -1952,23 +1952,49 @@ function normalizeGeckoHolderDistribution(value = {}) {
 
 function geckoProfileLinks(attributes = {}) {
   const links = [];
-  const seen = new Set();
+  const seenUrls = new Set();
+  const seenKinds = new Set();
+  const socialKindByHost = new Map([
+    ["x.com", ["x", "X"]],
+    ["twitter.com", ["x", "X"]],
+    ["t.me", ["telegram", "Telegram"]],
+    ["telegram.me", ["telegram", "Telegram"]],
+    ["discord.gg", ["discord", "Discord"]],
+    ["discord.com", ["discord", "Discord"]],
+    ["warpcast.com", ["farcaster", "Farcaster"]],
+    ["farcaster.xyz", ["farcaster", "Farcaster"]],
+    ["zora.co", ["zora", "Zora"]],
+  ]);
   const add = (kind, label, value) => {
     const url = safePublicLink(value, kind);
-    if (!url || seen.has(url)) return;
-    seen.add(url);
+    if (!url || seenUrls.has(url)) return;
+    let key = kind;
+    if (kind === "website") {
+      try {
+        key = `website:${new URL(url).hostname.replace(/^www\./, "").toLowerCase()}`;
+      } catch {
+        return;
+      }
+    }
+    if (seenKinds.has(key)) return;
+    seenUrls.add(url);
+    seenKinds.add(key);
     links.push({ kind, label, url });
   };
-  for (const website of (Array.isArray(attributes.websites) ? attributes.websites : []).slice(0, 2)) {
+  for (const website of (Array.isArray(attributes.websites) ? attributes.websites : []).slice(0, 6)) {
     const url = safePublicLink(website, "website");
     if (!url) continue;
     let label = "Website";
+    let kind = "website";
     try {
-      label = new URL(url).hostname.replace(/^www\./, "").slice(0, 48);
+      const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+      const social = socialKindByHost.get(host);
+      if (social) [kind, label] = social;
+      else label = host.slice(0, 48);
     } catch {
       // The URL was already validated; retain the generic label.
     }
-    add("website", label, url);
+    add(kind, label, url);
   }
   add("x", "X", attributes.twitter_handle);
   add("telegram", "Telegram", attributes.telegram_handle);

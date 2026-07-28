@@ -76,7 +76,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalSourceProvider")).toHaveText("Hyperliquid");
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.getByRole("link", { name: /Lightweight Charts.*TradingView/i })).toBeVisible();
-  await page.locator(".rpw-marker-index button", { hasText: "Behavioral setup" }).click();
+  await page.getByRole("button", { name: "Inspect Behavioral setup" }).click();
   await expect(page.locator("#terminalMarkerDetail")).toBeVisible();
   await expect(page.locator("#terminalMarkerSource")).toContainText("Timestamped Raven observation");
   await expect(page.locator("#terminalMarkerMaturity")).toHaveText("Matured");
@@ -399,6 +399,10 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.locator("#terminalSourceContinuity")).toContainText(/Verified/i);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
+  const markerIndex = page.locator("#terminalChart [data-rpw-marker-index] button");
+  await expect(markerIndex).toHaveCount(1);
+  await expect(markerIndex).toHaveText("1");
+  await expect(markerIndex).toHaveAttribute("aria-label", /Inspect /);
   const spotPriceScale = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.price_axis);
   expect(spotPriceScale).toMatchObject({
     side: "right",
