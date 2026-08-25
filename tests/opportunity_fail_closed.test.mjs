@@ -174,6 +174,88 @@ test("1. current origin available and fresh", async () => {
   );
 });
 
+test("current spot opportunities are removed when present market facts invalidate the original read", async () => {
+  const shared = {
+    market_type: "spot",
+    chain: "Solana",
+    identity_scope: "exact_pool",
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+    age_seconds: 12,
+  };
+  const healthy = {
+    ...shared,
+    public_attention_id: "spot_healthy",
+    instrument_id: "solana:pool:healthy",
+    token_address: "healthy-token",
+    pool_address: "healthy-pool",
+    market: {
+      price_usd: 0.0004,
+      market_cap_usd: 15_000,
+      liquidity_usd: 2_800,
+      price_change_24h_pct: 8,
+      volume_usd_5m: 240,
+      volume_usd_1h: 1_900,
+      volume_usd_24h: 8_200,
+      buys_5m: 18,
+      sells_5m: 9,
+      buys_1h: 72,
+      sells_1h: 41,
+      buys_24h: 310,
+      sells_24h: 205,
+    },
+  };
+  const rugged = {
+    ...shared,
+    public_attention_id: "spot_rugged",
+    instrument_id: "solana:pool:rugged",
+    token_address: "rugged-token",
+    pool_address: "rugged-pool",
+    market: {
+      price_usd: 0.00000001,
+      market_cap_usd: 420,
+      liquidity_usd: 0,
+      price_change_1h_pct: -92,
+      price_change_24h_pct: -99.4,
+      volume_usd_5m: 0,
+      volume_usd_1h: 0,
+      volume_usd_24h: 2,
+      buys_5m: 0,
+      sells_5m: 0,
+      buys_1h: 0,
+      sells_1h: 0,
+      buys_24h: 0,
+      sells_24h: 1,
+    },
+  };
+  const projection = opportunityEnvelope({
+    data: {
+      spot_attention: {
+        schema_version: "ravenos.token_attention.v1",
+        state: "current",
+        rows: [healthy, rugged],
+        row_count: 2,
+      },
+    },
+  });
+  await withOriginFetch(
+    async () => jsonResponse(projection),
+    async () => {
+      const response = await opportunityRequest();
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.deepEqual(body.census.spot_attention.rows.map((row) => row.public_attention_id), ["spot_healthy"]);
+      assert.equal(body.census.spot_attention.row_count, 1);
+      assert.equal(body.census.survival_gate.state, "enforced");
+      assert.equal(body.census.survival_gate.invalidated, 1);
+      assert.equal(body.census.survival_gate.reasons.liquidity_gone, 1);
+      assert.equal(body.census.survival_gate.reasons.price_collapse, 1);
+      assert.equal(body.census.survival_gate.historical_context_substituted, false);
+    },
+  );
+});
+
 test("2. origin unavailable", async () => {
   await withOriginFetch(
     async () => { throw new Error("origin unavailable"); },
@@ -198,6 +280,49 @@ test("4. origin returns delayed or stale data", async () => {
       async () => assertUnavailable(await opportunityRequest()),
     );
   }
+});
+
+test("stale aggregate census does not hide exact current lanes or leak stale aggregate counts", async () => {
+  const decisionAt = isoAgo(1_200);
+  const projection = opportunityEnvelope({
+    generatedAt: isoAgo(4 * 86_400),
+    rows: [{
+      public_opportunity_id: "rop_current_stx",
+      instrument_id: "hyperliquid:perp:STX",
+      instrument: "STX-PERP",
+      market_type: "perpetual",
+      identity_scope: "exact venue instrument",
+      decision_at: decisionAt,
+      context_state: "delayed",
+      context_age_seconds: 1_200,
+      research_only: true,
+      actionable: false,
+      execution_available: false,
+    }],
+    data: {
+      source_state: "stale",
+      population: { decision_observations: 999_999, matured_path_windows: 999_999 },
+    },
+  });
+  await withOriginFetch(
+    async () => jsonResponse(projection),
+    async () => {
+      const response = await opportunityRequest();
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-ravenos-data-source"), "current_public_origin");
+      assert.equal(response.headers.get("x-ravenos-freshness"), "fresh");
+      const body = await response.json();
+      assert.equal(body.projection_scope, "current_rows_only");
+      assert.equal(body.generated_at, decisionAt);
+      assert.equal(body.census.source_state, "delayed");
+      assert.deepEqual(body.census.opportunities.rows.map((row) => row.instrument), ["STX-PERP"]);
+      assert.equal("population" in body.census, false);
+      assert.equal(body.census.lane_freshness.current_rows_only, true);
+      assert.equal(body.census.lane_freshness.stale_aggregate_counts_included, false);
+      assert.equal(body.census.lane_freshness.historical_context_substituted, false);
+      assert.equal(body.delivery.aggregate_freshness_state, "stale");
+    },
+  );
 });
 
 test("5. origin marks fallback=true", async () => {

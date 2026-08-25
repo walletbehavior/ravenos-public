@@ -253,7 +253,9 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const quoteAddress = url.searchParams.get("quote_address");
     const instrumentId = url.searchParams.get("instrument_id");
     const chain = url.searchParams.get("chain");
-    calls.push({ asset, timeframe, market, pairAddress, instrumentId });
+    const limit = Number(url.searchParams.get("limit"));
+    const before = url.searchParams.get("before");
+    calls.push({ asset, timeframe, market, pairAddress, instrumentId, limit, before });
     if (chartFailure) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "provider_unavailable", freshness_state: "data_unavailable", candles: [] }) });
     const perp = asset.endsWith("-PERP");
     const traditional = market === "equities";

@@ -793,7 +793,10 @@ function opportunityTerminalHref(row = {}) {
   if (String(row.market_type || "") !== "perpetual") return "";
   if (String(row.venue || "").toLowerCase() !== "hyperliquid") return "";
   if (instrumentId !== `hyperliquid:perp:${coin}`) return "";
-  if (row.source_join?.census_row_joined !== true) return "";
+  const join = row.source_join || {};
+  const exactCurrentContext = join.current_decision_context === true
+    && String(join.join_scope || "").toLowerCase() === "exact instrument";
+  if (join.census_row_joined !== true && !exactCurrentContext) return "";
   const params = new URLSearchParams({
     asset: instrument,
     instrument_id: instrumentId,
@@ -837,7 +840,11 @@ function renderOpportunityCensus(payload, census) {
     const pressure = text(row.pressure_state, "Pressure unavailable");
     const family = row.raven_atoms?.[0] || "Behavior forming";
     const context = titleCase(row.context_state || "unavailable");
-    const join = row.source_join?.census_row_joined === true ? "Exact market" : "Market context only";
+    const join = row.source_join?.census_row_joined === true
+      ? "Independent evidence"
+      : row.source_join?.current_decision_context === true
+        ? "Exact decision context"
+        : "Market context only";
     const href = opportunityTerminalHref(row);
     return `<tr>
       <td>${href ? `<a class="route-market-link" href="${escapeHtml(href)}"><strong>${escapeHtml(instrument)}</strong><span>${escapeHtml(fmtWhen(row.decision_at))}</span></a>` : `<div class="route-market-link"><strong>${escapeHtml(instrument)}</strong><span>Exact identity unavailable</span></div>`}</td>

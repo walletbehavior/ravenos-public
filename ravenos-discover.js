@@ -453,7 +453,6 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
 }
 
 function hasDecisionUsefulSpotActivity(row) {
-  if (row?.source_type === "raven_spot_attention") return true;
   const priceChange = spotMetric(row, "price_change");
   const volume = spotMetric(row, "volume_usd");
   const buys = spotMetric(row, "buys");
@@ -464,6 +463,40 @@ function hasDecisionUsefulSpotActivity(row) {
     || (buys !== null && buys > 0)
     || (sells !== null && sells > 0)
     || (traders !== null && traders > 0);
+}
+
+function survivesCurrentSpotMarket(row = {}) {
+  const market = row.market || {};
+  const age = finite(row.age_seconds);
+  const price = finite(market.price_usd);
+  const liquidity = finite(market.liquidity_usd);
+  const marketCap = finite(market.market_cap_usd);
+  const change1h = finite(market.price_change_1h_pct);
+  const change24h = finite(market.price_change_24h_pct);
+  if (age !== null && age > 3_600) return false;
+  if (price !== null && price <= 0) return false;
+  if (liquidity !== null && liquidity <= 0) return false;
+  if (marketCap !== null && marketCap < 1_000) return false;
+  if ((change1h !== null && change1h <= -85) || (change24h !== null && change24h <= -95)) return false;
+  if ([market.liquidity_change_5m_pct, market.liquidity_change_1h_pct, market.liquidity_change_24h_pct]
+    .map(finite).some((value) => value !== null && value <= -85)) return false;
+
+  const volume5m = finite(market.volume_usd_5m);
+  const volume1h = finite(market.volume_usd_1h);
+  const volume24h = finite(market.volume_usd_24h);
+  const transactions = [market.buys_5m, market.sells_5m, market.buys_1h, market.sells_1h].map(finite);
+  if (
+    volume5m !== null
+    && volume1h !== null
+    && transactions.every((value) => value !== null)
+    && volume5m <= 0
+    && volume1h <= 0
+    && transactions.reduce((sum, value) => sum + value, 0) <= 0
+  ) return false;
+  const dayTransactions = [finite(market.buys_24h), finite(market.sells_24h)];
+  if (volume24h !== null && dayTransactions.every((value) => value !== null) && volume24h < 50 && dayTransactions[0] + dayTransactions[1] <= 2) return false;
+  if (liquidity !== null && liquidity < 250 && volume24h !== null && volume24h < 100) return false;
+  return true;
 }
 
 function spotRowId(row = {}) {
@@ -517,6 +550,7 @@ function spotRankedRows() {
       && (age === null || age <= 3_600)
       && liquidity !== null
       && liquidity > 0
+      && survivesCurrentSpotMarket(row)
       && hasDecisionUsefulSpotActivity(row);
   });
   if (state.spotSort === "raven") {
@@ -1092,7 +1126,7 @@ function currentOpportunityPayload(payload) {
   const rows = census?.opportunities?.rows;
   if (delivery.source !== "current_public_origin" || delivery.fallback !== false) throw new Error("current_origin_contract_rejected");
   if (delivery.freshness_state !== "fresh") throw new Error(`current_origin_${delivery.freshness_state || "unavailable"}`);
-  if (!census || census.source_state !== "current" || !Array.isArray(rows)) throw new Error("current_census_schema_rejected");
+  if (!census || !["current", "delayed"].includes(census.source_state) || !Array.isArray(rows)) throw new Error("current_census_schema_rejected");
   const spot = census.spot_attention;
   const spotBoundary = spot?.execution_boundary || {};
   const spotRows = (
@@ -1113,6 +1147,7 @@ function currentOpportunityPayload(payload) {
       && row?.research_only === true
       && row?.actionable === false
       && row?.execution_available === false
+      && survivesCurrentSpotMarket(row)
     )).map((row) => ({
       ...row,
       context_state: spot.state,
@@ -1121,7 +1156,8 @@ function currentOpportunityPayload(payload) {
     : [];
   return {
     census,
-    rows,
+    freshness: census.source_state,
+    rows: rows.filter((row) => String(row?.market_type || "").toLowerCase() !== "spot" || survivesCurrentSpotMarket(row)),
     spotRows,
     participationPayoff: currentParticipationPayoff(payload?.participation_payoff),
     generatedAt: [census.generated_at, spot?.generated_at]
@@ -1157,7 +1193,8 @@ function currentOnchainPulsePayload(payload) {
       && row?.quote_token_address
       && row?.research_only === true
       && row?.actionable === false
-      && row?.execution_available === false;
+      && row?.execution_available === false
+      && survivesCurrentSpotMarket(row);
   });
   return {
     rows,
@@ -1294,7 +1331,7 @@ async function refresh({ manual = false } = {}) {
       spotAttentionRows = current.spotRows;
       renderParticipationPayoff(current.participationPayoff);
       ravenGeneratedAt = current.generatedAt;
-      setState("discoverCensusState", "fresh", "Current");
+      setState("discoverCensusState", current.freshness, title(current.freshness));
     } catch {
       renderParticipationPayoff(null);
       setState("discoverCensusState", "unavailable", "Unavailable");

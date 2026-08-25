@@ -103,7 +103,9 @@ async function mockLanding(page, { current = true, chartIdentityMismatch = false
   await page.route("**/api/atlas", (route) => route.fulfill({ status: current ? 200 : 503, contentType: "application/json", body: JSON.stringify(current ? atlasPayload() : { ok: false, error: "atlas_projection_unavailable" }) }));
   await page.route("**/api/health", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ market_data_health: { state: "fresh" }, intelligence_freshness: { state: current ? "fresh" : "unavailable" } }) }));
   await page.route("**/api/terminal/chart**", (route) => {
-    const requestedAsset = new URL(route.request().url()).searchParams.get("asset")?.replace(/-PERP$/i, "").toUpperCase() || "SOL";
+    const requestUrl = new URL(route.request().url());
+    const requestedAsset = requestUrl.searchParams.get("asset")?.replace(/-PERP$/i, "").toUpperCase() || "SOL";
+    const timeframe = requestUrl.searchParams.get("timeframe") || "1h";
     const asset = chartIdentityMismatch ? (requestedAsset === "BTC" ? "SOL" : "BTC") : requestedAsset;
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       ok: true,
@@ -122,7 +124,7 @@ async function mockLanding(page, { current = true, chartIdentityMismatch = false
         aggregate_token: false,
         provider_routing: { history: "hyperliquid", live: "hyperliquid_websocket", provider_asset: asset, provider_network: "hyperliquid" },
       },
-      candles: providerCandles(`${asset}-PERP`, "1h"),
+      candles: providerCandles(`${asset}-PERP`, timeframe),
     }) });
   });
 }
@@ -146,7 +148,8 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   await expect.poll(() => page.locator("#landingChart .rpw-chart canvas").count()).toBeGreaterThan(1);
   await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("Base vol");
-  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("Quote vol");
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).not.toContainText("Quote vol");
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).not.toContainText("--");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toContainText("SPY");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
@@ -186,6 +189,7 @@ test("landing chart uses the shared timeframe controls and keeps exact identity"
   await page.locator('#landingChart [data-timeframe="15m"]').click();
   await expect.poll(() => requested.at(-1)).toBe("15m");
   await expect(page.locator('#landingChart [data-timeframe="15m"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.timeframe).toBe("15m");
   expect(product.chartInstrumentId).toBe("perpetual:hyperliquid:hyperliquid:SOL:USD:aggregate");

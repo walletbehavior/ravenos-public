@@ -60,6 +60,10 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalPlanEntry")).toContainText("$148");
   await expect(page.locator("#terminalPlanTarget")).toContainText("+3.10%");
   await expect(page.locator("#terminalPlanRisk")).toContainText("-1.20%");
+  await expect(page.locator("#terminalAlphaSection")).toBeVisible();
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Raven read");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Trade path");
+  await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalPlanToggle")).not.toBeChecked();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(0);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
@@ -213,7 +217,7 @@ test("default market favors the newest matching Raven observation before histori
 });
 
 test("chart basics expose intervals, verified indicators, readable crosshair data, and focus mode", async ({ page }) => {
-  await mockTerminalLiveApis(page);
+  const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
@@ -222,6 +226,9 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(chart.locator('[data-rpw-timeframes] button[data-timeframe="1h"]')).toHaveAttribute("aria-pressed", "true");
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
+  await expect(chart.locator("[data-rpw-window]")).toContainText(/bars/i);
+  await expect(chart.locator("[data-rpw-ranges] button")).toHaveText(["1D", "7D", "30D", "Max"]);
+  expect(calls.some((call) => call.market === "perpetuals" && call.timeframe === "1h" && call.limit === 720 && !call.before)).toBe(true);
   const initialGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
   expect(initialGeometry.price_axis).toMatchObject({
     side: "right",
@@ -235,18 +242,26 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   const candleLegend = chart.locator("[data-rpw-crosshair]");
   await expect(candleLegend).toBeVisible();
   await expect(candleLegend).toHaveAttribute("data-mode", "latest");
-  await expect(candleLegend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
-  await expect(candleLegend).toContainText("--");
+  await expect(candleLegend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
+  await expect(candleLegend).not.toContainText("Quote vol");
+  await expect(candleLegend).not.toContainText(/--|—/);
 
+  await chart.locator("[data-rpw-indicator-trigger]").click();
+  await expect(chart.locator("[data-rpw-indicators]")).toBeVisible();
   await chart.locator('[data-rpw-indicator="ema50"]').click();
   await expect(chart.locator('[data-rpw-indicator="ema50"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema50?.points || 0)).toBeGreaterThan(0);
+  await chart.locator('[data-rpw-indicator="rsi14"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.rsi14?.points || 0)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.indicator_pane_count || 0)).toBe(1);
+  await chart.locator('[data-rpw-range="max"]').click();
+  await expect(chart.locator('[data-rpw-range="max"]')).toHaveAttribute("aria-pressed", "true");
 
   const canvas = chart.locator(".rpw-stage canvas").first();
   const bounds = await canvas.boundingBox();
   await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45);
   await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
-  await expect(candleLegend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  await expect(candleLegend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
   for (let index = 0; index < 12; index += 1) await page.mouse.wheel(0, -500);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.visible_bars || 0))
     .toBeLessThan(Math.floor(initialGeometry.visible_bars * 0.7));
@@ -295,7 +310,7 @@ test("mobile long hold inspects exact OHLCV and returns to latest on release", a
   });
 
   await expect(legend).toHaveAttribute("data-mode", "inspect");
-  await expect(legend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  await expect(legend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
 
   await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect(legend).toHaveAttribute("data-mode", "latest");
@@ -382,6 +397,11 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalHolderNext20")).toHaveText("15.2%");
   await expect(page.locator("#terminalHolderRest")).toHaveText("42.4%");
   await expect(page.locator("#terminalHolderBar > span")).toHaveCount(4);
+  await expect(page.locator("#terminalAlphaSection")).toBeVisible();
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Raven read");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Accumulation");
+  await expect(page.locator("#terminalAlphaStack")).toContainText(/Buy count 2\.5× opposing flow · holders \+1\.80%/);
+  await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalProfileChips")).toContainText("Mint locked");
   await expect(page.locator("#terminalProfileChips")).toContainText("Freeze locked");
   await expect(page.locator("#terminalProfileChips")).toContainText("Developer holds 1.7%");
@@ -469,7 +489,8 @@ test("spot scope controls never cover the OHLCV candle inspector", async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(scope).toBeHidden();
   await expect(legend).toBeVisible();
-  await expect(legend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol.*Quote vol/s);
+  await expect(legend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
+  await expect(legend).not.toContainText("Quote vol");
 });
 
 test("universal exact-market search dismisses on Escape and explicit close", async ({ page }) => {
@@ -555,7 +576,7 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
-  await expect(page.locator("#terminalChart .rpw-crosshair > span")).toHaveCount(9);
+  await expect(page.locator("#terminalChart .rpw-crosshair > span")).toHaveCount(8);
   const ohlcvLegend = await page.locator("#terminalChart .rpw-crosshair").boundingBox();
   expect(ohlcvLegend?.x).toBeGreaterThanOrEqual(0);
   expect((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0)).toBeLessThanOrEqual(390);

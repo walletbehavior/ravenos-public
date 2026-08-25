@@ -38,6 +38,59 @@ const STATE_LABELS = Object.freeze({
 });
 
 const TIMEFRAMES = RAVENOS_CHART_TIMEFRAMES;
+const SUPPORTED_INDICATORS = Object.freeze(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
+const PERP_HISTORY_LIMITS = Object.freeze({
+  "1m": 720,
+  "5m": 720,
+  "15m": 720,
+  "1h": 720,
+  "4h": 720,
+  "1d": 720,
+  "1w": 520,
+  "1M": 120,
+});
+const INITIAL_VISIBLE_BARS = Object.freeze({
+  "1m": 180,
+  "5m": 144,
+  "15m": 192,
+  "1h": 168,
+  "4h": 180,
+  "1d": 180,
+  "1w": 156,
+  "1M": 120,
+});
+const RANGE_SECONDS = Object.freeze({
+  "1d": 86_400,
+  "7d": 7 * 86_400,
+  "30d": 30 * 86_400,
+});
+
+function historyLimit(request = {}, timeframe = "1h") {
+  const requested = Math.trunc(Number(request.limit));
+  if (Number.isFinite(requested) && requested >= 2) return Math.min(1000, requested);
+  return request.market === "perpetuals" ? PERP_HISTORY_LIMITS[timeframe] || 720 : 240;
+}
+
+function timeSeconds(value) {
+  if (typeof value === "number") return value > 10_000_000_000 ? value / 1000 : value;
+  if (value && typeof value === "object" && Number.isInteger(value.year)) {
+    return Date.UTC(value.year, Number(value.month || 1) - 1, Number(value.day || 1)) / 1000;
+  }
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed / 1000 : null;
+}
+
+function windowLabel(rows = []) {
+  if (rows.length < 2) return rows.length ? "1 bar" : "—";
+  const start = timeSeconds(rows[0]?.time);
+  const end = timeSeconds(rows.at(-1)?.time);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return `${rows.length} bars`;
+  const seconds = end - start;
+  if (seconds < 86_400) return `${Math.max(1, Math.round(seconds / 3600))}h`;
+  if (seconds < 90 * 86_400) return `${Math.max(1, Math.round(seconds / 86_400))}d`;
+  if (seconds < 730 * 86_400) return `${(seconds / (365 * 86_400)).toFixed(1)}y`;
+  return `${Math.round(seconds / (365 * 86_400))}y`;
+}
 
 function cleanState(value, fallback = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -102,6 +155,140 @@ function signedPriceChange(open, close) {
   return {
     absolute: end - start,
     percent: start === 0 ? null : ((end / start) - 1) * 100,
+  };
+}
+
+function latestEma(rows, period, endIndex = rows.length) {
+  const closes = rows.slice(0, endIndex).map((row) => finite(row?.close)).filter((value) => value !== null);
+  if (!Number.isInteger(period) || period < 2 || closes.length < period) return null;
+  let value = closes.slice(0, period).reduce((sum, close) => sum + close, 0) / period;
+  const multiplier = 2 / (period + 1);
+  for (const close of closes.slice(period)) value = (close * multiplier) + (value * (1 - multiplier));
+  return value;
+}
+
+function latestRsi(rows, period = 14) {
+  if (rows.length <= period) return null;
+  let averageGain = 0;
+  let averageLoss = 0;
+  for (let index = 1; index <= period; index += 1) {
+    const change = Number(rows[index].close) - Number(rows[index - 1].close);
+    averageGain += Math.max(0, change);
+    averageLoss += Math.max(0, -change);
+  }
+  averageGain /= period;
+  averageLoss /= period;
+  for (let index = period + 1; index < rows.length; index += 1) {
+    const change = Number(rows[index].close) - Number(rows[index - 1].close);
+    averageGain = ((averageGain * (period - 1)) + Math.max(0, change)) / period;
+    averageLoss = ((averageLoss * (period - 1)) + Math.max(0, -change)) / period;
+  }
+  if (averageLoss === 0) return 100;
+  return 100 - (100 / (1 + (averageGain / averageLoss)));
+}
+
+function latestAtr(rows, period = 14) {
+  if (rows.length <= period) return null;
+  const ranges = [];
+  for (let index = 1; index < rows.length; index += 1) {
+    const high = Number(rows[index].high);
+    const low = Number(rows[index].low);
+    const previousClose = Number(rows[index - 1].close);
+    if (![high, low, previousClose].every(Number.isFinite)) continue;
+    ranges.push(Math.max(high - low, Math.abs(high - previousClose), Math.abs(low - previousClose)));
+  }
+  if (ranges.length < period) return null;
+  let value = ranges.slice(0, period).reduce((sum, range) => sum + range, 0) / period;
+  for (const range of ranges.slice(period)) value = ((value * (period - 1)) + range) / period;
+  return value;
+}
+
+function deriveChartRead(candles = [], { instrumentId = null, timeframe = "1h" } = {}) {
+  const rows = normalizeCandles(candles).slice(-160);
+  if (rows.length < 55) return null;
+  const latest = rows.at(-1);
+  const close = finite(latest?.close);
+  const ema20 = latestEma(rows, 20);
+  const ema50 = latestEma(rows, 50);
+  const priorEma20 = latestEma(rows, 20, rows.length - 1);
+  const rsi = latestRsi(rows, 14);
+  const atr = latestAtr(rows, 14);
+  if (![close, ema20, ema50, priorEma20, rsi, atr].every((value) => value !== null) || !(close > 0) || !(atr > 0)) return null;
+
+  const priorStructure = rows.slice(-21, -1);
+  const priorHigh = Math.max(...priorStructure.map((row) => Number(row.high)).filter(Number.isFinite));
+  const priorLow = Math.min(...priorStructure.map((row) => Number(row.low)).filter(Number.isFinite));
+  const volumes = rows.slice(-21, -1).map((row) => finite(row.quote_volume ?? row.volume)).filter((value) => value !== null && value > 0);
+  const latestVolume = finite(latest.quote_volume ?? latest.volume);
+  const averageVolume = volumes.length ? volumes.reduce((sum, value) => sum + value, 0) / volumes.length : null;
+  const volumeRatio = latestVolume !== null && averageVolume ? latestVolume / averageVolume : null;
+  const body = Math.abs(Number(latest.close) - Number(latest.open));
+  const longChecks = [close > ema20, ema20 > ema50, ema20 > priorEma20, rsi >= 52, close > (priorHigh + priorLow) / 2];
+  const shortChecks = [close < ema20, ema20 < ema50, ema20 < priorEma20, rsi <= 48, close < (priorHigh + priorLow) / 2];
+  const longScore = longChecks.filter(Boolean).length;
+  const shortScore = shortChecks.filter(Boolean).length;
+  const breakoutLong = close > priorHigh && (volumeRatio === null ? body >= atr * 0.75 : volumeRatio >= 1.25);
+  const breakoutShort = close < priorLow && (volumeRatio === null ? body >= atr * 0.75 : volumeRatio >= 1.25);
+  let direction = null;
+  let setup = null;
+  let score = 0;
+  if (breakoutLong) {
+    direction = "long";
+    setup = "breakout_confirmed";
+    score = Math.max(4, longScore);
+  } else if (breakoutShort) {
+    direction = "short";
+    setup = "breakout_confirmed";
+    score = Math.max(4, shortScore);
+  } else if (longScore >= 4) {
+    direction = "long";
+    setup = "trend_aligned";
+    score = longScore;
+  } else if (shortScore >= 4) {
+    direction = "short";
+    setup = "trend_aligned";
+    score = shortScore;
+  }
+  if (!direction || !setup) return null;
+
+  const recent = rows.slice(-11, -1);
+  const invalidation = direction === "long"
+    ? Math.min(...recent.map((row) => Number(row.low)).filter(Number.isFinite))
+    : Math.max(...recent.map((row) => Number(row.high)).filter(Number.isFinite));
+  const riskDistance = direction === "long" ? close - invalidation : invalidation - close;
+  const riskPct = riskDistance > 0 ? (riskDistance / close) * 100 : null;
+  const structureMap = riskPct !== null && riskPct >= 0.15 && riskPct <= 20
+    ? {
+        entry_reference: close,
+        invalidation_reference: invalidation,
+        favorable_reference: direction === "long" ? close + (riskDistance * 2) : close - (riskDistance * 2),
+        reward_risk: 2,
+        risk_pct: riskPct,
+      }
+    : null;
+  const observedSeconds = timeSeconds(latest.time);
+  return {
+    schema_version: "ravenos.chart_read.v1",
+    state: "available",
+    evidence_scope: "provider_candles_only",
+    instrument_id: instrumentId,
+    timeframe,
+    observed_at: Number.isFinite(observedSeconds) ? new Date(observedSeconds * 1_000).toISOString() : null,
+    direction,
+    setup,
+    score,
+    score_max: 5,
+    facts: {
+      close,
+      ema20,
+      ema50,
+      rsi,
+      atr,
+      volume_ratio: volumeRatio,
+      prior_high: priorHigh,
+      prior_low: priorLow,
+    },
+    structure_map: structureMap,
   };
 }
 
@@ -184,12 +371,30 @@ function createMarkup() {
           <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
           <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
         </div>
-        <div class="rpw-indicators" data-rpw-indicators aria-label="Chart indicators">
-          <span>Indicators</span>
-          <button type="button" data-rpw-indicator="ema20" aria-pressed="true">EMA 20</button>
-          <button type="button" data-rpw-indicator="ema50" aria-pressed="false">EMA 50</button>
-          <button type="button" data-rpw-indicator="vwap" aria-pressed="false">VWAP</button>
+        <div class="rpw-window-analytics" data-rpw-window aria-label="Visible chart window analytics">
+          <span data-rpw-read-cell hidden><small>Raven chart read</small><strong data-rpw-read></strong></span>
+          <span><small>Window</small><strong data-rpw-window-label>—</strong></span>
+          <span><small>Change</small><strong data-rpw-window-change>—</strong></span>
+          <span><small>Range</small><strong data-rpw-window-range>—</strong></span>
+          <span><small>Avg vol</small><strong data-rpw-window-volume>—</strong></span>
+          <button type="button" data-rpw-history aria-label="Load older price history"><span data-rpw-history-label>0 bars</span><small>Load older</small></button>
         </div>
+        <div class="rpw-ranges" data-rpw-ranges aria-label="Chart range">
+          <button type="button" data-rpw-range="1d" aria-pressed="false">1D</button>
+          <button type="button" data-rpw-range="7d" aria-pressed="false">7D</button>
+          <button type="button" data-rpw-range="30d" aria-pressed="false">30D</button>
+          <button type="button" data-rpw-range="max" aria-pressed="false">Max</button>
+        </div>
+        <button type="button" class="rpw-indicator-trigger" data-rpw-indicator-trigger aria-expanded="false">Indicators <strong data-rpw-indicator-count>1</strong></button>
+      </div>
+      <div class="rpw-indicator-popover" data-rpw-indicators aria-label="Chart indicators" hidden>
+        <header><strong>Indicators</strong><span>Calculated from exact provider candles</span></header>
+        <button type="button" data-rpw-indicator="ema20" aria-pressed="true"><strong>EMA 20</strong><span>Fast trend</span></button>
+        <button type="button" data-rpw-indicator="ema50" aria-pressed="false"><strong>EMA 50</strong><span>Medium trend</span></button>
+        <button type="button" data-rpw-indicator="vwap" aria-pressed="false"><strong>VWAP</strong><span>Volume-weighted price</span></button>
+        <button type="button" data-rpw-indicator="bb20" aria-pressed="false"><strong>Bollinger 20</strong><span>Volatility envelope</span></button>
+        <button type="button" data-rpw-indicator="rsi14" aria-pressed="false"><strong>RSI 14</strong><span>Momentum pane</span></button>
+        <button type="button" data-rpw-indicator="macd" aria-pressed="false"><strong>MACD</strong><span>Trend momentum pane</span></button>
       </div>
       <div class="rpw-stage">
         <div class="rpw-chart" data-rpw-chart></div>
@@ -215,8 +420,14 @@ export class PriceWorkspace {
     if (!container) throw new Error("PriceWorkspace requires a container");
     this.container = container;
     this.options = options;
-    this.activeIndicators = new Set(Array.isArray(options.indicators) ? options.indicators : ["ema20"]);
+    this.activeIndicators = new Set((Array.isArray(options.indicators) ? options.indicators : ["ema20"])
+      .filter((indicator) => SUPPORTED_INDICATORS.includes(indicator)));
+    this.activeRange = null;
+    this.visibleRange = null;
+    this.historyBatchLimit = 240;
+    this.historyExhausted = false;
     this.chartHandle = null;
+    this.chartInstrumentId = null;
     this.liveRelease = null;
     this.lastLiveRequest = null;
     this.lastLivePayload = null;
@@ -256,6 +467,8 @@ export class PriceWorkspace {
       providerSelection: null,
       providerUsage: null,
       marketAnatomy: null,
+      alphaLayers: null,
+      chartRead: null,
       providerTransitionCount: 0,
     };
     container.innerHTML = createMarkup();
@@ -264,6 +477,8 @@ export class PriceWorkspace {
     this.chartHost = container.querySelector("[data-rpw-chart]");
     this.bindTimeframes();
     this.bindIndicators();
+    this.bindRanges();
+    this.bindHistory();
     this.bindScopes();
     this.bindResize();
     this.bindFollowLive();
@@ -318,19 +533,65 @@ export class PriceWorkspace {
 
   bindIndicators() {
     const host = this.container.querySelector("[data-rpw-indicators]");
-    if (!host) return;
+    const trigger = this.container.querySelector("[data-rpw-indicator-trigger]");
+    if (!host || !trigger) return;
     const paint = () => host.querySelectorAll("[data-rpw-indicator]").forEach((button) => {
       button.setAttribute("aria-pressed", this.activeIndicators.has(button.dataset.rpwIndicator) ? "true" : "false");
     });
+    const paintCount = () => {
+      const count = this.container.querySelector("[data-rpw-indicator-count]");
+      if (count) count.textContent = String(this.activeIndicators.size);
+    };
+    const setOpen = (open) => {
+      host.hidden = !open;
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+      this.root.classList.toggle("rpw-indicators-open", open);
+    };
     paint();
+    paintCount();
+    trigger.addEventListener("click", () => setOpen(host.hidden));
     host.addEventListener("click", (event) => {
       const button = event.target.closest?.("[data-rpw-indicator]");
       const indicator = button?.dataset?.rpwIndicator;
-      if (!indicator || !["ema20", "ema50", "vwap"].includes(indicator)) return;
+      if (!indicator || !SUPPORTED_INDICATORS.includes(indicator)) return;
       if (this.activeIndicators.has(indicator)) this.activeIndicators.delete(indicator);
       else this.activeIndicators.add(indicator);
       paint();
+      paintCount();
       this.render({ indicators: Array.from(this.activeIndicators) });
+    });
+    this._indicatorPointerHandler = (event) => {
+      if (host.hidden || host.contains(event.target) || trigger.contains(event.target)) return;
+      setOpen(false);
+    };
+    this._indicatorKeyHandler = (event) => {
+      if (event.key !== "Escape" || host.hidden) return;
+      event.preventDefault();
+      setOpen(false);
+      trigger.focus();
+    };
+    document.addEventListener("pointerdown", this._indicatorPointerHandler);
+    document.addEventListener("keydown", this._indicatorKeyHandler);
+  }
+
+  bindRanges() {
+    const host = this.container.querySelector("[data-rpw-ranges]");
+    if (!host) return;
+    host.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-rpw-range]");
+      const range = button?.dataset?.rpwRange;
+      if (!range || ![...Object.keys(RANGE_SECONDS), "max"].includes(range) || !this.state.candles.length) return;
+      this.activeRange = range;
+      host.querySelectorAll("[data-rpw-range]").forEach((row) => {
+        row.setAttribute("aria-pressed", row.dataset.rpwRange === range ? "true" : "false");
+      });
+      this.applyRangePreset(range);
+    });
+  }
+
+  bindHistory() {
+    this.container.querySelector("[data-rpw-history]")?.addEventListener("click", async () => {
+      await this.backfill({ manual: true });
     });
   }
 
@@ -487,7 +748,131 @@ export class PriceWorkspace {
     panel.querySelector("strong").textContent = label === "Loading" ? "Loading market data" : label;
     panel.querySelector("span").textContent = this.state.message || "Current candles are not available for this market.";
     if (showPanel) this.container.querySelector("[data-rpw-crosshair]").hidden = true;
+    const hasCandles = this.state.candles.length > 0 && !showPanel;
+    this.container.querySelectorAll("[data-rpw-range]").forEach((button) => { button.disabled = !hasCandles; });
+    const indicatorTrigger = this.container.querySelector("[data-rpw-indicator-trigger]");
+    if (indicatorTrigger) indicatorTrigger.disabled = !hasCandles;
+    if (!hasCandles) {
+      const indicators = this.container.querySelector("[data-rpw-indicators]");
+      if (indicators) indicators.hidden = true;
+      indicatorTrigger?.setAttribute("aria-expanded", "false");
+    }
+    this.paintWindowAnalytics(this.visibleRange);
+    this.paintChartRead();
     this.paintTrades();
+  }
+
+  paintChartRead() {
+    const cell = this.container.querySelector("[data-rpw-read-cell]");
+    const value = this.container.querySelector("[data-rpw-read]");
+    if (!cell || !value) return null;
+    const read = deriveChartRead(this.state.candles, {
+      instrumentId: this.state.instrument?.canonical_id || null,
+      timeframe: this.state.timeframe,
+    });
+    this.state.chartRead = read;
+    cell.hidden = !read;
+    if (read) {
+      const direction = read.direction === "long" ? "↑" : "↓";
+      value.textContent = `${read.setup === "breakout_confirmed" ? "Breakout" : "Trend"} ${direction} · ${read.score}/${read.score_max}`;
+      value.dataset.direction = read.direction === "long" ? "up" : "down";
+      const details = [
+        `RSI ${read.facts.rsi.toFixed(0)}`,
+        read.facts.volume_ratio === null ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}×`,
+        read.structure_map ? `risk map ${read.structure_map.risk_pct.toFixed(1)}%` : "",
+      ].filter(Boolean);
+      cell.title = `${details.join(" · ")} · provider candles only`;
+    } else {
+      value.textContent = "";
+      value.removeAttribute("data-direction");
+      cell.removeAttribute("title");
+    }
+    const fingerprint = read
+      ? [read.instrument_id, read.timeframe, read.observed_at, read.direction, read.setup, read.score].join(":")
+      : `none:${this.state.instrument?.canonical_id || "unselected"}:${this.state.timeframe}`;
+    if (fingerprint !== this.lastChartReadFingerprint) {
+      this.lastChartReadFingerprint = fingerprint;
+      this.options.onChartReadChange?.(read);
+      document.dispatchEvent(new CustomEvent("ravenos:chartread", { detail: read }));
+    }
+    return read;
+  }
+
+  visibleCandles(range = this.visibleRange) {
+    const rows = this.state.candles;
+    if (!rows.length) return [];
+    if (!range || !Number.isFinite(Number(range.from)) || !Number.isFinite(Number(range.to))) {
+      return rows.slice(-Math.min(rows.length, INITIAL_VISIBLE_BARS[this.state.timeframe] || 180));
+    }
+    const start = Math.max(0, Math.floor(Number(range.from)));
+    const end = Math.min(rows.length - 1, Math.ceil(Number(range.to)));
+    return end >= start ? rows.slice(start, end + 1) : rows.slice(-1);
+  }
+
+  paintWindowAnalytics(range = this.visibleRange) {
+    const rows = this.visibleCandles(range);
+    const host = this.container.querySelector("[data-rpw-window]");
+    const label = this.container.querySelector("[data-rpw-window-label]");
+    const change = this.container.querySelector("[data-rpw-window-change]");
+    const spread = this.container.querySelector("[data-rpw-window-range]");
+    const volume = this.container.querySelector("[data-rpw-window-volume]");
+    const history = this.container.querySelector("[data-rpw-history]");
+    const historyLabel = this.container.querySelector("[data-rpw-history-label]");
+    if (!host || !label || !change || !spread || !volume || !history || !historyLabel) return;
+    host.hidden = rows.length === 0;
+    if (!rows.length) return;
+
+    label.textContent = windowLabel(rows);
+    const first = rows[0];
+    const last = rows.at(-1);
+    const changePct = first?.open > 0 && last?.close > 0 ? ((last.close / first.open) - 1) * 100 : null;
+    const high = rows.length ? Math.max(...rows.map((row) => Number(row.high)).filter(Number.isFinite)) : null;
+    const low = rows.length ? Math.min(...rows.map((row) => Number(row.low)).filter(Number.isFinite)) : null;
+    const rangePct = Number.isFinite(high) && Number.isFinite(low) && low > 0 ? ((high / low) - 1) * 100 : null;
+    const volumes = rows.map((row) => Number(row.quote_volume ?? row.volume)).filter((value) => Number.isFinite(value) && value >= 0);
+    const averageVolume = volumes.length ? volumes.reduce((sum, value) => sum + value, 0) / volumes.length : null;
+
+    change.closest("span").hidden = changePct === null;
+    change.textContent = changePct === null ? "" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(Math.abs(changePct) < 1 ? 2 : 1)}%`;
+    change.dataset.direction = changePct === null ? "flat" : changePct > 0 ? "up" : changePct < 0 ? "down" : "flat";
+    spread.closest("span").hidden = rangePct === null;
+    spread.textContent = rangePct === null ? "" : `${rangePct.toFixed(rangePct < 1 ? 2 : 1)}%`;
+    volume.closest("span").hidden = averageVolume === null;
+    volume.textContent = averageVolume === null ? "" : volumeLabel(averageVolume);
+
+    historyLabel.textContent = `${this.state.candles.length.toLocaleString()} bars`;
+    const canBackfill = Boolean(
+      this.lastRequest
+      && this.state.capabilities?.older_bar_backfill === true
+      && this.state.candles.length
+      && !this.historyExhausted
+    );
+    history.disabled = this.backfillPending || !canBackfill;
+    const action = history.querySelector("small");
+    if (action) {
+      action.textContent = this.backfillPending
+        ? "Loading…"
+        : this.historyExhausted
+          ? "Oldest available"
+          : canBackfill
+            ? "Load older"
+            : "Current source";
+    }
+  }
+
+  applyRangePreset(range = this.activeRange) {
+    if (!this.chartHandle || !this.state.candles.length || !range) return;
+    if (range === "max") {
+      this.chartHandle.fitContent?.();
+      return;
+    }
+    const seconds = RANGE_SECONDS[range];
+    const last = this.state.candles.at(-1);
+    const lastSeconds = timeSeconds(last?.time);
+    if (!Number.isFinite(seconds) || !Number.isFinite(lastSeconds)) return;
+    const target = lastSeconds - seconds;
+    const first = this.state.candles.find((row) => timeSeconds(row.time) >= target) || this.state.candles[0];
+    this.chartHandle.setVisibleTimeRange?.({ from: first.time, to: last.time });
   }
 
   paintTrades() {
@@ -587,6 +972,11 @@ export class PriceWorkspace {
     this.backfillArmTimer = null;
     this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
     const timeframe = request.timeframe || this.state.timeframe || "1h";
+    this.historyBatchLimit = historyLimit(request, timeframe);
+    this.historyExhausted = false;
+    this.activeRange = null;
+    this.visibleRange = null;
+    this.container.querySelectorAll("[data-rpw-range]").forEach((button) => button.setAttribute("aria-pressed", "false"));
     this.setState({
       state: PRICE_WORKSPACE_STATES.LOADING,
       timeframe,
@@ -610,6 +1000,7 @@ export class PriceWorkspace {
       providerSelection: null,
       providerUsage: null,
       marketAnatomy: null,
+      alphaLayers: null,
       marketHealth: null,
       operatorStateLabel: null,
       providerFreshnessState: null,
@@ -634,7 +1025,7 @@ export class PriceWorkspace {
       return state;
     }
     try {
-      const { response, payload } = await this.fetchPayload({ ...request, timeframe }, { limit: request.limit || 240 });
+      const { response, payload } = await this.fetchPayload({ ...request, timeframe }, { limit: this.historyBatchLimit });
       if (sequence !== this.requestSequence) return this.state;
       const candles = normalizeCandles(payload.candles);
       if (!response.ok || !payload.ok || !candles.length) {
@@ -691,6 +1082,7 @@ export class PriceWorkspace {
         providerSelection: payload.provider_selection || null,
         providerUsage: payload.provider_usage || null,
         marketAnatomy: payload.market_anatomy || null,
+        alphaLayers: payload.alpha_layers || null,
         marketHealth: payload.market_health || null,
         operatorStateLabel: payload.market_health?.operator_label || null,
         providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || null,
@@ -759,12 +1151,17 @@ export class PriceWorkspace {
       providerSelection: null,
       providerUsage: null,
       marketAnatomy: null,
+      alphaLayers: null,
       lineage: null,
     });
   }
 
   render(input = {}) {
     this.renderInput = { ...this.renderInput, ...input };
+    const currentInstrumentId = this.state.instrument?.canonical_id || null;
+    const initialVisibleTimeRange = this.chartHandle && this.chartInstrumentId === currentInstrumentId
+      ? this.chartHandle.visibleTimeRange?.() || null
+      : null;
     this.destroyChart();
     if (!this.state.candles.length || ["loading", "empty", "error", "data_unavailable"].includes(this.state.state)) {
       this.paintMarkerIndex();
@@ -787,10 +1184,13 @@ export class PriceWorkspace {
       chartDataSource: this.state.state === "demo" ? "explicit_demo" : "terminal_chart_api",
       indicatorSourceState: this.state.state === "demo" ? "demo" : "provider_backed",
       indicators: Array.from(this.activeIndicators),
+      initialVisibleBars: INITIAL_VISIBLE_BARS[this.state.timeframe] || 180,
+      initialVisibleTimeRange,
       onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
       onMarkerSelect: (marker) => this.options.onMarkerSelect?.(marker),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
     });
+    this.chartInstrumentId = currentInstrumentId;
     this.renderCrosshair(null);
     this.paintMarkerIndex();
     const publishGeometry = () => {
@@ -806,6 +1206,7 @@ export class PriceWorkspace {
     this.publishGeometry = publishGeometry;
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(publishGeometry);
     else setTimeout(publishGeometry, 0);
+    this.handleVisibleRange(this.chartHandle?.visibleLogicalRange?.());
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = setTimeout(() => {
       this.backfillArmTimer = null;
@@ -835,9 +1236,11 @@ export class PriceWorkspace {
       ["C", priceLabel(selected.close)],
       ["Δ", signed(change.absolute)],
       ["Change", change.percent === null ? "—" : `${change.percent >= 0 ? "+" : ""}${change.percent.toFixed(2)}%`],
-      ["Base vol", volumeLabel(selected.volume)],
-      ["Quote vol", volumeLabel(selected.quote_volume ?? selected.quoteVolume)],
     ];
+    const baseVolume = volumeLabel(selected.volume);
+    const quoteVolume = volumeLabel(selected.quote_volume ?? selected.quoteVolume);
+    if (baseVolume !== "--") fields.push(["Base vol", baseVolume]);
+    if (quoteVolume !== "--") fields.push(["Quote vol", quoteVolume]);
     host.replaceChildren(...fields.map(([label, value], index) => {
       const cell = document.createElement("span");
       if (index === 0) cell.className = "rpw-crosshair-time";
@@ -858,6 +1261,8 @@ export class PriceWorkspace {
 
   handleVisibleRange(range) {
     if (!range || !Number.isFinite(Number(range.from))) return;
+    this.visibleRange = { from: Number(range.from), to: Number(range.to) };
+    this.paintWindowAnalytics(this.visibleRange);
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(() => requestAnimationFrame(() => this.publishGeometry?.()));
     }
@@ -872,23 +1277,34 @@ export class PriceWorkspace {
     }
   }
 
-  async backfill() {
-    if (this.backfillPending || !this.lastRequest || this.state.capabilities?.older_bar_backfill !== true || !this.state.candles.length) return;
+  async backfill({ manual = false } = {}) {
+    if (this.backfillPending || !this.lastRequest || this.state.capabilities?.older_bar_backfill !== true || !this.state.candles.length || this.historyExhausted) return 0;
     const before = this.state.candles[0]?.time;
-    if (!before) return;
+    if (!before) return 0;
     this.backfillPending = true;
+    this.paintWindowAnalytics(this.visibleRange);
     try {
-      const { response, payload } = await this.fetchPayload(this.lastRequest, { before, limit: 240 });
-      if (!response.ok || !payload?.ok) return;
+      const { response, payload } = await this.fetchPayload(this.lastRequest, { before, limit: this.historyBatchLimit });
+      if (!response.ok || !payload?.ok) return 0;
       const candles = normalizeCandles(payload.candles).filter((row) => Number(row.time) < Number(before));
-      if (!candles.length) return;
+      if (!candles.length) {
+        this.historyExhausted = true;
+        return 0;
+      }
       const merged = new Map([...candles, ...this.state.candles].map((row) => [String(row.time), row]));
       this.state.candles = [...merged.values()].sort((left, right) => Number(left.time) - Number(right.time));
+      this.state.returnedBars = this.state.candles.length;
       this.state.backfillCount = Number(this.state.backfillCount || 0) + 1;
       this.chartHandle?.prependCandles?.(candles);
+      if (manual && this.activeRange === "max") this.chartHandle?.fitContent?.();
+      else if (manual && this.activeRange && RANGE_SECONDS[this.activeRange]) this.applyRangePreset(this.activeRange);
+      this.paintWindowAnalytics(this.chartHandle?.visibleLogicalRange?.() || this.visibleRange);
+      this.publishGeometry?.();
       document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));
+      return candles.length;
     } finally {
       this.backfillPending = false;
+      this.paintWindowAnalytics(this.visibleRange);
     }
   }
 
@@ -994,10 +1410,12 @@ export class PriceWorkspace {
     if (index >= 0) this.state.candles[index] = candle;
     else this.state.candles.push(candle);
     this.state.candles.sort((left, right) => Number(left.time) - Number(right.time));
-    if (this.state.candles.length > 1200) this.state.candles.splice(0, this.state.candles.length - 1200);
+    if (this.state.candles.length > 5000) this.state.candles.splice(0, this.state.candles.length - 5000);
+    this.state.returnedBars = this.state.candles.length;
     this.chartHandle?.updateCandle?.(candle);
     if (!this.inspectingCandle) this.renderCrosshair(null);
     if (this.followLive) this.chartHandle?.scrollToRealTime?.();
+    this.paintWindowAnalytics(this.visibleRange);
   }
 
   handleLiveEvent(event) {
@@ -1066,6 +1484,8 @@ export class PriceWorkspace {
     this.backfillArmTimer = null;
     this._clearFocus?.();
     if (this._focusKeyHandler) document.removeEventListener("keydown", this._focusKeyHandler);
+    if (this._indicatorPointerHandler) document.removeEventListener("pointerdown", this._indicatorPointerHandler);
+    if (this._indicatorKeyHandler) document.removeEventListener("keydown", this._indicatorKeyHandler);
     if (this._overlayPointerHandler) document.removeEventListener("pointerdown", this._overlayPointerHandler);
     if (this._overlayKeyHandler) document.removeEventListener("keydown", this._overlayKeyHandler);
     if (this._visibilityHandler) document.removeEventListener("visibilitychange", this._visibilityHandler);

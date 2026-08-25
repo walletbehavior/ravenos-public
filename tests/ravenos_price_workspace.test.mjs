@@ -34,6 +34,15 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /visibilitychange/);
   assert.match(workspace, /paused_hidden/);
   assert.match(workspace, /this\.startLive\(this\.lastLiveRequest, this\.lastLivePayload\)/);
+  assert.match(workspace, /initialVisibleBars/);
+  assert.match(workspace, /historyBatchLimit/);
+  assert.match(workspace, /data-rpw-range="max"/);
+  assert.match(workspace, /ravenos\.chart_read\.v1/);
+  assert.match(workspace, /provider_candles_only/);
+  assert.match(workspace, /onChartReadChange/);
+  assert.match(workspace, /ravenos:chartread/);
+  assert.match(workspace, /longScore >= 4/);
+  assert.match(workspace, /shortScore >= 4/);
 });
 
 test("Terminal uses PriceWorkspace by default and exposes no unresolved build token", () => {
@@ -47,6 +56,13 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /renderSourceDetails/);
   assert.match(terminalRuntime, /renderMarketAnatomy/);
   assert.match(terminalRuntime, /renderMarkerDetail/);
+  assert.match(terminal, /id="terminalAlphaSection"/);
+  assert.match(terminal, /id="terminalAlphaStack"/);
+  assert.match(terminalRuntime, /ravenos\.alpha_layers\.v1/);
+  assert.match(terminalRuntime, /privacy\?\.addresses_removed === true/);
+  assert.match(terminalRuntime, /independence_adjusted === true/);
+  assert.match(terminalRuntime, /cleanAlphaCard/);
+  assert.match(terminalRuntime, /unknown\|unavailable\|insufficient\|missing\|not projected\|checking\|resolving/i);
   assert.match(terminalRuntime, /No customer venue account or exposure is connected/);
   assert.doesNotMatch(terminal, /Synthetic fallback/);
   assert.match(terminal, /Lightweight Charts™ by TradingView/);
@@ -68,6 +84,12 @@ test("all native RavenOS chart surfaces use the shared price or series renderer"
   assert.match(priceChart, /priceScaleId: "right"/);
   assert.match(priceChart, /minMove: scaleContract\.min_move/);
   assert.match(priceChart, /auto_scale: "visible_range"/);
+  for (const indicator of ["bb20", "rsi14", "macd"]) {
+    assert.match(priceChart, new RegExp(`\\b${indicator}\\b`));
+  }
+  assert.match(priceChart, /paneIndex/);
+  assert.match(priceChart, /setVisibleTimeRange/);
+  assert.match(priceChart, /setVisibleBars/);
   assert.match(workspace, /instrument: this\.state\.instrument/);
   assert.match(atlas, /window\.RavenSeriesChart/);
   assert.doesNotMatch(atlas, /LightweightCharts\.createChart/);

@@ -132,6 +132,91 @@
     return output;
   }
 
+  function bollingerSeries(candles, period = 20, deviations = 2) {
+    if (!Number.isFinite(period) || period < 2 || candles.length < period) {
+      return { upper: [], middle: [], lower: [] };
+    }
+    const upper = [];
+    const middle = [];
+    const lower = [];
+    const window = [];
+    let sum = 0;
+    let sumSquares = 0;
+    candles.forEach((candle) => {
+      const close = Number(candle.close);
+      if (!Number.isFinite(close)) return;
+      window.push(close);
+      sum += close;
+      sumSquares += close * close;
+      if (window.length > period) {
+        const removed = window.shift();
+        sum -= removed;
+        sumSquares -= removed * removed;
+      }
+      if (window.length !== period) return;
+      const mean = sum / period;
+      const variance = Math.max(0, (sumSquares / period) - (mean * mean));
+      const width = Math.sqrt(variance) * deviations;
+      middle.push({ time: candle.time, value: mean });
+      upper.push({ time: candle.time, value: mean + width });
+      lower.push({ time: candle.time, value: mean - width });
+    });
+    return { upper, middle, lower };
+  }
+
+  function rsiSeries(candles, period = 14) {
+    if (!Number.isFinite(period) || period < 2 || candles.length <= period) return [];
+    const output = [];
+    let averageGain = 0;
+    let averageLoss = 0;
+    for (let index = 1; index < candles.length; index += 1) {
+      const prior = Number(candles[index - 1]?.close);
+      const close = Number(candles[index]?.close);
+      if (!Number.isFinite(prior) || !Number.isFinite(close)) continue;
+      const change = close - prior;
+      const gain = Math.max(0, change);
+      const loss = Math.max(0, -change);
+      if (index <= period) {
+        averageGain += gain;
+        averageLoss += loss;
+        if (index < period) continue;
+        averageGain /= period;
+        averageLoss /= period;
+      } else {
+        averageGain = ((averageGain * (period - 1)) + gain) / period;
+        averageLoss = ((averageLoss * (period - 1)) + loss) / period;
+      }
+      const value = averageLoss === 0 ? 100 : 100 - (100 / (1 + (averageGain / averageLoss)));
+      output.push({ time: candles[index].time, value });
+    }
+    return output;
+  }
+
+  function macdSeries(candles, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+    const fast = new Map(emaSeries(candles, fastPeriod).map((row) => [String(row.time), row.value]));
+    const slow = new Map(emaSeries(candles, slowPeriod).map((row) => [String(row.time), row.value]));
+    const macd = [];
+    candles.forEach((candle) => {
+      const fastValue = fast.get(String(candle.time));
+      const slowValue = slow.get(String(candle.time));
+      if (!Number.isFinite(fastValue) || !Number.isFinite(slowValue)) return;
+      macd.push({ time: candle.time, value: fastValue - slowValue });
+    });
+    const signal = emaSeries(macd.map((row) => ({ ...row, close: row.value })), signalPeriod);
+    const signalByTime = new Map(signal.map((row) => [String(row.time), row.value]));
+    const histogram = macd
+      .filter((row) => Number.isFinite(signalByTime.get(String(row.time))))
+      .map((row) => {
+        const value = row.value - signalByTime.get(String(row.time));
+        return {
+          time: row.time,
+          value,
+          color: value >= 0 ? "rgba(63, 166, 117, .48)" : "rgba(207, 89, 104, .44)",
+        };
+      });
+    return { macd, signal, histogram };
+  }
+
   function markerFor(event, index = 0) {
     const above = event.type === "liquidity-warning" || event.type === "toxicity-risk";
     return {
@@ -528,6 +613,11 @@
         background: { color: "#080a0d" },
         textColor: "#929daa",
         attributionLogo: false,
+        panes: {
+          separatorColor: "rgba(148, 163, 184, .18)",
+          separatorHoverColor: "rgba(148, 163, 184, .3)",
+          enableResize: true,
+        },
       },
       grid: {
         vertLines: { color: "rgba(183, 194, 208, 0.05)" },
@@ -607,45 +697,158 @@
       ema20: { status: "off", points: 0 },
       ema50: { status: "off", points: 0 },
       vwap: { status: "off", points: 0 },
-      rsi: { status: "needs panel", points: 0 },
-      macd: { status: "needs panel", points: 0 },
+      bb20: { status: "off", points: 0 },
+      rsi14: { status: "off", points: 0 },
+      macd: { status: "off", points: 0 },
     };
     const activeIndicators = new Set(Array.isArray(options?.indicators) ? options.indicators : []);
-    const indicatorDefinitions = [
-      { key: "ema20", label: "EMA 20", color: "#8da6b8", values: () => emaSeries(candles, 20) },
-      { key: "ema50", label: "EMA 50", color: "#998bad", values: () => emaSeries(candles, 50) },
-      { key: "vwap", label: "VWAP", color: "#b5965c", values: () => vwapSeries(options?.candles || candles) },
-    ];
-    indicatorDefinitions.forEach((indicator) => {
-      if (!activeIndicators.has(indicator.key)) return;
-      if (indicatorState.sourceState !== "provider_backed") {
-        indicatorState[indicator.key] = {
-          status: indicatorState.sourceState === "structure_proxy" ? "unavailable on fallback chart" : "coverage developing",
-          points: 0,
-        };
-        return;
-      }
-      const values = indicator.values();
-      indicatorState[indicator.key] = {
-        status: values.length ? indicatorState.sourceState : "coverage developing",
-        points: values.length,
-      };
-      if (!values.length) return;
-      const lineSeries = chart.addSeries(api.LineSeries, {
-        color: indicator.color,
-        lineWidth: 2,
+    const indicatorRefreshers = [];
+    let nextIndicatorPane = 1;
+
+    function priceLine(label, color, { paneIndex = 0, lineWidth = 2, lastValueVisible = true, priceScaleId = "right", formatter = priceFormatter } = {}) {
+      return chart.addSeries(api.LineSeries, {
+        color,
+        lineWidth,
+        priceScaleId,
         priceLineVisible: false,
-        lastValueVisible: true,
-        title: indicator.label,
+        lastValueVisible,
+        title: label,
         priceFormat: {
           type: "custom",
-          formatter: priceFormatter,
-          minMove: scaleContract.min_move,
+          formatter,
+          minMove: priceScaleId === "right" ? scaleContract.min_move : 0.01,
+        },
+      }, paneIndex);
+    }
+
+    function unavailableIndicator(key) {
+      indicatorState[key] = {
+        status: indicatorState.sourceState === "structure_proxy" ? "unavailable on fallback chart" : "coverage developing",
+        points: 0,
+      };
+    }
+
+    function registerLineIndicator({ key, label, color, values }) {
+      if (!activeIndicators.has(key)) return;
+      if (indicatorState.sourceState !== "provider_backed") {
+        unavailableIndicator(key);
+        return;
+      }
+      const series = priceLine(label, color);
+      indicatorRefreshers.push({
+        key,
+        refresh() {
+          const rows = values();
+          series.setData(rows);
+          return rows.length;
         },
       });
-      lineSeries.setData(values);
-    });
-    if (typeof window !== "undefined") window.__RAVENOS_LAST_INDICATOR_STATE__ = indicatorState;
+    }
+
+    registerLineIndicator({ key: "ema20", label: "EMA 20", color: "#8da6b8", values: () => emaSeries(candles, 20) });
+    registerLineIndicator({ key: "ema50", label: "EMA 50", color: "#998bad", values: () => emaSeries(candles, 50) });
+    registerLineIndicator({ key: "vwap", label: "VWAP", color: "#b5965c", values: () => vwapSeries(rawCandles) });
+
+    if (activeIndicators.has("bb20")) {
+      if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("bb20");
+      else {
+        const upper = priceLine("BB 20 upper", "rgba(116, 145, 168, .72)", { lineWidth: 1, lastValueVisible: false });
+        const middle = priceLine("BB 20", "rgba(141, 166, 184, .88)", { lineWidth: 1, lastValueVisible: false });
+        const lower = priceLine("BB 20 lower", "rgba(116, 145, 168, .72)", { lineWidth: 1, lastValueVisible: false });
+        indicatorRefreshers.push({
+          key: "bb20",
+          refresh() {
+            const rows = bollingerSeries(candles, 20, 2);
+            upper.setData(rows.upper);
+            middle.setData(rows.middle);
+            lower.setData(rows.lower);
+            return rows.middle.length;
+          },
+        });
+      }
+    }
+
+    if (activeIndicators.has("rsi14")) {
+      if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("rsi14");
+      else {
+        const paneIndex = nextIndicatorPane++;
+        const rsi = priceLine("RSI 14", "#7e9fb7", {
+          paneIndex,
+          priceScaleId: "rsi",
+          formatter: (value) => Number(value).toFixed(1),
+        });
+        const overbought = priceLine("", "rgba(207, 89, 104, .38)", {
+          paneIndex,
+          priceScaleId: "rsi",
+          lineWidth: 1,
+          lastValueVisible: false,
+          formatter: (value) => Number(value).toFixed(1),
+        });
+        const oversold = priceLine("", "rgba(63, 166, 117, .34)", {
+          paneIndex,
+          priceScaleId: "rsi",
+          lineWidth: 1,
+          lastValueVisible: false,
+          formatter: (value) => Number(value).toFixed(1),
+        });
+        chart.priceScale("rsi", paneIndex).applyOptions({ visible: true, autoScale: true, borderVisible: true });
+        indicatorRefreshers.push({
+          key: "rsi14",
+          refresh() {
+            const rows = rsiSeries(candles, 14);
+            rsi.setData(rows);
+            const bounds = rows.length ? [rows[0], rows.at(-1)] : [];
+            overbought.setData(bounds.map((row) => ({ time: row.time, value: 70 })));
+            oversold.setData(bounds.map((row) => ({ time: row.time, value: 30 })));
+            return rows.length;
+          },
+        });
+      }
+    }
+
+    if (activeIndicators.has("macd")) {
+      if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("macd");
+      else {
+        const paneIndex = nextIndicatorPane++;
+        const macd = priceLine("MACD", "#8da6b8", { paneIndex, priceScaleId: "macd", formatter: priceFormatter });
+        const signal = priceLine("Signal", "#b5965c", { paneIndex, priceScaleId: "macd", lineWidth: 1, formatter: priceFormatter });
+        const histogram = chart.addSeries(api.HistogramSeries, {
+          priceScaleId: "macd",
+          priceFormat: { type: "custom", formatter: priceFormatter, minMove: scaleContract.min_move },
+          priceLineVisible: false,
+          lastValueVisible: false,
+        }, paneIndex);
+        chart.priceScale("macd", paneIndex).applyOptions({ visible: true, autoScale: true, borderVisible: true });
+        indicatorRefreshers.push({
+          key: "macd",
+          refresh() {
+            const rows = macdSeries(candles);
+            macd.setData(rows.macd);
+            signal.setData(rows.signal);
+            histogram.setData(rows.histogram);
+            return rows.signal.length;
+          },
+        });
+      }
+    }
+
+    function refreshIndicators() {
+      indicatorRefreshers.forEach(({ key, refresh }) => {
+        const points = refresh();
+        indicatorState[key] = {
+          status: points ? indicatorState.sourceState : "coverage developing",
+          points,
+        };
+      });
+      if (typeof window !== "undefined") window.__RAVENOS_LAST_INDICATOR_STATE__ = indicatorState;
+    }
+
+    refreshIndicators();
+    const panes = typeof chart.panes === "function" ? chart.panes() : [];
+    if (panes.length > 1) {
+      panes[0]?.setStretchFactor?.(3);
+      panes.slice(1).forEach((pane) => pane?.setStretchFactor?.(1));
+    }
 
     function visibleOverlays(type) {
       return enrichedOverlays.filter((overlay) => {
@@ -777,25 +980,46 @@
         if (activeTypes.has(type)) activeTypes.delete(type);
         else activeTypes.add(type);
         options?.onOverlaySelect?.(activeTypes.has(type) ? selectedOverlay : null);
+        const initialVisibleTimeRange = chart.timeScale().getVisibleRange?.() || null;
         apiRef.destroy();
         const next = RavenPriceChart(container, {
           ...options,
           visibleOverlayTypes: Array.from(activeTypes),
+          initialVisibleTimeRange,
         });
         if (next) Object.assign(apiRef, next);
       }, () => {
         activeTypes.clear();
         options?.onOverlaySelect?.(null);
+        const initialVisibleTimeRange = chart.timeScale().getVisibleRange?.() || null;
         apiRef.destroy();
         const next = RavenPriceChart(container, {
           ...options,
           visibleOverlayTypes: [],
+          initialVisibleTimeRange,
         });
         if (next) Object.assign(apiRef, next);
       });
     }
 
-    chart.timeScale().fitContent();
+    const requestedInitialRange = options?.initialVisibleTimeRange;
+    const requestedInitialBars = Math.max(0, Math.trunc(Number(options?.initialVisibleBars) || 0));
+    if (
+      requestedInitialRange
+      && requestedInitialRange.from !== null
+      && requestedInitialRange.from !== undefined
+      && requestedInitialRange.to !== null
+      && requestedInitialRange.to !== undefined
+    ) {
+      chart.timeScale().setVisibleRange(requestedInitialRange);
+    } else if (requestedInitialBars > 0 && candles.length > requestedInitialBars) {
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, candles.length - requestedInitialBars),
+        to: candles.length + 4,
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
     renderRegions();
     if (options?.showOverlayLegend !== false) redrawLegend();
     chart.timeScale().subscribeVisibleTimeRangeChange(renderRegions);
@@ -861,6 +1085,7 @@
         const quoteVolume = Number(value?.quote_volume ?? value?.quoteVolume);
         if (Number.isFinite(quoteVolume)) quoteVolumeByTime.set(String(normalized.time), quoteVolume);
         if (volumeSeries && volume) volumeSeries.update(volume);
+        refreshIndicators();
         renderRegions();
         return true;
       },
@@ -883,6 +1108,7 @@
           .map((row) => [String(row.time), Number(row.quote_volume ?? row.quoteVolume)]));
         candleSeries.setData(candles);
         if (volumeSeries) volumeSeries.setData(normalizeVolume(rawCandles));
+        refreshIndicators();
         if (visible && typeof chart.timeScale().setVisibleRange === "function") chart.timeScale().setVisibleRange(visible);
         renderRegions();
         return incoming.length;
@@ -895,6 +1121,20 @@
       },
       visibleTimeRange() {
         return chart.timeScale().getVisibleRange?.() || null;
+      },
+      setVisibleTimeRange(range) {
+        if (!range || range.from === null || range.from === undefined || range.to === null || range.to === undefined) return false;
+        chart.timeScale().setVisibleRange?.(range);
+        return true;
+      },
+      setVisibleBars(count) {
+        const bars = Math.max(2, Math.min(candles.length, Math.trunc(Number(count) || 0)));
+        if (!bars) return false;
+        chart.timeScale().setVisibleLogicalRange?.({ from: Math.max(0, candles.length - bars), to: candles.length + 4 });
+        return true;
+      },
+      fitContent() {
+        chart.timeScale().fitContent?.();
       },
       measure() {
         const logicalRange = chart.timeScale().getVisibleLogicalRange?.() || null;
@@ -921,6 +1161,8 @@
           available_overlay_count: enrichedOverlays.length,
           active_overlay_count: visibleOverlays().length,
           active_overlay_types: Array.from(activeTypes),
+          active_indicators: Array.from(activeIndicators),
+          indicator_pane_count: Math.max(0, nextIndicatorPane - 1),
           price_axis: {
             side: scaleContract.side,
             visible: scaleContract.visible,

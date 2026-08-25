@@ -250,7 +250,21 @@ async function servePublicOriginFixture(req, res) {
   const generatedAt = new Date().toISOString();
   payload.generated_at = generatedAt;
   payload.updated_at = generatedAt;
-  payload.data = { ...payload.data, generated_at: generatedAt };
+  payload.data = {
+    ...payload.data,
+    generated_at: generatedAt,
+    source_state: "current",
+    source_age_seconds: 0,
+    opportunities: {
+      ...payload.data?.opportunities,
+      rows: (payload.data?.opportunities?.rows || []).map((row) => ({
+        ...row,
+        decision_at: generatedAt,
+        context_age_seconds: 0,
+        context_state: "fresh",
+      })),
+    },
+  };
   res.statusCode = 200;
   res.end(JSON.stringify(payload));
   return true;

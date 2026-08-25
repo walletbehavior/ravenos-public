@@ -756,14 +756,14 @@ async function hyperliquidInstrument(coinInput) {
 function timeframeSpec(timeframe = "1h") {
   const requested = String(timeframe || "1h");
   const tf = requested.toLowerCase();
-  if (requested === "1M") return { yahooInterval: "1mo", yahooRange: "10y", hyperInterval: "1M", displayTimeframe: "1M", lookbackMs: 6 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 120, yahooMaxItems: 120 };
-  if (tf === "1m") return { yahooInterval: "1m", yahooRange: "1d", hyperInterval: "1m", displayTimeframe: "1m", lookbackMs: 12 * 60 * 60 * 1000, hyperMaxItems: 480, yahooMaxItems: 480 };
-  if (tf === "5m") return { yahooInterval: "5m", yahooRange: "5d", hyperInterval: "5m", displayTimeframe: "5m", lookbackMs: 2 * 24 * 60 * 60 * 1000, hyperMaxItems: 576, yahooMaxItems: 576 };
-  if (tf === "15m") return { yahooInterval: "15m", yahooRange: "5d", hyperInterval: "15m", lookbackMs: 3 * 24 * 60 * 60 * 1000 };
-  if (tf === "4h") return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "4h", lookbackMs: 21 * 24 * 60 * 60 * 1000 };
-  if (tf === "1d") return { yahooInterval: "1d", yahooRange: "6mo", hyperInterval: "1d", lookbackMs: 180 * 24 * 60 * 60 * 1000 };
-  if (tf === "1w") return { yahooInterval: "1wk", yahooRange: "5y", hyperInterval: "1w", displayTimeframe: "1w", lookbackMs: 3 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 260, yahooMaxItems: 260 };
-  return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "1h", displayTimeframe: "1h", lookbackMs: 14 * 24 * 60 * 60 * 1000, hyperMaxItems: 360, yahooMaxItems: 360 };
+  if (requested === "1M") return { yahooInterval: "1mo", yahooRange: "10y", hyperInterval: "1M", displayTimeframe: "1M", lookbackMs: 10 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 120, yahooMaxItems: 120 };
+  if (tf === "1m") return { yahooInterval: "1m", yahooRange: "1d", hyperInterval: "1m", displayTimeframe: "1m", lookbackMs: 12 * 60 * 60 * 1000, hyperMaxItems: 720, yahooMaxItems: 480 };
+  if (tf === "5m") return { yahooInterval: "5m", yahooRange: "5d", hyperInterval: "5m", displayTimeframe: "5m", lookbackMs: 3 * 24 * 60 * 60 * 1000, hyperMaxItems: 720, yahooMaxItems: 576 };
+  if (tf === "15m") return { yahooInterval: "15m", yahooRange: "5d", hyperInterval: "15m", lookbackMs: 8 * 24 * 60 * 60 * 1000, hyperMaxItems: 720 };
+  if (tf === "4h") return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "4h", lookbackMs: 120 * 24 * 60 * 60 * 1000, hyperMaxItems: 720 };
+  if (tf === "1d") return { yahooInterval: "1d", yahooRange: "6mo", hyperInterval: "1d", lookbackMs: 2 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 720 };
+  if (tf === "1w") return { yahooInterval: "1wk", yahooRange: "5y", hyperInterval: "1w", displayTimeframe: "1w", lookbackMs: 10 * 365 * 24 * 60 * 60 * 1000, hyperMaxItems: 520, yahooMaxItems: 260 };
+  return { yahooInterval: "1h", yahooRange: "1mo", hyperInterval: "1h", displayTimeframe: "1h", lookbackMs: 30 * 24 * 60 * 60 * 1000, hyperMaxItems: 720, yahooMaxItems: 360 };
 }
 
 function sanitizeChartCandles(candles = [], { maxItems = 360 } = {}) {
@@ -4713,17 +4713,204 @@ const CURRENT_OPPORTUNITY_DATA_SCHEMA = "ravenos_opportunity_census_public_v1";
 const CURRENT_OPPORTUNITY_SOURCE = "raven_opportunity_projection";
 const CURRENT_OPPORTUNITY_MAX_AGE_SECONDS = 3_600;
 
+function opportunitySurvivalState(row = {}) {
+  if (String(row?.market_type || "").toLowerCase() !== "spot") {
+    return { state: "active", reasons: [] };
+  }
+  const market = row.market && typeof row.market === "object" ? row.market : {};
+  const reasons = [];
+  const ageSeconds = optionalFiniteNumber(row.age_seconds);
+  const price = optionalFiniteNumber(market.price_usd);
+  const liquidity = optionalFiniteNumber(market.liquidity_usd);
+  const marketCap = optionalFiniteNumber(market.market_cap_usd);
+  const volume5m = optionalFiniteNumber(market.volume_usd_5m);
+  const volume1h = optionalFiniteNumber(market.volume_usd_1h);
+  const volume24h = optionalFiniteNumber(market.volume_usd_24h);
+  const buys5m = optionalFiniteNumber(market.buys_5m);
+  const sells5m = optionalFiniteNumber(market.sells_5m);
+  const buys1h = optionalFiniteNumber(market.buys_1h);
+  const sells1h = optionalFiniteNumber(market.sells_1h);
+  const buys24h = optionalFiniteNumber(market.buys_24h);
+  const sells24h = optionalFiniteNumber(market.sells_24h);
+  const change1h = optionalFiniteNumber(market.price_change_1h_pct);
+  const change24h = optionalFiniteNumber(market.price_change_24h_pct);
+  const liquidityChanges = [
+    market.liquidity_change_5m_pct,
+    market.liquidity_change_1h_pct,
+    market.liquidity_change_24h_pct,
+  ].map(optionalFiniteNumber).filter((value) => value !== null);
+
+  if (ageSeconds !== null && ageSeconds > CURRENT_OPPORTUNITY_MAX_AGE_SECONDS) reasons.push("market_state_expired");
+  if (price !== null && price <= 0) reasons.push("price_collapsed");
+  if (liquidity !== null && liquidity <= 0) reasons.push("liquidity_gone");
+  if (marketCap !== null && marketCap < 1_000) reasons.push("market_cap_near_zero");
+  if ((change1h !== null && change1h <= -85) || (change24h !== null && change24h <= -95)) reasons.push("price_collapse");
+  if (liquidityChanges.some((value) => value <= -85)) reasons.push("liquidity_collapse");
+
+  const shortVolumesKnown = volume5m !== null && volume1h !== null;
+  const shortTransactionsKnown = [buys5m, sells5m, buys1h, sells1h].every((value) => value !== null);
+  if (
+    shortVolumesKnown
+    && shortTransactionsKnown
+    && volume5m <= 0
+    && volume1h <= 0
+    && buys5m + sells5m + buys1h + sells1h <= 0
+  ) reasons.push("activity_gone");
+  if (
+    volume24h !== null
+    && buys24h !== null
+    && sells24h !== null
+    && volume24h < 50
+    && buys24h + sells24h <= 2
+  ) reasons.push("market_dormant");
+  if (liquidity !== null && liquidity < 250 && volume24h !== null && volume24h < 100) reasons.push("nonviable_market_depth");
+
+  return reasons.length
+    ? { state: "invalidated", reasons: [...new Set(reasons)] }
+    : { state: "active", reasons: [] };
+}
+
+function applyOpportunitySurvivalGate(census = {}) {
+  const reasonCounts = {};
+  let evaluated = 0;
+  let invalidated = 0;
+  const gateRows = (rows = []) => rows.filter((row) => {
+    const result = opportunitySurvivalState(row);
+    evaluated += 1;
+    if (result.state === "active") return true;
+    invalidated += 1;
+    result.reasons.forEach((reason) => { reasonCounts[reason] = Number(reasonCounts[reason] || 0) + 1; });
+    return false;
+  });
+  const opportunities = census.opportunities || {};
+  const spotAttention = census.spot_attention;
+  const opportunityRows = gateRows(Array.isArray(opportunities.rows) ? opportunities.rows : []);
+  const spotRows = spotAttention && Array.isArray(spotAttention.rows) ? gateRows(spotAttention.rows) : null;
+  return {
+    ...census,
+    opportunities: { ...opportunities, rows: opportunityRows },
+    ...(spotAttention ? {
+      spot_attention: {
+        ...spotAttention,
+        rows: spotRows || [],
+        row_count: spotRows?.length || 0,
+      },
+    } : {}),
+    survival_gate: {
+      schema_version: "ravenos.opportunity_survival_gate.v1",
+      state: "enforced",
+      evaluated,
+      active: evaluated - invalidated,
+      invalidated,
+      reasons: reasonCounts,
+      historical_context_substituted: false,
+    },
+  };
+}
+
+function opportunityObservationMs(row = {}) {
+  for (const value of [row.decision_at, row.observed_at]) {
+    const parsed = Date.parse(String(value || ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function recoverCurrentOpportunityLanes(census = {}, nowMs = Date.now()) {
+  const maxFutureSkewMs = 300_000;
+  const rowIsCurrent = (row) => {
+    const observedMs = opportunityObservationMs(row);
+    return Number.isFinite(observedMs)
+      && observedMs <= nowMs + maxFutureSkewMs
+      && nowMs - observedMs <= CURRENT_OPPORTUNITY_MAX_AGE_SECONDS * 1_000;
+  };
+  const perpRows = (Array.isArray(census?.opportunities?.rows) ? census.opportunities.rows : []).filter((row) => {
+    const instrument = String(row?.instrument || "").toUpperCase();
+    const instrumentId = String(row?.instrument_id || "").toLowerCase();
+    const contextAge = optionalFiniteNumber(row?.context_age_seconds);
+    return String(row?.market_type || "").toLowerCase() === "perpetual"
+      && /^hyperliquid:perp:[a-z0-9._-]{1,24}$/.test(instrumentId)
+      && /^[A-Z0-9._-]{1,24}-PERP$/.test(instrument)
+      && ["fresh", "current", "delayed"].includes(String(row?.context_state || "").toLowerCase())
+      && (contextAge === null || contextAge <= CURRENT_OPPORTUNITY_MAX_AGE_SECONDS)
+      && row?.research_only === true
+      && row?.actionable === false
+      && row?.execution_available === false
+      && rowIsCurrent(row);
+  });
+
+  const spot = census?.spot_attention;
+  const spotBoundary = spot?.execution_boundary || {};
+  const spotGeneratedMs = Date.parse(String(spot?.generated_at || ""));
+  const spotContractCurrent = spot?.schema_version === "ravenos.token_attention.v1"
+    && ["current", "delayed"].includes(String(spot?.state || "").toLowerCase())
+    && Number.isFinite(spotGeneratedMs)
+    && spotGeneratedMs <= nowMs + maxFutureSkewMs
+    && nowMs - spotGeneratedMs <= CURRENT_OPPORTUNITY_MAX_AGE_SECONDS * 1_000
+    && spotBoundary.research_only === true
+    && spotBoundary.actionable === false
+    && spotBoundary.signing_available === false
+    && spotBoundary.submission_available === false
+    && Number(spotBoundary.capital_assigned || 0) === 0;
+  const spotRows = (spotContractCurrent && Array.isArray(spot?.rows) ? spot.rows : []).filter((row) => (
+    row?.market_type === "spot"
+    && row?.chain === "Solana"
+    && ["exact_token", "exact_pool"].includes(row?.identity_scope)
+    && typeof row?.token_address === "string"
+    && row.token_address.length > 0
+    && row?.research_only === true
+    && row?.actionable === false
+    && row?.execution_available === false
+    && rowIsCurrent(row)
+  ));
+  if (!perpRows.length && !spotRows.length) return null;
+
+  const rowTimes = [...perpRows, ...spotRows]
+    .map(opportunityObservationMs)
+    .filter(Number.isFinite);
+  if (spotRows.length) rowTimes.push(spotGeneratedMs);
+  const generatedMs = Math.max(...rowTimes);
+  const rowStates = [
+    ...perpRows.map((row) => String(row.context_state || "").toLowerCase()),
+    ...(spotRows.length ? [String(spot.state || "").toLowerCase()] : []),
+  ];
+  const sourceState = rowStates.every((state) => ["fresh", "current"].includes(state)) ? "current" : "delayed";
+  return {
+    schema_version: CURRENT_OPPORTUNITY_DATA_SCHEMA,
+    generated_at: new Date(generatedMs).toISOString(),
+    source_state: sourceState,
+    source_age_seconds: Math.max(0, Math.floor((nowMs - generatedMs) / 1_000)),
+    contract: census.contract,
+    opportunities: {
+      ...census.opportunities,
+      rows: perpRows,
+    },
+    ...(spotRows.length ? {
+      spot_attention: {
+        ...spot,
+        rows: spotRows,
+        row_count: spotRows.length,
+      },
+    } : {}),
+    execution_boundary: census.execution_boundary,
+    public_safety: census.public_safety,
+    lane_freshness: {
+      schema_version: "ravenos.opportunity_lane_freshness.v1",
+      state: sourceState,
+      current_rows_only: true,
+      stale_aggregate_counts_included: false,
+      historical_context_substituted: false,
+    },
+  };
+}
+
 function validateCurrentOpportunityProjection(result, nowMs = Date.now()) {
   const payload = result?.payload;
   const delivery = result?.delivery;
   if (!result?.available || !payload?.data) {
     return { ok: false, reason: delivery?.reason || "current_opportunity_unavailable" };
   }
-  if (
-    delivery?.source !== "current_public_origin"
-    || delivery?.fallback === true
-    || delivery?.freshness_state !== "fresh"
-  ) {
+  if (delivery?.source !== "current_public_origin" || delivery?.fallback === true) {
     return { ok: false, reason: delivery?.reason || "current_opportunity_delivery_rejected" };
   }
   if (
@@ -4747,25 +4934,45 @@ function validateCurrentOpportunityProjection(result, nowMs = Date.now()) {
   const freshnessTargetSeconds = Number(payload.freshness_target_seconds);
   const generatedAt = String(payload.generated_at || "");
   const generatedMs = Date.parse(generatedAt);
-  if (
-    freshnessTargetSeconds !== CURRENT_OPPORTUNITY_MAX_AGE_SECONDS
-    || !Number.isFinite(generatedMs)
-    || generatedMs > nowMs + 300_000
-    || nowMs - generatedMs > CURRENT_OPPORTUNITY_MAX_AGE_SECONDS * 1_000
-  ) {
-    return { ok: false, reason: "current_opportunity_freshness_rejected" };
-  }
   const census = payload.data;
   if (
     census.schema_version !== CURRENT_OPPORTUNITY_DATA_SCHEMA
-    || census.source_state !== "current"
-    || String(census.generated_at || "") !== generatedAt
     || !census.opportunities
     || !Array.isArray(census.opportunities.rows)
   ) {
     return { ok: false, reason: "current_opportunity_schema_rejected" };
   }
-  return { ok: true, payload, census };
+  const fullyCurrent = delivery?.freshness_state === "fresh"
+    && freshnessTargetSeconds === CURRENT_OPPORTUNITY_MAX_AGE_SECONDS
+    && Number.isFinite(generatedMs)
+    && generatedMs <= nowMs + 300_000
+    && nowMs - generatedMs <= CURRENT_OPPORTUNITY_MAX_AGE_SECONDS * 1_000
+    && census.source_state === "current"
+    && String(census.generated_at || "") === generatedAt;
+  if (fullyCurrent) return { ok: true, payload, census, delivery, projection_scope: "full_current_census" };
+
+  const recoveredCensus = recoverCurrentOpportunityLanes(census, nowMs);
+  if (!recoveredCensus) return { ok: false, reason: "current_opportunity_freshness_rejected" };
+  const recoveredGeneratedMs = Date.parse(recoveredCensus.generated_at);
+  const recoveredDelivery = {
+    ...delivery,
+    source: "current_public_origin",
+    source_generated_at: recoveredCensus.generated_at,
+    age_seconds: Math.max(0, Math.floor((nowMs - recoveredGeneratedMs) / 1_000)),
+    freshness_target_seconds: CURRENT_OPPORTUNITY_MAX_AGE_SECONDS,
+    freshness_state: "fresh",
+    fallback: false,
+    reason: null,
+    projection_scope: "current_rows_only",
+    aggregate_freshness_state: delivery?.freshness_state || "unavailable",
+  };
+  return {
+    ok: true,
+    payload: { ...payload, generated_at: recoveredCensus.generated_at, data: recoveredCensus },
+    census: recoveredCensus,
+    delivery: recoveredDelivery,
+    projection_scope: "current_rows_only",
+  };
 }
 
 function currentOnlyContext(result) {
@@ -4810,7 +5017,7 @@ async function handleOpportunity(request, env) {
     readPublicProjection(env, request, "behavior"),
   ]);
   const currentProjection = validateCurrentOpportunityProjection(opportunitiesResult);
-  const delivery = opportunitiesResult.delivery;
+  const delivery = currentProjection.ok ? currentProjection.delivery : opportunitiesResult.delivery;
   if (!currentProjection.ok) {
     const unavailableDelivery = {
       ...delivery,
@@ -4841,7 +5048,8 @@ async function handleOpportunity(request, env) {
   const outcomesPayload = currentOnlyContext(outcomesResult);
   const behaviorPayload = currentOnlyContext(behaviorResult);
   const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
-  const rows = currentProjection.census.opportunities.rows;
+  const survivingCensus = applyOpportunitySurvivalGate(currentProjection.census);
+  const rows = survivingCensus.opportunities.rows;
   const requested = requestedOpportunityIdentity(request);
   const selected = selectOpportunityRow(rows, requested);
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
@@ -4855,9 +5063,10 @@ async function handleOpportunity(request, env) {
     generated_at: currentProjection.payload.generated_at,
     source_updated_at: currentProjection.payload.updated_at || null,
     source_artifact: currentProjection.payload.source_artifact,
+    projection_scope: currentProjection.projection_scope,
     evidence_contract_version: "1.0",
     claim_lineage_version: (claimsPayload?.data || {}).lineage_version || null,
-    census: currentProjection.census,
+    census: survivingCensus,
     current_claim_context: current,
     current_opportunity: selected,
     selected_opportunity: selected,

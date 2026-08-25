@@ -29,6 +29,7 @@ const state = {
   marketPreviewGeneration: 0,
   marketPreviewExpiryTimer: null,
   planOverlayEnabled: false,
+  chartRead: null,
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -258,6 +259,227 @@ function setComparableVisible(visible) {
 function setContextField(id, value, label = "") {
   if (label) setText(`${id}Label`, label, "");
   return setOptionalField(id, value);
+}
+
+const ALPHA_EMPTY_LANGUAGE = /\b(?:unknown|unavailable|insufficient|missing|not projected|checking|resolving)\b/i;
+
+function cleanAlphaCard(card = {}) {
+  const label = customerFacingText(card.label, "").trim();
+  const headline = customerFacingText(card.headline, "").trim();
+  const detail = customerFacingText(card.detail, "").trim();
+  const meta = customerFacingText(card.meta, "").trim();
+  if (!label || !headline || ALPHA_EMPTY_LANGUAGE.test(`${label} ${headline} ${detail} ${meta}`)) return null;
+  return {
+    id: String(card.id || `${label}:${headline}`).slice(0, 160),
+    label,
+    headline,
+    detail,
+    meta,
+    tone: ["positive", "negative", "warning", "neutral"].includes(card.tone) ? card.tone : "neutral",
+    action: card.action && card.action.label && card.action.type ? card.action : null,
+  };
+}
+
+function technicalAlphaCard(read = state.chartRead) {
+  if (
+    read?.schema_version !== "ravenos.chart_read.v1"
+    || read.state !== "available"
+    || read.evidence_scope !== "provider_candles_only"
+    || !["long", "short"].includes(read.direction)
+    || !(finite(read.facts?.close) > 0)
+    || !(finite(read.facts?.rsi) >= 0)
+  ) return null;
+  const direction = read.direction === "long" ? "↑" : "↓";
+  const facts = [`RSI ${finite(read.facts.rsi).toFixed(0)}`];
+  const volumeRatio = finite(read.facts.volume_ratio);
+  if (volumeRatio !== null) facts.push(`volume ${volumeRatio.toFixed(1)}× recent`);
+  const map = read.structure_map;
+  if (
+    finite(map?.entry_reference) > 0
+    && finite(map?.invalidation_reference) > 0
+    && finite(map?.favorable_reference) > 0
+  ) {
+    facts.push(`map ${formatPrice(map.entry_reference)} → ${formatPrice(map.favorable_reference)} · invalidates ${formatPrice(map.invalidation_reference)}`);
+  }
+  return cleanAlphaCard({
+    id: "technical-chart-read",
+    label: "Chart setup",
+    headline: `${read.setup === "breakout_confirmed" ? "Breakout confirmed" : "Trend aligned"} ${direction} · ${read.score}/${read.score_max}`,
+    detail: facts.join(" · "),
+    meta: `${read.timeframe} · provider-backed price action`,
+    tone: read.direction === "long" ? "positive" : "negative",
+  });
+}
+
+function ravenAlphaCard() {
+  if (state.lane === "perps") {
+    const payload = state.context || {};
+    const context = payload.raven_context || {};
+    const read = payload.raven_read || {};
+    const selectedId = state.selected?.instrument_id;
+    if (
+      context.context_available !== true
+      || !selectedId
+      || payload.instrument?.instrument_id !== selectedId
+      || context.instrument_id !== selectedId
+    ) return null;
+    return cleanAlphaCard({
+      id: "raven-current-read",
+      label: "Raven read",
+      headline: read.headline,
+      detail: read.why_raven_noticed || read.summary,
+      meta: `${titleCase(context.outcomes?.evidence_maturity, "Observed")} evidence${context.observed_at ? ` · ${timestamp(context.observed_at)}` : ""}`,
+      tone: context.observed_side === "short" ? "negative" : context.observed_side === "long" ? "positive" : "neutral",
+    });
+  }
+  if (state.lane === "spot") {
+    const context = state.context?.spot_context;
+    if (!state.context?.spot_identity_validated || context?.state !== "current") return null;
+    return cleanAlphaCard({
+      id: "raven-current-read",
+      label: "Raven read",
+      headline: `${state.selected?.symbol || context.symbol} · ${context.movement_state}`,
+      detail: context.what_changed,
+      meta: `${context.scope_label || "Exact evidence"}${context.observed_at ? ` · ${timestamp(context.observed_at)}` : ""}`,
+      tone: /rose|accelerat|expanded|increas/i.test(`${context.movement_state} ${context.what_changed}`)
+        ? "positive"
+        : /fell|decelerat|contract|decreas/i.test(`${context.movement_state} ${context.what_changed}`)
+          ? "negative"
+          : "neutral",
+    });
+  }
+  return cleanAlphaCard(state.context?.alpha_card || {});
+}
+
+function spotFlowAlphaCard() {
+  if (state.lane !== "spot" || !state.context?.spot_identity_validated) return null;
+  const anatomy = state.workspace?.state?.marketAnatomy || {};
+  const activity = anatomy.current_activity || {};
+  const holders = anatomy.holder_distribution || {};
+  const windows = [
+    ["5m", activity.buys_5m, activity.sells_5m, activity.traders_5m, holders.change_5m_pct],
+    ["1h", activity.buys_1h, activity.sells_1h, activity.traders_1h, holders.change_1h_pct],
+    ["24h", activity.buys_24h ?? anatomy.buys_24h, activity.sells_24h ?? anatomy.sells_24h, activity.traders_24h, holders.change_24h_pct],
+  ];
+  const selected = windows.find(([, buysValue, sellsValue, tradersValue]) => {
+    const buys = finite(buysValue);
+    const sells = finite(sellsValue);
+    const traders = finite(tradersValue);
+    return buys !== null && sells !== null && buys + sells >= 20 && (traders === null || traders >= 10);
+  });
+  if (!selected) return null;
+  const [window, buysValue, sellsValue, tradersValue, holderChangeValue] = selected;
+  const buys = finite(buysValue);
+  const sells = finite(sellsValue);
+  const traders = finite(tradersValue);
+  const holderChange = finite(holderChangeValue);
+  const buyRatio = buys / Math.max(1, sells);
+  const sellRatio = sells / Math.max(1, buys);
+  const accumulation = buyRatio >= 1.5 && holderChange !== null && holderChange > 0;
+  const distribution = sellRatio >= 1.5 && holderChange !== null && holderChange < 0;
+  if (!accumulation && !distribution && buyRatio < 1.75 && sellRatio < 1.75) return null;
+  const buySide = accumulation || (!distribution && buyRatio >= sellRatio);
+  const ratio = buySide ? buyRatio : sellRatio;
+  const holderLabel = holderChange === null ? "" : ` · holders ${percent(holderChange)}`;
+  return cleanAlphaCard({
+    id: "exact-flow-read",
+    label: accumulation ? "Accumulation" : distribution ? "Distribution" : buySide ? "Buy pressure" : "Sell pressure",
+    headline: `${buySide ? "Buy" : "Sell"} count ${ratio.toFixed(1)}× opposing flow${holderLabel}`,
+    detail: `${compact(buys)} buys · ${compact(sells)} sells${traders === null ? "" : ` · ${compact(traders)} traders`} over ${window}`,
+    meta: holderChange === null ? "Exact-pool activity" : "Exact-pool activity + exact-token holder change",
+    tone: buySide ? "positive" : "negative",
+  });
+}
+
+function planAlphaCard() {
+  const validated = planPreviewData(state.context?.plan_preview || {});
+  if (!validated) return null;
+  const { plan, levels, sample } = validated;
+  return cleanAlphaCard({
+    id: "evidence-plan",
+    label: "Trade path",
+    headline: `${titleCase(plan.direction)} · ${percent(levels.target_reference.excursion_pct)} favorable / ${percent(levels.risk_reference.excursion_pct)} adverse`,
+    detail: `${formatPrice(levels.entry_reference.price)} decision · ${formatPrice(levels.target_reference.price)} favorable · ${formatPrice(levels.risk_reference.price)} invalidation`,
+    meta: `${sample.toLocaleString()} completed paths · research only`,
+    tone: plan.direction === "short" ? "negative" : "positive",
+    action: { type: "show-plan", label: state.planOverlayEnabled ? "Plan shown on chart" : "Show plan on chart" },
+  });
+}
+
+function projectedAlphaCards() {
+  const workspace = state.workspace?.state || {};
+  const contract = workspace.alphaLayers || workspace.marketAnatomy?.alpha_layers;
+  if (
+    contract?.schema_version !== "ravenos.alpha_layers.v1"
+    || contract.role !== "evidence_only"
+    || contract.instrument_id !== workspace.instrument?.canonical_id
+    || !Array.isArray(contract.layers)
+  ) return [];
+  return contract.layers
+    .filter((layer) => layer?.state === "available" && finite(layer.evidence_count) >= 1)
+    .filter((layer) => layer.kind !== "actor_activity" || (layer.privacy?.addresses_removed === true && layer.independence_adjusted === true))
+    .map((layer) => cleanAlphaCard({
+      id: `projected:${layer.id}`,
+      label: layer.label,
+      headline: layer.headline,
+      detail: layer.detail,
+      meta: layer.evidence_label,
+      tone: layer.tone,
+    }))
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function renderAlphaStack() {
+  const section = document.getElementById("terminalAlphaSection");
+  const host = document.getElementById("terminalAlphaStack");
+  if (!section || !host) return 0;
+  const cards = [
+    ravenAlphaCard(),
+    spotFlowAlphaCard(),
+    technicalAlphaCard(),
+    planAlphaCard(),
+    ...projectedAlphaCards(),
+  ].filter(Boolean).filter((card, index, rows) => rows.findIndex((candidate) => candidate.id === card.id) === index).slice(0, 5);
+  host.replaceChildren();
+  section.hidden = cards.length === 0;
+  for (const card of cards) {
+    const node = document.createElement("article");
+    node.className = "terminal-alpha-card";
+    node.dataset.tone = card.tone;
+    const label = document.createElement("span");
+    label.textContent = card.label;
+    const headline = document.createElement("strong");
+    headline.textContent = card.headline;
+    node.append(label, headline);
+    if (card.detail) {
+      const detail = document.createElement("p");
+      detail.textContent = card.detail;
+      node.append(detail);
+    }
+    if (card.meta) {
+      const meta = document.createElement("small");
+      meta.textContent = card.meta;
+      node.append(meta);
+    }
+    if (card.action) {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.textContent = card.action.label;
+      action.disabled = card.action.type === "show-plan" && state.planOverlayEnabled;
+      action.addEventListener("click", () => {
+        if (card.action.type !== "show-plan") return;
+        const toggle = document.getElementById("terminalPlanToggle");
+        if (!toggle || toggle.checked) return;
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event("change", { bubbles: true }));
+        renderAlphaStack();
+      });
+      node.append(action);
+    }
+    host.append(node);
+  }
+  return cards.length;
 }
 
 function clearExternalChart() {
@@ -962,7 +1184,7 @@ function resetPlanPreview() {
   setText("terminalPlanEvidence", "");
 }
 
-function renderPlanPreview(plan = {}) {
+function planPreviewData(plan = {}) {
   const levels = plan?.levels;
   const sample = Math.max(0, Math.trunc(finite(plan?.sample_size) || 0));
   if (
@@ -976,10 +1198,17 @@ function renderPlanPreview(plan = {}) {
     || !(finite(levels.target_reference?.price) > 0)
     || !(finite(levels.risk_reference?.price) > 0)
     || sample <= 0
-  ) {
+  ) return null;
+  return { plan, levels, sample };
+}
+
+function renderPlanPreview(plan = {}) {
+  const validated = planPreviewData(plan);
+  if (!validated) {
     resetPlanPreview();
     return false;
   }
+  const { levels, sample } = validated;
   const section = document.getElementById("terminalPlanSection");
   if (section) section.hidden = false;
   setText("terminalPlanState", `${titleCase(plan.direction)} · research only`);
@@ -1003,6 +1232,7 @@ function setContextUnavailable() {
   setText("terminalEvidenceState", "");
   resetComparableEvidence();
   resetPlanPreview();
+  renderAlphaStack();
 }
 
 function setContextChecking({ identity } = {}) {
@@ -1011,6 +1241,7 @@ function setContextChecking({ identity } = {}) {
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", identity || "");
   resetComparableEvidence();
+  renderAlphaStack();
 }
 
 function contextChartEvent(payload) {
@@ -1118,6 +1349,7 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
     freshnessLabel: "Raven read",
     observedAt: context.observed_at || payload?.market_data?.generated_at || null,
   }, { updateUrl });
+  renderAlphaStack();
 }
 
 function sameSelectedAddress(chain, left, right) {
@@ -1180,6 +1412,8 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
       observed_at: context.observed_at,
       evidence_scope: context.evidence_scope,
     },
+    spot_context: context,
+    spot_identity_validated: true,
   };
   setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
   setWhyLabel("Why Raven noticed this");
@@ -1213,6 +1447,7 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
     freshnessLabel: workspace?.operatorStateLabel || "Raven read",
     observedAt: context.observed_at,
   }, { updateUrl });
+  renderAlphaStack();
   return true;
 }
 
@@ -1852,9 +2087,25 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     const atlasFreshness = state.atlas?.freshness?.state || "delayed";
     setText("terminalEvidenceState", `${atlasFreshness === "fresh" ? "Current" : titleCase(atlasFreshness)}${state.atlas?.generated_at ? ` · ${timestamp(state.atlas.generated_at)}` : ""}`);
     setState("terminalContextFreshness", atlasFreshness, atlasFreshness === "fresh" ? "Current" : titleCase(atlasFreshness));
+    state.context = {
+      ...state.context,
+      alpha_card: {
+        id: "atlas-current-read",
+        label: "Atlas context",
+        headline: `${subject.symbol} · ${equity || "Cross-market"}`,
+        detail: summary,
+        meta: `${alignment || "Cross-market"} alignment${state.atlas?.generated_at ? ` · ${timestamp(state.atlas.generated_at)}` : ""}`,
+        tone: /risk on|bull|positive|broad/i.test(`${equity} ${breadth} ${alignment}`)
+          ? "positive"
+          : /risk off|bear|negative|narrow/i.test(`${equity} ${breadth} ${alignment}`)
+            ? "negative"
+            : "neutral",
+      },
+    };
   } else {
     setContextUnavailable();
   }
+  renderAlphaStack();
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const chartState = await state.workspace.load({
@@ -2143,6 +2394,7 @@ function renderWorkspaceState(workspace = {}) {
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);
   renderTradeConsequences();
+  renderAlphaStack();
   const boundary = document.getElementById("terminalBoundary");
   if (!boundary) return;
   const connection = String(workspace?.connectionState || "").toLowerCase();
@@ -2199,6 +2451,10 @@ async function boot() {
       document.getElementById("timeframeSelect").dispatchEvent(new Event("change", { bubbles: true }));
     },
     onMarkerSelect: (marker) => renderMarkerDetail(marker),
+    onChartReadChange: (read) => {
+      state.chartRead = read;
+      renderAlphaStack();
+    },
   });
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   bindControls();
