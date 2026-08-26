@@ -35,6 +35,14 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   ]) {
     assert(security.blocked_capabilities.includes(capability));
   }
+  assert.equal(security.portfolio_preview.implementation_status, "feature_flagged_read_only_beta");
+  assert.equal(security.portfolio_preview.authenticated_origin_only, true);
+  assert.equal(security.portfolio_preview.raw_address_input_allowed, false);
+  assert.equal(security.portfolio_preview.durable_wallet_link_active, false);
+  assert.equal(security.portfolio_preview.portfolio_history_persisted, false);
+  assert.equal(security.portfolio_preview.maximum_provider_calls_per_analysis, 8);
+  assert.equal(security.portfolio_preview.signing_available, false);
+  assert.equal(security.portfolio_preview.submission_available, false);
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -187,7 +195,7 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(api.headers.get("permissions-policy") || "", /camera=\(\)/);
 });
 
-test("the authenticated hostname exposes only account assets and account/session APIs", async () => {
+test("the authenticated hostname exposes only account assets, identity APIs, and the fail-closed portfolio preview", async () => {
   const accountHtml = readFileSync("account/index.html", "utf8");
   const env = {
     ASSETS: {
@@ -213,6 +221,12 @@ test("the authenticated hostname exposes only account assets and account/session
   const asset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-account.js"), env);
   assert.equal(asset.status, 200);
 
+  const preview = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/portfolio/preview"), env);
+  assert.equal(preview.status, 503);
+  const previewText = await preview.text();
+  assert.equal(JSON.parse(previewText).error, "account_activation_pending");
+  assert(!previewText.includes("must-not-echo"));
+
   const terminal = await worker.fetch(new Request("https://app.ravenos.xyz/terminal/?code=must-not-cross-origins"), env);
   assert.equal(terminal.status, 308);
   assert.equal(terminal.headers.get("location"), "https://ravenos.xyz/terminal/");
@@ -226,6 +240,21 @@ test("the authenticated hostname exposes only account assets and account/session
   assert.equal(unknown.status, 404);
   assert.equal(unknown.headers.get("location"), null);
   assert.equal(await unknown.text(), "Not found");
+});
+
+test("Portfolio Governor account UI accepts only an opaque selection and preserves read-only boundaries", () => {
+  const html = readFileSync("account/index.html", "utf8");
+  const client = readFileSync("ravenos-account.js", "utf8");
+  assert(html.includes("Portfolio Governor preview"));
+  assert(html.includes('id="accountGovernorWallet"'));
+  assert(!html.match(/<input[^>]+(?:wallet|address)/i));
+  assert(client.includes('JSON.stringify({ wallet_reference: walletReference })'));
+  assert(!client.includes("localStorage"));
+  assert(!client.includes("sessionStorage"));
+  assert(!client.includes("innerHTML"));
+  assert(client.includes("boundaries.customer_assets_can_move !== false"));
+  assert(client.includes("boundaries.transaction_material_created !== false"));
+  assert(client.includes("No portfolio policy configured"));
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {

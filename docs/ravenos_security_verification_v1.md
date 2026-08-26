@@ -62,11 +62,12 @@ References must use the versioned form such as `v5.0.0-V7.2.4` in audit reports.
 | Production customer authentication | `verified_current` | production AuthKit tenant, exact callback, Google OAuth, email authentication, encrypted Worker bindings, and release verification |
 | Authenticated-origin strict CSP | `verified_current` | isolated `app.ravenos.xyz` boundary, account browser tests, and release-preview header verification |
 | Server session and CSRF | `verified_current` | opaque session, expiry, rotation, revocation, ownership, CSRF, D1 persistence, and browser tests |
+| Authenticated read-only Portfolio preview | `verified_current` in code and authorized live harness; activation feature-gated | exact authenticated origin, opaque account-bound wallet selection, CSRF, D1 rate limits, bounded providers, address-free DTO/telemetry, conservation refusal, and no persistence/signing/submission in `tests/portfolio_governor_preview.test.mjs` |
 | Hosted recovery enumeration timing | `external_review_required` | RavenOS failures are generic; managed-provider recovery timing remains an external provider-path review |
 | Managed edge-rule review | `external_review_required` | keyed application rate limits are active; an independent Cloudflare rule audit remains defense in depth |
 | Wallet linking | `required_not_implemented` | deliberately absent |
 | Billing and entitlements | `required_not_implemented` | legacy routes quarantined; replacement absent |
-| Persistent customer Portfolio | `required_not_implemented` | deliberately absent |
+| Persistent customer Portfolio | `required_not_implemented` | read-only preview is transient; snapshot history, durable wallet linking, retention, and deletion remain deliberately absent |
 | Transaction authorization | `required_not_implemented` | design only |
 
 This table is not an ASVS certification.

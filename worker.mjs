@@ -83,6 +83,10 @@ import {
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
+import {
+  PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
+  routePortfolioGovernorPreview,
+} from "./lib/portfolio_governor/preview.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -129,9 +133,10 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/auth/logout"
     || url.pathname === "/api/v1/sessions"
     || url.pathname.startsWith("/api/v1/sessions/");
+  const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE;
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && accountPath) || identityApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && accountPath) || identityApi || portfolioPreviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -6136,6 +6141,8 @@ async function routeApi(request, env) {
   const url = new URL(request.url);
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
+  if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
   if (url.pathname === "/api/status" && request.method === "GET") return handleStatus(request, env);
   if (url.pathname === "/api/brief" && request.method === "GET") {

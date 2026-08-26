@@ -5,7 +5,12 @@ const actions = document.getElementById("accountAuthActions");
 const activation = document.getElementById("accountActivation");
 const serviceState = document.getElementById("accountServiceState");
 const authStatus = document.getElementById("accountAuthStatus");
-const state = { config: null, session: null, csrf: "", intent: "sign_up" };
+const governorPanel = document.getElementById("accountGovernorPanel");
+const governorControls = document.getElementById("accountGovernorControls");
+const governorWallet = document.getElementById("accountGovernorWallet");
+const governorAnalyze = document.getElementById("accountGovernorAnalyze");
+const governorResults = document.getElementById("accountGovernorResults");
+const state = { config: null, session: null, csrf: "", intent: "sign_up", previewWallets: [] };
 
 async function getJson(url, init = {}) {
   const { headers = {}, ...rest } = init;
@@ -22,6 +27,353 @@ function formatSeen(value) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "Active session";
   return `Active ${new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(parsed)}`;
+}
+
+function formatTimestamp(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "Unavailable";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(parsed);
+}
+
+function formatUsdMinor(value) {
+  const raw = String(value ?? "");
+  if (!/^-?\d+$/.test(raw)) return "Unavailable";
+  const amount = BigInt(raw);
+  const negative = amount < 0n;
+  const absolute = negative ? -amount : amount;
+  const whole = absolute / 1_000_000n;
+  const cents = (absolute % 1_000_000n) / 10_000n;
+  return `${negative ? "−" : ""}$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
+}
+
+function formatAmount(value, decimals) {
+  const raw = String(value ?? "");
+  const places = Number(decimals);
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(places) || places < 0 || places > 30) return "Amount unavailable";
+  const padded = raw.padStart(places + 1, "0");
+  const whole = places ? padded.slice(0, -places) : padded;
+  const fraction = places ? padded.slice(-places).slice(0, 6).replace(/0+$/, "") : "";
+  return `${BigInt(whole).toLocaleString("en-US")}${fraction ? `.${fraction}` : ""}`;
+}
+
+function formatBps(value) {
+  const bps = Number(value);
+  if (!Number.isFinite(bps)) return "Share unavailable";
+  return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
+}
+
+function readableState(value) {
+  return String(value || "unknown").replaceAll("_", " ");
+}
+
+function setText(id, value) {
+  const node = document.getElementById(id);
+  if (node) node.textContent = value;
+}
+
+function governorChip(label, tone = "neutral") {
+  const chip = document.createElement("span");
+  chip.className = "account-governor-chip";
+  chip.dataset.tone = tone;
+  chip.textContent = readableState(label);
+  return chip;
+}
+
+function governorEmpty(message, tone = "neutral") {
+  const row = document.createElement("p");
+  row.className = "account-governor-empty";
+  row.dataset.tone = tone;
+  row.textContent = message;
+  return row;
+}
+
+function governorMetric(label, value, stateLabel) {
+  const card = document.createElement("article");
+  const key = document.createElement("span");
+  const amount = document.createElement("strong");
+  const status = document.createElement("small");
+  key.textContent = label;
+  amount.textContent = value;
+  status.textContent = readableState(stateLabel);
+  card.append(key, amount, status);
+  return card;
+}
+
+function governorRow({ title, detail, values = [], states = [] }) {
+  const row = document.createElement("article");
+  row.className = "account-governor-row";
+  const identity = document.createElement("div");
+  const name = document.createElement("strong");
+  const description = document.createElement("span");
+  name.textContent = title;
+  description.textContent = detail;
+  identity.append(name, description);
+  row.append(identity);
+  for (const entry of values) {
+    const value = document.createElement("div");
+    const label = document.createElement("span");
+    const amount = document.createElement("strong");
+    label.textContent = entry.label;
+    amount.textContent = entry.value;
+    value.append(label, amount);
+    row.append(value);
+  }
+  const status = document.createElement("div");
+  status.className = "account-governor-row-state";
+  const renderedStates = states.length ? states : ["resolved"];
+  for (const entry of renderedStates.slice(0, 4)) {
+    const normalized = String(entry || "unknown");
+    const tone = /unresolved|unavailable|unsupported|failed|violation/.test(normalized)
+      ? "attention"
+      : /stale|partial|unknown|indeterminate|unrouteable/.test(normalized) ? "warning" : "positive";
+    status.append(governorChip(normalized, tone));
+  }
+  row.append(status);
+  return row;
+}
+
+function renderGovernorSummary(summary = {}) {
+  const container = document.getElementById("accountGovernorSummary");
+  container.replaceChildren(
+    governorMetric("Marked value", formatUsdMinor(summary.marked_portfolio_value_minor), summary.marked_value_state),
+    governorMetric("Executable value", formatUsdMinor(summary.executable_value_minor), summary.executable_value_state),
+    governorMetric("Net equity", formatUsdMinor(summary.net_equity_minor), summary.net_equity_state),
+    governorMetric("Gross exposure", formatUsdMinor(summary.gross_exposure_minor), "calculated"),
+    governorMetric("Liabilities", formatUsdMinor(summary.liabilities_minor), summary.liability_value_state),
+    governorMetric("Unresolved value", formatUsdMinor(summary.unresolved_value_minor), summary.unresolved_unknown_value_count ? "plus unknown value" : "measured"),
+  );
+}
+
+function renderGovernorHoldings(holdings = {}) {
+  const container = document.getElementById("accountGovernorHoldings");
+  const rows = Array.isArray(holdings.rows) ? holdings.rows : [];
+  setText("accountGovernorHoldingCount", `${holdings.returned_position_count || 0} shown`);
+  if (!rows.length) return container.replaceChildren(governorEmpty("No material visible positions were returned."));
+  container.replaceChildren(...rows.map((row) => {
+    const instrument = row.instrument || {};
+    const title = instrument.symbol || instrument.label || "Unresolved instrument";
+    const protocol = row.protocol ? ` · ${row.protocol}` : "";
+    const states = [row.resolution_state, row.marked_value_state, row.executable_value_state, ...(row.evidence_state || [])];
+    return governorRow({
+      title,
+      detail: `${formatAmount(row.amount_base_units, row.decimals)}${protocol}`,
+      values: [
+        { label: "Marked", value: formatUsdMinor(row.marked_value_minor ?? row.liability_value_minor) },
+        { label: "Executable", value: formatUsdMinor(row.executable_value_minor) },
+      ],
+      states: [...new Set(states.filter(Boolean))],
+    });
+  }));
+}
+
+function exposureTitle(identity) {
+  return String(identity || "Unresolved exposure").replace(/^solana:/, "").replaceAll("_", " ");
+}
+
+function renderGovernorExposure(exposure = {}) {
+  const container = document.getElementById("accountGovernorExposure");
+  const rows = Array.isArray(exposure.assets) ? exposure.assets : [];
+  if (!rows.length) return container.replaceChildren(governorEmpty("No asset exposure could be resolved."));
+  container.replaceChildren(...rows.map((row) => governorRow({
+    title: exposureTitle(row.identity),
+    detail: `${row.contributing_instruments?.length || 0} contributing instrument${row.contributing_instruments?.length === 1 ? "" : "s"}`,
+    values: [
+      { label: "Exposure", value: formatUsdMinor(row.marked_value_minor) },
+      { label: "Portfolio share", value: formatBps(row.allocation_bps) },
+    ],
+    states: row.resolution_states || [],
+  })));
+}
+
+function renderGovernorDependencies(payload = {}) {
+  const container = document.getElementById("accountGovernorDependencies");
+  const rows = [
+    ...(payload.protocol_exposure || []).map((row) => ({ ...row, dimension: "Protocol" })),
+    ...(payload.stablecoin_exposure?.issuers || []).map((row) => ({ ...row, dimension: "Stablecoin issuer" })),
+    ...(payload.stablecoin_exposure?.dependencies || []).map((row) => ({ ...row, dimension: "Stablecoin dependency" })),
+  ];
+  if (!rows.length) return container.replaceChildren(governorEmpty("No protocol or stablecoin dependency exposure was resolved."));
+  container.replaceChildren(...rows.map((row) => governorRow({
+    title: exposureTitle(row.identity),
+    detail: `${row.dimension} · ${row.contributing_instruments?.length || 0} position${row.contributing_instruments?.length === 1 ? "" : "s"}`,
+    values: [
+      { label: "Exposure", value: formatUsdMinor(row.marked_value_minor) },
+      { label: "Portfolio share", value: formatBps(row.allocation_bps) },
+    ],
+    states: row.resolution_states || [],
+  })));
+}
+
+function renderGovernorUnresolved(section = {}) {
+  const container = document.getElementById("accountGovernorUnresolved");
+  const rows = Array.isArray(section.positions) ? section.positions : [];
+  const unsupported = Array.isArray(section.unsupported_capabilities) ? section.unsupported_capabilities : [];
+  setText("accountGovernorUnresolvedCount", `${rows.length} position${rows.length === 1 ? "" : "s"}`);
+  const nodes = rows.map((row) => governorRow({
+    title: row.instrument?.symbol || row.instrument?.label || "Unresolved instrument",
+    detail: `${formatAmount(row.amount_base_units, row.decimals)} · evidence remains incomplete`,
+    values: [
+      { label: "Marked", value: formatUsdMinor(row.marked_value_minor ?? row.liability_value_minor) },
+      { label: "Executable", value: formatUsdMinor(row.executable_value_minor) },
+    ],
+    states: [...new Set([row.resolution_state, ...(row.evidence_state || [])].filter(Boolean))],
+  }));
+  for (const capability of unsupported) nodes.push(governorEmpty(`Unsupported: ${readableState(capability)}`, "warning"));
+  if (!nodes.length) nodes.push(governorEmpty("No material unresolved position was returned for this observation.", "positive"));
+  container.replaceChildren(...nodes);
+}
+
+function renderGovernorPolicy(policy = {}) {
+  const container = document.getElementById("accountGovernorPolicy");
+  setText("accountGovernorPolicyState", readableState(policy.state || "not configured"));
+  if (policy.state === "not_configured") {
+    return container.replaceChildren(governorEmpty("No portfolio policy configured. Raven has not inferred targets or a compliant state."));
+  }
+  const findings = Array.isArray(policy.findings) ? policy.findings : [];
+  if (!findings.length) return container.replaceChildren(governorEmpty("This user-authored policy contains no evaluable rules."));
+  container.replaceChildren(...findings.map((finding) => {
+    const range = [
+      finding.configured_minimum_bps === null ? null : `minimum ${formatBps(finding.configured_minimum_bps)}`,
+      finding.configured_maximum_bps === null ? null : `maximum ${formatBps(finding.configured_maximum_bps)}`,
+    ].filter(Boolean).join(" · ");
+    return governorRow({
+      title: exposureTitle(finding.scope_id),
+      detail: `${readableState(finding.rule_kind)}${range ? ` · Your configured ${range}` : ""}`,
+      values: [
+        { label: "Possible minimum", value: formatBps(finding.possible_minimum_bps) },
+        { label: "Possible maximum", value: formatBps(finding.possible_maximum_bps) },
+      ],
+      states: [finding.state, ...(finding.reason_codes || [])],
+    });
+  }));
+}
+
+function renderGovernorEvidence(payload = {}) {
+  const freshness = payload.freshness || {};
+  const diagnostics = payload.diagnostics || {};
+  const calls = diagnostics.provider_call_counts || {};
+  const exposureRowsTruncated = Object.values(diagnostics.exposure_rows || {}).some((row) => row?.truncated === true);
+  const evidence = document.getElementById("accountGovernorEvidence");
+  const facts = [
+    `Observed ${formatTimestamp(freshness.observed_at)}`,
+    `Priced ${formatTimestamp(freshness.priced_at)}`,
+    `Exit values ${formatTimestamp(freshness.quoted_at)}`,
+    `${diagnostics.resolved_position_count || 0}/${diagnostics.observed_position_count || 0} positions resolved`,
+    `${calls.total || 0}/${diagnostics.provider_call_cap || 0} provider calls`,
+    `${diagnostics.latency_ms?.total || 0} ms`,
+    diagnostics.conservation?.passed ? "Conservation passed" : "Conservation unavailable",
+    ...(payload.holdings?.truncated === true || exposureRowsTruncated ? ["Display rows limited; totals preserved"] : []),
+    "Not persisted",
+  ];
+  evidence.replaceChildren(...facts.map((fact) => governorChip(fact, fact === "Conservation passed" ? "positive" : "neutral")));
+}
+
+function renderGovernorPreview(payload) {
+  const boundaries = payload?.boundaries || {};
+  if (boundaries.read_only !== true || boundaries.customer_assets_can_move !== false || boundaries.transaction_material_created !== false || boundaries.signing_requested !== false) {
+    throw new Error("portfolio_preview_boundary_invalid");
+  }
+  if (payload?.provenance?.raw_wallet_address_in_records !== false) throw new Error("portfolio_preview_privacy_boundary_invalid");
+  renderGovernorSummary(payload.summary);
+  renderGovernorHoldings(payload.holdings);
+  renderGovernorExposure(payload.economic_exposure);
+  renderGovernorDependencies(payload);
+  renderGovernorUnresolved(payload.unresolved_and_unsupported);
+  renderGovernorPolicy(payload.policy);
+  renderGovernorEvidence(payload);
+  governorPanel.dataset.previewState = payload.state || "partial";
+  setText("accountGovernorState", readableState(payload.state || "partial"));
+  setText("accountGovernorStatus", payload.state === "complete"
+    ? "Current observation completed. Marked and executable values remain separately labeled."
+    : "Partial observation returned. Unavailable, unresolved, stale, and unrouteable evidence remains explicit below.");
+  governorResults.hidden = false;
+}
+
+function previewFailureMessage(response, payload) {
+  if (response.status === 429) return "Preview limit reached. Wait for the displayed retry window before analyzing again.";
+  if (payload?.state === "invariant_failed") return "Raven refused this result because an accounting conservation check failed.";
+  if (payload?.error === "portfolio_preview_timeout") return "The live observation exceeded its bounded time budget. No partial portfolio was presented as complete.";
+  return "The live portfolio observation is unavailable. No portfolio state was inferred from incomplete evidence.";
+}
+
+async function analyzePortfolioPreview() {
+  const walletReference = governorWallet.value;
+  if (!state.csrf || !state.previewWallets.some((wallet) => wallet.wallet_reference === walletReference)) return;
+  governorAnalyze.disabled = true;
+  governorResults.hidden = true;
+  governorPanel.dataset.previewState = "loading";
+  setText("accountGovernorState", "Observing");
+  setText("accountGovernorStatus", "Observing balances, resolving economic exposure, and probing only material executable exits…");
+  try {
+    const { response, payload } = await getJson("/api/v1/portfolio/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+      body: JSON.stringify({ wallet_reference: walletReference }),
+    });
+    if (!response.ok || !payload?.ok) {
+      governorPanel.dataset.previewState = payload?.state || "unavailable";
+      setText("accountGovernorState", readableState(payload?.state || "unavailable"));
+      setText("accountGovernorStatus", previewFailureMessage(response, payload));
+      return;
+    }
+    renderGovernorPreview(payload);
+  } catch {
+    governorPanel.dataset.previewState = "unavailable";
+    setText("accountGovernorState", "Unavailable");
+    setText("accountGovernorStatus", "The preview response could not be safely rendered. No portfolio result was accepted.");
+  } finally {
+    governorAnalyze.disabled = false;
+  }
+}
+
+async function loadPortfolioPreviewCapability() {
+  try {
+    const { response, payload } = await getJson("/api/v1/portfolio/preview");
+    if (!response.ok || !payload?.ok) {
+      governorPanel.dataset.previewState = payload?.state || "not_configured";
+      setText("accountGovernorState", "Not available");
+      setText("accountPortfolioAnalysisState", "Not available");
+      setText("accountGovernorStatus", "No read-only beta wallet is authorized for this account yet. Arbitrary wallet lookup is disabled.");
+      governorControls.hidden = true;
+      return;
+    }
+    state.previewWallets = Array.isArray(payload.wallets) ? payload.wallets : [];
+    if (!state.previewWallets.length) {
+      governorPanel.dataset.previewState = "no_authorized_wallet";
+      setText("accountGovernorState", "No authorized wallet");
+      setText("accountPortfolioAnalysisState", "Not authorized");
+      setText("accountGovernorStatus", "No read-only beta wallet is authorized for this account. Wallet addresses cannot be entered manually here.");
+      governorControls.hidden = true;
+      return;
+    }
+    governorWallet.replaceChildren(...state.previewWallets.map((wallet) => {
+      const option = document.createElement("option");
+      option.value = wallet.wallet_reference;
+      option.textContent = `${wallet.label} · Solana`;
+      return option;
+    }));
+    governorControls.hidden = false;
+    governorPanel.dataset.previewState = "available";
+    setText("accountGovernorState", "Ready");
+    setText("accountPortfolioAnalysisState", "Read only");
+    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only beta wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
+    setText("accountWalletConnectionDetail", "This account may select these server-authorized wallets for observation. This beta authorization is not a durable wallet link or transaction permission.");
+    setText("accountWalletConnectionState", "Observation only");
+    setText("accountWalletOwnershipState", "Not proven");
+    setText("accountGovernorStatus", "Select an authorized wallet and request a current observation. No address, policy target, transaction, or portfolio history is created by the browser.");
+  } catch {
+    governorPanel.dataset.previewState = "unavailable";
+    setText("accountGovernorState", "Unavailable");
+    setText("accountPortfolioAnalysisState", "Unavailable");
+    setText("accountGovernorStatus", "The read-only preview capability could not be checked.");
+    governorControls.hidden = true;
+  }
 }
 
 function setIntent(intent) {
@@ -87,6 +439,7 @@ function renderAuthenticated(payload) {
   document.getElementById("accountProfileMark").textContent = initial(name);
   window.dispatchEvent(new CustomEvent("ravenos:accountstate", { detail: { authenticated: true, display_name: name } }));
   loadSessions();
+  loadPortfolioPreviewCapability();
 }
 
 async function revokeSession(sessionPublicId) {
@@ -161,6 +514,7 @@ async function initialize() {
   if (requestedIntent === "sign_in") state.intent = "sign_in";
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
+  governorAnalyze.addEventListener("click", analyzePortfolioPreview);
   bindAuthForms();
   setIntent(state.intent);
 
@@ -189,6 +543,9 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
   schemaVersion: "ravenos.account_surface.v1",
   walletConnectionIsAuthentication: false,
   walletLinkingAvailable: false,
+  portfolioPreviewReadOnly: true,
+  arbitraryPortfolioAddressInput: false,
+  portfolioHistoryPersisted: false,
   signingAvailable: false,
   submissionAvailable: false,
 });

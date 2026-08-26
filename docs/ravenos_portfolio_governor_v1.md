@@ -1,17 +1,21 @@
 # RavenOS Portfolio Governor v1
 
-Status: Phase 1 read-only Solana exposure engine and Phase 2 read-only deterministic policy monitor are implemented as pure domain modules. No customer persistence, public API, rebalance construction, wallet signing, or execution route is enabled.
+Status: Phase 1 read-only Solana exposure, Phase 2 deterministic policy monitoring, and an authenticated read-only beta preview are implemented. The preview is off unless an account-bound beta wallet registry is explicitly configured. No customer portfolio history, durable wallet link, policy persistence, rebalance construction, wallet signing, or execution route is enabled.
 
 Implementation:
 
 - `lib/portfolio_governor/domain.mjs`
 - `lib/portfolio_governor/solana_exposure.mjs`
+- `lib/portfolio_governor/solana_preview_provider.mjs`
+- `lib/portfolio_governor/preview.mjs`
+- `scripts/validate-portfolio-governor-live.mjs`
 
 Tests:
 
 - `tests/portfolio_governor_authority.test.mjs`
 - `tests/portfolio_governor_solana_exposure.test.mjs`
 - `tests/portfolio_governor_policy_monitor.test.mjs`
+- `tests/portfolio_governor_preview.test.mjs`
 
 ## Invariant
 
@@ -208,6 +212,67 @@ An absent rule creates no test and no violation. An empty policy is vacuously co
 - an absent customer profit-routing rule cannot inherit Raven internal treasury percentages;
 - no balance mutation or live asset routing occurs.
 
+## Authenticated read-only beta preview
+
+The preview route is `GET|POST /api/v1/portfolio/preview` on the isolated authenticated origin. It reuses the existing RavenOS account session, canonical-origin, CSRF, D1 rate-limit, Solana RPC, Jupiter Price v3, Jupiter quote-only order, provider concurrency, and operation-budget contracts.
+
+The customer route never accepts a public address. `GET` returns only opaque account-bound wallet references and labels. `POST` accepts exactly one `wallet_reference`; unknown fields, raw addresses, cross-account references, missing sessions, wrong origins, and missing CSRF proof are rejected before provider access.
+
+Durable wallet linking remains deliberately unimplemented. The temporary beta resolver is an operator-authorized account-to-wallet registry enabled only when both `RAVENOS_PORTFOLIO_PREVIEW_ENABLE=1` and the server-only registry are configured. This is an explicit limitation:
+
+- it is not a Wallet Standard SIWS ownership proof;
+- it is not a durable customer wallet link;
+- it cannot become signing or transaction permission;
+- it is suitable only for owner-authorized beta validation wallets;
+- arbitrary public-address lookup remains unavailable.
+
+The production route has no policy repository. A policy is evaluated only when a trusted server-side resolver supplies an existing sealed `UserPolicyVersion` for the exact account and portfolio. Without that resolver the response says `No portfolio policy configured.` It never creates defaults or a compliant state.
+
+### Bounded provider behavior
+
+One analysis is bounded to:
+
+- three Solana RPC calls: native balance, SPL Token accounts, and Token-2022 accounts;
+- one Jupiter Price v3 batch containing at most 50 deterministically selected mints;
+- at most four Jupiter quote-only exit requests for material mint groups;
+- eight provider calls total;
+- a 12-second route budget, with shorter provider-specific timeouts;
+- provider response ceilings of 64 KiB for native balance, 4 MiB for token accounts, 512 KiB for batched marks, and 256 KiB for each quote-only exit probe;
+- account, wallet, and network rate limits before provider analysis;
+- in-flight coalescing keyed by the full hashed RPC request, preventing two accounts that reuse an opaque wallet label from sharing an observation.
+
+Native SOL and wrapped SOL positions sharing one input mint use one exit probe. Dust, missing marks, liabilities, numeraire identity, suspected spam, and candidates beyond the bounded quote budget are not repeatedly probed. Oversized response bodies are stopped while streaming, before JSON interpretation. The Jupiter order request omits a taker. Any returned transaction material is rejected as an invalid provider response.
+
+No provider response, endpoint credential, RPC URL, raw token account, user ID, session ID, or wallet address enters the preview DTO. Aggregate telemetry records latency, provider-call counts, position coverage, provider failures, and conservation status without wallet identity or balances.
+
+### Response and refusal behavior
+
+The safe view model separates:
+
+- marked value, executable value, gross exposure, liabilities, and net equity;
+- visible holdings and look-through economic exposure;
+- protocol and stablecoin dependency overlays;
+- unresolved and unsupported positions;
+- observed, priced, and quote timestamps;
+- optional user-policy findings;
+- aggregate provider and conservation diagnostics;
+- explicit read-only, no-custody, no-signing, no-submission boundaries.
+
+A complete observation, partial observation, unavailable valuation, stale mark, unrouteable value, unsupported protocol, and unresolved underlying remain different states. An accounting conservation failure refuses the normal portfolio DTO. A route timeout does not rebrand an incomplete result as current. No opaque portfolio health or risk score exists.
+
+### Authorized live validation, 2026-08-26
+
+The no-persistence harness was run against the two Raven-controlled Solana validation wallets available in existing production configuration. Participant/watch wallets and Raven's private actor graph were explicitly excluded. The harness emitted only structural aggregates and verified its report did not contain either address.
+
+| Case | Observation | Resolution and valuation | Provider use | Accounting |
+| --- | --- | --- | --- | --- |
+| 01 | 5 non-zero SPL positions | 0 resolved; 1 marked; 4 unvalued; marked position was below the automatic $5 exit-probe floor; net equity unavailable | 3 RPC + 1 batched price request; 431–572 ms across three runs; no provider failure | conservation passed; no execution object |
+| 02 | empty economic wallet | 0 positions; zero net equity available; no mark or quote needed | 3 RPC requests; 31–45 ms; no provider failure | conservation passed; no execution object |
+
+Case 01 was not a double-count or provider bug. All five positions lacked a trusted asset definition, so the exact reason was `unresolved_asset_identity`. Raven did not assume that an arbitrary SPL token was a plain self-exposure rather than a wrapper, receipt, LP artifact, or claim. A sanitized five-token/one-dust-mark regression now preserves that behavior.
+
+This live sample proves bounded observation, unknown-only and empty-wallet behavior, address-free diagnostics, fail-closed net equity, and conservation against current chain state. It does not prove live coverage for a wallet holding known majors, current LST conversion, LPs, lending, or leverage. Those remain explicit coverage gaps rather than claimed support.
+
 ## Current provenance
 
 Current read-only chain:
@@ -240,24 +305,30 @@ PolicyViolation
 
 Forward-compatible types for that chain predate this pass and remain isolated. They are not a live product capability.
 
-## Future UI/API output shape
+## Current beta UI/API output shape
 
-A read-only surface can now render:
+The authenticated Account surface now renders:
 
 - net equity, gross exposure, marked value, current executable value, unresolved value, and liabilities;
 - visible instrument holdings alongside underlying asset exposure;
-- protocol, stablecoin issuer/dependency, chain, liquidity, and routeability dimensions;
-- source positions, evidence state, freshness, and supported exposure ranges;
+- protocol and stablecoin issuer/dependency dimensions, plus holding-level routeability;
+- source-position counts, evidence state, freshness, and supported exposure ranges;
 - `Your policy`, `Your configured range`, `Policy drift`, `Confirmed violation`, `Indeterminate`, and `No configured rule` language;
-- the exact policy version and snapshot behind each result.
+- current policy findings when an existing user-authored policy is supplied.
+
+The safe API response also preserves the exact snapshot, measurement, and optional policy-version references behind each result. The utilitarian beta UI does not yet expose a provenance drill-down or a separate chain-exposure table; Phase 1 is Solana-only and those would add visual complexity without improving this validation gate.
+
+It accepts an opaque wallet selection only and has no address field. The browser renders untrusted labels with `textContent`, stores no wallet/session/portfolio data in browser storage, and refuses a response whose read-only, transaction-material, signing, or address-redaction boundary is absent. Desktop and 390-by-844 mobile checks passed without horizontal overflow.
 
 Avoid `recommended portfolio`, `optimal mix`, `Raven-selected allocation`, `appropriate for your risk profile`, or any wording that turns Raven measurement into discretionary portfolio authority.
 
-## Persistence and release boundary
+## Persistence, retention, and deletion boundary
 
-No migration was added. Before public persistence or an authenticated route, resolve:
+No migration, portfolio cache, snapshot history, or customer holding log was added. The current request exists only in Worker memory for the duration of analysis; provider in-flight coalescing is transient and does not become portfolio history.
 
-- wallet-link ownership and object-level authorization;
+Before storing any customer portfolio record, resolve:
+
+- durable wallet-link ownership proof and object-level authorization;
 - explicit public-address persistence consent and retention/deletion behavior;
 - insert-only policy versions, snapshots, measurements, findings, and outcomes;
 - RPC/price/quote cache and rate limits;
@@ -265,4 +336,39 @@ No migration was added. Before public persistence or an authenticated route, res
 - separation from Raven's private wallet-intelligence graph;
 - wallet-data and internal-state no-leak validation.
 
-The smallest next implementation step is an authenticated, rate-limited, read-only Solana portfolio preview that uses the existing wallet-link/RPC and price contracts, keeps the submitted address transient unless the user opts into persistence, and returns the sealed snapshot/measurement contract. Policy persistence and evaluation should follow only after that preview is validated against live wallets. Rebalancing remains behind a separate evidence review.
+Retention design must classify raw wallet address, holdings, liabilities, snapshots, policy, findings, and operational telemetry separately. Account deletion must be able to remove customer-identifying wallet and holding data without rewriting immutable policy/action provenance into a false history. Any legally required retained record needs a documented purpose, minimum retention window, access boundary, and irreversible account de-identification. Until that design and deletion test exist, portfolio history stays off.
+
+## Next architectural gate: `PolicyViolation` to `RebalanceCalculation`
+
+This is a design boundary only. It is not implemented by the preview.
+
+The calculation must take an exact immutable `UserPolicyVersion`, `PortfolioSnapshot`, `PortfolioMeasurement`, and one or more policy findings. It may calculate deterministic correction paths to the user's rules, but cannot add an asset, target, risk tolerance, policy rule, or market-posture consequence.
+
+Candidate paths should be ordered and explained as:
+
+1. already-authorized incoming deposits and retained cash;
+2. settled distributable profit under the user's explicit routing rule;
+3. rewards or cash flows already attributable to the user;
+4. sales only when the user policy allows them and protected/cold assets remain untouched.
+
+Every path must preserve before/after allocations, unresolved bounds, minimum trade size, per-transaction cap, daily turnover, routeability, estimated friction, quote-required status, and any future tax-lot dependency. Multiple feasible paths remain alternatives; Raven does not silently choose a discretionary tactical allocation.
+
+First-class calculation refusals include protected cold assets, absent authority, unresolved or stale evidence capable of changing the result, no route, insufficient quote confidence, uneconomic friction, minimum trade not met, transaction/turnover limits, stablecoin or protocol concentration worsening, and policy/snapshot changes. A refusal is sealed evidence, not a relaxed rule.
+
+The later gates remain separate:
+
+```text
+PolicyViolation
+  -> RebalanceCalculation
+
+RebalanceCalculation
+  -> ExecutionQuote
+  -> UserAuthorization
+  -> ExecutionIntent
+  -> wallet signature
+  -> settlement
+```
+
+No code in the preview crosses either boundary.
+
+The smallest next implementation step is to add a qualified, non-discretionary asset-definition and protocol-resolution source for the five live unresolved positions, beginning with instrument identity only and preserving unresolved economic underlying until wrapper/receipt semantics are proven. Durable SIWS wallet linking and policy persistence remain separate security and privacy gates. Rebalancing remains behind a new evidence review.

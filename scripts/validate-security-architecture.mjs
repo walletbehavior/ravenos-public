@@ -57,6 +57,17 @@ assert.equal(config.session_policy.browser_storage_tokens_permitted, false);
 for (const attribute of ["Secure", "HttpOnly", "SameSite=Lax", "Path=/"]) {
   assert(config.session_policy.cookie_attributes.includes(attribute), `missing required session cookie attribute: ${attribute}`);
 }
+assert.equal(config.portfolio_preview.implementation_status, "feature_flagged_read_only_beta");
+assert.equal(config.portfolio_preview.authenticated_origin_only, true);
+assert.equal(config.portfolio_preview.csrf_required_for_analysis, true);
+assert.equal(config.portfolio_preview.raw_address_input_allowed, false);
+assert.equal(config.portfolio_preview.durable_wallet_link_active, false);
+assert.equal(config.portfolio_preview.portfolio_history_persisted, false);
+assert.equal(config.portfolio_preview.policy_storage_active, false);
+assert.equal(config.portfolio_preview.maximum_provider_calls_per_analysis, 8);
+assert.equal(config.portfolio_preview.signing_available, false);
+assert.equal(config.portfolio_preview.submission_available, false);
+assert.equal(config.portfolio_preview.custody_available, false);
 
 for (const documentPath of config.required_documents || []) {
   const absolute = join(root, documentPath);

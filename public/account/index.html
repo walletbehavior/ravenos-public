@@ -92,10 +92,54 @@
 
         <section class="account-security-panel">
           <header><div><span class="workspace-label">Connections</span><h3>Wallets and venues</h3></div><strong>Separate permission</strong></header>
-          <div class="account-connection-stage">
+          <div class="account-connection-stage" id="accountWalletConnectionStage">
             <span class="account-provider-mark">W</span>
-            <div><strong>No wallets linked yet</strong><p>Phantom, MetaMask, and compatible wallets will be linked here using a fresh ownership proof. A wallet connection will never silently become a transaction approval.</p></div>
-            <span>Next security stage</span>
+            <div><strong id="accountWalletConnectionTitle">No wallets linked yet</strong><p id="accountWalletConnectionDetail">Phantom, MetaMask, and compatible wallets will be linked here using a fresh ownership proof. A wallet connection will never silently become a transaction approval.</p></div>
+            <span id="accountWalletConnectionState">Next security stage</span>
+          </div>
+        </section>
+
+        <section class="account-security-panel account-governor-panel" id="accountGovernorPanel" data-preview-state="loading">
+          <header>
+            <div><span class="workspace-label">Read-only beta</span><h3>Portfolio Governor preview</h3></div>
+            <strong id="accountGovernorState">Checking access</strong>
+          </header>
+          <div class="account-governor-gate" id="accountGovernorGate">
+            <div>
+              <strong>Economic exposure, without transaction authority.</strong>
+              <p id="accountGovernorStatus" aria-live="polite">Checking whether this account has an authorized Solana preview wallet.</p>
+            </div>
+            <div class="account-governor-controls" id="accountGovernorControls" hidden>
+              <label for="accountGovernorWallet">Selected wallet</label>
+              <div>
+                <select id="accountGovernorWallet" aria-label="Authorized Solana preview wallet"></select>
+                <button id="accountGovernorAnalyze" type="button">Analyze now</button>
+              </div>
+            </div>
+          </div>
+          <div class="account-governor-results" id="accountGovernorResults" hidden>
+            <div class="account-governor-summary" id="accountGovernorSummary"></div>
+            <section class="account-governor-block">
+              <header><div><span class="workspace-label">Visible instruments</span><h4>Material holdings</h4></div><strong id="accountGovernorHoldingCount"></strong></header>
+              <div class="account-governor-table" id="accountGovernorHoldings"></div>
+            </section>
+            <section class="account-governor-block">
+              <header><div><span class="workspace-label">Look-through view</span><h4>Economic exposure</h4></div><strong>Calculated</strong></header>
+              <div class="account-governor-table" id="accountGovernorExposure"></div>
+            </section>
+            <section class="account-governor-block">
+              <header><div><span class="workspace-label">Dependencies</span><h4>Protocols and stablecoins</h4></div><strong>Look-through</strong></header>
+              <div class="account-governor-table" id="accountGovernorDependencies"></div>
+            </section>
+            <section class="account-governor-block account-governor-attention">
+              <header><div><span class="workspace-label">Uncertainty</span><h4>Unresolved and unsupported</h4></div><strong id="accountGovernorUnresolvedCount"></strong></header>
+              <div class="account-governor-table" id="accountGovernorUnresolved"></div>
+            </section>
+            <section class="account-governor-block">
+              <header><div><span class="workspace-label">Your rules</span><h4>Policy monitor</h4></div><strong id="accountGovernorPolicyState"></strong></header>
+              <div class="account-governor-table" id="accountGovernorPolicy"></div>
+            </section>
+            <footer class="account-governor-evidence" id="accountGovernorEvidence"></footer>
           </div>
         </section>
       </div>
@@ -104,7 +148,8 @@
         <span class="workspace-label">Account controls</span>
         <dl>
           <div><dt>RavenOS session</dt><dd>Active</dd></div>
-          <div><dt>Wallet ownership</dt><dd>Not linked</dd></div>
+          <div><dt>Wallet ownership</dt><dd id="accountWalletOwnershipState">Not linked</dd></div>
+          <div><dt>Portfolio analysis</dt><dd id="accountPortfolioAnalysisState">Checking</dd></div>
           <div><dt>Signing</dt><dd>Disabled</dd></div>
           <div><dt>Order submission</dt><dd>Disabled</dd></div>
         </dl>
