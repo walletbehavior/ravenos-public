@@ -82,6 +82,26 @@
 .account-connection-stage strong { font-size: 11px; }
 .account-connection-stage p { color: var(--ws-muted); font-size: 9px; line-height: 1.55; }
 .account-connection-stage > span:last-child { color: var(--ws-warning); font: 700 8px var(--ws-mono); text-transform: uppercase; }
+.account-pro-panel[data-pro-state="available"] > header > strong { color: var(--ws-positive); }
+.account-pro-panel[data-pro-state="unavailable"] > header > strong { color: var(--ws-warning); }
+.account-pro-intro { display: grid; gap: 6px; padding: 16px 14px; border-bottom: 1px solid var(--ws-border); }
+.account-pro-intro strong { font-size: 12px; }
+.account-pro-intro p { max-width: 760px; color: var(--ws-muted); font-size: 10px; line-height: 1.55; }
+.account-pro-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--ws-border); }
+.account-pro-capability { min-width: 0; min-height: 132px; display: grid; align-content: center; gap: 9px; padding: 15px 14px; background: #090e16; }
+.account-pro-capability > div { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-pro-capability > div strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.account-pro-capability > div span { flex: 0 0 auto; border: 1px solid var(--ws-border); border-radius: 999px; padding: 4px 7px; color: var(--ws-muted); font: 700 7px var(--ws-mono); text-transform: uppercase; }
+.account-pro-capability[data-state="active"] > div span { border-color: rgba(63, 166, 117, .34); color: #80d3aa; }
+.account-pro-capability[data-state="expired"] > div span,
+.account-pro-capability[data-state="revoked"] > div span,
+.account-pro-capability[data-state="suspended"] > div span { border-color: rgba(207, 89, 104, .34); color: #e18491; }
+.account-pro-capability p { color: var(--ws-muted); font-size: 9px; line-height: 1.5; }
+.account-pro-capability small { color: var(--ws-dim); font: 7px/1.45 var(--ws-mono); }
+.account-pro-boundary { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--ws-border); background: rgba(7, 11, 17, .72); }
+.account-pro-boundary span { color: var(--ws-dim); font: 700 8px var(--ws-mono); text-transform: uppercase; }
+.account-pro-boundary strong { color: var(--ws-warning); font-size: 9px; white-space: nowrap; }
+.account-pro-boundary p { color: var(--ws-muted); font-size: 8px; line-height: 1.45; text-align: right; }
 .account-governor-panel[data-preview-state="complete"] > header > strong,
 .account-governor-panel[data-preview-state="available"] > header > strong { color: var(--ws-positive); }
 .account-governor-panel[data-preview-state="partial"] > header > strong,
@@ -164,6 +184,8 @@
   .account-session-row strong,
   .account-connection-stage strong,
   .account-connection-stage p,
+  .account-pro-intro p,
+  .account-pro-capability p,
   .account-governor-gate p,
   .account-governor-row > div > strong,
   .account-governor-empty,
@@ -171,6 +193,8 @@
   .account-governor-controls label,
   .account-governor-controls select,
   .account-governor-controls button,
+  .account-pro-capability > div span,
+  .account-pro-capability small,
   .account-governor-block > header > strong,
   .account-governor-row > div > span,
   .account-governor-chip { font-size: 9px; }
@@ -190,6 +214,10 @@
   .account-profile-head button { grid-column: 1 / -1; width: 100%; }
   .account-connection-stage { grid-template-columns: 34px minmax(0, 1fr); }
   .account-connection-stage > span:last-child { grid-column: 2; }
+  .account-pro-capabilities { grid-template-columns: 1fr; }
+  .account-pro-capability { min-height: 118px; }
+  .account-pro-boundary { grid-template-columns: 1fr; }
+  .account-pro-boundary p { text-align: left; }
   .account-governor-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-governor-controls > div { grid-template-columns: 1fr; }
   .account-governor-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

@@ -53,6 +53,13 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.saved_monitor.execution_available, false);
   assert.equal(security.saved_monitor.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("saved_monitor_production_activation"));
+  assert.equal(security.entitlement_foundation.implementation_status, "local_dormant_foundation");
+  assert.equal(security.entitlement_foundation.all_activation_controls_default_off, true);
+  assert.equal(security.entitlement_foundation.customer_mutation_available, false);
+  assert.equal(security.entitlement_foundation.checkout_available, false);
+  assert.equal(security.entitlement_foundation.billing_available, false);
+  assert.equal(security.entitlement_foundation.atlas_display_rights_override_available, false);
+  assert.equal(security.entitlement_foundation.production_activation_completed, false);
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -84,7 +91,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 30);
+  assert.equal(rows.length, 32);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -93,7 +100,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -205,7 +212,7 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(api.headers.get("permissions-policy") || "", /camera=\(\)/);
 });
 
-test("the authenticated hostname exposes only approved account and Saved Monitor candidates", async () => {
+test("the authenticated hostname exposes only approved account, Saved Monitor, and dormant entitlement candidates", async () => {
   const accountHtml = readFileSync("account/index.html", "utf8");
   const monitorHtml = readFileSync("monitor/index.html", "utf8");
   const env = {
@@ -240,6 +247,12 @@ test("the authenticated hostname exposes only approved account and Saved Monitor
   const researchState = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/research-state"), env);
   assert.equal(researchState.status, 503);
   assert.equal(JSON.parse(await researchState.text()).error, "account_activation_pending");
+
+  const entitlements = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/entitlements", {
+    headers: { origin: "https://app.ravenos.xyz", "sec-fetch-site": "same-origin" },
+  }), env);
+  assert.equal(entitlements.status, 503);
+  assert.equal(JSON.parse(await entitlements.text()).error, "account_activation_pending");
 
   const publicMonitor = await worker.fetch(new Request("https://ravenos.xyz/monitor/?instrument_id=hyperliquid%3Aperp%3ASOL&wallet=untrusted"), env);
   assert.equal(publicMonitor.status, 308);
@@ -286,6 +299,6 @@ test("Portfolio Governor account UI accepts only an opaque selection and preserv
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 8);
+  assert.equal(security.required_documents.length, 9);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

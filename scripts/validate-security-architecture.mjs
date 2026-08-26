@@ -78,6 +78,15 @@ assert.equal(config.saved_monitor.wallet_data_persisted, false);
 assert.equal(config.saved_monitor.alerts_available, false);
 assert.equal(config.saved_monitor.execution_available, false);
 assert.equal(config.saved_monitor.production_activation_completed, false);
+assert.equal(config.entitlement_foundation.implementation_status, "local_dormant_foundation");
+assert.equal(config.entitlement_foundation.authenticated_origin_only, true);
+assert.equal(config.entitlement_foundation.all_activation_controls_default_off, true);
+assert.equal(config.entitlement_foundation.customer_mutation_available, false);
+assert.equal(config.entitlement_foundation.checkout_available, false);
+assert.equal(config.entitlement_foundation.billing_available, false);
+assert.equal(config.entitlement_foundation.shared_cache_allowed, false);
+assert.equal(config.entitlement_foundation.atlas_display_rights_override_available, false);
+assert.equal(config.entitlement_foundation.production_activation_completed, false);
 
 for (const documentPath of config.required_documents || []) {
   const absolute = join(root, documentPath);
@@ -89,6 +98,7 @@ const requiredScenarios = [
   "SEC-SES-001", "SEC-SES-002", "SEC-SES-003", "SEC-CSRF-001",
   "SEC-AUTHZ-001", "SEC-AUTHZ-002", "SEC-WAL-001", "SEC-WAL-002",
   "SEC-RSCH-001", "SEC-RSCH-002",
+  "SEC-ENT-001", "SEC-ENT-002",
   "SEC-WAL-003", "SEC-WAL-004", "SEC-WAL-005", "SEC-WAL-006",
   "SEC-BIL-001", "SEC-BIL-002", "SEC-BIL-003", "SEC-ENUM-001",
   "SEC-EDGE-001", "SEC-XSS-001", "SEC-CSP-001", "SEC-LEAK-001",
@@ -112,9 +122,11 @@ assert(stageARows.every((row) => !["blocked", "required_not_implemented"].includ
 const worker = readFileSync(join(root, "worker.mjs"), "utf8");
 assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed identity router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_research_state.mjs"'), "Saved Monitor research-state router is missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_entitlements.mjs"'), "server-owned entitlement router is missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
 assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
+assert(worker.includes("routeCustomerEntitlements(request, env"), "entitlement routes are not wired through the authenticated Worker boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
 }
@@ -134,13 +146,21 @@ for (const asset of config.legacy_quarantine.client_assets_excluded_from_release
 }
 
 const wrangler = readFileSync(join(root, "wrangler.jsonc"), "utf8");
-for (const activationFlag of ["RAVENOS_CUSTOMER_ACCOUNTS_ENABLE", "RAVENOS_AUTH_ENABLE", "RAVENOS_BILLING_ENABLE", "RAVENOS_CUSTOMER_TRADE_SIGN_ENABLE", "RAVENOS_CUSTOMER_TRADE_SUBMIT_ENABLE"]) {
+for (const activationFlag of [
+  "RAVENOS_CUSTOMER_ACCOUNTS_ENABLE",
+  "RAVENOS_AUTH_ENABLE",
+  "RAVENOS_BILLING_ENABLE",
+  "RAVENOS_CUSTOMER_TRADE_SIGN_ENABLE",
+  "RAVENOS_CUSTOMER_TRADE_SUBMIT_ENABLE",
+  ...config.entitlement_foundation.activation_controls,
+]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }
 
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 assert.match(packageJson.scripts["validate:security"] || "", /validate-security-architecture\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);
 
 console.log(JSON.stringify({
   ok: true,

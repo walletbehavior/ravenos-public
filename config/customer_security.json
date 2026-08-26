@@ -87,6 +87,29 @@
     "execution_available": false,
     "production_activation_completed": false
   },
+  "entitlement_foundation": {
+    "implementation_status": "local_dormant_foundation",
+    "authenticated_origin_only": true,
+    "routes": [
+      "GET /api/v1/entitlements",
+      "GET /api/v1/intelligence/perps",
+      "GET /api/v1/intelligence/participants"
+    ],
+    "all_activation_controls_default_off": true,
+    "activation_controls": [
+      "RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE",
+      "RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE",
+      "RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE",
+      "RAVENOS_PRO_PERPS_ADVANCED_ENABLE",
+      "RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE"
+    ],
+    "customer_mutation_available": false,
+    "checkout_available": false,
+    "billing_available": false,
+    "shared_cache_allowed": false,
+    "atlas_display_rights_override_available": false,
+    "production_activation_completed": false
+  },
   "wallet_challenge_policy": {
     "evm_standard": "ERC-4361",
     "solana_standard": "Wallet Standard SIWS",
@@ -130,7 +153,8 @@
     "docs/ravenos_threat_model_v1.md",
     "docs/ravenos_security_verification_v1.md",
     "docs/ravenos_auth_provider_review_v1.md",
-    "docs/ravenos_saved_monitor_v1.md"
+    "docs/ravenos_saved_monitor_v1.md",
+    "docs/ravenos_entitlements_foundation_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -141,6 +165,8 @@
     { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
     { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
     { "id": "SEC-RSCH-002", "name": "saved research-state CSRF, quotas, deletion, and XSS", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
+    { "id": "SEC-ENT-001", "name": "server-owned entitlement ownership, lifecycle and fail-closed resolution", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs" },
+    { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; Atlas regression suites" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

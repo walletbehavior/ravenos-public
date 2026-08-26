@@ -88,6 +88,12 @@ import {
   routeCustomerResearchState,
 } from "./lib/customer_research_state.mjs";
 import {
+  CUSTOMER_ENTITLEMENT_ROUTE,
+  CUSTOMER_PRO_PARTICIPANTS_ROUTE,
+  CUSTOMER_PRO_PERPS_ROUTE,
+  routeCustomerEntitlements,
+} from "./lib/customer_entitlements.mjs";
+import {
   PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
   routePortfolioGovernorPreview,
 } from "./lib/portfolio_governor/preview.mjs";
@@ -168,9 +174,12 @@ function authenticatedAppBoundary(request) {
   const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
     || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
     || url.pathname.startsWith(`${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items/`);
+  const entitlementApi = url.pathname === CUSTOMER_ENTITLEMENT_ROUTE
+    || url.pathname === CUSTOMER_PRO_PERPS_ROUTE
+    || url.pathname === CUSTOMER_PRO_PARTICIPANTS_ROUTE;
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -6259,6 +6268,10 @@ async function routeApi(request, env) {
   const url = new URL(request.url);
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const entitlementResponse = await routeCustomerEntitlements(request, env, {
+    loadProjection: (key) => readPublicProjection(env, request, key),
+  });
+  if (entitlementResponse) return entitlementResponse;
   const researchStateResponse = await routeCustomerResearchState(request, env, {
     resolveMarketAvailability: (market) => resolveSavedMarketAvailability(env, market),
   });

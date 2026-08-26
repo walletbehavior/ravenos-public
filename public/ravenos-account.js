@@ -10,7 +10,14 @@ const governorControls = document.getElementById("accountGovernorControls");
 const governorWallet = document.getElementById("accountGovernorWallet");
 const governorAnalyze = document.getElementById("accountGovernorAnalyze");
 const governorResults = document.getElementById("accountGovernorResults");
-const state = { config: null, session: null, csrf: "", intent: "sign_up", previewWallets: [] };
+const proPanel = document.getElementById("accountProPanel");
+const proCapabilities = document.getElementById("accountProCapabilities");
+const state = { config: null, session: null, csrf: "", intent: "sign_up", previewWallets: [], entitlements: null };
+
+const PRO_CAPABILITY_DISPLAY = Object.freeze({
+  "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
+  "intelligence.participant_advanced": Object.freeze({ label: "Advanced Participant Intelligence", route: "/api/v1/intelligence/participants" }),
+});
 
 async function getJson(url, init = {}) {
   const { headers = {}, ...rest } = init;
@@ -75,6 +82,88 @@ function readableState(value) {
 function setText(id, value) {
   const node = document.getElementById(id);
   if (node) node.textContent = value;
+}
+
+function proCapabilityNode(capability, projectionPayload = null) {
+  const display = PRO_CAPABILITY_DISPLAY[capability.capability] || { label: "Unavailable capability", route: null };
+  const row = document.createElement("article");
+  row.className = "account-pro-capability";
+  row.dataset.state = String(capability.state || "unavailable");
+  row.setAttribute("role", "listitem");
+
+  const heading = document.createElement("div");
+  const label = document.createElement("strong");
+  const status = document.createElement("span");
+  label.textContent = display.label;
+  status.textContent = readableState(capability.state || "unavailable");
+  heading.append(label, status);
+
+  const detail = document.createElement("p");
+  if (!capability.available || !projectionPayload?.ok) {
+    detail.textContent = capability.state === "expired"
+      ? "The server-side grant is expired. No advanced projection was returned."
+      : capability.state === "revoked"
+        ? "The server-side grant is revoked. No advanced projection was returned."
+        : capability.state === "suspended"
+          ? "The server-side grant is suspended. No advanced projection was returned."
+          : "Pro beta unavailable. Public Intelligence remains unchanged.";
+  } else if (capability.capability === "intelligence.perps_advanced") {
+    const advanced = projectionPayload.projection?.advanced || {};
+    const freshness = projectionPayload.projection?.provenance?.freshness?.state || "unavailable";
+    detail.textContent = `${advanced.positioning?.length || 0} positioning markets · ${advanced.pressure_and_crowding?.length || 0} pressure markets · ${readableState(freshness)}`;
+  } else {
+    const advanced = projectionPayload.projection?.advanced || {};
+    const freshness = projectionPayload.projection?.provenance?.freshness?.state || "unavailable";
+    detail.textContent = `${advanced.condition_matrix?.length || 0} aggregate conditions · ${readableState(freshness)} evidence`;
+  }
+
+  const boundary = document.createElement("small");
+  boundary.textContent = capability.available && projectionPayload?.ok
+    ? "Private, no-store response · aggregate public-safe source projection"
+    : "No prices, checkout, upgrade promise, or restricted data";
+  row.append(heading, detail, boundary);
+  return row;
+}
+
+function unavailableProCapabilities(stateLabel = "server_disabled") {
+  return Object.keys(PRO_CAPABILITY_DISPLAY).map((capability) => ({ capability, available: false, state: stateLabel }));
+}
+
+async function loadProIntelligenceCapabilities() {
+  if (!proPanel || !proCapabilities) return;
+  try {
+    const { response, payload } = await getJson("/api/v1/entitlements");
+    if (!response.ok || !Array.isArray(payload?.capabilities)) {
+      proPanel.dataset.proState = "unavailable";
+      setText("accountProState", "Unavailable");
+      setText("accountProStatus", "Pro beta unavailable. Public Intelligence remains unchanged, and no commercial access is offered here.");
+      proCapabilities.replaceChildren(...unavailableProCapabilities(payload?.state || "server_disabled").map((capability) => proCapabilityNode(capability)));
+      return;
+    }
+
+    state.entitlements = payload;
+    const capabilities = Object.keys(PRO_CAPABILITY_DISPLAY).map((key) => payload.capabilities.find((row) => row.capability === key) || { capability: key, available: false, state: "unavailable" });
+    const responses = new Map();
+    await Promise.all(capabilities.filter((capability) => capability.available).map(async (capability) => {
+      const route = PRO_CAPABILITY_DISPLAY[capability.capability]?.route;
+      if (!route) return;
+      const result = await getJson(route);
+      responses.set(capability.capability, result.response.ok ? result.payload : null);
+      if (!result.response.ok && result.payload?.state) capability.state = result.payload.state;
+    }));
+    proCapabilities.replaceChildren(...capabilities.map((capability) => proCapabilityNode(capability, responses.get(capability.capability))));
+    const availableCount = capabilities.filter((capability) => capability.available && responses.get(capability.capability)?.ok).length;
+    proPanel.dataset.proState = availableCount ? "available" : "unavailable";
+    setText("accountProState", availableCount ? `${availableCount} available` : "Unavailable");
+    setText("accountProStatus", availableCount
+      ? "This account can inspect the server-authorized advanced aggregate projections below. Access is read-only and cannot broaden Atlas display rights."
+      : "Pro beta unavailable. Public Intelligence remains unchanged, and no commercial access is offered here.");
+  } catch {
+    proPanel.dataset.proState = "unavailable";
+    setText("accountProState", "Unavailable");
+    setText("accountProStatus", "The server-owned capability contract could not be verified, so advanced intelligence remains unavailable.");
+    proCapabilities.replaceChildren(...unavailableProCapabilities("unavailable").map((capability) => proCapabilityNode(capability)));
+  }
 }
 
 function governorChip(label, tone = "neutral") {
@@ -439,6 +528,7 @@ function renderAuthenticated(payload) {
   document.getElementById("accountProfileMark").textContent = initial(name);
   window.dispatchEvent(new CustomEvent("ravenos:accountstate", { detail: { authenticated: true, display_name: name } }));
   loadSessions();
+  loadProIntelligenceCapabilities();
   loadPortfolioPreviewCapability();
 }
 
@@ -546,6 +636,9 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
   portfolioPreviewReadOnly: true,
   arbitraryPortfolioAddressInput: false,
   portfolioHistoryPersisted: false,
+  proEntitlementsDormantByDefault: true,
+  proCheckoutAvailable: false,
+  atlasDisplayRightsOverrideAvailable: false,
   signingAvailable: false,
   submissionAvailable: false,
 });
