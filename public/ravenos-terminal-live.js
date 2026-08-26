@@ -33,13 +33,34 @@ const state = {
   orderPlanGeneration: 0,
   orderPlanExpiryTimer: null,
   planOverlayEnabled: false,
+  launchSource: "",
+  autoRavenOverlays: false,
   chartRead: null,
   orderBook: null,
   tapeRows: [],
   accountSnapshot: null,
+  accountHistory: null,
+  accountHistoryLoading: false,
   accountTab: "positions",
   accountGeneration: 0,
+  walletTransportConnected: false,
 };
+
+function renderLaunchBadge() {
+  const badge = document.getElementById("terminalLaunchBadge");
+  if (!badge) return;
+  const labels = {
+    velocity: "Velocity → Terminal",
+    raven: "Raven → Terminal",
+    activity: "Activity → Terminal",
+  };
+  const label = state.lane === "spot" ? labels[state.launchSource] : "";
+  badge.hidden = !label;
+  badge.textContent = label || "";
+  badge.title = label
+    ? "Opened from Discover with exact-market Raven overlays requested. Qualified strategy levels remain research only."
+    : "";
+}
 
 function spotChartCapability(row = {}, timeframe = "1h") {
   const market = row || {};
@@ -457,10 +478,12 @@ function selectedAccountPosition() {
 
 function renderTerminalTicketAccount() {
   const host = document.getElementById("terminalTicketAccount");
+  const sizePresets = document.getElementById("terminalAccountSizePresets");
   const snapshot = state.accountSnapshot;
-  const show = state.lane === "perps" && Boolean(snapshot?.ok);
+  const show = state.lane === "perps" && Boolean(snapshot?.ok) && snapshot.state !== "empty";
   if (!host) return;
   host.hidden = !show;
+  if (sizePresets) sizePresets.hidden = !show;
   if (!show) return;
   const position = selectedAccountPosition();
   setText("terminalTicketAddress", shortAccountAddress(snapshot.account?.address), "Public account");
@@ -468,10 +491,17 @@ function renderTerminalTicketAccount() {
   setText("terminalTicketWithdrawable", accountMoney(snapshot.summary?.withdrawable_usdc));
   setText("terminalTicketPosition", position ? `${titleCase(position.side)} ${accountNumber(position.size)}` : "Flat");
   setText("terminalTicketPnl", position ? accountMoney(position.unrealized_pnl_usdc) : accountMoney(0));
+  setText("terminalTicketMode", position
+    ? `${titleCase(position.leverage_mode)} · ${accountNumber(position.leverage)}×`
+    : "No open position");
   const pnl = document.getElementById("terminalTicketPnl");
   const pnlValue = finite(position?.unrealized_pnl_usdc);
   pnl?.classList.toggle("terminal-positive", pnlValue !== null && pnlValue >= 0);
   pnl?.classList.toggle("terminal-negative", pnlValue !== null && pnlValue < 0);
+  const marginMode = document.getElementById("terminalPreviewMarginMode");
+  if (marginMode && new Set(["cross", "isolated"]).has(position?.leverage_mode)) marginMode.value = position.leverage_mode;
+  const leverage = document.getElementById("terminalPreviewLeverage");
+  if (leverage && [...leverage.options].some((option) => Number(option.value) === finite(position?.leverage))) leverage.value = String(position.leverage);
 }
 
 function accountCell(value, { side = null, tone = null, title = "" } = {}) {
@@ -483,7 +513,77 @@ function accountCell(value, { side = null, tone = null, title = "" } = {}) {
   return cell;
 }
 
+function accountAction(label, onClick, { title = "" } = {}) {
+  const cell = document.createElement("span");
+  cell.className = "terminal-account-action-cell";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  if (title) button.title = title;
+  button.addEventListener("click", onClick);
+  cell.append(button);
+  return cell;
+}
+
+async function reviewPositionClose(position = {}) {
+  const market = String(position.market || "").toUpperCase();
+  if (!market) return;
+  const targetAsset = `${market}-PERP`;
+  if (state.selected?.asset !== targetAsset) await selectPerp(targetAsset);
+  if (state.selected?.asset !== targetAsset) return;
+  setOrderPlanType("market", { refresh: false });
+  setMarketPreviewSide(position.side === "long" ? "short" : "long", { refresh: false });
+  const notional = document.getElementById("terminalPreviewNotional");
+  const leverage = document.getElementById("terminalPreviewLeverage");
+  const marginMode = document.getElementById("terminalPreviewMarginMode");
+  const reduceOnly = document.getElementById("terminalPreviewReduceOnly");
+  const targetSize = finite(position.size) || 0;
+  const book = terminalBookSides(state.orderBook || {});
+  const levels = position.side === "long" ? book.bids : book.asks;
+  let remaining = targetSize;
+  let closeNotional = 0;
+  for (const level of levels) {
+    if (remaining <= 1e-10) break;
+    const consumed = Math.min(remaining, level.size);
+    closeNotional += consumed * level.price;
+    remaining -= consumed;
+  }
+  if (remaining > Math.max(1e-8, targetSize * 1e-8)) closeNotional = (finite(position.mark_notional_usdc) || 10) * 0.995;
+  if (notional) notional.value = String(Math.floor(Math.min(250_000, Math.max(10, closeNotional)) * 100) / 100);
+  if (leverage && [...leverage.options].some((option) => Number(option.value) === finite(position.leverage))) leverage.value = String(position.leverage);
+  if (marginMode && new Set(["cross", "isolated"]).has(position.leverage_mode)) marginMode.value = position.leverage_mode;
+  if (reduceOnly) reduceOnly.checked = true;
+  clearMarketPreviewResult(`Review a reduce-only ${market} close against the current account and book.`);
+  setTerminalPane("trade");
+  void requestOrderPlan();
+}
+
+function applyAccountSizePreset(percentOfMargin) {
+  const withdrawable = finite(state.accountSnapshot?.summary?.withdrawable_usdc);
+  const leverage = finite(document.getElementById("terminalPreviewLeverage")?.value);
+  const requestedPercent = finite(percentOfMargin);
+  const input = document.getElementById("terminalPreviewNotional");
+  if (!input || !(withdrawable > 0) || !(leverage >= 1) || !(requestedPercent > 0)) return;
+  const feeReserve = requestedPercent >= 100 ? 0.99 : 1;
+  const notional = Math.min(250_000, Math.max(10, withdrawable * leverage * requestedPercent / 100 * feeReserve));
+  input.value = String(Number(notional.toFixed(2)));
+  clearMarketPreviewResult(`${requestedPercent >= 100 ? "Maximum" : `${requestedPercent}%`} account margin budget selected. Review current fees and collateral next.`);
+}
+
 function accountLedgerDefinition(tab, snapshot) {
+  if (tab === "balances") {
+    return {
+      columns: ["Asset", "Total", "Available", "On hold", "Entry notional"],
+      rows: (snapshot.balances || []).map((balance) => [
+        accountCell(balance.asset),
+        accountCell(accountNumber(balance.total)),
+        accountCell(accountNumber(balance.available)),
+        accountCell(accountNumber(balance.on_hold)),
+        accountCell(finite(balance.entry_notional_usdc) === null ? "—" : accountMoney(balance.entry_notional_usdc)),
+      ]),
+      empty: "No spot balances on this account.",
+    };
+  }
   if (tab === "orders") {
     return {
       columns: ["Market", "Side", "Remaining", "Price", "Order", "Placed"],
@@ -500,6 +600,31 @@ function accountLedgerDefinition(tab, snapshot) {
         ];
       }),
       empty: "No open orders on this account.",
+    };
+  }
+  if (tab === "history") {
+    const history = state.accountHistory;
+    return {
+      columns: ["Market", "Side", "Original", "Filled", "Price", "Status", "Updated"],
+      rows: (history?.orders || []).map((order) => {
+        const price = order.is_trigger && finite(order.trigger_price) !== null ? `Trigger ${formatPrice(order.trigger_price)}` : formatPrice(order.limit_price);
+        const mechanics = [titleCase(order.status), order.reduce_only ? "Reduce only" : ""].filter(Boolean).join(" · ");
+        return [
+          accountCell(order.market),
+          accountCell(titleCase(order.side), { side: order.side }),
+          accountCell(accountNumber(order.original_size)),
+          accountCell(accountNumber(order.filled_size)),
+          accountCell(price),
+          accountCell(mechanics),
+          accountCell(order.status_at ? timestamp(order.status_at) : "Recorded"),
+        ];
+      }),
+      loading: state.accountHistoryLoading,
+      empty: history?.ok
+        ? "No historical orders on this account."
+        : history
+          ? "Current order history could not be loaded."
+          : "Open this tab to load bounded order history.",
     };
   }
   if (tab === "fills") {
@@ -533,7 +658,7 @@ function accountLedgerDefinition(tab, snapshot) {
     };
   }
   return {
-    columns: ["Market", "Side / size", "Entry", "Notional", "Unrealized P&L", "Liquidation"],
+    columns: ["Market", "Side / size", "Entry", "Notional", "Unrealized P&L", "Liquidation", "Action"],
     rows: (snapshot.positions || []).map((position) => {
       const pnl = finite(position.unrealized_pnl_usdc);
       const leverage = finite(position.leverage) === null ? "" : ` · ${accountNumber(position.leverage)}×`;
@@ -545,6 +670,7 @@ function accountLedgerDefinition(tab, snapshot) {
         accountCell(accountMoney(position.mark_notional_usdc)),
         accountCell(`${accountMoney(position.unrealized_pnl_usdc)}${roe}`, { tone: pnl === null ? null : pnl >= 0 ? "positive" : "negative" }),
         accountCell(finite(position.liquidation_price) === null ? "No liq. price" : formatPrice(position.liquidation_price)),
+        accountAction("Review close", () => reviewPositionClose(position), { title: `Prefill a reduce-only ${position.market} close review` }),
       ];
     }),
     empty: "No open perpetual positions on this account.",
@@ -561,9 +687,11 @@ function renderTerminalAccountLedger() {
     const empty = document.createElement("div");
     empty.className = "terminal-account-empty";
     const label = document.createElement("strong");
-    label.textContent = definition.empty;
+    label.textContent = definition.loading ? "Loading current order history…" : definition.empty;
     const note = document.createElement("span");
-    note.textContent = "The other account tabs remain available.";
+    note.textContent = definition.loading
+      ? "This history is requested only when you open the tab."
+      : "The other account tabs remain available.";
     empty.append(label, note);
     host.append(empty);
     return;
@@ -588,13 +716,18 @@ function renderTerminalAccount(snapshot) {
   state.accountSnapshot = snapshot;
   const summary = snapshot.summary || {};
   const summaryHost = document.getElementById("terminalAccountSummary");
-  if (summaryHost) summaryHost.hidden = false;
+  if (summaryHost) summaryHost.hidden = snapshot.state === "empty";
   setText("terminalAccountEquity", accountMoney(summary.account_value_usdc));
   setText("terminalAccountWithdrawable", accountMoney(summary.withdrawable_usdc));
-  setText("terminalAccountMargin", accountMoney(summary.margin_used_usdc));
   setText("terminalAccountExposure", accountMoney(summary.position_notional_usdc));
+  setText("terminalAccountMargin", finite(summary.margin_utilization_ratio) === null
+    ? accountMoney(summary.margin_used_usdc)
+    : `${accountMoney(summary.margin_used_usdc)} · ${percent(summary.margin_utilization_ratio, { ratio: true }).replace(/^\+/, "")}`);
+  setText("terminalAccountMaintenance", accountMoney(summary.maintenance_margin_usdc));
+  setText("terminalAccountLeverage", finite(summary.account_leverage) === null ? "—" : `${accountNumber(summary.account_leverage)}×`);
   const counts = {
     terminalAccountPositionsCount: (snapshot.positions || []).length,
+    terminalAccountBalancesCount: (snapshot.balances || []).length,
     terminalAccountOrdersCount: (snapshot.open_orders || []).length,
     terminalAccountFillsCount: (snapshot.fills || []).length,
     terminalAccountFundingCount: (snapshot.funding || []).length,
@@ -609,14 +742,47 @@ function renderTerminalAccount(snapshot) {
 }
 
 function setAccountTab(tab) {
-  state.accountTab = new Set(["positions", "orders", "fills", "funding"]).has(tab) ? tab : "positions";
+  state.accountTab = new Set(["positions", "balances", "orders", "history", "fills", "funding"]).has(tab) ? tab : "positions";
   for (const button of document.querySelectorAll("[data-account-tab]")) {
     button.setAttribute("aria-selected", String(button.dataset.accountTab === state.accountTab));
   }
   renderTerminalAccountLedger();
+  if (state.accountTab === "history" && !state.accountHistory && !state.accountHistoryLoading) void loadTerminalAccountHistory();
 }
 
-async function loadTerminalAccount(addressInput) {
+async function loadTerminalAccountHistory() {
+  const address = state.accountSnapshot?.account?.address;
+  if (!address || state.accountHistoryLoading) return;
+  state.accountHistoryLoading = true;
+  renderTerminalAccountLedger();
+  try {
+    const { response, payload } = await fetchJson("/api/trade/account-history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address, kind: "orders" }),
+    });
+    if (!response.ok || !payload?.ok || payload.account?.address !== address) throw new Error("account_history_failed");
+    state.accountHistory = payload;
+    const count = document.getElementById("terminalAccountHistoryCount");
+    setText("terminalAccountHistoryCount", (payload.orders || []).length);
+    if (count) count.hidden = false;
+  } catch {
+    state.accountHistory = {
+      ok: false,
+      orders: [],
+    };
+    const status = document.getElementById("terminalAccountStatus");
+    if (status) {
+      status.dataset.tone = "error";
+      status.textContent = "Current order history could not be loaded. Account snapshot remains available.";
+    }
+  } finally {
+    state.accountHistoryLoading = false;
+    if (state.accountTab === "history") renderTerminalAccountLedger();
+  }
+}
+
+async function loadTerminalAccount(addressInput, { walletTransport = false } = {}) {
   const address = String(addressInput || "").trim();
   const status = document.getElementById("terminalAccountStatus");
   const submit = document.querySelector("#terminalAccountForm button[type='submit']");
@@ -626,6 +792,11 @@ async function loadTerminalAccount(addressInput) {
     return;
   }
   const generation = ++state.accountGeneration;
+  state.accountHistory = null;
+  state.accountHistoryLoading = false;
+  state.walletTransportConnected = walletTransport;
+  const historyCount = document.getElementById("terminalAccountHistoryCount");
+  if (historyCount) historyCount.hidden = true;
   submit.disabled = true;
   status.dataset.tone = "";
   status.textContent = "Loading current account state…";
@@ -638,7 +809,11 @@ async function loadTerminalAccount(addressInput) {
     if (generation !== state.accountGeneration) return;
     if (!response.ok || !payload?.ok) throw new Error("account_snapshot_failed");
     renderTerminalAccount(payload);
-    status.textContent = `${shortAccountAddress(payload.account?.address)} · current venue state`;
+    syncOrderPlanControls();
+    status.textContent = walletTransport
+      ? `${shortAccountAddress(payload.account?.address)} · wallet address loaded · public observation only · not verified or linked`
+      : `${shortAccountAddress(payload.account?.address)} · current venue state · public observation only`;
+    if (state.lane === "perps" && state.selected?.instrument_id) void requestOrderPlan({ automatic: true });
   } catch {
     if (generation !== state.accountGeneration) return;
     status.dataset.tone = "error";
@@ -646,6 +821,36 @@ async function loadTerminalAccount(addressInput) {
   } finally {
     if (generation === state.accountGeneration) submit.disabled = false;
   }
+}
+
+async function useBrowserWalletAddress() {
+  const status = document.getElementById("terminalAccountStatus");
+  const wallet = globalThis.ethereum;
+  if (!wallet?.request) return;
+  if (status) {
+    status.dataset.tone = "";
+    status.textContent = "Requesting a public address from the browser wallet…";
+  }
+  try {
+    const accounts = await wallet.request({ method: "eth_requestAccounts" });
+    const address = Array.isArray(accounts) ? accounts.find((value) => /^0x[a-fA-F0-9]{40}$/.test(String(value || ""))) : null;
+    if (!address) throw new Error("wallet_address_unavailable");
+    const input = document.getElementById("terminalAccountAddress");
+    if (input) input.value = address;
+    await loadTerminalAccount(address, { walletTransport: true });
+  } catch {
+    state.walletTransportConnected = false;
+    if (status) {
+      status.dataset.tone = "error";
+      status.textContent = "No wallet address was loaded. You can still enter a public address manually.";
+    }
+  }
+}
+
+function initializeWalletAddressControl() {
+  const button = document.getElementById("terminalUseWallet");
+  if (!button) return;
+  button.hidden = !globalThis.ethereum?.request;
 }
 
 function readableProvider(value) {
@@ -809,9 +1014,8 @@ function ravenAlphaCard() {
   return cleanAlphaCard(state.context?.alpha_card || {});
 }
 
-function spotFlowAlphaCard() {
-  if (state.lane !== "spot" || !state.context?.spot_identity_validated) return null;
-  const anatomy = state.workspace?.state?.marketAnatomy || {};
+function spotFlowEvidence(workspace = state.workspace?.state || {}) {
+  const anatomy = workspace.marketAnatomy || {};
   const activity = anatomy.current_activity || {};
   const holders = anatomy.holder_distribution || {};
   const windows = [
@@ -835,6 +1039,25 @@ function spotFlowAlphaCard() {
   const sellRatio = sells / Math.max(1, buys);
   const accumulation = buyRatio >= 1.5 && holderChange !== null && holderChange > 0;
   const distribution = sellRatio >= 1.5 && holderChange !== null && holderChange < 0;
+  return {
+    window,
+    buys,
+    sells,
+    traders,
+    holderChange,
+    buyRatio,
+    sellRatio,
+    buyShare: buys / Math.max(1, buys + sells),
+    accumulation,
+    distribution,
+  };
+}
+
+function spotFlowAlphaCard() {
+  if (state.lane !== "spot" || !state.context?.spot_identity_validated) return null;
+  const evidence = spotFlowEvidence();
+  if (!evidence) return null;
+  const { window, buys, sells, traders, holderChange, buyRatio, sellRatio, accumulation, distribution } = evidence;
   if (!accumulation && !distribution && buyRatio < 1.75 && sellRatio < 1.75) return null;
   const buySide = accumulation || (!distribution && buyRatio >= sellRatio);
   const ratio = buySide ? buyRatio : sellRatio;
@@ -849,16 +1072,259 @@ function spotFlowAlphaCard() {
   });
 }
 
+function createSpotStructurePlan(context = {}, workspace = state.workspace?.state || {}) {
+  const read = state.chartRead;
+  const map = read?.structure_map || {};
+  const anatomy = workspace.marketAnatomy || {};
+  const profile = anatomy.market_profile || {};
+  const controls = profile.token_controls || {};
+  const holderProfile = profile.holder_distribution || anatomy.holder_distribution || {};
+  const instrumentId = workspace.instrument?.canonical_id;
+  const flow = spotFlowEvidence(workspace);
+  const liquidity = finite(anatomy.liquidity_usd);
+  const marketCap = finite(anatomy.market_cap_usd);
+  const poolAgeMs = finite(anatomy.pool_age_ms);
+  const top10Pct = finite(holderProfile.top_10_pct);
+  const developerHoldingPct = finite(controls.developer_holding_pct);
+  const rsi = finite(read?.facts?.rsi);
+  const volumeRatio = finite(read?.facts?.volume_ratio);
+  const entry = finite(map.entry_reference);
+  const risk = finite(map.invalidation_reference);
+  const primaryTarget = finite(map.favorable_reference);
+  const sample = Math.max(0, Math.trunc(finite(workspace.returnedBars) || workspace.candles?.length || 0));
+  const contextText = `${context.movement_state || ""} ${context.what_changed || ""}`;
+  const controlEvidenceComplete = [controls.mint_authority, controls.freeze_authority]
+    .every((value) => ["disabled", "enabled"].includes(String(value || "").toLowerCase()))
+    && ["not_flagged", "flagged"].includes(String(controls.honeypot || "").toLowerCase());
+  const unsafeControls = [controls.mint_authority, controls.freeze_authority]
+    .some((value) => /enabled|active|retained/i.test(String(value || "")))
+    || (controls.honeypot && !/^(?:not_flagged|clear|false)$/i.test(String(controls.honeypot)));
+  if (
+    context.schema_version !== "ravenos.spot_market_context.v1"
+    || context.state !== "current"
+    || context.research_only !== true
+    || context.actionable !== false
+    || !instrumentId
+    || read?.schema_version !== "ravenos.chart_read.v1"
+    || read.state !== "available"
+    || read.evidence_scope !== "provider_candles_only"
+    || read.instrument_id !== instrumentId
+    || read.direction !== "long"
+    || finite(read.score) < 4
+    || !["current", "fresh", "live"].includes(String(workspace.providerFreshnessState || "").toLowerCase())
+    || !["current", "fresh", "live"].includes(String(workspace.candleFreshnessState || "").toLowerCase())
+    || workspace.marketActivityState !== "active"
+    || !flow
+    || flow.buyShare < 0.58
+    || (flow.traders !== null && flow.traders < 10)
+    || !/rose|rising|accelerat|expand|increas|buy/i.test(contextText)
+    || /fell|falling|decelerat|contract|decreas|sell pressure/i.test(contextText)
+    || !(liquidity >= 2_500)
+    || sample < 55
+    || !(entry > 0)
+    || !(risk > 0)
+    || !(primaryTarget > entry)
+    || !(risk < entry)
+    || !controlEvidenceComplete
+    || unsafeControls
+  ) return null;
+  const riskDistance = entry - risk;
+  const riskPct = (riskDistance / entry) * 100;
+  if (!(riskPct >= 0.15 && riskPct <= 20)) return null;
+  const depthToMarketCap = liquidity !== null && marketCap !== null && marketCap > 0 ? liquidity / marketCap : null;
+  const defensiveSignals = [
+    riskPct >= 8 ? `wide ${riskPct.toFixed(1)}% structural risk` : "",
+    liquidity < 25_000 ? `${compact(liquidity, { currency: true })} pool depth` : "",
+    marketCap !== null && marketCap < 100_000 ? `${compact(marketCap, { currency: true })} market cap` : "",
+    poolAgeMs !== null && poolAgeMs < 86_400_000 ? "pool younger than 24h" : "",
+    top10Pct !== null && top10Pct >= 55 ? `top 10 hold ${top10Pct.toFixed(1)}%` : "",
+    developerHoldingPct !== null && developerHoldingPct >= 8 ? `developer holds ${developerHoldingPct.toFixed(1)}%` : "",
+    rsi !== null && rsi >= 76 ? `RSI ${rsi.toFixed(0)} is extended` : "",
+    flow.holderChange !== null && flow.holderChange < 0 ? `holders ${percent(flow.holderChange)}` : "",
+    depthToMarketCap !== null && depthToMarketCap < 0.025 ? `${(depthToMarketCap * 100).toFixed(1)}% depth / market cap` : "",
+  ].filter(Boolean);
+  const breakoutQualified = read.setup === "breakout_confirmed"
+    && finite(read.score) >= 4
+    && flow.buyShare >= 0.62
+    && (volumeRatio === null || volumeRatio >= 1.05)
+    && (rsi === null || rsi <= 82);
+  const accumulationQualified = flow.accumulation
+    && flow.holderChange !== null
+    && flow.holderChange > 0
+    && flow.buyShare >= 0.62;
+  let policy = {
+    id: "adaptive_trend",
+    label: "Adaptive trend scale-out",
+    multiples: [0.9, 1.8, 3],
+    allocations: [40, 35, 25],
+  };
+  if (defensiveSignals.length) {
+    policy = {
+      id: "defensive_de_risk",
+      label: "Defensive de-risk",
+      multiples: [0.65, 1.25, 2.1],
+      allocations: [55, 30, 15],
+    };
+  } else if (breakoutQualified) {
+    policy = {
+      id: "breakout_runner",
+      label: "Breakout runner",
+      multiples: [1.2, 2.4, 4],
+      allocations: [25, 30, 45],
+    };
+  } else if (accumulationQualified) {
+    policy = {
+      id: "accumulation_scale_out",
+      label: "Accumulation scale-out",
+      multiples: [1, 2.1, 3.6],
+      allocations: [30, 35, 35],
+    };
+  }
+  const target = (multiple, allocationPct, label) => ({
+    label,
+    price: entry + riskDistance * multiple,
+    excursion_pct: riskPct * multiple,
+    reward_risk: multiple,
+    allocation_pct: allocationPct,
+  });
+  const takeProfits = policy.multiples.map((multiple, index) => target(
+    multiple,
+    policy.allocations[index],
+    index === policy.multiples.length - 1 ? `TP${index + 1} / runner` : `TP${index + 1}`,
+  ));
+  const strategyReasons = [
+    `${read.setup === "breakout_confirmed" ? "Breakout" : "Trend"} structure ${read.score}/${read.score_max}${rsi === null ? "" : ` · RSI ${rsi.toFixed(0)}`}`,
+    `${Math.round(flow.buyShare * 100)}% buy-side across ${flow.window}${flow.traders === null ? "" : ` · ${compact(flow.traders)} traders`}`,
+    flow.holderChange === null ? "" : `Holder count ${percent(flow.holderChange)} over ${flow.window}`,
+    depthToMarketCap === null ? `${compact(liquidity, { currency: true })} exact-pool liquidity` : `${(depthToMarketCap * 100).toFixed(1)}% liquidity / market cap`,
+    volumeRatio === null ? "" : `${volumeRatio.toFixed(1)}× recent candle volume`,
+    ...defensiveSignals,
+  ].filter(Boolean).slice(0, 5);
+  const observedAt = read.observed_at || context.observed_at;
+  const frozenId = String(context.public_attention_id || `${instrumentId}:${context.observed_at || observedAt || "current"}`);
+  return {
+    schema_version: "ravenos.plan_preview.v1",
+    plan_id: `${frozenId}:${policy.id}:v1`,
+    state: "research_only",
+    enabled_by_default: false,
+    opt_in_required: true,
+    instrument_id: instrumentId,
+    direction: "long",
+    as_of: observedAt,
+    frozen_context_id: frozenId,
+    review_horizon: `${read.timeframe} structure map`,
+    sample_size: sample,
+    evidence_unit: "provider candles",
+    evidence_maturity: "current_structure",
+    evidence_label: `${sample.toLocaleString()} provider candles · exact-pool Raven buy flow`,
+    strategy_id: policy.id,
+    strategy_label: policy.label,
+    strategy_reasons: strategyReasons,
+    strategy_inputs: {
+      chart_setup: read.setup,
+      chart_score: read.score,
+      rsi,
+      volume_ratio: volumeRatio,
+      buy_share: flow.buyShare,
+      holder_change_pct: flow.holderChange,
+      liquidity_usd: liquidity,
+      market_cap_usd: marketCap,
+      liquidity_to_market_cap_ratio: depthToMarketCap,
+      pool_age_ms: poolAgeMs,
+      top_10_holder_pct: top10Pct,
+      developer_holding_pct: developerHoldingPct,
+      structural_risk_pct: riskPct,
+    },
+    methodology: `${policy.label}: target spacing and trim sizes adapt to exact-pool structure, volatility, flow participation, holders, depth, age, concentration, and token-control risk.`,
+    levels: {
+      entry_reference: { price: entry, observed_at: observedAt, source: "latest provider-backed close" },
+      target_reference: { price: takeProfits[1].price, excursion_pct: takeProfits[1].excursion_pct, source: `${policy.label} primary scale-out reference` },
+      risk_reference: { price: risk, excursion_pct: -riskPct, source: "recent provider-backed structure invalidation" },
+    },
+    take_profits: takeProfits,
+    production_qualified: false,
+    personalized: false,
+    executable: false,
+    signing_available: false,
+    submission_available: false,
+    disclaimer: "Exact-market research references only. Review liquidity and slippage before acting; these levels are not personalized orders.",
+  };
+}
+
+function spotPlanOverlays(plan = {}) {
+  const validated = planPreviewData(plan);
+  if (!validated || state.lane !== "spot") return [];
+  const observed = Date.parse(plan.as_of || "") / 1_000;
+  if (!Number.isFinite(observed)) return [];
+  const lineage = { frozen_context_id: plan.frozen_context_id, methodology: "exact_pool_raven_flow_plus_provider_structure" };
+  const level = ({ id, type, label, summary, severity, price }) => ({
+    id: `${plan.plan_id}:${id}`,
+    instrument_id: plan.instrument_id,
+    type,
+    label,
+    summary,
+    severity,
+    priceMin: price,
+    priceMax: price,
+    startTime: observed,
+    observed_at: plan.as_of,
+    lineage,
+  });
+  return [
+    level({ id: "entry", type: "plan-entry", label: "Decision reference", summary: "Latest provider-backed close", severity: "info", price: validated.levels.entry_reference.price }),
+    ...validated.takeProfits.map((target, index) => level({
+      id: `target-${index + 1}`,
+      type: "plan-target",
+      label: `${target.label} · ${target.allocation_pct}%`,
+      summary: `${target.reward_risk}R scale-out reference`,
+      severity: "success",
+      price: target.price,
+    })),
+    level({ id: "risk", type: "plan-risk", label: "Structure invalidation", summary: "Recent exact-pool structure", severity: "danger", price: validated.levels.risk_reference.price }),
+  ];
+}
+
+function refreshSpotStructurePlan() {
+  if (state.lane !== "spot" || !state.context?.spot_identity_validated) return false;
+  const planPreview = createSpotStructurePlan(state.context.spot_context, state.workspace?.state || {});
+  const nextContext = { ...state.context };
+  delete nextContext.plan_preview;
+  delete nextContext.chart_overlays;
+  if (planPreview) {
+    nextContext.plan_preview = planPreview;
+    nextContext.chart_overlays = {
+      schema_version: "ravenos.chart_overlays.v1",
+      instrument_id: planPreview.instrument_id,
+      role: "annotation_only",
+      candle_replacement_allowed: false,
+      overlays: spotPlanOverlays(planPreview),
+    };
+    if (state.autoRavenOverlays) state.planOverlayEnabled = true;
+  } else {
+    state.planOverlayEnabled = false;
+  }
+  state.context = nextContext;
+  renderPlanPreview(planPreview || {});
+  applySpotContextChart(nextContext);
+  renderAlphaStack();
+  return Boolean(planPreview);
+}
+
 function planAlphaCard() {
   const validated = planPreviewData(state.context?.plan_preview || {});
   if (!validated) return null;
-  const { plan, levels, sample } = validated;
+  const { plan, levels, sample, takeProfits } = validated;
+  const spotPlan = state.lane === "spot" && takeProfits.length >= 2;
   return cleanAlphaCard({
     id: "evidence-plan",
-    label: "Trade path",
-    headline: `${titleCase(plan.direction)} · ${percent(levels.target_reference.excursion_pct)} favorable / ${percent(levels.risk_reference.excursion_pct)} adverse`,
-    detail: `${formatPrice(levels.entry_reference.price)} decision · ${formatPrice(levels.target_reference.price)} favorable · ${formatPrice(levels.risk_reference.price)} invalidation`,
-    meta: `${sample.toLocaleString()} completed paths · research only`,
+    label: spotPlan ? "TP strategy" : "Trade path",
+    headline: spotPlan
+      ? `${customerFacingText(plan.strategy_label, "Custom scale-out")} · ${percent(levels.risk_reference.excursion_pct)} structural risk`
+      : `${titleCase(plan.direction)} · ${percent(levels.target_reference.excursion_pct)} favorable / ${percent(levels.risk_reference.excursion_pct)} adverse`,
+    detail: spotPlan
+      ? takeProfits.map((target) => `${target.label} ${percent(target.excursion_pct)} · ${target.allocation_pct}%`).join(" · ")
+      : `${formatPrice(levels.entry_reference.price)} decision · ${formatPrice(levels.target_reference.price)} favorable · ${formatPrice(levels.risk_reference.price)} invalidation`,
+    meta: plan.evidence_label || `${sample.toLocaleString()} completed paths · research only`,
     tone: plan.direction === "short" ? "negative" : "positive",
     action: { type: "show-plan", label: state.planOverlayEnabled ? "Plan shown on chart" : "Show plan on chart" },
   });
@@ -1644,16 +2110,52 @@ function resetPlanPreview() {
   if (section) section.hidden = true;
   if (toggle) toggle.checked = false;
   const load = document.getElementById("terminalPlanLoad");
-  if (load) load.disabled = true;
+  if (load) {
+    load.disabled = true;
+    load.hidden = false;
+  }
+  const ladder = document.getElementById("terminalPlanLadderRow");
+  if (ladder) ladder.hidden = true;
+  const why = document.getElementById("terminalPlanWhyRow");
+  if (why) why.hidden = true;
   setText("terminalPlanEntry", "");
   setText("terminalPlanTarget", "");
   setText("terminalPlanRisk", "");
   setText("terminalPlanEvidence", "");
+  setText("terminalPlanLadder", "");
+  setText("terminalPlanWhy", "");
 }
 
 function planPreviewData(plan = {}) {
   const levels = plan?.levels;
   const sample = Math.max(0, Math.trunc(finite(plan?.sample_size) || 0));
+  const entry = finite(levels?.entry_reference?.price);
+  const target = finite(levels?.target_reference?.price);
+  const risk = finite(levels?.risk_reference?.price);
+  const expectedInstrumentIds = new Set([
+    state.workspace?.state?.instrument?.canonical_id,
+    state.selected?.instrument_id,
+  ].filter(Boolean));
+  const rawTakeProfits = Array.isArray(plan?.take_profits) ? plan.take_profits : [];
+  const takeProfits = rawTakeProfits.map((row) => ({
+    label: customerFacingText(row?.label, "").trim(),
+    price: finite(row?.price),
+    excursion_pct: finite(row?.excursion_pct),
+    reward_risk: finite(row?.reward_risk),
+    allocation_pct: finite(row?.allocation_pct),
+  })).filter((row) => (
+    row.label
+    && row.price > 0
+    && row.excursion_pct !== null
+    && row.reward_risk > 0
+    && row.allocation_pct > 0
+  ));
+  const takeProfitAllocation = takeProfits.reduce((sum, row) => sum + row.allocation_pct, 0);
+  const takeProfitsOrdered = takeProfits.every((row, index) => index === 0 || (
+    plan.direction === "long"
+      ? row.price > takeProfits[index - 1].price
+      : row.price < takeProfits[index - 1].price
+  ));
   if (
     plan?.schema_version !== "ravenos.plan_preview.v1"
     || plan?.state !== "research_only"
@@ -1661,12 +2163,20 @@ function planPreviewData(plan = {}) {
     || plan?.signing_available !== false
     || plan?.submission_available !== false
     || !levels
-    || !(finite(levels.entry_reference?.price) > 0)
-    || !(finite(levels.target_reference?.price) > 0)
-    || !(finite(levels.risk_reference?.price) > 0)
+    || !(entry > 0)
+    || !(target > 0)
+    || !(risk > 0)
+    || !["long", "short"].includes(plan.direction)
+    || (expectedInstrumentIds.size > 0 && (!plan.instrument_id || !expectedInstrumentIds.has(plan.instrument_id)))
+    || (plan.direction === "long" && !(target > entry && risk < entry))
+    || (plan.direction === "short" && !(target < entry && risk > entry))
+    || (rawTakeProfits.length > 0 && takeProfits.length !== rawTakeProfits.length)
+    || (takeProfits.length > 0 && (takeProfits.length < 2 || takeProfits.length > 5))
+    || (takeProfits.length > 0 && takeProfits.some((row) => plan.direction === "long" ? row.price <= entry : row.price >= entry))
+    || (takeProfits.length > 0 && (!takeProfitsOrdered || Math.abs(takeProfitAllocation - 100) > 0.01))
     || sample <= 0
   ) return null;
-  return { plan, levels, sample };
+  return { plan, levels, sample, takeProfits };
 }
 
 function renderPlanPreview(plan = {}) {
@@ -1675,16 +2185,36 @@ function renderPlanPreview(plan = {}) {
     resetPlanPreview();
     return false;
   }
-  const { levels, sample } = validated;
+  const { levels, sample, takeProfits } = validated;
+  const spotPlan = state.lane === "spot" && takeProfits.length >= 2;
   const section = document.getElementById("terminalPlanSection");
   if (section) section.hidden = false;
   const load = document.getElementById("terminalPlanLoad");
-  if (load) load.disabled = false;
+  if (load) {
+    load.hidden = state.lane !== "perps";
+    load.disabled = state.lane !== "perps";
+  }
+  setText("terminalPlanLabel", spotPlan ? "Raven custom TP strategy" : "Plan preview");
+  setText("terminalPlanTitle", spotPlan ? customerFacingText(plan.strategy_label, "Adaptive scale-out") : "What similar paths suggest");
   setText("terminalPlanState", `${titleCase(plan.direction)} · research only`);
   setText("terminalPlanEntry", formatPrice(levels.entry_reference.price));
   setText("terminalPlanTarget", `${formatPrice(levels.target_reference.price)} · ${percent(levels.target_reference.excursion_pct)}`);
   setText("terminalPlanRisk", `${formatPrice(levels.risk_reference.price)} · ${percent(levels.risk_reference.excursion_pct)}`);
-  setText("terminalPlanEvidence", `${sample.toLocaleString()} paths · ${titleCase(plan.evidence_maturity)}`);
+  setText("terminalPlanEvidence", plan.evidence_label || `${sample.toLocaleString()} paths · ${titleCase(plan.evidence_maturity)}`);
+  const ladder = document.getElementById("terminalPlanLadderRow");
+  if (ladder) ladder.hidden = !spotPlan;
+  setText("terminalPlanLadder", spotPlan
+    ? takeProfits.map((row) => `${row.label} ${formatPrice(row.price)} (${percent(row.excursion_pct)}) · trim ${row.allocation_pct}%`).join("  ·  ")
+    : "");
+  const why = document.getElementById("terminalPlanWhyRow");
+  const reasons = Array.isArray(plan.strategy_reasons)
+    ? plan.strategy_reasons.map((value) => customerFacingText(value, "").trim()).filter(Boolean).slice(0, 5)
+    : [];
+  if (why) why.hidden = !spotPlan || !reasons.length;
+  setText("terminalPlanWhy", spotPlan ? reasons.join(" · ") : "");
+  setText("terminalPlanDisclaimer", plan.disclaimer || "Based on completed paths for this market. Research only—not personalized targets, stops, or orders.");
+  const toggle = document.getElementById("terminalPlanToggle");
+  if (toggle) toggle.checked = state.planOverlayEnabled;
   return true;
 }
 
@@ -1783,6 +2313,46 @@ function applyContextChartEvent(payload) {
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
   });
+}
+
+function applySpotContextChart(payload = state.context || {}) {
+  const workspace = state.workspace?.state || {};
+  const annotations = workspace.ravenAnnotations;
+  const exactAnnotations = annotations?.role === "annotation_only"
+    && annotations?.identity_scope === "exact_pool"
+    && annotations?.candle_replacement_allowed === false
+    && annotations?.instrument_id === workspace.instrument?.canonical_id
+    ? annotations
+    : null;
+  const planContract = payload?.chart_overlays;
+  const planOverlays = planContract?.role === "annotation_only"
+    && planContract?.candle_replacement_allowed === false
+    && planContract?.instrument_id === workspace.instrument?.canonical_id
+    && Array.isArray(planContract.overlays)
+    ? planContract.overlays
+    : [];
+  const overlays = [
+    ...(Array.isArray(exactAnnotations?.overlays) ? exactAnnotations.overlays : []),
+    ...(state.planOverlayEnabled ? planOverlays : []),
+  ];
+  state.workspace?.render?.({
+    asset: state.selected ? `${state.selected.symbol}/${state.selected.quoteSymbol}` : "Exact pool",
+    market: "crypto_spot",
+    venue: state.selected?.dexId || "exact_pool",
+    chain: state.selected?.chainId || "",
+    timeframe: state.timeframe,
+    events: Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : [],
+    overlays,
+    visibleOverlayTypes: state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : [],
+    showVolume: true,
+    chartDataSource: "terminal_chart_api",
+    indicatorSourceState: "provider_backed",
+  });
+}
+
+function applyActiveContextOverlays() {
+  if (state.lane === "spot") applySpotContextChart();
+  else if (state.context) applyContextChartEvent(state.context);
 }
 
 function renderPerpContext(payload, { updateUrl = true } = {}) {
@@ -1897,6 +2467,7 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
     context.what_changed,
   );
   const risk = customerFacingText(context.risk, "");
+  resetPlanPreview();
   state.context = {
     raven_context: {
       context_available: true,
@@ -1926,7 +2497,7 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
   );
   setState("terminalContextFreshness", "fresh", "Current");
   resetComparableEvidence();
-  resetPlanPreview();
+  refreshSpotStructurePlan();
   updateShell({
     subject: spotSubject(row, { ravenIntelligence: true }),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
@@ -2029,7 +2600,9 @@ function syncMarketPreviewControls() {
 }
 
 function orderPlanActionText() {
-  return `Review ${state.marketPreviewSide} ${state.orderPlanType}`;
+  return state.accountSnapshot?.ok && state.flags?.account_scenario_available === true
+    ? `Review ${state.marketPreviewSide} ${state.orderPlanType} + account`
+    : `Review ${state.marketPreviewSide} ${state.orderPlanType}`;
 }
 
 function inputPrice(value) {
@@ -2108,6 +2681,7 @@ function marketPreviewReason(reason) {
     insufficient_visible_depth: "The visible book cannot cover that size. Reduce the amount.",
     insufficient_depth_inside_limit: "The current book cannot fill that size without crossing your limit. Reduce the size or revise the limit.",
     price_impact_limit_exceeded: "Estimated impact exceeds the preview limit. Reduce the amount.",
+    impact_limit_invalid: "Choose a supported impact guard between 0 and 500 bps.",
     notional_out_of_bounds: "Enter a size between 10 and 250,000 USDC.",
     leverage_invalid: "Choose a whole-number leverage supported by this market.",
     leverage_exceeds_market_maximum: "That leverage exceeds this market's current maximum.",
@@ -2126,6 +2700,15 @@ function marketPreviewReason(reason) {
     stop_loss_side_mismatch: "The stop level is on the wrong side of the planned entry.",
     book_order_invalid: "The live book failed continuity checks. Refresh before relying on it.",
     book_summary_invalid: "The current bid and ask could not be verified.",
+    account_identity_mismatch: "The account snapshot no longer matches this review. Reload the account.",
+    account_snapshot_unavailable: "Current account state is unavailable. Reload the public account before reviewing impact.",
+    account_snapshot_stale: "The account snapshot moved out of its review window. Reload it.",
+    account_fee_rate_unavailable: "Current account fee rates could not be confirmed. No fee estimate was invented.",
+    account_withdrawable_unavailable: "Current withdrawable collateral could not be confirmed.",
+    margin_mode_invalid: "Choose Cross or Isolated margin.",
+    reduce_only_would_not_reduce_position: "Reduce only would add or flip this exposure. Reverse the side or turn reduce only off.",
+    account_scenario_provider_error: "Current account impact could not be confirmed. The market-only review remains available after unloading the account.",
+    account_scenario_timeout: "The account and market did not respond inside the review window. Try again.",
   };
   return messages[reason] || "The current exact-market plan could not be verified. Nothing was prepared.";
 }
@@ -2147,9 +2730,14 @@ function clearMarketPreviewResult(message = "Review exact entry semantics and op
   state.marketPreviewExpiryTimer = null;
   state.orderPlanExpiryTimer = null;
   const result = document.getElementById("terminalPreviewResult");
+  const accountResult = document.getElementById("terminalAccountScenarioResult");
   if (result) {
     result.hidden = true;
     delete result.dataset.state;
+  }
+  if (accountResult) {
+    accountResult.hidden = true;
+    delete accountResult.dataset.state;
   }
   const status = document.getElementById("terminalPreviewMessage");
   if (status) {
@@ -2175,6 +2763,39 @@ function signedBps(value) {
   return `${amount >= 0 ? "+" : ""}${amount.toFixed(2)} bps`;
 }
 
+function renderAccountScenario(plan = {}) {
+  const host = document.getElementById("terminalAccountScenarioResult");
+  if (!host) return;
+  const accountContext = plan.account_context;
+  if (!accountContext) {
+    host.hidden = true;
+    return;
+  }
+  const effect = plan.position_effect || {};
+  const fee = plan.fee_estimate || {};
+  const margin = plan.margin_check || {};
+  const settings = plan.venue_settings || {};
+  const blocked = plan.state === "account_scenario_blocked" || plan.review?.state === "blocked";
+  const projectedSide = effect.projected_side === "flat" ? "Flat" : titleCase(effect.projected_side);
+  setText("terminalScenarioState", blocked ? "Needs attention" : "Checks pass");
+  setText("terminalScenarioEffect", titleCase(effect.effect));
+  setText("terminalScenarioProjected", effect.projected_side === "flat"
+    ? "Flat after plan"
+    : `${projectedSide} ${accountNumber(effect.projected_size)} · ${accountMoney(effect.projected_notional_usdc)}`);
+  const feeRate = finite(fee.account_fee_rate);
+  setText("terminalScenarioFee", `${accountMoney(fee.estimated_entry_fee_usdc)}${feeRate === null ? "" : ` · ${(feeRate * 10_000).toFixed(2)} bps ${fee.liquidity_assumption || ""}`}`);
+  setText("terminalScenarioMargin", accountMoney(margin.estimated_incremental_margin_usdc));
+  setText("terminalScenarioCheck", `${accountMoney(margin.estimated_withdrawable_after_usdc)} · ${margin.state === "passes_current_snapshot" ? "passes" : "insufficient"}`);
+  setText("terminalScenarioSettings", settings.settings_change_required
+    ? `Set ${titleCase(settings.requested_margin_mode)} · ${accountNumber(settings.requested_leverage)}×`
+    : `${titleCase(settings.requested_margin_mode)} · ${accountNumber(settings.requested_leverage)}×`);
+  setText("terminalScenarioNote", blocked
+    ? `Blocked by ${plan.review?.blockers?.map((value) => titleCase(value)).join(" · ") || "the current account check"}. Nothing was prepared.`
+    : `Modeled from ${shortAccountAddress(accountContext.address)} at ${timestamp(accountContext.observed_at)}. Public observation is not wallet ownership verification.`);
+  host.hidden = false;
+  host.dataset.state = blocked ? "blocked" : "ready";
+}
+
 function renderOrderPlan(plan) {
   state.marketPreview = plan;
   state.orderPlan = plan;
@@ -2182,6 +2803,8 @@ function renderOrderPlan(plan) {
   const message = document.getElementById("terminalPreviewMessage");
   if (!plan?.ok) {
     if (result) result.hidden = true;
+    const accountResult = document.getElementById("terminalAccountScenarioResult");
+    if (accountResult) accountResult.hidden = true;
     if (message) {
       message.textContent = marketPreviewReason(plan?.unavailable_reason);
       message.dataset.state = "error";
@@ -2195,6 +2818,7 @@ function renderOrderPlan(plan) {
   const bracket = plan.risk_bracket || null;
   const coin = plan.instrument?.exact_market_id || String(state.selected?.asset || "").replace(/-PERP$/i, "");
   const baseSize = intent.planned_base_size ?? fill?.base_size;
+  renderAccountScenario(plan);
   setText("terminalPreviewEntryLabel", intent.order_type === "market"
     ? "Estimated current entry"
     : entry.state === "currently_marketable_limit"
@@ -2243,13 +2867,19 @@ function renderOrderPlan(plan) {
   }
 
   setText("terminalPreviewTiming", `Book ${timestamp(plan.provenance?.observed_at)} · short-lived review`);
-  setText("terminalQuoteState", entry.state === "resting_limit" ? "Resting limit" : intent.order_type === "trigger" ? "Conditional" : "Current book");
+  setText("terminalQuoteState", plan.account_context
+    ? plan.state === "account_scenario_blocked" ? "Account check" : "Account ready"
+    : entry.state === "resting_limit" ? "Resting limit" : intent.order_type === "trigger" ? "Conditional" : "Current book");
   if (result) {
     result.hidden = false;
     result.dataset.state = "current";
   }
   if (message) {
-    message.textContent = bracket
+    message.textContent = plan.account_context
+      ? plan.state === "account_scenario_blocked"
+        ? "The exact entry is modeled, but the current account check has blockers. Nothing was prepared."
+        : "Current entry, fee tier, position effect, and incremental margin are modeled from the exact market and current public account snapshot."
+      : bracket
       ? "Entry mechanics and risk math are reviewed separately. Fees, slippage after activation, and account liquidation effects are not included."
       : intent.order_type === "trigger"
         ? "The trigger is anchored to the current market; its future fill will be repriced when activated."
@@ -2260,8 +2890,9 @@ function renderOrderPlan(plan) {
   }
   clearTimeout(state.orderPlanExpiryTimer);
   const remaining = Math.max(0, Date.parse(plan.expires_at || "") - Date.now());
+  const planIdentity = plan.scenario_id || plan.plan_id;
   state.orderPlanExpiryTimer = setTimeout(() => {
-    if (state.orderPlan?.plan_id !== plan.plan_id) return;
+    if ((state.orderPlan?.scenario_id || state.orderPlan?.plan_id) !== planIdentity) return;
     if (result) result.dataset.state = "expired";
     setText("terminalQuoteState", "Refresh");
     setText("terminalPreviewTiming", "Plan review expired · refresh against the current book");
@@ -2280,18 +2911,28 @@ async function requestOrderPlan({ automatic = false } = {}) {
   const takeProfit = finite(document.getElementById("terminalPreviewTakeProfit")?.value);
   const stopLoss = finite(document.getElementById("terminalPreviewStopLoss")?.value);
   const timeInForce = String(document.getElementById("terminalPreviewTif")?.value || "gtc");
+  const marginMode = String(document.getElementById("terminalPreviewMarginMode")?.value || "cross");
+  const reduceOnly = document.getElementById("terminalPreviewReduceOnly")?.checked === true;
+  const maxImpactBps = finite(document.getElementById("terminalPreviewImpactLimit")?.value) || 100;
   const action = document.getElementById("terminalPreviewAction");
+  const accountScenario = state.accountSnapshot?.ok === true
+    && state.flags?.account_scenario_available === true
+    && Array.isArray(state.flags?.account_scenario_venues)
+    && state.flags.account_scenario_venues.includes("hyperliquid");
   const generation = ++state.orderPlanGeneration;
   if (action) {
     action.disabled = true;
-    action.textContent = automatic ? "Loading exact market…" : "Reviewing exact market…";
+    action.textContent = automatic
+      ? accountScenario ? "Loading account + market…" : "Loading exact market…"
+      : accountScenario ? "Reviewing account + market…" : "Reviewing exact market…";
   }
   setText("terminalQuoteState", "Checking book");
   try {
-    const { payload } = await fetchJson("/api/trade/order-plan", {
+    const { payload } = await fetchJson(accountScenario ? "/api/trade/account-scenario" : "/api/trade/order-plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        ...(accountScenario ? { address: state.accountSnapshot.account.address } : {}),
         instrument_id: state.selected.instrument_id,
         side: state.marketPreviewSide,
         order_type: state.orderPlanType,
@@ -2302,7 +2943,9 @@ async function requestOrderPlan({ automatic = false } = {}) {
         time_in_force: state.orderPlanType === "limit" ? timeInForce : null,
         take_profit_price: takeProfit,
         stop_loss_price: stopLoss,
-        max_impact_bps: 100,
+        margin_mode: marginMode,
+        reduce_only: reduceOnly,
+        max_impact_bps: maxImpactBps,
       }),
     });
     if (generation !== state.orderPlanGeneration) return;
@@ -2334,6 +2977,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   if (!row) return;
   const generation = ++state.selectionGeneration;
   state.lane = "perps";
+  renderLaunchBadge();
   state.selected = row;
   state.context = null;
   resetTerminalMarketFlow();
@@ -2393,6 +3037,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   state.lane = lane;
+  renderLaunchBadge();
   updateTerminalPaneAvailability();
   document.getElementById("terminalModeSelect").value = lane;
   document.getElementById("terminalSpotControl").hidden = true;
@@ -2522,6 +3167,7 @@ async function searchSpot(query) {
 async function selectSpot(row, { updateUrl = true } = {}) {
   const generation = ++state.selectionGeneration;
   state.lane = "spot";
+  renderLaunchBadge();
   state.selected = row;
   state.context = null;
   updateTerminalPaneAvailability();
@@ -2690,6 +3336,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   }
   const generation = ++state.selectionGeneration;
   state.lane = "equity";
+  renderLaunchBadge();
   state.selected = selectedRow;
   updateTerminalPaneAvailability();
   clearExternalChart();
@@ -2993,6 +3640,7 @@ async function loadExactPool(instrumentId, { updateUrl = false } = {}) {
 }
 
 function bindControls() {
+  initializeWalletAddressControl();
   document.getElementById("terminalModeSelect").addEventListener("change", (event) => setLane(event.target.value));
   document.getElementById("assetSelect").addEventListener("change", (event) => selectPerp(event.target.value));
   document.getElementById("terminalInstrumentTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
@@ -3037,17 +3685,22 @@ function bindControls() {
     if (event.key === "Enter") void requestOrderPlan();
   });
   document.getElementById("terminalPreviewTif")?.addEventListener("change", () => requestOrderPlan());
+  document.getElementById("terminalPreviewMarginMode")?.addEventListener("change", () => requestOrderPlan());
+  document.getElementById("terminalPreviewImpactLimit")?.addEventListener("change", () => requestOrderPlan());
+  document.getElementById("terminalPreviewReduceOnly")?.addEventListener("change", () => requestOrderPlan());
   document.getElementById("terminalPreviewTakeProfit")?.addEventListener("input", () => clearMarketPreviewResult("Risk levels changed. Review the plan again."));
   document.getElementById("terminalPreviewStopLoss")?.addEventListener("input", () => clearMarketPreviewResult("Risk levels changed. Review the plan again."));
   document.getElementById("terminalPlanLoad")?.addEventListener("click", loadRavenPlanIntoTicket);
   document.getElementById("terminalPlanToggle")?.addEventListener("change", (event) => {
     state.planOverlayEnabled = event.target.checked === true;
-    if (state.context) applyContextChartEvent(state.context);
+    applyActiveContextOverlays();
+    renderAlphaStack();
   });
   document.getElementById("terminalAccountForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadTerminalAccount(document.getElementById("terminalAccountAddress")?.value);
   });
+  document.getElementById("terminalUseWallet")?.addEventListener("click", () => void useBrowserWalletAddress());
   for (const button of document.querySelectorAll("[data-account-tab]")) {
     button.addEventListener("click", () => setAccountTab(button.dataset.accountTab));
   }
@@ -3058,6 +3711,9 @@ function bindControls() {
       input.value = button.dataset.notionalPreset;
       clearMarketPreviewResult("Size changed. Preview again against the current book.");
     });
+  }
+  for (const button of document.querySelectorAll("[data-account-size-pct]")) {
+    button.addEventListener("click", () => applyAccountSizePreset(button.dataset.accountSizePct));
   }
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.addEventListener("click", () => setTerminalPane(button.dataset.terminalPaneButton));
@@ -3129,6 +3785,9 @@ async function loadBuildIdentity() {
 
 async function boot() {
   const params = new URLSearchParams(location.search);
+  const requestedLaunch = String(params.get("launch") || "").toLowerCase();
+  state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
+  state.autoRavenOverlays = Boolean(state.launchSource && params.get("raven_overlays") === "auto");
   state.timeframe = TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : TIMEFRAMES.has(ravenOSContext.getState().timeframe) ? ravenOSContext.getState().timeframe : "1h";
   document.getElementById("timeframeSelect").value = state.timeframe;
   state.workspace = window.RavenOSPriceWorkspace?.create?.(document.getElementById("terminalChart"), {
@@ -3142,7 +3801,8 @@ async function boot() {
     onMarkerSelect: (marker) => renderMarkerDetail(marker),
     onChartReadChange: (read) => {
       state.chartRead = read;
-      renderAlphaStack();
+      if (state.lane === "spot" && state.context?.spot_identity_validated) refreshSpotStructurePlan();
+      else renderAlphaStack();
     },
   });
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
@@ -3223,6 +3883,15 @@ async function boot() {
       marketAnatomy: state.workspace?.state?.marketAnatomy || null,
       providerTransitionCount: state.workspace?.state?.providerTransitionCount || 0,
       contextState: state.context?.raven_context?.context_state || (state.context?.atlas_context?.context_available ? "atlas_context" : "unavailable"),
+      launchSource: state.launchSource || null,
+      autoRavenOverlays: state.autoRavenOverlays,
+      chartReadDirection: state.chartRead?.direction || null,
+      chartReadSetup: state.chartRead?.setup || null,
+      chartReadScore: finite(state.chartRead?.score),
+      planPreviewAvailable: Boolean(planPreviewData(state.context?.plan_preview || {})),
+      planStrategyId: state.context?.plan_preview?.strategy_id || null,
+      planTargetCount: state.context?.plan_preview?.take_profits?.length || 0,
+      planOverlayEnabled: state.planOverlayEnabled,
       quoteOnly: state.flags?.quote_only === true,
       marketPreviewAvailable: state.flags?.market_preview_available === true,
       marketPreviewState: state.marketPreview?.state || "unavailable",
@@ -3234,8 +3903,16 @@ async function boot() {
       publicAccountViewAvailable: state.flags?.public_account_view_available === true,
       publicAccountObserved: state.accountSnapshot?.ok === true,
       publicAccountPositionCount: state.accountSnapshot?.positions?.length || 0,
+      publicAccountBalanceCount: state.accountSnapshot?.balances?.length || 0,
       publicAccountOrderCount: state.accountSnapshot?.open_orders?.length || 0,
+      accountHistoryAvailable: state.flags?.account_history_available === true,
+      accountHistoryCount: state.accountHistory?.orders?.length || 0,
+      accountScenarioAvailable: state.flags?.account_scenario_available === true,
+      accountScenarioState: state.orderPlan?.account_context ? state.orderPlan.state : "unavailable",
       accountTab: state.accountTab,
+      walletTransportConnected: state.walletTransportConnected,
+      walletVerified: false,
+      walletLinked: false,
       bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
       tapeCount: state.tapeRows.length,
       signingAvailable: false,

@@ -401,6 +401,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.discover-token-source-badge {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border: 1px solid rgba(143, 164, 186, .22);
+  background: rgba(143, 164, 186, .06);
+  color: #8fb9a2;
+  font: 760 6px/1 var(--ws-mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 .discover-token-market-id { color: var(--ws-dim); font: 650 7px var(--ws-mono); }
 .discover-token-move { min-width: 0; display: grid; grid-template-columns: auto 54px; align-items: center; gap: 2px 8px; }
 .discover-token-move > strong { font: 740 12px var(--ws-mono); white-space: nowrap; }
@@ -677,7 +687,8 @@
 .portfolio-account-results > header > div { min-width: 0; display: grid; gap: 4px; }
 .portfolio-account-results > header strong { overflow: hidden; font: 650 9px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
 .portfolio-account-results > header > span { color: var(--ws-dim); font: 8px var(--ws-mono); white-space: nowrap; }
-.portfolio-account-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-bottom: 1px solid var(--ws-border); }
+.portfolio-account-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 0; border-bottom: 1px solid var(--ws-border); }
+.portfolio-account-summary[hidden] { display: none; }
 .portfolio-account-summary > div { min-width: 0; display: grid; gap: 6px; padding: 12px 11px; border-right: 1px solid var(--ws-border); }
 .portfolio-account-summary > div:last-child { border-right: 0; }
 .portfolio-account-summary dt,
@@ -1275,8 +1286,8 @@
   .portfolio-account-form { margin-top: 20px; padding: 10px; }
   .portfolio-account-form > div { grid-template-columns: 1fr; }
   .portfolio-account-summary { grid-template-columns: 1fr 1fr; }
-  .portfolio-account-summary > div:nth-child(2) { border-right: 0; }
-  .portfolio-account-summary > div:nth-child(-n + 2) { border-bottom: 1px solid var(--ws-border); }
+  .portfolio-account-summary > div:nth-child(2n) { border-right: 0; }
+  .portfolio-account-summary > div:not(:nth-last-child(-n + 2)) { border-bottom: 1px solid var(--ws-border); }
   .portfolio-position-head > span { display: none; }
   .portfolio-selection { min-height: 200px; padding: 22px 15px; }
   .connection-row { grid-template-columns: 38px minmax(0, 1fr); }

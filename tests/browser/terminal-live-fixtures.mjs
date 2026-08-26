@@ -27,6 +27,25 @@ export function providerCandles(asset, timeframe = "1h") {
   });
 }
 
+function bullishSpotCandles(asset, timeframe = "1h") {
+  const timeline = providerCandles(asset, timeframe);
+  let close = 1.12;
+  return timeline.map((row, index) => {
+    const open = close;
+    const finalBar = index === timeline.length - 1;
+    const change = finalBar ? 0.012 : index % 3 === 0 ? -0.0025 : 0.0018;
+    close = open * (1 + change);
+    return {
+      ...row,
+      open: Number(open.toFixed(8)),
+      high: Number((Math.max(open, close) * 1.0025).toFixed(8)),
+      low: Number((Math.min(open, close) * 0.9975).toFixed(8)),
+      close: Number(close.toFixed(8)),
+      volume: finalBar ? 2_800_000 : 900_000 + index * 8_000,
+    };
+  });
+}
+
 export const ROBINHOOD_CONTRACT = "0x230442c8133a9efb4c278b3723043444749ca08b";
 export const HYPERLIQUID_ACCOUNT_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 
@@ -44,10 +63,15 @@ export function hyperliquidAccountSnapshotFixture(address = HYPERLIQUID_ACCOUNT_
       withdrawable_usdc: 2_780.25,
       position_notional_usdc: 8_100,
       margin_used_usdc: 1_620,
+      maintenance_margin_usdc: 405,
+      margin_utilization_ratio: 0.12959741,
+      account_leverage: 0.64798704,
       cash_balance_usdc: 4_400.25,
       cross_account_value_usdc: 12_500.25,
       cross_margin_used_usdc: 1_620,
       cross_maintenance_margin_used_usdc: 405,
+      spot_usdc_total: 4_500,
+      spot_usdc_available: 4_420,
       position_count: 2,
       open_order_count: 1,
       recent_fill_count: 2,
@@ -55,6 +79,10 @@ export function hyperliquidAccountSnapshotFixture(address = HYPERLIQUID_ACCOUNT_
     positions: [
       { market: "SOL", side: "long", size: 42.5, signed_size: 42.5, entry_price: 142.25, mark_notional_usdc: 6_301, unrealized_pnl_usdc: 36.125, return_on_equity: 0.0223, liquidation_price: 112.5, margin_used_usdc: 1_216.35, leverage: 5, leverage_mode: "cross", maximum_leverage: 20, funding: { since_open_usdc: -2.25, since_change_usdc: -0.75, all_time_usdc: -9.5 } },
       { market: "BTC", side: "short", size: 0.026, signed_size: -0.026, entry_price: 68_100, mark_notional_usdc: 1_755, unrealized_pnl_usdc: 15.75, return_on_equity: 0.038, liquidation_price: 78_500, margin_used_usdc: 351, leverage: 5, leverage_mode: "cross", maximum_leverage: 40, funding: { since_open_usdc: 1.15, since_change_usdc: 0.35, all_time_usdc: 4.75 } },
+    ],
+    balances: [
+      { asset: "USDC", total: 4_500, on_hold: 80, available: 4_420, entry_notional_usdc: 4_500 },
+      { asset: "HYPE", total: 125.5, on_hold: 0, available: 125.5, entry_notional_usdc: 3_600 },
     ],
     open_orders: [{ market: "SOL", side: "sell", size: 10, original_size: 25, limit_price: 155, trigger_price: null, order_type: "Limit", time_in_force: "gtc", reduce_only: true, is_trigger: false, placed_at: observedAt }],
     fills: [
@@ -280,7 +308,87 @@ function contextPayload(asset) {
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true } = {}) {
+function accountHistoryFixture(address = HYPERLIQUID_ACCOUNT_ADDRESS) {
+  const observedAt = new Date().toISOString();
+  return {
+    ok: true,
+    schema_version: "ravenos.hyperliquid_account_history.v1",
+    state: "observed",
+    observed_at: observedAt,
+    venue: "hyperliquid",
+    account: { address: String(address).toLowerCase(), address_source: "viewer_supplied_public_address", ownership_asserted: false, persisted: false },
+    orders: [
+      { market: "SOL", side: "buy", original_size: 12, remaining_size: 0, filled_size: 12, limit_price: 141.5, trigger_price: null, order_type: "Limit", time_in_force: "gtc", reduce_only: false, is_trigger: false, status: "filled", status_at: observedAt },
+      { market: "BTC", side: "sell", original_size: 0.01, remaining_size: 0, filled_size: 0.01, limit_price: 69_000, trigger_price: null, order_type: "Limit", time_in_force: "alo", reduce_only: false, is_trigger: false, status: "canceled", status_at: observedAt },
+    ],
+    privacy: { address_persisted: false, transaction_hashes_exposed: false, provider_order_ids_exposed: false },
+    execution_boundary: { public_account_observation_only: true, cancellation_available: false, signing_available: false, submission_available: false },
+  };
+}
+
+function accountScenarioFixture(input = {}) {
+  const snapshot = hyperliquidAccountSnapshotFixture(input.address);
+  const coin = String(input.instrument_id || "hyperliquid:perp:SOL").split(":").pop();
+  const side = input.side === "short" ? "short" : "long";
+  const orderType = ["market", "limit", "trigger"].includes(input.order_type) ? input.order_type : "market";
+  const notional = Number(input.notional_usdc || 500);
+  const leverage = Number(input.leverage || 3);
+  const marginMode = input.margin_mode === "isolated" ? "isolated" : "cross";
+  const reduceOnly = input.reduce_only === true;
+  const mid = coin === "BTC" ? 67_500 : 148.25;
+  const reference = orderType === "limit"
+    ? Number(input.limit_price)
+    : orderType === "trigger"
+      ? Number(input.trigger_price)
+      : side === "long" ? mid * 1.00008 : mid * 0.99992;
+  const baseSize = notional / reference;
+  const current = snapshot.positions.find((position) => position.market === coin) || null;
+  const before = Number(current?.signed_size || 0);
+  const delta = side === "long" ? baseSize : -baseSize;
+  const projected = Math.abs(before + delta) < 1e-7 ? 0 : before + delta;
+  const effect = before === 0
+    ? "open"
+    : Math.sign(before) === Math.sign(delta)
+      ? "increase"
+      : projected === 0
+        ? "close"
+        : Math.sign(projected) === Math.sign(before) ? "reduce" : "flip";
+  const openingNotional = ["open", "increase"].includes(effect) ? notional : effect === "flip" ? Math.abs(projected) * reference : 0;
+  const fee = notional * 0.0004;
+  const incrementalMargin = openingNotional / leverage;
+  const required = incrementalMargin + fee;
+  const withdrawable = snapshot.summary.withdrawable_usdc;
+  const settingsChange = !["reduce", "close"].includes(effect) && Boolean(current) && (current.leverage !== leverage || current.leverage_mode !== marginMode);
+  const blockers = [
+    ...(withdrawable < required ? ["insufficient_current_withdrawable"] : []),
+    ...(settingsChange ? ["venue_margin_settings_change_required"] : []),
+  ];
+  const observedAt = new Date().toISOString();
+  const entryState = orderType === "market" ? "current_book_fill_estimate" : orderType === "limit" ? "resting_limit" : "conditional_stop_entry";
+  return {
+    ok: true,
+    schema_version: "ravenos.hyperliquid_account_scenario.v1",
+    state: blockers.length ? "account_scenario_blocked" : "account_scenario_available",
+    scenario_id: `hlas_fixture_${coin}_${side}_${orderType}_${notional}_${leverage}_${marginMode}_${reduceOnly}`,
+    generated_at: observedAt,
+    expires_at: new Date(Date.now() + 30_000).toISOString(),
+    instrument: { instrument_id: input.instrument_id, exact_market_id: coin, symbol: `${coin}-PERP`, venue: "hyperliquid", instrument_type: "perpetual", identity_scope: "exact_instrument", collateral_asset: "USDC" },
+    intent: { side, order_type: orderType, time_in_force: orderType === "limit" ? input.time_in_force || "gtc" : null, requested_notional_usdc: notional, leverage, limit_price: orderType === "limit" ? reference : null, trigger_price: orderType === "trigger" ? reference : null, estimated_initial_margin_usdc: notional / leverage, planned_base_size: baseSize, margin_mode: marginMode, reduce_only: reduceOnly },
+    entry_model: { state: entryState, marketable: orderType === "market", fill_guaranteed: false, reference_price: reference, reference_source: orderType === "market" ? "current_live_book_vwap" : orderType === "limit" ? "user_limit_price" : "user_trigger_price", distance_from_mid_bps: orderType === "market" ? null : ((reference - mid) / mid) * 10_000 },
+    ...(orderType === "market" ? { fill_estimate: { base_size: baseSize, vwap_price: reference, worst_price: side === "long" ? reference * 1.00002 : reference * 0.99998, mid_price: mid, best_bid: mid * 0.99995, best_ask: mid * 1.00005, spread_bps: 1, price_impact_bps: 0.8, visible_levels_consumed: 2 } } : {}),
+    market_reference: { mid_price: mid, best_bid: mid * 0.99995, best_ask: mid * 1.00005, spread_bps: 1 },
+    account_context: { address: snapshot.account.address, ownership_asserted: false, observed_at: observedAt, account_value_usdc: snapshot.summary.account_value_usdc, withdrawable_usdc: withdrawable, margin_used_usdc: snapshot.summary.margin_used_usdc, maintenance_margin_usdc: snapshot.summary.maintenance_margin_usdc, current_position: current },
+    position_effect: { effect, before_signed_size: before, order_delta_signed_size: delta, projected_signed_size: projected, projected_side: projected > 0 ? "long" : projected < 0 ? "short" : "flat", projected_size: Math.abs(projected), projected_notional_usdc: Math.abs(projected) * reference, liquidation_projection_included: false },
+    fee_estimate: { liquidity_assumption: "taker", account_fee_rate: 0.0004, estimated_entry_fee_usdc: fee, bracket_exit_fees_included: false },
+    margin_check: { state: withdrawable >= required ? "passes_current_snapshot" : "insufficient_current_withdrawable", withdrawable_before_usdc: withdrawable, estimated_incremental_notional_usdc: openingNotional, estimated_incremental_margin_usdc: incrementalMargin, estimated_entry_fee_usdc: fee, estimated_required_withdrawable_usdc: required, estimated_withdrawable_after_usdc: withdrawable - required, existing_exposure_netting_modeled: true },
+    venue_settings: { requested_margin_mode: marginMode, requested_leverage: leverage, current_margin_mode: current?.leverage_mode || null, current_leverage: current?.leverage || null, settings_change_required: settingsChange, settings_action_prepared: false },
+    provenance: { provider: "Hyperliquid", market_source: "live_l2_book", market_observed_at: observedAt, account_observed_at: observedAt, exact_identity: true },
+    review: { state: blockers.length ? "blocked" : "account_scenario_ready", blockers, immutable_binding_hash: "fixture-account-binding", immutable_binding_included: true, prepared_payload_included: false, user_confirmation_recorded: false },
+    execution_boundary: { account_scenario_only: true, public_account_observation: true, ownership_asserted: false, prepared_order_available: false, wallet_confirmation_available: false, signing_available: false, submission_available: false, position_monitoring_available: false },
+  };
+}
+
+export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true, bullishSpotPlan = false } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
@@ -320,6 +428,9 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
     const traditional = market === "equities";
     const spotChain = chain || "solana";
     const quietExactPool = Boolean(pairAddress && quietSpot);
+    const candleRows = pairAddress && bullishSpotPlan
+      ? bullishSpotCandles(asset, timeframe)
+      : providerCandles(asset, timeframe);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -513,11 +624,11 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           price_unit: "usd_per_token",
           price_axis_compatible: true,
           candle_replacement_allowed: false,
-          events: [{ type: "raven-observation", severity: "info", time: providerCandles(asset, timeframe)[10].time, exact_observed_at: "2026-07-21T12:00:00Z", event_id: "public-raven-event" }],
+          events: [{ type: "raven-observation", severity: "info", time: candleRows[10].time, exact_observed_at: "2026-07-21T12:00:00Z", event_id: "public-raven-event" }],
           overlays: [],
           lineage: { source: "Raven exact observations", observed_at: "2026-07-21T12:00:00Z" },
         } : null,
-        candles: sparseTimeframe === timeframe ? providerCandles(asset, timeframe).slice(-12) : providerCandles(asset, timeframe),
+        candles: sparseTimeframe === timeframe ? candleRows.slice(-12) : candleRows,
       }),
     });
   });
@@ -543,6 +654,10 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       order_plan_types: ["market", "limit", "trigger"],
       public_account_view_available: true,
       public_account_view_venues: ["hyperliquid"],
+      account_scenario_available: true,
+      account_scenario_venues: ["hyperliquid"],
+      account_history_available: true,
+      account_history_types: ["orders"],
       signing_available: false,
       submission_available: false,
       flags: {
@@ -560,6 +675,22 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(hyperliquidAccountSnapshotFixture(input.address)),
+    });
+  });
+  await page.route("**/api/trade/account-history", async (route) => {
+    const input = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(accountHistoryFixture(input.address)),
+    });
+  });
+  await page.route("**/api/trade/account-scenario", async (route) => {
+    const input = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(accountScenarioFixture(input)),
     });
   });
   await page.route("**/api/trade/order-plan", async (route) => {

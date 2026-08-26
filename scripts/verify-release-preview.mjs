@@ -15,6 +15,7 @@ const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-packag
 const assetManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/ravenos_asset_manifest.json"), "utf8"));
 const routeManifest = JSON.parse(readFileSync(join(bundleRoot, "assets/public_routes.json"), "utf8"));
 const stageReceipt = JSON.parse(readFileSync(join(bundleRoot, "stage-receipt.json"), "utf8"));
+const localProviderEnv = onchainChartProviderEnv(dirname(dirname(bundleRoot)));
 const results = [];
 const capturedBodies = [];
 
@@ -153,6 +154,10 @@ if (
   || !["market", "limit", "trigger"].every((orderType) => flags?.order_plan_types?.includes(orderType))
   || flags?.public_account_view_available !== true
   || !flags?.public_account_view_venues?.includes("hyperliquid")
+  || flags?.account_scenario_available !== true
+  || !flags?.account_scenario_venues?.includes("hyperliquid")
+  || flags?.account_history_available !== true
+  || !flags?.account_history_types?.includes("orders")
   || flags?.signing_available !== false
   || flags?.submission_available !== false
   || flags?.fees_enabled !== false
@@ -238,6 +243,7 @@ if (
   || accountSnapshot?.account?.ownership_asserted !== false
   || accountSnapshot?.account?.persisted !== false
   || !Array.isArray(accountSnapshot?.positions)
+  || !Array.isArray(accountSnapshot?.balances)
   || !Array.isArray(accountSnapshot?.open_orders)
   || !Array.isArray(accountSnapshot?.fills)
   || accountSnapshot?.privacy?.transaction_hashes_exposed !== false
@@ -254,6 +260,75 @@ const accountSnapshotNoLeakFindings = scanJsonValue(accountSnapshot, "preview:/a
 if (accountSnapshotNoLeakFindings.length) {
   const fields = accountSnapshotNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Hyperliquid public account snapshot failed the public no-leak gate: ${fields}`);
+}
+
+const accountScenarioCapture = await capture("/api/trade/account-scenario", {
+  method: "POST",
+  body: {
+    address: "0x000000000000000000000000000000000000dead",
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    order_type: "market",
+    notional_usdc: 500,
+    leverage: 3,
+    margin_mode: "cross",
+    reduce_only: false,
+    max_impact_bps: 100,
+  },
+});
+const accountScenario = JSON.parse(accountScenarioCapture.text);
+if (
+  accountScenario?.ok !== true
+  || accountScenario?.schema_version !== "ravenos.hyperliquid_account_scenario.v1"
+  || accountScenario?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || accountScenario?.account_context?.address !== "0x000000000000000000000000000000000000dead"
+  || accountScenario?.account_context?.ownership_asserted !== false
+  || !accountScenario?.position_effect?.effect
+  || !Number.isFinite(Number(accountScenario?.fee_estimate?.account_fee_rate))
+  || !accountScenario?.margin_check?.state
+  || accountScenario?.review?.prepared_payload_included !== false
+  || accountScenario?.execution_boundary?.prepared_order_available !== false
+  || accountScenario?.execution_boundary?.wallet_confirmation_available !== false
+  || accountScenario?.execution_boundary?.signing_available !== false
+  || accountScenario?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Hyperliquid account scenario did not preserve exact account/market binding and the non-execution boundary");
+}
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountScenarioCapture.text)) {
+  throw new Error("Hyperliquid account scenario exposed a venue transaction or order identifier");
+}
+const accountScenarioNoLeakFindings = scanJsonValue(accountScenario, "preview:/api/trade/account-scenario");
+if (accountScenarioNoLeakFindings.length) {
+  const fields = accountScenarioNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Hyperliquid account scenario failed the public no-leak gate: ${fields}`);
+}
+
+const accountHistoryCapture = await capture("/api/trade/account-history", {
+  method: "POST",
+  body: { address: "0x000000000000000000000000000000000000dead", kind: "orders" },
+});
+const accountHistory = JSON.parse(accountHistoryCapture.text);
+if (
+  accountHistory?.ok !== true
+  || accountHistory?.schema_version !== "ravenos.hyperliquid_account_history.v1"
+  || accountHistory?.account?.address !== "0x000000000000000000000000000000000000dead"
+  || accountHistory?.account?.ownership_asserted !== false
+  || accountHistory?.account?.persisted !== false
+  || !Array.isArray(accountHistory?.orders)
+  || accountHistory?.privacy?.provider_order_ids_exposed !== false
+  || accountHistory?.execution_boundary?.cancellation_available !== false
+  || accountHistory?.execution_boundary?.signing_available !== false
+  || accountHistory?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Hyperliquid public account history did not preserve its bounded read-only boundary");
+}
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountHistoryCapture.text)) {
+  throw new Error("Hyperliquid public account history exposed a venue transaction or order identifier");
+}
+const accountHistoryNoLeakFindings = scanJsonValue(accountHistory, "preview:/api/trade/account-history");
+if (accountHistoryNoLeakFindings.length) {
+  const fields = accountHistoryNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Hyperliquid public account history failed the public no-leak gate: ${fields}`);
 }
 
 const atlasFeaturedCapture = await capture("/api/atlas/featured?limit=8");
@@ -467,7 +542,37 @@ for (const row of evmChartRows) {
   }
 }
 
-const localProviderEnv = onchainChartProviderEnv(dirname(dirname(bundleRoot)));
+if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
+  const solanaVelocityCapture = await capture("/api/onchain/trending?chains=solana&duration=5m");
+  const solanaVelocity = JSON.parse(solanaVelocityCapture.text);
+  const solanaVelocityFindings = scanJsonValue(solanaVelocity, "preview:/api/onchain/trending:solana-velocity");
+  if (solanaVelocityFindings.length) {
+    const fields = solanaVelocityFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+    throw new Error(`Isolated preview Jupiter Velocity response failed the public no-leak gate: ${fields}`);
+  }
+  const velocityRows = Array.isArray(solanaVelocity?.rows)
+    ? solanaVelocity.rows.filter((row) => row?.source_type === "jupiter_velocity")
+    : [];
+  if (
+    solanaVelocity?.provenance?.role !== "token_velocity_plus_exact_pool_market_activity"
+    || solanaVelocity?.discovery_lanes?.jupiter_velocity !== true
+    || !velocityRows.length
+    || velocityRows.some((row) => (
+      row?.chain_id !== "solana"
+      || row?.identity_scope !== "exact_pool"
+      || row?.instrument_id !== `solana:pool:${row?.pool_address}`
+      || row?.evidence_scope !== "exact_token_flow_plus_exact_pool_route"
+      || row?.jupiter?.category !== "toptrending"
+      || row?.jupiter?.metric_scope !== "exact_token"
+      || row?.jupiter?.route_scope !== "best_current_exact_pool"
+      || row?.research_only !== true
+      || row?.execution_available !== false
+    ))
+  ) {
+    throw new Error("Isolated preview did not return Jupiter Velocity tokens bound to current exact Solana pools");
+  }
+}
+
 const localProviderSecret = String(localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRET || "").trim();
 if (localProviderSecret && chartCapture.text.includes(localProviderSecret)) {
   throw new Error("Server-only chart-provider secret entered the preview response");
@@ -478,6 +583,7 @@ const serverOnlyValues = new Set([
   localProviderEnv.RAVENOS_SPOT_CHART_ORIGIN_TOKEN,
   localProviderEnv.COINGECKO_API_KEY,
   localProviderEnv.COINGECKO_PRO_API_KEY,
+  localProviderEnv.JUPITER_API_KEY,
 ].map((value) => String(value || "").trim()).filter((value) => value.length >= 8));
 for (const { path, text } of capturedBodies) {
   for (const secret of serverOnlyValues) {

@@ -14,7 +14,7 @@
       <div>
         <span class="workspace-question">What deserves my attention?</span>
         <h1>Find the markets worth opening.</h1>
-        <p>Raven signals, token scanners, perpetuals, and listed markets ranked from current evidence.</p>
+        <p>Velocity-ranked token markets, Raven signals, perpetuals, and listed markets from current evidence.</p>
       </div>
       <div class="workspace-mast-actions">
         <button class="workspace-primary-action" id="discoverSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
@@ -29,8 +29,8 @@
     </section>
 
     <div class="workspace-toolbar" aria-label="Discover filters">
-      <button class="workspace-filter active" type="button" data-discover-filter="signals" aria-pressed="true">Raven signals</button>
-      <button class="workspace-filter" type="button" data-discover-filter="spot" aria-pressed="false">Token scanner</button>
+      <button class="workspace-filter active" type="button" data-discover-filter="spot" aria-pressed="true">Velocity tokens</button>
+      <button class="workspace-filter" type="button" data-discover-filter="signals" aria-pressed="false">Raven signals</button>
       <button class="workspace-filter" type="button" data-discover-filter="perpetual" aria-pressed="false">Perp markets</button>
       <button class="workspace-filter" type="button" data-discover-filter="equity" aria-pressed="false">Stocks &amp; ETFs</button>
       <span class="workspace-toolbar-spacer"></span>
@@ -70,8 +70,8 @@
       <header class="discover-token-tape-head">
         <div>
           <span class="workspace-label">Tokens</span>
-          <h2 id="discoverSpotPulseTitle">Token scanner</h2>
-          <p>Exact pools across Solana, Base, and Ethereum ranked by Raven, velocity, or activity.</p>
+          <h2 id="discoverSpotPulseTitle">Velocity alpha</h2>
+          <p id="discoverSpotPulseSummary">Exact pools ranked by price expansion, flow confirmation, participation, depth, and chase risk.</p>
         </div>
         <div class="discover-token-tape-controls">
           <div class="discover-token-chains" role="group" aria-label="Token chain">
@@ -81,8 +81,8 @@
             <button type="button" data-spot-chain="ethereum" aria-pressed="false">Ethereum</button>
           </div>
           <div class="discover-token-sort" role="group" aria-label="Token ranking">
-            <button class="active" type="button" data-spot-sort="raven" aria-pressed="true">Raven</button>
-            <button type="button" data-spot-sort="velocity" aria-pressed="false">Velocity</button>
+            <button class="active" type="button" data-spot-sort="velocity" aria-pressed="true">Velocity</button>
+            <button type="button" data-spot-sort="raven" aria-pressed="false">Raven</button>
             <button type="button" data-spot-sort="activity" aria-pressed="false">Activity</button>
           </div>
           <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
@@ -93,7 +93,7 @@
         </div>
       </header>
       <div class="discover-token-tape-columns" aria-hidden="true">
-        <span>Market</span><span>Move</span><span>Market anatomy</span><span>Why now</span><span></span>
+        <span>Market</span><span>Move</span><span>Market anatomy</span><span id="discoverSpotWhyColumn">Velocity alpha</span><span></span>
       </div>
       <div class="discover-token-tape-list" id="discoverTokenTapeList"></div>
       <button class="discover-token-updates" id="discoverTokenUpdates" type="button" hidden>Apply refreshed ranking</button>

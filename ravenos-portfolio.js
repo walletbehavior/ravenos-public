@@ -12,6 +12,7 @@ function publicLabel(value, fallback = "—") {
 }
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -45,6 +46,18 @@ function shortAddress(address) {
   return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
 
+function observedLabel(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "Current account snapshot";
+  return `Updated ${new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(parsed)}`;
+}
+
 function renderSelection(context) {
   const subject = context.subject || {};
   const selected = subject.id && subject.id !== "unselected";
@@ -73,7 +86,7 @@ function positionNode(position) {
   row.href = `/terminal/?asset=${encodeURIComponent(asset)}&instrument_id=${encodeURIComponent(`hyperliquid:perp:${market}`)}`;
   row.setAttribute("aria-label", `Open ${market} perpetual in Terminal`);
   const side = document.createElement("strong");
-  side.textContent = `${position.market} · ${position.side}`;
+  side.textContent = `${position.market} · ${publicLabel(position.side, "Position")}`;
   const size = document.createElement("span");
   size.textContent = `${formatNumber(position.size)}${finite(position.leverage) !== null ? ` · ${formatNumber(position.leverage)}×` : ""}`;
   const entry = document.createElement("span");
@@ -92,13 +105,19 @@ function renderAccount(snapshot) {
   accountState.snapshot = snapshot;
   const results = document.getElementById("portfolioAccountResults");
   results.hidden = false;
+  const summary = document.querySelector(".portfolio-account-summary");
+  if (summary) summary.hidden = snapshot.state === "empty";
   document.getElementById("portfolioObservedAddress").textContent = shortAddress(snapshot.account?.address);
   document.getElementById("portfolioObservedAddress").title = snapshot.account?.address || "";
-  document.getElementById("portfolioObservedAt").textContent = "Current venue state";
+  document.getElementById("portfolioObservedAt").textContent = observedLabel(snapshot.observed_at);
   document.getElementById("portfolioAccountEquity").textContent = formatMoney(snapshot.summary?.account_value_usdc);
   document.getElementById("portfolioAccountWithdrawable").textContent = formatMoney(snapshot.summary?.withdrawable_usdc);
-  document.getElementById("portfolioAccountMargin").textContent = formatMoney(snapshot.summary?.margin_used_usdc);
+  const marginUse = finite(snapshot.summary?.margin_utilization_ratio);
+  document.getElementById("portfolioAccountMargin").textContent = `${formatMoney(snapshot.summary?.margin_used_usdc)}${marginUse === null ? "" : ` · ${(marginUse * 100).toFixed(1)}%`}`;
   document.getElementById("portfolioAccountExposure").textContent = formatMoney(snapshot.summary?.position_notional_usdc);
+  document.getElementById("portfolioAccountMaintenance").textContent = formatMoney(snapshot.summary?.maintenance_margin_usdc);
+  const accountLeverage = finite(snapshot.summary?.account_leverage);
+  document.getElementById("portfolioAccountLeverage").textContent = accountLeverage === null ? "—" : `${formatNumber(accountLeverage)}×`;
 
   const positions = Array.isArray(snapshot.positions) ? snapshot.positions : [];
   document.getElementById("portfolioPositionCount").textContent = `${positions.length} ${positions.length === 1 ? "position" : "positions"}`;
@@ -107,7 +126,9 @@ function renderAccount(snapshot) {
   if (!positions.length) {
     const empty = document.createElement("div");
     empty.className = "portfolio-position-empty";
-    empty.textContent = "No open perpetual positions on this account.";
+    empty.textContent = snapshot.state === "empty"
+      ? "No balances, margin, positions, orders, or recent fills were returned for this address."
+      : "No open perpetual positions on this account.";
     list.append(empty);
     return;
   }
@@ -133,7 +154,7 @@ async function loadAccount(address) {
   const generation = ++accountState.generation;
   submit.disabled = true;
   status.dataset.tone = "";
-  status.textContent = "Loading current equity, positions, orders, and fills…";
+  status.textContent = "Loading collateral, margin risk, and open exposure…";
   try {
     const response = await fetch("/api/trade/account-snapshot", {
       method: "POST",
@@ -144,7 +165,7 @@ async function loadAccount(address) {
     if (generation !== accountState.generation) return;
     if (!response.ok || !payload?.ok) throw new Error("account_load_failed");
     renderAccount(payload);
-    status.textContent = "Current venue data · address retained only in this tab";
+    status.textContent = "Current public account snapshot · address retained only in this tab";
   } catch {
     if (generation !== accountState.generation) return;
     status.dataset.tone = "error";

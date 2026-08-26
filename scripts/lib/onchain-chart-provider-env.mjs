@@ -16,6 +16,7 @@ const PROVIDER_ENV_NAMES = Object.freeze([
   "RAVENOS_SPOT_CHART_ORIGIN_URL",
   "COINGECKO_API_KEY",
   "COINGECKO_PRO_API_KEY",
+  "JUPITER_API_KEY",
 ]);
 
 function selectedDotenvValues(path) {

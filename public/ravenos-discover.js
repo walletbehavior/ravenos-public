@@ -5,6 +5,7 @@ import {
   opportunityLifecycle,
   spotFlowRead,
   spotMarketHealth,
+  spotVelocityRead,
 } from "/ravenos-discover-intelligence.js";
 
 const REFRESH_MS = 45 * 1_000;
@@ -17,7 +18,7 @@ const state = {
   featuredRefreshedAt: 0,
   spotRows: [],
   spotTimeframe: "5m",
-  spotSort: "raven",
+  spotSort: "velocity",
   spotChain: "all",
   spotMetadata: new Map(),
   spotMetadataPending: null,
@@ -166,7 +167,7 @@ function exactListedTerminalHref(row, instrument) {
   });
 }
 
-function spotPoolHref(row, timeframe = "1m") {
+function spotPoolHref(row, timeframe = "1m", { launch = state.spotSort } = {}) {
   const chain = text(row.chainId || row.chain, "solana").toLowerCase();
   const pairAddress = text(row.pairAddress || row.pool_address, "");
   const symbol = text(row.symbol, "");
@@ -186,6 +187,8 @@ function spotPoolHref(row, timeframe = "1m") {
     cash: "USDC",
     numeraire: "USDC",
     timeframe,
+    launch: ["velocity", "raven", "activity"].includes(launch) ? launch : "discover",
+    raven_overlays: "auto",
   });
   return `/terminal/?${params.toString()}`;
 }
@@ -264,9 +267,9 @@ function setSpotLinkPending(anchor, pending) {
   if (pending) anchor.dataset.chartResolving = "true";
   else delete anchor.dataset.chartResolving;
   const label = anchor.querySelector(".discover-open");
-  if (label) label.textContent = pending ? "Opening chart…" : "Open chart";
+  if (label) label.textContent = pending ? "Opening Terminal…" : "Open in Terminal";
   const tokenLabel = anchor.querySelector(".discover-token-open");
-  if (tokenLabel) tokenLabel.textContent = pending ? "Opening…" : "Chart";
+  if (tokenLabel) tokenLabel.textContent = pending ? "Opening…" : "Terminal";
 }
 
 function resolveSpotChartCached(row) {
@@ -617,12 +620,15 @@ function spotRankedRows() {
   }
   if (state.spotSort === "velocity") {
     return current
-      .filter((row) => spotMetric(row, "price_change") !== null)
+      .map((row) => ({ row, read: spotVelocityRead(row, state.spotTimeframe) }))
+      .filter(({ read }) => read.qualified)
       .sort((left, right) => {
-        const movement = Math.abs(spotMetric(right, "price_change")) - Math.abs(spotMetric(left, "price_change"));
-        if (movement) return movement;
-        return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
-      });
+        if (left.read.score !== right.read.score) return right.read.score - left.read.score;
+        if (left.read.flow_aligned !== right.read.flow_aligned) return Number(right.read.flow_aligned) - Number(left.read.flow_aligned);
+        if (left.read.chase_risk !== right.read.chase_risk) return Number(left.read.chase_risk) - Number(right.read.chase_risk);
+        return (spotMetric(right.row, "volume_usd") || 0) - (spotMetric(left.row, "volume_usd") || 0);
+      })
+      .map(({ row }) => row);
   }
   return current
     .filter((row) => (
@@ -723,15 +729,20 @@ function renderTokenStat(host, label, value) {
 
 function updateSpotTokenRow(anchor, row, index) {
   const flow = spotFlowRead(row, state.spotTimeframe);
+  const velocity = spotVelocityRead(row, state.spotTimeframe);
+  const alphaRead = state.spotSort === "velocity" ? velocity : flow;
   anchor.className = "discover-token-row";
   anchor.dataset.tokenRowId = spotRowId(row);
   anchor.dataset.tokenAddress = text(row.token_address, "");
   anchor.dataset.identityScope = text(row.identity_scope, "");
   anchor.dataset.freshness = text(row.context_state, "current").toLowerCase();
   anchor.dataset.flowState = flow.state;
-  anchor.dataset.flowTone = flow.tone;
-  anchor.dataset.signalScore = String(flow.score);
-  anchor.setAttribute("aria-label", `${text(row.symbol)} exact token chart`);
+  anchor.dataset.flowTone = alphaRead.tone;
+  anchor.dataset.signalScore = String(alphaRead.score);
+  anchor.dataset.velocityState = velocity.state;
+  anchor.dataset.velocityGrade = velocity.grade;
+  anchor.dataset.discoverySource = text(row.discovery_source || row.source_type, "market_activity");
+  anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
 
@@ -745,6 +756,12 @@ function updateSpotTokenRow(anchor, row, index) {
   name.textContent = "";
   append(name, "strong", "", text(row.symbol));
   append(name, "small", "", text(row.name, ""));
+  const trackedBy = row.source_type === "raven_spot_attention"
+    ? "Raven tracked"
+    : row.source_type === "jupiter_velocity" ? "Jupiter velocity" : "";
+  const venueBadge = /meteora/i.test(text(row.venue, "")) ? "Meteora" : "";
+  const sourceBadge = [trackedBy, venueBadge].filter(Boolean).join(" · ");
+  if (sourceBadge) append(name, "em", "discover-token-source-badge", sourceBadge);
   append(copy, "span", "discover-token-market-id", [
     text(row.chain, ""),
     text(row.venue, row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token"),
@@ -785,15 +802,19 @@ function updateSpotTokenRow(anchor, row, index) {
   raven.textContent = "";
   const ravenTiming = row.broader_attention?.raven_observed_first === true;
   const flowLabel = ravenTiming && flow.state !== "balanced" ? `Raven timing · ${flow.label}` : ravenTiming ? "Raven timing" : flow.label;
-  append(raven, "span", "", `${flowLabel} · Q${flow.score}`);
-  append(raven, "strong", "", row.source_type === "market_activity" && flow.state !== "balanced"
-    ? flow.summary
-    : spotRavenRead(row));
+  append(raven, "span", "", state.spotSort === "velocity"
+    ? `${velocity.label} · ${velocity.grade}${velocity.score}`
+    : `${flowLabel} · Q${flow.score}`);
+  append(raven, "strong", "", state.spotSort === "velocity"
+    ? velocity.headline
+    : row.source_type === "market_activity" && flow.state !== "balanced"
+      ? flow.summary
+      : spotRavenRead(row));
   const risk = text(row.risk, "");
-  const flowDetail = [flow.detail, risk].filter(Boolean).join(" · ");
+  const flowDetail = [state.spotSort === "velocity" ? velocity.detail : flow.detail, risk].filter(Boolean).join(" · ");
   if (flowDetail) append(raven, "small", "", flowDetail);
 
-  const open = append(anchor, "span", "discover-token-open", "Chart");
+  const open = append(anchor, "span", "discover-token-open", "Terminal");
   open.setAttribute("aria-hidden", "true");
   return anchor;
 }
@@ -834,8 +855,10 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const empty = append(fragment, "div", "discover-token-empty", "");
     const copy = append(empty, "div", "", "");
     const chain = state.spotChain === "all" ? "Pools" : `${title(state.spotChain)} pools`;
-    append(copy, "h3", "", `${chain} do not clear the current quality gate`);
-    append(copy, "p", "", `Nothing in the ${state.spotTimeframe} feed currently has enough liquidity and decision-useful activity to rank.`);
+    append(copy, "h3", "", `${chain} do not clear the current alpha gate`);
+    append(copy, "p", "", state.spotSort === "velocity"
+      ? `Nothing in the ${state.spotTimeframe} feed currently combines a compelling move with confirmed flow and usable depth.`
+      : `Nothing in the ${state.spotTimeframe} feed currently has enough liquidity and decision-useful activity to rank.`);
     const actions = append(copy, "div", "discover-token-empty-actions", "");
     if (state.spotChain !== "all") {
       const reset = append(actions, "button", "", "Scan all chains");
@@ -880,7 +903,7 @@ async function hydrateSpotMetadata(rows = state.spotRows) {
 function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
   state.spotRows = Array.isArray(rows) ? rows : [];
-  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
   host.hidden = activeFilter !== "spot";
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
     const active = button.dataset.spotTimeframe === state.spotTimeframe;
@@ -897,6 +920,27 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  const views = {
+    velocity: {
+      title: "Velocity alpha",
+      summary: "Exact pools ranked by price expansion, flow confirmation, participation, depth, and chase risk.",
+      column: "Velocity alpha",
+    },
+    raven: {
+      title: "Raven token reads",
+      summary: "Exact pools ranked by Raven timing and current evidence-backed flow quality.",
+      column: "Why Raven noticed",
+    },
+    activity: {
+      title: "Active token markets",
+      summary: "Exact pools ranked by current traders, transactions, and volume.",
+      column: "Current flow",
+    },
+  };
+  const view = views[state.spotSort] || views.velocity;
+  document.getElementById("discoverSpotPulseTitle").textContent = view.title;
+  document.getElementById("discoverSpotPulseSummary").textContent = view.summary;
+  document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
   void hydrateSpotMetadata(state.spotRows);
 }
@@ -993,7 +1037,7 @@ function renderListedUniverse(rows = []) {
   }
   state.featuredRows.forEach((row) => host.append(createListedMarketCard(row)));
   document.getElementById("discoverListedCount").textContent = `${state.featuredRows.length} markets`;
-  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
   section.hidden = active !== "equity";
 }
 
@@ -1114,7 +1158,7 @@ function renderSourceNotice(source, detail) {
 }
 
 function applyFilter() {
-  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
   document.getElementById("discoverDesk").hidden = !state.deskFrame || active !== "signals";
   document.getElementById("discoverSpotPulse").hidden = active !== "spot";
   document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || active !== "equity";
@@ -1349,12 +1393,19 @@ function currentOnchainPulsePayload(payload) {
     || execution.research_only !== true
     || execution.signing_available !== false
     || execution.submission_available !== false
-    || provenance.role !== "exact_pool_market_activity"
+    || !["exact_pool_market_activity", "token_velocity_plus_exact_pool_market_activity"].includes(provenance.role)
     || provenance.raven_signal !== false
   ) throw new Error("onchain_market_pulse_contract_rejected");
   const rows = payload.rows.filter((row) => {
     const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
-    return row?.source_type === "market_activity"
+    const sourceValid = row?.source_type === "market_activity" || (
+      row?.source_type === "jupiter_velocity"
+      && row?.discovery_source === "jupiter_toptrending"
+      && row?.jupiter?.category === "toptrending"
+      && row?.jupiter?.metric_scope === "exact_token"
+      && row?.jupiter?.route_scope === "best_current_exact_pool"
+    );
+    return sourceValid
       && row?.market_type === "spot"
       && ["solana", "base", "ethereum"].includes(chain)
       && row?.identity_scope === "exact_pool"

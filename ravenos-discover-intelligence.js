@@ -193,6 +193,136 @@ export function spotFlowRead(row = {}, timeframe = "5m") {
   };
 }
 
+export function spotVelocityRead(row = {}, timeframe = "5m") {
+  const movement = windowMetric(row, "price_change", timeframe);
+  const volume = windowMetric(row, "volume_usd", timeframe);
+  const traders = windowMetric(row, "traders", timeframe);
+  const market = row.market || {};
+  const liquidity = finite(market.liquidity_usd);
+  const flow = spotFlowRead(row, timeframe);
+  const health = flow.market_health;
+  const magnitude = movement === null ? null : Math.abs(movement);
+  const turnover = volume !== null && liquidity !== null && liquidity > 0 ? volume / liquidity : null;
+  const buyShare = finite(flow.buy_share);
+  const direction = movement === null || movement === 0 ? "flat" : movement > 0 ? "up" : "down";
+  const flowAligned = direction === "up"
+    ? buyShare !== null && buyShare >= 0.56
+    : direction === "down" ? buyShare !== null && buyShare <= 0.44 : false;
+  const flowOpposed = direction === "up"
+    ? buyShare !== null && buyShare <= 0.44
+    : direction === "down" ? buyShare !== null && buyShare >= 0.56 : false;
+  const confirmationWindows = ["5m", "1h", "24h"]
+    .map((window) => windowMetric(row, "price_change", window))
+    .filter((value) => value !== null && value !== 0);
+  const confirmedWindows = direction === "flat"
+    ? 0
+    : confirmationWindows.filter((value) => direction === "up" ? value > 0 : value < 0).length;
+  const chaseThreshold = timeframe === "5m" ? 20 : timeframe === "1h" ? 75 : 250;
+  const chaseRisk = health.state === "extended"
+    || (magnitude !== null && magnitude >= chaseThreshold)
+    || (turnover !== null && turnover >= (timeframe === "24h" ? 25 : timeframe === "1h" ? 8 : 2.5));
+
+  let score = 10;
+  if (magnitude !== null && magnitude > 0) score += clamp(Math.log10(magnitude + 1) * 18, 0, 30);
+  score += flow.score * 0.34;
+  if (volume !== null && volume > 0) score += clamp(Math.log10(volume + 1) * 2.2, 0, 14);
+  if (traders !== null && traders > 0) score += clamp(Math.log10(traders + 1) * 3.2, 0, 9);
+  if (turnover !== null && turnover >= 0.01) score += turnover <= 5 ? 7 : turnover <= 20 ? 4 : 0;
+  if (flowAligned) score += 10;
+  if (flowOpposed) score -= 14;
+  if (confirmedWindows >= 3) score += 7;
+  else if (confirmedWindows >= 2) score += 4;
+  if (row.broader_attention?.raven_observed_first === true) score += 5;
+  const jupiterOrganicScore = finite(row.jupiter?.organic_score);
+  if (row.source_type === "jupiter_velocity") score += jupiterOrganicScore === null ? 4 : clamp(jupiterOrganicScore / 12, 2, 8);
+  if (row.source_type === "raven_spot_attention") score += 6;
+  if (/meteora/i.test(String(row.venue || "")) && String(row.chain_id || row.chain || "").toLowerCase() === "solana") score += 3;
+  if (chaseRisk) score -= 10;
+  score = Math.round(Math.min(health.scoreCap, clamp(score, 0, 99)));
+
+  let state = "price_velocity";
+  let label = direction === "down" ? "Downside velocity" : "Upside velocity";
+  let tone = direction === "down" ? "negative" : direction === "up" ? "positive" : "neutral";
+  if (flowOpposed) {
+    state = "flow_divergence";
+    label = "Flow divergence";
+    tone = "warning";
+  } else if (flowAligned) {
+    state = direction === "down" ? "downside_confirmed" : "upside_confirmed";
+    label = direction === "down" ? "Downside confirmed" : "Velocity confirmed";
+  } else if (direction === "flat") {
+    state = "flat";
+    label = "No velocity edge";
+    tone = "neutral";
+  }
+  if (chaseRisk && !flowOpposed) {
+    state = "chase_risk";
+    label = "Extended / chase risk";
+    tone = "warning";
+  }
+
+  const grade = score >= 82 ? "A" : score >= 68 ? "B" : score >= 52 ? "C" : "D";
+  const interestThreshold = timeframe === "5m" ? 5 : timeframe === "1h" ? 10 : 25;
+  const trackedLane = row.source_type === "raven_spot_attention"
+    || row.source_type === "jupiter_velocity"
+    || /meteora|jupiter/i.test(String(row.venue || ""));
+  const compellingMove = magnitude !== null && magnitude >= interestThreshold;
+  const trackedException = trackedLane
+    && magnitude !== null
+    && magnitude >= interestThreshold * 0.5
+    && flowAligned
+    && score >= 52;
+  const participationException = magnitude !== null
+    && magnitude >= interestThreshold * 0.7
+    && flowAligned
+    && flow.score >= 68
+    && confirmedWindows >= 2;
+  const sideLabel = buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`;
+  const headline = [
+    movement === null ? "" : `${percent(movement)} ${timeframe}`,
+    sideLabel,
+    confirmedWindows >= 2 ? `${confirmedWindows}/3 windows aligned` : "",
+  ].filter(Boolean).join(" · ");
+  const detail = [
+    volume !== null && volume > 0 ? `${compact(volume, { currency: true })} volume` : "",
+    traders !== null && traders > 0 ? `${compact(traders)} traders` : flow.transaction_count ? `${compact(flow.transaction_count)} transactions` : "",
+    turnover === null ? "" : `${(turnover * 100).toFixed(turnover < 0.01 ? 2 : 1)}% liquidity turnover`,
+    chaseRisk ? "chase risk elevated" : health.label,
+  ].filter(Boolean).join(" · ");
+
+  return {
+    schema_version: "ravenos.spot_velocity_read.v1",
+    state,
+    label,
+    tone,
+    score,
+    grade,
+    qualified: movement !== null
+      && magnitude > 0
+      && volume !== null
+      && volume > 0
+      && liquidity !== null
+      && liquidity > 0
+      && !["inactive", "fragile"].includes(health.state)
+      && score >= 42
+      && (compellingMove || trackedException || participationException),
+    direction,
+    movement_pct: movement,
+    flow_aligned: flowAligned,
+    flow_opposed: flowOpposed,
+    confirmed_windows: confirmedWindows,
+    chase_risk: chaseRisk,
+    tracked_lane: trackedLane,
+    admission_reason: compellingMove ? "compelling_move" : trackedException ? "tracked_flow_exception" : participationException ? "exceptional_participation" : "below_interest_gate",
+    interest_threshold_pct: interestThreshold,
+    buy_share: buyShare,
+    turnover_ratio: turnover,
+    headline,
+    detail,
+    flow,
+  };
+}
+
 export function opportunityLifecycle(row = {}, market = row.market_snapshot || {}) {
   const direction = String(row.observed_direction || "").toLowerCase();
   const hasDirection = ["long", "short"].includes(direction);
@@ -422,4 +552,4 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
   };
 }
 
-export const __testing = Object.freeze({ finite, median, cleanText, flowWindow });
+export const __testing = Object.freeze({ finite, median, cleanText, flowWindow, windowMetric });

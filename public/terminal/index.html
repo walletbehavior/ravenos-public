@@ -61,7 +61,7 @@
     <section class="terminal-market-head" aria-label="Selected market facts">
       <div class="terminal-instrument">
         <img id="terminalInstrumentImage" alt="" width="30" height="30" hidden />
-        <span id="terminalInstrumentScope">Exact instrument</span>
+        <div class="terminal-instrument-kicker"><span id="terminalInstrumentScope">Exact instrument</span><em id="terminalLaunchBadge" hidden>Velocity launch</em></div>
         <strong id="terminalInstrument">SOL-PERP</strong>
         <small id="terminalInstrumentMeta">Hyperliquid perpetual · connecting</small>
       </div>
@@ -190,7 +190,7 @@
 
         <section class="terminal-plan-preview" id="terminalPlanSection" hidden>
           <header>
-            <div><span>Plan preview</span><h2>What similar paths suggest</h2></div>
+            <div><span id="terminalPlanLabel">Plan preview</span><h2 id="terminalPlanTitle">What similar paths suggest</h2></div>
             <strong id="terminalPlanState">Research only</strong>
           </header>
           <dl class="terminal-plan-levels">
@@ -198,13 +198,15 @@
             <div><dt>TP reference</dt><dd id="terminalPlanTarget"></dd></div>
             <div><dt>SL reference</dt><dd id="terminalPlanRisk"></dd></div>
             <div><dt>Evidence</dt><dd id="terminalPlanEvidence"></dd></div>
+            <div id="terminalPlanLadderRow" hidden><dt>Scale-out strategy</dt><dd id="terminalPlanLadder"></dd></div>
+            <div id="terminalPlanWhyRow" hidden><dt>Why Raven shaped it this way</dt><dd id="terminalPlanWhy"></dd></div>
           </dl>
           <label class="terminal-plan-toggle">
             <input id="terminalPlanToggle" type="checkbox" />
             <span><strong>Show on chart</strong><small>Add these levels to the current chart.</small></span>
           </label>
           <button class="terminal-plan-load" id="terminalPlanLoad" type="button">Load levels into trade ticket</button>
-          <p>Based on completed paths for this market. Research only—not personalized targets, stops, or orders.</p>
+          <p id="terminalPlanDisclaimer">Based on completed paths for this market. Research only—not personalized targets, stops, or orders.</p>
         </section>
 
         <section id="terminalComparableSection" hidden>
@@ -238,6 +240,7 @@
               <div><dt>Withdrawable</dt><dd id="terminalTicketWithdrawable"></dd></div>
               <div><dt>Current position</dt><dd id="terminalTicketPosition"></dd></div>
               <div><dt>Unrealized P&amp;L</dt><dd id="terminalTicketPnl"></dd></div>
+              <div><dt>Position mode</dt><dd id="terminalTicketMode"></dd></div>
             </dl>
           </div>
           <div class="terminal-preview-inputs">
@@ -255,6 +258,38 @@
             <button type="button" data-notional-preset="500">$500</button>
             <button type="button" data-notional-preset="1000">$1K</button>
             <button type="button" data-notional-preset="5000">$5K</button>
+          </div>
+          <div class="terminal-account-size" id="terminalAccountSizePresets" hidden>
+            <span>Use withdrawable at selected leverage</span>
+            <div aria-label="Account size presets">
+              <button type="button" data-account-size-pct="10">10%</button>
+              <button type="button" data-account-size-pct="25">25%</button>
+              <button type="button" data-account-size-pct="50">50%</button>
+              <button type="button" data-account-size-pct="100">Max</button>
+            </div>
+          </div>
+          <div class="terminal-order-settings">
+            <label>
+              <span>Margin mode</span>
+              <select id="terminalPreviewMarginMode" aria-label="Margin mode">
+                <option value="cross">Cross</option>
+                <option value="isolated">Isolated</option>
+              </select>
+            </label>
+            <label>
+              <span>Impact guard</span>
+              <select id="terminalPreviewImpactLimit" aria-label="Maximum price impact">
+                <option value="25">25 bps</option>
+                <option value="50">50 bps</option>
+                <option value="100" selected>100 bps</option>
+                <option value="200">200 bps</option>
+                <option value="500">500 bps</option>
+              </select>
+            </label>
+            <label class="terminal-reduce-only">
+              <input id="terminalPreviewReduceOnly" type="checkbox" />
+              <span><strong>Reduce only</strong><small>Reject a plan that would add or flip exposure.</small></span>
+            </label>
           </div>
           <div class="terminal-preview-inputs terminal-conditional-inputs">
             <label id="terminalPreviewPriceField" hidden>
@@ -298,6 +333,18 @@
             </dl>
             <p id="terminalPreviewTiming">Current book</p>
           </div>
+          <div class="terminal-account-scenario" id="terminalAccountScenarioResult" hidden>
+            <header><span>Account impact</span><strong id="terminalScenarioState">Current snapshot</strong></header>
+            <dl>
+              <div><dt>Position effect</dt><dd id="terminalScenarioEffect">--</dd></div>
+              <div><dt>Projected exposure</dt><dd id="terminalScenarioProjected">--</dd></div>
+              <div><dt>Estimated entry fee</dt><dd id="terminalScenarioFee">--</dd></div>
+              <div><dt>Incremental margin</dt><dd id="terminalScenarioMargin">--</dd></div>
+              <div><dt>Withdrawable after</dt><dd id="terminalScenarioCheck">--</dd></div>
+              <div><dt>Venue settings</dt><dd id="terminalScenarioSettings">--</dd></div>
+            </dl>
+            <p id="terminalScenarioNote">Modeled from a current public account snapshot.</p>
+          </div>
           <p class="terminal-preview-message" id="terminalPreviewMessage">Review exact entry semantics and optional risk levels against the current book.</p>
           <div class="terminal-preview-boundary">
             <strong>Plan only</strong>
@@ -311,30 +358,37 @@
 
       <section class="terminal-account-dock" id="terminalAccountDock" data-perp-only aria-label="Hyperliquid public account view">
         <header class="terminal-account-head">
-          <div><span>Public account view</span><h2>Positions, orders, fills &amp; funding</h2></div>
+          <div><span>Public account view</span><h2>Balances, risk, positions &amp; order activity</h2></div>
           <form id="terminalAccountForm">
             <label class="sr-only" for="terminalAccountAddress">Hyperliquid public address</label>
             <input id="terminalAccountAddress" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Hyperliquid 0x address" aria-describedby="terminalAccountStatus" />
-            <button type="submit">Load account</button>
+            <div class="terminal-account-form-actions">
+              <button type="button" id="terminalUseWallet" hidden>Use wallet</button>
+              <button type="submit">Load account</button>
+            </div>
           </form>
-          <small id="terminalAccountStatus" aria-live="polite">Address stays in this tab</small>
+          <small id="terminalAccountStatus" aria-live="polite">Public observation only · address stays in this tab</small>
         </header>
         <nav class="terminal-account-tabs" id="terminalAccountTabs" aria-label="Account ledger" role="tablist">
           <button type="button" data-account-tab="positions" role="tab" aria-selected="true">Positions <span id="terminalAccountPositionsCount" hidden></span></button>
+          <button type="button" data-account-tab="balances" role="tab" aria-selected="false">Balances <span id="terminalAccountBalancesCount" hidden></span></button>
           <button type="button" data-account-tab="orders" role="tab" aria-selected="false">Open orders <span id="terminalAccountOrdersCount" hidden></span></button>
+          <button type="button" data-account-tab="history" role="tab" aria-selected="false">Order history <span id="terminalAccountHistoryCount" hidden></span></button>
           <button type="button" data-account-tab="fills" role="tab" aria-selected="false">Fills <span id="terminalAccountFillsCount" hidden></span></button>
           <button type="button" data-account-tab="funding" role="tab" aria-selected="false">Funding <span id="terminalAccountFundingCount" hidden></span></button>
         </nav>
         <dl class="terminal-account-summary" id="terminalAccountSummary" hidden>
           <div><dt>Account equity</dt><dd id="terminalAccountEquity"></dd></div>
           <div><dt>Withdrawable</dt><dd id="terminalAccountWithdrawable"></dd></div>
-          <div><dt>Margin used</dt><dd id="terminalAccountMargin"></dd></div>
           <div><dt>Perp exposure</dt><dd id="terminalAccountExposure"></dd></div>
+          <div><dt>Margin used</dt><dd id="terminalAccountMargin"></dd></div>
+          <div><dt>Maintenance</dt><dd id="terminalAccountMaintenance"></dd></div>
+          <div><dt>Account leverage</dt><dd id="terminalAccountLeverage"></dd></div>
         </dl>
         <div class="terminal-account-ledger" id="terminalAccountLedger">
           <div class="terminal-account-empty">
             <strong>Track a Hyperliquid account alongside the market.</strong>
-            <span>Load a public address to see current positions, open orders, recent fills, and funding without leaving the desk.</span>
+            <span>Load a public address to inspect balances, risk, positions, orders, fills, and funding without leaving the desk.</span>
           </div>
         </div>
       </section>

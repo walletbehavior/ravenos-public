@@ -168,6 +168,7 @@ const spotAttentionRows = [
 ];
 
 function onchainPulsePayload(rows = []) {
+  const hasJupiterVelocity = rows.some((row) => row.source_type === "jupiter_velocity");
   return {
     ok: true,
     safe_public: true,
@@ -180,12 +181,17 @@ function onchainPulsePayload(rows = []) {
     rows,
     unavailable: [],
     provenance: {
-      provider: "coingecko_onchain",
-      role: "exact_pool_market_activity",
+      provider: hasJupiterVelocity ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",
+      role: hasJupiterVelocity ? "token_velocity_plus_exact_pool_market_activity" : "exact_pool_market_activity",
       raven_signal: false,
       attribution_required: true,
       attribution_label: "Data provided by CoinGecko",
       attribution_url: "https://www.coingecko.com/",
+    },
+    discovery_lanes: {
+      raven_tracked: false,
+      jupiter_velocity: hasJupiterVelocity,
+      meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
     },
     execution_boundary: { research_only: true, signing_available: false, submission_available: false },
   };
@@ -255,14 +261,14 @@ const evmPulseRows = [
     observed_at: "2026-07-21T12:20:00Z",
     age_seconds: 0,
     context_state: "current",
-    movement_state: "Active and range-bound",
-    what_changed: "Price is nearly flat over 5m · 184 trades are balanced · $2.4M volume.",
+    movement_state: "Velocity expanding",
+    what_changed: "Price is up 7.20% over 5m · 184 trades remain broad · $2.4M volume.",
     risk: null,
     provider_rank: 1,
     ranking_duration: "5m",
     market: {
       price_usd: 3_850,
-      price_change_5m_pct: 0.02,
+      price_change_5m_pct: 7.2,
       price_change_1h_pct: 0.8,
       price_change_24h_pct: 2.4,
       volume_usd_5m: 2_400_000,
@@ -301,6 +307,61 @@ const solanaPulseRow = {
     price_usd: 0.00042,
     liquidity_usd: 186_000,
     market_cap_usd: 420_000,
+  },
+};
+
+const jupiterVelocityRow = {
+  ...solanaPulseRow,
+  public_attention_id: "jupiter:velocity:5m:fixture-token-address",
+  instrument_id: "solana:pool:fixture-pair-address",
+  source_type: "jupiter_velocity",
+  discovery_source: "jupiter_toptrending",
+  evidence_scope: "exact_token_flow_plus_exact_pool_route",
+  venue: "Meteora",
+  symbol: "JUP",
+  name: "Jupiter",
+  token_address: "fixture-token-address",
+  quote_token_address: "fixture-quote-address",
+  quote_symbol: "USDC",
+  pool_address: "fixture-pair-address",
+  movement_state: "Jupiter upside velocity",
+  what_changed: "Price rose 12.80% over 5m · volume expanded 148.0% · 240 buys · 70 sells · 260 traders",
+  risk: "Jupiter flow is token-wide; Terminal revalidates the selected exact pool before showing chart or strategy evidence.",
+  ranking_duration: "5m",
+  market: {
+    price_usd: 1.12,
+    liquidity_usd: 4_200_000,
+    market_cap_usd: 3_100_000_000,
+    fdv_usd: 7_800_000_000,
+    holder_count: 485_200,
+    market_age_seconds: 180 * 86_400,
+    price_change_5m_pct: 12.8,
+    price_change_1h_pct: 24.6,
+    price_change_24h_pct: 41.2,
+    volume_usd_5m: 1_800_000,
+    volume_usd_1h: 9_400_000,
+    volume_usd_24h: 86_000_000,
+    buys_5m: 240,
+    sells_5m: 70,
+    traders_5m: 260,
+    buys_1h: 1_400,
+    sells_1h: 620,
+    traders_1h: 1_180,
+    buys_24h: 9_200,
+    sells_24h: 4_800,
+    traders_24h: 6_400,
+  },
+  jupiter: {
+    category: "toptrending",
+    interval: "5m",
+    rank: 1,
+    organic_score: 92.4,
+    organic_score_label: "high",
+    verified: true,
+    organic_buyers: 190,
+    net_buyers: 120,
+    metric_scope: "exact_token",
+    route_scope: "best_current_exact_pool",
   },
 };
 
@@ -523,6 +584,7 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
+  await page.locator("[data-discover-filter='signals']").click();
   const row = page.locator(".discover-row").first();
   await expect(row).toContainText("SOL-PERP");
   await expect(row).toContainText("+2.40% over 24h");
@@ -562,6 +624,7 @@ test("Discover holds directionless evidence below the setup queue without placeh
   };
   await mockWorkspaceApis(page, { opportunityRowsOverride: [watchOnly] });
   await page.goto("/discover/");
+  await page.locator("[data-discover-filter='signals']").click();
   const row = page.locator(".discover-row");
   await expect(row).toHaveAttribute("data-lifecycle", "watch");
   await expect(row).toBeHidden();
@@ -643,16 +706,16 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   const spotFilter = page.locator("[data-discover-filter='spot']");
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Token scanner");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
   await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum"]);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
-  await expect(page.locator("[data-spot-sort]")).toHaveText(["Raven", "Velocity", "Activity"]);
+  await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
   await expect(page.locator(".discover-token-row").first()).toContainText("+8.50%");
   await expect(page.locator(".discover-token-row").first()).toContainText("72");
   await expect(page.locator(".discover-token-row").first()).toContainText("1.24K");
   await expect(page.locator(".discover-token-row").first()).toContainText("2h old");
-  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText("Buy-side pressure");
+  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText(/Velocity confirmed.*71% buy-side/s);
   await expect(page.locator(".discover-token-row").first()).toHaveAttribute("data-signal-score", /\d+/);
   await page.locator("[data-spot-timeframe='24h']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
@@ -660,10 +723,11 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotSort)).toBe("velocity");
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("+88.00%");
+  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText(/Velocity|chase risk/i);
   await page.locator("[data-spot-sort='activity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("ranked by Raven, velocity, or activity");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("current traders, transactions, and volume");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeVisible();
@@ -677,7 +741,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven 20m earlier");
   await expect(spotRows.filter({ hasText: "RETIRE" })).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotPoolAddress}`));
   const tokenOnly = spotRows.filter({ hasText: "BIRD" });
-  await expect(tokenOnly).toContainText("Chart");
+  await expect(tokenOnly).toContainText("Terminal");
   await expect(tokenOnly).toContainText("Exact token");
   await expect(tokenOnly).toHaveAttribute("href", "#");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -688,12 +752,46 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await tokenOnly.click();
   await page.waitForURL((url) => url.pathname === "/terminal/"
     && url.searchParams.get("instrument_id") === `solana:pool:${resolvedPool.pairAddress}`
-    && url.searchParams.get("timeframe") === "1m");
+    && url.searchParams.get("timeframe") === "1m"
+    && url.searchParams.get("launch") === "activity"
+    && url.searchParams.get("raven_overlays") === "auto");
   await waitForTerminalLive(page, { lane: "spot", instrument: "BIRD/USDC", timeframe: "1m" });
   await expect(page.locator("#rosCommandPalette")).not.toBeVisible();
   expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   await expect(page.locator("body")).not.toContainText(/comparison source|provider payload|wallet address/i);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+});
+
+test("Discover defaults to Jupiter Velocity, preserves the Meteora pool, and opens Raven's exact-market plan", async ({ page }) => {
+  await mockTerminalLiveApis(page, { bullishSpotPlan: true });
+  await mockWorkspaceApis(page, { pulseRowsOverride: [jupiterVelocityRow] });
+  await page.goto("/discover/");
+
+  await expect(page.locator("[data-discover-filter='spot']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#discoverSpotPulse")).toBeVisible();
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
+  const row = page.locator(".discover-token-row").first();
+  await expect(row).toContainText("JUP");
+  await expect(row).toContainText("Jupiter velocity");
+  await expect(row).toContainText("Meteora");
+  await expect(row).toContainText("+12.80%");
+  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*77% buy-side.*3\/3 windows aligned/s);
+  await expect(row).toHaveAttribute("href", /instrument_id=solana%3Apool%3Afixture-pair-address/);
+  await expect(row).toHaveAttribute("href", /launch=velocity/);
+  await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
+
+  await row.click();
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  await expect(page.locator("#terminalPlanSection")).toBeVisible();
+  await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
+  await expect(page.locator("#terminalPlanToggle")).toBeChecked();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(5);
+  const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(terminal.planStrategyId).toBe("defensive_de_risk");
+  expect(terminal.planTargetCount).toBe(3);
+  expect(terminal.signingAvailable).toBe(false);
+  expect(terminal.submissionAvailable).toBe(false);
 });
 
 test("Discover adds live Base and Ethereum exact pools without presenting them as Raven signals", async ({ page }) => {
@@ -741,7 +839,7 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   const base = page.locator(".discover-token-row").first();
   await expect(base).toContainText("AERO");
   await expect(base).toContainText("Base · Aerodrome");
-  await expect(base).toContainText("Buy-side pressure");
+  await expect(base).toContainText(/Velocity confirmed.*75% buy-side/s);
   await expect(base).not.toContainText("Raven saw it earlier");
   await expect(base).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${basePulsePool}`));
 
@@ -771,6 +869,7 @@ test("Discover restores live Solana pools when Raven's private attention feed ha
   await mockWorkspaceApis(page, { pulseRowsOverride: [solanaPulseRow] });
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().solanaSpotCount)).toBe(1);
+  await page.locator("[data-discover-filter='signals']").click();
   await expect(page.locator("#discoverDesk")).toBeVisible();
   await expect(page.locator("#discoverPayoff")).toBeVisible();
 
@@ -799,7 +898,7 @@ test("Discover keeps an absent chain compact and actionable instead of showing a
   await page.locator("[data-discover-filter='spot']").click();
   await page.locator("[data-spot-chain='solana']").click();
   const empty = page.locator(".discover-token-empty");
-  await expect(empty).toContainText("Solana pools do not clear the current quality gate");
+  await expect(empty).toContainText("Solana pools do not clear the current alpha gate");
   await expect(empty).toContainText("Scan all chains");
   await expect(empty).toContainText("Search exact market");
   await expect(empty).not.toContainText(/unknown|unavailable/i);
@@ -889,6 +988,7 @@ test("Discover updates token facts without reordering the tape under an active s
 test("Discover keeps live market pulse but refuses stale opportunity substitution", async ({ page }) => {
   await mockWorkspaceApis(page, { opportunityStatus: 503 });
   await page.goto("/discover/");
+  await page.locator("[data-discover-filter='signals']").click();
   await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
   await expect(page.locator("#discoverStream")).toContainText("No current opportunities can be shown");
   await expect(page.locator("#discoverPulse .pulse-row")).toHaveCount(2);
@@ -1049,8 +1149,11 @@ test("Portfolio offers a useful public account risk view without claiming a cust
   await page.getByRole("button", { name: "Load account" }).click();
   await expect(page.locator("#portfolioAccountResults")).toBeVisible();
   await expect(page.locator("#portfolioAccountEquity")).toContainText("$12,500");
+  await expect(page.locator("#portfolioAccountMargin")).toContainText("13.0%");
+  await expect(page.locator("#portfolioAccountMaintenance")).toContainText("$405");
+  await expect(page.locator("#portfolioAccountLeverage")).toContainText("0.648×");
   await expect(page.locator("#portfolioPositionList .portfolio-position-row")).toHaveCount(2);
-  await expect(page.locator("#portfolioPositionList")).toContainText("SOL · long");
+  await expect(page.locator("#portfolioPositionList")).toContainText("SOL · Long");
   await expect(page.locator("#portfolioPositionList .portfolio-position-row").first()).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   const contract = await page.evaluate(() => window.__RAVENOS_PORTFOLIO__);
   expect(contract.customerDataLoaded).toBe(false);

@@ -123,26 +123,74 @@ test("Terminal adds a real public account ledger and selected-market position co
   await page.getByRole("button", { name: "Load account" }).click();
   await expect(page.locator("#terminalAccountSummary")).toBeVisible();
   await expect(page.locator("#terminalAccountEquity")).toContainText("$12,500");
+  await expect(page.locator("#terminalAccountMaintenance")).toContainText("$405");
+  await expect(page.locator("#terminalAccountLeverage")).toContainText("0.64799×");
   await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="positions"] .terminal-account-row')).toHaveCount(2);
   await expect(page.locator("#terminalTicketAccount")).toBeVisible();
   await expect(page.locator("#terminalTicketPosition")).toContainText("Long 42.5");
   await expect(page.locator("#terminalTicketWithdrawable")).toContainText("$2,780");
+  await expect(page.locator("#terminalAccountSizePresets")).toBeVisible();
+  await expect(page.locator("#terminalAccountScenarioResult")).toBeVisible();
+  await expect(page.locator("#terminalScenarioFee")).toContainText("taker");
+  await expect(page.locator("#terminalScenarioCheck")).toContainText("passes");
+
+  await page.locator('[data-account-tab="balances"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="balances"] .terminal-account-row')).toHaveCount(2);
+  await expect(page.locator("#terminalAccountLedger")).toContainText("HYPE");
 
   await page.locator('[data-account-tab="orders"]').click();
   await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="orders"] .terminal-account-row')).toHaveCount(1);
   await expect(page.locator("#terminalAccountLedger")).toContainText("Reduce only");
+  await page.locator('[data-account-tab="history"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="history"] .terminal-account-row')).toHaveCount(2);
+  await expect(page.locator("#terminalAccountHistoryCount")).toHaveText("2");
   await page.locator('[data-account-tab="fills"]').click();
   await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="fills"] .terminal-account-row')).toHaveCount(2);
   await page.locator('[data-account-tab="funding"]').click();
   await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="funding"] .terminal-account-row')).toHaveCount(2);
   await expect(page.locator("#terminalAccountDock")).not.toContainText(/unknown|unavailable|missing/i);
 
-  await page.locator('[data-notional-preset="1000"]').click();
-  await expect(page.locator("#terminalPreviewNotional")).toHaveValue("1000");
+  await page.locator('[data-account-size-pct="25"]').click();
+  await expect(page.locator("#terminalPreviewNotional")).toHaveValue("3475.31");
+  await page.locator('[data-account-tab="positions"]').click();
+  await page.locator('.terminal-account-row').filter({ hasText: "SOL" }).getByRole("button", { name: "Review close" }).click();
+  await expect(page.locator("#terminalPreviewShort")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalPreviewReduceOnly")).toBeChecked();
+  await expect(page.locator("#terminalScenarioEffect")).toContainText(/Reduce|Close/);
+  await expect(page.locator("#terminalScenarioMargin")).toContainText("$0.00");
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.publicAccountObserved).toBe(true);
   expect(state.publicAccountPositionCount).toBe(2);
+  expect(state.publicAccountBalanceCount).toBe(2);
   expect(state.publicAccountOrderCount).toBe(1);
+  expect(state.accountHistoryCount).toBe(2);
+  expect(state.accountScenarioState).toMatch(/account_scenario_(available|blocked)/);
+  expect(state.walletVerified).toBe(false);
+  expect(state.walletLinked).toBe(false);
+  expect(state.signingAvailable).toBe(false);
+  expect(state.submissionAvailable).toBe(false);
+  expect(new URL(page.url()).searchParams.has("address")).toBe(false);
+  expect(await page.evaluate((address) => Object.values(localStorage).some((value) => String(value).toLowerCase().includes(address.toLowerCase())), HYPERLIQUID_ACCOUNT_ADDRESS)).toBe(false);
+});
+
+test("Terminal can read a browser-wallet address without claiming verification or enabling execution", async ({ page }) => {
+  await page.addInitScript((address) => {
+    globalThis.ethereum = {
+      request: async ({ method }) => method === "eth_requestAccounts" ? [address] : [],
+    };
+  }, HYPERLIQUID_ACCOUNT_ADDRESS);
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await expect(page.locator("#terminalUseWallet")).toBeVisible();
+  await page.locator("#terminalUseWallet").click();
+  await expect(page.locator("#terminalAccountAddress")).toHaveValue(HYPERLIQUID_ACCOUNT_ADDRESS);
+  await expect(page.locator("#terminalAccountStatus")).toContainText("public observation only · not verified or linked");
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.walletTransportConnected).toBe(true);
+  expect(state.walletVerified).toBe(false);
+  expect(state.walletLinked).toBe(false);
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
   expect(new URL(page.url()).searchParams.has("address")).toBe(false);
@@ -180,6 +228,11 @@ test("mobile Terminal uses focused Chart, Trade, Book, Raven, and Account panes 
   await expect(page.locator("#terminalChart")).toBeHidden();
   await expect(page.locator("#terminalMarketRail")).toBeHidden();
   await expect(page.locator(".terminal-intelligence")).toBeHidden();
+  await page.locator("#terminalAccountAddress").fill(HYPERLIQUID_ACCOUNT_ADDRESS);
+  await page.getByRole("button", { name: "Load account" }).click();
+  await expect(page.locator("#terminalAccountSummary")).toBeVisible();
+  await page.locator('[data-account-tab="history"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="history"] .terminal-account-row')).toHaveCount(2);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 
@@ -523,6 +576,48 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
 });
 
+test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {
+  await mockTerminalLiveApis(page, { bullishSpotPlan: true });
+  await page.goto("/terminal/?asset=JUP%2FUSDC&instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&timeframe=1m&launch=velocity&raven_overlays=auto");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect(page.locator("#terminalLaunchBadge")).toBeVisible();
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  await expect(page.locator("#terminalPlanSection")).toBeVisible();
+  await expect(page.locator("#terminalPlanLabel")).toHaveText("Raven custom TP strategy");
+  await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
+  await expect(page.locator("#terminalPlanState")).toHaveText("Long · research only");
+  await expect(page.locator("#terminalPlanLadder")).toContainText(/TP1.*trim 55%.*TP2.*trim 30%.*TP3 \/ runner.*trim 15%/s);
+  await expect(page.locator("#terminalPlanWhy")).toContainText(/structure 5\/5.*71% buy-side.*liquidity \/ market cap/s);
+  await expect(page.locator("#terminalPlanDisclaimer")).toContainText("not personalized orders");
+  await expect(page.locator("#terminalPlanLoad")).toBeHidden();
+  await expect(page.locator("#terminalPlanToggle")).toBeChecked();
+  await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Defensive de-risk");
+  await expect(page.locator("#terminalPlanSection")).not.toContainText(/unknown|unavailable|missing/i);
+  await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(5);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(5);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["plan-entry", "plan-target", "plan-risk"]);
+
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state).toMatchObject({
+    lane: "spot",
+    instrumentId: "spot_pool:solana:fixture-dex:JUP:USDC:fixture-pair-address",
+    launchSource: "velocity",
+    autoRavenOverlays: true,
+    chartReadDirection: "long",
+    chartReadSetup: "breakout_confirmed",
+    chartReadScore: 5,
+    planPreviewAvailable: true,
+    planStrategyId: "defensive_de_risk",
+    planTargetCount: 3,
+    planOverlayEnabled: true,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+});
+
 test("spot markets without matching Raven evidence keep useful anatomy and omit empty intelligence", async ({ page }) => {
   await mockTerminalLiveApis(page, { spotRavenContext: false });
   await page.goto("/terminal/");
@@ -553,6 +648,8 @@ test("a quiet exact pool stays current without presenting an old candle as a sit
   await expect(page.locator("#terminalSourceFreshness")).toContainText("no recent trades");
   await expect(page.locator("#rosFreshness strong")).toHaveText("No recent trades");
   await expect(page.locator("#terminalBoundary strong")).toHaveText("Market current · no recent trades");
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().planPreviewAvailable)).toBe(false);
 });
 
 test("spot scope controls never cover the OHLCV candle inspector", async ({ page }) => {

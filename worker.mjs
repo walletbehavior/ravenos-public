@@ -37,6 +37,14 @@ import {
   HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
   normalizeHyperliquidAddress,
 } from "./lib/customer_trade/hyperliquid_account_snapshot.mjs";
+import {
+  createHyperliquidAccountScenario,
+  HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+} from "./lib/customer_trade/hyperliquid_account_scenario.mjs";
+import {
+  createHyperliquidAccountHistory,
+  HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+} from "./lib/customer_trade/hyperliquid_account_history.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
@@ -80,10 +88,12 @@ const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
 const geckoMarketProfileCache = new Map();
 const onchainPulseCache = new Map();
+const jupiterVelocityCache = new Map();
 const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
 const spotAttentionCache = new Map();
 const DEXSCREENER_BASE_URL = "https://api.dexscreener.com";
+const JUPITER_TOKENS_BASE_URL = "https://api.jup.ag/tokens/v2";
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 const LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED = false;
@@ -658,11 +668,11 @@ function sortedDexResults(pairs = []) {
   return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
 }
 
-async function hyperliquidPerps() {
+async function hyperliquidPerps({ forceRefresh = false } = {}) {
   const key = "metaAndAssetCtxs";
   const now = Date.now();
   const hit = hyperliquidCache.get(key);
-  if (hit && hit.expires > now) return hit.payload;
+  if (!forceRefresh && hit && hit.expires > now) return hit.payload;
   const payload = await hyperliquidInfo({ type: "metaAndAssetCtxs" }, { maxBytes: 2 * 1024 * 1024 });
   const rows = normalizeHyperliquidPerps(payload);
   const result = {
@@ -714,8 +724,12 @@ async function hyperliquidInfo(body, { maxBytes = 512 * 1024, timeoutMs = 4_000 
 async function hyperliquidInstrument(coinInput) {
   const coin = normalizeHyperliquidCoin(coinInput);
   if (!coin) return { ok: false, error: "invalid_instrument", status: 400 };
-  const markets = await hyperliquidPerps();
-  const market = markets.results.find((row) => row.symbol === coin || row.coin === coin);
+  let markets = await hyperliquidPerps();
+  let market = markets.results.find((row) => row.symbol === coin || row.coin === coin);
+  if (!market) {
+    markets = await hyperliquidPerps({ forceRefresh: true });
+    market = markets.results.find((row) => row.symbol === coin || row.coin === coin);
+  }
   if (!market) return { ok: false, error: "instrument_not_found", status: 404 };
   const cacheKey = `instrument:${coin}`;
   const cached = cacheGet(hyperliquidCache, cacheKey);
@@ -770,17 +784,50 @@ async function hyperliquidAccountSnapshot(addressInput) {
   const cached = cacheGet(hyperliquidCache, cacheKey);
   if (cached) return { ...cached, cache_state: "edge_memory_hit" };
   const observedAt = new Date().toISOString();
-  const [clearinghouse, openOrders, fills] = await Promise.all([
+  const [clearinghouse, spotState, openOrders, fills] = await Promise.all([
     hyperliquidInfo({ type: "clearinghouseState", user: address }, { maxBytes: 512 * 1024, timeoutMs: 5_000 }),
+    hyperliquidInfo({ type: "spotClearinghouseState", user: address }, { maxBytes: 256 * 1024, timeoutMs: 5_000 }),
     hyperliquidInfo({ type: "frontendOpenOrders", user: address }, { maxBytes: 512 * 1024, timeoutMs: 5_000 }),
     hyperliquidInfo({ type: "userFills", user: address, aggregateByTime: true }, { maxBytes: 1024 * 1024, timeoutMs: 5_000 }),
   ]);
   const payload = {
-    ...createHyperliquidAccountSnapshot({ address, clearinghouse, openOrders, fills }, { observedAt }),
+    ...createHyperliquidAccountSnapshot({ address, clearinghouse, spotState, openOrders, fills }, { observedAt }),
     cache_state: "provider_read",
   };
   cacheSet(hyperliquidCache, cacheKey, payload, 3_000);
   return payload;
+}
+
+async function hyperliquidAccountHistory(addressInput) {
+  const address = normalizeHyperliquidAddress(addressInput);
+  if (!address) throw new Error("invalid_hyperliquid_address");
+  const cacheKey = `account-history:${address}`;
+  const cached = cacheGet(hyperliquidCache, cacheKey);
+  if (cached) return { ...cached, cache_state: "edge_memory_hit" };
+  const historicalOrders = await hyperliquidInfo(
+    { type: "historicalOrders", user: address },
+    { maxBytes: 1024 * 1024, timeoutMs: 5_000 },
+  );
+  const payload = {
+    ...createHyperliquidAccountHistory({ address, historicalOrders }, { observedAt: new Date().toISOString() }),
+    cache_state: "provider_read",
+  };
+  cacheSet(hyperliquidCache, cacheKey, payload, 10_000);
+  return payload;
+}
+
+async function hyperliquidUserFees(addressInput) {
+  const address = normalizeHyperliquidAddress(addressInput);
+  if (!address) throw new Error("invalid_hyperliquid_address");
+  const cacheKey = `account-fees:${address}`;
+  const cached = cacheGet(hyperliquidCache, cacheKey);
+  if (cached) return cached;
+  const fees = await hyperliquidInfo(
+    { type: "userFees", user: address },
+    { maxBytes: 512 * 1024, timeoutMs: 5_000 },
+  );
+  cacheSet(hyperliquidCache, cacheKey, fees, 10_000);
+  return fees;
 }
 
 function timeframeSpec(timeframe = "1h") {
@@ -2355,6 +2402,161 @@ function parseOnchainPulseChains(value) {
   return [...new Set(requested)].slice(0, 3);
 }
 
+function jupiterVelocityStats(token = {}, duration = "5m") {
+  const key = duration === "24h" ? "stats24h" : duration === "1h" ? "stats1h" : "stats5m";
+  const stats = token?.[key] || {};
+  const buyVolume = optionalFiniteNumber(stats.buyVolume);
+  const sellVolume = optionalFiniteNumber(stats.sellVolume);
+  return {
+    price_change_pct: optionalFiniteNumber(stats.priceChange),
+    liquidity_change_pct: optionalFiniteNumber(stats.liquidityChange),
+    volume_change_pct: optionalFiniteNumber(stats.volumeChange),
+    volume_usd: buyVolume === null && sellVolume === null ? null : (buyVolume || 0) + (sellVolume || 0),
+    buys: optionalFiniteNumber(stats.numBuys),
+    sells: optionalFiniteNumber(stats.numSells),
+    traders: optionalFiniteNumber(stats.numTraders),
+    organic_buyers: optionalFiniteNumber(stats.numOrganicBuyers),
+    net_buyers: optionalFiniteNumber(stats.numNetBuyers),
+  };
+}
+
+function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m", rank = 0, fetchedAt } = {}) {
+  const tokenAddress = String(token.id || "").trim();
+  if (!SOLANA_ADDRESS_RE.test(tokenAddress) || pair.chainId !== "solana" || pair.tokenAddress !== tokenAddress) return null;
+  const poolAddress = String(pair.pairAddress || "").trim();
+  const liquidityUsd = optionalFiniteNumber(pair.liquidityUsd);
+  const priceUsd = optionalFiniteNumber(token.usdPrice ?? pair.priceUsd);
+  if (!poolAddress || !(liquidityUsd > 0) || !(priceUsd > 0)) return null;
+  const metrics = Object.fromEntries(["5m", "1h", "24h"].flatMap((window) => {
+    const stats = jupiterVelocityStats(token, window);
+    return [
+      [`price_change_${window}_pct`, stats.price_change_pct],
+      [`liquidity_change_${window}_pct`, stats.liquidity_change_pct],
+      [`volume_change_${window}_pct`, stats.volume_change_pct],
+      [`volume_usd_${window}`, stats.volume_usd],
+      [`buys_${window}`, stats.buys],
+      [`sells_${window}`, stats.sells],
+      [`traders_${window}`, stats.traders],
+    ];
+  }));
+  const current = jupiterVelocityStats(token, duration);
+  const firstPoolAt = Date.parse(token?.firstPool?.createdAt || "");
+  const pairAgeMs = optionalFiniteNumber(pair.pairAgeMs);
+  const marketAgeSeconds = pairAgeMs !== null && pairAgeMs >= 0
+    ? Math.round(pairAgeMs / 1_000)
+    : Number.isFinite(firstPoolAt) ? Math.max(0, Math.round((Date.now() - firstPoolAt) / 1_000)) : null;
+  const symbol = boundedPublicLabel(token.symbol, pair.symbol || "TOKEN", 24);
+  return {
+    public_attention_id: `jupiter:velocity:${duration}:${tokenAddress}`,
+    instrument_id: `solana:pool:${poolAddress}`,
+    source_type: "jupiter_velocity",
+    discovery_source: "jupiter_toptrending",
+    market_type: "spot",
+    chain: "Solana",
+    chain_id: "solana",
+    venue: boundedPublicLabel(pair.dexId, "Solana pool", 60),
+    identity_scope: "exact_pool",
+    evidence_scope: "exact_token_flow_plus_exact_pool_route",
+    symbol,
+    name: boundedPublicLabel(token.name, pair.name || symbol, 80),
+    token_address: tokenAddress,
+    quote_token_address: String(pair.quoteTokenAddress || ""),
+    quote_symbol: boundedPublicLabel(pair.quoteSymbol, "", 20),
+    pool_address: poolAddress,
+    image_url: pair.imageUrl || null,
+    observed_at: fetchedAt,
+    age_seconds: 0,
+    context_state: "current",
+    movement_state: current.price_change_pct === null
+      ? "Jupiter flow accelerating"
+      : current.price_change_pct >= 0 ? "Jupiter upside velocity" : "Jupiter downside velocity",
+    what_changed: [
+      current.price_change_pct === null ? "" : `Price ${current.price_change_pct >= 0 ? "rose" : "fell"} ${Math.abs(current.price_change_pct).toFixed(2)}% over ${duration}`,
+      current.volume_change_pct === null ? "" : `volume ${current.volume_change_pct >= 0 ? "expanded" : "contracted"} ${Math.abs(current.volume_change_pct).toFixed(1)}%`,
+      current.buys !== null && current.sells !== null ? `${Math.round(current.buys)} buys · ${Math.round(current.sells)} sells` : "",
+      current.traders === null ? "" : `${Math.round(current.traders)} traders`,
+    ].filter(Boolean).join(" · ") || "Current Jupiter token flow cleared the discovery feed.",
+    risk: "Jupiter flow is token-wide; Terminal revalidates the selected exact pool before showing chart or strategy evidence.",
+    provider_rank: rank,
+    ranking_duration: duration,
+    market: {
+      price_usd: priceUsd,
+      liquidity_usd: liquidityUsd,
+      market_cap_usd: optionalFiniteNumber(token.mcap ?? pair.marketCap),
+      fdv_usd: optionalFiniteNumber(token.fdv ?? pair.fdv),
+      holder_count: optionalFiniteNumber(token.holderCount),
+      market_age_seconds: marketAgeSeconds,
+      pool_created_at: marketAgeSeconds === null ? null : new Date(Date.now() - marketAgeSeconds * 1_000).toISOString(),
+      ...metrics,
+    },
+    jupiter: {
+      category: "toptrending",
+      interval: duration,
+      rank,
+      organic_score: optionalFiniteNumber(token.organicScore),
+      organic_score_label: boundedPublicLabel(token.organicScoreLabel, "", 24) || null,
+      verified: token.isVerified === true,
+      organic_buyers: current.organic_buyers,
+      net_buyers: current.net_buyers,
+      metric_scope: "exact_token",
+      route_scope: "best_current_exact_pool",
+    },
+    inspection: { state: "exact_pool_ready", silent_pool_selection: false },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  };
+}
+
+async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new Date().toISOString() } = {}) {
+  const apiKey = String(env.JUPITER_API_KEY || "").trim();
+  if (!apiKey) return [];
+  const cacheKey = `toptrending:${duration}:configured`;
+  const cached = cacheGet(jupiterVelocityCache, cacheKey);
+  if (cached) return cached;
+  const payload = await runProviderOperation({
+    component: "jupiter_token_discovery",
+    operation_key: cacheKey,
+    fn: () => boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/toptrending/${encodeURIComponent(duration)}?limit=20`, {
+      headers: { "x-api-key": apiKey },
+      maxBytes: 512 * 1024,
+      timeoutMs: 5_000,
+      errorPrefix: "jupiter_tokens",
+    }),
+  });
+  const tokens = (Array.isArray(payload) ? payload : [])
+    .filter((row) => SOLANA_ADDRESS_RE.test(String(row?.id || "")))
+    .filter((row) => !STABLE_TOKEN_SYMBOLS.has(String(row?.symbol || "").toUpperCase()))
+    .slice(0, 20);
+  if (!tokens.length) return [];
+  const pairs = await runProviderOperation({
+    component: "jupiter_token_discovery",
+    operation_key: `exact-pools:${tokens.map((row) => row.id).join(",")}`,
+    fn: async () => {
+      const addresses = tokens.map((row) => row.id).join(",");
+      const exactPools = await boundedProviderJson(
+        `${DEXSCREENER_BASE_URL}/tokens/v1/solana/${encodeURIComponent(addresses)}`,
+        {
+          maxBytes: 768 * 1024,
+          timeoutMs: 4_000,
+          errorPrefix: "dexscreener_jupiter_exact_pools",
+        },
+      );
+      return sortedDexResults(Array.isArray(exactPools) ? exactPools : []);
+    },
+  });
+  const bestPair = new Map();
+  for (const pair of pairs) {
+    if (!bestPair.has(pair.tokenAddress)) bestPair.set(pair.tokenAddress, pair);
+  }
+  const rows = tokens
+    .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt }))
+    .filter(Boolean)
+    .slice(0, 10);
+  cacheSet(jupiterVelocityCache, cacheKey, rows, 30_000);
+  return rows;
+}
+
 async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
@@ -2362,11 +2564,12 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
   if (!runtime.runtime_allowed || !runtime.credential_present) {
     throw new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable");
   }
-  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}`;
+  const jupiterConfigured = chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim());
+  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
   const fetchedAt = new Date().toISOString();
-  const settled = await Promise.allSettled(chains.map(async (chain) => {
+  const geckoSettledPromise = Promise.allSettled(chains.map(async (chain) => {
     const network = ONCHAIN_PULSE_NETWORKS[chain];
     const payload = await runProviderOperation({
       component: "onchain_market_pulse",
@@ -2400,15 +2603,25 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
     if (!rows.length) throw new Error("coingecko_trending_rows_unavailable");
     return { chain, rows };
   }));
-  const rows = [];
+  const jupiterPromise = chains.includes("solana")
+    ? jupiterVelocityRows({ env, duration, fetchedAt }).catch(() => [])
+    : Promise.resolve([]);
+  const [settled, jupiterRows] = await Promise.all([geckoSettledPromise, jupiterPromise]);
+  const providerRows = [];
   const failures = [];
   settled.forEach((result, index) => {
-    if (result.status === "fulfilled") rows.push(...result.value.rows);
+    if (result.status === "fulfilled") providerRows.push(...result.value.rows);
     else failures.push({
       chain: chains[index],
       state: "temporarily_unavailable",
     });
   });
+  const rowsByToken = new Map();
+  for (const row of [...jupiterRows, ...providerRows]) {
+    const tokenKey = `${String(row.chain_id || row.chain || "").toLowerCase()}:${String(row.token_address || "")}`;
+    if (!rowsByToken.has(tokenKey)) rowsByToken.set(tokenKey, row);
+  }
+  const rows = [...rowsByToken.values()];
   if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
   const result = {
     ok: true,
@@ -2426,12 +2639,17 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
     rows,
     unavailable: failures,
     provenance: {
-      provider: "coingecko_onchain",
-      role: "exact_pool_market_activity",
+      provider: jupiterRows.length ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",
+      role: jupiterRows.length ? "token_velocity_plus_exact_pool_market_activity" : "exact_pool_market_activity",
       raven_signal: false,
       attribution_required: true,
       attribution_label: runtime.attribution_label,
       attribution_url: runtime.attribution_url,
+    },
+    discovery_lanes: {
+      raven_tracked: false,
+      jupiter_velocity: jupiterRows.length > 0,
+      meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
     },
     execution_boundary: {
       research_only: true,
@@ -4118,6 +4336,10 @@ function handleTradeFlags(env = {}) {
     order_plan_types: ["market", "limit", "trigger"],
     public_account_view_available: true,
     public_account_view_venues: ["hyperliquid"],
+    account_scenario_available: true,
+    account_scenario_venues: ["hyperliquid"],
+    account_history_available: true,
+    account_history_types: ["orders"],
     signing_available: false,
     submission_available: false,
     fees_enabled: false,
@@ -4214,6 +4436,96 @@ async function handleTradeAccountSnapshot(request, env = {}) {
   });
 }
 
+async function handleTradeAccountHistory(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_account_history",
+    buildId,
+    schemaVersion: HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+    clientOperationType: "public_account_order_history",
+    providerComponent: "hyperliquid_account_history",
+  });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_account_history").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+      error: error?.code === "request_too_large"
+        ? "account_history_request_too_large"
+        : badType
+          ? "account_history_unsupported_content_type"
+          : "invalid_account_history_json",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400 }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "invalid_account_history_json",
+    });
+  }
+
+  const address = normalizeHyperliquidAddress(body?.address);
+  const kind = String(body?.kind || "orders").trim().toLowerCase();
+  if (!address || kind !== "orders") {
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+      error: address ? "account_history_kind_invalid" : "invalid_hyperliquid_address",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: address ? "account_history_kind_invalid" : "invalid_hyperliquid_address",
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const history = await runProviderOperation({
+        component: "hyperliquid_account_history",
+        operation_key: address,
+        fn: () => hyperliquidAccountHistory(address),
+      });
+      return terminalJson(context, history, { status: 200, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "ok",
+        providerComponent: "hyperliquid_account_history",
+      });
+    } catch {
+      return terminalJson(context, {
+        ok: false,
+        schema_version: HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+        error: "account_history_provider_error",
+        public_account_observation_only: true,
+        signing_available: false,
+        submission_available: false,
+      }, { status: 503, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "provider_error",
+        degradedReason: "account_history_provider_error",
+        providerComponent: "hyperliquid_account_history",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_account_history").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
+      error: "account_history_timeout",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: 504, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "account_history_timeout",
+      providerComponent: "hyperliquid_account_history",
+    }),
+  });
+}
+
 function orderPlanStatus(plan = {}) {
   if (plan.ok) return 200;
   if (new Set([
@@ -4224,6 +4536,7 @@ function orderPlanStatus(plan = {}) {
     "notional_out_of_bounds",
     "leverage_invalid",
     "leverage_exceeds_market_maximum",
+    "impact_limit_invalid",
     "limit_price_invalid",
     "trigger_price_invalid",
     "time_in_force_invalid",
@@ -4344,6 +4657,165 @@ async function handleTradeOrderPlan(request, env = {}) {
       resultCategory: "timeout",
       degradedReason: "order_plan_timeout",
       providerComponent: "hyperliquid_order_plan",
+    }),
+  });
+}
+
+function accountScenarioStatus(scenario = {}) {
+  if (scenario.ok) return 200;
+  if (new Set([
+    "account_identity_mismatch",
+    "margin_mode_invalid",
+    "order_plan_semantics_invalid",
+    "exact_instrument_identity_mismatch",
+    "market_identity_mismatch",
+    "side_invalid",
+    "order_type_invalid",
+    "notional_out_of_bounds",
+    "leverage_invalid",
+    "leverage_exceeds_market_maximum",
+    "impact_limit_invalid",
+    "limit_price_invalid",
+    "trigger_price_invalid",
+    "time_in_force_invalid",
+    "take_profit_price_invalid",
+    "stop_loss_price_invalid",
+  ]).has(scenario.unavailable_reason)) return 400;
+  if (new Set([
+    "reduce_only_would_not_reduce_position",
+    "post_only_would_cross",
+    "ioc_not_marketable",
+    "trigger_side_mismatch",
+    "take_profit_side_mismatch",
+    "stop_loss_side_mismatch",
+    "price_impact_limit_exceeded",
+  ]).has(scenario.unavailable_reason)) return 409;
+  if (new Set(["insufficient_depth_inside_limit", "insufficient_visible_depth"]).has(scenario.unavailable_reason)) return 422;
+  return 503;
+}
+
+async function handleTradeAccountScenario(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_account_scenario",
+    buildId,
+    schemaVersion: HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+    clientOperationType: "public_account_order_scenario",
+    providerComponent: "hyperliquid_account_scenario",
+  });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_account_scenario").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+      error: error?.code === "request_too_large"
+        ? "account_scenario_request_too_large"
+        : badType
+          ? "account_scenario_unsupported_content_type"
+          : "invalid_account_scenario_json",
+      account_scenario_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400 }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "invalid_account_scenario_json",
+    });
+  }
+
+  const address = normalizeHyperliquidAddress(body?.address);
+  const instrumentId = String(body?.instrument_id || "").trim();
+  const match = instrumentId.match(/^hyperliquid:perp:([A-Z0-9][A-Z0-9._:-]{0,31})$/);
+  if (!address || !match) {
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+      state: "unavailable",
+      unavailable_reason: address ? "exact_instrument_identity_mismatch" : "account_identity_mismatch",
+      execution_boundary: {
+        account_scenario_only: true,
+        prepared_order_available: false,
+        wallet_confirmation_available: false,
+        signing_available: false,
+        submission_available: false,
+      },
+    }, { status: 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: address ? "exact_instrument_identity_mismatch" : "account_identity_mismatch",
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const [instrument, snapshot, fees] = await runProviderOperation({
+        component: "hyperliquid_account_scenario",
+        operation_key: `${address}:${match[1]}`,
+        fn: () => Promise.all([
+          hyperliquidInstrument(match[1]),
+          hyperliquidAccountSnapshot(address),
+          hyperliquidUserFees(address),
+        ]),
+      });
+      const plan = createHyperliquidOrderPlan({
+        ...body,
+        instrument_id: instrumentId,
+        book: instrument?.book,
+        market: instrument?.market,
+      });
+      const scenario = createHyperliquidAccountScenario({
+        address,
+        margin_mode: body?.margin_mode,
+        reduce_only: body?.reduce_only === true,
+        plan,
+        snapshot,
+        fees,
+      });
+      const status = accountScenarioStatus(scenario);
+      return terminalJson(context, scenario, { status, headers: { "cache-control": "no-store" } }, {
+        resultCategory: scenario.ok ? "ok" : "unavailable",
+        degradedReason: scenario.ok ? null : scenario.unavailable_reason,
+        providerComponent: "hyperliquid_account_scenario",
+      });
+    } catch {
+      return terminalJson(context, {
+        ok: false,
+        schema_version: HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+        state: "unavailable",
+        unavailable_reason: "account_scenario_provider_error",
+        execution_boundary: {
+          account_scenario_only: true,
+          prepared_order_available: false,
+          wallet_confirmation_available: false,
+          signing_available: false,
+          submission_available: false,
+        },
+      }, { status: 503, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "provider_error",
+        degradedReason: "account_scenario_provider_error",
+        providerComponent: "hyperliquid_account_scenario",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_account_scenario").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SCENARIO_SCHEMA,
+      state: "unavailable",
+      unavailable_reason: "account_scenario_timeout",
+      execution_boundary: {
+        account_scenario_only: true,
+        prepared_order_available: false,
+        wallet_confirmation_available: false,
+        signing_available: false,
+        submission_available: false,
+      },
+    }, { status: 504, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "account_scenario_timeout",
+      providerComponent: "hyperliquid_account_scenario",
     }),
   });
 }
@@ -5600,6 +6072,8 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
   if (url.pathname === "/api/trade/order-plan" && request.method === "POST") return handleTradeOrderPlan(request, env);
   if (url.pathname === "/api/trade/account-snapshot" && request.method === "POST") return handleTradeAccountSnapshot(request, env);
+  if (url.pathname === "/api/trade/account-scenario" && request.method === "POST") return handleTradeAccountScenario(request, env);
+  if (url.pathname === "/api/trade/account-history" && request.method === "POST") return handleTradeAccountHistory(request, env);
   if (url.pathname === "/api/trade/quote" && request.method === "POST") return handleTradeQuote(request, env);
   if (url.pathname === "/api/trade/inspect" && request.method === "POST") return handleTradeInspect(request, env);
   if (url.pathname === "/api/trade/review" && (request.method === "POST" || request.method === "GET")) return handleTradeReview(request, env);

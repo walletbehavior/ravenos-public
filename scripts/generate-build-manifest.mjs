@@ -169,6 +169,8 @@ const manifest = {
     chart_capability_registry: "ravenos.chart_capability_registry.v1",
     onchain_chart_provider_registry: "ravenos.onchain_chart_provider_registry.v1",
     hyperliquid_account_snapshot: "ravenos.hyperliquid_account_snapshot.v1",
+    hyperliquid_account_scenario: "ravenos.hyperliquid_account_scenario.v1",
+    hyperliquid_account_history: "ravenos.hyperliquid_account_history.v1",
   },
   evidence_contract_version: "1.0",
   claim_lineage_version: "2.0",

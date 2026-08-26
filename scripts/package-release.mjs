@@ -134,7 +134,8 @@ const packageManifest = {
   required_server_secret_bindings: [
     "RAVENOS_PUBLIC_ORIGIN_TOKEN",
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN",
-    chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET"
+    chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
+    "JUPITER_API_KEY"
   ],
   promotion_requires_explicit_authorization: true,
   rebuild_after_staging_permitted: false,

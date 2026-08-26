@@ -63,9 +63,9 @@ test("Worker returns an exact live-book Hyperliquid market preview without an ex
         max_impact_bps: 100,
       }),
     }), {});
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("cache-control"), "no-store");
     const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(response.headers.get("cache-control"), "no-store");
     assert.equal(body.ok, true);
     assert.equal(body.schema_version, "ravenos.hyperliquid_market_preview.v1");
     assert.equal(body.instrument.instrument_id, "hyperliquid:perp:PREVIEW");
@@ -178,6 +178,7 @@ test("Worker returns a bounded public Hyperliquid account snapshot without venue
         assetPositions: [{ position: { coin: "SOL", szi: "12", entryPx: "145", positionValue: "1800", unrealizedPnl: "60", returnOnEquity: "0.1667", liquidationPx: "95", marginUsed: "360", leverage: { type: "cross", value: 5 }, cumFunding: { sinceOpen: "-1.2", sinceChange: "-0.2", allTime: "-4.5" } } }],
       });
     }
+    if (body.type === "spotClearinghouseState") return jsonResponse({ balances: [{ coin: "USDC", total: "50", hold: "5", entryNtl: "50", token: 0 }] });
     if (body.type === "frontendOpenOrders") return jsonResponse([{ coin: "SOL", side: "A", sz: "4", origSz: "4", limitPx: "160", orderType: "Limit", tif: "Gtc", reduceOnly: true, timestamp: Date.now(), oid: 12345 }]);
     if (body.type === "userFills") return jsonResponse([{ coin: "SOL", side: "B", sz: "12", px: "145", dir: "Open Long", closedPnl: "0", fee: "0.4", feeToken: "USDC", crossed: true, time: Date.now(), hash: "0xprivatehash", oid: 12345, tid: 67890 }]);
     return jsonResponse({}, 404);
@@ -195,14 +196,124 @@ test("Worker returns a bounded public Hyperliquid account snapshot without venue
     assert.equal(body.schema_version, "ravenos.hyperliquid_account_snapshot.v1");
     assert.equal(body.summary.account_value_usdc, 4200);
     assert.equal(body.positions.length, 1);
+    assert.equal(body.balances[0].available, 45);
     assert.equal(body.open_orders[0].reduce_only, true);
     assert.equal(body.fills.length, 1);
     assert.equal(body.account.ownership_asserted, false);
     assert.equal(body.account.persisted, false);
     assert.equal(body.execution_boundary.signing_available, false);
     assert.equal(body.execution_boundary.submission_available, false);
-    assert.deepEqual(new Set(providerCalls), new Set(["clearinghouseState", "frontendOpenOrders", "userFills"]));
+    assert.deepEqual(new Set(providerCalls), new Set(["clearinghouseState", "spotClearinghouseState", "frontendOpenOrders", "userFills"]));
     assert.doesNotMatch(JSON.stringify(body), /privatehash|12345|67890|"hash"|"oid"|"tid"/);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker returns an account-informed Hyperliquid order scenario with current fees and no execution payload", async () => {
+  const previousFetch = globalThis.fetch;
+  const observedAt = Date.now() - 300;
+  const providerCalls = [];
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(String(init.body || "{}"));
+    providerCalls.push(body.type);
+    if (body.type === "metaAndAssetCtxs") {
+      return jsonResponse([
+        { universe: [{ name: "SCENARIO", maxLeverage: 20 }] },
+        [{ funding: "0.00001", openInterest: "1000", dayNtlVlm: "2500000", markPx: "100", midPx: "100", oraclePx: "99.98", prevDayPx: "98" }],
+      ]);
+    }
+    if (body.type === "l2Book") {
+      return jsonResponse({
+        coin: "SCENARIO",
+        time: observedAt,
+        levels: [
+          [{ px: "99.9", sz: "50", n: 5 }],
+          [{ px: "100.1", sz: "50", n: 5 }],
+        ],
+      });
+    }
+    if (body.type === "recentTrades") return jsonResponse([]);
+    if (body.type === "clearinghouseState") {
+      return jsonResponse({
+        marginSummary: { accountValue: "5000", totalNtlPos: "0", totalRawUsd: "5000", totalMarginUsed: "0" },
+        crossMarginSummary: { accountValue: "5000", totalMarginUsed: "0" },
+        crossMaintenanceMarginUsed: "0",
+        withdrawable: "2500",
+        assetPositions: [],
+      });
+    }
+    if (body.type === "spotClearinghouseState") return jsonResponse({ balances: [] });
+    if (body.type === "frontendOpenOrders" || body.type === "userFills") return jsonResponse([]);
+    if (body.type === "userFees") return jsonResponse({ userCrossRate: "0.0004", userAddRate: "0.0001" });
+    return jsonResponse({}, 404);
+  };
+
+  try {
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/account-scenario", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0xdddddddddddddddddddddddddddddddddddddddd",
+        instrument_id: "hyperliquid:perp:SCENARIO",
+        side: "long",
+        order_type: "market",
+        notional_usdc: 1000,
+        leverage: 5,
+        margin_mode: "cross",
+        reduce_only: false,
+        max_impact_bps: 100,
+      }),
+    }), {});
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(body.ok, true);
+    assert.equal(body.schema_version, "ravenos.hyperliquid_account_scenario.v1");
+    assert.equal(body.position_effect.effect, "open");
+    assert.equal(body.fee_estimate.estimated_entry_fee_usdc, 0.4);
+    assert.equal(body.margin_check.state, "passes_current_snapshot");
+    assert.equal(body.execution_boundary.prepared_order_available, false);
+    assert.equal(body.execution_boundary.signing_available, false);
+    assert.equal(body.execution_boundary.submission_available, false);
+    assert.deepEqual(new Set(providerCalls), new Set([
+      "metaAndAssetCtxs",
+      "l2Book",
+      "recentTrades",
+      "clearinghouseState",
+      "spotClearinghouseState",
+      "frontendOpenOrders",
+      "userFills",
+      "userFees",
+    ]));
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker returns bounded public Hyperliquid order history without provider order ids", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(String(init.body || "{}"));
+    if (body.type === "historicalOrders") return jsonResponse([{
+      order: { coin: "SOL", side: "A", origSz: "10", sz: "0", limitPx: "155", orderType: "Limit", tif: "Gtc", oid: 91234 },
+      status: "filled",
+      statusTimestamp: Date.now(),
+    }]);
+    return jsonResponse({}, 404);
+  };
+  try {
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/account-history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", kind: "orders" }),
+    }), {});
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.schema_version, "ravenos.hyperliquid_account_history.v1");
+    assert.equal(body.orders[0].status, "filled");
+    assert.equal(body.orders[0].filled_size, 10);
+    assert.doesNotMatch(JSON.stringify(body), /91234|"oid"/);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -239,6 +350,10 @@ test("public trade flags distinguish market preview from disabled customer execu
   assert.deepEqual(body.order_plan_types, ["market", "limit", "trigger"]);
   assert.equal(body.public_account_view_available, true);
   assert.deepEqual(body.public_account_view_venues, ["hyperliquid"]);
+  assert.equal(body.account_scenario_available, true);
+  assert.deepEqual(body.account_scenario_venues, ["hyperliquid"]);
+  assert.equal(body.account_history_available, true);
+  assert.deepEqual(body.account_history_types, ["orders"]);
   assert.equal(body.signing_available, false);
   assert.equal(body.submission_available, false);
   assert.equal(body.flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE, false);

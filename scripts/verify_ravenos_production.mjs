@@ -1,6 +1,7 @@
 import { scanJsonValue } from "./validate-public-no-leak.mjs";
 
 const baseUrl = process.argv[2] || process.env.RAVENOS_VERIFY_BASE_URL || "https://ravenos.xyz";
+const requireJupiterVelocity = ["1", "true", "yes"].includes(String(process.env.RAVENOS_VERIFY_JUPITER_VELOCITY || "").trim().toLowerCase());
 
 const pageRoutes = [
   "/",
@@ -110,6 +111,10 @@ if (
   || !["market", "limit", "trigger"].every((orderType) => flagsJson?.order_plan_types?.includes(orderType))
   || flagsJson?.public_account_view_available !== true
   || !flagsJson?.public_account_view_venues?.includes("hyperliquid")
+  || flagsJson?.account_scenario_available !== true
+  || !flagsJson?.account_scenario_venues?.includes("hyperliquid")
+  || flagsJson?.account_history_available !== true
+  || !flagsJson?.account_history_types?.includes("orders")
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
 ) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid planning boundary");
@@ -135,6 +140,37 @@ if (
   || onchainPulseJson?.execution_boundary?.signing_available !== false
   || onchainPulseJson?.execution_boundary?.submission_available !== false
 ) throw new Error("/api/onchain/trending did not return current exact-pool Base and Ethereum activity");
+
+if (requireJupiterVelocity) {
+  const { res: solanaVelocityRes, json: solanaVelocityJson } = await fetchJson(
+    "/api/onchain/trending?chains=solana&duration=5m",
+  );
+  const velocityRows = Array.isArray(solanaVelocityJson?.rows)
+    ? solanaVelocityJson.rows.filter((row) => row?.source_type === "jupiter_velocity")
+    : [];
+  if (
+    !solanaVelocityRes.ok
+    || solanaVelocityJson?.provenance?.role !== "token_velocity_plus_exact_pool_market_activity"
+    || solanaVelocityJson?.discovery_lanes?.jupiter_velocity !== true
+    || !velocityRows.length
+    || velocityRows.some((row) => (
+      row?.chain_id !== "solana"
+      || row?.identity_scope !== "exact_pool"
+      || row?.instrument_id !== `solana:pool:${row?.pool_address}`
+      || row?.evidence_scope !== "exact_token_flow_plus_exact_pool_route"
+      || row?.jupiter?.category !== "toptrending"
+      || row?.jupiter?.metric_scope !== "exact_token"
+      || row?.jupiter?.route_scope !== "best_current_exact_pool"
+      || row?.research_only !== true
+      || row?.execution_available !== false
+    ))
+  ) throw new Error("/api/onchain/trending did not return Jupiter Velocity tokens bound to current exact Solana pools");
+  const solanaVelocityFindings = scanJsonValue(solanaVelocityJson, "production:/api/onchain/trending:solana-velocity");
+  if (solanaVelocityFindings.length) {
+    const fields = solanaVelocityFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+    throw new Error(`Production Jupiter Velocity response failed the public no-leak gate: ${fields}`);
+  }
+}
 
 const { res: marketPreviewRes, json: marketPreviewJson } = await fetchJson("/api/trade/market-preview", {
   method: "POST",
@@ -204,6 +240,7 @@ if (
   || accountSnapshotJson?.account?.ownership_asserted !== false
   || accountSnapshotJson?.account?.persisted !== false
   || !Array.isArray(accountSnapshotJson?.positions)
+  || !Array.isArray(accountSnapshotJson?.balances)
   || !Array.isArray(accountSnapshotJson?.open_orders)
   || !Array.isArray(accountSnapshotJson?.fills)
   || accountSnapshotJson?.privacy?.transaction_hashes_exposed !== false
@@ -219,6 +256,73 @@ const accountSnapshotNoLeakFindings = scanJsonValue(accountSnapshotJson, "produc
 if (accountSnapshotNoLeakFindings.length) {
   const fields = accountSnapshotNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Production public account snapshot failed the public no-leak gate: ${fields}`);
+}
+
+const { res: accountScenarioRes, json: accountScenarioJson } = await fetchJson("/api/trade/account-scenario", {
+  method: "POST",
+  body: {
+    address: "0x000000000000000000000000000000000000dead",
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    order_type: "market",
+    notional_usdc: 500,
+    leverage: 3,
+    margin_mode: "cross",
+    reduce_only: false,
+    max_impact_bps: 100,
+  },
+});
+if (
+  !accountScenarioRes.ok
+  || accountScenarioJson?.ok !== true
+  || accountScenarioJson?.schema_version !== "ravenos.hyperliquid_account_scenario.v1"
+  || accountScenarioJson?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || accountScenarioJson?.account_context?.address !== "0x000000000000000000000000000000000000dead"
+  || accountScenarioJson?.account_context?.ownership_asserted !== false
+  || !accountScenarioJson?.position_effect?.effect
+  || !Number.isFinite(Number(accountScenarioJson?.fee_estimate?.account_fee_rate))
+  || !accountScenarioJson?.margin_check?.state
+  || accountScenarioJson?.review?.prepared_payload_included !== false
+  || accountScenarioJson?.execution_boundary?.prepared_order_available !== false
+  || accountScenarioJson?.execution_boundary?.wallet_confirmation_available !== false
+  || accountScenarioJson?.execution_boundary?.signing_available !== false
+  || accountScenarioJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/trade/account-scenario did not preserve exact account/market binding and the non-execution boundary");
+const accountScenarioText = JSON.stringify(accountScenarioJson);
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountScenarioText)) {
+  throw new Error("Production account scenario exposed a venue transaction or order identifier");
+}
+const accountScenarioNoLeakFindings = scanJsonValue(accountScenarioJson, "production:/api/trade/account-scenario");
+if (accountScenarioNoLeakFindings.length) {
+  const fields = accountScenarioNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production account scenario failed the public no-leak gate: ${fields}`);
+}
+
+const { res: accountHistoryRes, json: accountHistoryJson } = await fetchJson("/api/trade/account-history", {
+  method: "POST",
+  body: { address: "0x000000000000000000000000000000000000dead", kind: "orders" },
+});
+if (
+  !accountHistoryRes.ok
+  || accountHistoryJson?.ok !== true
+  || accountHistoryJson?.schema_version !== "ravenos.hyperliquid_account_history.v1"
+  || accountHistoryJson?.account?.address !== "0x000000000000000000000000000000000000dead"
+  || accountHistoryJson?.account?.ownership_asserted !== false
+  || accountHistoryJson?.account?.persisted !== false
+  || !Array.isArray(accountHistoryJson?.orders)
+  || accountHistoryJson?.privacy?.provider_order_ids_exposed !== false
+  || accountHistoryJson?.execution_boundary?.cancellation_available !== false
+  || accountHistoryJson?.execution_boundary?.signing_available !== false
+  || accountHistoryJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/trade/account-history did not preserve its bounded read-only boundary");
+const accountHistoryText = JSON.stringify(accountHistoryJson);
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountHistoryText)) {
+  throw new Error("Production public account history exposed a venue transaction or order identifier");
+}
+const accountHistoryNoLeakFindings = scanJsonValue(accountHistoryJson, "production:/api/trade/account-history");
+if (accountHistoryNoLeakFindings.length) {
+  const fields = accountHistoryNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production public account history failed the public no-leak gate: ${fields}`);
 }
 
 const { json: claimsJson } = await fetchJson("/api/claims");

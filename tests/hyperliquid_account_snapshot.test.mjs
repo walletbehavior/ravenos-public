@@ -32,6 +32,12 @@ test("Hyperliquid account snapshots expose useful public state without venue ide
         },
       }],
     },
+    spotState: {
+      balances: [
+        { coin: "USDC", total: "325.5", hold: "25.5", entryNtl: "325.5", token: 0 },
+        { coin: "HYPE", total: "2.25", hold: "0.25", entryNtl: "71.2", token: 150 },
+      ],
+    },
     openOrders: [{
       coin: "SOL",
       side: "A",
@@ -68,6 +74,17 @@ test("Hyperliquid account snapshots expose useful public state without venue ide
   assert.equal(snapshot.account.ownership_asserted, false);
   assert.equal(snapshot.account.persisted, false);
   assert.equal(snapshot.summary.account_value_usdc, 12500.25);
+  assert.equal(snapshot.summary.maintenance_margin_usdc, 405);
+  assert.equal(snapshot.summary.margin_utilization_ratio, 0.12959741);
+  assert.equal(snapshot.summary.account_leverage, 0.64798704);
+  assert.equal(snapshot.summary.spot_usdc_available, 300);
+  assert.deepEqual(snapshot.balances[1], {
+    asset: "HYPE",
+    total: 2.25,
+    on_hold: 0.25,
+    available: 2,
+    entry_notional_usdc: 71.2,
+  });
   assert.equal(snapshot.positions[0].side, "long");
   assert.equal(snapshot.positions[0].funding.since_open_usdc, -2.25);
   assert.equal(snapshot.open_orders[0].reduce_only, true);
@@ -88,6 +105,7 @@ test("Hyperliquid account snapshots represent a truly empty public address witho
       withdrawable: "0",
       assetPositions: [],
     },
+    spotState: { balances: [] },
     openOrders: [],
     fills: [],
   });
@@ -95,6 +113,7 @@ test("Hyperliquid account snapshots represent a truly empty public address witho
   assert.deepEqual(snapshot.positions, []);
   assert.deepEqual(snapshot.open_orders, []);
   assert.deepEqual(snapshot.fills, []);
+  assert.deepEqual(snapshot.balances, []);
 });
 
 test("Hyperliquid address normalization fails closed", () => {

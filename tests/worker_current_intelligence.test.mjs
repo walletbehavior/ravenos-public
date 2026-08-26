@@ -386,6 +386,108 @@ test("Worker serves bounded exact-pool Solana, Base, and Ethereum activity witho
   }
 });
 
+test("Worker merges Jupiter token velocity into a verified exact Solana pool without leaking credentials", async () => {
+  const coinGeckoSecret = "server-only-gecko-velocity-token";
+  const jupiterSecret = "server-only-jupiter-velocity-token";
+  const tokenAddress = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN";
+  const poolAddress = "44444444444444444444444444444444";
+  const quoteAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    if (url.hostname === "api.jup.ag") {
+      assert.equal(init.headers["x-api-key"], jupiterSecret);
+      assert.equal(url.pathname, "/tokens/v2/toptrending/1h");
+      assert.equal(url.searchParams.get("limit"), "20");
+      return jsonResponse([{
+        id: tokenAddress,
+        name: "Jupiter",
+        symbol: "JUP",
+        icon: "https://static.jup.ag/jup/icon.png",
+        usdPrice: 1.12,
+        mcap: 3_100_000_000,
+        fdv: 7_800_000_000,
+        liquidity: 58_000_000,
+        holderCount: 485_200,
+        organicScore: 92.4,
+        organicScoreLabel: "high",
+        isVerified: true,
+        firstPool: { createdAt: "2024-01-31T00:00:00Z" },
+        stats5m: { priceChange: 6.2, volumeChange: 88, buyVolume: 190_000, sellVolume: 70_000, numBuys: 320, numSells: 130, numTraders: 280, numOrganicBuyers: 190, numNetBuyers: 120 },
+        stats1h: { priceChange: 14.8, volumeChange: 134, buyVolume: 2_100_000, sellVolume: 740_000, numBuys: 2_800, numSells: 1_100, numTraders: 1_940, numOrganicBuyers: 1_260, numNetBuyers: 760 },
+        stats24h: { priceChange: 31.5, volumeChange: 56, buyVolume: 18_500_000, sellVolume: 10_200_000, numBuys: 18_400, numSells: 11_800, numTraders: 8_900, numOrganicBuyers: 5_200, numNetBuyers: 2_900 },
+      }]);
+    }
+    if (url.hostname === "api.dexscreener.com") {
+      assert.match(url.pathname, /^\/tokens\/v1\/solana\//);
+      assert.ok(decodeURIComponent(url.pathname).includes(tokenAddress));
+      assert.equal(init.headers.accept, "application/json");
+      return jsonResponse([{
+        chainId: "solana",
+        dexId: "meteora",
+        pairAddress: poolAddress,
+        pairCreatedAt: Date.now() - (180 * 86_400_000),
+        baseToken: { address: tokenAddress, symbol: "JUP", name: "Jupiter" },
+        quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+        priceUsd: "1.12",
+        liquidity: { usd: 4_200_000 },
+        volume: { h24: 16_500_000 },
+        txns: { h24: { buys: 7_300, sells: 5_100 } },
+        marketCap: 3_100_000_000,
+        fdv: 7_800_000_000,
+        priceChange: { h24: 31.5 },
+      }]);
+    }
+    assert.equal(init.headers["x-cg-pro-api-key"], coinGeckoSecret);
+    assert.equal(url.searchParams.get("duration"), "1h");
+    return jsonResponse(geckoTrendingFixture("solana", {
+      pool: "77777777777777777777777777777777",
+      token: "88888888888888888888888888888888",
+      quote: quoteAddress,
+      symbol: "SECOND",
+      name: "Second Token",
+    }));
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana&duration=1h"),
+      {
+        ...environment(),
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: coinGeckoSecret,
+        JUPITER_API_KEY: jupiterSecret,
+      },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provenance.provider, "jupiter_tokens_v2 + coingecko_onchain");
+    assert.equal(body.provenance.role, "token_velocity_plus_exact_pool_market_activity");
+    assert.equal(body.discovery_lanes.jupiter_velocity, true);
+    assert.equal(body.discovery_lanes.meteora_exact_pools, true);
+    const velocity = body.rows.find((row) => row.source_type === "jupiter_velocity");
+    assert.equal(velocity.instrument_id, `solana:pool:${poolAddress}`);
+    assert.equal(velocity.identity_scope, "exact_pool");
+    assert.equal(velocity.evidence_scope, "exact_token_flow_plus_exact_pool_route");
+    assert.equal(velocity.token_address, tokenAddress);
+    assert.equal(velocity.quote_token_address, quoteAddress);
+    assert.equal(velocity.pool_address, poolAddress);
+    assert.equal(velocity.venue, "meteora");
+    assert.equal(velocity.market.price_change_1h_pct, 14.8);
+    assert.equal(velocity.market.traders_1h, 1_940);
+    assert.equal(velocity.jupiter.organic_score, 92.4);
+    assert.equal(velocity.jupiter.metric_scope, "exact_token");
+    assert.equal(velocity.jupiter.route_scope, "best_current_exact_pool");
+    assert.equal(velocity.research_only, true);
+    assert.equal(velocity.execution_available, false);
+    assert.equal(JSON.stringify(body).includes(coinGeckoSecret), false);
+    assert.equal(JSON.stringify(body).includes(jupiterSecret), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Worker does not relabel an older claim as a current opportunity when Census is unavailable", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

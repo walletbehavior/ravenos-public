@@ -6,6 +6,7 @@ import {
   opportunityLifecycle,
   spotFlowRead,
   spotMarketHealth,
+  spotVelocityRead,
 } from "../ravenos-discover-intelligence.js";
 
 function opportunity(overrides = {}) {
@@ -138,6 +139,46 @@ test("parabolic pools stay visible but receive a chase-risk score cap", () => {
   assert.equal(health.state, "extended");
   assert.match(health.label, /chase risk/i);
   assert.ok(flow.score <= 66);
+});
+
+test("velocity alpha rewards confirmed multi-window flow instead of price movement alone", () => {
+  const alignedPool = pool();
+  alignedPool.market.price_change_5m_pct = 6.2;
+  const aligned = spotVelocityRead(alignedPool, "5m");
+  const hollow = pool();
+  hollow.market.price_change_5m_pct = 18;
+  hollow.market.price_change_1h_pct = -4;
+  hollow.market.price_change_24h_pct = 6;
+  hollow.market.buys_5m = 18;
+  hollow.market.sells_5m = 74;
+  hollow.market.buyers_5m = 12;
+  hollow.market.sellers_5m = 58;
+  const divergent = spotVelocityRead(hollow, "5m");
+  assert.equal(aligned.state, "upside_confirmed");
+  assert.equal(aligned.flow_aligned, true);
+  assert.equal(aligned.confirmed_windows, 3);
+  assert.equal(aligned.qualified, true);
+  assert.ok(aligned.score > divergent.score);
+  assert.equal(divergent.state, "flow_divergence");
+  assert.match(divergent.label, /divergence/i);
+});
+
+test("velocity alpha labels chase risk and omits fragile pools from qualification", () => {
+  const extended = pool();
+  extended.market.price_change_5m_pct = 42;
+  extended.market.price_change_1h_pct = 110;
+  extended.market.price_change_24h_pct = 540;
+  const chase = spotVelocityRead(extended, "5m");
+  assert.equal(chase.chase_risk, true);
+  assert.equal(chase.state, "chase_risk");
+  assert.match(chase.detail, /chase risk/i);
+
+  const thin = pool();
+  thin.market.liquidity_usd = 900;
+  thin.market.volume_usd_24h = 120;
+  const fragile = spotVelocityRead(thin, "5m");
+  assert.equal(fragile.qualified, false);
+  assert.doesNotMatch(JSON.stringify(fragile), /unknown|unavailable|missing/i);
 });
 
 test("desk frame fuses live markets, flows, lifecycle, and Atlas without empty-language cards", () => {

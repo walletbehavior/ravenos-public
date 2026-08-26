@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Portfolio · RavenOS</title>
-  <meta name="description" content="Track Hyperliquid equity, margin, positions, orders, fills, and funding in one RavenOS risk view." />
+  <meta name="description" content="Track Hyperliquid equity, collateral, margin risk, positions, and funding in one RavenOS portfolio view." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
 </head>
@@ -14,7 +14,7 @@
       <div>
         <span class="workspace-question">Where is the exposure, and what needs attention?</span>
         <h1>Every position. One risk view.</h1>
-        <p>Track a Hyperliquid account’s current equity, margin, positions, orders, fills, and funding without leaving the Raven desk.</p>
+        <p>See current collateral, leverage, maintenance risk, and open exposure without leaving the Raven desk.</p>
       </div>
       <div class="workspace-mast-actions">
         <a class="workspace-primary-action" href="/terminal/"><span>Open the trading desk</span><span>Terminal →</span></a>
@@ -28,7 +28,7 @@
           <div>
             <span class="workspace-label">Hyperliquid account</span>
             <h2>See the whole account before the next trade.</h2>
-            <p>Enter any public Hyperliquid address to load its current risk picture. The address stays in this browser tab and is not saved by RavenOS.</p>
+            <p>Enter any public Hyperliquid address to load its current risk picture. This is public observation only; the address stays in this tab.</p>
           </div>
         </header>
         <form class="portfolio-account-form" id="portfolioAccountForm">
@@ -37,12 +37,12 @@
             <input id="portfolioAccountAddress" name="address" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="0x…" aria-describedby="portfolioAccountStatus" />
             <button type="submit">Load account</button>
           </div>
-          <small id="portfolioAccountStatus" aria-live="polite">Live venue data · not saved by RavenOS</small>
+          <small id="portfolioAccountStatus" aria-live="polite">Public read only · address not saved</small>
         </form>
 
         <section class="portfolio-account-results" id="portfolioAccountResults" hidden aria-label="Observed Hyperliquid account">
           <header>
-            <div><span class="workspace-label">Public account view</span><strong id="portfolioObservedAddress"></strong></div>
+            <div><span class="workspace-label">Hyperliquid risk snapshot</span><strong id="portfolioObservedAddress"></strong></div>
             <span id="portfolioObservedAt"></span>
           </header>
           <dl class="portfolio-account-summary">
@@ -50,6 +50,8 @@
             <div><dt>Withdrawable</dt><dd id="portfolioAccountWithdrawable"></dd></div>
             <div><dt>Margin used</dt><dd id="portfolioAccountMargin"></dd></div>
             <div><dt>Perp exposure</dt><dd id="portfolioAccountExposure"></dd></div>
+            <div><dt>Maintenance</dt><dd id="portfolioAccountMaintenance"></dd></div>
+            <div><dt>Account leverage</dt><dd id="portfolioAccountLeverage"></dd></div>
           </dl>
           <div class="portfolio-position-head"><div><span class="workspace-label">Open positions</span><strong id="portfolioPositionCount"></strong></div><span>Entry · P&amp;L · liquidation</span></div>
           <div class="portfolio-position-list" id="portfolioPositionList"></div>
