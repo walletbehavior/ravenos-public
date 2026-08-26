@@ -1527,6 +1527,7 @@ function renderAlphaStack() {
 function clearExternalChart() {
   state.externalChart?.remove?.();
   state.externalChart = null;
+  document.querySelector(".terminal-controls")?.classList.remove("external-chart-active");
   if (state.workspace?.root) state.workspace.root.hidden = false;
   const credit = document.getElementById("terminalChartCredit");
   if (credit) {
@@ -1584,6 +1585,7 @@ function showListedVisualChart(row = state.selected) {
   }
   link.href = resolved.attribution_url;
   if (state.workspace?.root) state.workspace.root.hidden = true;
+  document.querySelector(".terminal-controls")?.classList.add("external-chart-active");
   const credit = document.getElementById("terminalChartCredit");
   if (credit) {
     credit.textContent = "Chart by TradingView";

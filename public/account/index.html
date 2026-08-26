@@ -15,7 +15,7 @@
       <div>
         <span class="workspace-question">Your RavenOS identity</span>
         <h1>One account for your entire desk.</h1>
-        <p>Carry watchlists, layouts, alerts, linked wallets, and terminal preferences across devices while each permission stays independently controlled.</p>
+        <p>Create a secure RavenOS identity and manage your signed-in devices while wallets, saved workspace data, entitlements, and trading permissions stay independently controlled.</p>
       </div>
       <div class="account-head-status" aria-live="polite">
         <span class="account-state-dot"></span>
@@ -27,8 +27,8 @@
       <div class="account-auth-primary">
         <div class="account-auth-copy">
           <span class="workspace-label">RavenOS account</span>
-          <h2>Build your desk once.<br />Take it everywhere.</h2>
-          <p>Use Google for speed, or continue with email and a passkey. RavenOS never receives your Google password, passkey private material, seed phrase, or wallet private key.</p>
+          <h2>Secure access.<br />Clean permission boundaries.</h2>
+          <p>Use Google for speed, or continue with a verified email, one-time code, or password. RavenOS never receives your Google password or stores your provider password, seed phrase, or wallet private key.</p>
         </div>
 
         <div class="account-mode-switch" role="tablist" aria-label="Account action">
@@ -48,9 +48,10 @@
             <input type="hidden" name="intent" value="sign_up" />
             <input type="hidden" name="provider" value="managed" />
             <input type="hidden" name="return_to" value="/account/" />
-            <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email or passkey</span><span aria-hidden="true">→</span></button>
+            <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email, password, or code</span><span aria-hidden="true">→</span></button>
           </form>
           <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Account credentials and RavenOS sessions are separate from every wallet and trading permission.</p>
+          <p class="account-auth-legal">By continuing, you agree to the <a href="https://ravenos.xyz/terms/">Terms</a> and acknowledge the <a href="https://ravenos.xyz/privacy/">Privacy Policy</a>.</p>
         </div>
 
         <section class="account-activation" id="accountActivation" hidden>
@@ -62,11 +63,11 @@
       </div>
 
       <aside class="account-trust-rail">
-        <span class="workspace-label">What an account unlocks</span>
+        <span class="workspace-label">What the account secures</span>
         <div class="account-capability-list">
-          <article><span>01</span><div><strong>Persistent workspace</strong><p>Saved markets, terminal layouts, notes, and alerts tied to your account—not this browser.</p></div></article>
-          <article><span>02</span><div><strong>Verified connections</strong><p>Link multiple Solana and EVM wallets after sign-in while preserving actual custody.</p></div></article>
-          <article><span>03</span><div><strong>Server-enforced access</strong><p>Plans and entitlements resolve from your account instead of a wallet address or client-side switch.</p></div></article>
+          <article><span>01</span><div><strong>Persistent identity</strong><p>Your RavenOS identity is independent of any browser, wallet address, venue, or broker account.</p></div></article>
+          <article><span>02</span><div><strong>Revocable sessions</strong><p>Review active devices, sign out this browser, or revoke another recent session from one security desk.</p></div></article>
+          <article><span>03</span><div><strong>Permission separation</strong><p>Saved data, wallets, plans, and future transaction authority remain unavailable until each capability is independently activated.</p></div></article>
         </div>
         <div class="account-separation-note">
           <span>Identity boundary</span>

@@ -143,6 +143,42 @@ a { color: inherit; text-decoration: none; }
 .faq-aside footer { padding: 15px; }
 
 .guide-footer { margin-top: 12px; padding: 12px 14px; display: flex; justify-content: space-between; gap: 18px; border: 1px solid var(--guide-line); color: var(--guide-soft); font: 8px var(--guide-mono); text-transform: uppercase; }
+.guide-footer a:hover { color: var(--guide-text); }
+
+.policy-hero h1 { max-width: 920px; }
+.policy-document .guide-section-head { grid-template-columns: 52px minmax(0, 1fr); }
+.policy-copy { max-width: 850px; margin-top: 18px; color: #a9b4ba; font-size: 12px; line-height: 1.72; }
+.policy-copy h3 { margin: 24px 0 7px; color: #dce3e6; font-size: 13px; }
+.policy-copy p { margin: 0 0 13px; }
+.policy-copy p:last-child { margin-bottom: 0; }
+
+@media (min-width: 761px) {
+  .guide-brand small,
+  .guide-product-label,
+  .guide-nav a,
+  .guide-eyebrow,
+  .guide-status span,
+  .guide-toc header span,
+  .guide-toc a,
+  .guide-toc footer,
+  .guide-flow span,
+  .guide-card > span,
+  .guide-card dt,
+  .guide-adapter span,
+  .guide-callout span,
+  .guide-actions a,
+  .faq-aside header span,
+  .faq-aside dt,
+  .guide-footer { font-size: 10px; }
+  .guide-flow p,
+  .guide-card p,
+  .guide-card dd,
+  .guide-adapter strong,
+  .guide-adapter p,
+  .guide-callout strong,
+  .guide-callout p,
+  .faq-aside dd { font-size: 11px; }
+}
 
 @media (max-width: 1040px) {
   .guide-layout { grid-template-columns: 1fr; }
@@ -166,6 +202,7 @@ a { color: inherit; text-decoration: none; }
   .guide-toc nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .guide-section { padding: 28px 18px; }
   .guide-section-head { grid-template-columns: 1fr; gap: 8px; }
+  .policy-document .guide-section-head { grid-template-columns: 1fr; }
   .guide-adapter { grid-template-columns: 1fr; }
   .guide-adapter > * { border-right: 0; border-bottom: 1px solid var(--guide-line); }
   .guide-adapter > *:last-child { border-bottom: 0; }

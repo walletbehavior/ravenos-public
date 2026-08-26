@@ -16,7 +16,7 @@ const NAV_ITEMS = Object.freeze([
     label: "Discover",
     href: "/discover/",
     glyph: "D",
-    match: ["discover", "home", "brief", "opportunity", "behavior", "outcomes", "claims", "replay", "memory", "research", "chain-solana", "chain-base", "chain-ethereum"],
+    match: ["discover", "home", "opportunity", "behavior", "outcomes", "claims", "replay", "memory", "research", "chain-solana", "chain-base", "chain-ethereum"],
   },
   { key: "terminal", label: "Terminal", href: "/terminal/", glyph: "T", match: ["terminal", "perps"] },
   { key: "portfolio", label: "Portfolio", href: "/portfolio/", glyph: "P", match: ["portfolio"] },
@@ -182,7 +182,7 @@ function createShellMarkup(slug) {
       <section class="ros-context-section"><span>What supports it</span><ul id="rosSupportingEvidence"><li>No confirming evidence is currently available.</li></ul></section>
       <section class="ros-context-section"><span>What would weaken it</span><ul id="rosContradictingEvidence"><li>No explicit invalidation is currently available.</li></ul></section>
       <section class="ros-context-section"><span>Next transition</span><p id="rosNextTransition">No transition is currently declared.</p></section>
-      <footer class="ros-context-footer"><button type="button" data-ros-context-action="terminal">Open Terminal</button><button type="button" data-ros-context-action="brief">Full Brief</button></footer>
+      <footer class="ros-context-footer"><button type="button" data-ros-context-action="terminal">Open in Terminal</button></footer>
     </aside>
     <aside class="ros-utility-drawer" id="rosUtilityDrawer" aria-label="RavenOS utilities">
       <header><div><span>Workspace</span><strong id="rosUtilityTitle">More</strong></div><button id="rosUtilityClose" type="button">Close</button></header>
@@ -446,7 +446,7 @@ function utilityMarkup(kind, context) {
   const accountLabel = customerAccountState.authenticated ? "Account & security" : "Create account or sign in";
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
-    : customerAccountState.available ? "Google, email, or passkey" : "Account activation status";
+    : customerAccountState.available ? "Google, email, password, or code" : "Account activation status";
   return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
 }
 
@@ -965,7 +965,6 @@ export function mountRavenOSShell(options = {}) {
     if (button) openUtility(button.dataset.rosUtility);
   });
   document.querySelector('[data-ros-context-action="terminal"]').addEventListener("click", () => ravenOSContext.navigate("/terminal/"));
-  document.querySelector('[data-ros-context-action="brief"]').addEventListener("click", () => ravenOSContext.navigate("/brief/"));
   document.addEventListener("keydown", (event) => {
     const commandKey = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
     const slashKey = event.key === "/" && !event.target.closest("input, textarea, select, [contenteditable='true']");

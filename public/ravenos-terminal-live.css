@@ -52,7 +52,10 @@ button, input, select { font: inherit; }
 .terminal-boundary strong { display: block; margin: 0; font-size: 10px; }
 .terminal-boundary small { display: none; }
 
-.terminal-controls { display: grid; grid-template-columns: minmax(240px, 1.45fr) 84px minmax(175px, .8fr) auto; gap: 1px; margin-top: 4px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
+.terminal-controls { display: grid; grid-template-columns: minmax(240px, 1.45fr) minmax(175px, .8fr) auto; gap: 1px; margin-top: 4px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
+.terminal-controls .terminal-timeframe-control { display: none; }
+.terminal-controls.external-chart-active { grid-template-columns: minmax(240px, 1.45fr) 84px minmax(175px, .8fr) auto; }
+.terminal-controls.external-chart-active .terminal-timeframe-control { display: grid; }
 .terminal-controls [hidden] { display: none !important; }
 .terminal-controls label,
 .terminal-picker-control,
@@ -596,6 +599,99 @@ button, input, select { font: inherit; }
 .terminal-footer p { margin: 0; }
 .terminal-footer span { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 
+@media (min-width: 821px) {
+  .terminal-state-pair span,
+  .terminal-market-head span,
+  .terminal-title > span,
+  .terminal-controls label > span,
+  .terminal-intelligence header span,
+  .terminal-why span,
+  .terminal-context-grid dt,
+  .terminal-boundary-list dt,
+  .terminal-account-head > div > span,
+  .terminal-account-summary dt,
+  .terminal-account-columns,
+  .terminal-alpha-card > span,
+  .terminal-plan-levels dt,
+  .terminal-ticket-account dt,
+  .terminal-order-settings > label > span:first-child,
+  .terminal-preview-inputs label > span:first-child,
+  .terminal-preview-fill span,
+  .terminal-preview-result dt,
+  .terminal-account-scenario dt,
+  .terminal-anatomy-grid dt,
+  .terminal-marker-grid dt,
+  .terminal-fingerprint span,
+  .terminal-holder-map-head span,
+  .terminal-holder-legend dt { font-size: 10px; }
+
+  .terminal-state-pair strong,
+  .terminal-boundary > span,
+  .terminal-boundary strong,
+  .terminal-resolved-control small,
+  .terminal-instrument-picker small,
+  .terminal-instrument small,
+  .terminal-chart-source details,
+  .terminal-external-chart > footer,
+  .terminal-market-rail header > strong,
+  .terminal-market-wait,
+  .terminal-account-head input,
+  .terminal-account-head button,
+  .terminal-account-head > small,
+  .terminal-account-tabs button,
+  .terminal-account-row,
+  .terminal-account-action-cell button,
+  .terminal-intelligence header > strong,
+  .terminal-alpha-card > p,
+  .terminal-alpha-card > small,
+  .terminal-alpha-card > button,
+  #terminalPlanWhy,
+  .terminal-plan-toggle small,
+  .terminal-ticket-account > header span,
+  .terminal-ticket-account > header strong,
+  .terminal-ticket-account dd,
+  .terminal-size-presets button,
+  .terminal-account-size > span,
+  .terminal-account-size button,
+  .terminal-reduce-only strong,
+  .terminal-reduce-only small,
+  .terminal-input-shell b,
+  .terminal-bracket summary,
+  .terminal-bracket summary > strong,
+  .terminal-preview-fill small,
+  .terminal-preview-result > p,
+  .terminal-account-scenario > header span,
+  .terminal-account-scenario > header strong,
+  .terminal-account-scenario dd,
+  .terminal-account-scenario > p,
+  .terminal-preview-boundary strong,
+  .terminal-preview-boundary span,
+  .terminal-holder-map-head strong,
+  .terminal-holder-legend dd,
+  .terminal-profile-chip,
+  .terminal-profile-links a,
+  .terminal-profile-credit,
+  .terminal-fingerprint code,
+  .terminal-marker-detail header button { font-size: 10px; }
+
+  .terminal-book-head,
+  .terminal-tape-head,
+  .terminal-book-balance span,
+  .terminal-market-rail header span,
+  .terminal-book-spread { font-size: 9.5px; }
+  .terminal-book,
+  .terminal-tape { font-size: 10px; line-height: 1.3; }
+  .terminal-alpha-card > p { font-size: 11px !important; }
+  .terminal-alpha-card > strong,
+  .terminal-why strong,
+  .terminal-context-grid dd,
+  .terminal-boundary-list dd,
+  .terminal-plan-toggle strong,
+  .terminal-preview-result dd,
+  .terminal-anatomy-grid dd,
+  .terminal-marker-grid dd { font-size: 11px; }
+}
+
 @media (max-width: 1180px) {
   .terminal-workspace {
     grid-template-columns: minmax(0, 1fr) minmax(320px, 350px);
@@ -606,7 +702,8 @@ button, input, select { font: inherit; }
     grid-template-rows: auto auto auto;
   }
   .terminal-market-rail { height: 310px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  .terminal-controls { grid-template-columns: minmax(220px, 1fr) 90px minmax(160px, .7fr); }
+  .terminal-controls { grid-template-columns: minmax(220px, 1fr) minmax(160px, .7fr); }
+  .terminal-controls.external-chart-active { grid-template-columns: minmax(220px, 1fr) 90px minmax(160px, .7fr); }
   .terminal-actions { grid-column: 1 / -1; }
   .terminal-actions a,
   .terminal-actions button { min-height: 34px; flex: 1; }
@@ -636,9 +733,11 @@ button, input, select { font: inherit; }
   .terminal-boundary { grid-column: 2; min-width: 0; padding: 4px 7px; }
   .terminal-boundary strong { margin-top: 4px; font-size: 11px; }
   .terminal-boundary small { margin-top: 3px; font-size: 9px; }
-  .terminal-controls { order: 2; grid-template-columns: minmax(0, 1fr) 74px; }
+  .terminal-controls { order: 2; grid-template-columns: minmax(0, 1fr); }
+  .terminal-controls.external-chart-active { grid-template-columns: minmax(0, 1fr) 74px; }
   .terminal-controls label { min-width: 0; }
-  .terminal-picker-control { grid-column: 1; }
+  .terminal-picker-control { grid-column: 1 / -1; }
+  .terminal-controls.external-chart-active .terminal-picker-control { grid-column: 1; }
   .terminal-resolved-control { grid-column: 1 / -1; min-height: 34px; }
   .terminal-actions { grid-column: 1 / -1; }
   .terminal-search-results { order: 3; }
