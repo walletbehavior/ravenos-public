@@ -7,6 +7,8 @@ const markets = [
     asset: "SOL-PERP",
     symbol: "SOL",
     instrument_id: "hyperliquid:perp:SOL",
+    last_price: 102.4,
+    funding_rate: -0.000012,
     day_change_pct: 2.4,
     day_notional_volume_usd: 480_000_000,
     open_interest_usd: 192_000_000,
@@ -31,6 +33,8 @@ const opportunityRows = [
     context_state: "fresh",
     why_raven_noticed: "Raven froze a behavioral setup observation while mixed pressure was present.",
     pressure_state: "Mixed pressure",
+    observed_direction: "long",
+    context_age_seconds: 300,
     path_review: { state: "forward path reviewing" },
     matured_comparables: {
       sample_size: 128,
@@ -38,7 +42,7 @@ const opportunityRows = [
       median_favorable_excursion_pct: 1.42,
       median_adverse_excursion_pct: -0.71,
     },
-    market_context: { funding_rate: -0.000012, open_interest: 192_000_000 },
+    market_context: { entry_reference_price: 100, roundtrip_bps: 8, funding_rate: -0.000012, open_interest: 192_000_000 },
     research_only: true,
     execution_available: false,
   },
@@ -339,6 +343,25 @@ function healthPayload() {
   };
 }
 
+function briefPayload() {
+  return {
+    ok: true,
+    safe_public: true,
+    schema_version: "ravenos_brief_public_origin_v1",
+    generated_at: "2026-07-21T12:20:00Z",
+    data: {
+      schema_version: "ravenos_brief_synthesized_public_v1",
+      generated_at: "2026-07-21T12:20:00Z",
+      one_sentence_read: "Solana is leading current opportunity, but followthrough remains selective.",
+      best_opportunity_surface: "Solana leading",
+      participation_change: "Expanding selectively",
+      pressure_change: "Pressure is still forming",
+      reward_change: "Cleaner cohorts are following through",
+    },
+    delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+  };
+}
+
 function atlasPayload() {
   return {
     ok: true,
@@ -421,6 +444,7 @@ async function mockWorkspaceApis(page, {
     }),
   }));
   await page.route("**/api/health", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(healthPayload()) }));
+  await page.route("**/api/brief", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(briefPayload()) }));
   await page.route("**/api/atlas", (route) => route.fulfill({
     status: 503,
     contentType: "application/json",
@@ -472,7 +496,7 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(row).toContainText("SOL-PERP");
   await expect(row).toContainText("+2.40% over 24h");
   await expect(row).toContainText("128 similar periods · 57% finished higher");
-  await expect(row).toContainText("A new setup is forming, but long and short pressure remain mixed");
+  await expect(row).toContainText("Price is following through in Raven's observed direction.");
   await expect(row).toContainText("Choppy / mixed");
   await expect(row.locator(".discover-thesis > span")).toHaveText("What changed");
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
@@ -486,6 +510,11 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(page.locator("#discoverPayoffStrip")).toContainText("6h median +6.6%");
   await expect(page.locator("#discoverPayoffStrip")).toContainText("Ethereum large caps");
   await expect(page.locator("#discoverPayoff")).not.toContainText(/solana live/i);
+  await expect(page.locator("#discoverDesk")).toBeVisible();
+  await expect(page.locator("#discoverDeskSummary")).toContainText("Solana is leading current opportunity");
+  await expect(page.locator("#discoverDeskGrid")).toContainText("Setup lifecycle");
+  await expect(row).toHaveAttribute("data-lifecycle", "confirmed");
+  await expect(row.locator(".discover-opportunity-meta")).toContainText(/Confirmed.*High signal/s);
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
 
@@ -566,6 +595,8 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(page.locator(".discover-token-row").first()).toContainText("72");
   await expect(page.locator(".discover-token-row").first()).toContainText("1.24K");
   await expect(page.locator(".discover-token-row").first()).toContainText("2h old");
+  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText("Buy-side pressure");
+  await expect(page.locator(".discover-token-row").first()).toHaveAttribute("data-signal-score", /\d+/);
   await page.locator("[data-spot-timeframe='24h']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
   await page.locator("[data-spot-sort='velocity']").click();
@@ -653,7 +684,7 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   const base = page.locator(".discover-token-row").first();
   await expect(base).toContainText("AERO");
   await expect(base).toContainText("Base · Aerodrome");
-  await expect(base).toContainText("Market pulse");
+  await expect(base).toContainText("Buy-side pressure");
   await expect(base).not.toContainText("Raven saw it earlier");
   await expect(base).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${basePulsePool}`));
 
@@ -725,8 +756,14 @@ test("Discover updates token facts without reordering the tape under an active s
 
   const refreshed = structuredClone(opportunityPayload({ withSpot: true }));
   const retire = refreshed.census.spot_attention.rows[0];
+  const bird = refreshed.census.spot_attention.rows[1];
   retire.market.price_change_5m_pct = 9.25;
   retire.what_changed = "Price rose 9.25% in 5m. Buys led 70 to 29 · 78 active traders.";
+  bird.market.volume_usd_5m = 500_000;
+  bird.market.liquidity_usd = 2_000_000;
+  bird.market.buys_5m = 400;
+  bird.market.sells_5m = 50;
+  bird.market.traders_5m = 300;
   refreshed.census.spot_attention.rows.reverse();
   await page.unroute("**/api/opportunity**");
   await page.route("**/api/opportunity**", (route) => route.fulfill({

@@ -161,6 +161,7 @@ for (const asset of [
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
   "ravenos-workspace.css",
+  "ravenos-discover-intelligence.js",
   "ravenos-discover.js",
   "ravenos-portfolio.js",
   "ravenos-atlas.js",

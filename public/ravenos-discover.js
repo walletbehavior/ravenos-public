@@ -1,5 +1,11 @@
 import { ravenOSContext } from "/ravenos-context-store.js";
 import { customerFacingText } from "/ravenos-intelligence-contract.js";
+import {
+  buildDeskFrame,
+  opportunityLifecycle,
+  spotFlowRead,
+  spotMarketHealth,
+} from "/ravenos-discover-intelligence.js";
 
 const REFRESH_MS = 45 * 1_000;
 const state = {
@@ -21,6 +27,9 @@ const state = {
   scrolling: false,
   scrollTimer: null,
   payoff: null,
+  brief: null,
+  atlasContext: null,
+  deskFrame: null,
   paused: false,
   expanded: false,
   loading: false,
@@ -312,6 +321,44 @@ function append(node, tag, className, value) {
   return child;
 }
 
+function renderDeskBrief({ brief = null, markets = [], spotRows = [], opportunityRows = [], atlas = null } = {}) {
+  const section = document.getElementById("discoverDesk");
+  const grid = document.getElementById("discoverDeskGrid");
+  const signals = document.getElementById("discoverDeskSignals");
+  const frame = buildDeskFrame({
+    brief,
+    markets,
+    spotRows,
+    opportunityRows,
+    atlas,
+    timeframe: state.spotTimeframe,
+  });
+  state.deskFrame = frame;
+  grid.replaceChildren();
+  signals.replaceChildren();
+  document.getElementById("discoverDeskSummary").textContent = frame.summary;
+  if (!frame.summary && !frame.cards.length) {
+    section.hidden = true;
+    return;
+  }
+
+  for (const signal of frame.signals) append(signals, "span", "", signal);
+  for (const card of frame.cards) {
+    const item = document.createElement("article");
+    item.dataset.deskTone = card.tone;
+    item.dataset.deskMetric = card.key;
+    append(item, "span", "", card.label);
+    if (card.value) append(item, "strong", "", card.value);
+    if (card.detail) append(item, "small", "", card.detail);
+    grid.append(item);
+  }
+  const observedAt = new Date(frame.observed_at || "");
+  document.getElementById("discoverDeskFreshness").textContent = Number.isNaN(observedAt.getTime())
+    ? "Live composite"
+    : when(frame.observed_at);
+  section.hidden = false;
+}
+
 function actualOpportunityDelta(row = {}) {
   if (row.source_type === "atlas_context") return text(row.what_changed, "Current Atlas context is available.");
   if (row.source_type === "raven_spot_attention") return text(row.what_changed, "Current spot activity is accelerating.");
@@ -551,19 +598,15 @@ function spotRankedRows() {
       && liquidity !== null
       && liquidity > 0
       && survivesCurrentSpotMarket(row)
+      && !["inactive", "fragile"].includes(spotMarketHealth(row).state)
       && hasDecisionUsefulSpotActivity(row);
   });
   if (state.spotSort === "raven") {
     return current.sort((left, right) => {
-      const leftRaven = left.source_type === "raven_spot_attention" ? 1 : 0;
-      const rightRaven = right.source_type === "raven_spot_attention" ? 1 : 0;
-      if (leftRaven !== rightRaven) return rightRaven - leftRaven;
-      if (!leftRaven) {
-        const movement = Math.abs(spotMetric(right, "price_change") || 0) - Math.abs(spotMetric(left, "price_change") || 0);
-        if (movement) return movement;
-        return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
-      }
-      return 0;
+      const leftScore = spotFlowRead(left, state.spotTimeframe).score + (left.source_type === "raven_spot_attention" ? 18 : 0);
+      const rightScore = spotFlowRead(right, state.spotTimeframe).score + (right.source_type === "raven_spot_attention" ? 18 : 0);
+      if (leftScore !== rightScore) return rightScore - leftScore;
+      return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
     });
   }
   if (state.spotSort === "velocity") {
@@ -673,11 +716,15 @@ function renderTokenStat(host, label, value) {
 }
 
 function updateSpotTokenRow(anchor, row, index) {
+  const flow = spotFlowRead(row, state.spotTimeframe);
   anchor.className = "discover-token-row";
   anchor.dataset.tokenRowId = spotRowId(row);
   anchor.dataset.tokenAddress = text(row.token_address, "");
   anchor.dataset.identityScope = text(row.identity_scope, "");
   anchor.dataset.freshness = text(row.context_state, "current").toLowerCase();
+  anchor.dataset.flowState = flow.state;
+  anchor.dataset.flowTone = flow.tone;
+  anchor.dataset.signalScore = String(flow.score);
   anchor.setAttribute("aria-label", `${text(row.symbol)} exact token chart`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
@@ -730,12 +777,15 @@ function updateSpotTokenRow(anchor, row, index) {
 
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
-  append(raven, "span", "", row.source_type === "market_activity"
-    ? "Market pulse"
-    : row.broader_attention?.raven_observed_first === true ? "Raven saw it earlier" : "Why now");
-  append(raven, "strong", "", spotRavenRead(row));
+  const ravenTiming = row.broader_attention?.raven_observed_first === true;
+  const flowLabel = ravenTiming && flow.state !== "balanced" ? `Raven timing · ${flow.label}` : ravenTiming ? "Raven timing" : flow.label;
+  append(raven, "span", "", `${flowLabel} · Q${flow.score}`);
+  append(raven, "strong", "", row.source_type === "market_activity" && flow.state !== "balanced"
+    ? flow.summary
+    : spotRavenRead(row));
   const risk = text(row.risk, "");
-  if (risk) append(raven, "small", "", risk);
+  const flowDetail = [flow.detail, risk].filter(Boolean).join(" · ");
+  if (flowDetail) append(raven, "small", "", flowDetail);
 
   const open = append(anchor, "span", "discover-token-open", "Chart");
   open.setAttribute("aria-hidden", "true");
@@ -933,12 +983,17 @@ function renderListedUniverse(rows = []) {
 function createOpportunityRow(row) {
   const atlas = row.source_type === "atlas_context";
   const spot = row.source_type === "raven_spot_attention";
+  const lifecycle = atlas || spot ? null : opportunityLifecycle(row, row.market_snapshot || {});
   const anchor = document.createElement("a");
   anchor.className = "discover-row";
   anchor.dataset.opportunityId = text(row.public_opportunity_id || row.public_attention_id, row.instrument_id);
   anchor.dataset.marketType = atlas ? "equity" : spot ? "spot" : text(row.market_type, "unknown").toLowerCase();
   anchor.dataset.sourceType = atlas ? "atlas" : spot ? "raven-spot" : "raven";
   anchor.dataset.freshness = text(row.context_state, "unavailable").toLowerCase();
+  if (lifecycle) {
+    anchor.dataset.lifecycle = lifecycle.state;
+    anchor.dataset.signalScore = String(lifecycle.score);
+  }
   if (spot) configureSpotLink(anchor, row);
   else anchor.href = terminalHref(row);
 
@@ -953,6 +1008,13 @@ function createOpportunityRow(row) {
         ? `${text(row.venue, "Spot market")} · exact pool`
         : "Exact token · opens chart directly"
       : "Hyperliquid · exact perpetual");
+  if (lifecycle) {
+    const lifecycleNode = append(identity, "div", "discover-opportunity-meta", "");
+    lifecycleNode.textContent = "";
+    const badge = append(lifecycleNode, "b", "", lifecycle.label);
+    badge.dataset.tone = lifecycle.tone;
+    append(lifecycleNode, "small", "", `${lifecycle.quality} · Q${lifecycle.score}`);
+  }
 
   const thesis = append(anchor, "div", "discover-thesis", "");
   thesis.textContent = "";
@@ -960,7 +1022,9 @@ function createOpportunityRow(row) {
   append(thesis, "strong", "", actualOpportunityDelta(row));
   append(thesis, "small", "", atlas
     ? "Broader-market context only; no Raven behavior is implied."
-    : opportunityTraderRead(row));
+    : lifecycle && lifecycle.state !== "forming"
+      ? lifecycle.summary
+      : opportunityTraderRead(row));
 
   const evidence = append(anchor, "div", "discover-evidence", "");
   evidence.textContent = "";
@@ -983,11 +1047,18 @@ function createOpportunityRow(row) {
   market.textContent = "";
   append(market, "span", "", "Market state");
   append(market, "strong", "", atlas ? text(row.market_state) : spot ? text(row.movement_state, "Activity moving") : pressureLabel(row.pressure_state));
-  append(market, "small", "", atlas
+  const openInterest = finite(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest);
+  const funding = finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate);
+  const marketDetail = atlas
     ? text(row.market_detail, "Current exact listing")
     : spot
       ? spotAnatomy(row)
-      : `OI ${compact(row.market_snapshot?.open_interest_usd ?? row.market_context?.open_interest, { currency: true })} · funding ${percent(finite(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) === null ? null : Number(row.market_snapshot?.funding_rate ?? row.market_context?.funding_rate) * 100)}`);
+      : [
+        openInterest === null ? "" : `OI ${compact(openInterest, { currency: true })}`,
+        funding === null ? "" : `funding ${percent(funding * 100)}`,
+        lifecycle?.invalidation || "",
+      ].filter(Boolean).join(" · ");
+  if (marketDetail) append(market, "small", "", marketDetail);
 
   append(anchor, "span", "discover-open", spot ? "Open chart" : "Inspect");
   return anchor;
@@ -1038,10 +1109,14 @@ function applyFilter() {
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
   const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
-  const limit = state.expanded ? Number.POSITIVE_INFINITY : window.matchMedia("(max-width: 560px)").matches ? 8 : 12;
+  const collapsedEligible = matching.filter((row) => row.dataset.lifecycle !== "invalidated");
+  const eligible = state.expanded ? matching : collapsedEligible;
+  const eligibleSet = new Set(eligible);
+  const collapsedLimit = window.matchMedia("(max-width: 560px)").matches ? 8 : 12;
+  const limit = state.expanded ? Number.POSITIVE_INFINITY : collapsedLimit;
   let shown = 0;
   rows.forEach((row) => {
-    const matches = active === "all" || row.dataset.marketType === active;
+    const matches = eligibleSet.has(row);
     row.hidden = !matches || shown >= limit;
     if (matches) shown += 1;
   });
@@ -1049,28 +1124,46 @@ function applyFilter() {
   if (!control) return;
   const hasFeaturedEquities = active === "equity" && state.featuredRows.length > 0;
   const hasTokenTape = active === "spot" && state.spotRows.length > 0;
-  if (!matching.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
+  if (!eligible.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
     const inner = append(empty, "div", "", "");
     append(inner, "span", "workspace-state-mark", "R");
-    append(inner, "h2", "", active === "spot" ? "No spot movement meets the current filter" : "No current markets meet this filter");
-    append(inner, "p", "", active === "spot"
-      ? "Search any token or contract to inspect its exact supported markets."
-      : "Try another market class or search for an exact instrument.");
+    const onlyInvalidated = matching.length > 0 && matching.every((row) => row.dataset.lifecycle === "invalidated");
+    append(inner, "h2", "", onlyInvalidated
+      ? "No active setups clear Raven's lifecycle gate"
+      : active === "spot" ? "No spot movement meets the current filter" : "No current markets meet this filter");
+    append(inner, "p", "", onlyInvalidated
+      ? "Invalidated reads are demoted from the live queue; they remain available for review below."
+      : active === "spot"
+        ? "Search any token or contract to inspect its exact supported markets."
+        : "Try another market class or search for an exact instrument.");
     document.getElementById("discoverStream").append(empty);
   }
-  control.hidden = hasTokenTape || matching.length <= (Number.isFinite(limit) ? limit : 12);
+  const hiddenCount = Math.max(0, matching.length - Math.min(collapsedEligible.length, collapsedLimit));
+  control.hidden = hasTokenTape || hiddenCount <= 0;
   control.textContent = state.expanded
-    ? "Show the attention queue"
-    : `Show ${Math.max(0, matching.length - limit).toLocaleString()} more exact markets`;
+    ? "Hide decayed setups"
+    : `Review ${hiddenCount.toLocaleString()} lower-ranked or decayed ${hiddenCount === 1 ? "setup" : "setups"}`;
 }
 
 function renderOpportunities(rows, { generatedAt, appendOnly = false } = {}) {
   const host = document.getElementById("discoverStream");
   if (!appendOnly || !host.querySelector(".discover-row")) host.replaceChildren();
+  const lifecycleRank = { confirmed: 4, forming: 3, atlas: 2, fading: 1, invalidated: 0 };
+  const orderedRows = [...rows].sort((left, right) => {
+    const leftAtlas = left.source_type === "atlas_context";
+    const rightAtlas = right.source_type === "atlas_context";
+    const leftRead = leftAtlas ? { state: "atlas", score: 45 } : opportunityLifecycle(left, left.market_snapshot || {});
+    const rightRead = rightAtlas ? { state: "atlas", score: 45 } : opportunityLifecycle(right, right.market_snapshot || {});
+    const stateDifference = (lifecycleRank[rightRead.state] || 0) - (lifecycleRank[leftRead.state] || 0);
+    if (stateDifference) return stateDifference;
+    const scoreDifference = rightRead.score - leftRead.score;
+    if (scoreDifference) return scoreDifference;
+    return (finite(left.context_age_seconds) || 0) - (finite(right.context_age_seconds) || 0);
+  });
   const incomingIds = new Set();
-  for (const row of rows) {
+  for (const row of orderedRows) {
     const id = text(row.public_opportunity_id, row.instrument_id);
     incomingIds.add(id);
     state.rows.set(id, row);
@@ -1087,6 +1180,14 @@ function renderOpportunities(rows, { generatedAt, appendOnly = false } = {}) {
     state.order = state.order.filter((value) => value !== id);
     host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`)?.remove();
   }
+  if (!state.scrolling) {
+    for (const row of orderedRows) {
+      const id = text(row.public_opportunity_id, row.instrument_id);
+      const node = host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`);
+      if (node) host.append(node);
+    }
+  }
+  state.order = orderedRows.map((row) => text(row.public_opportunity_id, row.instrument_id));
   document.getElementById("discoverRowCount").textContent = (rows.length + state.spotRows.length).toLocaleString();
   document.getElementById("discoverUpdatedAt").textContent = when(generatedAt);
   document.getElementById("discoverStreamControl").hidden = false;
@@ -1118,6 +1219,21 @@ function renderMarkets(rows) {
   }
   ranked.forEach((row) => host.append(createPulseRow(row)));
   setState("discoverMarketState", "fresh", "Current");
+}
+
+function currentBriefPayload(payload) {
+  const delivery = payload?.delivery || {};
+  const data = payload?.data;
+  if (
+    payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== "ravenos_brief_public_origin_v1"
+    || data?.schema_version !== "ravenos_brief_synthesized_public_v1"
+    || delivery.source !== "current_public_origin"
+    || delivery.fallback !== false
+    || delivery.freshness_state !== "fresh"
+  ) return null;
+  return { ...data, generated_at: data.generated_at || payload.generated_at };
 }
 
 function currentOpportunityPayload(payload) {
@@ -1243,7 +1359,14 @@ function currentAtlasPayload(payload) {
       observed_at: row.observed_at || payload.generated_at,
     }];
   });
-  return { rows: exactRows, generatedAt: payload.generated_at, state: payload.state, freshness: payload.freshness.state };
+  return {
+    rows: exactRows,
+    generatedAt: payload.generated_at,
+    generated_at: payload.generated_at,
+    state: payload.state,
+    freshness: payload.freshness.state,
+    market_context: payload.market_context,
+  };
 }
 
 function currentFeaturedAtlasPayload(payload) {
@@ -1283,12 +1406,13 @@ async function refresh({ manual = false } = {}) {
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
   const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;
-  const [opportunities, markets, atlas, featured, onchainPulse] = await Promise.allSettled([
+  const [opportunities, markets, atlas, featured, onchainPulse, brief] = await Promise.allSettled([
     json("/api/opportunity"),
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
     json(`/api/onchain/trending?chains=base,ethereum&duration=${encodeURIComponent(state.spotTimeframe)}`),
+    json("/api/brief"),
   ]);
 
   if (shouldRefreshFeatured) {
@@ -1304,10 +1428,12 @@ async function refresh({ manual = false } = {}) {
     }
   }
 
+  let marketRows = [];
   if (markets.status === "fulfilled" && markets.value.response.ok && Array.isArray(markets.value.payload?.results)) {
     state.markets.clear();
-    markets.value.payload.results.forEach((row) => state.markets.set(row.instrument_id, row));
-    renderMarkets(markets.value.payload.results);
+    marketRows = markets.value.payload.results;
+    marketRows.forEach((row) => state.markets.set(row.instrument_id, row));
+    renderMarkets(marketRows);
   } else {
     state.markets.clear();
     setState("discoverMarketState", "unavailable", "Unavailable");
@@ -1356,6 +1482,12 @@ async function refresh({ manual = false } = {}) {
   const tokenRows = [...spotAttentionRows, ...marketPulseRows];
   renderSpotPulse(tokenRows);
 
+  let briefData = null;
+  if (brief.status === "fulfilled" && brief.value.response.ok) {
+    briefData = currentBriefPayload(brief.value.payload);
+  }
+  state.brief = briefData;
+
   let atlasRows = [];
   let atlasGeneratedAt = null;
   let atlasFailure = "";
@@ -1365,18 +1497,29 @@ async function refresh({ manual = false } = {}) {
       atlasRows = current.rows;
       atlasGeneratedAt = current.generatedAt;
       state.atlasRows = atlasRows;
+      state.atlasContext = current;
       setState("discoverAtlasState", current.freshness, current.state === "degraded" ? `Degraded · ${title(current.freshness)}` : title(current.freshness));
     } catch {
       state.atlasRows = [];
+      state.atlasContext = null;
       setState("discoverAtlasState", "unavailable", "Unavailable");
       atlasFailure = "Current Atlas context did not meet freshness or identity requirements. Older context was not substituted.";
     }
   } else {
     state.atlasRows = [];
+    state.atlasContext = null;
     setState("discoverAtlasState", "unavailable", "Unavailable");
     const status = atlas.status === "fulfilled" ? atlas.value.response.status : "network";
     atlasFailure = `Current Atlas context could not be reached${status === "network" ? "" : ` (${status})`}. Older context was not substituted.`;
   }
+
+  renderDeskBrief({
+    brief: briefData,
+    markets: marketRows,
+    spotRows: tokenRows,
+    opportunityRows: ravenRows,
+    atlas: state.atlasContext,
+  });
 
   const combinedRows = [...ravenRows, ...atlasRows];
   if (combinedRows.length) {
@@ -1503,6 +1646,8 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotCount: state.spotRows.length,
     evmSpotCount: state.spotRows.filter((row) => ["base", "ethereum"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
     payoffCount: state.payoff?.insights?.length || 0,
+    deskCardCount: state.deskFrame?.cards?.length || 0,
+    lifecycleCounts: state.deskFrame?.lifecycle_counts || {},
     spotTimeframe: state.spotTimeframe,
     spotSort: state.spotSort,
     spotChain: state.spotChain,
