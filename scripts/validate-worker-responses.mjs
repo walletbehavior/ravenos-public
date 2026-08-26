@@ -65,6 +65,9 @@ const checks = [
     leverage: 3,
     max_impact_bps: 100,
   }],
+  ["POST", "/api/trade/account-snapshot", {
+    address: "0x000000000000000000000000000000000000dead",
+  }],
   ["GET", "/api/access"],
   ["GET", "/api/not-a-route"],
   ["POST", "/api/trade/quote", {}],

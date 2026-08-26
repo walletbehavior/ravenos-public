@@ -28,6 +28,47 @@ export function providerCandles(asset, timeframe = "1h") {
 }
 
 export const ROBINHOOD_CONTRACT = "0x230442c8133a9efb4c278b3723043444749ca08b";
+export const HYPERLIQUID_ACCOUNT_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+
+export function hyperliquidAccountSnapshotFixture(address = HYPERLIQUID_ACCOUNT_ADDRESS) {
+  const observedAt = new Date().toISOString();
+  return {
+    ok: true,
+    schema_version: "ravenos.hyperliquid_account_snapshot.v1",
+    state: "observed",
+    observed_at: observedAt,
+    venue: "hyperliquid",
+    account: { address: String(address).toLowerCase(), address_source: "viewer_supplied_public_address", ownership_asserted: false, persisted: false },
+    summary: {
+      account_value_usdc: 12_500.25,
+      withdrawable_usdc: 2_780.25,
+      position_notional_usdc: 8_100,
+      margin_used_usdc: 1_620,
+      cash_balance_usdc: 4_400.25,
+      cross_account_value_usdc: 12_500.25,
+      cross_margin_used_usdc: 1_620,
+      cross_maintenance_margin_used_usdc: 405,
+      position_count: 2,
+      open_order_count: 1,
+      recent_fill_count: 2,
+    },
+    positions: [
+      { market: "SOL", side: "long", size: 42.5, signed_size: 42.5, entry_price: 142.25, mark_notional_usdc: 6_301, unrealized_pnl_usdc: 36.125, return_on_equity: 0.0223, liquidation_price: 112.5, margin_used_usdc: 1_216.35, leverage: 5, leverage_mode: "cross", maximum_leverage: 20, funding: { since_open_usdc: -2.25, since_change_usdc: -0.75, all_time_usdc: -9.5 } },
+      { market: "BTC", side: "short", size: 0.026, signed_size: -0.026, entry_price: 68_100, mark_notional_usdc: 1_755, unrealized_pnl_usdc: 15.75, return_on_equity: 0.038, liquidation_price: 78_500, margin_used_usdc: 351, leverage: 5, leverage_mode: "cross", maximum_leverage: 40, funding: { since_open_usdc: 1.15, since_change_usdc: 0.35, all_time_usdc: 4.75 } },
+    ],
+    open_orders: [{ market: "SOL", side: "sell", size: 10, original_size: 25, limit_price: 155, trigger_price: null, order_type: "Limit", time_in_force: "gtc", reduce_only: true, is_trigger: false, placed_at: observedAt }],
+    fills: [
+      { market: "SOL", side: "buy", direction: "Open Long", size: 3.5, price: 142.2, closed_pnl_usdc: 0, fee_paid: 0.21, fee_asset: "USDC", liquidity: "taker", filled_at: observedAt },
+      { market: "BTC", side: "sell", direction: "Open Short", size: 0.026, price: 68_100, closed_pnl_usdc: 0, fee_paid: 0.44, fee_asset: "USDC", liquidity: "maker", filled_at: observedAt },
+    ],
+    funding: [
+      { market: "SOL", side: "long", since_open_usdc: -2.25, since_change_usdc: -0.75, all_time_usdc: -9.5 },
+      { market: "BTC", side: "short", since_open_usdc: 1.15, since_change_usdc: 0.35, all_time_usdc: 4.75 },
+    ],
+    privacy: { address_persisted: false, transaction_hashes_exposed: false, provider_order_ids_exposed: false },
+    execution_boundary: { public_account_observation_only: true, wallet_connected: false, signing_available: false, submission_available: false },
+  };
+}
 
 function spotFixtureRows(query = "") {
   const normalized = String(query || "").trim().toLowerCase();
@@ -500,6 +541,8 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       order_plan_available: true,
       order_plan_markets: ["hyperliquid_perpetual"],
       order_plan_types: ["market", "limit", "trigger"],
+      public_account_view_available: true,
+      public_account_view_venues: ["hyperliquid"],
       signing_available: false,
       submission_available: false,
       flags: {
@@ -511,6 +554,14 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       },
     }),
   }));
+  await page.route("**/api/trade/account-snapshot", async (route) => {
+    const input = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(hyperliquidAccountSnapshotFixture(input.address)),
+    });
+  });
   await page.route("**/api/trade/order-plan", async (route) => {
     const input = route.request().postDataJSON();
     const coin = String(input.instrument_id || "hyperliquid:perp:SOL").split(":").pop();

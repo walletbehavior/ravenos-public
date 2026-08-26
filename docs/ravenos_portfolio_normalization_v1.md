@@ -10,7 +10,7 @@ Portfolio presents one economic view across wallets, perpetual venues, and broke
 
 The default display numeraire is USDC-equivalent. This does not mean every account holds USDC, that USD and USDC are always equal, or that a broker settles in USDC.
 
-No connected customer account system is currently proven for public RavenOS. Until connectors exist, Portfolio must render a connection/unavailable state and never a fictional customer portfolio.
+No connected customer account system is currently proven for public RavenOS. Portfolio must never render a fictional customer portfolio or describe a public address lookup as a connected or owned account. A viewer-supplied Hyperliquid address may be observed ephemerally through the venue's public account endpoints when RavenOS does not persist the address, assert ownership, enable signing, or include provider transaction and order identifiers.
 
 ## Separate concepts
 
@@ -95,7 +95,7 @@ RavenOS must not infer common ownership or deduplicate wallets merely because ad
 | Adapter | Current public status | Required normalized output |
 | --- | --- | --- |
 | On-chain wallet | Optional UI wallet state exists; no authenticated portfolio connector | Exact chain/account, balances, token/pool identity, custody IDs, price source/freshness. |
-| Hyperliquid account | Live public market data exists; no customer account integration | Collateral/equity, positions, funding, margin, liquidation, exact contract IDs. |
+| Hyperliquid account | Ephemeral public-address observation; no customer account integration | Collateral/equity, positions, open orders, recent fills, funding, margin, liquidation, exact contract IDs. |
 | Tradier/broker | Private market/options provider exists; no customer broker account integration | USD cash/equity, holdings, options, pending-order reservation rules, settlement state. |
 
 Unavailable adapters must render connection state and methodology—not illustrative holdings.

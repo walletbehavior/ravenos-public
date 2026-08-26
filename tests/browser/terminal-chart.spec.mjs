@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { createHash } from "node:crypto";
 
 import {
+  HYPERLIQUID_ACCOUNT_ADDRESS,
   mockTerminalLiveApis,
   openExactSpotSearch,
   selectUniversalInstrument,
@@ -112,7 +113,43 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   expect(state.submissionAvailable).toBe(false);
 });
 
-test("mobile Terminal uses focused Chart, Trade, Book, and Raven panes without horizontal overflow", async ({ page }) => {
+test("Terminal adds a real public account ledger and selected-market position context", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await expect(page.locator("#terminalAccountDock")).toBeVisible();
+  await page.locator("#terminalAccountAddress").fill(HYPERLIQUID_ACCOUNT_ADDRESS);
+  await page.getByRole("button", { name: "Load account" }).click();
+  await expect(page.locator("#terminalAccountSummary")).toBeVisible();
+  await expect(page.locator("#terminalAccountEquity")).toContainText("$12,500");
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="positions"] .terminal-account-row')).toHaveCount(2);
+  await expect(page.locator("#terminalTicketAccount")).toBeVisible();
+  await expect(page.locator("#terminalTicketPosition")).toContainText("Long 42.5");
+  await expect(page.locator("#terminalTicketWithdrawable")).toContainText("$2,780");
+
+  await page.locator('[data-account-tab="orders"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="orders"] .terminal-account-row')).toHaveCount(1);
+  await expect(page.locator("#terminalAccountLedger")).toContainText("Reduce only");
+  await page.locator('[data-account-tab="fills"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="fills"] .terminal-account-row')).toHaveCount(2);
+  await page.locator('[data-account-tab="funding"]').click();
+  await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="funding"] .terminal-account-row')).toHaveCount(2);
+  await expect(page.locator("#terminalAccountDock")).not.toContainText(/unknown|unavailable|missing/i);
+
+  await page.locator('[data-notional-preset="1000"]').click();
+  await expect(page.locator("#terminalPreviewNotional")).toHaveValue("1000");
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.publicAccountObserved).toBe(true);
+  expect(state.publicAccountPositionCount).toBe(2);
+  expect(state.publicAccountOrderCount).toBe(1);
+  expect(state.signingAvailable).toBe(false);
+  expect(state.submissionAvailable).toBe(false);
+  expect(new URL(page.url()).searchParams.has("address")).toBe(false);
+  expect(await page.evaluate((address) => Object.values(localStorage).some((value) => String(value).toLowerCase().includes(address.toLowerCase())), HYPERLIQUID_ACCOUNT_ADDRESS)).toBe(false);
+});
+
+test("mobile Terminal uses focused Chart, Trade, Book, Raven, and Account panes without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
@@ -137,6 +174,12 @@ test("mobile Terminal uses focused Chart, Trade, Book, and Raven panes without h
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
   await expect(page.locator("#terminalTradeReviewSection")).toBeHidden();
+
+  await page.locator('[data-terminal-pane-button="account"]').click();
+  await expect(page.locator("#terminalAccountDock")).toBeVisible();
+  await expect(page.locator("#terminalChart")).toBeHidden();
+  await expect(page.locator("#terminalMarketRail")).toBeHidden();
+  await expect(page.locator(".terminal-intelligence")).toBeHidden();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 

@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 
-import { mockTerminalLiveApis, ROBINHOOD_CONTRACT, waitForTerminalLive } from "./terminal-live-fixtures.mjs";
+import {
+  HYPERLIQUID_ACCOUNT_ADDRESS,
+  hyperliquidAccountSnapshotFixture,
+  mockTerminalLiveApis,
+  ROBINHOOD_CONTRACT,
+  waitForTerminalLive,
+} from "./terminal-live-fixtures.mjs";
 
 const markets = [
   {
@@ -504,7 +510,7 @@ test("each primary destination declares the operator question it must answer", a
   const destinations = [
     ["/discover/", ".workspace-question", "What deserves my attention?"],
     ["/terminal/", ".terminal-question", "What is happening right now?"],
-    ["/portfolio/", ".workspace-question", "What do I own, what changed, and where is my risk?"],
+    ["/portfolio/", ".workspace-question", "Where is the exposure, and what needs attention?"],
     ["/atlas/", ".workspace-question", "What does the broader market imply?"],
   ];
   for (const [route, selector, question] of destinations) {
@@ -1025,18 +1031,31 @@ test("Terminal resolves an exact pool identity directly without a lane selector"
   expect(calls.some((call) => call.pairAddress === "fixture-pair-address")).toBe(true);
 });
 
-test("Portfolio is one truthful empty state and never a seeded customer account", async ({ page }) => {
+test("Portfolio offers a useful public account risk view without claiming a customer connection", async ({ page }) => {
   await mockWorkspaceApis(page);
+  await page.route("**/api/trade/account-snapshot", async (route) => {
+    const input = route.request().postDataJSON();
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(hyperliquidAccountSnapshotFixture(input.address)) });
+  });
   await page.goto("/portfolio/");
-  await expect(page.locator(".portfolio-empty-workspace")).toContainText("Connections are not open yet");
+  await expect(page.locator(".portfolio-account-workspace")).toContainText("See the whole account before the next trade");
   await expect(page.locator(".connection-row, .connection-list, .workspace-ledger")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Inspect a market" })).toBeEnabled();
-  await expect(page.locator("body")).not.toContainText(/demo portfolio|sample holding|connected wallet/i);
+  await expect(page.getByRole("button", { name: "Search instruments", exact: true })).toBeEnabled();
+  await expect(page.locator(".portfolio-account-workspace")).not.toContainText(/demo portfolio|sample holding|connected wallet|connections are not open|unavailable|unknown/i);
   await expect(page.locator("#rosFreshness")).toBeHidden();
   await expect(page.locator("#rosContextTrigger")).toBeHidden();
+
+  await page.locator("#portfolioAccountAddress").fill(HYPERLIQUID_ACCOUNT_ADDRESS);
+  await page.getByRole("button", { name: "Load account" }).click();
+  await expect(page.locator("#portfolioAccountResults")).toBeVisible();
+  await expect(page.locator("#portfolioAccountEquity")).toContainText("$12,500");
+  await expect(page.locator("#portfolioPositionList .portfolio-position-row")).toHaveCount(2);
+  await expect(page.locator("#portfolioPositionList")).toContainText("SOL · long");
+  await expect(page.locator("#portfolioPositionList .portfolio-position-row").first()).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   const contract = await page.evaluate(() => window.__RAVENOS_PORTFOLIO__);
   expect(contract.customerDataLoaded).toBe(false);
   expect(contract.connectorsAvailable).toBe(false);
+  expect(contract.publicAccountObservationAvailable).toBe(true);
   expect(contract.signingAvailable).toBe(false);
 });
 

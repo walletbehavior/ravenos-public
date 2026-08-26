@@ -32,6 +32,11 @@ import {
   createHyperliquidOrderPlan,
   HYPERLIQUID_ORDER_PLAN_SCHEMA,
 } from "./lib/customer_trade/hyperliquid_order_plan.mjs";
+import {
+  createHyperliquidAccountSnapshot,
+  HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+  normalizeHyperliquidAddress,
+} from "./lib/customer_trade/hyperliquid_account_snapshot.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
@@ -755,6 +760,26 @@ async function hyperliquidInstrument(coinInput) {
     cache_state: "provider_read",
   };
   cacheSet(hyperliquidCache, cacheKey, payload, 2_000);
+  return payload;
+}
+
+async function hyperliquidAccountSnapshot(addressInput) {
+  const address = normalizeHyperliquidAddress(addressInput);
+  if (!address) throw new Error("invalid_hyperliquid_address");
+  const cacheKey = `account-snapshot:${address}`;
+  const cached = cacheGet(hyperliquidCache, cacheKey);
+  if (cached) return { ...cached, cache_state: "edge_memory_hit" };
+  const observedAt = new Date().toISOString();
+  const [clearinghouse, openOrders, fills] = await Promise.all([
+    hyperliquidInfo({ type: "clearinghouseState", user: address }, { maxBytes: 512 * 1024, timeoutMs: 5_000 }),
+    hyperliquidInfo({ type: "frontendOpenOrders", user: address }, { maxBytes: 512 * 1024, timeoutMs: 5_000 }),
+    hyperliquidInfo({ type: "userFills", user: address, aggregateByTime: true }, { maxBytes: 1024 * 1024, timeoutMs: 5_000 }),
+  ]);
+  const payload = {
+    ...createHyperliquidAccountSnapshot({ address, clearinghouse, openOrders, fills }, { observedAt }),
+    cache_state: "provider_read",
+  };
+  cacheSet(hyperliquidCache, cacheKey, payload, 3_000);
   return payload;
 }
 
@@ -4091,11 +4116,102 @@ function handleTradeFlags(env = {}) {
     order_plan_available: true,
     order_plan_markets: ["hyperliquid_perpetual"],
     order_plan_types: ["market", "limit", "trigger"],
+    public_account_view_available: true,
+    public_account_view_venues: ["hyperliquid"],
     signing_available: false,
     submission_available: false,
     fees_enabled: false,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
+}
+
+async function handleTradeAccountSnapshot(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_account_snapshot",
+    buildId,
+    schemaVersion: HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+    clientOperationType: "public_account_observation",
+    providerComponent: "hyperliquid_account_snapshot",
+  });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_account_snapshot").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+      error: error?.code === "request_too_large"
+        ? "account_snapshot_request_too_large"
+        : badType
+          ? "account_snapshot_unsupported_content_type"
+          : "invalid_account_snapshot_json",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400 }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "invalid_account_snapshot_json",
+    });
+  }
+
+  const address = normalizeHyperliquidAddress(body?.address);
+  if (!address) {
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+      error: "invalid_hyperliquid_address",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: "invalid_hyperliquid_address",
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const snapshot = await runProviderOperation({
+        component: "hyperliquid_account_snapshot",
+        operation_key: address,
+        fn: () => hyperliquidAccountSnapshot(address),
+      });
+      return terminalJson(context, snapshot, { status: 200, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "ok",
+        providerComponent: "hyperliquid_account_snapshot",
+      });
+    } catch {
+      return terminalJson(context, {
+        ok: false,
+        schema_version: HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+        error: "account_snapshot_provider_error",
+        public_account_observation_only: true,
+        signing_available: false,
+        submission_available: false,
+      }, { status: 503, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "provider_error",
+        degradedReason: "account_snapshot_provider_error",
+        providerComponent: "hyperliquid_account_snapshot",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_account_snapshot").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ACCOUNT_SNAPSHOT_SCHEMA,
+      error: "account_snapshot_timeout",
+      public_account_observation_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: 504, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "account_snapshot_timeout",
+      providerComponent: "hyperliquid_account_snapshot",
+    }),
+  });
 }
 
 function orderPlanStatus(plan = {}) {
@@ -5483,6 +5599,7 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/trade/flags" && request.method === "GET") return handleTradeFlags(env);
   if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
   if (url.pathname === "/api/trade/order-plan" && request.method === "POST") return handleTradeOrderPlan(request, env);
+  if (url.pathname === "/api/trade/account-snapshot" && request.method === "POST") return handleTradeAccountSnapshot(request, env);
   if (url.pathname === "/api/trade/quote" && request.method === "POST") return handleTradeQuote(request, env);
   if (url.pathname === "/api/trade/inspect" && request.method === "POST") return handleTradeInspect(request, env);
   if (url.pathname === "/api/trade/review" && (request.method === "POST" || request.method === "GET")) return handleTradeReview(request, env);

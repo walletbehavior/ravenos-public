@@ -10,6 +10,8 @@ The first native Terminal slice answers a bounded question:
 
 The preview is computed from the exact venue instrument and current Hyperliquid L2 book. It does not create an order, prepare a signing payload, infer a customer account, claim an available balance, calculate an account-specific fee, estimate a trustworthy liquidation price, submit anything, or create a position.
 
+The terminal also supports an optional public Hyperliquid account view. A viewer may enter a public address to observe current venue equity, withdrawable collateral, margin, positions, open orders, recent fills, and position funding. This is a read-only observation, not an authenticated account connection: RavenOS does not persist the address, assert ownership, expose venue transaction/order identifiers, prepare a payload, sign, or submit.
+
 This is deliberately separate from Raven Plan research. A Raven read may inform a human decision, but it never authorizes a transaction.
 
 ## Current flow
@@ -97,6 +99,10 @@ The response never contains:
 - Explicit Raven-plan-to-ticket prefill where qualified evidence exists.
 - No customer account, prepared payload, signature, submission, or claimed fill.
 
+### 1c. Public account desk — current
+
+The viewer may supply a Hyperliquid public address and inspect current venue equity, withdrawable collateral, margin, perpetual exposure, open positions, open orders, recent fills, and position funding. The address is retained only in page memory and the Worker’s bounded three-second read cache. The response strips provider transaction hashes and order/trade identifiers, asserts no ownership, and cannot sign or submit.
+
 ### 2. Account-aware review — not implemented
 
 Requires the customer identity and session security foundation, verified Hyperliquid account proof, current margin and position state, account-specific fees, margin-mode selection, and recent reauthentication.
@@ -121,13 +127,16 @@ Solana spot is the second intended native route. It must retain exact pool ident
 
 - `lib/customer_trade/hyperliquid_quote_preview.mjs`
 - `lib/customer_trade/hyperliquid_order_plan.mjs`
+- `lib/customer_trade/hyperliquid_account_snapshot.mjs`
 - `lib/customer_trade/execution_readiness.mjs`
 - `lib/cross_market/trade_intent.mjs`
 - `worker.mjs` at `POST /api/trade/market-preview`
 - `worker.mjs` at `POST /api/trade/order-plan`
+- `worker.mjs` at `POST /api/trade/account-snapshot`
 - `terminal/index.html`
 - `ravenos-terminal-live.js`
 - `tests/hyperliquid_quote_preview.test.mjs`
 - `tests/hyperliquid_order_plan.test.mjs`
+- `tests/hyperliquid_account_snapshot.test.mjs`
 - `tests/worker_market_preview.test.mjs`
 - `tests/browser/terminal-chart.spec.mjs`

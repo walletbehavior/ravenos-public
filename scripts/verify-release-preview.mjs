@@ -151,6 +151,8 @@ if (
   || flags?.order_plan_available !== true
   || !flags?.order_plan_markets?.includes("hyperliquid_perpetual")
   || !["market", "limit", "trigger"].every((orderType) => flags?.order_plan_types?.includes(orderType))
+  || flags?.public_account_view_available !== true
+  || !flags?.public_account_view_venues?.includes("hyperliquid")
   || flags?.signing_available !== false
   || flags?.submission_available !== false
   || flags?.fees_enabled !== false
@@ -222,6 +224,36 @@ const orderPlanNoLeakFindings = scanJsonValue(orderPlan, "preview:/api/trade/ord
 if (orderPlanNoLeakFindings.length) {
   const fields = orderPlanNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Hyperliquid order plan failed the public no-leak gate: ${fields}`);
+}
+
+const accountSnapshotCapture = await capture("/api/trade/account-snapshot", {
+  method: "POST",
+  body: { address: "0x000000000000000000000000000000000000dead" },
+});
+const accountSnapshot = JSON.parse(accountSnapshotCapture.text);
+if (
+  accountSnapshot?.ok !== true
+  || accountSnapshot?.schema_version !== "ravenos.hyperliquid_account_snapshot.v1"
+  || accountSnapshot?.account?.address !== "0x000000000000000000000000000000000000dead"
+  || accountSnapshot?.account?.ownership_asserted !== false
+  || accountSnapshot?.account?.persisted !== false
+  || !Array.isArray(accountSnapshot?.positions)
+  || !Array.isArray(accountSnapshot?.open_orders)
+  || !Array.isArray(accountSnapshot?.fills)
+  || accountSnapshot?.privacy?.transaction_hashes_exposed !== false
+  || accountSnapshot?.privacy?.provider_order_ids_exposed !== false
+  || accountSnapshot?.execution_boundary?.signing_available !== false
+  || accountSnapshot?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Hyperliquid public account snapshot did not preserve its ephemeral read-only boundary");
+}
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountSnapshotCapture.text)) {
+  throw new Error("Hyperliquid public account snapshot exposed a venue transaction or order identifier");
+}
+const accountSnapshotNoLeakFindings = scanJsonValue(accountSnapshot, "preview:/api/trade/account-snapshot");
+if (accountSnapshotNoLeakFindings.length) {
+  const fields = accountSnapshotNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Hyperliquid public account snapshot failed the public no-leak gate: ${fields}`);
 }
 
 const atlasFeaturedCapture = await capture("/api/atlas/featured?limit=8");

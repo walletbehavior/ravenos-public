@@ -109,11 +109,15 @@ button, input, select { font: inherit; }
 .terminal-negative { color: var(--terminal-negative) !important; }
 
 .terminal-pane-nav { display: none; }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; }
 
 .terminal-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(226px, 260px) minmax(300px, 342px);
-  grid-template-areas: "chart market intelligence";
+  grid-template-areas:
+    "chart market intelligence"
+    "account account intelligence";
+  grid-template-rows: 600px auto;
   gap: 6px;
   align-items: start;
   margin-top: 4px;
@@ -121,6 +125,7 @@ button, input, select { font: inherit; }
 .terminal-chart-panel { grid-area: chart; }
 .terminal-market-rail { grid-area: market; }
 .terminal-intelligence { grid-area: intelligence; }
+.terminal-account-dock { grid-area: account; }
 .terminal-chart-panel,
 .terminal-market-rail > section,
 .terminal-intelligence > section { min-width: 0; border: 1px solid var(--terminal-line); background: var(--terminal-surface); }
@@ -212,6 +217,56 @@ button, input, select { font: inherit; }
 .terminal-tape-row.bid span:nth-child(2) { color: #75d9aa; }
 .terminal-tape-row.ask span:nth-child(2) { color: #f08b99; }
 .terminal-market-wait { min-height: 74px; display: grid; place-content: center; padding: 12px; color: var(--terminal-muted); font-size: 9px; line-height: 1.4; text-align: center; }
+
+.terminal-account-dock { min-width: 0; border: 1px solid var(--terminal-line); background: #090e15; }
+.terminal-account-dock[hidden] { display: none !important; }
+.terminal-account-head { min-height: 52px; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 430px); grid-template-areas: "title form" "title status"; align-items: center; gap: 2px 12px; padding: 7px 9px; border-bottom: 1px solid var(--terminal-line); background: #0d131b; }
+.terminal-account-head > div { grid-area: title; min-width: 0; }
+.terminal-account-head > div > span,
+.terminal-account-summary dt,
+.terminal-account-columns { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .035em; text-transform: uppercase; }
+.terminal-account-head h2 { margin: 4px 0 0; font-size: 13px; }
+.terminal-account-head form { grid-area: form; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }
+.terminal-account-head input { min-width: 0; min-height: 31px; border: 1px solid var(--terminal-line); border-radius: 3px; outline: 0; background: #080c12; color: var(--terminal-text); padding: 0 8px; font: 650 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-account-head input:focus { border-color: rgba(143, 164, 186, .58); }
+.terminal-account-head button { min-height: 31px; border: 1px solid rgba(63, 185, 130, .38); border-radius: 3px; background: rgba(63, 185, 130, .12); color: #dff8eb; padding: 0 11px; cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-account-head button:hover { background: rgba(63, 185, 130, .18); }
+.terminal-account-head button:disabled { cursor: wait; opacity: .58; }
+.terminal-account-head > small { grid-area: status; color: var(--terminal-soft); font: 8px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
+.terminal-account-head > small[data-tone="error"] { color: var(--terminal-negative); }
+.terminal-account-tabs { display: flex; min-height: 34px; overflow-x: auto; border-bottom: 1px solid var(--terminal-line); background: #0b1017; scrollbar-width: none; }
+.terminal-account-tabs::-webkit-scrollbar { display: none; }
+.terminal-account-tabs button { flex: 0 0 auto; min-width: 112px; border: 0; border-right: 1px solid var(--terminal-line); background: transparent; color: var(--terminal-muted); padding: 0 10px; cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-account-tabs button:hover { background: #101721; color: var(--terminal-text); }
+.terminal-account-tabs button[aria-selected="true"] { color: var(--terminal-text); box-shadow: inset 0 -2px var(--terminal-positive); background: #111923; }
+.terminal-account-tabs button span { margin-left: 4px; color: var(--terminal-soft); }
+.terminal-account-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-bottom: 1px solid var(--terminal-line); }
+.terminal-account-summary[hidden] { display: none; }
+.terminal-account-summary > div { min-width: 0; display: grid; gap: 5px; padding: 8px 10px; border-right: 1px solid var(--terminal-line); }
+.terminal-account-summary > div:last-child { border-right: 0; }
+.terminal-account-summary dd { overflow: hidden; margin: 0; font: 750 10px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-account-ledger { min-height: 116px; max-height: 290px; overflow: auto; scrollbar-width: thin; }
+.terminal-account-empty { min-height: 116px; display: grid; place-content: center; gap: 6px; padding: 20px; text-align: center; }
+.terminal-account-empty strong { font-size: 12px; }
+.terminal-account-empty span { max-width: 660px; color: var(--terminal-muted); font-size: 9px; line-height: 1.5; }
+.terminal-account-grid { min-width: 760px; }
+.terminal-account-columns,
+.terminal-account-row { display: grid; gap: 8px; align-items: center; padding: 6px 9px; }
+.terminal-account-grid[data-view="positions"] > div { grid-template-columns: minmax(100px, .8fr) minmax(110px, .8fr) minmax(90px, .7fr) minmax(110px, .8fr) minmax(120px, .9fr) minmax(100px, .8fr); }
+.terminal-account-grid[data-view="orders"] > div { grid-template-columns: minmax(100px, .8fr) minmax(90px, .7fr) minmax(90px, .7fr) minmax(100px, .8fr) minmax(120px, 1fr) minmax(110px, .9fr); }
+.terminal-account-grid[data-view="fills"] > div { grid-template-columns: minmax(100px, .8fr) minmax(120px, 1fr) minmax(90px, .7fr) minmax(110px, .8fr) minmax(100px, .8fr) minmax(120px, 1fr); }
+.terminal-account-grid[data-view="funding"] > div { grid-template-columns: minmax(120px, 1fr) minmax(100px, .8fr) repeat(3, minmax(130px, 1fr)); }
+.terminal-account-columns { position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--terminal-line); background: #0b1017; }
+.terminal-account-row { min-height: 37px; border-bottom: 1px solid rgba(172, 191, 218, .055); color: var(--terminal-text); font: 650 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-account-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-account-row > :not(:first-child),
+.terminal-account-columns > :not(:first-child) { text-align: right; }
+.terminal-account-row [data-tone="positive"] { color: var(--terminal-positive); }
+.terminal-account-row [data-tone="negative"] { color: var(--terminal-negative); }
+.terminal-account-row [data-side="long"],
+.terminal-account-row [data-side="buy"] { color: #75d9aa; }
+.terminal-account-row [data-side="short"],
+.terminal-account-row [data-side="sell"] { color: #f08b99; }
 .terminal-intelligence { min-width: 0; display: grid; align-content: start; gap: 10px; }
 .terminal-intelligence > section { padding: 10px; }
 .terminal-intelligence header { display: flex; justify-content: space-between; gap: 10px; align-items: start; padding-bottom: 9px; border-bottom: 1px solid var(--terminal-line); }
@@ -294,6 +349,16 @@ button, input, select { font: inherit; }
 .terminal-plan-load:focus-visible { border-color: rgba(143, 164, 186, .62); outline: none; background: rgba(143, 164, 186, .13); }
 
 .terminal-order-preview { border-color: rgba(143, 164, 186, .28) !important; }
+.terminal-ticket-account { margin-top: 8px; border: 1px solid rgba(63, 185, 130, .24); background: rgba(63, 185, 130, .055); }
+.terminal-ticket-account[hidden] { display: none; }
+.terminal-ticket-account > header { min-height: 29px; align-items: center; padding: 5px 7px; border-bottom: 1px solid rgba(63, 185, 130, .17); }
+.terminal-ticket-account > header span { color: #75d9aa; font: 800 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-ticket-account > header strong { max-width: 150px; overflow: hidden; color: var(--terminal-muted); font: 650 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-ticket-account dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.terminal-ticket-account dl > div { min-width: 0; padding: 7px; border-right: 1px solid rgba(63, 185, 130, .14); }
+.terminal-ticket-account dl > div:last-child { border-right: 0; }
+.terminal-ticket-account dt { color: var(--terminal-soft); font: 750 7px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-ticket-account dd { overflow: hidden; margin: 4px 0 0; font: 700 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .terminal-order-type-toggle { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 10px; border: 1px solid var(--terminal-line-strong); background: var(--terminal-line); }
 .terminal-order-type-toggle button {
   min-width: 0;
@@ -330,6 +395,9 @@ button, input, select { font: inherit; }
   color: #f08b99;
 }
 .terminal-preview-inputs { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(88px, .65fr); gap: 5px; margin-top: 8px; }
+.terminal-size-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+.terminal-size-presets button { min-height: 25px; border: 1px solid var(--terminal-line); background: #090e15; color: var(--terminal-muted); cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-size-presets button:hover { border-color: var(--terminal-line-strong); background: #111923; color: var(--terminal-text); }
 .terminal-preview-inputs label { min-width: 0; }
 .terminal-preview-inputs label[hidden] { display: none !important; }
 .terminal-conditional-inputs:has(#terminalPreviewTifField[hidden]) { grid-template-columns: 1fr; }
@@ -471,7 +539,9 @@ button, input, select { font: inherit; }
     grid-template-columns: minmax(0, 1fr) minmax(320px, 350px);
     grid-template-areas:
       "chart intelligence"
-      "market intelligence";
+      "market intelligence"
+      "account intelligence";
+    grid-template-rows: auto auto auto;
   }
   .terminal-market-rail { height: 310px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .terminal-controls { grid-template-columns: minmax(220px, 1fr) 90px minmax(160px, .7fr); }
@@ -483,6 +553,8 @@ button, input, select { font: inherit; }
 }
 
 @media (max-width: 820px) {
+  html,
+  body { max-width: 100%; overflow-x: clip; }
   .terminal-holder-legend { gap: 4px; }
   .terminal-holder-map { padding: 7px; }
   .terminal-profile-chip,
@@ -508,7 +580,7 @@ button, input, select { font: inherit; }
   .terminal-actions { grid-column: 1 / -1; }
   .terminal-search-results { order: 3; }
   .terminal-market-head { order: 4; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
-  .terminal-pane-nav { order: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 5px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
+  .terminal-pane-nav { order: 5; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 5px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
   .terminal-pane-nav button { min-width: 0; min-height: 35px; border: 0; border-right: 1px solid var(--terminal-line); background: #0c121a; color: var(--terminal-muted); padding: 0 5px; font: 800 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
   .terminal-pane-nav button:last-child { border-right: 0; }
   .terminal-pane-nav button[aria-pressed="true"] { color: var(--terminal-text); box-shadow: inset 0 -2px var(--terminal-positive); background: #111923; }
@@ -517,15 +589,23 @@ button, input, select { font: inherit; }
   .terminal-chart-panel { order: 6; margin-top: 5px; }
   .terminal-market-rail { order: 7; height: min(640px, calc(100vh - 250px)); min-height: 510px; grid-template-columns: 1fr; grid-template-rows: minmax(300px, 1.35fr) minmax(190px, .85fr); margin-top: 5px; }
   .terminal-intelligence { order: 8; margin-top: 5px; }
+  .terminal-account-dock { order: 9; margin-top: 5px; }
   .terminal-intelligence #terminalTradeReviewSection { position: static; box-shadow: none; }
   .terminal-live[data-terminal-pane="chart"] .terminal-market-rail,
   .terminal-live[data-terminal-pane="chart"] .terminal-intelligence,
+  .terminal-live[data-terminal-pane="chart"] .terminal-account-dock,
   .terminal-live[data-terminal-pane="trade"] .terminal-chart-panel,
   .terminal-live[data-terminal-pane="trade"] .terminal-market-rail,
+  .terminal-live[data-terminal-pane="trade"] .terminal-account-dock,
   .terminal-live[data-terminal-pane="book"] .terminal-chart-panel,
   .terminal-live[data-terminal-pane="book"] .terminal-intelligence,
+  .terminal-live[data-terminal-pane="book"] .terminal-account-dock,
   .terminal-live[data-terminal-pane="raven"] .terminal-chart-panel,
-  .terminal-live[data-terminal-pane="raven"] .terminal-market-rail { display: none !important; }
+  .terminal-live[data-terminal-pane="raven"] .terminal-market-rail,
+  .terminal-live[data-terminal-pane="raven"] .terminal-account-dock,
+  .terminal-live[data-terminal-pane="account"] .terminal-chart-panel,
+  .terminal-live[data-terminal-pane="account"] .terminal-market-rail,
+  .terminal-live[data-terminal-pane="account"] .terminal-intelligence { display: none !important; }
   .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > section { display: none !important; }
   .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > #terminalTradeReviewSection:not([hidden]) { display: block !important; }
   .terminal-live[data-terminal-pane="raven"] .terminal-intelligence > #terminalTradeReviewSection { display: none !important; }
@@ -548,6 +628,12 @@ button, input, select { font: inherit; }
   .terminal-search-result { grid-template-columns: minmax(0, 1fr) auto; }
   .terminal-search-result span:nth-of-type(2),
   .terminal-search-result small { display: none; }
+  .terminal-account-head { grid-template-columns: 1fr; grid-template-areas: "title" "form" "status"; gap: 7px; }
+  .terminal-account-head > small { text-align: left; }
+  .terminal-account-summary { grid-template-columns: 1fr 1fr; }
+  .terminal-account-summary > div:nth-child(2) { border-right: 0; }
+  .terminal-account-summary > div:nth-child(-n + 2) { border-bottom: 1px solid var(--terminal-line); }
+  .terminal-account-ledger { max-height: none; }
 }
 
 @media (max-width: 430px) {
@@ -556,6 +642,10 @@ button, input, select { font: inherit; }
   .terminal-marker-grid { grid-template-columns: 1fr 1fr; }
   .terminal-chart-panel > header { display: block; }
   .terminal-chart-panel header p { max-width: none; margin-top: 6px; text-align: left; }
+  .terminal-account-head form { grid-template-columns: 1fr; }
+  .terminal-ticket-account dl { grid-template-columns: 1fr; }
+  .terminal-ticket-account dl > div { border-right: 0; border-bottom: 1px solid rgba(63, 185, 130, .14); }
+  .terminal-ticket-account dl > div:last-child { border-bottom: 0; }
 }
 
 @media (orientation: landscape) and (max-height: 560px) and (max-width: 960px) {
@@ -567,7 +657,10 @@ button, input, select { font: inherit; }
   }
   body.ros-shell-terminal.ros-terminal-live-shell.ros-context-open .ros-context-rail { transform: translateY(0); }
   .terminal-live { padding: 7px 7px calc(74px + env(safe-area-inset-bottom)); }
-  .terminal-workspace { grid-template-columns: 1fr; }
+  .terminal-workspace { display: block; }
+  .terminal-market-rail,
+  .terminal-intelligence,
+  .terminal-account-dock { margin-top: 6px; }
   #terminalChart { min-height: 360px; }
   #terminalChart .rpw { --rpw-height: 360px; }
   .terminal-external-chart { min-height: 360px; }

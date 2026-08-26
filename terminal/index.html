@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS · Live Market Terminal</title>
-  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, order-plan review, and Raven intelligence." />
+  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, account risk, order-plan review, and Raven intelligence." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-terminal-live.css" />
@@ -78,6 +78,7 @@
       <button type="button" data-terminal-pane-button="trade" data-perp-only aria-pressed="false" hidden>Trade</button>
       <button type="button" data-terminal-pane-button="book" data-perp-only aria-pressed="false">Book</button>
       <button type="button" data-terminal-pane-button="raven" aria-pressed="false">Raven</button>
+      <button type="button" data-terminal-pane-button="account" data-perp-only aria-pressed="false">Account</button>
     </nav>
 
     <section class="terminal-workspace">
@@ -231,6 +232,14 @@
             <button type="button" class="active" id="terminalPreviewLong" data-side="long" aria-pressed="true">Long</button>
             <button type="button" id="terminalPreviewShort" data-side="short" aria-pressed="false">Short</button>
           </div>
+          <div class="terminal-ticket-account" id="terminalTicketAccount" hidden>
+            <header><span>Observed account</span><strong id="terminalTicketAddress"></strong></header>
+            <dl>
+              <div><dt>Withdrawable</dt><dd id="terminalTicketWithdrawable"></dd></div>
+              <div><dt>Current position</dt><dd id="terminalTicketPosition"></dd></div>
+              <div><dt>Unrealized P&amp;L</dt><dd id="terminalTicketPnl"></dd></div>
+            </dl>
+          </div>
           <div class="terminal-preview-inputs">
             <label>
               <span>Size</span>
@@ -240,6 +249,12 @@
               <span>Leverage</span>
               <select id="terminalPreviewLeverage" aria-label="Preview leverage"></select>
             </label>
+          </div>
+          <div class="terminal-size-presets" aria-label="Order size presets">
+            <button type="button" data-notional-preset="100">$100</button>
+            <button type="button" data-notional-preset="500">$500</button>
+            <button type="button" data-notional-preset="1000">$1K</button>
+            <button type="button" data-notional-preset="5000">$5K</button>
           </div>
           <div class="terminal-preview-inputs terminal-conditional-inputs">
             <label id="terminalPreviewPriceField" hidden>
@@ -293,6 +308,36 @@
           <span id="terminalPortfolioConsequence" hidden>No customer position is connected</span>
         </section>
       </aside>
+
+      <section class="terminal-account-dock" id="terminalAccountDock" data-perp-only aria-label="Hyperliquid public account view">
+        <header class="terminal-account-head">
+          <div><span>Public account view</span><h2>Positions, orders, fills &amp; funding</h2></div>
+          <form id="terminalAccountForm">
+            <label class="sr-only" for="terminalAccountAddress">Hyperliquid public address</label>
+            <input id="terminalAccountAddress" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Hyperliquid 0x address" aria-describedby="terminalAccountStatus" />
+            <button type="submit">Load account</button>
+          </form>
+          <small id="terminalAccountStatus" aria-live="polite">Address stays in this tab</small>
+        </header>
+        <nav class="terminal-account-tabs" id="terminalAccountTabs" aria-label="Account ledger" role="tablist">
+          <button type="button" data-account-tab="positions" role="tab" aria-selected="true">Positions <span id="terminalAccountPositionsCount" hidden></span></button>
+          <button type="button" data-account-tab="orders" role="tab" aria-selected="false">Open orders <span id="terminalAccountOrdersCount" hidden></span></button>
+          <button type="button" data-account-tab="fills" role="tab" aria-selected="false">Fills <span id="terminalAccountFillsCount" hidden></span></button>
+          <button type="button" data-account-tab="funding" role="tab" aria-selected="false">Funding <span id="terminalAccountFundingCount" hidden></span></button>
+        </nav>
+        <dl class="terminal-account-summary" id="terminalAccountSummary" hidden>
+          <div><dt>Account equity</dt><dd id="terminalAccountEquity"></dd></div>
+          <div><dt>Withdrawable</dt><dd id="terminalAccountWithdrawable"></dd></div>
+          <div><dt>Margin used</dt><dd id="terminalAccountMargin"></dd></div>
+          <div><dt>Perp exposure</dt><dd id="terminalAccountExposure"></dd></div>
+        </dl>
+        <div class="terminal-account-ledger" id="terminalAccountLedger">
+          <div class="terminal-account-empty">
+            <strong>Track a Hyperliquid account alongside the market.</strong>
+            <span>Load a public address to see current positions, open orders, recent fills, and funding without leaving the desk.</span>
+          </div>
+        </div>
+      </section>
     </section>
 
     <span data-ravenos-build-id hidden>pending</span>

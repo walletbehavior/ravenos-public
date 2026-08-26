@@ -205,7 +205,7 @@ test("Terminal keeps wallet context separate from customer access", async ({ pag
   await page.goto("/terminal/");
   await expect(page.locator(".terminal-continuity, .ros-capability-status")).toHaveCount(0);
   await expect(page.locator("#terminalBoundary")).toContainText(/No order can be signed or sent/i);
-  await expect(page.locator(".terminal-intelligence")).toContainText(/Order preview/i);
+  await expect(page.locator(".terminal-intelligence")).toContainText(/Order plan/i);
   await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"]')).toHaveCount(0);
   const text = await visibleBodyText(page);

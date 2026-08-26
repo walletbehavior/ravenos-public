@@ -63,7 +63,8 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /independence_adjusted === true/);
   assert.match(terminalRuntime, /cleanAlphaCard/);
   assert.match(terminalRuntime, /unknown\|unavailable\|insufficient\|missing\|not projected\|checking\|resolving/i);
-  assert.match(terminalRuntime, /No customer venue account or exposure is connected/);
+  assert.match(terminalRuntime, /Load a public address to add account-specific exposure to the desk/);
+  assert.match(terminalRuntime, /publicAccountObservationAvailable|publicAccountViewAvailable/);
   assert.doesNotMatch(terminal, /Synthetic fallback/);
   assert.match(terminal, /Lightweight Charts™ by TradingView/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);

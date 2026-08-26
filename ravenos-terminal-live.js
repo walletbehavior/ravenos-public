@@ -36,6 +36,9 @@ const state = {
   chartRead: null,
   orderBook: null,
   tapeRows: [],
+  accountSnapshot: null,
+  accountTab: "positions",
+  accountGeneration: 0,
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -390,7 +393,7 @@ function renderTerminalMarketFlow(marketData = {}) {
 }
 
 function setTerminalPane(pane = "chart") {
-  const requested = new Set(["chart", "trade", "book", "raven"]).has(pane) ? pane : "chart";
+  const requested = new Set(["chart", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
   const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
   const next = requestedButton?.hidden ? "chart" : requested;
   const root = document.querySelector(".terminal-live");
@@ -411,8 +414,238 @@ function updateTerminalPaneAvailability() {
   const tradeButton = document.querySelector('[data-terminal-pane-button="trade"]');
   const tradeVisible = perps && tradeSection?.hidden === false;
   if (tradeButton) tradeButton.hidden = !tradeVisible;
+  const accountDock = document.getElementById("terminalAccountDock");
+  const accountButton = document.querySelector('[data-terminal-pane-button="account"]');
+  const accountVisible = perps && state.flags?.public_account_view_available === true;
+  if (accountDock) accountDock.hidden = !accountVisible;
+  if (accountButton) accountButton.hidden = !accountVisible;
   const current = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
-  if ((!perps && ["trade", "book"].includes(current)) || (current === "trade" && !tradeVisible)) setTerminalPane("chart");
+  if ((!perps && ["trade", "book", "account"].includes(current)) || (current === "trade" && !tradeVisible) || (current === "account" && !accountVisible)) setTerminalPane("chart");
+}
+
+function accountMoney(value) {
+  const amount = finite(value);
+  if (amount === null) return "—";
+  const magnitude = Math.abs(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: magnitude >= 1000 ? 0 : magnitude >= 10 ? 2 : 4,
+  }).format(amount);
+}
+
+function accountNumber(value) {
+  const amount = finite(value);
+  if (amount === null) return "—";
+  return amount.toLocaleString("en-US", { maximumFractionDigits: Math.abs(amount) < 10 ? 5 : 2 });
+}
+
+function accountTone(value) {
+  const amount = finite(value);
+  return amount === null ? null : amount >= 0 ? "positive" : "negative";
+}
+
+function shortAccountAddress(value) {
+  const address = String(value || "");
+  return address.length > 16 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
+}
+
+function selectedAccountPosition() {
+  const market = String(state.selected?.asset || state.selected?.symbol || "").replace(/-PERP$/i, "").toUpperCase();
+  return (state.accountSnapshot?.positions || []).find((position) => String(position.market || "").toUpperCase() === market) || null;
+}
+
+function renderTerminalTicketAccount() {
+  const host = document.getElementById("terminalTicketAccount");
+  const snapshot = state.accountSnapshot;
+  const show = state.lane === "perps" && Boolean(snapshot?.ok);
+  if (!host) return;
+  host.hidden = !show;
+  if (!show) return;
+  const position = selectedAccountPosition();
+  setText("terminalTicketAddress", shortAccountAddress(snapshot.account?.address), "Public account");
+  document.getElementById("terminalTicketAddress").title = snapshot.account?.address || "";
+  setText("terminalTicketWithdrawable", accountMoney(snapshot.summary?.withdrawable_usdc));
+  setText("terminalTicketPosition", position ? `${titleCase(position.side)} ${accountNumber(position.size)}` : "Flat");
+  setText("terminalTicketPnl", position ? accountMoney(position.unrealized_pnl_usdc) : accountMoney(0));
+  const pnl = document.getElementById("terminalTicketPnl");
+  const pnlValue = finite(position?.unrealized_pnl_usdc);
+  pnl?.classList.toggle("terminal-positive", pnlValue !== null && pnlValue >= 0);
+  pnl?.classList.toggle("terminal-negative", pnlValue !== null && pnlValue < 0);
+}
+
+function accountCell(value, { side = null, tone = null, title = "" } = {}) {
+  const cell = document.createElement("span");
+  cell.textContent = String(value ?? "");
+  if (side) cell.dataset.side = side;
+  if (tone) cell.dataset.tone = tone;
+  if (title) cell.title = title;
+  return cell;
+}
+
+function accountLedgerDefinition(tab, snapshot) {
+  if (tab === "orders") {
+    return {
+      columns: ["Market", "Side", "Remaining", "Price", "Order", "Placed"],
+      rows: (snapshot.open_orders || []).map((order) => {
+        const mechanics = [order.order_type, order.time_in_force ? String(order.time_in_force).toUpperCase() : "", order.reduce_only ? "Reduce only" : ""].filter(Boolean).join(" · ");
+        const price = order.is_trigger && finite(order.trigger_price) !== null ? `Trigger ${formatPrice(order.trigger_price)}` : formatPrice(order.limit_price);
+        return [
+          accountCell(order.market),
+          accountCell(titleCase(order.side), { side: order.side }),
+          accountCell(accountNumber(order.size)),
+          accountCell(price),
+          accountCell(mechanics),
+          accountCell(order.placed_at ? timestamp(order.placed_at) : "Venue order"),
+        ];
+      }),
+      empty: "No open orders on this account.",
+    };
+  }
+  if (tab === "fills") {
+    return {
+      columns: ["Market", "Direction", "Size", "Price", "Closed P&L", "Fee / time"],
+      rows: (snapshot.fills || []).map((fill) => {
+        const pnl = finite(fill.closed_pnl_usdc);
+        return [
+          accountCell(fill.market),
+          accountCell(fill.direction || titleCase(fill.side), { side: fill.side }),
+          accountCell(accountNumber(fill.size)),
+          accountCell(formatPrice(fill.price)),
+          accountCell(accountMoney(fill.closed_pnl_usdc), { tone: pnl === null ? null : pnl >= 0 ? "positive" : "negative" }),
+          accountCell(`${accountMoney(fill.fee_paid)}${fill.fee_asset ? ` ${fill.fee_asset}` : ""}${fill.filled_at ? ` · ${timestamp(fill.filled_at)}` : ""}`),
+        ];
+      }),
+      empty: "No recent fills on this account.",
+    };
+  }
+  if (tab === "funding") {
+    return {
+      columns: ["Market", "Side", "Since open", "Since change", "All time"],
+      rows: (snapshot.funding || []).map((funding) => [
+        accountCell(funding.market),
+        accountCell(titleCase(funding.side), { side: funding.side }),
+        accountCell(accountMoney(funding.since_open_usdc), { tone: accountTone(funding.since_open_usdc) }),
+        accountCell(accountMoney(funding.since_change_usdc), { tone: accountTone(funding.since_change_usdc) }),
+        accountCell(accountMoney(funding.all_time_usdc), { tone: accountTone(funding.all_time_usdc) }),
+      ]),
+      empty: "No open-position funding rows on this account.",
+    };
+  }
+  return {
+    columns: ["Market", "Side / size", "Entry", "Notional", "Unrealized P&L", "Liquidation"],
+    rows: (snapshot.positions || []).map((position) => {
+      const pnl = finite(position.unrealized_pnl_usdc);
+      const leverage = finite(position.leverage) === null ? "" : ` · ${accountNumber(position.leverage)}×`;
+      const roe = finite(position.return_on_equity) === null ? "" : ` · ${percent(position.return_on_equity, { ratio: true })}`;
+      return [
+        accountCell(position.market),
+        accountCell(`${titleCase(position.side)} ${accountNumber(position.size)}${leverage}`, { side: position.side }),
+        accountCell(formatPrice(position.entry_price)),
+        accountCell(accountMoney(position.mark_notional_usdc)),
+        accountCell(`${accountMoney(position.unrealized_pnl_usdc)}${roe}`, { tone: pnl === null ? null : pnl >= 0 ? "positive" : "negative" }),
+        accountCell(finite(position.liquidation_price) === null ? "No liq. price" : formatPrice(position.liquidation_price)),
+      ];
+    }),
+    empty: "No open perpetual positions on this account.",
+  };
+}
+
+function renderTerminalAccountLedger() {
+  const host = document.getElementById("terminalAccountLedger");
+  const snapshot = state.accountSnapshot;
+  if (!host || !snapshot?.ok) return;
+  const definition = accountLedgerDefinition(state.accountTab, snapshot);
+  host.replaceChildren();
+  if (!definition.rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "terminal-account-empty";
+    const label = document.createElement("strong");
+    label.textContent = definition.empty;
+    const note = document.createElement("span");
+    note.textContent = "The other account tabs remain available.";
+    empty.append(label, note);
+    host.append(empty);
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.className = "terminal-account-grid";
+  grid.dataset.view = state.accountTab;
+  const columns = document.createElement("div");
+  columns.className = "terminal-account-columns";
+  columns.append(...definition.columns.map((label) => accountCell(label)));
+  grid.append(columns);
+  for (const rowCells of definition.rows) {
+    const row = document.createElement("div");
+    row.className = "terminal-account-row";
+    row.append(...rowCells);
+    grid.append(row);
+  }
+  host.append(grid);
+}
+
+function renderTerminalAccount(snapshot) {
+  state.accountSnapshot = snapshot;
+  const summary = snapshot.summary || {};
+  const summaryHost = document.getElementById("terminalAccountSummary");
+  if (summaryHost) summaryHost.hidden = false;
+  setText("terminalAccountEquity", accountMoney(summary.account_value_usdc));
+  setText("terminalAccountWithdrawable", accountMoney(summary.withdrawable_usdc));
+  setText("terminalAccountMargin", accountMoney(summary.margin_used_usdc));
+  setText("terminalAccountExposure", accountMoney(summary.position_notional_usdc));
+  const counts = {
+    terminalAccountPositionsCount: (snapshot.positions || []).length,
+    terminalAccountOrdersCount: (snapshot.open_orders || []).length,
+    terminalAccountFillsCount: (snapshot.fills || []).length,
+    terminalAccountFundingCount: (snapshot.funding || []).length,
+  };
+  for (const [id, value] of Object.entries(counts)) {
+    setText(id, value);
+    const count = document.getElementById(id);
+    if (count) count.hidden = false;
+  }
+  renderTerminalAccountLedger();
+  renderTerminalTicketAccount();
+}
+
+function setAccountTab(tab) {
+  state.accountTab = new Set(["positions", "orders", "fills", "funding"]).has(tab) ? tab : "positions";
+  for (const button of document.querySelectorAll("[data-account-tab]")) {
+    button.setAttribute("aria-selected", String(button.dataset.accountTab === state.accountTab));
+  }
+  renderTerminalAccountLedger();
+}
+
+async function loadTerminalAccount(addressInput) {
+  const address = String(addressInput || "").trim();
+  const status = document.getElementById("terminalAccountStatus");
+  const submit = document.querySelector("#terminalAccountForm button[type='submit']");
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    status.dataset.tone = "error";
+    status.textContent = "Enter a complete 0x Hyperliquid address";
+    return;
+  }
+  const generation = ++state.accountGeneration;
+  submit.disabled = true;
+  status.dataset.tone = "";
+  status.textContent = "Loading current account state…";
+  try {
+    const { response, payload } = await fetchJson("/api/trade/account-snapshot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    if (generation !== state.accountGeneration) return;
+    if (!response.ok || !payload?.ok) throw new Error("account_snapshot_failed");
+    renderTerminalAccount(payload);
+    status.textContent = `${shortAccountAddress(payload.account?.address)} · current venue state`;
+  } catch {
+    if (generation !== state.accountGeneration) return;
+    status.dataset.tone = "error";
+    status.textContent = "That account could not be loaded right now. Try again.";
+  } finally {
+    if (generation === state.accountGeneration) submit.disabled = false;
+  }
 }
 
 function readableProvider(value) {
@@ -1086,7 +1319,10 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
 function renderTradeConsequences() {
   if (state.lane === "perps") {
     setText("terminalSettlementConsequence", "USDC margin remains at Hyperliquid; no order is prepared");
-    setText("terminalPortfolioConsequence", "No customer venue account or exposure is connected");
+    setText("terminalPortfolioConsequence", state.accountSnapshot?.ok
+      ? "Public account exposure is observed without asserting ownership"
+      : "Load a public address to add account-specific exposure to the desk");
+    renderTerminalTicketAccount();
     return;
   }
   if (state.lane === "spot") {
@@ -2808,6 +3044,21 @@ function bindControls() {
     state.planOverlayEnabled = event.target.checked === true;
     if (state.context) applyContextChartEvent(state.context);
   });
+  document.getElementById("terminalAccountForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadTerminalAccount(document.getElementById("terminalAccountAddress")?.value);
+  });
+  for (const button of document.querySelectorAll("[data-account-tab]")) {
+    button.addEventListener("click", () => setAccountTab(button.dataset.accountTab));
+  }
+  for (const button of document.querySelectorAll("[data-notional-preset]")) {
+    button.addEventListener("click", () => {
+      const input = document.getElementById("terminalPreviewNotional");
+      if (!input) return;
+      input.value = button.dataset.notionalPreset;
+      clearMarketPreviewResult("Size changed. Preview again against the current book.");
+    });
+  }
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.addEventListener("click", () => setTerminalPane(button.dataset.terminalPaneButton));
   }
@@ -2980,6 +3231,11 @@ async function boot() {
       orderPlanType: state.orderPlanType,
       orderPlanState: state.orderPlan?.state || "unavailable",
       orderPlanId: state.orderPlan?.plan_id || null,
+      publicAccountViewAvailable: state.flags?.public_account_view_available === true,
+      publicAccountObserved: state.accountSnapshot?.ok === true,
+      publicAccountPositionCount: state.accountSnapshot?.positions?.length || 0,
+      publicAccountOrderCount: state.accountSnapshot?.open_orders?.length || 0,
+      accountTab: state.accountTab,
       bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
       tapeCount: state.tapeRows.length,
       signingAvailable: false,

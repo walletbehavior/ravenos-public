@@ -108,6 +108,8 @@ if (
   || flagsJson?.order_plan_available !== true
   || !flagsJson?.order_plan_markets?.includes("hyperliquid_perpetual")
   || !["market", "limit", "trigger"].every((orderType) => flagsJson?.order_plan_types?.includes(orderType))
+  || flagsJson?.public_account_view_available !== true
+  || !flagsJson?.public_account_view_venues?.includes("hyperliquid")
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
 ) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid planning boundary");
@@ -189,6 +191,34 @@ const orderPlanNoLeakFindings = scanJsonValue(orderPlanJson, "production:/api/tr
 if (orderPlanNoLeakFindings.length) {
   const fields = orderPlanNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Production order plan failed the public no-leak gate: ${fields}`);
+}
+
+const { res: accountSnapshotRes, json: accountSnapshotJson } = await fetchJson("/api/trade/account-snapshot", {
+  method: "POST",
+  body: { address: "0x000000000000000000000000000000000000dead" },
+});
+if (
+  !accountSnapshotRes.ok
+  || accountSnapshotJson?.schema_version !== "ravenos.hyperliquid_account_snapshot.v1"
+  || accountSnapshotJson?.account?.address !== "0x000000000000000000000000000000000000dead"
+  || accountSnapshotJson?.account?.ownership_asserted !== false
+  || accountSnapshotJson?.account?.persisted !== false
+  || !Array.isArray(accountSnapshotJson?.positions)
+  || !Array.isArray(accountSnapshotJson?.open_orders)
+  || !Array.isArray(accountSnapshotJson?.fills)
+  || accountSnapshotJson?.privacy?.transaction_hashes_exposed !== false
+  || accountSnapshotJson?.privacy?.provider_order_ids_exposed !== false
+  || accountSnapshotJson?.execution_boundary?.signing_available !== false
+  || accountSnapshotJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/trade/account-snapshot did not preserve its ephemeral read-only boundary");
+const accountSnapshotText = JSON.stringify(accountSnapshotJson);
+if (/"(?:hash|oid|tid|cloid)"\s*:/.test(accountSnapshotText)) {
+  throw new Error("Production public account snapshot exposed a venue transaction or order identifier");
+}
+const accountSnapshotNoLeakFindings = scanJsonValue(accountSnapshotJson, "production:/api/trade/account-snapshot");
+if (accountSnapshotNoLeakFindings.length) {
+  const fields = accountSnapshotNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production public account snapshot failed the public no-leak gate: ${fields}`);
 }
 
 const { json: claimsJson } = await fetchJson("/api/claims");
