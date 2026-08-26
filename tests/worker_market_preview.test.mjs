@@ -350,6 +350,10 @@ test("public trade flags distinguish market preview from disabled customer execu
   assert.deepEqual(body.order_plan_types, ["market", "limit", "trigger"]);
   assert.equal(body.public_account_view_available, true);
   assert.deepEqual(body.public_account_view_venues, ["hyperliquid"]);
+  assert.equal(body.browser_wallet_connection_available, true);
+  assert.equal(body.wallet_connection_scope, "public_address_observation_only");
+  assert.equal(body.wallet_signature_requested, false);
+  assert.equal(body.wallet_connection_persisted, false);
   assert.equal(body.account_scenario_available, true);
   assert.deepEqual(body.account_scenario_venues, ["hyperliquid"]);
   assert.equal(body.account_history_available, true);

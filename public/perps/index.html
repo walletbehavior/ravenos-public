@@ -13,10 +13,10 @@
   <main class="perps-workspace" data-route-slug="perps">
     <section class="perps-continuity" aria-live="polite">
       <div><span>Market</span><strong id="perpsMarketFreshness">Connecting</strong></div>
-      <div><span>Raven context</span><strong id="perpsContextState">Checking</strong></div>
-      <div><span>Projection</span><strong id="perpsDeliveryState">Checking</strong></div>
+      <div><span>Raven read</span><strong id="perpsContextState">Checking</strong></div>
+      <div><span>Decision history</span><strong id="perpsDeliveryState">Checking</strong></div>
       <div><span>Observed</span><strong id="perpsObservedAt">Awaiting timestamp</strong></div>
-      <p id="perpsContinuityMessage">Loading live venue facts and exact public Raven context independently.</p>
+      <p id="perpsContinuityMessage">Building the live Raven read from current Hyperliquid price, positioning, depth, and tape.</p>
     </section>
 
     <header class="perps-market-head">
@@ -39,8 +39,8 @@
         <div class="perps-chart-tools">
           <div class="perps-timeframes" id="perpsTimeframes" aria-label="Chart timeframe"></div>
           <div class="perps-chart-actions">
-            <button id="perpsRavenMarker" type="button" aria-pressed="false" disabled>Raven event unavailable</button>
-            <span id="perpsChartEventState">Exact event check pending</span>
+            <button id="perpsRavenMarker" type="button" aria-pressed="false" disabled>No retained event</button>
+            <span id="perpsChartEventState">Decision-history event check pending</span>
           </div>
         </div>
         <nav class="perps-mobile-panes" aria-label="Terminal pane">
@@ -53,15 +53,15 @@
 
       <aside class="perps-market-rail" aria-label="Selected instrument detail">
         <section class="perps-rail-section perps-raven-panel" data-perps-pane="raven">
-          <header><div><span>Exact decision context</span><h2 id="perpsReadHeadline">Raven Read forming</h2></div><span id="perpsEvidenceState">Checking evidence</span></header>
+          <header><div><span>Live exact-market intelligence</span><h2 id="perpsReadHeadline">Raven read forming</h2></div><span id="perpsEvidenceState">Checking live inputs</span></header>
           <div class="perps-raven-read" id="perpsRavenRead">
-            <p id="perpsReadSummary">Waiting for a public-safe context matched to this exact instrument.</p>
-            <div class="perps-why"><span>Why Raven noticed this</span><strong id="perpsWhy">Current context unavailable until verified.</strong></div>
+            <p id="perpsReadSummary">Reading current Hyperliquid price, funding, open interest, visible depth, and recent trade flow.</p>
+            <div class="perps-why"><span>What Raven sees now</span><strong id="perpsWhy">Current exact-market inputs are being joined.</strong></div>
             <dl class="perps-path-grid">
-              <div><dt>Behavior</dt><dd id="perpsPathFamily">--</dd></div>
-              <div><dt>Pressure</dt><dd id="perpsPathPressure">--</dd></div>
-              <div><dt>Observed side</dt><dd id="perpsPathSide">--</dd></div>
-              <div><dt>Observed friction</dt><dd id="perpsPathFriction">--</dd></div>
+              <div><dt>Setup</dt><dd id="perpsPathFamily">--</dd></div>
+              <div><dt>Flow</dt><dd id="perpsPathPressure">--</dd></div>
+              <div><dt>Bias</dt><dd id="perpsPathSide">--</dd></div>
+              <div><dt>Spread</dt><dd id="perpsPathFriction">--</dd></div>
             </dl>
             <div class="perps-read-columns">
               <div><span>Would strengthen</span><ul id="perpsStrengthen"><li>Awaiting exact context.</li></ul></div>
@@ -85,7 +85,7 @@
     </div>
 
     <section class="perps-evidence-deck" aria-label="Raven research evidence">
-      <article>
+      <article id="perpsComparablePanel">
         <header><div><span>Future-only validation</span><h2>Matured comparables</h2></div><strong id="perpsComparableMaturity">Forming</strong></header>
         <div class="perps-evidence-metrics">
           <div><span>Same-instrument paths</span><strong id="perpsComparableN">0</strong></div>
@@ -97,7 +97,7 @@
         <p id="perpsComparableNote">No matured same-instrument public sample is available yet.</p>
       </article>
 
-      <article>
+      <article id="perpsPlanPanel">
         <header><div><span>Similar paths</span><h2>Plan Preview</h2></div><strong id="perpsPlanState">Unavailable</strong></header>
         <div class="perps-evidence-metrics perps-plan-metrics">
           <div><span>Directional context</span><strong id="perpsPlanDirection">--</strong></div>
@@ -113,7 +113,7 @@
         <dl>
           <div><dt>Candles</dt><dd id="perpsProofCandles">Provider check pending</dd></div>
           <div><dt>Book + tape</dt><dd id="perpsProofMarket">Provider check pending</dd></div>
-          <div><dt>Raven context</dt><dd id="perpsProofContext">Projection check pending</dd></div>
+          <div><dt>Raven read</dt><dd id="perpsProofContext">Live input check pending</dd></div>
           <div><dt>Execution</dt><dd>Signing, submission, and position monitoring off</dd></div>
         </dl>
         <p>Participant addresses, transaction hashes, provider trade identifiers, private evidence, and proprietary parameters are not exposed.</p>

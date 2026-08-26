@@ -168,7 +168,7 @@ function exactListedTerminalHref(row, instrument) {
 }
 
 function spotPoolHref(row, timeframe = "1m", { launch = state.spotSort } = {}) {
-  const chain = text(row.chainId || row.chain, "solana").toLowerCase();
+  const chain = text(row.chainId || row.chain_id || row.chain, "solana").toLowerCase();
   const pairAddress = text(row.pairAddress || row.pool_address, "");
   const symbol = text(row.symbol, "");
   const quote = text(row.quoteSymbol || row.quote_symbol, "");
@@ -201,7 +201,7 @@ function sameTokenAddress(chain, left, right) {
 }
 
 function exactChartCandidates(row, results = []) {
-  const chain = text(row.chain, "solana").toLowerCase();
+  const chain = text(row.chain_id || row.chain, "solana").toLowerCase();
   const tokenAddress = text(row.token_address, "");
   return results
     .filter((candidate) => {
@@ -273,7 +273,7 @@ function setSpotLinkPending(anchor, pending) {
 }
 
 function resolveSpotChartCached(row) {
-  const key = `${text(row.chain, "solana").toLowerCase()}:${text(row.token_address, "")}`;
+  const key = `${text(row.chain_id || row.chain, "solana").toLowerCase()}:${text(row.token_address, "")}`;
   if (!state.spotResolution.has(key)) {
     state.spotResolution.set(key, resolveSpotChart(row).catch(() => null));
   }
@@ -292,8 +292,8 @@ async function primeSpotLink(anchor) {
 function configureSpotLink(anchor, row) {
   const previous = anchor.__ravenSpotRow;
   const sameToken = previous
-    && text(previous.chain, "").toLowerCase() === text(row.chain, "").toLowerCase()
-    && sameTokenAddress(text(row.chain, "").toLowerCase(), previous.token_address, row.token_address);
+    && text(previous.chain_id || previous.chain, "").toLowerCase() === text(row.chain_id || row.chain, "").toLowerCase()
+    && sameTokenAddress(text(row.chain_id || row.chain, "").toLowerCase(), previous.token_address, row.token_address);
   if (!sameToken) anchor.__ravenResolvedPool = null;
   anchor.__ravenSpotRow = row;
   anchor.href = terminalHref(row);
@@ -565,6 +565,11 @@ function spotTokenFingerprint(value) {
   return clean.length <= 13 ? clean : `${clean.slice(0, 5)}…${clean.slice(-4)}`;
 }
 
+function spotChainLabel(value) {
+  const chain = text(value, "").toLowerCase();
+  return chain === "robinhood" ? "Robinhood Chain" : title(chain, "On-chain");
+}
+
 function spotMarketAge(seconds) {
   const value = finite(seconds);
   if (value === null || value < 0) return "";
@@ -601,7 +606,7 @@ function spotRankedRows() {
     const age = finite(row.age_seconds);
     const liquidity = finite(row.market?.liquidity_usd);
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
-    return ["solana", "base", "ethereum"].includes(chain)
+    return ["solana", "base", "ethereum", "robinhood"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
       && (age === null || age <= 3_600)
       && liquidity !== null
@@ -760,7 +765,8 @@ function updateSpotTokenRow(anchor, row, index) {
     ? "Raven tracked"
     : row.source_type === "jupiter_velocity" ? "Jupiter velocity" : "";
   const venueBadge = /meteora/i.test(text(row.venue, "")) ? "Meteora" : "";
-  const sourceBadge = [trackedBy, venueBadge].filter(Boolean).join(" · ");
+  const chainBadge = text(row.chain_id || row.chain, "").toLowerCase() === "robinhood" ? "Robinhood velocity" : "";
+  const sourceBadge = [trackedBy, chainBadge, venueBadge].filter(Boolean).join(" · ");
   if (sourceBadge) append(name, "em", "discover-token-source-badge", sourceBadge);
   append(copy, "span", "discover-token-market-id", [
     text(row.chain, ""),
@@ -854,7 +860,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
   if (!ranked.length) {
     const empty = append(fragment, "div", "discover-token-empty", "");
     const copy = append(empty, "div", "", "");
-    const chain = state.spotChain === "all" ? "Pools" : `${title(state.spotChain)} pools`;
+    const chain = state.spotChain === "all" ? "Pools" : `${spotChainLabel(state.spotChain)} pools`;
     append(copy, "h3", "", `${chain} do not clear the current alpha gate`);
     append(copy, "p", "", state.spotSort === "velocity"
       ? `Nothing in the ${state.spotTimeframe} feed currently combines a compelling move with confirmed flow and usable depth.`
@@ -1060,7 +1066,7 @@ function createOpportunityRow(row) {
 
   const identity = append(anchor, "div", "discover-identity", "");
   identity.textContent = "";
-  append(identity, "span", "", atlas ? `${title(row.market_type)} · Atlas` : spot ? "Spot · Solana" : title(row.market_type));
+  append(identity, "span", "", atlas ? `${title(row.market_type)} · Atlas` : spot ? `Spot · ${spotChainLabel(row.chain_id || row.chain || "solana")}` : title(row.market_type));
   append(identity, "strong", "", spot ? text(row.symbol) : text(row.instrument));
   append(identity, "small", "", atlas
     ? `${text(row.instrument_contract?.market_identity?.listing, title(row.instrument_contract?.venue))} · exact listing`
@@ -1171,7 +1177,7 @@ function applyFilter() {
   perpPulse.hidden = !["signals", "perpetual"].includes(active);
   opportunityLayout.dataset.side = perpPulse.hidden ? "hidden" : "visible";
   const streamCopy = {
-    signals: ["Raven", "Raven signals", "Evidence-ranked setups with weak and decayed reads held below the live queue."],
+    signals: ["Raven", "Raven signals", "Evidence-ranked setups with secondary observations separated from the primary queue."],
     perpetual: ["Perpetuals", "Perp opportunities", "Raven setups beside the current Hyperliquid market tape."],
     equity: ["Atlas", "Listed-market context", "Exact stocks and ETFs with deeper research available in Atlas."],
   }[active] || ["Raven", "Current opportunities", "What changed, why it matters, and the market behind the read."];
@@ -1234,8 +1240,8 @@ function applyFilter() {
   const hiddenCount = Math.max(0, matching.length - Math.min(collapsedEligible.length, collapsedLimit));
   control.hidden = hasTokenTape || hasFeaturedEquities || hiddenCount <= 0;
   control.textContent = state.expanded
-    ? "Hide watch-only and decayed reads"
-    : `Review ${hiddenCount.toLocaleString()} lower-confidence or decayed ${hiddenCount === 1 ? "read" : "reads"}`;
+    ? "Hide secondary observations"
+    : `Review ${hiddenCount.toLocaleString()} secondary ${hiddenCount === 1 ? "read" : "reads"}`;
   const visibleCount = rows.filter((row) => !row.hidden).length;
   const surfaceCount = active === "spot"
     ? state.spotRows.length
@@ -1407,7 +1413,7 @@ function currentOnchainPulsePayload(payload) {
     );
     return sourceValid
       && row?.market_type === "spot"
-      && ["solana", "base", "ethereum"].includes(chain)
+      && ["solana", "base", "ethereum", "robinhood"].includes(chain)
       && row?.identity_scope === "exact_pool"
       && row?.instrument_id === `${chain}:pool:${text(row?.pool_address, "")}`
       && row?.token_address
@@ -1516,7 +1522,7 @@ async function refresh({ manual = false } = {}) {
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
-    json(`/api/onchain/trending?chains=solana,base,ethereum&duration=${encodeURIComponent(state.spotTimeframe)}`),
+    json(`/api/onchain/trending?chains=solana,base,ethereum,robinhood&duration=${encodeURIComponent(state.spotTimeframe)}`),
     json("/api/brief"),
   ]);
 
@@ -1747,7 +1753,8 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     marketCount: state.markets.size,
     spotCount: state.spotRows.length,
     solanaSpotCount: state.spotRows.filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "solana").length,
-    evmSpotCount: state.spotRows.filter((row) => ["base", "ethereum"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
+    evmSpotCount: state.spotRows.filter((row) => ["base", "ethereum", "robinhood"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
+    robinhoodSpotCount: state.spotRows.filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "robinhood").length,
     payoffCount: state.payoff?.insights?.length || 0,
     deskCardCount: state.deskFrame?.cards?.length || 0,
     lifecycleCounts: state.deskFrame?.lifecycle_counts || {},

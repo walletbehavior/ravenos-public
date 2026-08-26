@@ -173,28 +173,49 @@ test("Terminal adds a real public account ledger and selected-market position co
   expect(await page.evaluate((address) => Object.values(localStorage).some((value) => String(value).toLowerCase().includes(address.toLowerCase())), HYPERLIQUID_ACCOUNT_ADDRESS)).toBe(false);
 });
 
-test("Terminal can read a browser-wallet address without claiming verification or enabling execution", async ({ page }) => {
+test("Terminal connects and locally disconnects a browser-wallet address without requesting a signature or enabling execution", async ({ page }) => {
   await page.addInitScript((address) => {
+    const listeners = new Map();
+    globalThis.__emitTestWalletEvent = (event, payload) => {
+      for (const listener of listeners.get(event) || []) listener(payload);
+    };
     globalThis.ethereum = {
       request: async ({ method }) => method === "eth_requestAccounts" ? [address] : [],
+      on: (event, listener) => listeners.set(event, [...(listeners.get(event) || []), listener]),
     };
   }, HYPERLIQUID_ACCOUNT_ADDRESS);
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
-  await expect(page.locator("#terminalUseWallet")).toBeVisible();
-  await page.locator("#terminalUseWallet").click();
+  await expect(page.locator("#terminalWalletConnect")).toBeVisible();
+  await expect(page.locator("#terminalWalletConnect")).toHaveText("Connect wallet");
+  await page.evaluate((address) => globalThis.__emitTestWalletEvent("accountsChanged", [address]), HYPERLIQUID_ACCOUNT_ADDRESS);
+  await expect(page.locator("#terminalAccountAddress")).toHaveValue("");
+  await page.locator("#terminalWalletConnect").click();
   await expect(page.locator("#terminalAccountAddress")).toHaveValue(HYPERLIQUID_ACCOUNT_ADDRESS);
-  await expect(page.locator("#terminalAccountStatus")).toContainText("public observation only · not verified or linked");
+  await expect(page.locator("#terminalAccountStatus")).toContainText("wallet connected · public Hyperliquid account loaded · no signature requested");
+  await expect(page.locator("#terminalWalletConnect")).toHaveText("Disconnect view");
+  await expect(page.locator("#terminalUseWallet")).toHaveText("Disconnect view");
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.walletTransportConnected).toBe(true);
+  expect(state.walletAddressConnected).toBe(true);
   expect(state.walletVerified).toBe(false);
   expect(state.walletLinked).toBe(false);
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
   expect(new URL(page.url()).searchParams.has("address")).toBe(false);
   expect(await page.evaluate((address) => Object.values(localStorage).some((value) => String(value).toLowerCase().includes(address.toLowerCase())), HYPERLIQUID_ACCOUNT_ADDRESS)).toBe(false);
+
+  await page.locator("#terminalWalletConnect").click();
+  await expect(page.locator("#terminalAccountAddress")).toHaveValue("");
+  await expect(page.locator("#terminalWalletConnect")).toHaveText("Connect wallet");
+  await expect(page.locator("#terminalAccountStatus")).toContainText("no wallet permission was retained");
+  await expect(page.locator("#terminalAccountLedger")).toContainText("No signature, approval, or order permission is requested");
+  const disconnected = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(disconnected.walletTransportConnected).toBe(false);
+  expect(disconnected.walletAddressConnected).toBe(false);
+  expect(disconnected.publicAccountObserved).toBe(false);
 });
 
 test("mobile Terminal uses focused Chart, Trade, Book, Raven, and Account panes without horizontal overflow", async ({ page }) => {

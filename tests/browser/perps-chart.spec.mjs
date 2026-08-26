@@ -85,6 +85,33 @@ async function installPerpsMocks(page, { chartRequests = [] } = {}) {
       tape: { trades: [{ observed_at: new Date().toISOString(), book_side: "bid", price: 150.12, size: 4.2, notional_usd: 630.5 }], privacy: { participant_addresses_removed: true, transaction_hashes_removed: true, provider_trade_ids_removed: true } },
       components: { market: "fresh", book: "fresh", tape: "fresh" },
     },
+    live_market_read: {
+      schema_version: "ravenos.perp_live_read.v1",
+      role: "live_market_read",
+      state: "current",
+      source: "hyperliquid_public_api",
+      instrument_id: "hyperliquid:perp:SOL",
+      instrument: "SOL-PERP",
+      observed_at: new Date().toISOString(),
+      signal_state: "upside_confirmed",
+      directional_bias: "long",
+      setup_label: "Upside pressure confirmed",
+      flow_label: "Bid depth + buyer tape",
+      headline: "SOL-PERP · Upside pressure confirmed",
+      summary: "+2.25% 24h · 18% bid depth skew · 68% buyer-initiated tape · +0.0010% funding · $179M OI",
+      why_raven_noticed: "Current price, visible depth, and recent trade flow lean upward.",
+      what_would_strengthen: ["Buyer-initiated tape remains above 55% while bid depth holds."],
+      what_would_weaken: ["Buyer tape loses the majority or visible bids pull."],
+      evidence_score: 90,
+      evidence_grade: "A",
+      input_count: 6,
+      input_total: 6,
+      market_facts: { spread_bps: 2.664, recent_buy_share: 0.68, visible_book_imbalance_pct: 18 },
+      research_only: true,
+      actionable: false,
+      signing_available: false,
+      submission_available: false,
+    },
     raven_context: {
       public_context_id: "perpctx_public_fixture",
       instrument_id: "hyperliquid:perp:SOL",
@@ -105,6 +132,25 @@ async function installPerpsMocks(page, { chartRequests = [] } = {}) {
     matured_comparables: { sample_size: 12, evidence_maturity: "forming", median_observed_change_pct: 1.1, median_favorable_excursion_pct: 2.4, median_adverse_excursion_pct: -0.9, positive_followthrough_rate: 0.5833, matured_through: new Date().toISOString() },
     plan_preview: { state: "research_only", directional_context: "long", reference_price: 146.4, review_horizon: "24h research window", sample_size: 12, evidence_maturity: "forming", production_qualified: false, personalized: false, executable: false, execution_available: false, note: "Historical excursions are context, not target or stop instructions." },
     chart_event: { event_id: "perpctx_public_fixture", instrument_id: "hyperliquid:perp:SOL", observed_at: new Date(1_800_100_000 * 1000).toISOString(), lineage: { public_context_id: "perpctx_public_fixture" } },
+    chart_overlays: {
+      schema_version: "ravenos.chart_overlays.v1",
+      instrument_id: "hyperliquid:perp:SOL",
+      role: "annotation_only",
+      candle_replacement_allowed: false,
+      overlays: [{
+        schema_version: "ravenos.chart_overlay.v1",
+        id: "hyperliquid:perp:SOL:book:bid",
+        instrument_id: "hyperliquid:perp:SOL",
+        type: "liquidity-zone",
+        label: "Visible bid liquidity",
+        summary: "$450,000 is visible across the nearest bid levels.",
+        severity: "success",
+        priceMin: 150.05,
+        priceMax: 150.10,
+        observed_at: new Date().toISOString(),
+        freshness_state: "live",
+      }],
+    },
     execution: { mode: "read_only", signing_available: false, submission_available: false, position_monitoring_available: false },
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
   }) }));
@@ -121,7 +167,11 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   expect(workspace.candleCount).toBeGreaterThan(79);
   expect(workspace.connectionState).toBe("live");
   expect(workspace.tapeCount).toBeGreaterThan(0);
-  expect(workspace.contextState).toBe("fresh");
+  expect(workspace.contextState).toBe("current");
+  expect(workspace.liveReadState).toBe("current");
+  expect(workspace.liveReadSignal).toBe("upside_confirmed");
+  expect(workspace.liveReadInputCount).toBe(6);
+  expect(workspace.decisionHistoryState).toBe("fresh");
   expect(workspace.deliveryState).toBe("fresh");
   expect(workspace.comparableSample).toBe(12);
   expect(workspace.planExecutable).toBe(false);
@@ -135,13 +185,86 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   await expect(page.locator("#perpsFunding")).toContainText("0.0012%");
   await expect(page.locator("#perpsBookState")).toHaveText("2 levels / side");
   await expect(page.locator(".rpw-trade-buy")).toContainText("BUY");
-  await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Compression release");
+  await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Upside pressure confirmed");
+  await expect(page.locator("#perpsReadSummary")).toContainText("68% buyer-initiated tape");
+  await expect(page.locator("#perpsEvidenceState")).toHaveText("Current · 6/6 live inputs · A90");
+  await expect(page.locator("#perpsDeliveryState")).toHaveText("Attached");
+  await expect(page.locator("#perpsPathPressure")).toHaveText("Bid depth + buyer tape");
+  await expect(page.locator("#perpsPathSide")).toHaveText("Upside");
+  await expect(page.locator("#perpsRavenRead")).not.toContainText(/lower.confidence|decayed|unavailable/i);
   await expect(page.locator("#perpsComparableN")).toHaveText("12");
   await expect(page.locator("#perpsPlanState")).toHaveText("Research only");
   await expect(page.getByText("Signing, submission, and position monitoring off", { exact: true })).toBeVisible();
   await expect(page.locator("[data-ravenos-build-id]")).not.toHaveText("pending");
   await expect(page.locator("#perpsRavenMarker")).toBeEnabled();
   await expect(page.locator("#perpsRavenMarker")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("perps workspace keeps a current Raven read when no retained decision history is attached", async ({ page }) => {
+  await installPerpsMocks(page);
+  await page.unroute("**/api/perps/instrument**");
+  await page.route("**/api/perps/instrument**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      schema_version: "ravenos.perp_terminal_context.v1",
+      instrument: { instrument_id: "hyperliquid:perp:SOL", instrument: "SOL-PERP", symbol: "SOL", venue: "hyperliquid", market_type: "perpetual", instrument_scope: "exact_instrument" },
+      market_data: {
+        ok: true,
+        generated_at: new Date().toISOString(),
+        market: { mark_price: 149.16, oracle_price: 149.10, funding_rate: 0.00001, open_interest_usd: 179_000_000, day_notional_volume_usd: 80_000_000, previous_day_price: 147 },
+        book: { bids: [{ price: 150.10, size: 18, order_count: 5 }], asks: [{ price: 150.14, size: 12, order_count: 4 }], summary: { best_bid: 150.10, best_ask: 150.14, spread_bps: 2.664, imbalance_pct: 20 } },
+        tape: { trades: [{ observed_at: new Date().toISOString(), book_side: "bid", price: 150.12, size: 4.2, notional_usd: 630.5 }] },
+        components: { market: "fresh", book: "fresh", tape: "fresh" },
+      },
+      raven_context: { instrument_id: "hyperliquid:perp:SOL", instrument: "SOL-PERP", context_available: false, context_state: "unavailable", outcomes: {}, friction_context: {} },
+      live_market_read: {
+        schema_version: "ravenos.perp_live_read.v1",
+        role: "live_market_read",
+        state: "current",
+        source: "hyperliquid_public_api",
+        instrument_id: "hyperliquid:perp:SOL",
+        instrument: "SOL-PERP",
+        observed_at: new Date().toISOString(),
+        signal_state: "upside_confirmed",
+        directional_bias: "long",
+        setup_label: "Upside pressure confirmed",
+        flow_label: "Bid depth + buyer tape",
+        headline: "SOL-PERP · Upside pressure confirmed",
+        summary: "+1.47% 24h · 20% bid depth skew · 100% buyer-initiated tape · +0.0010% funding · $179M OI",
+        why_raven_noticed: "Current price, visible depth, and recent trade flow lean upward.",
+        what_would_strengthen: ["Buyer-initiated tape remains above 55% while bid depth holds."],
+        what_would_weaken: ["Buyer tape loses the majority or visible bids pull."],
+        evidence_score: 88,
+        evidence_grade: "A",
+        input_count: 6,
+        input_total: 6,
+        market_facts: { spread_bps: 2.664 },
+      },
+      raven_read: { role: "live_market_read", state: "current", headline: "SOL-PERP · Upside pressure confirmed", summary: "+1.47% 24h · 20% bid depth skew · 100% buyer-initiated tape", why_raven_noticed: "Current price, visible depth, and recent trade flow lean upward.", what_would_strengthen: ["Buyer tape persists."], what_would_weaken: ["Visible bids pull."] },
+      decision_history_read: null,
+      matured_comparables: {},
+      plan_preview: { state: "unavailable", executable: false },
+      chart_event: null,
+      chart_overlays: { schema_version: "ravenos.chart_overlays.v1", instrument_id: "hyperliquid:perp:SOL", role: "annotation_only", candle_replacement_allowed: false, overlays: [] },
+      execution: { mode: "read_only", signing_available: false, submission_available: false, position_monitoring_available: false },
+      delivery: { source: "unavailable", freshness_state: "unavailable", fallback: false },
+    }),
+  }));
+  await page.goto("/perps/");
+  await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().liveReadState === "current");
+
+  await expect(page.locator("#perpsContextState")).toHaveText("Current");
+  await expect(page.locator("#perpsDeliveryState")).toHaveText("Not attached");
+  await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Upside pressure confirmed");
+  await expect(page.locator("#perpsContinuityMessage")).toContainText("No retained decision history is required");
+  await expect(page.locator("#perpsRavenRead")).not.toContainText(/lower.confidence|decayed|unknown|unavailable/i);
+  await expect(page.locator("#perpsComparablePanel")).toBeHidden();
+  await expect(page.locator("#perpsPlanPanel")).toBeHidden();
+  await expect(page.locator(".perps-evidence-deck")).toHaveAttribute("data-history", "0");
+  await expect(page.locator("#perpsRavenMarker")).toBeDisabled();
+  await expect(page.locator("#perpsRavenMarker")).toHaveText("No retained event");
 });
 
 test("perps workspace remains usable on a narrow mobile viewport", async ({ page }) => {

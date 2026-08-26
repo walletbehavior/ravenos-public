@@ -51,6 +51,7 @@
       </label>
       <div class="terminal-resolved-control"><span>Resolved market</span><strong id="terminalVenueLabel">Hyperliquid</strong><small id="terminalCapabilityLabel">Perpetual · USDC collateral</small></div>
       <div class="terminal-actions">
+        <button type="button" id="terminalWalletConnect" hidden>Connect wallet</button>
         <button type="button" id="terminalReadTrigger" hidden>Raven Read</button>
         <a id="terminalDeepLink" href="/perps/">Market depth</a>
       </div>
@@ -363,7 +364,7 @@
             <label class="sr-only" for="terminalAccountAddress">Hyperliquid public address</label>
             <input id="terminalAccountAddress" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Hyperliquid 0x address" aria-describedby="terminalAccountStatus" />
             <div class="terminal-account-form-actions">
-              <button type="button" id="terminalUseWallet" hidden>Use wallet</button>
+              <button type="button" id="terminalUseWallet" hidden>Connect wallet</button>
               <button type="submit">Load account</button>
             </div>
           </form>

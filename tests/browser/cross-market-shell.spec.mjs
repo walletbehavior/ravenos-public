@@ -63,6 +63,8 @@ const basePulseQuote = "0x3333333333333333333333333333333333333333";
 const ethereumPulsePool = "0x4444444444444444444444444444444444444444";
 const ethereumPulseToken = "0x5555555555555555555555555555555555555555";
 const ethereumPulseQuote = "0x6666666666666666666666666666666666666666";
+const robinhoodPulsePool = "0x602633428507BBAA848E6D0c3127cda15eEAE6a9";
+const robinhoodPulseQuote = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 const solanaPulsePool = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx";
 const solanaPulseToken = "So11111111111111111111111111111111111111112";
 const solanaPulseQuote = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -177,7 +179,7 @@ function onchainPulsePayload(rows = []) {
     state: "current",
     freshness: { state: "current", observed_at: "2026-07-21T12:20:00Z", expected_update_seconds: 30 },
     duration: "5m",
-    chains: ["solana", "base", "ethereum"],
+    chains: [...new Set(rows.map((row) => row.chain_id).filter(Boolean))],
     rows,
     unavailable: [],
     provenance: {
@@ -192,6 +194,7 @@ function onchainPulsePayload(rows = []) {
       raven_tracked: false,
       jupiter_velocity: hasJupiterVelocity,
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
+      robinhood_velocity: rows.some((row) => row.chain_id === "robinhood"),
     },
     execution_boundary: { research_only: true, signing_available: false, submission_available: false },
   };
@@ -308,6 +311,54 @@ const solanaPulseRow = {
     liquidity_usd: 186_000,
     market_cap_usd: 420_000,
   },
+};
+
+const robinhoodPulseRow = {
+  public_attention_id: `market:robinhood:${robinhoodPulsePool}`,
+  instrument_id: `robinhood:pool:${robinhoodPulsePool}`,
+  source_type: "market_activity",
+  discovery_source: "coingecko_robinhood_trending",
+  market_type: "spot",
+  chain: "Robinhood Chain",
+  chain_id: "robinhood",
+  venue: "Uniswap V3",
+  identity_scope: "exact_pool",
+  symbol: "RUNNER",
+  name: "The Runner",
+  token_address: ROBINHOOD_CONTRACT,
+  quote_token_address: robinhoodPulseQuote,
+  quote_symbol: "WETH",
+  pool_address: robinhoodPulsePool,
+  observed_at: "2026-07-21T12:20:00Z",
+  age_seconds: 0,
+  context_state: "current",
+  movement_state: "Rising activity",
+  what_changed: "Price rose 1.80% over 5m · 204 buys · 73 sells · $96K volume.",
+  risk: "Moderate depth; exact-pool flow is current.",
+  provider_rank: 1,
+  ranking_duration: "5m",
+  market: {
+    price_usd: 0.0003219,
+    price_change_5m_pct: 1.8,
+    price_change_1h_pct: 14.2,
+    price_change_24h_pct: 32.4,
+    volume_usd_5m: 96_000,
+    volume_usd_1h: 448_000,
+    volume_usd_24h: 2_100_000,
+    buys_5m: 204,
+    sells_5m: 73,
+    buys_1h: 880,
+    sells_1h: 410,
+    buys_24h: 4_200,
+    sells_24h: 2_100,
+    liquidity_usd: 350_000,
+    market_cap_usd: 321_900,
+    market_age_seconds: 9 * 86_400,
+  },
+  inspection: { state: "exact_pool_ready", silent_pool_selection: false },
+  research_only: true,
+  actionable: false,
+  execution_available: false,
 };
 
 const jupiterVelocityRow = {
@@ -629,7 +680,7 @@ test("Discover holds directionless evidence below the setup queue without placeh
   await expect(row).toHaveAttribute("data-lifecycle", "watch");
   await expect(row).toBeHidden();
   await expect(page.locator(".discover-filter-empty")).toContainText("No active setups clear Raven's lifecycle gate");
-  await page.getByRole("button", { name: "Review 1 lower-confidence or decayed read" }).click();
+  await page.getByRole("button", { name: "Review 1 secondary read" }).click();
   await expect(row).toBeVisible();
   await expect(row.locator(".discover-opportunity-meta")).toContainText(/Watch.*Watch only/s);
   await expect(row).not.toContainText(/unknown|unavailable/i);
@@ -707,7 +758,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
-  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum"]);
+  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum", "Robinhood"]);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
@@ -862,6 +913,35 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await page.setViewportSize({ width: 390, height: 844 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Discover promotes qualified Robinhood Chain flow and opens the same exact pool in Terminal", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await mockWorkspaceApis(page, { pulseRowsOverride: [robinhoodPulseRow] });
+  await page.goto("/discover/");
+
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().robinhoodSpotCount)).toBe(1);
+  await page.locator("[data-spot-chain='robinhood']").click();
+  const row = page.locator(".discover-token-row");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("RUNNER");
+  await expect(row).toContainText("Robinhood velocity");
+  await expect(row).toContainText("Robinhood Chain · Uniswap V3");
+  await expect(row).toContainText("+1.80%");
+  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*74% buy-side.*3\/3 windows aligned/s);
+  await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=robinhood%3Apool%3A${robinhoodPulsePool}`, "i"));
+  await expect(row).toHaveAttribute("href", /launch=velocity/);
+  await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
+
+  await row.click();
+  await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1m" });
+  await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
+  const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(terminal.candleCount).toBeGreaterThanOrEqual(80);
+  expect(terminal.signingAvailable).toBe(false);
+  expect(terminal.submissionAvailable).toBe(false);
 });
 
 test("Discover restores live Solana pools when Raven's private attention feed has no rows", async ({ page }) => {

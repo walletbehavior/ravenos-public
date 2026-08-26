@@ -163,6 +163,29 @@ test("velocity alpha rewards confirmed multi-window flow instead of price moveme
   assert.match(divergent.label, /divergence/i);
 });
 
+test("Robinhood velocity admits an early flow breakout only when participation and depth confirm it", () => {
+  const robinhood = pool({
+    chain_id: "robinhood",
+    source_type: "market_activity",
+    provider_rank: 1,
+  });
+  robinhood.market.price_change_5m_pct = 1.8;
+  const read = spotVelocityRead(robinhood, "5m");
+  assert.equal(read.qualified, true);
+  assert.equal(read.admission_reason, "robinhood_flow_breakout");
+  assert.equal(read.flow_aligned, true);
+  assert.ok(read.flow.transaction_count >= 80);
+
+  const unconfirmed = structuredClone(robinhood);
+  unconfirmed.market.buys_5m = 12;
+  unconfirmed.market.sells_5m = 9;
+  unconfirmed.market.buyers_5m = 10;
+  unconfirmed.market.sellers_5m = 8;
+  const rejected = spotVelocityRead(unconfirmed, "5m");
+  assert.equal(rejected.qualified, false);
+  assert.equal(rejected.admission_reason, "below_interest_gate");
+});
+
 test("velocity alpha labels chase risk and omits fragile pools from qualification", () => {
   const extended = pool();
   extended.market.price_change_5m_pct = 42;

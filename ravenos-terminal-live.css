@@ -82,6 +82,7 @@ button, input, select { font: inherit; }
 .terminal-actions a,
 .terminal-actions button { display: grid; place-content: center; min-width: 106px; border: 0; padding: 0 11px; background: var(--terminal-surface); color: var(--terminal-text); font-size: 10px; text-align: center; text-decoration: none; }
 .terminal-actions button { color: var(--terminal-accent); }
+.terminal-actions #terminalWalletConnect[data-connected="true"] { color: var(--terminal-positive); }
 .terminal-actions a:hover,
 .terminal-actions button:hover { background: var(--terminal-raised); }
 
@@ -244,6 +245,7 @@ button, input, select { font: inherit; }
 .terminal-account-form-actions button { white-space: nowrap; }
 .terminal-account-form-actions #terminalUseWallet { border-color: rgba(143, 164, 186, .34); background: rgba(143, 164, 186, .08); color: var(--terminal-text); }
 .terminal-account-form-actions #terminalUseWallet:hover { background: rgba(143, 164, 186, .14); }
+.terminal-account-form-actions #terminalUseWallet[data-connected="true"] { border-color: rgba(63, 185, 130, .38); background: rgba(63, 185, 130, .1); color: #dff8eb; }
 .terminal-account-head input { min-width: 0; min-height: 31px; border: 1px solid var(--terminal-line); border-radius: 3px; outline: 0; background: #080c12; color: var(--terminal-text); padding: 0 8px; font: 650 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-account-head input:focus { border-color: rgba(143, 164, 186, .58); }
 .terminal-account-head button { min-height: 31px; border: 1px solid rgba(63, 185, 130, .38); border-radius: 3px; background: rgba(63, 185, 130, .12); color: #dff8eb; padding: 0 11px; cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
@@ -606,7 +608,8 @@ button, input, select { font: inherit; }
   .terminal-market-rail { height: 310px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .terminal-controls { grid-template-columns: minmax(220px, 1fr) 90px minmax(160px, .7fr); }
   .terminal-actions { grid-column: 1 / -1; }
-  .terminal-actions a { min-height: 34px; flex: 1; }
+  .terminal-actions a,
+  .terminal-actions button { min-height: 34px; flex: 1; }
   .terminal-market-head { grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(90px, 1fr)); }
   .terminal-market-head > div:nth-child(4) { border-right: 0; }
   .terminal-market-head > div:nth-child(-n+4) { border-bottom: 1px solid var(--terminal-line); }

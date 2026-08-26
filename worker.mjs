@@ -100,24 +100,26 @@ const LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED = false;
 const DEFAULT_RAVENOS_SPOT_CHART_ORIGIN_URL = "https://ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-const EVM_CHAINS = ["base", "ethereum", "arbitrum", "optimism", "bsc", "polygon"];
-const QUOTE_RANK = { USDC: 90, USDT: 85, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
+const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon"];
+const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
   solana: { aliases: ["solana"], label: "Solana" },
   base: { aliases: ["base"], label: "Base" },
   ethereum: { aliases: ["eth", "ethereum"], label: "Ethereum" },
+  robinhood: { aliases: ["robinhood"], label: "Robinhood Chain" },
 };
 const ONCHAIN_PULSE_NETWORKS = Object.freeze({
   solana: Object.freeze({ provider_network: "solana", label: "Solana" }),
   base: Object.freeze({ provider_network: "base", label: "Base" }),
   ethereum: Object.freeze({ provider_network: "eth", label: "Ethereum" }),
+  robinhood: Object.freeze({ provider_network: "robinhood", label: "Robinhood Chain" }),
 });
 const ONCHAIN_PULSE_DURATIONS = Object.freeze({
   "5m": "m5",
   "1h": "h1",
   "24h": "h24",
 });
-const STABLE_TOKEN_SYMBOLS = new Set(["USDC", "USDT", "DAI", "USDE", "USDS", "FDUSD", "USDBC"]);
+const STABLE_TOKEN_SYMBOLS = new Set(["USDC", "USDT", "USDG", "DAI", "USDE", "USDS", "FDUSD", "USDBC"]);
 const EXACT_TRADITIONAL_INSTRUMENTS = Object.freeze({
   SPY: Object.freeze({ instrument_id: "etf:nyse-arca:spy", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
   QQQ: Object.freeze({ instrument_id: "etf:nasdaq:qqq", instrument_type: "etf", venue: "nasdaq", listing: "Nasdaq Stock Market" }),
@@ -742,7 +744,7 @@ async function hyperliquidInstrument(coinInput) {
   const book = bookResult.status === "fulfilled" ? normalizeHyperliquidBook(bookResult.value) : null;
   const tape = tradesResult.status === "fulfilled" ? normalizeHyperliquidTrades(tradesResult.value) : null;
   const payload = {
-    ok: Boolean(book || tape),
+    ok: true,
     schema_version: "ravenos.hyperliquid.instrument.v1",
     generated_at: new Date().toISOString(),
     instrument: {
@@ -2367,6 +2369,7 @@ function normalizeGeckoTrendingPool(payload, row, {
     public_attention_id: `market:${chain}:${poolAddress}`,
     instrument_id: `${chain}:pool:${poolAddress}`,
     source_type: "market_activity",
+    discovery_source: chain === "robinhood" ? "coingecko_robinhood_trending" : "coingecko_trending_pools",
     market_type: "spot",
     chain: chainLabel,
     chain_id: chain,
@@ -2415,12 +2418,12 @@ function normalizeGeckoTrendingPool(payload, row, {
 }
 
 function parseOnchainPulseChains(value) {
-  const requested = String(value || "solana,base,ethereum")
+  const requested = String(value || "solana,base,ethereum,robinhood")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   if (!requested.length || requested.some((chain) => !ONCHAIN_PULSE_NETWORKS[chain])) return null;
-  return [...new Set(requested)].slice(0, 3);
+  return [...new Set(requested)].slice(0, 4);
 }
 
 function jupiterVelocityStats(token = {}, duration = "5m") {
@@ -2671,6 +2674,7 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
       raven_tracked: false,
       jupiter_velocity: jupiterRows.length > 0,
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
+      robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
     },
     execution_boundary: {
       research_only: true,
@@ -4357,6 +4361,10 @@ function handleTradeFlags(env = {}) {
     order_plan_types: ["market", "limit", "trigger"],
     public_account_view_available: true,
     public_account_view_venues: ["hyperliquid"],
+    browser_wallet_connection_available: true,
+    wallet_connection_scope: "public_address_observation_only",
+    wallet_signature_requested: false,
+    wallet_connection_persisted: false,
     account_scenario_available: true,
     account_scenario_venues: ["hyperliquid"],
     account_history_available: true,

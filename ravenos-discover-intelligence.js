@@ -236,7 +236,10 @@ export function spotVelocityRead(row = {}, timeframe = "5m") {
   const jupiterOrganicScore = finite(row.jupiter?.organic_score);
   if (row.source_type === "jupiter_velocity") score += jupiterOrganicScore === null ? 4 : clamp(jupiterOrganicScore / 12, 2, 8);
   if (row.source_type === "raven_spot_attention") score += 6;
-  if (/meteora/i.test(String(row.venue || "")) && String(row.chain_id || row.chain || "").toLowerCase() === "solana") score += 3;
+  const chain = String(row.chain_id || row.chain || "").toLowerCase();
+  if (/meteora/i.test(String(row.venue || "")) && chain === "solana") score += 3;
+  const providerRank = finite(row.provider_rank);
+  if (chain === "robinhood" && row.source_type === "market_activity" && providerRank !== null && providerRank <= 5) score += 4;
   if (chaseRisk) score -= 10;
   score = Math.round(Math.min(health.scoreCap, clamp(score, 0, 99)));
 
@@ -265,6 +268,7 @@ export function spotVelocityRead(row = {}, timeframe = "5m") {
   const interestThreshold = timeframe === "5m" ? 5 : timeframe === "1h" ? 10 : 25;
   const trackedLane = row.source_type === "raven_spot_attention"
     || row.source_type === "jupiter_velocity"
+    || chain === "robinhood"
     || /meteora|jupiter/i.test(String(row.venue || ""));
   const compellingMove = magnitude !== null && magnitude >= interestThreshold;
   const trackedException = trackedLane
@@ -276,6 +280,15 @@ export function spotVelocityRead(row = {}, timeframe = "5m") {
     && magnitude >= interestThreshold * 0.7
     && flowAligned
     && flow.score >= 68
+    && confirmedWindows >= 2;
+  const robinhoodParticipationException = chain === "robinhood"
+    && magnitude !== null
+    && magnitude >= interestThreshold * 0.3
+    && flowAligned
+    && flow.score >= 68
+    && finite(flow.transaction_count) >= 80
+    && turnover !== null
+    && turnover >= 0.025
     && confirmedWindows >= 2;
   const sideLabel = buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`;
   const headline = [
@@ -305,7 +318,7 @@ export function spotVelocityRead(row = {}, timeframe = "5m") {
       && liquidity > 0
       && !["inactive", "fragile"].includes(health.state)
       && score >= 42
-      && (compellingMove || trackedException || participationException),
+      && (compellingMove || trackedException || participationException || robinhoodParticipationException),
     direction,
     movement_pct: movement,
     flow_aligned: flowAligned,
@@ -313,7 +326,13 @@ export function spotVelocityRead(row = {}, timeframe = "5m") {
     confirmed_windows: confirmedWindows,
     chase_risk: chaseRisk,
     tracked_lane: trackedLane,
-    admission_reason: compellingMove ? "compelling_move" : trackedException ? "tracked_flow_exception" : participationException ? "exceptional_participation" : "below_interest_gate",
+    admission_reason: compellingMove
+      ? "compelling_move"
+      : robinhoodParticipationException
+        ? "robinhood_flow_breakout"
+        : trackedException
+          ? "tracked_flow_exception"
+          : participationException ? "exceptional_participation" : "below_interest_gate",
     interest_threshold_pct: interestThreshold,
     buy_share: buyShare,
     turnover_ratio: turnover,

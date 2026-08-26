@@ -154,6 +154,10 @@ if (
   || !["market", "limit", "trigger"].every((orderType) => flags?.order_plan_types?.includes(orderType))
   || flags?.public_account_view_available !== true
   || !flags?.public_account_view_venues?.includes("hyperliquid")
+  || flags?.browser_wallet_connection_available !== true
+  || flags?.wallet_connection_scope !== "public_address_observation_only"
+  || flags?.wallet_signature_requested !== false
+  || flags?.wallet_connection_persisted !== false
   || flags?.account_scenario_available !== true
   || !flags?.account_scenario_venues?.includes("hyperliquid")
   || flags?.account_history_available !== true
@@ -164,6 +168,59 @@ if (
 ) {
   throw new Error("Customer execution boundary is not read-only and non-signing");
 }
+
+const perpsUniverseCapture = await capture("/api/hyperliquid/perps");
+const perpsUniverse = JSON.parse(perpsUniverseCapture.text);
+const perpsProjectionCapture = await capture("/api/perps");
+const perpsProjection = JSON.parse(perpsProjectionCapture.text);
+const retainedPerpInstruments = new Set(
+  (perpsProjection?.data?.instrument_context?.rows || [])
+    .map((row) => String(row?.instrument || "").trim().toUpperCase())
+    .filter(Boolean),
+);
+const liveReadCandidate = (perpsUniverse?.results || []).find((row) => (
+  row?.symbol
+  && !retainedPerpInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
+  && Number(row.mark_price) > 0
+  && row.funding_rate !== null
+  && row.open_interest_usd !== null
+  && row.day_notional_volume_usd !== null
+)) || null;
+if (!liveReadCandidate) {
+  throw new Error("Hyperliquid universe has no exact market outside retained Raven decision history");
+}
+const livePerpCapture = await capture(`/api/perps/instrument?symbol=${encodeURIComponent(liveReadCandidate.symbol)}`);
+const livePerp = JSON.parse(livePerpCapture.text);
+if (
+  livePerp?.ok !== true
+  || livePerp?.instrument?.instrument_id !== liveReadCandidate.instrument_id
+  || livePerp?.instrument?.instrument_scope !== "exact_instrument"
+  || livePerp?.market_data?.components?.market !== "fresh"
+  || livePerp?.live_market_read?.schema_version !== "ravenos.perp_live_read.v1"
+  || livePerp?.live_market_read?.role !== "live_market_read"
+  || livePerp?.live_market_read?.source !== "hyperliquid_public_api"
+  || livePerp?.live_market_read?.state !== "current"
+  || Number(livePerp?.live_market_read?.input_count) < 4
+  || !livePerp?.live_market_read?.signal_state
+  || !livePerp?.live_market_read?.observed_at
+  || livePerp?.raven_read?.role !== "live_market_read"
+  || livePerp?.raven_context?.context_available !== false
+  || livePerp?.decision_history_read !== null
+  || livePerp?.live_market_read?.research_only !== true
+  || livePerp?.live_market_read?.actionable !== false
+  || livePerp?.live_market_read?.signing_available !== false
+  || livePerp?.live_market_read?.submission_available !== false
+  || livePerp?.execution?.signing_available !== false
+  || livePerp?.execution?.submission_available !== false
+) {
+  throw new Error("Exact Hyperliquid market without retained decision history did not receive a current live Raven read");
+}
+const livePerpNoLeakFindings = scanJsonValue(livePerp, "preview:/api/perps/instrument:live-read");
+if (livePerpNoLeakFindings.length) {
+  const fields = livePerpNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Live Hyperliquid Raven read failed the public no-leak gate: ${fields}`);
+}
+
 const marketPreviewCapture = await capture("/api/trade/market-preview", {
   method: "POST",
   body: {
@@ -486,7 +543,7 @@ if (
   throw new Error(`Isolated preview did not return the exact keyed CoinGecko ${expectedChartPlan || "configured"} one-minute chart contract`);
 }
 
-const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,ethereum&duration=5m");
+const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m");
 const onchainPulse = JSON.parse(onchainPulseCapture.text);
 const onchainPulseFindings = scanJsonValue(onchainPulse, "preview:/api/onchain/trending");
 if (onchainPulseFindings.length) {
@@ -504,14 +561,14 @@ if (
 ) {
   throw new Error("Isolated preview on-chain market pulse contract is incomplete");
 }
-const evmChartRows = ["base", "ethereum"].map((chain) => onchainPulse.rows.find((row) => (
+const evmChartRows = ["base", "ethereum", "robinhood"].map((chain) => onchainPulse.rows.find((row) => (
   row?.chain_id === chain
   && row?.identity_scope === "exact_pool"
   && row?.source_type === "market_activity"
   && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
 )));
 if (evmChartRows.some((row) => !row)) {
-  throw new Error("Isolated preview did not return exact-pool Base and Ethereum activity");
+  throw new Error("Isolated preview did not return exact-pool Base, Ethereum, and Robinhood Chain activity");
 }
 for (const row of evmChartRows) {
   const params = new URLSearchParams({
@@ -661,6 +718,13 @@ const report = {
   onchain_market_pulse: {
     chains: evmChartRows.map((row) => row.chain_id),
     exact_pool_charts_verified: evmChartRows.length,
+  },
+  live_perp_read: {
+    instrument_id: livePerp.instrument.instrument_id,
+    state: livePerp.live_market_read.state,
+    signal_state: livePerp.live_market_read.signal_state,
+    input_count: livePerp.live_market_read.input_count,
+    retained_decision_history: false,
   },
   jupiter_velocity_terminal: jupiterVelocityTerminal,
   atlas_universe: {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPerpTerminalContext } from "../lib/perp_terminal_context.mjs";
+import { buildLivePerpRead, buildPerpTerminalContext } from "../lib/perp_terminal_context.mjs";
 import { createEvidenceBoundPlanPreview } from "../lib/customer_trade/suggested_plan.mjs";
 
 const context = {
@@ -70,17 +70,67 @@ test("selected perp context joins exact Raven evidence to live market state", ()
   assert.equal(result.public_market_rows.length, 1);
 });
 
-test("missing Raven context remains explicitly unavailable without mock plan rows", () => {
+test("a current Hyperliquid read remains available when no retained Raven decision history exists", () => {
   const result = buildPerpTerminalContext({
     symbol: "BTC-PERP",
     publicPerpsPayload: { data: { instrument_context: { rows: [] } } },
-    marketPayload: { ok: true },
+    marketPayload: {
+      ok: true,
+      generated_at: "2026-07-21T10:00:03Z",
+      market: {
+        mark_price: 66_000,
+        oracle_price: 65_980,
+        previous_day_price: 64_500,
+        funding_rate: -0.00012,
+        open_interest_usd: 1_800_000_000,
+        day_notional_volume_usd: 4_200_000_000,
+      },
+      book: {
+        observed_at: "2026-07-21T10:00:03Z",
+        bids: [{ price: 65_995, size: 10, notional_usd: 659_950 }],
+        asks: [{ price: 66_005, size: 4, notional_usd: 264_020 }],
+        summary: { best_bid: 65_995, best_ask: 66_005, spread_bps: 1.5152, imbalance_pct: 42.85 },
+      },
+      tape: {
+        trades: [
+          { book_side: "bid", price: 66_001, size: 2, notional_usd: 132_002, observed_at: "2026-07-21T10:00:03Z" },
+          { book_side: "ask", price: 65_999, size: 0.5, notional_usd: 32_999.5, observed_at: "2026-07-21T10:00:02Z" },
+        ],
+      },
+      components: { market: "fresh", book: "fresh", tape: "fresh" },
+    },
   });
   assert.equal(result.ok, true);
   assert.equal(result.raven_context.context_state, "unavailable");
+  assert.equal(result.live_market_read.schema_version, "ravenos.perp_live_read.v1");
+  assert.equal(result.live_market_read.state, "current");
+  assert.equal(result.live_market_read.signal_state, "upside_squeeze_pressure");
+  assert.equal(result.live_market_read.directional_bias, "long");
+  assert.equal(result.live_market_read.input_count, 6);
+  assert.equal(result.raven_read.role, "live_market_read");
+  assert.match(result.raven_read.headline, /Upside squeeze pressure/);
+  assert.equal(result.decision_history_read, null);
   assert.equal(result.chart_event, null);
   assert.equal(result.plan_preview.state, "unavailable");
   assert.equal(result.plan_preview.executable, false);
+  assert.deepEqual(result.chart_overlays.overlays.map((row) => row.type), ["liquidity-zone", "liquidity-zone"]);
+  assert.equal(result.execution.signing_available, false);
+  assert.equal(result.execution.submission_available, false);
+});
+
+test("live perp read calls price and flow disagreement a divergence instead of a directional setup", () => {
+  const read = buildLivePerpRead({
+    instrument: "ETH-PERP",
+    marketPayload: {
+      generated_at: "2026-07-21T10:00:03Z",
+      market: { mark_price: 3_200, oracle_price: 3_199, previous_day_price: 3_100, funding_rate: 0.00001, open_interest_usd: 900_000_000, day_notional_volume_usd: 1_800_000_000 },
+      book: { bids: [{ price: 3_199, notional_usd: 100_000 }], asks: [{ price: 3_201, notional_usd: 400_000 }], summary: { best_bid: 3_199, best_ask: 3_201 } },
+      tape: { trades: [{ book_side: "ask", price: 3_199, notional_usd: 250_000, observed_at: "2026-07-21T10:00:03Z" }] },
+    },
+  });
+  assert.equal(read.signal_state, "flow_divergence");
+  assert.equal(read.directional_bias, "neutral");
+  assert.match(read.why_raven_noticed, /disagree/);
 });
 
 test("short plan references retain directional favorable and adverse semantics", () => {

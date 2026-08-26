@@ -317,7 +317,7 @@ test("Worker opportunity route is backed by the current Census projection", asyn
   }
 });
 
-test("Worker serves bounded exact-pool Solana, Base, and Ethereum activity without relabeling it as Raven", async () => {
+test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Chain activity without relabeling it as Raven", async () => {
   const providerSecret = "server-only-market-pulse-test-token";
   const solanaPool = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx";
   const solanaToken = "So11111111111111111111111111111111111111112";
@@ -347,11 +347,20 @@ test("Worker serves bounded exact-pool Solana, Base, and Ethereum activity witho
         name: "Wrapped Ether",
       }));
     }
+    if (url.pathname.includes("/networks/robinhood/")) {
+      return jsonResponse(geckoTrendingFixture("robinhood", {
+        pool: "0x7777777777777777777777777777777777777777",
+        token: "0x8888888888888888888888888888888888888888",
+        quote: "0x9999999999999999999999999999999999999999",
+        symbol: "RUNNER",
+        name: "The Runner",
+      }));
+    }
     throw new Error(`unexpected_url:${url.pathname}`);
   };
   try {
     const response = await worker.fetch(
-      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana,base,ethereum&duration=5m"),
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana,base,ethereum,robinhood&duration=5m"),
       {
         ...environment(),
         ONCHAIN_CHART_PROVIDER: "coingecko",
@@ -366,8 +375,8 @@ test("Worker serves bounded exact-pool Solana, Base, and Ethereum activity witho
     assert.equal(body.schema_version, "ravenos.onchain_market_pulse.v1");
     assert.equal(body.safe_public, true);
     assert.equal(body.state, "current");
-    assert.equal(body.rows.length, 3);
-    assert.deepEqual(body.rows.map((row) => row.chain_id), ["solana", "base", "ethereum"]);
+    assert.equal(body.rows.length, 4);
+    assert.deepEqual(body.rows.map((row) => row.chain_id), ["solana", "base", "ethereum", "robinhood"]);
     const solana = body.rows.find((row) => row.chain_id === "solana");
     assert.equal(solana.pool_address, solanaPool);
     assert.equal(solana.token_address, solanaToken);
@@ -378,6 +387,8 @@ test("Worker serves bounded exact-pool Solana, Base, and Ethereum activity witho
     assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
     assert.ok(body.rows.every((row) => row.research_only === true && row.execution_available === false));
     assert.equal(body.provenance.raven_signal, false);
+    assert.equal(body.discovery_lanes.robinhood_velocity, true);
+    assert.equal(body.rows.find((row) => row.chain_id === "robinhood").discovery_source, "coingecko_robinhood_trending");
     assert.equal(body.execution_boundary.signing_available, false);
     assert.equal(body.execution_boundary.submission_available, false);
     assert.equal(JSON.stringify(body).includes(providerSecret), false);

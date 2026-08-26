@@ -33,7 +33,7 @@ const apiRoutes = [
   "/api/behavior",
   "/api/research",
   "/api/perps",
-  "/api/onchain/trending?chains=base,ethereum&duration=5m",
+  "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m",
   "/api/chains/solana",
   "/api/chains/base",
   "/api/chains/ethereum",
@@ -111,6 +111,10 @@ if (
   || !["market", "limit", "trigger"].every((orderType) => flagsJson?.order_plan_types?.includes(orderType))
   || flagsJson?.public_account_view_available !== true
   || !flagsJson?.public_account_view_venues?.includes("hyperliquid")
+  || flagsJson?.browser_wallet_connection_available !== true
+  || flagsJson?.wallet_connection_scope !== "public_address_observation_only"
+  || flagsJson?.wallet_signature_requested !== false
+  || flagsJson?.wallet_connection_persisted !== false
   || flagsJson?.account_scenario_available !== true
   || !flagsJson?.account_scenario_venues?.includes("hyperliquid")
   || flagsJson?.account_history_available !== true
@@ -119,8 +123,58 @@ if (
   || flagsJson?.submission_available !== false
 ) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid planning boundary");
 
+const { res: perpsUniverseRes, json: perpsUniverseJson } = await fetchJson("/api/hyperliquid/perps");
+const { res: perpsProjectionRes, json: perpsProjectionJson } = await fetchJson("/api/perps");
+const retainedPerpInstruments = new Set(
+  (perpsProjectionJson?.data?.instrument_context?.rows || [])
+    .map((row) => String(row?.instrument || "").trim().toUpperCase())
+    .filter(Boolean),
+);
+const liveReadCandidate = (perpsUniverseJson?.results || []).find((row) => (
+  row?.symbol
+  && !retainedPerpInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
+  && Number(row.mark_price) > 0
+  && row.funding_rate !== null
+  && row.open_interest_usd !== null
+  && row.day_notional_volume_usd !== null
+)) || null;
+if (!perpsUniverseRes.ok || !perpsProjectionRes.ok || !liveReadCandidate) {
+  throw new Error("Hyperliquid universe has no exact market outside retained Raven decision history");
+}
+const { res: livePerpRes, json: livePerpJson } = await fetchJson(
+  `/api/perps/instrument?symbol=${encodeURIComponent(liveReadCandidate.symbol)}`,
+);
+if (
+  !livePerpRes.ok
+  || livePerpJson?.ok !== true
+  || livePerpJson?.instrument?.instrument_id !== liveReadCandidate.instrument_id
+  || livePerpJson?.instrument?.instrument_scope !== "exact_instrument"
+  || livePerpJson?.market_data?.components?.market !== "fresh"
+  || livePerpJson?.live_market_read?.schema_version !== "ravenos.perp_live_read.v1"
+  || livePerpJson?.live_market_read?.role !== "live_market_read"
+  || livePerpJson?.live_market_read?.source !== "hyperliquid_public_api"
+  || livePerpJson?.live_market_read?.state !== "current"
+  || Number(livePerpJson?.live_market_read?.input_count) < 4
+  || !livePerpJson?.live_market_read?.signal_state
+  || !livePerpJson?.live_market_read?.observed_at
+  || livePerpJson?.raven_read?.role !== "live_market_read"
+  || livePerpJson?.raven_context?.context_available !== false
+  || livePerpJson?.decision_history_read !== null
+  || livePerpJson?.live_market_read?.research_only !== true
+  || livePerpJson?.live_market_read?.actionable !== false
+  || livePerpJson?.live_market_read?.signing_available !== false
+  || livePerpJson?.live_market_read?.submission_available !== false
+  || livePerpJson?.execution?.signing_available !== false
+  || livePerpJson?.execution?.submission_available !== false
+) throw new Error("Exact Hyperliquid market without retained decision history did not receive a current live Raven read");
+const livePerpNoLeakFindings = scanJsonValue(livePerpJson, "production:/api/perps/instrument:live-read");
+if (livePerpNoLeakFindings.length) {
+  const fields = livePerpNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production live Hyperliquid Raven read failed the public no-leak gate: ${fields}`);
+}
+
 const { res: onchainPulseRes, json: onchainPulseJson } = await fetchJson(
-  "/api/onchain/trending?chains=base,ethereum&duration=5m",
+  "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m",
 );
 const pulseRows = onchainPulseJson?.rows;
 if (
@@ -130,7 +184,7 @@ if (
   || onchainPulseJson?.freshness?.state !== "current"
   || onchainPulseJson?.provenance?.raven_signal !== false
   || !Array.isArray(pulseRows)
-  || !["base", "ethereum"].every((chain) => pulseRows.some((row) => (
+  || !["base", "ethereum", "robinhood"].every((chain) => pulseRows.some((row) => (
     row?.chain_id === chain
     && row?.identity_scope === "exact_pool"
     && row?.source_type === "market_activity"
@@ -139,7 +193,7 @@ if (
   )))
   || onchainPulseJson?.execution_boundary?.signing_available !== false
   || onchainPulseJson?.execution_boundary?.submission_available !== false
-) throw new Error("/api/onchain/trending did not return current exact-pool Base and Ethereum activity");
+) throw new Error("/api/onchain/trending did not return current exact-pool Base, Ethereum, and Robinhood Chain activity");
 
 if (requireJupiterVelocity) {
   const { res: solanaVelocityRes, json: solanaVelocityJson } = await fetchJson(
@@ -422,7 +476,7 @@ if (chartNoLeakFindings.length) {
   throw new Error(`Production chart response failed the public no-leak gate: ${fields}`);
 }
 
-for (const chain of ["base", "ethereum"]) {
+for (const chain of ["base", "ethereum", "robinhood"]) {
   const row = pulseRows.find((candidate) => candidate?.chain_id === chain && candidate?.identity_scope === "exact_pool");
   const params = new URLSearchParams({
     market: "crypto_spot",

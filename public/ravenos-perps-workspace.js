@@ -91,6 +91,19 @@ function setList(id, values, fallback) {
   }
 }
 
+function biasLabel(value) {
+  return ({ long: "Upside", short: "Downside", neutral: "Two-sided" })[String(value || "").toLowerCase()] || "Two-sided";
+}
+
+function syncEvidenceDeckLayout() {
+  const deck = document.querySelector(".perps-evidence-deck");
+  if (!deck) return;
+  const historyCount = ["perpsComparablePanel", "perpsPlanPanel"]
+    .filter((id) => document.getElementById(id)?.hidden === false)
+    .length;
+  deck.dataset.history = String(historyCount);
+}
+
 function marketSnapshot(row = state.row, streamed = state.marketState, exact = state.context?.market_data?.market) {
   return {
     last: finite(streamed.last ?? exact?.last_price ?? exact?.lastPrice ?? row?.last_price ?? row?.lastPrice),
@@ -213,6 +226,8 @@ function renderTape(rows = state.tapeRows) {
 
 function renderComparables(comparables = {}) {
   const sample = Math.max(0, Math.trunc(finite(comparables.sample_size) || 0));
+  const panel = document.getElementById("perpsComparablePanel");
+  if (panel) panel.hidden = sample <= 0;
   setText("perpsComparableN", sample.toLocaleString());
   setText("perpsComparableMaturity", titleCase(comparables.evidence_maturity, "Forming"));
   setText("perpsMedianChange", percentagePoint(comparables.median_observed_change_pct));
@@ -223,10 +238,13 @@ function renderComparables(comparables = {}) {
   setText("perpsComparableNote", sample
     ? `${sample} completed future-only ${state.row?.asset || "instrument"} path${sample === 1 ? "" : "s"}; matured through ${timestamp(comparables.matured_through)}.`
     : "No matured same-instrument public sample is available yet.");
+  syncEvidenceDeckLayout();
 }
 
 function renderPlan(plan = {}) {
   const available = plan.state === "research_only";
+  const panel = document.getElementById("perpsPlanPanel");
+  if (panel) panel.hidden = !available;
   setText("perpsPlanState", available ? "Research only" : "Unavailable");
   setText("perpsPlanDirection", available ? titleCase(plan.directional_context) : "--");
   setText("perpsPlanReference", available ? price(plan.reference_price) : "--");
@@ -235,6 +253,7 @@ function renderPlan(plan = {}) {
   setText("perpsPlanNote", available
     ? `${plan.note || "Historical excursions are context only."} Not personalized, production-qualified, or executable.`
     : "Not personalized. Not production-qualified. No entry, target, stop, signing, or order is available.");
+  syncEvidenceDeckLayout();
 }
 
 function chartPresentationEvent() {
@@ -263,11 +282,14 @@ function renderChartLayers() {
   if (!state.workspace || !state.row) return;
   const markerEnabled = document.getElementById("perpsRavenMarker")?.getAttribute("aria-pressed") === "true";
   const chartEvent = chartPresentationEvent();
+  const overlays = Array.isArray(state.context?.chart_overlays?.overlays)
+    ? state.context.chart_overlays.overlays
+    : [];
   state.workspace.attachIntelligence({ evidence: state.context, narrator: null });
   state.workspace.render({
     events: markerEnabled && chartEvent ? [chartEvent] : [],
-    overlays: [],
-    visibleOverlayTypes: [],
+    overlays,
+    visibleOverlayTypes: [...new Set(overlays.map((row) => row.type).filter(Boolean))],
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
@@ -283,32 +305,39 @@ function renderContext(payload) {
   state.context = payload;
   const context = payload?.raven_context || {};
   const read = payload?.raven_read || {};
+  const liveRead = payload?.live_market_read || (read.role === "live_market_read" ? read : null);
+  const activeRead = liveRead || read;
   const delivery = payload?.delivery || {};
   const marketData = payload?.market_data || {};
+  const decisionHistoryAvailable = context.context_available === true;
+  const liveReadAvailable = Boolean(liveRead && ["current", "partial"].includes(liveRead.state));
   state.orderBook = marketData.book || state.orderBook;
   state.tapeRows = marketData.tape?.trades || state.tapeRows;
 
   setState("perpsMarketFreshness", marketData.components?.market || "unavailable", titleCase(marketData.components?.market));
-  setState("perpsContextState", context.context_state || "unavailable", context.context_available ? titleCase(context.context_state) : "Unavailable");
-  setState("perpsDeliveryState", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : titleCase(delivery.freshness_state));
-  setText("perpsObservedAt", timestamp(context.observed_at || marketData.generated_at));
-  setText("perpsContinuityMessage", delivery.fallback
-    ? "Current-origin projection is unavailable. A labeled embedded snapshot is shown; it is not presented as current."
-    : delivery.source === "current_public_origin"
-      ? "Live venue facts and the protected current Raven projection are joined by exact instrument identity."
-      : "Live market data may remain available while Raven context is explicitly unavailable.");
+  setState("perpsContextState", liveRead?.state || "unavailable", liveReadAvailable ? titleCase(liveRead.state) : "Read paused");
+  setState("perpsDeliveryState", decisionHistoryAvailable ? context.context_state : "not_attached", decisionHistoryAvailable ? "Attached" : "Not attached");
+  setText("perpsObservedAt", timestamp(liveRead?.observed_at || marketData.generated_at || context.observed_at));
+  setText("perpsContinuityMessage", liveReadAvailable
+    ? decisionHistoryAvailable
+      ? "Current Hyperliquid inputs power the live Raven read; the timestamped decision history is attached separately."
+      : "Current Hyperliquid inputs power the live Raven read. No retained decision history is required for this market read."
+    : "The exact Hyperliquid market remains visible while Raven waits for enough current inputs to form a read.");
 
-  setText("perpsReadHeadline", read.headline || `${state.row?.asset || "Instrument"} · Raven context unavailable`);
-  setText("perpsReadSummary", read.summary || "Live market data remains available, but no current Raven observation is available.");
-  setText("perpsWhy", read.why_raven_noticed || context.why_raven_noticed || "No current decision-time Raven observation is available for this instrument.");
-  setText("perpsPathFamily", context.behavior_family || "Unavailable");
-  setText("perpsPathPressure", context.pressure_state || "Unavailable");
-  setText("perpsPathSide", context.context_available ? titleCase(context.observed_side) : "Unavailable");
+  setText("perpsReadHeadline", activeRead.headline || `${state.row?.asset || "Instrument"} · live read paused`);
+  setText("perpsReadSummary", activeRead.summary || "The exact market remains live while Raven waits for aligned price, positioning, depth, and tape inputs.");
+  setText("perpsWhy", activeRead.why_raven_noticed || "Current exact-market inputs do not yet form a directional edge.");
+  setText("perpsPathFamily", liveRead?.setup_label || context.behavior_family || "Read forming");
+  setText("perpsPathPressure", liveRead?.flow_label || context.pressure_state || "Flow forming");
+  setText("perpsPathSide", liveRead ? biasLabel(liveRead.directional_bias) : context.context_available ? titleCase(context.observed_side) : "Two-sided");
+  const spread = finite(liveRead?.market_facts?.spread_bps);
   const friction = finite(context.friction_context?.roundtrip_bps);
-  setText("perpsPathFriction", context.friction_context?.state === "observed" && friction !== null ? `${friction.toFixed(2)} bps` : "Unavailable");
-  setList("perpsStrengthen", read.what_would_strengthen, "No strengthening condition is currently declared.");
-  setList("perpsWeaken", read.what_would_weaken, "No weakening condition is currently declared.");
-  setText("perpsEvidenceState", context.context_available ? `${titleCase(context.context_state)} · ${titleCase(context.outcomes?.evidence_maturity, "forming")}` : "Context unavailable");
+  setText("perpsPathFriction", spread !== null ? `${spread.toFixed(2)} bps` : context.friction_context?.state === "observed" && friction !== null ? `${friction.toFixed(2)} bps` : "Read forming");
+  setList("perpsStrengthen", activeRead.what_would_strengthen, "Price, visible depth, and recent tape align in the same direction.");
+  setList("perpsWeaken", activeRead.what_would_weaken, "Current flow thins or the exact-market structure reverses.");
+  setText("perpsEvidenceState", liveReadAvailable
+    ? `${titleCase(liveRead.state)} · ${liveRead.input_count}/${liveRead.input_total} live inputs · ${liveRead.evidence_grade}${liveRead.evidence_score}`
+    : "Waiting for live inputs");
 
   renderComparables(payload?.matured_comparables || {});
   renderPlan(payload?.plan_preview || {});
@@ -318,12 +347,12 @@ function renderContext(payload) {
   const marker = document.getElementById("perpsRavenMarker");
   const eventAvailable = Boolean(payload?.chart_event?.event_id && payload?.chart_event?.observed_at);
   marker.disabled = !eventAvailable;
-  marker.textContent = eventAvailable ? "Raven event" : "Raven event unavailable";
+  marker.textContent = eventAvailable ? "Decision event" : "No retained event";
   marker.setAttribute("aria-pressed", eventAvailable ? "true" : "false");
-  setText("perpsChartEventState", eventAvailable ? `Exact observation ${timestamp(payload.chart_event.observed_at)}` : "No exact event for this instrument");
+  setText("perpsChartEventState", eventAvailable ? `Retained observation ${timestamp(payload.chart_event.observed_at)}` : "Live Raven overlays remain available");
 
   setText("perpsProofMarket", [marketData.components?.book, marketData.components?.tape].every((value) => value === "fresh") ? "Live market flow" : "Partially unavailable");
-  setText("perpsProofContext", context.context_available ? `${titleCase(context.context_state)} public projection` : "Explicitly unavailable");
+  setText("perpsProofContext", liveReadAvailable ? `${titleCase(liveRead.state)} · exact Hyperliquid inputs` : "Waiting for enough current inputs");
   renderChartLayers();
   dispatchContext();
 }
@@ -351,6 +380,8 @@ function dispatchContext() {
   if (!state.row) return;
   const context = state.context?.raven_context || {};
   const read = state.context?.raven_read || {};
+  const liveRead = state.context?.live_market_read || (read.role === "live_market_read" ? read : null);
+  const activeRead = liveRead || read;
   document.dispatchEvent(new CustomEvent("ravenos:terminalcontext", { detail: {
     subject: {
       id: context.instrument_id || state.row.instrument_id,
@@ -362,19 +393,19 @@ function dispatchContext() {
       marketType: "perp",
     },
     workspace: "market-monitor",
-    marketState: context.pressure_state || "Live market only",
-    setupState: context.context_available ? "research_observation" : "unavailable",
-    thesis: read.summary || "No current Raven thesis is available for this exact instrument.",
-    supportingEvidence: read.what_would_strengthen || [],
-    contradictingEvidence: read.what_would_weaken || [],
-    invalidation: context.context_available ? ["The observed decision-time structure fades or reverses."] : [],
+    marketState: liveRead?.flow_label || context.pressure_state || "Live exact market",
+    setupState: liveRead?.signal_state || (context.context_available ? "research_observation" : "forming"),
+    thesis: activeRead.summary || "Current exact-market inputs are still forming.",
+    supportingEvidence: activeRead.what_would_strengthen || [],
+    contradictingEvidence: activeRead.what_would_weaken || [],
+    invalidation: activeRead.what_would_weaken || [],
     timeHorizon: state.timeframe,
-    confidence: { label: titleCase(context.outcomes?.evidence_maturity, "unrated") },
-    evidenceQuality: { state: context.context_available ? context.context_state : "unavailable", lineageComplete: Boolean(context.public_context_id) },
+    confidence: { label: liveRead?.evidence_grade ? `Evidence ${liveRead.evidence_grade}${liveRead.evidence_score}` : titleCase(context.outcomes?.evidence_maturity, "Forming") },
+    evidenceQuality: { state: liveRead?.state || context.context_state || "forming", lineageComplete: liveRead?.source === "hyperliquid_public_api" || Boolean(context.public_context_id) },
     dataState: state.workspace?.state?.state || "data_unavailable",
-    observedAt: context.observed_at || state.workspace?.state?.observedAt,
+    observedAt: liveRead?.observed_at || context.observed_at || state.workspace?.state?.observedAt,
     marketSource: state.workspace?.state?.source || "Hyperliquid",
-    sourceReferences: [state.workspace?.state?.source, context.public_context_id ? "Public Raven context" : null].filter(Boolean),
+    sourceReferences: [state.workspace?.state?.source, liveRead?.source === "hyperliquid_public_api" ? "Current Hyperliquid market read" : null, context.public_context_id ? "Retained Raven decision history" : null].filter(Boolean),
   } }));
 }
 
@@ -568,13 +599,13 @@ async function boot() {
     mode: "Read only",
     signing: "Sign off",
     broadcast: "Broadcast off",
-    evidence: state.context?.raven_context?.context_available ? "Exact evidence linked" : "Evidence unavailable",
+    evidence: state.context?.live_market_read ? "Live Raven read" : state.context?.raven_context?.context_available ? "Decision history linked" : "Read forming",
   });
 
   setInterval(() => {
     if (document.visibilityState !== "visible" || !state.row) return;
     fetchSelectedContext(state.row, state.selectionGeneration);
-  }, 60_000);
+  }, 15_000);
 
   window.__RAVENOS_PERPS_WORKSPACE__ = {
     getState: () => ({
@@ -585,7 +616,11 @@ async function boot() {
       backfillCount: state.workspace?.state?.backfillCount || 0,
       source: state.workspace?.state?.source || null,
       connectionState: state.workspace?.state?.connectionState || null,
-      contextState: state.context?.raven_context?.context_state || "unavailable",
+      contextState: state.context?.live_market_read?.state || state.context?.raven_context?.context_state || "unavailable",
+      liveReadState: state.context?.live_market_read?.state || "unavailable",
+      liveReadSignal: state.context?.live_market_read?.signal_state || null,
+      liveReadInputCount: state.context?.live_market_read?.input_count || 0,
+      decisionHistoryState: state.context?.raven_context?.context_available ? state.context.raven_context.context_state : "not_attached",
       deliveryState: state.context?.delivery?.freshness_state || "unavailable",
       comparableSample: state.context?.matured_comparables?.sample_size || 0,
       planExecutable: state.context?.plan_preview?.executable === true,

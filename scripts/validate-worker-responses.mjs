@@ -49,7 +49,7 @@ const checks = [
   ["GET", "/api/opportunity"],
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
-  ["GET", "/api/onchain/trending?chains=base,ethereum&duration=5m"],
+  ["GET", "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m"],
   ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],

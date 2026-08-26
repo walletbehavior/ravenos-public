@@ -44,6 +44,8 @@ const state = {
   accountTab: "positions",
   accountGeneration: 0,
   walletTransportConnected: false,
+  walletAddress: null,
+  walletListenersBound: false,
 };
 
 function renderLaunchBadge() {
@@ -440,6 +442,7 @@ function updateTerminalPaneAvailability() {
   const accountVisible = perps && state.flags?.public_account_view_available === true;
   if (accountDock) accountDock.hidden = !accountVisible;
   if (accountButton) accountButton.hidden = !accountVisible;
+  syncWalletControls();
   const current = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
   if ((!perps && ["trade", "book", "account"].includes(current)) || (current === "trade" && !tradeVisible) || (current === "account" && !accountVisible)) setTerminalPane("chart");
 }
@@ -469,6 +472,91 @@ function accountTone(value) {
 function shortAccountAddress(value) {
   const address = String(value || "");
   return address.length > 16 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
+}
+
+function browserWalletProvider() {
+  return globalThis.ethereum?.request ? globalThis.ethereum : null;
+}
+
+function browserWalletAddress(accounts = []) {
+  return Array.isArray(accounts)
+    ? accounts.find((value) => /^0x[a-fA-F0-9]{40}$/.test(String(value || ""))) || null
+    : null;
+}
+
+function syncWalletControls() {
+  const available = Boolean(browserWalletProvider());
+  const connected = state.walletTransportConnected && Boolean(state.walletAddress);
+  for (const id of ["terminalWalletConnect", "terminalUseWallet"]) {
+    const button = document.getElementById(id);
+    if (!button) continue;
+    button.hidden = !available || (id === "terminalWalletConnect" && state.lane !== "perps");
+    button.textContent = connected ? "Disconnect view" : "Connect wallet";
+    button.dataset.connected = String(connected);
+    button.setAttribute("aria-label", connected
+      ? "Disconnect the wallet address from this local public account view"
+      : "Connect a browser wallet address for Hyperliquid public account context");
+  }
+}
+
+function updateWalletShellCapability() {
+  window.RavenOSShell?.setCapabilities?.({
+    wallet: state.walletTransportConnected && state.walletAddress
+      ? `${shortAccountAddress(state.walletAddress)} · public view`
+      : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
+    signing: "Sign off",
+    broadcast: "Broadcast off",
+  });
+}
+
+function renderEmptyTerminalAccount() {
+  const summary = document.getElementById("terminalAccountSummary");
+  if (summary) summary.hidden = true;
+  for (const id of [
+    "terminalAccountPositionsCount",
+    "terminalAccountBalancesCount",
+    "terminalAccountOrdersCount",
+    "terminalAccountHistoryCount",
+    "terminalAccountFillsCount",
+    "terminalAccountFundingCount",
+  ]) {
+    const count = document.getElementById(id);
+    if (count) count.hidden = true;
+  }
+  const ledger = document.getElementById("terminalAccountLedger");
+  if (ledger) {
+    const empty = document.createElement("div");
+    empty.className = "terminal-account-empty";
+    const title = document.createElement("strong");
+    title.textContent = "Connect a wallet or load a public Hyperliquid address.";
+    const note = document.createElement("span");
+    note.textContent = "Raven reads public account state only. No signature, approval, or order permission is requested.";
+    empty.append(title, note);
+    ledger.replaceChildren(empty);
+  }
+}
+
+function clearConnectedWalletView(message = "Wallet address disconnected from this tab · no wallet permission was retained") {
+  ++state.accountGeneration;
+  state.accountSnapshot = null;
+  state.accountHistory = null;
+  state.accountHistoryLoading = false;
+  state.walletTransportConnected = false;
+  state.walletAddress = null;
+  const input = document.getElementById("terminalAccountAddress");
+  if (input) input.value = "";
+  const status = document.getElementById("terminalAccountStatus");
+  if (status) {
+    status.dataset.tone = "";
+    status.textContent = message;
+  }
+  renderEmptyTerminalAccount();
+  renderTerminalTicketAccount();
+  clearMarketPreviewResult("Wallet view disconnected. Review again to use a market-only plan.");
+  syncOrderPlanControls();
+  syncWalletControls();
+  updateWalletShellCapability();
+  renderTradeConsequences();
 }
 
 function selectedAccountPosition() {
@@ -795,6 +883,9 @@ async function loadTerminalAccount(addressInput, { walletTransport = false } = {
   state.accountHistory = null;
   state.accountHistoryLoading = false;
   state.walletTransportConnected = walletTransport;
+  state.walletAddress = walletTransport ? address : null;
+  syncWalletControls();
+  updateWalletShellCapability();
   const historyCount = document.getElementById("terminalAccountHistoryCount");
   if (historyCount) historyCount.hidden = true;
   submit.disabled = true;
@@ -811,7 +902,7 @@ async function loadTerminalAccount(addressInput, { walletTransport = false } = {
     renderTerminalAccount(payload);
     syncOrderPlanControls();
     status.textContent = walletTransport
-      ? `${shortAccountAddress(payload.account?.address)} · wallet address loaded · public observation only · not verified or linked`
+      ? `${shortAccountAddress(payload.account?.address)} · wallet connected · public Hyperliquid account loaded · no signature requested`
       : `${shortAccountAddress(payload.account?.address)} · current venue state · public observation only`;
     if (state.lane === "perps" && state.selected?.instrument_id) void requestOrderPlan({ automatic: true });
   } catch {
@@ -825,32 +916,56 @@ async function loadTerminalAccount(addressInput, { walletTransport = false } = {
 
 async function useBrowserWalletAddress() {
   const status = document.getElementById("terminalAccountStatus");
-  const wallet = globalThis.ethereum;
-  if (!wallet?.request) return;
+  const wallet = browserWalletProvider();
+  if (!wallet) return;
+  if (state.walletTransportConnected) {
+    clearConnectedWalletView();
+    return;
+  }
   if (status) {
     status.dataset.tone = "";
     status.textContent = "Requesting a public address from the browser wallet…";
   }
   try {
     const accounts = await wallet.request({ method: "eth_requestAccounts" });
-    const address = Array.isArray(accounts) ? accounts.find((value) => /^0x[a-fA-F0-9]{40}$/.test(String(value || ""))) : null;
+    const address = browserWalletAddress(accounts);
     if (!address) throw new Error("wallet_address_unavailable");
     const input = document.getElementById("terminalAccountAddress");
     if (input) input.value = address;
     await loadTerminalAccount(address, { walletTransport: true });
   } catch {
     state.walletTransportConnected = false;
+    state.walletAddress = null;
+    syncWalletControls();
+    updateWalletShellCapability();
     if (status) {
       status.dataset.tone = "error";
-      status.textContent = "No wallet address was loaded. You can still enter a public address manually.";
+      status.textContent = "Wallet connection was canceled or no EVM address was returned. A public address can still be loaded manually.";
     }
   }
 }
 
 function initializeWalletAddressControl() {
-  const button = document.getElementById("terminalUseWallet");
-  if (!button) return;
-  button.hidden = !globalThis.ethereum?.request;
+  const wallet = browserWalletProvider();
+  syncWalletControls();
+  updateWalletShellCapability();
+  if (!wallet?.on || state.walletListenersBound) return;
+  state.walletListenersBound = true;
+  wallet.on("accountsChanged", (accounts) => {
+    if (!state.walletTransportConnected) return;
+    const address = browserWalletAddress(accounts);
+    if (!address) {
+      clearConnectedWalletView("Wallet account access ended · no wallet permission was retained by RavenOS");
+      return;
+    }
+    if (state.walletTransportConnected && state.walletAddress?.toLowerCase() === address.toLowerCase()) return;
+    const input = document.getElementById("terminalAccountAddress");
+    if (input) input.value = address;
+    void loadTerminalAccount(address, { walletTransport: true });
+  });
+  wallet.on("disconnect", () => {
+    if (state.walletTransportConnected) clearConnectedWalletView("Wallet provider disconnected · public account view cleared");
+  });
 }
 
 function readableProvider(value) {
@@ -2528,7 +2643,9 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
   );
   window.RavenOSShell?.setCapabilities?.({
     market: state.workspace?.state?.state === "live" ? `Live · ${state.workspace.state.source}` : titleCase(state.workspace?.state?.state),
-    wallet: "No customer session",
+    wallet: state.walletTransportConnected && state.walletAddress
+      ? `${shortAccountAddress(state.walletAddress)} · public view`
+      : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
     mode: "Read only",
     signing: "Sign off",
     broadcast: "Broadcast off",
@@ -3704,6 +3821,7 @@ function bindControls() {
     void loadTerminalAccount(document.getElementById("terminalAccountAddress")?.value);
   });
   document.getElementById("terminalUseWallet")?.addEventListener("click", () => void useBrowserWalletAddress());
+  document.getElementById("terminalWalletConnect")?.addEventListener("click", () => void useBrowserWalletAddress());
   for (const button of document.querySelectorAll("[data-account-tab]")) {
     button.addEventListener("click", () => setAccountTab(button.dataset.accountTab));
   }
@@ -3914,6 +4032,7 @@ async function boot() {
       accountScenarioState: state.orderPlan?.account_context ? state.orderPlan.state : "unavailable",
       accountTab: state.accountTab,
       walletTransportConnected: state.walletTransportConnected,
+      walletAddressConnected: Boolean(state.walletAddress),
       walletVerified: false,
       walletLinked: false,
       bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
