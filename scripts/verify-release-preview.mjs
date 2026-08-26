@@ -542,6 +542,7 @@ for (const row of evmChartRows) {
   }
 }
 
+let jupiterVelocityTerminal = null;
 if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
   const solanaVelocityCapture = await capture("/api/onchain/trending?chains=solana&duration=5m");
   const solanaVelocity = JSON.parse(solanaVelocityCapture.text);
@@ -571,6 +572,50 @@ if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
   ) {
     throw new Error("Isolated preview did not return Jupiter Velocity tokens bound to current exact Solana pools");
   }
+  const terminalRow = velocityRows.find((row) => (
+    row?.pool_address
+    && row?.token_address
+    && row?.quote_token_address
+    && Number(row?.market?.market_age_seconds) >= 7_200
+  )) || velocityRows[0];
+  const terminalParams = new URLSearchParams({
+    market: "crypto_spot",
+    asset: `${terminalRow.symbol}/${terminalRow.quote_symbol || "SOL"}`,
+    timeframe: "1m",
+    limit: "240",
+    chain: "solana",
+    pair_address: terminalRow.pool_address,
+    token_address: terminalRow.token_address,
+    quote_address: terminalRow.quote_token_address,
+    instrument_scope: "exact_pool",
+  });
+  const terminalCapture = await capture(`/api/terminal/chart?${terminalParams.toString()}`);
+  const terminalEnvelope = JSON.parse(terminalCapture.text);
+  const terminalPayload = terminalEnvelope?.data || terminalEnvelope;
+  const velocityContext = terminalPayload?.market_anatomy?.raven_context;
+  if (
+    terminalPayload?.ok !== true
+    || terminalPayload?.instrument?.pool_address !== terminalRow.pool_address
+    || terminalPayload?.instrument?.token_address !== terminalRow.token_address
+    || velocityContext?.schema_version !== "ravenos.spot_market_context.v1"
+    || velocityContext?.state !== "current"
+    || velocityContext?.evidence_scope !== "exact_token"
+    || velocityContext?.selected_pool_address !== terminalRow.pool_address
+    || velocityContext?.evidence_pool_address !== null
+    || velocityContext?.token_address !== terminalRow.token_address
+    || velocityContext?.research_only !== true
+    || velocityContext?.signing_available !== false
+    || velocityContext?.submission_available !== false
+    || !terminalPayload?.market_anatomy?.current_activity
+  ) {
+    throw new Error("Isolated preview Jupiter Velocity row did not hand current token flow into its exact-pool Terminal");
+  }
+  jupiterVelocityTerminal = {
+    instrument_id: terminalRow.instrument_id,
+    venue: terminalRow.venue,
+    evidence_scope: velocityContext.evidence_scope,
+    candles: terminalPayload.candles.length,
+  };
 }
 
 const localProviderSecret = String(localProviderEnv.ONCHAIN_CHART_PROVIDER_SECRET || "").trim();
@@ -617,6 +662,7 @@ const report = {
     chains: evmChartRows.map((row) => row.chain_id),
     exact_pool_charts_verified: evmChartRows.length,
   },
+  jupiter_velocity_terminal: jupiterVelocityTerminal,
   atlas_universe: {
     featured_sections: atlasFeatured.sections.length,
     search_identity: atlasSpy.entity_id,

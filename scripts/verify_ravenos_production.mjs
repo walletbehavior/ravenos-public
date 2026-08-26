@@ -170,6 +170,42 @@ if (requireJupiterVelocity) {
     const fields = solanaVelocityFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
     throw new Error(`Production Jupiter Velocity response failed the public no-leak gate: ${fields}`);
   }
+  const terminalRow = velocityRows.find((row) => (
+    row?.pool_address
+    && row?.token_address
+    && row?.quote_token_address
+    && Number(row?.market?.market_age_seconds) >= 7_200
+  )) || velocityRows[0];
+  const terminalParams = new URLSearchParams({
+    market: "crypto_spot",
+    asset: `${terminalRow.symbol}/${terminalRow.quote_symbol || "SOL"}`,
+    timeframe: "1m",
+    limit: "240",
+    chain: "solana",
+    pair_address: terminalRow.pool_address,
+    token_address: terminalRow.token_address,
+    quote_address: terminalRow.quote_token_address,
+    instrument_scope: "exact_pool",
+  });
+  const { res: terminalRes, json: terminalEnvelope } = await fetchJson(`/api/terminal/chart?${terminalParams.toString()}`);
+  const terminalPayload = terminalEnvelope?.data || terminalEnvelope;
+  const velocityContext = terminalPayload?.market_anatomy?.raven_context;
+  if (
+    !terminalRes.ok
+    || terminalPayload?.ok !== true
+    || terminalPayload?.instrument?.pool_address !== terminalRow.pool_address
+    || terminalPayload?.instrument?.token_address !== terminalRow.token_address
+    || velocityContext?.schema_version !== "ravenos.spot_market_context.v1"
+    || velocityContext?.state !== "current"
+    || velocityContext?.evidence_scope !== "exact_token"
+    || velocityContext?.selected_pool_address !== terminalRow.pool_address
+    || velocityContext?.evidence_pool_address !== null
+    || velocityContext?.token_address !== terminalRow.token_address
+    || velocityContext?.research_only !== true
+    || velocityContext?.signing_available !== false
+    || velocityContext?.submission_available !== false
+    || !terminalPayload?.market_anatomy?.current_activity
+  ) throw new Error("Jupiter Velocity row did not hand current token flow into its exact-pool Terminal");
 }
 
 const { res: marketPreviewRes, json: marketPreviewJson } = await fetchJson("/api/trade/market-preview", {

@@ -1066,10 +1066,13 @@ function sanitizeSpotAttentionRow(row, {
   const rowChain = String(row.chain || "").trim().toLowerCase();
   if (!requestedChain || requestedChain !== rowChain) return null;
   if (!sameOnchainAddress(requestedChain, row.token_address, tokenAddress)) return null;
-  const identityScope = row.identity_scope === "exact_pool" ? "exact_pool" : row.identity_scope === "exact_token" ? "exact_token" : null;
+  const tokenFlowBoundToPoolRoute = row.evidence_scope === "exact_token_flow_plus_exact_pool_route";
+  const identityScope = tokenFlowBoundToPoolRoute
+    ? "exact_token"
+    : row.identity_scope === "exact_pool" ? "exact_pool" : row.identity_scope === "exact_token" ? "exact_token" : null;
   if (!identityScope) return null;
   if (
-    identityScope === "exact_pool"
+    (identityScope === "exact_pool" || tokenFlowBoundToPoolRoute)
     && (!row.pool_address || !sameOnchainAddress(requestedChain, row.pool_address, pairAddress))
   ) return null;
   if (row.research_only !== true || row.actionable !== false || row.execution_available !== false) return null;
@@ -1160,40 +1163,58 @@ async function loadCurrentSpotAttentionContext({
     fallbackPayload: null,
     timeoutMs: 1_200,
   }).catch(() => null);
-  if (
-    !result?.available
-    || result.delivery?.source !== "current_public_origin"
-    || result.delivery?.fallback !== false
-    || result.delivery?.freshness_state !== "fresh"
-  ) return null;
-  const attention = result.payload?.data?.spot_attention;
-  if (
-    attention?.schema_version !== "ravenos.token_attention.v1"
-    || attention?.state !== "current"
-    || !Array.isArray(attention?.rows)
-    || attention.rows.length > 100
-  ) return null;
-  const generatedAt = publicIsoTimestamp(attention.generated_at);
+  const attention = result?.payload?.data?.spot_attention;
+  const generatedAt = publicIsoTimestamp(attention?.generated_at);
   const generatedMs = Date.parse(generatedAt || "");
-  if (!Number.isFinite(generatedMs) || Date.now() - generatedMs > 3_600_000) return null;
-  const boundary = attention.execution_boundary;
-  if (boundary && (
-    boundary.research_only !== true
-    || boundary.actionable !== false
-    || boundary.signing_available !== false
-    || boundary.submission_available !== false
-  )) return null;
-  const candidates = attention.rows
-    .map((row) => sanitizeSpotAttentionRow(row, {
+  const boundary = attention?.execution_boundary;
+  const currentRavenAttention = result?.available
+    && result.delivery?.source === "current_public_origin"
+    && result.delivery?.fallback === false
+    && result.delivery?.freshness_state === "fresh"
+    && attention?.schema_version === "ravenos.token_attention.v1"
+    && attention?.state === "current"
+    && Array.isArray(attention?.rows)
+    && attention.rows.length <= 100
+    && Number.isFinite(generatedMs)
+    && Date.now() - generatedMs <= 3_600_000
+    && (!boundary || (
+      boundary.research_only === true
+      && boundary.actionable === false
+      && boundary.signing_available === false
+      && boundary.submission_available === false
+    ));
+  const candidates = currentRavenAttention
+    ? attention.rows
+      .map((row) => sanitizeSpotAttentionRow(row, {
+        chain,
+        pairAddress,
+        tokenAddress,
+        projectionGeneratedAt: generatedAt,
+        sourceAgeSeconds: result.delivery.age_seconds,
+      }))
+      .filter(Boolean)
+      .sort((left, right) => (left.evidence_scope === "exact_pool" ? -1 : 0) - (right.evidence_scope === "exact_pool" ? -1 : 0))
+    : [];
+  let context = candidates[0] || null;
+  if (!context && String(chain).toLowerCase() === "solana" && String(env.JUPITER_API_KEY || "").trim()) {
+    const velocityFetchedAt = new Date().toISOString();
+    const velocityRows = await jupiterVelocityRows({
+      env,
+      duration: "5m",
+      fetchedAt: velocityFetchedAt,
+    }).catch(() => []);
+    const velocityRow = velocityRows.find((row) => (
+      sameOnchainAddress("solana", row.pool_address, pairAddress)
+      && sameOnchainAddress("solana", row.token_address, tokenAddress)
+    ));
+    context = sanitizeSpotAttentionRow(velocityRow, {
       chain,
       pairAddress,
       tokenAddress,
-      projectionGeneratedAt: generatedAt,
-      sourceAgeSeconds: result.delivery.age_seconds,
-    }))
-    .filter(Boolean)
-    .sort((left, right) => (left.evidence_scope === "exact_pool" ? -1 : 0) - (right.evidence_scope === "exact_pool" ? -1 : 0));
-  const context = candidates[0] || null;
+      projectionGeneratedAt: velocityRow?.observed_at || velocityFetchedAt,
+      sourceAgeSeconds: 0,
+    });
+  }
   if (context) cacheSet(spotAttentionCache, cacheKey, context, 20_000);
   return context;
 }

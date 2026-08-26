@@ -577,7 +577,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {
-  await mockTerminalLiveApis(page, { bullishSpotPlan: true });
+  await mockTerminalLiveApis(page, { bullishSpotPlan: true, spotControls: false, velocitySpotContext: true });
   await page.goto("/terminal/?asset=JUP%2FUSDC&instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&timeframe=1m&launch=velocity&raven_overlays=auto");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
 
@@ -594,6 +594,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Defensive de-risk");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Token-wide activity · selected pool revalidated");
   await expect(page.locator("#terminalPlanSection")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(5);

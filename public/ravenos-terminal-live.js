@@ -1041,6 +1041,7 @@ function spotFlowEvidence(workspace = state.workspace?.state || {}) {
   const distribution = sellRatio >= 1.5 && holderChange !== null && holderChange < 0;
   return {
     window,
+    scope: anatomy.raven_context?.evidence_scope === "exact_token" ? "exact_token" : "exact_pool",
     buys,
     sells,
     traders,
@@ -1057,7 +1058,7 @@ function spotFlowAlphaCard() {
   if (state.lane !== "spot" || !state.context?.spot_identity_validated) return null;
   const evidence = spotFlowEvidence();
   if (!evidence) return null;
-  const { window, buys, sells, traders, holderChange, buyRatio, sellRatio, accumulation, distribution } = evidence;
+  const { window, scope, buys, sells, traders, holderChange, buyRatio, sellRatio, accumulation, distribution } = evidence;
   if (!accumulation && !distribution && buyRatio < 1.75 && sellRatio < 1.75) return null;
   const buySide = accumulation || (!distribution && buyRatio >= sellRatio);
   const ratio = buySide ? buyRatio : sellRatio;
@@ -1067,7 +1068,9 @@ function spotFlowAlphaCard() {
     label: accumulation ? "Accumulation" : distribution ? "Distribution" : buySide ? "Buy pressure" : "Sell pressure",
     headline: `${buySide ? "Buy" : "Sell"} count ${ratio.toFixed(1)}× opposing flow${holderLabel}`,
     detail: `${compact(buys)} buys · ${compact(sells)} sells${traders === null ? "" : ` · ${compact(traders)} traders`} over ${window}`,
-    meta: holderChange === null ? "Exact-pool activity" : "Exact-pool activity + exact-token holder change",
+    meta: scope === "exact_token"
+      ? "Token-wide activity · selected pool revalidated"
+      : holderChange === null ? "Exact-pool activity" : "Exact-pool activity + exact-token holder change",
     tone: buySide ? "positive" : "negative",
   });
 }
@@ -1125,7 +1128,6 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     || !(risk > 0)
     || !(primaryTarget > entry)
     || !(risk < entry)
-    || !controlEvidenceComplete
     || unsafeControls
   ) return null;
   const riskDistance = entry - risk;
@@ -1158,7 +1160,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     multiples: [0.9, 1.8, 3],
     allocations: [40, 35, 25],
   };
-  if (defensiveSignals.length) {
+  if (defensiveSignals.length || !controlEvidenceComplete) {
     policy = {
       id: "defensive_de_risk",
       label: "Defensive de-risk",
@@ -1216,7 +1218,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     sample_size: sample,
     evidence_unit: "provider candles",
     evidence_maturity: "current_structure",
-    evidence_label: `${sample.toLocaleString()} provider candles · exact-pool Raven buy flow`,
+    evidence_label: `${sample.toLocaleString()} provider candles · ${flow.scope === "exact_token" ? "token-wide current buy flow" : "exact-pool current buy flow"}`,
     strategy_id: policy.id,
     strategy_label: policy.label,
     strategy_reasons: strategyReasons,
@@ -1233,9 +1235,10 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
       pool_age_ms: poolAgeMs,
       top_10_holder_pct: top10Pct,
       developer_holding_pct: developerHoldingPct,
+      token_control_evidence: controlEvidenceComplete ? "complete" : "not_in_packet",
       structural_risk_pct: riskPct,
     },
-    methodology: `${policy.label}: target spacing and trim sizes adapt to exact-pool structure, volatility, flow participation, holders, depth, age, concentration, and token-control risk.`,
+    methodology: `${policy.label}: target spacing and trim sizes adapt to current exact-pool structure, volatility, flow participation, holders, depth, age, concentration, and available token-control evidence.`,
     levels: {
       entry_reference: { price: entry, observed_at: observedAt, source: "latest provider-backed close" },
       target_reference: { price: takeProfits[1].price, excursion_pct: takeProfits[1].excursion_pct, source: `${policy.label} primary scale-out reference` },

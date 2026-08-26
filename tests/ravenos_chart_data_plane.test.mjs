@@ -1447,6 +1447,133 @@ test("exact spot charts join current public token anatomy without changing candl
   }
 });
 
+test("a Jupiter Velocity row hands current token flow into its revalidated exact-pool chart", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const providerSecret = "server-only-jupiter-chart-provider";
+  const jupiterSecret = "server-only-jupiter-chart-key";
+  const originSecret = "server-only-jupiter-origin-key";
+  const pairAddress = "44444444444444444444444444444444";
+  const tokenAddress = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN";
+  const quoteAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input, init = {}) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "api.jup.ag") {
+        assert.equal(init.headers["x-api-key"], jupiterSecret);
+        assert.equal(url.pathname, "/tokens/v2/toptrending/5m");
+        return new Response(JSON.stringify([{
+          id: tokenAddress,
+          name: "Jupiter Velocity",
+          symbol: "JVEL",
+          usdPrice: 0.012,
+          mcap: 1_200_000,
+          liquidity: 180_000,
+          holderCount: 4_852,
+          organicScore: 91,
+          isVerified: true,
+          firstPool: { createdAt: "2026-01-01T00:00:00Z" },
+          stats5m: { priceChange: 8.4, volumeChange: 92, buyVolume: 140_000, sellVolume: 48_000, numBuys: 64, numSells: 26, numTraders: 72 },
+          stats1h: { priceChange: 18.2, volumeChange: 110, buyVolume: 920_000, sellVolume: 340_000, numBuys: 320, numSells: 130, numTraders: 240 },
+          stats24h: { priceChange: 31.5, volumeChange: 45, buyVolume: 5_100_000, sellVolume: 2_400_000, numBuys: 2_400, numSells: 1_100, numTraders: 1_480 },
+        }]), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname === "api.dexscreener.com" && url.pathname.startsWith("/tokens/v1/solana/")) {
+        return new Response(JSON.stringify([{
+          chainId: "solana",
+          dexId: "meteora",
+          pairAddress,
+          pairCreatedAt: Date.now() - 30 * 86_400_000,
+          baseToken: { address: tokenAddress, symbol: "JVEL", name: "Jupiter Velocity" },
+          quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+          priceUsd: "0.012",
+          liquidity: { usd: 180_000 },
+          volume: { h24: 5_100_000 },
+          txns: { h24: { buys: 2_400, sells: 1_100 } },
+          marketCap: 1_200_000,
+        }]), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname === "api.dexscreener.com") {
+        return new Response(JSON.stringify({ pairs: [{
+          chainId: "solana",
+          dexId: "meteora",
+          pairAddress,
+          pairCreatedAt: Date.now() - 30 * 86_400_000,
+          baseToken: { address: tokenAddress, symbol: "JVEL", name: "Jupiter Velocity" },
+          quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+          priceUsd: "0.012",
+          liquidity: { usd: 180_000 },
+          volume: { h24: 5_100_000 },
+          txns: { h24: { buys: 2_400, sells: 1_100 } },
+          marketCap: 1_200_000,
+        }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname === "pro-api.coingecko.com") {
+        assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
+        if (url.pathname.endsWith("/info")) {
+          return new Response(JSON.stringify(geckoPoolInfo({
+            network: "solana",
+            tokenAddress,
+            quoteAddress,
+          })), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        if (!url.pathname.includes("/ohlcv/")) {
+          return new Response(JSON.stringify(geckoPoolIdentity({
+            network: "solana",
+            pairAddress,
+            baseAddress: tokenAddress,
+            quoteAddress,
+          })), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: Array.from({ length: 180 }, (_, index) => {
+          const close = 0.012 + (179 - index) * 0.000001;
+          return [now - index * 60, close, close * 1.01, close * 0.99, close * 1.002, 1_000 + index];
+        }) } } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.pathname.endsWith("/public/ravenos/opportunities.json")) {
+        assert.equal(init.headers["x-ravenos-public-token"], originSecret);
+        return new Response(JSON.stringify({ ok: false }), { status: 503, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=JVEL%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      RAVENOS_PUBLIC_ORIGIN_TOKEN: originSecret,
+      JUPITER_API_KEY: jupiterSecret,
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(responseText, new RegExp(providerSecret));
+    assert.doesNotMatch(responseText, new RegExp(originSecret));
+    assert.doesNotMatch(responseText, new RegExp(jupiterSecret));
+    const envelope = JSON.parse(responseText);
+    const payload = envelope.data || envelope;
+    assert.equal(payload.ok, true);
+    assert.equal(payload.instrument.pool_address, pairAddress);
+    assert.equal(payload.instrument.token_address, tokenAddress);
+    assert.equal(payload.market_anatomy.raven_context.schema_version, "ravenos.spot_market_context.v1");
+    assert.equal(payload.market_anatomy.raven_context.evidence_scope, "exact_token");
+    assert.equal(payload.market_anatomy.raven_context.scope_label, "Token-wide activity");
+    assert.equal(payload.market_anatomy.raven_context.selected_pool_address, pairAddress);
+    assert.equal(payload.market_anatomy.raven_context.evidence_pool_address, null);
+    assert.match(payload.market_anatomy.raven_context.what_changed, /Price rose 8\.40% over 5m/);
+    assert.equal(payload.market_anatomy.current_activity.buys_5m, 64);
+    assert.equal(payload.market_anatomy.current_activity.sells_5m, 26);
+    assert.equal(payload.market_anatomy.current_activity.traders_5m, 72);
+    assert.equal(payload.market_anatomy.raven_context.signing_available, false);
+    assert.equal(payload.market_anatomy.raven_context.submission_available, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("current exact-pool delivery labels an unchanged quiet market separately from candle recency", async () => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;

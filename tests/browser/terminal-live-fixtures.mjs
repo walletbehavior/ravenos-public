@@ -388,7 +388,7 @@ function accountScenarioFixture(input = {}) {
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true, bullishSpotPlan = false } = {}) {
+export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true, bullishSpotPlan = false, spotControls = true, velocitySpotContext = false } = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
@@ -536,12 +536,12 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
               next_20_pct: 15.1691,
               rest_pct: 42.4216,
             },
-            token_controls: {
+            token_controls: spotControls ? {
               mint_authority: "disabled",
               freeze_authority: "disabled",
               honeypot: "not_flagged",
               developer_holding_pct: 1.74,
-            },
+            } : {},
             launch: { completed: true, completed_at: new Date().toISOString() },
             links: [
               { kind: "website", label: "jup.ag", url: "https://jup.ag/" },
@@ -572,12 +572,12 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
           raven_context: spotRavenContext && spotChain === "solana" ? {
             schema_version: "ravenos.spot_market_context.v1",
             state: "current",
-            evidence_scope: "exact_pool",
-            scope_label: "This exact pool",
+            evidence_scope: velocitySpotContext ? "exact_token" : "exact_pool",
+            scope_label: velocitySpotContext ? "Token-wide activity" : "This exact pool",
             chain: "solana",
             token_address: tokenAddress,
             selected_pool_address: pairAddress,
-            evidence_pool_address: pairAddress,
+            evidence_pool_address: velocitySpotContext ? null : pairAddress,
             symbol: asset.split("/")[0],
             name: asset.split("/")[0],
             observed_at: new Date(Date.now() - 45_000).toISOString(),
