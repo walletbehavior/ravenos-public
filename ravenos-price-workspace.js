@@ -421,6 +421,7 @@ export class PriceWorkspace {
     this.backfillArmTimer = null;
     this.followLive = true;
     this.inspectingCandle = false;
+    this.selectedMarkerKey = null;
     this.tradeBuffer = new BoundedEventBuffer(options.tradeLimit || 60);
     this.renderInput = {};
     this.state = {
@@ -855,15 +856,30 @@ export class PriceWorkspace {
     const rows = [...events, ...overlays].slice(0, 6);
     host.replaceChildren();
     host.hidden = rows.length === 0;
-    if (!rows.length) return;
+    if (!rows.length) {
+      this.selectedMarkerKey = null;
+      return;
+    }
+    const rowKey = (row, index = 0) => [
+      row?.event_id || row?.id || `marker-${index}`,
+      row?.instrument_id || this.state.instrument?.canonical_id || "",
+      row?.type || "marker",
+      row?.time || row?.startTime || "",
+    ].join(":");
+    const availableKeys = new Set(rows.map((row, index) => rowKey(row, index)));
+    if (this.selectedMarkerKey && !availableKeys.has(this.selectedMarkerKey)) this.selectedMarkerKey = null;
     rows.forEach((row, index) => {
       const button = document.createElement("button");
       button.type = "button";
-      const label = row.label || row.raven_read?.title || `Raven marker ${index + 1}`;
-      button.textContent = String(index + 1);
+      const label = String(row.label || row.raven_read?.title || `Raven marker ${index + 1}`).slice(0, 72);
+      const key = rowKey(row, index);
+      const selected = key === this.selectedMarkerKey;
+      button.textContent = label;
       button.title = `Inspect ${label}`;
       button.setAttribute("aria-label", `Inspect ${label}`);
-      button.addEventListener("click", () => this.options.onMarkerSelect?.(row));
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+      button.dataset.markerSelected = selected ? "true" : "false";
+      button.addEventListener("click", () => this.selectMarker(row, { key }));
       host.append(button);
     });
     const remaining = events.length + overlays.length - rows.length;
@@ -872,6 +888,26 @@ export class PriceWorkspace {
       count.textContent = `+${remaining}`;
       host.append(count);
     }
+  }
+
+  selectMarker(marker, { key = null, notify = true } = {}) {
+    if (!marker || typeof marker !== "object") return false;
+    this.selectedMarkerKey = key || [
+      marker.event_id || marker.id || "marker",
+      marker.instrument_id || this.state.instrument?.canonical_id || "",
+      marker.type || "marker",
+      marker.time || marker.startTime || "",
+    ].join(":");
+    this.paintMarkerIndex();
+    if (notify) this.options.onMarkerSelect?.(marker);
+    return true;
+  }
+
+  clearMarkerSelection() {
+    if (!this.selectedMarkerKey) return false;
+    this.selectedMarkerKey = null;
+    this.paintMarkerIndex();
+    return true;
   }
 
   schedulePaint() {
@@ -1131,7 +1167,7 @@ export class PriceWorkspace {
       initialVisibleBars: INITIAL_VISIBLE_BARS[this.state.timeframe] || 180,
       initialVisibleTimeRange,
       onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
-      onMarkerSelect: (marker) => this.options.onMarkerSelect?.(marker),
+      onMarkerSelect: (marker) => this.selectMarker(marker),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
     });
     this.chartInstrumentId = currentInstrumentId;

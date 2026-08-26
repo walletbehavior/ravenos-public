@@ -58,6 +58,15 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /renderSourceDetails/);
   assert.match(terminalRuntime, /renderMarketAnatomy/);
   assert.match(terminalRuntime, /renderMarkerDetail/);
+  assert.match(terminalRuntime, /setPlanOverlayActive/);
+  assert.match(terminalRuntime, /qualifiedPlanData/);
+  assert.match(terminalRuntime, /captureChartViewport/);
+  assert.match(terminalRuntime, /showFullMarkerEvidence/);
+  assert.match(terminalRuntime, /focusTerminalRaven/);
+  assert.match(terminal, /id="terminalChartPlanStrip"/);
+  assert.match(terminal, /id="terminalChartMarkerInspector"/);
+  assert.match(terminal, /id="terminalRavenActionStatus"/);
+  assert.doesNotMatch(terminalRuntime.match(/const SAVED_RAVEN_OVERLAYS[^;]+;/)?.[0] || "", /plan-entry|plan-target|plan-risk/);
   assert.match(terminal, /id="terminalAlphaSection"/);
   assert.match(terminal, /id="terminalAlphaStack"/);
   assert.match(terminalRuntime, /ravenos\.alpha_layers\.v1/);

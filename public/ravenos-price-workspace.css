@@ -249,22 +249,24 @@
 }
 .rpw-marker-index[hidden] { display: none; }
 .rpw-marker-index button {
-  width: 30px;
-  min-width: 30px;
+  width: auto;
+  min-width: 72px;
+  max-width: 168px;
   height: 24px;
   overflow: hidden;
   border: 1px solid rgba(166,177,190,.24);
   background: rgba(10,13,17,.92);
   color: #a8b3be;
-  padding: 0;
+  padding: 0 7px;
   font: 9px ui-monospace, SFMono-Regular, Consolas, monospace;
-  text-align: center;
-  text-overflow: clip;
+  text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .rpw-marker-index button::before { content: "✦"; margin-right: 2px; color: #8ca6b8; }
 .rpw-marker-index button:hover,
 .rpw-marker-index button:focus-visible { border-color: rgba(166,177,190,.5); color: #e1e6eb; outline: none; }
+.rpw-marker-index button[aria-pressed="true"] { border-color: rgba(101, 181, 140, .62); background: rgba(18, 52, 39, .94); color: #d8f1e4; box-shadow: inset 2px 0 #65b58c; }
 .rpw-marker-index > span { color: #818c99; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .rpw-watermark {
   position: absolute;

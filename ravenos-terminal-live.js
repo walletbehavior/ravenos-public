@@ -14,6 +14,7 @@ const SAVED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "ma
 const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
 const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
 const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
+const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const state = {
   lane: "perps",
   markets: [],
@@ -53,6 +54,9 @@ const state = {
   walletTransportConnected: false,
   walletAddress: null,
   walletListenersBound: false,
+  paneScrollPositions: {},
+  selectedMarker: null,
+  planQualificationIssue: "unavailable",
 };
 
 function renderLaunchBadge() {
@@ -422,17 +426,39 @@ function renderTerminalMarketFlow(marketData = {}) {
   if (Array.isArray(marketData?.tape?.trades)) renderTerminalTape(marketData.tape.trades);
 }
 
-function setTerminalPane(pane = "chart") {
+function terminalUsesPaneNavigation() {
+  return window.matchMedia?.("(max-width: 820px)")?.matches === true;
+}
+
+function afterTerminalPaneVisible(callback) {
+  requestAnimationFrame(() => requestAnimationFrame(() => callback?.()));
+}
+
+function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } = {}) {
   const requested = new Set(["chart", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
   const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
   const next = requestedButton?.hidden ? "chart" : requested;
   const root = document.querySelector(".terminal-live");
+  const previous = root?.dataset.terminalPane || "chart";
+  const mobile = terminalUsesPaneNavigation();
+  if (mobile && previous !== next) state.paneScrollPositions[previous] = Math.max(0, window.scrollY || 0);
   if (root) root.dataset.terminalPane = next;
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.setAttribute("aria-pressed", String(button.dataset.terminalPaneButton === next));
   }
-  if (next === "chart") requestAnimationFrame(() => state.workspace?.chartHandle?.resize?.());
+  afterTerminalPaneVisible(() => {
+    if (next === "chart") state.workspace?.chartHandle?.resize?.();
+    if (mobile && restoreScroll) {
+      const fallback = document.querySelector(`[data-terminal-pane-button="${next}"]`)?.getBoundingClientRect?.().top + (window.scrollY || 0);
+      const saved = state.paneScrollPositions[next];
+      const top = Number.isFinite(saved) ? saved : Number.isFinite(fallback) ? Math.max(0, fallback - 8) : 0;
+      window.scrollTo({ top, behavior: "auto" });
+    }
+    if (focusId) document.getElementById(focusId)?.focus?.({ preventScroll: true });
+  });
   updateMonitorHandoff();
+  syncPlanActionSurfaces();
+  return next;
 }
 
 function currentRavenOverlayTypes() {
@@ -1083,6 +1109,14 @@ function cleanAlphaCard(card = {}) {
   const detail = customerFacingText(card.detail, "").trim();
   const meta = customerFacingText(card.meta, "").trim();
   if (!label || !headline || ALPHA_EMPTY_LANGUAGE.test(`${label} ${headline} ${detail} ${meta}`)) return null;
+  const actions = (Array.isArray(card.actions) ? card.actions : [])
+    .filter((action) => ["toggle-plan", "inspect-plan"].includes(action?.type) && action?.label)
+    .map((action) => ({
+      type: action.type,
+      label: customerFacingText(action.label, "").slice(0, 48),
+      pressed: action.pressed === true,
+    }))
+    .filter((action) => action.label);
   return {
     id: String(card.id || `${label}:${headline}`).slice(0, 160),
     label,
@@ -1090,7 +1124,7 @@ function cleanAlphaCard(card = {}) {
     detail,
     meta,
     tone: ["positive", "negative", "warning", "neutral"].includes(card.tone) ? card.tone : "neutral",
-    action: card.action && card.action.label && card.action.type ? card.action : null,
+    actions,
   };
 }
 
@@ -1460,12 +1494,13 @@ function refreshSpotStructurePlan() {
   state.context = nextContext;
   renderPlanPreview(planPreview || {});
   applySpotContextChart(nextContext);
+  syncPlanActionSurfaces();
   renderAlphaStack();
   return Boolean(planPreview);
 }
 
 function planAlphaCard() {
-  const validated = planPreviewData(state.context?.plan_preview || {});
+  const validated = qualifiedPlanData();
   if (!validated) return null;
   const { plan, levels, sample, takeProfits } = validated;
   const spotPlan = state.lane === "spot" && takeProfits.length >= 2;
@@ -1480,7 +1515,10 @@ function planAlphaCard() {
       : `${formatPrice(levels.entry_reference.price)} decision · ${formatPrice(levels.target_reference.price)} favorable · ${formatPrice(levels.risk_reference.price)} invalidation`,
     meta: plan.evidence_label || `${sample.toLocaleString()} completed paths · research only`,
     tone: plan.direction === "short" ? "negative" : "positive",
-    action: { type: "show-plan", label: state.planOverlayEnabled ? "Plan shown on chart" : "Show plan on chart" },
+    actions: [
+      { type: "toggle-plan", label: state.planOverlayEnabled ? "Hide from chart" : "Show on chart", pressed: state.planOverlayEnabled },
+      { type: "inspect-plan", label: "Details", pressed: false },
+    ],
   });
 }
 
@@ -1514,9 +1552,9 @@ function renderAlphaStack() {
   if (!section || !host) return 0;
   const cards = [
     ravenAlphaCard(),
+    planAlphaCard(),
     spotFlowAlphaCard(),
     technicalAlphaCard(),
-    planAlphaCard(),
     ...projectedAlphaCards(),
   ].filter(Boolean).filter((card, index, rows) => rows.findIndex((candidate) => candidate.id === card.id) === index).slice(0, 5);
   host.replaceChildren();
@@ -1540,20 +1578,22 @@ function renderAlphaStack() {
       meta.textContent = card.meta;
       node.append(meta);
     }
-    if (card.action) {
-      const action = document.createElement("button");
-      action.type = "button";
-      action.textContent = card.action.label;
-      action.disabled = card.action.type === "show-plan" && state.planOverlayEnabled;
-      action.addEventListener("click", () => {
-        if (card.action.type !== "show-plan") return;
-        const toggle = document.getElementById("terminalPlanToggle");
-        if (!toggle || toggle.checked) return;
-        toggle.checked = true;
-        toggle.dispatchEvent(new Event("change", { bubbles: true }));
-        renderAlphaStack();
-      });
-      node.append(action);
+    if (Array.isArray(card.actions) && card.actions.length) {
+      const actions = document.createElement("div");
+      actions.className = "terminal-alpha-actions";
+      for (const spec of card.actions.slice(0, 2)) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.textContent = spec.label;
+        action.dataset.ravenAction = spec.type;
+        if (spec.type === "toggle-plan") action.setAttribute("aria-pressed", String(spec.pressed === true));
+        action.addEventListener("click", () => {
+          if (spec.type === "toggle-plan") setPlanOverlayActive(!state.planOverlayEnabled, { source: "alpha-card" });
+          if (spec.type === "inspect-plan") focusPlanPreview();
+        });
+        actions.append(action);
+      }
+      node.append(actions);
     }
     host.append(node);
   }
@@ -1975,26 +2015,116 @@ function pathTransitionText(value = {}) {
   return parts.length ? parts.join(" · ") : "Unavailable";
 }
 
-function renderMarkerDetail(marker = {}) {
-  const detail = document.getElementById("terminalMarkerDetail");
-  if (!detail) return;
+function conciseEvidence(value, fallback = "") {
+  const rows = Array.isArray(value) ? value : value ? [value] : [];
+  const text = rows
+    .map((item) => evidenceText(item, "").trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" · ");
+  return (text || fallback).slice(0, 240);
+}
+
+function evidenceText(value, fallback = "") {
+  let current = value;
+  for (let depth = 0; depth < 3 && current && typeof current === "object"; depth += 1) {
+    current = current.label ?? current.source ?? current.summary ?? current.title ?? current.name ?? "";
+  }
+  return customerFacingText(typeof current === "string" || typeof current === "number" ? current : "", fallback);
+}
+
+function markerPresentation(marker = {}) {
   const inspection = marker.inspection || {};
   const read = marker.raven_read || {};
   const source = inspection.source_evidence || read.evidence?.[0] || marker.metadata || {};
-  const sourceLabel = source.label || source.source || marker.source || "";
-  const sourceTime = source.observed_at || marker.exact_observed_at || marker.observed_at;
-  setText("terminalMarkerTitle", marker.label || read.title || "Raven decision detail");
-  setOptionalField(
-    "terminalMarkerSource",
-    `${customerFacingText(sourceLabel, "")}${sourceTime ? `${sourceLabel ? " · " : ""}${timestamp(sourceTime)}` : ""}`,
-  );
-  setOptionalField("terminalMarkerMaturity", titleCase(inspection.evidence_maturity || read.confidence, ""));
-  setOptionalField("terminalMarkerPath", pathTransitionText(inspection.path_transition));
-  const historical = inspection.historical_outcome || {};
+  const plan = PLAN_OVERLAY_TYPES.has(marker.type) ? qualifiedPlanData() : null;
+  const sourceLabel = evidenceText(source, evidenceText(marker.source, plan ? evidenceText(marker.summary || marker.label, "") : ""));
+  const sourceTime = source?.observed_at || marker.exact_observed_at || marker.observed_at;
+  const sourceText = `${sourceLabel}${sourceTime ? `${sourceLabel ? " · " : ""}${timestamp(sourceTime)}` : ""}`;
+  return {
+    title: customerFacingText(marker.label || read.title || "Raven decision detail", "Raven decision detail").slice(0, 120),
+    source: sourceText.slice(0, 220),
+    maturity: customerFacingText(inspection.evidence_maturity || read.confidence || plan?.plan?.evidence_maturity, "").slice(0, 80),
+    support: conciseEvidence(inspection.support || (plan ? plan.plan.strategy_reasons : null)),
+    contradiction: conciseEvidence(
+      inspection.contradiction,
+      plan ? customerFacingText(plan.levels?.risk_reference?.source, "") : "",
+    ),
+    inspection,
+    read,
+  };
+}
+
+function setChartMarkerField(rowId, value) {
+  const row = document.getElementById(rowId);
+  const field = row?.querySelector("dd");
+  const show = hasOperatorValue(value);
+  if (row) row.hidden = !show;
+  if (field) field.textContent = show ? String(value) : "";
+}
+
+function renderMarkerDetail(marker = {}) {
+  const detail = document.getElementById("terminalMarkerDetail");
+  if (!detail) return;
+  const view = markerPresentation(marker);
+  setText("terminalMarkerTitle", view.title);
+  setOptionalField("terminalMarkerSource", view.source);
+  setOptionalField("terminalMarkerMaturity", titleCase(view.maturity, ""));
+  setOptionalField("terminalMarkerPath", pathTransitionText(view.inspection.path_transition));
+  const historical = view.inspection.historical_outcome || {};
   setOptionalField("terminalMarkerOutcome", finite(historical.sample_size) > 0 ? historicalOutcomeText(historical) : "");
-  setOptionalField("terminalMarkerSupport", operatorList(inspection.support, ""));
-  setOptionalField("terminalMarkerContradiction", operatorList(inspection.contradiction, ""));
+  setOptionalField("terminalMarkerSupport", operatorList(view.inspection.support, view.support));
+  setOptionalField("terminalMarkerContradiction", operatorList(view.inspection.contradiction, view.contradiction));
   detail.hidden = false;
+}
+
+function renderChartMarkerInspector(marker = {}) {
+  const inspector = document.getElementById("terminalChartMarkerInspector");
+  if (!inspector) return;
+  const view = markerPresentation(marker);
+  setText("terminalChartMarkerTitle", view.title);
+  setChartMarkerField("terminalChartMarkerSourceRow", view.source);
+  setChartMarkerField("terminalChartMarkerMaturityRow", titleCase(view.maturity, ""));
+  setChartMarkerField("terminalChartMarkerSupportRow", view.support);
+  setChartMarkerField("terminalChartMarkerContradictionRow", view.contradiction);
+  inspector.hidden = false;
+  syncChartRavenDock();
+}
+
+function handleMarkerSelect(marker = {}) {
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
+  if (!activeInstrumentId || (marker.instrument_id && marker.instrument_id !== activeInstrumentId)) {
+    announceRavenAction("Marker unavailable because its exact instrument does not match the active chart.");
+    return false;
+  }
+  state.selectedMarker = marker;
+  renderMarkerDetail(marker);
+  renderChartMarkerInspector(marker);
+  announceRavenAction(`${customerFacingText(marker.label || "Raven marker", "Raven marker")} selected. Compact evidence is visible on the chart.`);
+  return true;
+}
+
+function clearMarkerInspection() {
+  state.selectedMarker = null;
+  const detail = document.getElementById("terminalMarkerDetail");
+  const inspector = document.getElementById("terminalChartMarkerInspector");
+  if (detail) detail.hidden = true;
+  if (inspector) inspector.hidden = true;
+  state.workspace?.clearMarkerSelection?.();
+  syncChartRavenDock();
+}
+
+function showFullMarkerEvidence() {
+  if (!state.selectedMarker) return false;
+  renderMarkerDetail(state.selectedMarker);
+  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  afterTerminalPaneVisible(() => {
+    const detail = document.getElementById("terminalMarkerDetail");
+    detail?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    detail?.focus?.({ preventScroll: true });
+  });
+  announceRavenAction("Full evidence opened for the selected Raven marker. The chart viewport and overlays were preserved.");
+  return true;
 }
 
 function unwrap(payload) {
@@ -2261,6 +2391,7 @@ function renderComparables(comparables = {}) {
 
 function resetPlanPreview() {
   state.planOverlayEnabled = false;
+  clearPlanMarkerInspection();
   const section = document.getElementById("terminalPlanSection");
   const toggle = document.getElementById("terminalPlanToggle");
   if (section) section.hidden = true;
@@ -2280,6 +2411,41 @@ function resetPlanPreview() {
   setText("terminalPlanEvidence", "");
   setText("terminalPlanLadder", "");
   setText("terminalPlanWhy", "");
+  syncPlanActionSurfaces(null);
+}
+
+function activeChartEvidenceInstrumentId() {
+  const workspace = state.workspace?.state || {};
+  const instrument = workspace.instrument || {};
+  if (workspace.state !== "live" || !instrument.canonical_id) return null;
+  if (state.lane === "perps") {
+    const selectedId = String(state.selected?.instrument_id || "");
+    const exact = /^hyperliquid:perp:([A-Z0-9._-]+)$/i.exec(selectedId);
+    const selectedAsset = String(state.selected?.asset || "").replace(/-PERP$/i, "").toUpperCase();
+    const chartAsset = String(instrument.base_asset || instrument.symbol || "").replace(/-PERP$/i, "").toUpperCase();
+    return exact
+      && String(workspace.marketIdentity || "") === selectedId
+      && instrument.instrument_type === "perpetual"
+      && instrument.identity_scope === "venue_market"
+      && instrument.chain === "hyperliquid"
+      && instrument.venue === "hyperliquid"
+      && exact[1].toUpperCase() === selectedAsset
+      && chartAsset === selectedAsset
+      ? selectedId
+      : null;
+  }
+  if (state.lane === "spot") {
+    const selectedPool = String(state.selected?.pairAddress || "");
+    const selectedToken = String(state.selected?.tokenAddress || "");
+    return instrument.instrument_type === "spot_pool"
+      && instrument.identity_scope === "exact_pool"
+      && String(instrument.chain || "").toLowerCase() === String(state.selected?.chainId || "").toLowerCase()
+      && String(instrument.pool_address || "").toLowerCase() === selectedPool.toLowerCase()
+      && (!selectedToken || String(instrument.token_address || "").toLowerCase() === selectedToken.toLowerCase())
+      ? instrument.canonical_id
+      : null;
+  }
+  return null;
 }
 
 function planPreviewData(plan = {}) {
@@ -2288,10 +2454,7 @@ function planPreviewData(plan = {}) {
   const entry = finite(levels?.entry_reference?.price);
   const target = finite(levels?.target_reference?.price);
   const risk = finite(levels?.risk_reference?.price);
-  const expectedInstrumentIds = new Set([
-    state.workspace?.state?.instrument?.canonical_id,
-    state.selected?.instrument_id,
-  ].filter(Boolean));
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
   const rawTakeProfits = Array.isArray(plan?.take_profits) ? plan.take_profits : [];
   const takeProfits = rawTakeProfits.map((row) => ({
     label: customerFacingText(row?.label, "").trim(),
@@ -2323,7 +2486,7 @@ function planPreviewData(plan = {}) {
     || !(target > 0)
     || !(risk > 0)
     || !["long", "short"].includes(plan.direction)
-    || (expectedInstrumentIds.size > 0 && (!plan.instrument_id || !expectedInstrumentIds.has(plan.instrument_id)))
+    || (!activeInstrumentId || plan.instrument_id !== activeInstrumentId)
     || (plan.direction === "long" && !(target > entry && risk < entry))
     || (plan.direction === "short" && !(target < entry && risk > entry))
     || (rawTakeProfits.length > 0 && takeProfits.length !== rawTakeProfits.length)
@@ -2335,8 +2498,215 @@ function planPreviewData(plan = {}) {
   return { plan, levels, sample, takeProfits };
 }
 
-function renderPlanPreview(plan = {}) {
+function planEvidenceIsCurrent() {
+  if (state.workspace?.state?.state !== "live") return false;
+  if (state.lane === "spot") {
+    const context = state.context?.spot_context;
+    const providerState = String(state.workspace?.state?.providerFreshnessState || "current").toLowerCase();
+    const candleState = String(state.workspace?.state?.candleFreshnessState || "current").toLowerCase();
+    return state.context?.spot_identity_validated === true
+      && context?.state === "current"
+      && ["current", "fresh"].includes(providerState)
+      && ["current", "fresh"].includes(candleState);
+  }
+  if (state.lane === "perps") {
+    return state.context?.raven_context?.context_available === true
+      && ["current", "fresh"].includes(String(state.context?.raven_context?.context_state || "").toLowerCase())
+      && state.context?.delivery?.freshness_state === "fresh"
+      && state.context?.delivery?.fallback !== true;
+  }
+  return false;
+}
+
+function qualifiedPlanData(plan = state.context?.plan_preview || {}) {
   const validated = planPreviewData(plan);
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
+  const contract = state.context?.chart_overlays;
+  const planObservedAt = Date.parse(plan?.as_of || "");
+  const fail = (reason) => {
+    state.planQualificationIssue = reason;
+    return null;
+  };
+  if (activeInstrumentId && plan?.instrument_id && plan.instrument_id !== activeInstrumentId) return fail("exact_instrument_mismatch");
+  if (!validated) return fail("invalid_plan_contract");
+  if (!activeInstrumentId || plan.instrument_id !== activeInstrumentId) return fail("exact_instrument_mismatch");
+  if (!Number.isFinite(planObservedAt)) return fail("plan_observed_at_invalid");
+  if (!planEvidenceIsCurrent()) return fail("evidence_not_current");
+  if (
+    contract?.schema_version !== "ravenos.chart_overlays.v1"
+    || contract?.role !== "annotation_only"
+    || contract?.candle_replacement_allowed !== false
+    || contract?.instrument_id !== activeInstrumentId
+    || !Array.isArray(contract?.overlays)
+  ) return fail("invalid_overlay_contract");
+  const overlays = contract.overlays.filter((overlay) => PLAN_OVERLAY_TYPES.has(overlay?.type));
+  const targetCount = validated.takeProfits.length || 1;
+  const expectedCount = targetCount + 2;
+  const counts = overlays.reduce((result, overlay) => {
+    result[overlay.type] = (result[overlay.type] || 0) + 1;
+    return result;
+  }, {});
+  const overlaysValid = overlays.every((overlay) => {
+    const observedAt = Date.parse(overlay?.observed_at || "");
+    const lineage = overlay?.lineage;
+    return typeof overlay?.id === "string"
+      && overlay.id.startsWith(`${plan.plan_id}:`)
+      && overlay.instrument_id === activeInstrumentId
+      && finite(overlay.priceMin) > 0
+      && finite(overlay.priceMax) > 0
+      && Number.isFinite(observedAt)
+      && lineage && typeof lineage === "object"
+      && Object.values(lineage).some(Boolean);
+  });
+  if (
+    overlays.length !== expectedCount
+    || counts["plan-entry"] !== 1
+    || counts["plan-target"] !== targetCount
+    || counts["plan-risk"] !== 1
+    || !overlaysValid
+  ) return fail("plan_overlay_mismatch");
+  state.planQualificationIssue = null;
+  return { ...validated, overlays, targetCount, levelCount: expectedCount };
+}
+
+function captureChartViewport() {
+  const instrumentId = state.workspace?.state?.instrument?.canonical_id || null;
+  const handle = state.workspace?.chartHandle;
+  return instrumentId && handle ? {
+    instrumentId,
+    timeRange: handle.visibleTimeRange?.() || null,
+    logicalRange: handle.visibleLogicalRange?.() || null,
+  } : null;
+}
+
+function restoreChartViewport(viewport) {
+  if (!viewport || viewport.instrumentId !== state.workspace?.state?.instrument?.canonical_id) return false;
+  const handle = state.workspace?.chartHandle;
+  if (!handle) return false;
+  handle.resize?.();
+  if (viewport.timeRange) return handle.setVisibleTimeRange?.(viewport.timeRange) === true;
+  return true;
+}
+
+function announceRavenAction(message = "") {
+  const live = document.getElementById("terminalRavenActionStatus");
+  if (!live) return;
+  live.textContent = "";
+  requestAnimationFrame(() => { live.textContent = customerFacingText(message, ""); });
+}
+
+function syncChartRavenDock() {
+  const dock = document.getElementById("terminalChartRavenDock");
+  if (!dock) return;
+  const planVisible = document.getElementById("terminalChartPlanStrip")?.hidden === false;
+  const markerVisible = document.getElementById("terminalChartMarkerInspector")?.hidden === false;
+  dock.hidden = !planVisible && !markerVisible;
+}
+
+function planSummaryLabel(qualified) {
+  if (!qualified) return "";
+  return qualified.targetCount === 1
+    ? "Entry + TP + Risk"
+    : `Entry + ${qualified.targetCount} TP + Risk`;
+}
+
+function syncPlanActionSurfaces(qualified = qualifiedPlanData()) {
+  if (!qualified) state.planOverlayEnabled = false;
+  const active = Boolean(qualified && state.planOverlayEnabled);
+  const toggle = document.getElementById("terminalPlanToggle");
+  if (toggle) {
+    toggle.checked = active;
+    toggle.disabled = !qualified;
+  }
+  setText("terminalPlanToggleLabel", active ? "Hide from chart" : "Show on chart", "Show on chart");
+  setText(
+    "terminalPlanToggleHint",
+    active ? "Remove only the transient plan levels; other Raven layers stay active." : "Add these current-evidence levels to the chart.",
+    "",
+  );
+  const strip = document.getElementById("terminalChartPlanStrip");
+  if (strip) strip.hidden = !active;
+  setText("terminalChartPlanSummary", active ? planSummaryLabel(qualified) : "", "");
+  const measured = state.workspace?.diagnostics?.()?.chart;
+  const measuredLayers = finite(measured?.active_overlay_count);
+  const activeLayers = measuredLayers === null ? qualified?.levelCount || 0 : Math.max(0, Math.trunc(measuredLayers));
+  setText("terminalChartRavenLayerCount", `${activeLayers} Raven layer${activeLayers === 1 ? "" : "s"} active`, "");
+  const inspect = document.getElementById("terminalChartPlanInspect");
+  if (inspect) inspect.setAttribute("aria-expanded", String(terminalUsesPaneNavigation() && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven"));
+  syncChartRavenDock();
+  return active;
+}
+
+function clearPlanMarkerInspection() {
+  if (!PLAN_OVERLAY_TYPES.has(state.selectedMarker?.type)) return;
+  clearMarkerInspection();
+}
+
+function setPlanOverlayActive(requested, { source = "plan", switchToChart = requested, focus = true } = {}) {
+  const qualified = qualifiedPlanData();
+  if (requested && !qualified) {
+    const wasActive = state.planOverlayEnabled;
+    state.planOverlayEnabled = false;
+    if (wasActive) applyActiveContextOverlays();
+    syncPlanActionSurfaces(null);
+    renderAlphaStack();
+    announceRavenAction("Raven plan unavailable. Exact identity, current evidence, and complete levels are required.");
+    return false;
+  }
+  const viewport = captureChartViewport();
+  const changed = state.planOverlayEnabled !== Boolean(requested);
+  state.planOverlayEnabled = Boolean(requested);
+  if (changed) applyActiveContextOverlays();
+  if (!requested) clearPlanMarkerInspection();
+  syncPlanActionSurfaces(qualified);
+  renderAlphaStack();
+  if (requested && switchToChart && terminalUsesPaneNavigation()) setTerminalPane("chart", { focusId: focus ? "terminalChartPlanInspect" : "" });
+  afterTerminalPaneVisible(() => {
+    restoreChartViewport(viewport);
+    if (requested && focus) document.getElementById("terminalChartPlanInspect")?.focus?.({ preventScroll: true });
+    if (!requested && source === "chart-strip") document.getElementById("terminalChart")?.focus?.({ preventScroll: true });
+    syncPlanActionSurfaces(qualifiedPlanData());
+  });
+  announceRavenAction(requested
+    ? `Raven plan shown on the exact chart. ${planSummaryLabel(qualified)}. Research only.`
+    : "Raven plan hidden. Other Raven chart layers were preserved.");
+  return true;
+}
+
+function focusPlanPreview() {
+  if (!qualifiedPlanData()) {
+    announceRavenAction("A current qualified Raven plan is not available for this exact market.");
+    return false;
+  }
+  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  afterTerminalPaneVisible(() => {
+    const section = document.getElementById("terminalPlanSection");
+    section?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    section?.focus?.({ preventScroll: true });
+    document.getElementById("terminalChartPlanInspect")?.setAttribute("aria-expanded", "true");
+  });
+  announceRavenAction("Full Raven plan evidence opened. Chart levels and viewport remain active.");
+  return true;
+}
+
+function focusTerminalRaven() {
+  const target = document.getElementById("terminalContextSection")?.hidden === false
+    ? document.getElementById("terminalContextSection")
+    : document.getElementById("terminalAlphaSection")?.hidden === false
+      ? document.getElementById("terminalAlphaSection")
+      : null;
+  if (!target) return false;
+  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  afterTerminalPaneVisible(() => {
+    target.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    target.focus?.({ preventScroll: true });
+  });
+  announceRavenAction(`${state.lane === "equity" ? "Atlas" : "Raven"} intelligence opened for the selected exact market.`);
+  return true;
+}
+
+function renderPlanPreview(plan = {}) {
+  const validated = qualifiedPlanData(plan);
   if (!validated) {
     resetPlanPreview();
     return false;
@@ -2369,13 +2739,12 @@ function renderPlanPreview(plan = {}) {
   if (why) why.hidden = !spotPlan || !reasons.length;
   setText("terminalPlanWhy", spotPlan ? reasons.join(" · ") : "");
   setText("terminalPlanDisclaimer", plan.disclaimer || "Based on completed paths for this market. Research only—not personalized targets, stops, or orders.");
-  const toggle = document.getElementById("terminalPlanToggle");
-  if (toggle) toggle.checked = state.planOverlayEnabled;
+  syncPlanActionSurfaces(validated);
   return true;
 }
 
 function loadRavenPlanIntoTicket() {
-  const validated = planPreviewData(state.context?.plan_preview || {});
+  const validated = qualifiedPlanData();
   if (!validated || state.lane !== "perps") return;
   const { plan, levels } = validated;
   setMarketPreviewSide(plan.direction === "short" ? "short" : "long");
@@ -2398,6 +2767,7 @@ function loadRavenPlanIntoTicket() {
 
 function setContextUnavailable() {
   state.context = null;
+  clearMarkerInspection();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", "", "Market");
   setContextField("terminalBehavior", "", "Behavior");
@@ -2414,6 +2784,7 @@ function setContextUnavailable() {
 
 function setContextChecking({ identity } = {}) {
   state.context = null;
+  clearMarkerInspection();
   resetPlanPreview();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", identity || "");
@@ -2425,7 +2796,16 @@ function contextChartEvent(payload) {
   const event = payload?.chart_event;
   const candles = state.workspace?.state?.candles || [];
   const observed = Math.trunc(Date.parse(event?.observed_at || "") / 1000);
-  if (!event?.event_id || !event?.instrument_id || !event?.lineage?.public_context_id || !Number.isFinite(observed) || !candles.length) return null;
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
+  if (
+    !event?.event_id
+    || !activeInstrumentId
+    || event?.instrument_id !== activeInstrumentId
+    || payload?.instrument?.instrument_id !== activeInstrumentId
+    || !event?.lineage?.public_context_id
+    || !Number.isFinite(observed)
+    || !candles.length
+  ) return null;
   const nearest = candles.reduce((best, candle) => (
     Math.abs(Number(candle.time) - observed) < Math.abs(Number(best.time) - observed) ? candle : best
   ), candles[0]);
@@ -2444,9 +2824,11 @@ function contextChartEvent(payload) {
 
 function applyContextChartEvent(payload) {
   const event = contextChartEvent(payload);
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
   const sourceOverlays = payload?.chart_overlays?.role === "annotation_only"
     && payload?.chart_overlays?.candle_replacement_allowed === false
-    && payload?.chart_overlays?.instrument_id === payload?.instrument?.instrument_id
+    && payload?.chart_overlays?.instrument_id === activeInstrumentId
+    && payload?.instrument?.instrument_id === activeInstrumentId
     && Array.isArray(payload?.chart_overlays?.overlays)
     ? payload.chart_overlays.overlays
     : [];
@@ -2513,8 +2895,13 @@ function applySpotContextChart(payload = state.context || {}) {
 }
 
 function applyActiveContextOverlays() {
+  if (state.planOverlayEnabled && !qualifiedPlanData()) {
+    state.planOverlayEnabled = false;
+    clearPlanMarkerInspection();
+  }
   if (state.lane === "spot") applySpotContextChart();
   else if (state.context) applyContextChartEvent(state.context);
+  syncPlanActionSurfaces();
 }
 
 function renderPerpContext(payload, { updateUrl = true } = {}) {
@@ -2560,6 +2947,7 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   renderComparables(payload?.matured_comparables || {});
   renderPlanPreview(payload?.plan_preview || {});
   applyContextChartEvent(payload);
+  syncPlanActionSurfaces();
   renderMarketAnatomy();
   updateShell({
     subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
@@ -3810,7 +4198,7 @@ function bindControls() {
   document.getElementById("terminalModeSelect").addEventListener("change", (event) => setLane(event.target.value));
   document.getElementById("assetSelect").addEventListener("change", (event) => selectPerp(event.target.value));
   document.getElementById("terminalInstrumentTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
-  document.getElementById("terminalReadTrigger").addEventListener("click", () => window.RavenOSShell?.openContext?.());
+  document.getElementById("terminalReadTrigger").addEventListener("click", focusTerminalRaven);
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
@@ -3833,9 +4221,9 @@ function bindControls() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#terminalSpotControl, #terminalSpotResults")) document.getElementById("terminalSpotResults").hidden = true;
   });
-  document.getElementById("terminalMarkerClose")?.addEventListener("click", () => {
-    document.getElementById("terminalMarkerDetail").hidden = true;
-  });
+  document.getElementById("terminalMarkerClose")?.addEventListener("click", clearMarkerInspection);
+  document.getElementById("terminalChartMarkerClose")?.addEventListener("click", clearMarkerInspection);
+  document.getElementById("terminalChartMarkerEvidence")?.addEventListener("click", showFullMarkerEvidence);
   document.getElementById("terminalPreviewLong")?.addEventListener("click", () => setMarketPreviewSide("long", { refresh: true }));
   document.getElementById("terminalPreviewShort")?.addEventListener("click", () => setMarketPreviewSide("short", { refresh: true }));
   for (const button of document.querySelectorAll("[data-order-type]")) {
@@ -3859,10 +4247,10 @@ function bindControls() {
   document.getElementById("terminalPreviewStopLoss")?.addEventListener("input", () => clearMarketPreviewResult("Risk levels changed. Review the plan again."));
   document.getElementById("terminalPlanLoad")?.addEventListener("click", loadRavenPlanIntoTicket);
   document.getElementById("terminalPlanToggle")?.addEventListener("change", (event) => {
-    state.planOverlayEnabled = event.target.checked === true;
-    applyActiveContextOverlays();
-    renderAlphaStack();
+    setPlanOverlayActive(event.target.checked === true, { source: "plan-preview" });
   });
+  document.getElementById("terminalChartPlanInspect")?.addEventListener("click", focusPlanPreview);
+  document.getElementById("terminalChartPlanHide")?.addEventListener("click", () => setPlanOverlayActive(false, { source: "chart-strip", switchToChart: false }));
   document.getElementById("terminalAccountForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadTerminalAccount(document.getElementById("terminalAccountAddress")?.value);
@@ -3899,6 +4287,7 @@ function renderWorkspaceState(workspace = {}) {
   renderMarketAnatomy(workspace);
   renderTradeConsequences();
   renderAlphaStack();
+  syncPlanActionSurfaces();
   const boundary = document.getElementById("terminalBoundary");
   if (!boundary) return;
   const connection = String(workspace?.connectionState || "").toLowerCase();
@@ -3972,7 +4361,7 @@ async function boot() {
       document.getElementById("timeframeSelect").value = timeframe;
       document.getElementById("timeframeSelect").dispatchEvent(new Event("change", { bubbles: true }));
     },
-    onMarkerSelect: (marker) => renderMarkerDetail(marker),
+    onMarkerSelect: (marker) => handleMarkerSelect(marker),
     onIndicatorChange: () => updateMonitorHandoff(),
     onChartReadChange: (read) => {
       state.chartRead = read;
@@ -4065,10 +4454,13 @@ async function boot() {
       chartReadDirection: state.chartRead?.direction || null,
       chartReadSetup: state.chartRead?.setup || null,
       chartReadScore: finite(state.chartRead?.score),
-      planPreviewAvailable: Boolean(planPreviewData(state.context?.plan_preview || {})),
+      planPreviewAvailable: Boolean(qualifiedPlanData()),
+      planQualificationIssue: state.planQualificationIssue,
       planStrategyId: state.context?.plan_preview?.strategy_id || null,
       planTargetCount: state.context?.plan_preview?.take_profits?.length || 0,
       planOverlayEnabled: state.planOverlayEnabled,
+      activeTerminalPane: document.querySelector(".terminal-live")?.dataset.terminalPane || "chart",
+      selectedMarkerLabel: state.selectedMarker?.label || null,
       quoteOnly: state.flags?.quote_only === true,
       marketPreviewAvailable: state.flags?.market_preview_available === true,
       marketPreviewState: state.marketPreview?.state || "unavailable",

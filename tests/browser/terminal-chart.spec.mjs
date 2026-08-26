@@ -91,12 +91,16 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.getByRole("link", { name: /Lightweight Charts.*TradingView/i })).toBeVisible();
   await page.getByRole("button", { name: "Inspect Behavioral setup" }).click();
+  await expect(page.locator("#terminalChartMarkerInspector")).toBeVisible();
+  await expect(page.locator("#terminalChartMarkerSource")).toContainText("Timestamped Raven observation");
+  await expect(page.getByRole("button", { name: "Inspect Behavioral setup" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#terminalMarkerDetail")).toBeVisible();
   await expect(page.locator("#terminalMarkerSource")).toContainText("Timestamped Raven observation");
   await expect(page.locator("#terminalMarkerMaturity")).toHaveText("Matured");
   await expect(page.locator("#terminalMarkerSupport")).toContainText("Pressure broadens");
   await page.locator("#terminalMarkerClose").click();
   await expect(page.locator("#terminalMarkerDetail")).toBeHidden();
+  await expect(page.locator("#terminalChartMarkerInspector")).toBeHidden();
   await expect(page.locator(".ros-capability-status, .terminal-continuity")).toHaveCount(0);
   await expect(page.locator("#terminalBoundary")).toContainText("No order can be signed or sent");
   await expect(page.locator("#assetSelect option")).toHaveCount(2);
@@ -255,6 +259,135 @@ test("mobile Terminal uses focused Chart, Trade, Book, Raven, and Account panes 
   await page.locator('[data-account-tab="history"]').click();
   await expect(page.locator('#terminalAccountLedger .terminal-account-grid[data-view="history"] .terminal-account-row')).toHaveCount(2);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+});
+
+test("mobile Raven plan actions atomically reveal the exact chart, preserve its viewport, and stay synchronized", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { includeContextPressureOverlay: true });
+  await page.goto("/terminal/?raven_overlays=pressure");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["pressure"]);
+  const before = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.time_range);
+
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  const alphaToggle = page.locator('#terminalAlphaStack [data-raven-action="toggle-plan"]');
+  await expect(alphaToggle).toHaveText("Show on chart");
+  await alphaToggle.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await expect(page.locator("#terminalChart")).toBeVisible();
+  await expect(page.locator(".terminal-intelligence")).toBeHidden();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeVisible();
+  await expect(page.locator("#terminalChartPlanSummary")).toHaveText("Entry + TP + Risk");
+  await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText("4 Raven layers active");
+  await expect(page.locator("#terminalPlanToggle")).toBeChecked();
+  await expect(alphaToggle).toHaveText("Hide from chart");
+  await expect(alphaToggle).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual([
+    "pressure",
+    "plan-entry",
+    "plan-target",
+    "plan-risk",
+  ]);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.time_range)).toEqual(before);
+
+  await page.evaluate(() => {
+    const toggle = document.getElementById("terminalPlanToggle");
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(4);
+  await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText("4 Raven layers active");
+
+  const monitorHref = await page.locator("#terminalMonitorLink").getAttribute("href");
+  const monitorState = new URL(monitorHref);
+  expect(monitorState.searchParams.get("raven_overlays")).toBe("pressure");
+  expect(monitorHref).not.toMatch(/plan-entry|plan-target|plan-risk|148|152\.588|146\.224/);
+  expect(page.url()).not.toMatch(/plan-entry|plan-target|plan-risk|152\.588|146\.224/);
+
+  await page.locator("#terminalChartPlanInspect").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("#terminalPlanSection")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("terminalPlanSection");
+  await page.locator('[data-terminal-pane-button="chart"]').click();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeVisible();
+
+  await page.locator("#terminalChartPlanHide").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
+  await expect(page.locator("#terminalPlanToggle")).not.toBeChecked();
+  await expect(alphaToggle).toHaveText("Show on chart");
+  await expect(alphaToggle).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["pressure"]);
+  await expect(page.locator("#terminalRavenActionStatus")).toContainText("Other Raven chart layers were preserved");
+});
+
+test("mobile marker inspection remains visible on Chart and Full evidence focuses the Raven detail", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await page.locator("#terminalReadTrigger").click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("body")).not.toHaveClass(/ros-context-open/);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("terminalContextSection");
+
+  await page.locator('[data-terminal-pane-button="chart"]').click();
+  const marker = page.getByRole("button", { name: "Inspect Behavioral setup" });
+  await marker.click();
+  await expect(page.locator("#terminalChartMarkerInspector")).toBeVisible();
+  await expect(page.locator("#terminalChartMarkerTitle")).toHaveText("Behavioral setup");
+  await expect(page.locator("#terminalChartMarkerSource")).toContainText("Timestamped Raven observation");
+  await expect(page.locator("#terminalChartMarkerMaturity")).toHaveText("Matured");
+  await expect(page.locator("#terminalChartMarkerSupport")).toContainText("Pressure broadens");
+  await expect(page.locator("#terminalChartMarkerContradiction")).toContainText("loses confirmation");
+  await expect(marker).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator("#terminalChartMarkerEvidence").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("#terminalMarkerDetail")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("terminalMarkerDetail");
+
+  await page.locator('[data-terminal-pane-button="chart"]').click();
+  await expect(page.locator("#terminalChartMarkerInspector")).toBeVisible();
+  await expect(marker).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#terminalChartMarkerClose").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#terminalChartMarkerInspector")).toBeHidden();
+  await expect(marker).toHaveAttribute("aria-pressed", "false");
+});
+
+test("an exact-instrument plan mismatch fails closed without chart overlays", async ({ page }) => {
+  await mockTerminalLiveApis(page, { perpPlanIdentityMismatch: true });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  await expect(page.locator("#terminalAlphaStack")).not.toContainText("Trade path");
+  await expect(page.locator("#terminalPlanToggle")).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.planPreviewAvailable).toBe(false);
+  expect(state.planQualificationIssue).toBe("exact_instrument_mismatch");
+  expect(state.planOverlayEnabled).toBe(false);
+});
+
+test("stale Raven plan evidence fails closed while current market facts remain available", async ({ page }) => {
+  await mockTerminalLiveApis(page, { stalePerpPlan: true });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.planPreviewAvailable).toBe(false);
+  expect(state.planQualificationIssue).toBe("evidence_not_current");
+  expect(state.signingAvailable).toBe(false);
+  expect(state.submissionAvailable).toBe(false);
 });
 
 test("live chart connection status reaches the visible Terminal instead of remaining on Connecting", async ({ page }) => {
@@ -582,7 +715,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
   const markerIndex = page.locator("#terminalChart [data-rpw-marker-index] button");
   await expect(markerIndex).toHaveCount(1);
-  await expect(markerIndex).toHaveText("1");
+  await expect(markerIndex).toHaveText("Raven marker 1");
   await expect(markerIndex).toHaveAttribute("aria-label", /Inspect /);
   const spotPriceScale = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.price_axis);
   expect(spotPriceScale).toMatchObject({
@@ -618,6 +751,9 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalPlanDisclaimer")).toContainText("not personalized orders");
   await expect(page.locator("#terminalPlanLoad")).toBeHidden();
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeVisible();
+  await expect(page.locator("#terminalChartPlanSummary")).toHaveText("Entry + 3 TP + Risk");
+  await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText("5 Raven layers active");
   await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeVisible();
   await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Breakout.*RSI.*volume/s);
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");

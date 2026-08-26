@@ -388,7 +388,20 @@ function accountScenarioFixture(input = {}) {
   };
 }
 
-export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEnabled = false, sparseTimeframe = null, liveBars = false, quietSpot = false, spotRavenContext = true, bullishSpotPlan = false, spotControls = true, velocitySpotContext = false } = {}) {
+export async function mockTerminalLiveApis(page, {
+  chartFailure = false,
+  flagsEnabled = false,
+  sparseTimeframe = null,
+  liveBars = false,
+  quietSpot = false,
+  spotRavenContext = true,
+  bullishSpotPlan = false,
+  spotControls = true,
+  velocitySpotContext = false,
+  perpPlanIdentityMismatch = false,
+  stalePerpPlan = false,
+  includeContextPressureOverlay = false,
+} = {}) {
   const calls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
@@ -408,7 +421,28 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
   }));
   await page.route("**/api/perps/instrument**", (route) => {
     const symbol = new URL(route.request().url()).searchParams.get("symbol") || "SOL-PERP";
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(contextPayload(symbol)) });
+    const payload = contextPayload(symbol);
+    if (perpPlanIdentityMismatch) payload.plan_preview.instrument_id = "hyperliquid:perp:DIFFERENT";
+    if (stalePerpPlan) {
+      payload.raven_context.context_state = "stale";
+      payload.delivery.freshness_state = "stale";
+    }
+    if (includeContextPressureOverlay) {
+      payload.chart_overlays.overlays.push({
+        id: `${payload.raven_context.public_context_id}:pressure:v1`,
+        instrument_id: payload.instrument.instrument_id,
+        type: "pressure-zone",
+        label: "Current pressure zone",
+        summary: "Exact-market observed pressure range",
+        severity: "info",
+        priceMin: 147,
+        priceMax: 149,
+        startTime: 1_784_592_000,
+        observed_at: "2026-07-21T12:18:00Z",
+        lineage: { public_context_id: payload.raven_context.public_context_id },
+      });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
   await page.route("**/api/terminal/chart**", (route) => {
     const url = new URL(route.request().url());

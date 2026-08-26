@@ -82,6 +82,7 @@
       <button type="button" data-terminal-pane-button="raven" aria-pressed="false">Raven</button>
       <button type="button" data-terminal-pane-button="account" data-perp-only aria-pressed="false">Account</button>
     </nav>
+    <p class="sr-only" id="terminalRavenActionStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 
     <section class="terminal-workspace">
       <article class="terminal-chart-panel">
@@ -101,7 +102,33 @@
             </details>
           </div>
         </header>
-        <div id="terminalChart" aria-label="Selected market chart"></div>
+        <div class="terminal-chart-raven-dock" id="terminalChartRavenDock" hidden>
+          <section class="terminal-chart-plan-strip" id="terminalChartPlanStrip" aria-label="Active Raven plan" hidden>
+            <div>
+              <span>Raven plan</span>
+              <strong id="terminalChartPlanSummary">Entry + TP + Risk</strong>
+              <small><b id="terminalChartRavenLayerCount">0 Raven layers active</b> · Research only · current evidence</small>
+            </div>
+            <div class="terminal-chart-plan-actions">
+              <button type="button" id="terminalChartPlanInspect" aria-expanded="false">Inspect</button>
+              <button type="button" id="terminalChartPlanHide">Hide</button>
+            </div>
+          </section>
+          <section class="terminal-chart-marker-inspector" id="terminalChartMarkerInspector" aria-labelledby="terminalChartMarkerTitle" tabindex="-1" hidden>
+            <header>
+              <div><span>Selected Raven marker</span><h3 id="terminalChartMarkerTitle">Decision detail</h3></div>
+              <button type="button" id="terminalChartMarkerClose" aria-label="Close chart marker detail">Close</button>
+            </header>
+            <dl>
+              <div id="terminalChartMarkerSourceRow" hidden><dt>Source</dt><dd id="terminalChartMarkerSource"></dd></div>
+              <div id="terminalChartMarkerMaturityRow" hidden><dt>Evidence</dt><dd id="terminalChartMarkerMaturity"></dd></div>
+              <div id="terminalChartMarkerSupportRow" hidden><dt>Supports</dt><dd id="terminalChartMarkerSupport"></dd></div>
+              <div id="terminalChartMarkerContradictionRow" hidden><dt>Contradicts</dt><dd id="terminalChartMarkerContradiction"></dd></div>
+            </dl>
+            <button class="terminal-chart-marker-evidence" type="button" id="terminalChartMarkerEvidence">Full evidence</button>
+          </section>
+        </div>
+        <div id="terminalChart" aria-label="Selected market chart" tabindex="-1"></div>
       </article>
 
       <aside class="terminal-market-rail" id="terminalMarketRail" aria-label="Hyperliquid market microstructure">
@@ -166,7 +193,7 @@
           <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
         </section>
 
-        <section class="terminal-marker-detail" id="terminalMarkerDetail" hidden>
+        <section class="terminal-marker-detail" id="terminalMarkerDetail" tabindex="-1" hidden>
           <header><div><span>Raven marker</span><h2 id="terminalMarkerTitle">Decision detail</h2></div><button type="button" id="terminalMarkerClose" aria-label="Close marker detail">Close</button></header>
           <dl class="terminal-marker-grid">
             <div hidden><dt>Source evidence</dt><dd id="terminalMarkerSource"></dd></div>
@@ -178,7 +205,7 @@
           </dl>
         </section>
 
-        <section id="terminalContextSection" hidden>
+        <section id="terminalContextSection" tabindex="-1" hidden>
           <header><div><span>Why now</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
           <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
           <div class="terminal-why"><span id="terminalWhyLabel">Why Raven noticed this</span><strong id="terminalWhy">No verified context yet.</strong></div>
@@ -190,7 +217,7 @@
           </dl>
         </section>
 
-        <section class="terminal-plan-preview" id="terminalPlanSection" hidden>
+        <section class="terminal-plan-preview" id="terminalPlanSection" tabindex="-1" hidden>
           <header>
             <div><span id="terminalPlanLabel">Plan preview</span><h2 id="terminalPlanTitle">What similar paths suggest</h2></div>
             <strong id="terminalPlanState">Research only</strong>
@@ -205,7 +232,7 @@
           </dl>
           <label class="terminal-plan-toggle">
             <input id="terminalPlanToggle" type="checkbox" />
-            <span><strong>Show on chart</strong><small>Add these levels to the current chart.</small></span>
+            <span><strong id="terminalPlanToggleLabel">Show on chart</strong><small id="terminalPlanToggleHint">Add these current-evidence levels to the chart.</small></span>
           </label>
           <button class="terminal-plan-load" id="terminalPlanLoad" type="button">Load levels into trade ticket</button>
           <p id="terminalPlanDisclaimer">Based on completed paths for this market. Research only—not personalized targets, stops, or orders.</p>
