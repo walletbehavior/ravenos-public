@@ -4,43 +4,115 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Account · RavenOS</title>
-  <meta name="description" content="RavenOS account and connection availability." />
+  <meta name="description" content="Create and secure your RavenOS analytics desk." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-account.css" />
 </head>
 <body>
-  <main class="workspace-page account-page" data-route-slug="account">
-    <header class="workspace-operator-head">
+  <main class="workspace-page account-page" data-route-slug="account" data-account-state="loading">
+    <header class="workspace-operator-head account-operator-head">
       <div>
-        <span class="workspace-question">Your access and connections</span>
-        <h1>Customer accounts are not available yet.</h1>
-        <p>RavenOS is a public, read-only workspace today. There is no production login, session, subscription, token gate, or customer execution account.</p>
+        <span class="workspace-question">Your RavenOS identity</span>
+        <h1>One account for your entire desk.</h1>
+        <p>Carry watchlists, layouts, alerts, linked wallets, and terminal preferences across devices while each permission stays independently controlled.</p>
       </div>
-      <div class="workspace-mast-actions">
-        <a class="workspace-primary-action" href="/discover/"><span>Explore markets</span><span>Discover →</span></a>
-        <a class="workspace-secondary-action" href="/terminal/"><span>Open Terminal</span><span>Exact market →</span></a>
+      <div class="account-head-status" aria-live="polite">
+        <span class="account-state-dot"></span>
+        <div><span>Account service</span><strong id="accountServiceState">Checking secure access…</strong></div>
       </div>
     </header>
 
-    <section class="portfolio-empty-workspace account-empty-workspace">
-      <div class="portfolio-empty-primary">
-        <span class="portfolio-empty-mark" aria-hidden="true">R</span>
-        <span class="workspace-label">Nothing to secure or connect yet</span>
-        <h2>Use RavenOS without creating an account.</h2>
-        <p>Wallet connections, saved state, billing, and trading will appear only after their security boundaries are complete. A market selection never becomes identity, ownership, or permission.</p>
-        <a class="workspace-primary-action account-empty-action" href="/discover/"><span>Find a market</span><span>Search →</span></a>
+    <section class="account-auth-workspace" id="accountAuthWorkspace">
+      <div class="account-auth-primary">
+        <div class="account-auth-copy">
+          <span class="workspace-label">RavenOS account</span>
+          <h2>Build your desk once.<br />Take it everywhere.</h2>
+          <p>Use Google for speed, or continue with email and a passkey. RavenOS never receives your Google password, passkey private material, seed phrase, or wallet private key.</p>
+        </div>
+
+        <div class="account-mode-switch" role="tablist" aria-label="Account action">
+          <button class="active" id="accountSignUpMode" type="button" role="tab" aria-selected="true" data-account-intent="sign_up">Create account</button>
+          <button id="accountSignInMode" type="button" role="tab" aria-selected="false" data-account-intent="sign_in">Sign in</button>
+        </div>
+
+        <div class="account-auth-actions" id="accountAuthActions" hidden>
+          <form id="accountGoogleForm" method="post" action="/api/v1/auth/start">
+            <input type="hidden" name="intent" value="sign_up" />
+            <input type="hidden" name="provider" value="google" />
+            <input type="hidden" name="return_to" value="/account/" />
+            <button class="account-google-action" type="submit"><span class="account-provider-mark">G</span><span>Continue with Google</span><span aria-hidden="true">→</span></button>
+          </form>
+          <div class="account-method-divider"><span>or</span></div>
+          <form id="accountManagedForm" method="post" action="/api/v1/auth/start">
+            <input type="hidden" name="intent" value="sign_up" />
+            <input type="hidden" name="provider" value="managed" />
+            <input type="hidden" name="return_to" value="/account/" />
+            <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email or passkey</span><span aria-hidden="true">→</span></button>
+          </form>
+          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Account credentials and RavenOS sessions are separate from every wallet and trading permission.</p>
+        </div>
+
+        <section class="account-activation" id="accountActivation" hidden>
+          <span class="workspace-label">Activation gate</span>
+          <strong>The secure account service is being connected.</strong>
+          <p>Market intelligence remains available without an account. Sign-up controls appear only when managed identity and server-side session storage are both active.</p>
+          <a href="/discover/">Continue to Discover →</a>
+        </section>
       </div>
-      <aside class="portfolio-selection">
-        <span class="workspace-label">Current boundary</span>
-        <h3>Read-only market intelligence</h3>
-        <p>RavenOS cannot sign, submit, or monitor a customer trade. No wallet or broker account is connected in the background.</p>
-        <details class="account-boundary-detail">
-          <summary>Why connections are unavailable</summary>
-          <p>Account identity, wallet ownership, paid access, and transaction approval are separate permissions. RavenOS will not collapse them into a single Connect button.</p>
-        </details>
+
+      <aside class="account-trust-rail">
+        <span class="workspace-label">What an account unlocks</span>
+        <div class="account-capability-list">
+          <article><span>01</span><div><strong>Persistent workspace</strong><p>Saved markets, terminal layouts, notes, and alerts tied to your account—not this browser.</p></div></article>
+          <article><span>02</span><div><strong>Verified connections</strong><p>Link multiple Solana and EVM wallets after sign-in while preserving actual custody.</p></div></article>
+          <article><span>03</span><div><strong>Server-enforced access</strong><p>Plans and entitlements resolve from your account instead of a wallet address or client-side switch.</p></div></article>
+        </div>
+        <div class="account-separation-note">
+          <span>Identity boundary</span>
+          <strong>Signing in is not trading.</strong>
+          <p>Account identity, wallet ownership, paid access, and transaction approval remain four distinct permissions.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="account-dashboard" id="accountDashboard" hidden>
+      <div class="account-dashboard-main">
+        <header class="account-profile-head">
+          <span class="account-profile-mark" id="accountProfileMark">R</span>
+          <div><span class="workspace-label">Signed in</span><h2 id="accountDisplayName">RavenOS account</h2><p id="accountEmail"></p></div>
+          <button id="accountLogout" type="button">Sign out</button>
+        </header>
+
+        <section class="account-security-panel">
+          <header><div><span class="workspace-label">Security</span><h3>Active sessions</h3></div><strong id="accountSessionCount">1 session</strong></header>
+          <div class="account-session-list" id="accountSessionList"></div>
+        </section>
+
+        <section class="account-security-panel">
+          <header><div><span class="workspace-label">Connections</span><h3>Wallets and venues</h3></div><strong>Separate permission</strong></header>
+          <div class="account-connection-stage">
+            <span class="account-provider-mark">W</span>
+            <div><strong>No wallets linked yet</strong><p>Phantom, MetaMask, and compatible wallets will be linked here using a fresh ownership proof. A wallet connection will never silently become a transaction approval.</p></div>
+            <span>Next security stage</span>
+          </div>
+        </section>
+      </div>
+
+      <aside class="account-dashboard-rail">
+        <span class="workspace-label">Account controls</span>
+        <dl>
+          <div><dt>RavenOS session</dt><dd>Active</dd></div>
+          <div><dt>Wallet ownership</dt><dd>Not linked</dd></div>
+          <div><dt>Signing</dt><dd>Disabled</dd></div>
+          <div><dt>Order submission</dt><dd>Disabled</dd></div>
+        </dl>
+        <a href="/discover/">Open Discover <span>→</span></a>
+        <a href="/terminal/">Open Terminal <span>→</span></a>
       </aside>
     </section>
   </main>
   <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-account.js"></script>
 </body>
 </html>

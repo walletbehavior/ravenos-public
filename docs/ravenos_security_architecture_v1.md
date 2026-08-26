@@ -1,6 +1,6 @@
 # RavenOS customer security architecture v1
 
-Status: architecture gate, not a deployed customer system  
+Status: Stage A account/session implementation exists; production activation remains gated
 Version: `ravenos.customer_security_architecture.v1`  
 Baseline date: 2026-07-21  
 Verification baseline: OWASP ASVS 5.0.0 Level 2, with Level 3 overlays for administrative access, recovery, wallet ownership changes, billing changes, and transaction authorization.
@@ -32,17 +32,18 @@ The following are separate security principals and must never be collapsed:
 - Immutable Worker/static/public-origin release identity and rollback discipline.
 - Customer signing and submission flags are off.
 - Current quote contracts remain read-only.
+- Managed-provider authorization adapter with one-time state and PKCE.
+- Random RavenOS account IDs, D1 identity schema, opaque session verifiers, idle/absolute expiry, rotation, revocation, and session-bound CSRF.
+- A non-cacheable account surface with strict script/style/form/frame policy and no browser-stored credentials.
 
-### Customer-security controls not present
+### Customer-security controls not active or not present
 
-- No production customer authentication or account database.
-- No opaque server-side session service.
-- No CSRF contract for authenticated state changes.
+- The account/session service and isolated databases are implemented but disabled until the managed-provider tenant and production-equivalent preview gates pass.
 - No verified wallet-link registry.
 - No server-enforced subscription entitlement service.
 - No persistent customer Portfolio, watchlist, or alert store.
 - No transaction authorization, customer signing, submission, or position monitoring.
-- No dedicated authenticated application origin.
+- The dedicated authenticated application origin is reserved but not active.
 
 These are unavailable states, not defects to disguise with client state.
 
@@ -164,7 +165,7 @@ Before an authenticated origin launches it must have:
 - schema validation, bounded text length, contextual encoding, and safe URL allowlists;
 - no client-accessible secrets or customer provider tokens.
 
-Current public pages have only a partial header posture and some legacy inline scripts/styles. That is an explicit pre-Stage-A gap; it must not be described as ASVS-compliant.
+The account surface now has a dedicated strict policy. Other current public pages retain a partial header posture and some legacy inline scripts/styles. Neither the local account implementation nor the wider public site may be described as ASVS-compliant before the production-equivalent verification matrix passes.
 
 ## Edge security
 

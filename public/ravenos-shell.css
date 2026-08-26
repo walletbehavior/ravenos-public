@@ -194,6 +194,12 @@ body.ros-shell-active button { cursor: pointer; }
   color: var(--ros-accent);
   font: 700 10px var(--ros-mono);
 }
+.ros-profile-trigger[data-account-state="authenticated"] {
+  border-color: rgba(63, 166, 117, .62);
+  background: rgba(63, 166, 117, .1);
+  color: #86d6ad;
+  box-shadow: 0 0 0 3px rgba(63, 166, 117, .06);
+}
 
 .ros-nav-glyph {
   min-width: 24px;

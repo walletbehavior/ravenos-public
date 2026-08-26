@@ -13,12 +13,21 @@
       "public signing and submission"
     ]
   },
-  "current_stage": "architecture_only",
+  "current_stage": "stage_a_implementation_pending_activation",
   "customer_capabilities_enabled": false,
   "origins": {
     "public": "https://ravenos.xyz",
     "authenticated_candidate": "https://app.ravenos.xyz",
     "administrative": "separate_non_public_origin_required"
+  },
+  "identity_provider": {
+    "kind": "managed_identity",
+    "implementation": "workos_authkit",
+    "production_tenant_configured": false,
+    "requested_methods": ["GoogleOAuth", "Password", "Passkey"],
+    "custom_auth_domain_required_for_passkeys": true,
+    "callback": "https://app.ravenos.xyz/api/v1/auth/callback",
+    "provider_tokens_retained_by_ravenos": false
   },
   "session_policy": {
     "kind": "opaque_revocable_server_side",
@@ -75,15 +84,16 @@
     "docs/ravenos_wallet_linking_contract_v1.md",
     "docs/ravenos_transaction_authorization_v1.md",
     "docs/ravenos_threat_model_v1.md",
-    "docs/ravenos_security_verification_v1.md"
+    "docs/ravenos_security_verification_v1.md",
+    "docs/ravenos_auth_provider_review_v1.md"
   ],
   "verification_scenarios": [
-    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent provider callback verification" },
+    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session verification" },
+    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session verification" },
+    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "blocked", "blocker": "isolated-origin browser verification" },
     { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session ownership verification" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },
@@ -93,10 +103,10 @@
     { "id": "SEC-BIL-001", "name": "forged Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
     { "id": "SEC-BIL-002", "name": "replayed or duplicate Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
     { "id": "SEC-BIL-003", "name": "out-of-order Stripe events", "gate": "stage_c", "status": "required_not_implemented" },
-    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "blocked", "blocker": "managed-provider tenant and timing verification" },
     { "id": "SEC-EDGE-001", "name": "WAF and endpoint rate-limit behavior", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "required_not_implemented" },
+    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent authenticated-origin verification" },
+    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "blocked", "blocker": "authenticated origin is not active" },
     { "id": "SEC-LEAK-001", "name": "secrets absent from assets and responses", "gate": "current", "status": "verified_current" },
     { "id": "SEC-TX-001", "name": "transaction and reviewed-quote mismatch", "gate": "stage_d", "status": "required_not_implemented" },
     { "id": "SEC-TX-002", "name": "stale quote signing", "gate": "stage_d", "status": "required_not_implemented" },

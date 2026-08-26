@@ -180,14 +180,17 @@ test("research surfaces its stale unavailable contract without a cached narrator
   expect(primary).not.toMatch(/validated trade|ready to trade|internal PnL lift|expectancy lift|drawdown improvement|promotion gate/i);
 });
 
-test("account status exposes no synthetic session, entitlement, or billing controls", async ({ page }) => {
+test("account status exposes the real activation gate without synthetic identity or billing", async ({ page }) => {
   await page.goto("/account/");
-  await expect(page.getByRole("heading", { name: "Customer accounts are not available yet." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One account for your entire desk." })).toBeVisible();
+  await expect(page.getByText("The secure account service is being connected.")).toBeVisible();
+  await expect(page.locator("#accountAuthActions")).toBeHidden();
   await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal], [data-access-check]")).toHaveCount(0);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/no production login, session, subscription, token gate/i);
+  expect(text).toMatch(/managed identity and server-side session storage/i);
+  expect(text).toMatch(/Signing in is not trading/i);
   expect(text).not.toMatch(/\$149|\$999|upgrade to pro|connect wallet to unlock|founder token balance/i);
 });
 

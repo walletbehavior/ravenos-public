@@ -23,6 +23,13 @@ const NAV_ITEMS = Object.freeze([
   { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", match: ["atlas"] },
 ]);
 
+let customerAccountState = Object.freeze({
+  available: false,
+  authenticated: false,
+  canonicalOrigin: "",
+  displayName: "",
+});
+
 function spotChartRequestSupported(row = {}, timeframe = "1h") {
   const coverage = row.chart_coverage;
   if (coverage?.schema_version === "ravenos.search_chart_coverage.v1") {
@@ -433,7 +440,14 @@ function utilityMarkup(kind, context) {
   if (kind === "alerts") {
     return `<section class="ros-utility-unavailable"><span>Alerts</span><strong>Not available yet</strong><p>RavenOS cannot safely save or deliver alerts for this account yet. No sample alerts are shown.</p><a href="/docs/">Why features can be unavailable</a></section>`;
   }
-  return `<nav class="ros-more-links" aria-label="Account and utility links"><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/account/"><strong>Account</strong><span>Connections and access</span></a><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
+  const accountHref = customerAccountState.available && customerAccountState.canonicalOrigin
+    ? `${customerAccountState.canonicalOrigin}/account/`
+    : "/account/";
+  const accountLabel = customerAccountState.authenticated ? "Account & security" : "Create account or sign in";
+  const accountDetail = customerAccountState.authenticated
+    ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
+    : customerAccountState.available ? "Google, email, or passkey" : "Account activation status";
+  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -553,6 +567,44 @@ export function mountRavenOSShell(options = {}) {
     document.getElementById("rosUtilityContent").innerHTML = utilityMarkup(kind, context);
     document.body.classList.remove("ros-context-open");
     document.body.classList.add("ros-utility-open");
+  }
+
+  function renderCustomerAccountState(next = {}) {
+    customerAccountState = Object.freeze({
+      available: next.available === true,
+      authenticated: next.authenticated === true,
+      canonicalOrigin: String(next.canonicalOrigin || ""),
+      displayName: String(next.displayName || "").slice(0, 120),
+    });
+    const trigger = document.getElementById("rosProfileTrigger");
+    trigger.textContent = customerAccountState.authenticated
+      ? (customerAccountState.displayName.trim().charAt(0).toUpperCase() || "R")
+      : "R";
+    trigger.dataset.accountState = customerAccountState.authenticated ? "authenticated" : customerAccountState.available ? "available" : "pending";
+    trigger.setAttribute("aria-label", customerAccountState.authenticated ? "Open account and security" : "Open account");
+  }
+
+  async function hydrateCustomerAccountState() {
+    try {
+      const configResult = await fetchJson("/api/v1/auth/config");
+      const config = configResult.payload || {};
+      const next = {
+        available: config.available === true,
+        authenticated: false,
+        canonicalOrigin: config.canonical_origin || "",
+        displayName: "",
+      };
+      if (config.available === true && config.on_authenticated_origin === true) {
+        const sessionResult = await fetchJson("/api/v1/auth/session");
+        if (sessionResult.payload?.authenticated === true) {
+          next.authenticated = true;
+          next.displayName = sessionResult.payload.account?.display_name || "";
+        }
+      }
+      renderCustomerAccountState(next);
+    } catch {
+      renderCustomerAccountState();
+    }
   }
 
   function appendCommandResult(item, host = commandResults) {
@@ -902,6 +954,11 @@ export function mountRavenOSShell(options = {}) {
   document.getElementById("rosUtilityClose").addEventListener("click", closeDrawers);
   document.getElementById("rosDrawerScrim").addEventListener("click", closeDrawers);
   document.getElementById("rosProfileTrigger").addEventListener("click", () => openUtility("more"));
+  window.addEventListener("ravenos:accountstate", (event) => renderCustomerAccountState({
+    ...customerAccountState,
+    authenticated: event.detail?.authenticated === true,
+    displayName: event.detail?.display_name || "",
+  }));
   document.querySelectorAll("[data-ros-utility]").forEach((button) => button.addEventListener("click", () => openUtility(button.dataset.rosUtility)));
   document.getElementById("rosUtilityContent").addEventListener("click", (event) => {
     const button = event.target.closest("[data-ros-utility]");
@@ -947,6 +1004,7 @@ export function mountRavenOSShell(options = {}) {
   setIntelligence(intelligence);
   setCapabilities(capabilities);
   hydrateInstrumentSearch();
+  hydrateCustomerAccountState();
   const api = {
     mounted: true,
     setIntelligence,

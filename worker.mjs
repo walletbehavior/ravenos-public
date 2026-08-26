@@ -82,6 +82,7 @@ import {
 } from "./lib/chart_continuity.mjs";
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
+import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
 
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
@@ -223,6 +224,8 @@ function attachReleaseHeaders(response, releaseState, pathname = "") {
     "/ravenos_deploy_manifest.json",
   ].includes(pathname)) {
     headers.set("cache-control", "no-store");
+  } else if (pathname === "/account/" || pathname === "/account" || pathname.endsWith("/account/index.html")) {
+    headers.set("cache-control", "no-store, max-age=0");
   } else if (String(headers.get("content-type") || "").toLowerCase().includes("text/html")) {
     headers.set("cache-control", "public, max-age=0, must-revalidate");
   }
@@ -6066,6 +6069,8 @@ async function handleChain(request, env, slug) {
 
 async function routeApi(request, env) {
   const url = new URL(request.url);
+  const identityResponse = await routeCustomerIdentity(request, env);
+  if (identityResponse) return identityResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
   if (url.pathname === "/api/status" && request.method === "GET") return handleStatus(request, env);
   if (url.pathname === "/api/brief" && request.method === "GET") {

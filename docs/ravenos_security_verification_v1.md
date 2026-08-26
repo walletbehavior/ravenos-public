@@ -59,9 +59,9 @@ References must use the versioned form such as `v5.0.0-V7.2.4` in audit reports.
 | Public-origin secret server-only | `verified_current` | current-intelligence tests, no-leak scans, isolated Cloudflare preview |
 | Exact release tuple and rollback | `verified_current` | `tests/release_cohesion.test.mjs`, release packaging/staging verification |
 | Public response and asset no-leak | `verified_current` | `scripts/validate-public-no-leak.mjs`, `scripts/validate-worker-responses.mjs` |
-| Production customer authentication | `required_not_implemented` | deliberately absent |
-| Authenticated-origin strict CSP | `required_not_implemented` | future Stage A; current public CSP is partial |
-| Server session and CSRF | `required_not_implemented` | deliberately absent |
+| Production customer authentication | `blocked` | managed AuthKit adapter implemented; tenant, secrets, custom domain, and preview evidence absent |
+| Authenticated-origin strict CSP | `blocked` | account CSP implemented and locally tested; authenticated origin is not active |
+| Server session and CSRF | `blocked` | opaque session, expiry, rotation, revocation, ownership, and CSRF controls pass local automated tests; production-equivalent verification pending |
 | Wallet linking | `required_not_implemented` | deliberately absent |
 | Billing and entitlements | `required_not_implemented` | legacy routes quarantined; replacement absent |
 | Persistent customer Portfolio | `required_not_implemented` | deliberately absent |

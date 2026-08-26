@@ -16,9 +16,22 @@
   "version_metadata": {
     "binding": "CF_VERSION_METADATA"
   },
+  "d1_databases": [
+    {
+      "binding": "RAVENOS_CUSTOMER_DB",
+      "database_name": "ravenos-customer-security-production",
+      "database_id": "3f42c29b-3ab7-453a-8359-4896ed14980b",
+      "preview_database_id": "4b8a342d-3e34-4b67-9f0c-7baf5eac0cb3",
+      "migrations_dir": "customer-migrations"
+    }
+  ],
   "routes": [
     {
       "pattern": "ravenos.xyz/*",
+      "zone_name": "ravenos.xyz"
+    },
+    {
+      "pattern": "app.ravenos.xyz/*",
       "zone_name": "ravenos.xyz"
     }
   ],

@@ -20,6 +20,7 @@ const release = JSON.parse(readFileSync(join(repoRoot, ".deploy-public/ravenos_r
 const deploy = JSON.parse(readFileSync(join(repoRoot, ".deploy-public/ravenos_deploy_manifest.json"), "utf8"));
 const baseWrangler = JSON.parse(readFileSync(join(repoRoot, "wrangler.jsonc"), "utf8"));
 const releaseConfig = JSON.parse(readFileSync(join(repoRoot, "config/release.json"), "utf8"));
+const customerSecurity = JSON.parse(readFileSync(join(repoRoot, "config/customer_security.json"), "utf8"));
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -97,6 +98,7 @@ const releaseWrangler = {
   version_metadata: {
     binding: "CF_VERSION_METADATA",
   },
+  d1_databases: baseWrangler.d1_databases || [],
   routes: baseWrangler.routes,
   compatibility_flags: baseWrangler.compatibility_flags,
   vars: {
@@ -112,6 +114,9 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER: runtimeChartProvider || "",
     ONCHAIN_CHART_PROVIDER_PLAN: runtimeChartPlan || "",
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
+    RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
+    RAVENOS_AUTH_ORIGIN: customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz",
+    RAVENOS_AUTH_REDIRECT_URI: `${customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz"}/api/v1/auth/callback`,
   },
 };
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
@@ -135,7 +140,10 @@ const packageManifest = {
     "RAVENOS_PUBLIC_ORIGIN_TOKEN",
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN",
     chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
-    "JUPITER_API_KEY"
+    "JUPITER_API_KEY",
+    ...(customerSecurity.customer_capabilities_enabled === true
+      ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
+      : []),
   ],
   promotion_requires_explicit_authorization: true,
   rebuild_after_staging_permitted: false,

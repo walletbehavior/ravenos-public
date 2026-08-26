@@ -10,8 +10,12 @@ assert.equal(config.schema_version, "ravenos.customer_security_architecture.v1")
 assert.equal(config.verification_baseline.standard, "OWASP ASVS");
 assert.equal(config.verification_baseline.version, "5.0.0");
 assert.equal(config.verification_baseline.minimum_level, 2);
-assert.equal(config.current_stage, "architecture_only");
+assert.equal(config.current_stage, "stage_a_implementation_pending_activation");
 assert.equal(config.customer_capabilities_enabled, false);
+assert.equal(config.identity_provider.kind, "managed_identity");
+assert.equal(config.identity_provider.implementation, "workos_authkit");
+assert.equal(config.identity_provider.production_tenant_configured, false);
+assert.equal(config.identity_provider.provider_tokens_retained_by_ravenos, false);
 
 const requiredBlockedCapabilities = new Set([
   "account_creation",
@@ -66,6 +70,7 @@ for (const row of scenarioRows) {
 }
 
 const worker = readFileSync(join(root, "worker.mjs"), "utf8");
+assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed identity router is missing from the Worker graph");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
 }
@@ -99,6 +104,7 @@ console.log(JSON.stringify({
   verification_scenarios: scenarioRows.length,
   current_verified_scenarios: scenarioRows.filter((row) => row.status === "verified_current").map((row) => row.id),
   future_required_scenarios: scenarioRows.filter((row) => row.status === "required_not_implemented").length,
+  activation_blocked_scenarios: scenarioRows.filter((row) => row.status === "blocked").length,
   legacy_customer_routes: "quarantined",
   customer_capabilities_enabled: false
 }, null, 2));

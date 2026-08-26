@@ -1,14 +1,14 @@
 # RavenOS customer threat model v1
 
-Status: architecture threat model; update before each customer-security stage  
+Status: Stage A implementation threat model; production provider/preview review pending
 Method: asset/trust-boundary review plus STRIDE and abuse-case analysis  
 Date: 2026-07-21
 
 ## Scope
 
-This model covers future RavenOS customer accounts, authenticated sessions, verified wallet links, persistent Portfolio/watchlist/alert data, subscriptions, broker connections, quote review, and eventual non-custodial transaction signing/submission.
+This model covers the inactive Stage A RavenOS account/session implementation plus future verified wallet links, persistent Portfolio/watchlist/alert data, subscriptions, broker connections, quote review, and eventual non-custodial transaction signing/submission.
 
-It does not claim those systems currently exist. Public signing and submission remain disabled.
+It does not claim customer authentication is active or that later-stage systems exist. Public signing and submission remain disabled.
 
 ## Protected assets
 

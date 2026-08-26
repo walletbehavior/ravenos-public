@@ -11,12 +11,15 @@ import {
 
 const security = JSON.parse(readFileSync("config/customer_security.json", "utf8"));
 
-test("customer security architecture is gated before customer persistence", () => {
+test("Stage A account implementation stays gated until provider and preview verification", () => {
   assert.equal(security.schema_version, "ravenos.customer_security_architecture.v1");
   assert.equal(security.verification_baseline.version, "5.0.0");
   assert.equal(security.verification_baseline.minimum_level, 2);
-  assert.equal(security.current_stage, "architecture_only");
+  assert.equal(security.current_stage, "stage_a_implementation_pending_activation");
   assert.equal(security.customer_capabilities_enabled, false);
+  assert.equal(security.identity_provider.implementation, "workos_authkit");
+  assert.equal(security.identity_provider.production_tenant_configured, false);
+  assert.equal(security.identity_provider.provider_tokens_retained_by_ravenos, false);
   for (const capability of [
     "customer_authentication",
     "customer_sessions",
@@ -57,13 +60,14 @@ test("opaque host-only session contract cannot move into browser storage", () =>
   for (const attribute of ["Secure", "HttpOnly", "SameSite=Lax", "Path=/"]) assert(policy.cookie_attributes.includes(attribute));
 });
 
-test("all required future security scenarios are explicit and not falsely reported verified", () => {
+test("all required future security scenarios are explicit and no Stage A control is falsely reported verified", () => {
   const rows = security.verification_scenarios;
   assert.equal(rows.length, 28);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => row.gate !== "current");
   assert(future.length > 20);
-  assert(future.every((row) => row.status === "required_not_implemented"));
+  assert(future.every((row) => row.status !== "verified_current"));
+  assert(future.some((row) => row.gate === "stage_a" && row.status === "blocked"));
   for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
@@ -132,14 +136,16 @@ test("signing and submission cannot be activated by environment flags", () => {
   assert.equal(signingEnabled(flags), false);
 });
 
-test("Worker APIs receive baseline security headers and the live Terminal rejects inline script execution", async () => {
+test("Worker APIs receive baseline security headers and authenticated surfaces reject inline script execution", async () => {
   const terminalHtml = readFileSync("terminal/index.html", "utf8");
+  const accountHtml = readFileSync("account/index.html", "utf8");
   const env = {
     ASSETS: {
       async fetch(request) {
-        return new URL(request.url).pathname === "/terminal/"
-          ? new Response(terminalHtml, { headers: { "content-type": "text/html; charset=utf-8" } })
-          : new Response("not found", { status: 404 });
+        const pathname = new URL(request.url).pathname;
+        if (pathname === "/terminal/") return new Response(terminalHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname === "/account/") return new Response(accountHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        return new Response("not found", { status: 404 });
       },
     },
   };
@@ -159,6 +165,15 @@ test("Worker APIs receive baseline security headers and the live Terminal reject
   assert(!csp.includes("unsafe-inline"));
   assert(!csp.includes("unsafe-eval"));
 
+  const account = await worker.fetch(new Request("https://ravenos.xyz/account/"), env);
+  assert.equal(account.status, 200);
+  assert.match(account.headers.get("cache-control") || "", /no-store/);
+  const accountCsp = account.headers.get("content-security-policy") || "";
+  assert.match(accountCsp, /default-src 'self'/);
+  assert.match(accountCsp, /frame-ancestors 'none'/);
+  assert.match(accountCsp, /script-src 'self'/);
+  assert(!accountCsp.includes("unsafe-inline"));
+
   const api = await worker.fetch(new Request("https://ravenos.xyz/api/access"), env);
   assert.equal(api.headers.get("x-content-type-options"), "nosniff");
   assert.equal(api.headers.get("referrer-policy"), "no-referrer");
@@ -166,6 +181,6 @@ test("Worker APIs receive baseline security headers and the live Terminal reject
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 6);
+  assert.equal(security.required_documents.length, 7);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

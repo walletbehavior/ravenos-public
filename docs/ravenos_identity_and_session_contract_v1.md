@@ -1,6 +1,6 @@
 # RavenOS identity and session contract v1
 
-Status: required design; no production implementation  
+Status: Stage A implementation complete locally; provider and production-equivalent activation verification pending
 Contract: `ravenos.identity_session.v1`
 
 ## Invariants
@@ -119,19 +119,20 @@ stateDiagram-v2
 
 The pre-authentication identifier is never promoted into the authenticated session. Authentication, reauthentication, recovery completion, role/entitlement security transitions, and wallet ownership changes rotate the session and terminate the previous token.
 
-## Future endpoint contract
+## Endpoint contract
 
-These route names are reserved design examples, not implemented APIs:
+The implemented Stage A routes are listed below. Reauthentication and recovery routes remain reserved until the managed-provider tenant and those ceremonies are verified:
 
 | Method and route | Purpose | Minimum protection |
 |---|---|---|
-| `POST /api/v1/auth/start` | begin managed authentication | anti-enumeration, rate limit, state/PKCE/nonce where applicable |
-| `GET /api/v1/auth/callback` | verified provider callback | exact issuer/origin/redirect, state/PKCE/nonce, one-time code |
-| `POST /api/v1/auth/reauth` | step-up ceremony | active session, CSRF, explicit action, provider recent-auth evidence |
-| `GET /api/v1/sessions` | list own sessions | active session, object ownership |
-| `DELETE /api/v1/sessions/:id` | revoke a session | active session, CSRF, recent reauth for other sessions |
-| `POST /api/v1/logout` | revoke current session | active session, CSRF/Origin validation |
-| `POST /api/v1/recovery/*` | managed recovery | enumeration resistance, one-time state, rate limits, notifications |
+| `POST /api/v1/auth/start` | implemented, activation gated | anti-enumeration, rate limit, state/PKCE/nonce where applicable |
+| `GET /api/v1/auth/callback` | implemented, activation gated | exact issuer/origin/redirect, state/PKCE/nonce, one-time code |
+| `GET /api/v1/auth/session` | implemented, activation gated | opaque active session, server expiry, non-cacheable response |
+| `GET /api/v1/sessions` | implemented, activation gated | active session, object ownership |
+| `DELETE /api/v1/sessions/:id` | implemented, activation gated | active session, CSRF, recent reauth for other sessions |
+| `POST /api/v1/auth/logout` | implemented, activation gated | active session, CSRF/Origin validation, server revocation first |
+| `POST /api/v1/auth/reauth` | reserved | active session, CSRF, explicit action, provider recent-auth evidence |
+| `POST /api/v1/recovery/*` | reserved | enumeration resistance, one-time state, rate limits, notifications |
 
 No endpoint accepts `user_id`, email, or wallet from the browser as proof of identity.
 
