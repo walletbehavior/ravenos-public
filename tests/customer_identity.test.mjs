@@ -191,6 +191,16 @@ test("managed account configuration is fail closed and keeps wallets separate", 
   assert.equal(CustomerIdentityContract.wallet_connection_is_authentication, false);
 });
 
+test("managed account configuration rejects malformed provider credentials", () => {
+  const escapedNewlineClient = { ...configuredEnv(), WORKOS_CLIENT_ID: "client_test_ravenos\\n" };
+  const escapedNewlineKey = { ...configuredEnv(), WORKOS_API_KEY: "sk_test_not_returned\\n" };
+  const foreignPrefixClient = { ...configuredEnv(), WORKOS_CLIENT_ID: "project_test_ravenos" };
+  assert.equal(customerIdentityConfigured(escapedNewlineClient), false);
+  assert.equal(customerIdentityConfigured(escapedNewlineKey), false);
+  assert.equal(customerIdentityConfigured(foreignPrefixClient), false);
+  assert.equal(publicCustomerIdentityConfig(escapedNewlineClient, `${ORIGIN}/account/`).available, false);
+});
+
 test("managed account mutations refuse every non-canonical hostname before request processing", async () => {
   const response = await routeCustomerIdentity(new Request("https://preview.example/api/v1/auth/start", {
     method: "POST",
