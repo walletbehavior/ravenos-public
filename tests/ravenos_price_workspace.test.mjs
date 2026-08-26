@@ -36,7 +36,9 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /this\.startLive\(this\.lastLiveRequest, this\.lastLivePayload\)/);
   assert.match(workspace, /initialVisibleBars/);
   assert.match(workspace, /historyBatchLimit/);
-  assert.match(workspace, /data-rpw-range="max"/);
+  assert.match(workspace, /data-rpw-timeframe-select/);
+  assert.match(workspace, /data-rpw-read-detail/);
+  assert.doesNotMatch(workspace, /data-rpw-range=/);
   assert.match(workspace, /ravenos\.chart_read\.v1/);
   assert.match(workspace, /provider_candles_only/);
   assert.match(workspace, /onChartReadChange/);

@@ -5,9 +5,11 @@ const requireJupiterVelocity = ["1", "true", "yes"].includes(String(process.env.
 
 const pageRoutes = [
   "/",
-  "/brief/",
+  "/discover/",
   "/opportunity/",
   "/terminal/",
+  "/portfolio/",
+  "/atlas/",
   "/replay/",
   "/outcomes/",
   "/claims/",
@@ -18,6 +20,8 @@ const pageRoutes = [
   "/chains/solana/",
   "/chains/base/",
   "/chains/ethereum/",
+  "/privacy/",
+  "/terms/",
 ];
 
 const apiRoutes = [
@@ -74,6 +78,19 @@ for (const route of pageRoutes) {
     throw new Error(`${route} contains stale developer or private strings`);
   }
 }
+
+const retiredBrief = await fetch(new URL("/brief/?asset=SV151%2FUSDC&instrument_id=solana%3Apool%3Aexample&timeframe=4h", baseUrl), {
+  headers: { "cache-control": "no-cache" },
+  redirect: "manual",
+});
+if (retiredBrief.status !== 308) throw new Error(`/brief/ returned ${retiredBrief.status}, expected 308`);
+const retiredBriefTarget = new URL(retiredBrief.headers.get("location") || "", baseUrl);
+if (
+  retiredBriefTarget.pathname !== "/terminal/"
+  || retiredBriefTarget.searchParams.get("asset") !== "SV151/USDC"
+  || retiredBriefTarget.searchParams.get("instrument_id") !== "solana:pool:example"
+  || retiredBriefTarget.searchParams.get("timeframe") !== "4h"
+) throw new Error("/brief/ did not preserve exact instrument context when retiring into Terminal");
 
 for (const route of apiRoutes) {
   const { res, json } = await fetchJson(route);

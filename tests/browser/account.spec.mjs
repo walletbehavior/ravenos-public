@@ -9,7 +9,7 @@ function configPayload(origin, { authenticatedOrigin = true } = {}) {
     canonical_origin: origin,
     current_origin: origin,
     on_authenticated_origin: authenticatedOrigin,
-    methods: { google: true, email: true, passkey: true },
+    methods: { google: true, email: true, password: true, magic_auth: true, passkey: false },
     account_model: {
       principal: "ravenos_account",
       wallet_connection_is_sign_in: false,
@@ -24,14 +24,14 @@ function configPayload(origin, { authenticatedOrigin = true } = {}) {
   };
 }
 
-test("anonymous account desk offers Google and managed email/passkey paths", async ({ page, baseURL }) => {
+test("anonymous account desk offers Google and managed email paths", async ({ page, baseURL }) => {
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, authenticated: false }) }));
   await page.goto("/account/");
 
   await expect(page.locator(".account-page")).toHaveAttribute("data-account-state", "available");
   await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Email or passkey/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Email, password, or code/ })).toBeVisible();
   await expect(page.getByText("Signing in is not trading.")).toBeVisible();
   await expect(page.locator("#accountActivation")).toBeHidden();
 
@@ -69,7 +69,7 @@ test("account actions create state on the authenticated origin before navigating
 
   await page.goto("/account/");
   await page.getByRole("tab", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: /Email or passkey/ }).click();
+  await page.getByRole("button", { name: /Email, password, or code/ }).click();
   await expect(page).toHaveURL(/^https:\/\/api\.workos\.com\/user_management\/authorize/);
 
   expect(startRequest).toEqual({
@@ -136,6 +136,31 @@ test("account page has strict CSP and no cacheable authenticated HTML", async ({
   expect(headers["x-frame-options"]).toBe("DENY");
 });
 
+test("provider profile text cannot become executable account markup", async ({ page, baseURL }) => {
+  const hostileName = '<img src=x onerror="window.__profileExecuted=true">Raven';
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      authenticated: true,
+      account: { display_name: hostileName, email: "raven@example.com", member_since: "2026-08-26T15:00:00.000Z" },
+      session: { session_public_id: "sespub_current", current: true, authentication_strength: "federated" },
+      csrf_token: "csrf_browser_fixture",
+      wallet_links: [],
+      wallet_linking_available: false,
+      execution_boundary: { signing_available: false, submission_available: false },
+    }),
+  }));
+  await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, csrf_token: "csrf_browser_fixture", sessions: [] }) }));
+  await page.goto("/account/");
+
+  await expect(page.locator("#accountDisplayName")).toHaveText(hostileName);
+  await expect(page.locator("#accountDisplayName img")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__profileExecuted === true)).toBe(false);
+});
+
 test("an inactive authenticated origin never turns the global account link into a dead cross-origin route", async ({ page, baseURL }) => {
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({
     status: 200,
@@ -146,7 +171,7 @@ test("an inactive authenticated origin never turns the global account link into 
       state: "activation_pending",
       canonical_origin: "https://app.ravenos.xyz",
       on_authenticated_origin: false,
-      methods: { google: false, email: false, passkey: false },
+      methods: { google: false, email: false, password: false, magic_auth: false, passkey: false },
     }),
   }));
   await page.goto("/account/");

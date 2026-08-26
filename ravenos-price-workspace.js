@@ -59,12 +59,6 @@ const INITIAL_VISIBLE_BARS = Object.freeze({
   "1w": 156,
   "1M": 120,
 });
-const RANGE_SECONDS = Object.freeze({
-  "1d": 86_400,
-  "7d": 7 * 86_400,
-  "30d": 30 * 86_400,
-});
-
 function historyLimit(request = {}, timeframe = "1h") {
   const requested = Math.trunc(Number(request.limit));
   if (Number.isFinite(requested) && requested >= 2) return Math.min(1000, requested);
@@ -78,18 +72,6 @@ function timeSeconds(value) {
   }
   const parsed = Date.parse(value || "");
   return Number.isFinite(parsed) ? parsed / 1000 : null;
-}
-
-function windowLabel(rows = []) {
-  if (rows.length < 2) return rows.length ? "1 bar" : "—";
-  const start = timeSeconds(rows[0]?.time);
-  const end = timeSeconds(rows.at(-1)?.time);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return `${rows.length} bars`;
-  const seconds = end - start;
-  if (seconds < 86_400) return `${Math.max(1, Math.round(seconds / 3600))}h`;
-  if (seconds < 90 * 86_400) return `${Math.max(1, Math.round(seconds / 86_400))}d`;
-  if (seconds < 730 * 86_400) return `${(seconds / (365 * 86_400)).toFixed(1)}y`;
-  return `${Math.round(seconds / (365 * 86_400))}y`;
 }
 
 function cleanState(value, fallback = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE) {
@@ -365,27 +347,27 @@ function createMarkup() {
         <button type="button" data-rpw-focus aria-pressed="false" aria-label="Open chart focus mode">Focus</button>
         <button type="button" data-rpw-overlays aria-expanded="false" aria-label="Open Raven overlay controls">Raven</button>
       </header>
+      <div class="rpw-quick-read" data-rpw-read-cell hidden aria-live="polite">
+        <span>Raven Read</span>
+        <strong data-rpw-read></strong>
+        <small data-rpw-read-detail></small>
+      </div>
       <div class="rpw-chart-tools">
-        <div class="rpw-mobile-timeframes" data-rpw-timeframes aria-label="Chart timeframe"></div>
+        <label class="rpw-timeframe-picker">
+          <span>Timeframe</span>
+          <select data-rpw-timeframe-select aria-label="Chart timeframe"></select>
+        </label>
+        <button type="button" class="rpw-indicator-trigger" data-rpw-indicator-trigger aria-expanded="false">Indicators <strong data-rpw-indicator-count>1</strong></button>
+        <div class="rpw-window-analytics" data-rpw-window aria-label="Selected timeframe analytics">
+          <span><small data-rpw-change-label>Change</small><strong data-rpw-window-change>—</strong></span>
+          <span><small data-rpw-volume-label>Volume</small><strong data-rpw-window-volume>—</strong></span>
+          <span><small data-rpw-range-label>Range</small><strong data-rpw-window-range>—</strong></span>
+          <button type="button" data-rpw-history aria-label="Load older price history"><small>History</small><strong data-rpw-history-label>0 bars</strong></button>
+        </div>
         <div class="rpw-scope-control" data-rpw-scopes hidden aria-label="Spot chart identity scope">
           <button type="button" data-rpw-scope="exact_pool" aria-pressed="true">Exact pool</button>
           <button type="button" data-rpw-scope="token_aggregate" aria-pressed="false">Token aggregate</button>
         </div>
-        <div class="rpw-window-analytics" data-rpw-window aria-label="Visible chart window analytics">
-          <span data-rpw-read-cell hidden><small>Raven chart read</small><strong data-rpw-read></strong></span>
-          <span><small>Window</small><strong data-rpw-window-label>—</strong></span>
-          <span><small>Change</small><strong data-rpw-window-change>—</strong></span>
-          <span><small>Range</small><strong data-rpw-window-range>—</strong></span>
-          <span><small>Avg vol</small><strong data-rpw-window-volume>—</strong></span>
-          <button type="button" data-rpw-history aria-label="Load older price history"><span data-rpw-history-label>0 bars</span><small>Load older</small></button>
-        </div>
-        <div class="rpw-ranges" data-rpw-ranges aria-label="Chart range">
-          <button type="button" data-rpw-range="1d" aria-pressed="false">1D</button>
-          <button type="button" data-rpw-range="7d" aria-pressed="false">7D</button>
-          <button type="button" data-rpw-range="30d" aria-pressed="false">30D</button>
-          <button type="button" data-rpw-range="max" aria-pressed="false">Max</button>
-        </div>
-        <button type="button" class="rpw-indicator-trigger" data-rpw-indicator-trigger aria-expanded="false">Indicators <strong data-rpw-indicator-count>1</strong></button>
       </div>
       <div class="rpw-indicator-popover" data-rpw-indicators aria-label="Chart indicators" hidden>
         <header><strong>Indicators</strong><span>Calculated from exact provider candles</span></header>
@@ -422,7 +404,6 @@ export class PriceWorkspace {
     this.options = options;
     this.activeIndicators = new Set((Array.isArray(options.indicators) ? options.indicators : ["ema20"])
       .filter((indicator) => SUPPORTED_INDICATORS.includes(indicator)));
-    this.activeRange = null;
     this.visibleRange = null;
     this.historyBatchLimit = 240;
     this.historyExhausted = false;
@@ -477,7 +458,6 @@ export class PriceWorkspace {
     this.chartHost = container.querySelector("[data-rpw-chart]");
     this.bindTimeframes();
     this.bindIndicators();
-    this.bindRanges();
     this.bindHistory();
     this.bindScopes();
     this.bindResize();
@@ -519,16 +499,16 @@ export class PriceWorkspace {
   }
 
   bindTimeframes() {
-    const host = this.container.querySelector("[data-rpw-timeframes]");
+    const select = this.container.querySelector("[data-rpw-timeframe-select]");
+    if (!select) return;
     for (const timeframe of TIMEFRAMES) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = timeframe;
-      button.dataset.timeframe = timeframe;
-      button.setAttribute("aria-pressed", timeframe === this.state.timeframe ? "true" : "false");
-      button.addEventListener("click", () => this.options.onTimeframeChange?.(timeframe));
-      host.append(button);
+      const option = document.createElement("option");
+      option.value = timeframe;
+      option.textContent = timeframe;
+      select.append(option);
     }
+    select.value = this.state.timeframe;
+    select.addEventListener("change", () => this.options.onTimeframeChange?.(select.value));
   }
 
   bindIndicators() {
@@ -572,21 +552,6 @@ export class PriceWorkspace {
     };
     document.addEventListener("pointerdown", this._indicatorPointerHandler);
     document.addEventListener("keydown", this._indicatorKeyHandler);
-  }
-
-  bindRanges() {
-    const host = this.container.querySelector("[data-rpw-ranges]");
-    if (!host) return;
-    host.addEventListener("click", (event) => {
-      const button = event.target.closest?.("[data-rpw-range]");
-      const range = button?.dataset?.rpwRange;
-      if (!range || ![...Object.keys(RANGE_SECONDS), "max"].includes(range) || !this.state.candles.length) return;
-      this.activeRange = range;
-      host.querySelectorAll("[data-rpw-range]").forEach((row) => {
-        row.setAttribute("aria-pressed", row.dataset.rpwRange === range ? "true" : "false");
-      });
-      this.applyRangePreset(range);
-    });
   }
 
   bindHistory() {
@@ -695,9 +660,8 @@ export class PriceWorkspace {
 
   setTimeframe(timeframe) {
     this.state.timeframe = TIMEFRAMES.includes(timeframe) ? timeframe : "1h";
-    this.container.querySelectorAll("[data-timeframe]").forEach((button) => {
-      button.setAttribute("aria-pressed", button.dataset.timeframe === this.state.timeframe ? "true" : "false");
-    });
+    const select = this.container.querySelector("[data-rpw-timeframe-select]");
+    if (select) select.value = this.state.timeframe;
   }
 
   setState(next = {}) {
@@ -749,7 +713,8 @@ export class PriceWorkspace {
     panel.querySelector("span").textContent = this.state.message || "Current candles are not available for this market.";
     if (showPanel) this.container.querySelector("[data-rpw-crosshair]").hidden = true;
     const hasCandles = this.state.candles.length > 0 && !showPanel;
-    this.container.querySelectorAll("[data-rpw-range]").forEach((button) => { button.disabled = !hasCandles; });
+    const timeframeSelect = this.container.querySelector("[data-rpw-timeframe-select]");
+    if (timeframeSelect) timeframeSelect.disabled = !hasCandles;
     const indicatorTrigger = this.container.querySelector("[data-rpw-indicator-trigger]");
     if (indicatorTrigger) indicatorTrigger.disabled = !hasCandles;
     if (!hasCandles) {
@@ -765,27 +730,30 @@ export class PriceWorkspace {
   paintChartRead() {
     const cell = this.container.querySelector("[data-rpw-read-cell]");
     const value = this.container.querySelector("[data-rpw-read]");
-    if (!cell || !value) return null;
+    const detail = this.container.querySelector("[data-rpw-read-detail]");
+    if (!cell || !value || !detail) return null;
     const read = deriveChartRead(this.state.candles, {
       instrumentId: this.state.instrument?.canonical_id || null,
       timeframe: this.state.timeframe,
     });
     this.state.chartRead = read;
     cell.hidden = !read;
+    this.root.classList.toggle("rpw-has-read", Boolean(read));
     if (read) {
       const direction = read.direction === "long" ? "↑" : "↓";
       value.textContent = `${read.setup === "breakout_confirmed" ? "Breakout" : "Trend"} ${direction} · ${read.score}/${read.score_max}`;
       value.dataset.direction = read.direction === "long" ? "up" : "down";
       const details = [
         `RSI ${read.facts.rsi.toFixed(0)}`,
-        read.facts.volume_ratio === null ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}×`,
-        read.structure_map ? `risk map ${read.structure_map.risk_pct.toFixed(1)}%` : "",
+        read.facts.volume_ratio === null ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}× recent`,
+        read.structure_map ? `structure risk ${read.structure_map.risk_pct.toFixed(1)}%` : "",
+        "provider-backed price action",
       ].filter(Boolean);
-      cell.title = `${details.join(" · ")} · provider candles only`;
+      detail.textContent = details.join(" · ");
     } else {
       value.textContent = "";
+      detail.textContent = "";
       value.removeAttribute("data-direction");
-      cell.removeAttribute("title");
     }
     const fingerprint = read
       ? [read.instrument_id, read.timeframe, read.observed_at, read.direction, read.setup, read.score].join(":")
@@ -798,47 +766,39 @@ export class PriceWorkspace {
     return read;
   }
 
-  visibleCandles(range = this.visibleRange) {
+  paintWindowAnalytics() {
     const rows = this.state.candles;
-    if (!rows.length) return [];
-    if (!range || !Number.isFinite(Number(range.from)) || !Number.isFinite(Number(range.to))) {
-      return rows.slice(-Math.min(rows.length, INITIAL_VISIBLE_BARS[this.state.timeframe] || 180));
-    }
-    const start = Math.max(0, Math.floor(Number(range.from)));
-    const end = Math.min(rows.length - 1, Math.ceil(Number(range.to)));
-    return end >= start ? rows.slice(start, end + 1) : rows.slice(-1);
-  }
-
-  paintWindowAnalytics(range = this.visibleRange) {
-    const rows = this.visibleCandles(range);
     const host = this.container.querySelector("[data-rpw-window]");
-    const label = this.container.querySelector("[data-rpw-window-label]");
     const change = this.container.querySelector("[data-rpw-window-change]");
     const spread = this.container.querySelector("[data-rpw-window-range]");
     const volume = this.container.querySelector("[data-rpw-window-volume]");
+    const changeLabel = this.container.querySelector("[data-rpw-change-label]");
+    const volumeMetricLabel = this.container.querySelector("[data-rpw-volume-label]");
+    const rangeLabel = this.container.querySelector("[data-rpw-range-label]");
     const history = this.container.querySelector("[data-rpw-history]");
     const historyLabel = this.container.querySelector("[data-rpw-history-label]");
-    if (!host || !label || !change || !spread || !volume || !history || !historyLabel) return;
+    if (!host || !change || !spread || !volume || !changeLabel || !volumeMetricLabel || !rangeLabel || !history || !historyLabel) return;
     host.hidden = rows.length === 0;
     if (!rows.length) return;
 
-    label.textContent = windowLabel(rows);
-    const first = rows[0];
     const last = rows.at(-1);
-    const changePct = first?.open > 0 && last?.close > 0 ? ((last.close / first.open) - 1) * 100 : null;
-    const high = rows.length ? Math.max(...rows.map((row) => Number(row.high)).filter(Number.isFinite)) : null;
-    const low = rows.length ? Math.min(...rows.map((row) => Number(row.low)).filter(Number.isFinite)) : null;
+    const changePct = last?.open > 0 && last?.close > 0 ? ((last.close / last.open) - 1) * 100 : null;
+    const high = finite(last?.high);
+    const low = finite(last?.low);
     const rangePct = Number.isFinite(high) && Number.isFinite(low) && low > 0 ? ((high / low) - 1) * 100 : null;
-    const volumes = rows.map((row) => Number(row.quote_volume ?? row.volume)).filter((value) => Number.isFinite(value) && value >= 0);
-    const averageVolume = volumes.length ? volumes.reduce((sum, value) => sum + value, 0) / volumes.length : null;
+    const timeframeLabel = this.state.timeframe;
+    const currentVolume = finite(last?.quote_volume ?? last?.volume);
+    changeLabel.textContent = `${timeframeLabel} Change`;
+    volumeMetricLabel.textContent = `${timeframeLabel} Volume`;
+    rangeLabel.textContent = `${timeframeLabel} Range`;
 
     change.closest("span").hidden = changePct === null;
     change.textContent = changePct === null ? "" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(Math.abs(changePct) < 1 ? 2 : 1)}%`;
     change.dataset.direction = changePct === null ? "flat" : changePct > 0 ? "up" : changePct < 0 ? "down" : "flat";
     spread.closest("span").hidden = rangePct === null;
     spread.textContent = rangePct === null ? "" : `${rangePct.toFixed(rangePct < 1 ? 2 : 1)}%`;
-    volume.closest("span").hidden = averageVolume === null;
-    volume.textContent = averageVolume === null ? "" : volumeLabel(averageVolume);
+    volume.closest("span").hidden = currentVolume === null;
+    volume.textContent = currentVolume === null ? "" : volumeLabel(currentVolume);
 
     historyLabel.textContent = `${this.state.candles.length.toLocaleString()} bars`;
     const canBackfill = Boolean(
@@ -858,21 +818,6 @@ export class PriceWorkspace {
             ? "Load older"
             : "Current source";
     }
-  }
-
-  applyRangePreset(range = this.activeRange) {
-    if (!this.chartHandle || !this.state.candles.length || !range) return;
-    if (range === "max") {
-      this.chartHandle.fitContent?.();
-      return;
-    }
-    const seconds = RANGE_SECONDS[range];
-    const last = this.state.candles.at(-1);
-    const lastSeconds = timeSeconds(last?.time);
-    if (!Number.isFinite(seconds) || !Number.isFinite(lastSeconds)) return;
-    const target = lastSeconds - seconds;
-    const first = this.state.candles.find((row) => timeSeconds(row.time) >= target) || this.state.candles[0];
-    this.chartHandle.setVisibleTimeRange?.({ from: first.time, to: last.time });
   }
 
   paintTrades() {
@@ -974,9 +919,7 @@ export class PriceWorkspace {
     const timeframe = request.timeframe || this.state.timeframe || "1h";
     this.historyBatchLimit = historyLimit(request, timeframe);
     this.historyExhausted = false;
-    this.activeRange = null;
     this.visibleRange = null;
-    this.container.querySelectorAll("[data-rpw-range]").forEach((button) => button.setAttribute("aria-pressed", "false"));
     this.setState({
       state: PRICE_WORKSPACE_STATES.LOADING,
       timeframe,
@@ -1296,8 +1239,6 @@ export class PriceWorkspace {
       this.state.returnedBars = this.state.candles.length;
       this.state.backfillCount = Number(this.state.backfillCount || 0) + 1;
       this.chartHandle?.prependCandles?.(candles);
-      if (manual && this.activeRange === "max") this.chartHandle?.fitContent?.();
-      else if (manual && this.activeRange && RANGE_SECONDS[this.activeRange]) this.applyRangePreset(this.activeRange);
       this.paintWindowAnalytics(this.chartHandle?.visibleLogicalRange?.() || this.visibleRange);
       this.publishGeometry?.();
       document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));

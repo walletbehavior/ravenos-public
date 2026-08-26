@@ -110,9 +110,11 @@ const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "perps",
   "portfolio",
   "pricing",
+  "privacy",
   "replay",
   "research",
   "terminal",
+  "terms",
 ]);
 
 function authenticatedAppBoundary(request) {
@@ -132,6 +134,11 @@ function authenticatedAppBoundary(request) {
   if ((readRequest && accountPath) || identityApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
+  if (readRequest && firstSegment === "brief") {
+    const target = new URL("/terminal/", PUBLIC_ORIGIN);
+    target.search = url.search;
+    return { allowed: false, response: Response.redirect(target, 308) };
+  }
   if (readRequest && PUBLIC_APP_REDIRECT_ROUTES.has(firstSegment)) {
     const targetPath = firstSegment ? `/${firstSegment}/` : "/";
     return { allowed: false, response: Response.redirect(`${PUBLIC_ORIGIN}${targetPath}`, 308) };
@@ -6315,6 +6322,15 @@ export default {
       return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
     }
     if (["GET", "HEAD"].includes(request.method)) {
+      if (url.pathname === "/brief" || url.pathname === "/brief/") {
+        const target = new URL("/terminal/", url);
+        target.search = url.search;
+        return attachReleaseHeaders(
+          applyAssetSecurityHeaders(Response.redirect(target, 308), url.pathname),
+          releaseState,
+          url.pathname,
+        );
+      }
       const legacyRedirects = {
         "/pro": "/pricing/",
         "/pro/": "/pricing/",

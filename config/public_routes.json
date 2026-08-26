@@ -17,20 +17,6 @@
       "next_route": "/opportunity/"
     },
     {
-      "route": "/brief/",
-      "slug": "brief",
-      "title": "Brief",
-      "question": "What is happening?",
-      "funnel_stage": "understand",
-      "evidence_role": "current_synthesis",
-      "api_endpoint": "/api/brief",
-      "fallback_artifact": "/ravenos/brief.json",
-      "template": "generated",
-      "public": true,
-      "nav_group": "primary",
-      "next_route": "/opportunity/"
-    },
-    {
       "route": "/discover/",
       "slug": "discover",
       "title": "Discover",
@@ -232,6 +218,36 @@
       "public": true,
       "nav_group": "primary",
       "next_route": "/terminal/"
+    },
+    {
+      "route": "/privacy/",
+      "slug": "privacy",
+      "title": "Privacy",
+      "question": "How does RavenOS handle account and market-workspace data?",
+      "funnel_stage": "account",
+      "evidence_role": "product_context",
+      "api_endpoint": "/api/status",
+      "fallback_artifact": "/ravenos/status.json",
+      "template": "existing",
+      "source_path": "privacy/index.html",
+      "public": true,
+      "nav_group": "legal",
+      "next_route": "/terms/"
+    },
+    {
+      "route": "/terms/",
+      "slug": "terms",
+      "title": "Terms",
+      "question": "What terms govern use of RavenOS?",
+      "funnel_stage": "account",
+      "evidence_role": "product_context",
+      "api_endpoint": "/api/status",
+      "fallback_artifact": "/ravenos/status.json",
+      "template": "existing",
+      "source_path": "terms/index.html",
+      "public": true,
+      "nav_group": "legal",
+      "next_route": "/privacy/"
     },
     {
       "route": "/account/",

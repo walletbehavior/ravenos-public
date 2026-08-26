@@ -378,12 +378,16 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   const chart = page.locator("#terminalChart .rpw");
-  await expect(chart.locator("[data-rpw-timeframes] button")).toHaveText(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
-  await expect(chart.locator('[data-rpw-timeframes] button[data-timeframe="1h"]')).toHaveAttribute("aria-pressed", "true");
+  const timeframe = chart.locator("[data-rpw-timeframe-select]");
+  await expect(timeframe.locator("option")).toHaveText(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
+  await expect(timeframe).toHaveValue("1h");
+  await expect(page.locator("#terminalTimeframeControl")).toBeHidden();
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
-  await expect(chart.locator("[data-rpw-window]")).toContainText(/bars/i);
-  await expect(chart.locator("[data-rpw-ranges] button")).toHaveText(["1D", "7D", "30D", "Max"]);
+  await expect(chart.locator("[data-rpw-read-cell]")).toBeHidden();
+  await expect(chart.locator("[data-rpw-read-cell]")).not.toContainText(/unknown|unavailable|missing/i);
+  await expect(chart.locator("[data-rpw-window]")).toContainText(/1h Change.*1h Volume.*1h Range.*bars/is);
+  await expect(chart.locator("[data-rpw-ranges], [data-rpw-timeframes], [data-rpw-range]")).toHaveCount(0);
   expect(calls.some((call) => call.market === "perpetuals" && call.timeframe === "1h" && call.limit === 720 && !call.before)).toBe(true);
   const initialGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
   expect(initialGeometry.price_axis).toMatchObject({
@@ -410,8 +414,8 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await chart.locator('[data-rpw-indicator="rsi14"]').click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.rsi14?.points || 0)).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.indicator_pane_count || 0)).toBe(1);
-  await chart.locator('[data-rpw-range="max"]').click();
-  await expect(chart.locator('[data-rpw-range="max"]')).toHaveAttribute("aria-pressed", "true");
+  await chart.locator("[data-rpw-indicator-trigger]").click();
+  await expect(chart.locator("[data-rpw-indicators]")).toBeHidden();
 
   const canvas = chart.locator(".rpw-stage canvas").first();
   const bounds = await canvas.boundingBox();
@@ -447,6 +451,7 @@ test("mobile long hold inspects exact OHLCV and returns to latest on release", a
   const legend = page.locator("#terminalChart [data-rpw-crosshair]");
   await expect(stage).toBeVisible();
   await expect(legend).toHaveAttribute("data-mode", "latest");
+  await stage.scrollIntoViewIfNeeded();
 
   const bounds = await stage.boundingBox();
   const client = await page.context().newCDPSession(page);
@@ -484,7 +489,7 @@ test("instrument and timeframe changes repaint the chart and exact context", asy
   const instrumentHash = await chartHash(page);
   expect(instrumentHash).not.toBe(initialHash);
 
-  await page.selectOption("#timeframeSelect", "4h");
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { instrument: "BTC-PERP", timeframe: "4h" });
   const timeframeHash = await chartHash(page);
   expect(timeframeHash).not.toBe(instrumentHash);
@@ -591,7 +596,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address")).toBe(true);
 
   const initialHash = await chartHash(page);
-  await page.selectOption("#timeframeSelect", "4h");
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
@@ -613,6 +618,8 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalPlanDisclaimer")).toContainText("not personalized orders");
   await expect(page.locator("#terminalPlanLoad")).toBeHidden();
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
+  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeVisible();
+  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Breakout.*RSI.*volume/s);
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Defensive de-risk");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Token-wide activity · selected pool revalidated");
@@ -885,7 +892,7 @@ test("selected context survives navigation to Discover", async ({ page }) => {
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await selectUniversalInstrument(page, "BTC-PERP");
-  await page.selectOption("#timeframeSelect", "4h");
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { instrument: "BTC-PERP", timeframe: "4h" });
   await page.locator('.ros-workspace-nav a[data-ros-nav="discover"]').click();
   await expect(page).toHaveURL(/\/discover\/.*asset=BTC-PERP.*timeframe=4h/);

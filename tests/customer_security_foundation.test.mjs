@@ -11,18 +11,22 @@ import {
 
 const security = JSON.parse(readFileSync("config/customer_security.json", "utf8"));
 
-test("Stage A account implementation stays gated until provider and preview verification", () => {
+test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.schema_version, "ravenos.customer_security_architecture.v1");
   assert.equal(security.verification_baseline.version, "5.0.0");
   assert.equal(security.verification_baseline.minimum_level, 2);
-  assert.equal(security.current_stage, "stage_a_implementation_pending_activation");
-  assert.equal(security.customer_capabilities_enabled, false);
+  assert.equal(security.current_stage, "stage_a_accounts_active");
+  assert.equal(security.customer_capabilities_enabled, true);
   assert.equal(security.identity_provider.implementation, "workos_authkit");
-  assert.equal(security.identity_provider.production_tenant_configured, false);
+  assert.equal(security.identity_provider.production_tenant_configured, true);
   assert.equal(security.identity_provider.provider_tokens_retained_by_ravenos, false);
+  assert.equal(security.identity_provider.google_oauth_tokens_returned_to_ravenos, false);
+  assert.equal(security.identity_provider.passkeys_enabled, false);
+  for (const capability of ["account_creation", "customer_authentication", "customer_sessions"]) {
+    assert(security.active_capabilities.includes(capability));
+    assert(!security.blocked_capabilities.includes(capability));
+  }
   for (const capability of [
-    "customer_authentication",
-    "customer_sessions",
     "wallet_linking",
     "persistent_portfolio",
     "subscription_entitlements",
@@ -60,14 +64,17 @@ test("opaque host-only session contract cannot move into browser storage", () =>
   for (const attribute of ["Secure", "HttpOnly", "SameSite=Lax", "Path=/"]) assert(policy.cookie_attributes.includes(attribute));
 });
 
-test("all required future security scenarios are explicit and no Stage A control is falsely reported verified", () => {
+test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
   assert.equal(rows.length, 28);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
-  const future = rows.filter((row) => row.gate !== "current");
-  assert(future.length > 20);
+  const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
+  assert(future.length >= 15);
   assert(future.every((row) => row.status !== "verified_current"));
-  assert(future.some((row) => row.gate === "stage_a" && row.status === "blocked"));
+  const stageA = rows.filter((row) => row.gate === "stage_a");
+  assert(stageA.length > 0);
+  assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
+  assert(stageA.some((row) => row.status === "external_review_required"));
   for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }

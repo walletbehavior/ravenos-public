@@ -33,6 +33,9 @@
 .account-method-divider::after { content: ""; flex: 1; height: 1px; background: var(--ws-border); }
 .account-auth-status { color: var(--ws-dim); font: 8px/1.55 var(--ws-mono); }
 .account-auth-status[data-tone="error"] { color: #e18491; }
+.account-auth-legal { margin-top: -2px; color: var(--ws-dim); font: 8px/1.55 var(--ws-mono); }
+.account-auth-legal a { color: var(--ws-muted); text-decoration: underline; text-underline-offset: 2px; }
+.account-auth-legal a:hover { color: var(--ws-text); }
 .account-activation { max-width: 560px; display: grid; gap: 8px; margin-top: 24px; border: 1px solid rgba(229, 184, 92, .28); border-radius: 8px; padding: 17px; background: rgba(229, 184, 92, .035); }
 .account-activation[hidden] { display: none; }
 .account-activation > strong { font-size: 15px; }
@@ -85,6 +88,33 @@
 .account-dashboard-rail dd { margin: 0; color: var(--ws-text); font: 700 8px var(--ws-mono); text-transform: uppercase; }
 .account-dashboard-rail a { min-height: 43px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--ws-border); color: var(--ws-text); font-size: 10px; text-decoration: none; }
 .account-dashboard-rail a:hover { color: var(--ws-accent); }
+
+@media (min-width: 841px) {
+  .account-head-status span,
+  .account-mode-switch button,
+  .account-method-divider,
+  .account-auth-status,
+  .account-auth-legal,
+  .account-activation a,
+  .account-capability-list article > span,
+  .account-separation-note > span,
+  .account-profile-head p,
+  .account-profile-head button,
+  .account-security-panel > header > strong,
+  .account-session-row span,
+  .account-session-row button,
+  .account-connection-stage > span:last-child,
+  .account-dashboard-rail dt,
+  .account-dashboard-rail dd { font-size: 10px; }
+  .account-head-status strong,
+  .account-activation p,
+  .account-capability-list p,
+  .account-separation-note p,
+  .account-session-row strong,
+  .account-connection-stage strong,
+  .account-connection-stage p,
+  .account-dashboard-rail a { font-size: 11px; }
+}
 
 @media (max-width: 840px) {
   .account-operator-head { min-height: 0; grid-template-columns: 1fr; align-items: start; padding: 17px 14px; }

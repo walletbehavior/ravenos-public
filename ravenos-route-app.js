@@ -251,7 +251,7 @@ function claimLink(claimId) {
 }
 
 function sourceRouteForSurface(surface, row = {}) {
-  if (surface === "brief") return "/brief/";
+  if (surface === "brief") return "/discover/";
   if (surface === "opportunity") return "/opportunity/";
   if (surface === "perps") return "/perps/";
   if (surface === "chain" || String(surface || "").startsWith("chain")) {

@@ -37,7 +37,7 @@ The complete ASVS 5.0.0 Level 2 checklist remains in scope. The following requir
 | Encoding/XSS | `V1.1.2`, `V1.2.1`-`V1.2.4`, `V1.3.1`-`V1.3.7` | structured text rendering, contextual encoding, no raw provider/narrator HTML |
 | Business logic | `V2.1.1`-`V2.1.3`, `V2.2.1`-`V2.2.3`, `V2.3.1`-`V2.3.4`, `V2.4.1` | documented limits, sequential transaction state, atomic nonce/intent operations |
 | Browser security | `V3.3.1`-`V3.3.4`, `V3.4.1`, `V3.4.3`-`V3.4.6`, `V3.5.1`, `V3.5.4` | secure host cookie, strict CSP, anti-framing, origin separation, CSRF |
-| Authentication | `V6.1.1`, `V6.1.3`, `V6.3.1`, `V6.3.3`-`V6.3.8`, `V6.4.3`-`V6.4.4`, `V6.5.1`-`V6.5.6`, `V6.7.2`, `V6.8.1`-`V6.8.4` | managed passkeys, recovery, enumeration resistance, recent-auth evidence |
+| Authentication | `V6.1.1`, `V6.1.3`, `V6.3.1`, `V6.3.3`-`V6.3.8`, `V6.4.3`-`V6.4.4`, `V6.5.1`-`V6.5.6`, `V6.7.2`, `V6.8.1`-`V6.8.4` | managed Google and email authentication, recovery, enumeration resistance, recent-auth evidence |
 | Sessions | `V7.1.1`, `V7.1.3`, `V7.2.1`, `V7.2.3`, `V7.2.4`, `V7.3.1`, `V7.3.2`, `V7.4.1`-`V7.4.5`, `V7.5.1`, `V7.5.2` | opaque backend sessions, rotation, expiry, revocation, inventory |
 | Authorization | `V8.1.1`, `V8.1.2`, `V8.2.1`-`V8.2.3`, `V8.3.1`, `V8.3.2`, `V8.4.1` | route/object/field authorization and immediate entitlement enforcement |
 | OAuth/OIDC | `V10.1.2`, `V10.2.1`-`V10.2.3`, `V10.5.1`, `V10.5.3` | state/PKCE/nonce/issuer/redirect/scope validation if used |
@@ -59,9 +59,11 @@ References must use the versioned form such as `v5.0.0-V7.2.4` in audit reports.
 | Public-origin secret server-only | `verified_current` | current-intelligence tests, no-leak scans, isolated Cloudflare preview |
 | Exact release tuple and rollback | `verified_current` | `tests/release_cohesion.test.mjs`, release packaging/staging verification |
 | Public response and asset no-leak | `verified_current` | `scripts/validate-public-no-leak.mjs`, `scripts/validate-worker-responses.mjs` |
-| Production customer authentication | `blocked` | managed AuthKit adapter implemented; tenant, secrets, custom domain, and preview evidence absent |
-| Authenticated-origin strict CSP | `blocked` | account CSP implemented and locally tested; authenticated origin is not active |
-| Server session and CSRF | `blocked` | opaque session, expiry, rotation, revocation, ownership, and CSRF controls pass local automated tests; production-equivalent verification pending |
+| Production customer authentication | `verified_current` | production AuthKit tenant, exact callback, Google OAuth, email authentication, encrypted Worker bindings, and release verification |
+| Authenticated-origin strict CSP | `verified_current` | isolated `app.ravenos.xyz` boundary, account browser tests, and release-preview header verification |
+| Server session and CSRF | `verified_current` | opaque session, expiry, rotation, revocation, ownership, CSRF, D1 persistence, and browser tests |
+| Hosted recovery enumeration timing | `external_review_required` | RavenOS failures are generic; managed-provider recovery timing remains an external provider-path review |
+| Managed edge-rule review | `external_review_required` | keyed application rate limits are active; an independent Cloudflare rule audit remains defense in depth |
 | Wallet linking | `required_not_implemented` | deliberately absent |
 | Billing and entitlements | `required_not_implemented` | legacy routes quarantined; replacement absent |
 | Persistent customer Portfolio | `required_not_implemented` | deliberately absent |
@@ -142,14 +144,14 @@ Add amount/decimals, minimum output, slippage, nonce/blockhash, simulation delta
 9. `git diff --check`;
 10. parent `.env` byte-identity check unless the owner explicitly reports an intentional change.
 
-### Before Stage A preview
+### Stage A activation gate
 
-- provider security review and test tenant;
+- provider security review and separate test/production tenants;
 - all `SEC-SES`, `SEC-CSRF`, `SEC-AUTHZ`, `SEC-ENUM`, `SEC-EDGE`, `SEC-XSS`, and `SEC-CSP` tests implemented and green;
 - strict CSP and authenticated-origin header scan;
 - dynamic application test against isolated preview;
 - dependency/SBOM and secret scan;
-- recovery and incident tabletop.
+- recovery and incident tabletop follow-up recorded where provider-managed behavior cannot be proven by RavenOS automation.
 
 ### Before Stage B/C
 

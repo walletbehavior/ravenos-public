@@ -147,6 +147,8 @@ for (const asset of [
   "ravenos-landing.css",
   "ravenos-landing.js",
   "ravenos-guide.css",
+  "ravenos-account.css",
+  "ravenos-account.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
   "ravenos-shell.css",

@@ -186,9 +186,9 @@ test("landing chart uses the shared timeframe controls and keeps exact identity"
   });
   await page.goto("/");
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
-  await page.locator('#landingChart [data-timeframe="15m"]').click();
+  await page.selectOption("#landingChart [data-rpw-timeframe-select]", "15m");
   await expect.poll(() => requested.at(-1)).toBe("15m");
-  await expect(page.locator('#landingChart [data-timeframe="15m"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#landingChart [data-rpw-timeframe-select]")).toHaveValue("15m");
   await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
   expect(product.timeframe).toBe("15m");

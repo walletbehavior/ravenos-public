@@ -1,6 +1,6 @@
 # RavenOS managed identity provider review v1
 
-Status: implementation selected; provider tenant and production activation pending
+Status: production tenant configured; Stage A account activation approved
 Reviewed: 2026-08-26
 Scope: RavenOS account creation, authentication, recovery, and provider-to-RavenOS identity exchange
 
@@ -8,7 +8,7 @@ Scope: RavenOS account creation, authentication, recovery, and provider-to-Raven
 
 RavenOS Stage A uses WorkOS AuthKit as the managed identity provider. The RavenOS account remains the application principal. WorkOS credentials prove authentication to RavenOS; a wallet address, browser flag, provider access token, or email address never becomes authorization by itself.
 
-AuthKit provides a hosted authentication surface for email/password, social login, Magic Auth, MFA, and related account flows. Its authorization-code flow supports state and PKCE. Passkeys are supported for sign-up and sign-in, with a production custom authentication domain required to avoid relying on a provider-hosted development domain.
+AuthKit provides a hosted authentication surface for email/password, social login, Magic Auth, MFA, and related account flows. Its authorization-code flow supports state and PKCE. RavenOS enables Google OAuth, email/password, Magic Auth, and optional MFA. Passkeys remain disabled because a production custom authentication domain is a paid add-on that has not been approved.
 
 Primary references:
 
@@ -40,20 +40,18 @@ The account UI never receives a provider secret, provider bearer token, session 
 
 The authenticated hostname serves only the account document, immutable first-party assets, and the account/session API family. Market workspaces stay on `ravenos.xyz`; they are not allowed to become same-origin with the customer session merely because both surfaces use the RavenOS Worker.
 
-## Required tenant configuration
+## Production tenant configuration
 
-Production activation remains prohibited until all of the following are captured as redacted evidence:
+The Stage A account scope uses the following production configuration:
 
-1. Create separate WorkOS test and production environments owned by RavenOS-controlled organization accounts.
-2. Register the exact callback `https://app.ravenos.xyz/api/v1/auth/callback`; remove wildcard and localhost callbacks from production.
-3. Configure and verify a RavenOS custom authentication domain before advertising production passkeys.
-4. Enable Google OAuth and confirm the RavenOS consent-screen identity, support address, and approved domains.
-5. Enable a RavenOS-approved first-party sign-in path: email/password and passkey, with verified email and managed recovery. Magic Auth may be added only after enumeration and replay testing.
-6. Require MFA or an equivalent step-up ceremony for recovery and later wallet, billing, broker, or signing security changes.
-7. Configure provider session/credential revocation and signed lifecycle webhooks where required; never place webhook or API secrets in assets.
-8. Establish minimum provider roles, two-person production administration, audit export, breach response, retention, deletion, and test-user cleanup.
-9. Store `WORKOS_API_KEY` and `RAVENOS_AUTH_HASH_PEPPER` as server-only Cloudflare secrets. Configure `WORKOS_CLIENT_ID` as a server-controlled deployment binding; it is an OAuth client identifier and necessarily appears in the browser authorization URL. The pepper must be independently generated and must not be reused as another secret.
-10. Run the full Stage A matrix against an isolated production-equivalent Worker version before setting `customer_capabilities_enabled` to true.
+1. Separate WorkOS test and production environments are owned by the RavenOS account.
+2. Production uses the exact callback `https://app.ravenos.xyz/api/v1/auth/callback`; no wildcard or localhost callback is registered.
+3. Google OAuth uses RavenOS branding, basic identity scopes, and does not return Google OAuth access or refresh tokens to RavenOS.
+4. Email/password, Magic Auth, and optional MFA are enabled. Passkeys are not advertised or reported by the RavenOS capability API.
+5. The provider requires verified email before RavenOS creates an account. Hosted recovery remains provider-managed.
+6. RavenOS keeps wallet, billing, broker, signing, and submission changes disabled; their later stages require recent reauthentication and separate review.
+7. `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and an independently generated `RAVENOS_AUTH_HASH_PEPPER` are encrypted Cloudflare Worker secrets and are absent from source and public assets.
+8. The Stage A unit, browser, no-leak, release-cohesion, and isolated-preview gates must pass before production promotion.
 
 ## Known limitations and decisions
 
@@ -61,8 +59,8 @@ Production activation remains prohibited until all of the following are captured
 - Email is a verified attribute and recovery channel, not an account lookup authority. Cross-provider account linking stays under the managed provider's verified policy.
 - RavenOS does not implement or store passwords. Password hashing, password policy, passkey ceremonies, social provider handling, and recovery are delegated to the managed provider.
 - The hosted provider UI is outside the RavenOS CSP boundary. RavenOS sends only bounded protocol values and receives only a one-time callback code and state.
-- Local and mocked tests do not prove provider, DNS, WAF, cookie, custom-domain, or real-browser behavior. Those controls remain blocked in `config/customer_security.json` until preview evidence exists.
+- Local and mocked tests do not prove every provider-recovery timing property or independently managed edge rule. Those items remain marked `external_review_required` in `config/customer_security.json` rather than being represented as fully verified.
 
 ## Activation decision
 
-The provider adapter, account schema, account surface, and local automated verification exist. Production customer capabilities remain disabled because the WorkOS tenant, RavenOS custom authentication domain, provider secrets, WAF controls, and production-equivalent preview evidence are not yet present. No unavailable capability may be represented as active merely because the code path exists.
+Stage A account creation, authentication, and revocable server-side sessions are approved for production activation. Passkeys, wallet linking, saved customer data, subscriptions, entitlements, broker connections, transaction signing, and submission remain disabled. Provider-recovery enumeration review and managed edge-rule review remain external follow-up controls; neither expands the active authorization scope.

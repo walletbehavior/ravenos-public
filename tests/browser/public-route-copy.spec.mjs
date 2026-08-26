@@ -80,7 +80,7 @@ const badPrimaryCopy = [
   /\b(?:migration|checkpoint|adapter|internal)\b/i,
 ];
 
-for (const route of ["/brief/", "/opportunity/", "/memory/", "/behavior/", "/outcomes/", "/replay/"]) {
+for (const route of ["/opportunity/", "/memory/", "/behavior/", "/outcomes/", "/replay/"]) {
   test(`${route} renders trader-facing primary copy`, async ({ page }) => {
     await page.goto(route);
     await expect(page.locator("#routeHeadline")).toBeVisible();
@@ -92,6 +92,12 @@ for (const route of ["/brief/", "/opportunity/", "/memory/", "/behavior/", "/out
     }
   });
 }
+
+test("the retired Brief route preserves exact context and opens Terminal", async ({ page }) => {
+  await page.goto("/brief/?asset=SV151%2FUSDC&instrument_id=solana%3Apool%3Aexample&timeframe=4h");
+  await expect(page).toHaveURL(/\/terminal\/.*asset=SV151%2FUSDC.*instrument_id=solana%3Apool%3Aexample.*timeframe=4h/);
+  await expect(page.locator("#terminalChart")).toBeVisible();
+});
 
 test("/perps/ renders a trader-facing live market workspace", async ({ page }) => {
   await page.goto("/perps/");

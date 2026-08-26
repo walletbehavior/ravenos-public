@@ -105,15 +105,15 @@
             <article class="guide-card"><span>Reporting value</span><h3>USD or USDC equivalent</h3><p>Every conversion must carry a timestamp and source. USD and USDC are not treated as risklessly identical.</p></article>
             <article class="guide-card"><span>Actual custody</span><h3>Preserved underneath</h3><p>Tradier cash remains broker USD. Hyperliquid collateral retains venue rules. On-chain holdings remain in their actual wallets and chains.</p></article>
             <article class="guide-card"><span>Normalization</span><h3>No double counting</h3><p>Account equity, child holdings, collateral, positions, wrapped assets, bridges, and duplicate wallet imports require explicit precedence and deduplication.</p></article>
-            <article class="guide-card"><span>Current state</span><h3>Portfolio persistence unavailable</h3><p>No customer account, verified connection, entitlement store, or persistent portfolio exists publicly. RavenOS shows an honest connection boundary, not a demo balance.</p></article>
+            <article class="guide-card"><span>Current state</span><h3>Portfolio persistence unavailable</h3><p>RavenOS accounts and secure sessions are active, but verified custody connections, entitlement storage, and persistent portfolios are not. RavenOS shows an honest connection boundary, not a demo balance.</p></article>
           </div>
         </section>
 
         <section class="guide-section" id="security">
-          <div class="guide-section-head"><span class="guide-section-number">07</span><div><h2>Account, wallet, entitlement, and transaction authority remain separate.</h2><p class="guide-lead">Customer security is a prerequisite—not a set of connected-looking controls. RavenOS uses OWASP ASVS 5.0.0 as the verification baseline for future account capability.</p></div></div>
+          <div class="guide-section-head"><span class="guide-section-number">07</span><div><h2>Account, wallet, entitlement, and transaction authority remain separate.</h2><p class="guide-lead">RavenOS accounts use managed authentication and revocable server-side sessions. OWASP ASVS 5.0.0 remains the verification baseline for expanding beyond identity.</p></div></div>
           <div class="guide-grid">
-            <article class="guide-card"><span>Identity</span><h3>Managed passkeys and recovery</h3><p>No home-grown password store. Future accounts use random internal IDs, managed WebAuthn/passkeys, protected recovery, session visibility, and revocation.</p></article>
-            <article class="guide-card"><span>Sessions</span><h3>Opaque and server-side</h3><p>No long-lived bearer sessions in browser storage. Cookie sessions require rotation, expiry, CSRF defense, object authorization, and recent reauthentication for sensitive changes.</p></article>
+            <article class="guide-card"><span>Identity</span><h3>Managed Google and email access</h3><p>No home-grown password store. Accounts use random internal IDs and managed Google, password, or one-time-code authentication. Passkeys remain deferred until a production custom authentication domain is approved.</p></article>
+            <article class="guide-card"><span>Sessions</span><h3>Opaque and server-side</h3><p>No long-lived bearer sessions in browser storage. Cookie sessions use rotation, expiry, CSRF defense, object authorization, recent reauthentication, visibility, and revocation.</p></article>
             <article class="guide-card"><span>Wallets</span><h3>Connect is not authentication</h3><p>A wallet must be verified and linked through a single-use standardized challenge before it can attach to an account. It still does not grant transaction authority.</p></article>
             <article class="guide-card"><span>Transactions</span><h3>Intent-bound before signing</h3><p>Any future transaction must match the reviewed user, wallet, chain, instrument, amount, route, fees, slippage, expiry, and unique intent record.</p></article>
           </div>
@@ -125,7 +125,7 @@
           <div class="guide-grid">
             <article class="guide-card"><span>Working now</span><h3>Live read-only intelligence</h3><p>Current opportunities, Hyperliquid market data, exact crypto charts, Raven Reads, measured followthrough, aggregate participation, and current public evidence.</p></article>
             <article class="guide-card"><span>Partial</span><h3>Atlas and exact spot coverage</h3><p>Atlas exposes only current verified listings. Solana and EVM intelligence remains aggregate where exact public identity is unavailable.</p></article>
-            <article class="guide-card"><span>Unavailable</span><h3>Customer persistence</h3><p>Accounts, subscriptions, entitlements, watchlists, alerts, persistent layouts, customer Portfolio, and broker connections remain security-gated.</p></article>
+            <article class="guide-card"><span>Account layer</span><h3>Identity active; persistence staged</h3><p>Managed account creation and revocable sessions are active. Subscriptions, entitlements, watchlists, alerts, persistent layouts, customer Portfolio, and broker connections remain security-gated.</p></article>
             <article class="guide-card"><span>Separately authorized</span><h3>Signing and submission</h3><p>Wallet signatures, broker orders, transaction broadcast, confirmed trading, and customer position monitoring require a later security and execution milestone.</p></article>
           </div>
           <div class="guide-actions"><a class="primary" href="/discover/">Launch Discover</a><a href="/faq/">Read product FAQ</a><a href="/account/">Check account availability</a></div>

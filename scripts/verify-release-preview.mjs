@@ -117,22 +117,30 @@ const authConfigCapture = await capture("/api/v1/auth/config");
 const authConfig = JSON.parse(authConfigCapture.text);
 if (
   authConfig?.schema_version !== "ravenos.customer_auth.v1"
-  || authConfig?.available !== false
-  || authConfig?.state !== "activation_pending"
+  || authConfig?.available !== true
+  || authConfig?.state !== "available"
+  || authConfig?.canonical_origin !== "https://app.ravenos.xyz"
+  || authConfig?.current_origin !== new URL(baseUrl).origin
+  || authConfig?.on_authenticated_origin !== false
+  || authConfig?.methods?.google !== true
+  || authConfig?.methods?.email !== true
+  || authConfig?.methods?.password !== true
+  || authConfig?.methods?.magic_auth !== true
+  || authConfig?.methods?.passkey !== false
   || authConfig?.account_model?.wallet_connection_is_sign_in !== false
   || authConfig?.execution_boundary?.transaction_signing_available !== false
   || authConfig?.execution_boundary?.submission_available !== false
 ) {
-  throw new Error("Staged account capability boundary is not fail-closed");
+  throw new Error("Staged account capability configuration is not active and origin-bound");
 }
 const disabledAuthStart = await capture("/api/v1/auth/start", {
-  expectedStatus: 503,
+  expectedStatus: 403,
   method: "POST",
   body: { intent: "sign_up", provider: "google", return_to: "/account/" },
 });
 const disabledAuthPayload = JSON.parse(disabledAuthStart.text);
-if (disabledAuthPayload?.error !== "account_activation_pending" || disabledAuthPayload?.customer_system?.signing !== "disabled") {
-  throw new Error("Staged account start route did not preserve the activation gate");
+if (disabledAuthPayload?.error !== "request_not_allowed") {
+  throw new Error("Staged account start route did not enforce the authenticated-origin boundary");
 }
 
 const healthCapture = await capture("/api/health");

@@ -48,7 +48,7 @@ test("selected market context survives navigation into an investigative route", 
   await waitForTerminal(page);
   await selectUniversalInstrument(page, "BTC-PERP");
   await expect(page.locator("#rosContextSubject")).toHaveText("BTC-PERP");
-  await page.selectOption("#timeframeSelect", "4h");
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { instrument: "BTC-PERP", timeframe: "4h" });
   await expect.poll(() => page.evaluate(() => window.RavenOSContext.getState().timeframe)).toBe("4h");
   await page.locator('.ros-workspace-nav a[data-ros-nav="discover"]').click();

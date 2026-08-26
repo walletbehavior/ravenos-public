@@ -61,7 +61,7 @@ flowchart LR
   W[External wallet]
   M[ravenos.xyz\npublic marketing and discovery]
   A[app.ravenos.xyz\nauthenticated workspace]
-  I[Managed identity provider\npasskeys and recovery]
+  I[Managed identity provider\nGoogle, email, and recovery]
   S[Customer security service\naccounts sessions authorization]
   D[(Customer data store)]
   B[Stripe hosted Checkout and Portal]
@@ -194,7 +194,7 @@ Never log session tokens, CSRF secrets, passkey private material, recovery codes
 
 | Stage | Capability | Required gate |
 |---|---|---|
-| A | Accounts and passkeys | Managed IdP review, session store, CSRF, object authorization, recovery, CSP, ASVS test evidence |
+| A | Accounts and managed authentication | Managed IdP review, session store, CSRF, object authorization, recovery, CSP, ASVS test evidence |
 | B | Verified wallets and read-only portfolio | SIWE/SIWS challenge service, uniqueness, recent reauth, notifications, privacy review |
 | C | Persistence and subscriptions | Watchlist/alert ownership, hosted Stripe flows, verified/reconciled entitlements |
 | D | Quote and order review | Immutable intent binding, route decoding, simulation, expiry, mismatch tests; still no submission |

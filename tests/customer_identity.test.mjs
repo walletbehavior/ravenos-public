@@ -178,6 +178,11 @@ async function finishFlow(store, start, fetchImpl = async () => new Response(JSO
 test("managed account configuration is fail closed and keeps wallets separate", () => {
   const disabled = publicCustomerIdentityConfig({}, "https://ravenos.xyz/account/");
   assert.equal(disabled.available, false);
+  const enabled = publicCustomerIdentityConfig(configuredEnv(), `${ORIGIN}/account/`);
+  assert.equal(enabled.methods.google, true);
+  assert.equal(enabled.methods.password, true);
+  assert.equal(enabled.methods.magic_auth, true);
+  assert.equal(enabled.methods.passkey, false);
   assert.equal(disabled.account_model.wallet_connection_is_sign_in, false);
   assert.equal(disabled.execution_boundary.transaction_signing_available, false);
   assert.equal(customerIdentityConfigured(configuredEnv()), true);

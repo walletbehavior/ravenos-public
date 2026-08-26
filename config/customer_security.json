@@ -13,8 +13,13 @@
       "public signing and submission"
     ]
   },
-  "current_stage": "stage_a_implementation_pending_activation",
-  "customer_capabilities_enabled": false,
+  "current_stage": "stage_a_accounts_active",
+  "customer_capabilities_enabled": true,
+  "active_capabilities": [
+    "account_creation",
+    "customer_authentication",
+    "customer_sessions"
+  ],
   "origins": {
     "public": "https://ravenos.xyz",
     "authenticated_candidate": "https://app.ravenos.xyz",
@@ -23,11 +28,16 @@
   "identity_provider": {
     "kind": "managed_identity",
     "implementation": "workos_authkit",
-    "production_tenant_configured": false,
-    "requested_methods": ["GoogleOAuth", "Password", "Passkey"],
+    "production_tenant_configured": true,
+    "requested_methods": ["GoogleOAuth", "Password", "MagicAuth"],
+    "passkeys_enabled": false,
     "custom_auth_domain_required_for_passkeys": true,
+    "passkeys_deferred_reason": "A production custom authentication domain is a paid add-on and has not been approved.",
     "callback": "https://app.ravenos.xyz/api/v1/auth/callback",
-    "provider_tokens_retained_by_ravenos": false
+    "provider_tokens_retained_by_ravenos": false,
+    "google_oauth_tokens_returned_to_ravenos": false,
+    "hosted_authentication_domain": "provider_managed",
+    "mfa_policy": "optional_user_enrollment"
   },
   "session_policy": {
     "kind": "opaque_revocable_server_side",
@@ -50,9 +60,6 @@
     "wallet_connect_is_authentication": false
   },
   "blocked_capabilities": [
-    "account_creation",
-    "customer_authentication",
-    "customer_sessions",
     "wallet_linking",
     "persistent_portfolio",
     "persistent_watchlists",
@@ -88,12 +95,12 @@
     "docs/ravenos_auth_provider_review_v1.md"
   ],
   "verification_scenarios": [
-    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent provider callback verification" },
-    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session verification" },
-    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session verification" },
-    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "blocked", "blocker": "isolated-origin browser verification" },
-    { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent session ownership verification" },
+    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
+    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs" },
+    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs" },
+    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary" },
+    { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "not_applicable", "rationale": "Stage A creates identity and sessions only; no paid entitlement or protected customer-data capability is active." },
+    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory and revocation tests in tests/customer_identity.test.mjs" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },
@@ -103,10 +110,10 @@
     { "id": "SEC-BIL-001", "name": "forged Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
     { "id": "SEC-BIL-002", "name": "replayed or duplicate Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
     { "id": "SEC-BIL-003", "name": "out-of-order Stripe events", "gate": "stage_c", "status": "required_not_implemented" },
-    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "blocked", "blocker": "managed-provider tenant and timing verification" },
-    { "id": "SEC-EDGE-001", "name": "WAF and endpoint rate-limit behavior", "gate": "stage_a", "status": "required_not_implemented" },
-    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "blocked", "blocker": "production-equivalent authenticated-origin verification" },
-    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "blocked", "blocker": "authenticated origin is not active" },
+    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "external_review_required", "evidence": "generic RavenOS callback failures verified; hosted recovery and timing remain provider-managed" },
+    { "id": "SEC-EDGE-001", "name": "WAF and endpoint rate-limit behavior", "gate": "stage_a", "status": "external_review_required", "evidence": "application-side keyed rate limits active; managed edge-rule review remains defense-in-depth" },
+    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "verified_current", "evidence": "text-only account rendering and strict CSP browser tests" },
+    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "verified_current", "evidence": "tests/browser/account.spec.mjs; isolated release preview headers" },
     { "id": "SEC-LEAK-001", "name": "secrets absent from assets and responses", "gate": "current", "status": "verified_current" },
     { "id": "SEC-TX-001", "name": "transaction and reviewed-quote mismatch", "gate": "stage_d", "status": "required_not_implemented" },
     { "id": "SEC-TX-002", "name": "stale quote signing", "gate": "stage_d", "status": "required_not_implemented" },

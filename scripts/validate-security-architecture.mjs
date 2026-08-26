@@ -10,17 +10,29 @@ assert.equal(config.schema_version, "ravenos.customer_security_architecture.v1")
 assert.equal(config.verification_baseline.standard, "OWASP ASVS");
 assert.equal(config.verification_baseline.version, "5.0.0");
 assert.equal(config.verification_baseline.minimum_level, 2);
-assert.equal(config.current_stage, "stage_a_implementation_pending_activation");
-assert.equal(config.customer_capabilities_enabled, false);
+assert.equal(config.current_stage, "stage_a_accounts_active");
+assert.equal(config.customer_capabilities_enabled, true);
 assert.equal(config.identity_provider.kind, "managed_identity");
 assert.equal(config.identity_provider.implementation, "workos_authkit");
-assert.equal(config.identity_provider.production_tenant_configured, false);
+assert.equal(config.identity_provider.production_tenant_configured, true);
 assert.equal(config.identity_provider.provider_tokens_retained_by_ravenos, false);
+assert.equal(config.identity_provider.google_oauth_tokens_returned_to_ravenos, false);
+assert.equal(config.identity_provider.passkeys_enabled, false);
+for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
+  assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);
+}
 
-const requiredBlockedCapabilities = new Set([
+const requiredActiveCapabilities = new Set([
   "account_creation",
   "customer_authentication",
   "customer_sessions",
+]);
+const activeCapabilities = new Set(config.active_capabilities || []);
+for (const capability of requiredActiveCapabilities) {
+  assert(activeCapabilities.has(capability), `missing active customer capability: ${capability}`);
+}
+
+const requiredBlockedCapabilities = new Set([
   "wallet_linking",
   "persistent_portfolio",
   "subscription_checkout",
@@ -33,6 +45,9 @@ const requiredBlockedCapabilities = new Set([
 const blockedCapabilities = new Set(config.blocked_capabilities || []);
 for (const capability of requiredBlockedCapabilities) {
   assert(blockedCapabilities.has(capability), `missing blocked customer capability: ${capability}`);
+}
+for (const capability of requiredActiveCapabilities) {
+  assert(!blockedCapabilities.has(capability), `active capability remains blocked: ${capability}`);
 }
 
 assert.equal(config.session_policy.kind, "opaque_revocable_server_side");
@@ -64,10 +79,13 @@ assert.equal(scenarioIds.size, scenarioRows.length, "security scenario IDs must 
 for (const id of requiredScenarios) assert(scenarioIds.has(id), `missing required security scenario: ${id}`);
 for (const row of scenarioRows) {
   assert(["verified_current", "required_not_implemented", "blocked", "external_review_required", "not_applicable"].includes(row.status), `invalid status for ${row.id}`);
-  if (row.gate !== "current") {
-    assert.notEqual(row.status, "verified_current", `${row.id} cannot be verified before its customer system exists`);
-  }
+  if (["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate)) assert.notEqual(row.status, "verified_current", `${row.id} cannot be verified before its customer system exists`);
+  if (row.status === "verified_current") assert(row.evidence || row.gate === "current", `${row.id} requires current evidence`);
+  if (row.status === "not_applicable") assert(row.rationale, `${row.id} requires a not-applicable rationale`);
 }
+const stageARows = scenarioRows.filter((row) => row.gate === "stage_a");
+assert(stageARows.length > 0, "Stage A security scenarios are missing");
+assert(stageARows.every((row) => !["blocked", "required_not_implemented"].includes(row.status)), "active Stage A controls cannot remain blocked or unimplemented");
 
 const worker = readFileSync(join(root, "worker.mjs"), "utf8");
 assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed identity router is missing from the Worker graph");
@@ -81,6 +99,9 @@ for (const reason of ["legacy_customer_access_quarantined", "legacy_billing_quar
 }
 assert.match(worker, /function customerAccountsEnabled\(\)\s*{\s*return false;\s*}/);
 assert.match(worker, /function customerBillingEnabled\(\)\s*{\s*return false;\s*}/);
+const identity = readFileSync(join(root, "lib/customer_identity.mjs"), "utf8");
+assert.match(identity, /passkey:\s*false/);
+assert.match(identity, /magic_auth:\s*available/);
 
 const deployScript = readFileSync(join(root, "scripts/prepare-deploy-assets.mjs"), "utf8");
 const runtimeBlock = deployScript.match(/const runtimeAssets = \[([\s\S]*?)\n\];/)?.[1] || "";
@@ -108,5 +129,5 @@ console.log(JSON.stringify({
   future_required_scenarios: scenarioRows.filter((row) => row.status === "required_not_implemented").length,
   activation_blocked_scenarios: scenarioRows.filter((row) => row.status === "blocked").length,
   legacy_customer_routes: "quarantined",
-  customer_capabilities_enabled: false
+  customer_capabilities_enabled: true
 }, null, 2));

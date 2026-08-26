@@ -24,7 +24,7 @@
       <div class="guide-status" aria-label="Current product status">
         <span class="current">Current Raven intelligence</span>
         <span class="current">Live Hyperliquid data</span>
-        <span>No customer account system</span>
+        <span class="current">Secure RavenOS accounts</span>
         <span class="boundary">No signing or submission</span>
       </div>
     </section>
@@ -43,8 +43,8 @@
         <details><summary>How would on-chain spot and perps execute later?</summary><div>An exact Solana pool can resolve to a Jupiter-compatible route, while a Hyperliquid perpetual resolves to the venue’s order path and margin rules. The Terminal can stay consistent, but custody, settlement, and final user confirmation remain provider-specific.</div></details>
         <details><summary>Is there a unified Portfolio?</summary><div>Not yet. A future view can combine verified wallets, Hyperliquid, Tradier, and other providers into one economic report while retaining actual custody and settlement. RavenOS will not show a demonstration balance as though it belongs to the user.</div></details>
         <details><summary>Are USD and USDC treated as the same?</summary><div>No. A unified report may show a timestamped USD or USDC equivalent, but broker USD and on-chain USDC retain their actual custody, conversion source, recency, and risk. A missing or old conversion fails closed.</div></details>
-        <details><summary>Does connecting a wallet sign me in?</summary><div>No. Wallet connection, wallet verification, RavenOS sign-in, account linking, entitlement, and transaction approval are separate concepts. No production account or wallet-linking system is active yet.</div></details>
-        <details><summary>Can I subscribe or create an account?</summary><div>Not yet. Production authentication, server sessions, subscriptions, Stripe entitlements, persistent watchlists, alerts, and layouts remain unavailable. They will not be represented by client-only locks or placeholder account states.</div></details>
+        <details><summary>Does connecting a wallet sign me in?</summary><div>No. RavenOS sign-in uses a managed Google or verified-email flow. Wallet connection, wallet verification, account linking, entitlement, and transaction approval remain separate concepts, and production wallet linking is not active yet.</div></details>
+        <details><summary>Can I create an account or subscribe?</summary><div>You can create a RavenOS account with Google or a managed email flow and review or revoke your server-side sessions. Subscriptions, Stripe entitlements, persistent watchlists, alerts, layouts, and customer Portfolio connections remain unavailable until their independent security stages are complete.</div></details>
         <details><summary>What happens when current data is unavailable?</summary><div>The affected surface fails closed or shows a clearly labeled archive. RavenOS does not silently replace a missing current opportunity with an old historical claim, and one provider outage should not collapse unrelated markets.</div></details>
         <details><summary>Is Raven Plan an executable trade plan?</summary><div>No. Any Plan or Scenario Preview remains evidence-bound, research-only, non-personalized, and non-executable until the supporting evidence and safety controls prove otherwise. It must show sample size, maturity, observation time, and limitations. A plan can never authorize a transaction.</div></details>
         <details><summary>Does RavenOS ever need my seed phrase or private key?</summary><div>No. RavenOS should never ask for, receive, or store seed phrases, recovery phrases, or private keys. A normal wallet keeps custody and performs any future final signature in its own confirmation interface.</div></details>
@@ -57,7 +57,7 @@
           <div><dt>Hyperliquid</dt><dd>Live market data and exact identity</dd></div>
           <div><dt>Atlas</dt><dd>Current listings; deeper context unavailable</dd></div>
           <div><dt>Portfolio</dt><dd>No customer connections or saved balances</dd></div>
-          <div><dt>Accounts</dt><dd>Security-gated and unavailable</dd></div>
+          <div><dt>Accounts</dt><dd>Managed sign-in and revocable sessions</dd></div>
           <div><dt>Execution</dt><dd>Signing, submission, and monitoring off</dd></div>
         </dl>
         <footer><div class="guide-actions"><a class="primary" href="/docs/">Read methodology</a><a href="/discover/">Open Discover</a></div></footer>

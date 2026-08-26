@@ -24,11 +24,13 @@
   --ros-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
 }
 
+html:has(body.ros-shell-active) { max-width: 100%; overflow-x: clip; }
 body.ros-shell-active {
   margin: 0;
+  max-width: 100%;
   min-height: 100vh;
   padding: var(--ros-topbar-height) 0 0;
-  overflow-x: hidden;
+  overflow-x: clip;
   background: var(--ros-bg) !important;
   color: var(--ros-text);
   font-family: var(--ros-font);
@@ -305,7 +307,7 @@ body.ros-utility-open .ros-utility-drawer {
 .ros-context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 0; background: var(--ros-line); }
 .ros-context-grid div { min-width: 0; display: grid; gap: 5px; padding: 13px 15px; background: #0a0f17; }
 .ros-context-grid strong { font-size: 11px; text-transform: capitalize; overflow-wrap: anywhere; }
-.ros-context-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 16px 24px; }
+.ros-context-footer { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 14px 16px 24px; }
 .ros-context-footer button:first-child { border-color: rgba(166, 177, 190, 0.32); color: var(--ros-accent); }
 
 .ros-utility-content { display: grid; }
@@ -474,6 +476,50 @@ body.ros-shell-active .route-hero h1 { font-size: clamp(26px, 3vw, 42px); line-h
 body.ros-shell-active .terminal,
 body.ros-shell-active .terminal-live,
 body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height)); }
+
+@media (min-width: 761px) {
+  .ros-workspace-nav-item,
+  .ros-context-trigger { font-size: 11px; }
+  .ros-command-copy strong { font-size: 12px; }
+  .ros-command-copy small,
+  .ros-command-trigger kbd,
+  .ros-freshness strong,
+  .ros-freshness time,
+  .ros-context-header span,
+  .ros-utility-drawer > header span,
+  .ros-context-intro > span,
+  .ros-context-section > span,
+  .ros-context-grid span,
+  .ros-utility-content section > span,
+  .ros-context-header button,
+  .ros-utility-drawer > header button,
+  .ros-context-footer button,
+  .ros-utility-list span,
+  .ros-more-links span,
+  .ros-provider-panel > header span,
+  .ros-provider-row small,
+  .ros-provider-panel > footer,
+  .ros-command-head div span,
+  .ros-command-head button,
+  .ros-search-status,
+  .ros-command-group > header strong,
+  .ros-command-group > header span,
+  .ros-command-result-group,
+  .ros-command-result-detail,
+  .ros-command-result small,
+  .ros-command-palette > footer { font-size: 10px; }
+  .ros-context-intro p,
+  .ros-context-section p,
+  .ros-context-section li,
+  .ros-context-grid strong,
+  .ros-utility-empty p,
+  .ros-utility-unavailable p,
+  .ros-utility-list strong,
+  .ros-more-links strong,
+  .ros-provider-panel > header p,
+  .ros-provider-row strong { font-size: 11px; }
+  .ros-command-result strong { font-size: 13px; }
+}
 
 @media (max-width: 1280px) {
   .ros-topbar { grid-template-columns: 118px minmax(240px, 1fr) minmax(240px, 460px) 112px 82px 42px 42px; }
