@@ -87,6 +87,8 @@ flowchart LR
 
 The public and authenticated applications should use different hostnames. The authenticated origin must not load advertising scripts, arbitrary tag managers, social widgets, or untrusted embeds. The administrative origin must add strong edge access controls, but application authorization remains mandatory.
 
+The `app.ravenos.xyz` Worker boundary allowlists only the account document, its immutable first-party assets, the managed-auth/session routes, and a bounded release probe. Known workspace routes redirect to `ravenos.xyz` with untrusted query data removed; unknown documents and non-account APIs return `404`. This prevents the broader Terminal, Atlas, provider, and chart surfaces from becoming same-origin with customer cookies.
+
 ## Customer data model
 
 All identifiers are opaque and non-semantic.

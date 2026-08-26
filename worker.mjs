@@ -84,6 +84,64 @@ import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
 
+const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
+const PUBLIC_ORIGIN = "https://ravenos.xyz";
+const AUTHENTICATED_APP_STATIC_PATHS = new Set([
+  "/favicon.ico",
+  "/ravenos-account.css",
+  "/ravenos-account.js",
+  "/ravenos-shell.css",
+  "/ravenos-shell.js",
+  "/ravenos-workspace.css",
+]);
+const PUBLIC_APP_REDIRECT_ROUTES = new Set([
+  "",
+  "atlas",
+  "behavior",
+  "brief",
+  "chains",
+  "claims",
+  "discover",
+  "docs",
+  "faq",
+  "memory",
+  "opportunity",
+  "outcomes",
+  "perps",
+  "portfolio",
+  "pricing",
+  "replay",
+  "research",
+  "terminal",
+]);
+
+function authenticatedAppBoundary(request) {
+  const url = new URL(request.url);
+  if (url.hostname.toLowerCase() !== AUTHENTICATED_APP_HOST) return null;
+  const readRequest = request.method === "GET" || request.method === "HEAD";
+  const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
+  const identityApi = url.pathname === "/api/v1/auth/config"
+    || url.pathname === "/api/v1/auth/start"
+    || url.pathname === "/api/v1/auth/callback"
+    || url.pathname === "/api/v1/auth/session"
+    || url.pathname === "/api/v1/auth/logout"
+    || url.pathname === "/api/v1/sessions"
+    || url.pathname.startsWith("/api/v1/sessions/");
+  const releaseProbe = readRequest && url.pathname === "/api/build";
+  const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
+  if ((readRequest && accountPath) || identityApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+
+  const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
+  if (readRequest && PUBLIC_APP_REDIRECT_ROUTES.has(firstSegment)) {
+    const targetPath = firstSegment ? `/${firstSegment}/` : "/";
+    return { allowed: false, response: Response.redirect(`${PUBLIC_ORIGIN}${targetPath}`, 308) };
+  }
+  return { allowed: false, response: new Response("Not found", {
+    status: 404,
+    headers: { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" },
+  }) };
+}
+
 const dexCache = new Map();
 const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
@@ -6247,6 +6305,10 @@ export default {
     }
     if (releaseState.cohesion.enforced && !releaseState.cohesion.ok) {
       return attachReleaseHeaders(applyAssetSecurityHeaders(releaseUnavailable(releaseState), url.pathname), releaseState, url.pathname);
+    }
+    const authenticatedBoundary = authenticatedAppBoundary(request);
+    if (authenticatedBoundary && !authenticatedBoundary.allowed) {
+      return attachReleaseHeaders(applyAssetSecurityHeaders(authenticatedBoundary.response, url.pathname), releaseState, url.pathname);
     }
     if (url.pathname.startsWith("/api/")) {
       const response = await routeApi(request, env || {});

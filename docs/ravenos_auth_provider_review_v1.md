@@ -38,6 +38,8 @@ The Worker implementation in `lib/customer_identity.mjs`:
 
 The account UI never receives a provider secret, provider bearer token, session verifier, internal user ID, seed phrase, private key, or wallet signature. Session cookies are host-only, Secure, HttpOnly, SameSite=Lax, and unavailable to JavaScript. Authenticated responses are non-cacheable.
 
+The authenticated hostname serves only the account document, immutable first-party assets, and the account/session API family. Market workspaces stay on `ravenos.xyz`; they are not allowed to become same-origin with the customer session merely because both surfaces use the RavenOS Worker.
+
 ## Required tenant configuration
 
 Production activation remains prohibited until all of the following are captured as redacted evidence:

@@ -180,6 +180,47 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(api.headers.get("permissions-policy") || "", /camera=\(\)/);
 });
 
+test("the authenticated hostname exposes only account assets and account/session APIs", async () => {
+  const accountHtml = readFileSync("account/index.html", "utf8");
+  const env = {
+    ASSETS: {
+      async fetch(request) {
+        const pathname = new URL(request.url).pathname;
+        if (pathname === "/account/") return new Response(accountHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname.startsWith("/assets/") || pathname === "/ravenos-account.js") return new Response("asset", { headers: { "content-type": "application/javascript" } });
+        return new Response("public surface", { headers: { "content-type": "text/html; charset=utf-8" } });
+      },
+    },
+    RAVENOS_AUTH_ORIGIN: "https://app.ravenos.xyz",
+    RAVENOS_AUTH_REDIRECT_URI: "https://app.ravenos.xyz/api/v1/auth/callback",
+  };
+
+  const account = await worker.fetch(new Request("https://app.ravenos.xyz/account/"), env);
+  assert.equal(account.status, 200);
+  assert.match(account.headers.get("content-security-policy") || "", /default-src 'self'/);
+
+  const config = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/auth/config"), env);
+  assert.equal(config.status, 200);
+  assert.equal((await config.json()).available, false);
+
+  const asset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-account.js"), env);
+  assert.equal(asset.status, 200);
+
+  const terminal = await worker.fetch(new Request("https://app.ravenos.xyz/terminal/?code=must-not-cross-origins"), env);
+  assert.equal(terminal.status, 308);
+  assert.equal(terminal.headers.get("location"), "https://ravenos.xyz/terminal/");
+  assert(!terminal.headers.get("location").includes("must-not-cross-origins"));
+
+  const marketApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/hyperliquid/perps?token=must-not-echo"), env);
+  assert.equal(marketApi.status, 404);
+  assert.equal(await marketApi.text(), "Not found");
+
+  const unknown = await worker.fetch(new Request("https://app.ravenos.xyz/provider/callback?code=must-not-echo"), env);
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.headers.get("location"), null);
+  assert.equal(await unknown.text(), "Not found");
+});
+
 test("all required customer security documents exist as substantial architecture contracts", () => {
   assert.equal(security.required_documents.length, 7);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
