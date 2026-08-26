@@ -133,13 +133,16 @@ if (
 ) {
   throw new Error("Staged account capability configuration is not active and origin-bound");
 }
-const disabledAuthStart = await capture("/api/v1/auth/start", {
-  expectedStatus: 403,
+const offOriginAuthStart = await capture("/api/v1/auth/start", {
+  expectedStatus: 409,
   method: "POST",
   body: { intent: "sign_up", provider: "google", return_to: "/account/" },
 });
-const disabledAuthPayload = JSON.parse(disabledAuthStart.text);
-if (disabledAuthPayload?.error !== "request_not_allowed") {
+const offOriginAuthPayload = JSON.parse(offOriginAuthStart.text);
+if (
+  offOriginAuthPayload?.error !== "authenticated_origin_required"
+  || offOriginAuthPayload?.canonical_origin !== "https://app.ravenos.xyz"
+) {
   throw new Error("Staged account start route did not enforce the authenticated-origin boundary");
 }
 

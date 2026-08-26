@@ -191,6 +191,24 @@ test("managed account configuration is fail closed and keeps wallets separate", 
   assert.equal(CustomerIdentityContract.wallet_connection_is_authentication, false);
 });
 
+test("managed account mutations refuse every non-canonical hostname before request processing", async () => {
+  const response = await routeCustomerIdentity(new Request("https://preview.example/api/v1/auth/start", {
+    method: "POST",
+    headers: {
+      origin: ORIGIN,
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ provider: "google", intent: "sign_up", return_to: "/account/" }),
+  }), configuredEnv(), { store: new MemoryIdentityStore(), nowMs: NOW_MS });
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    ok: false,
+    error: "authenticated_origin_required",
+    canonical_origin: ORIGIN,
+  });
+});
+
 test("auth start uses exact Origin, PKCE, state, bounded return paths, and no session cookie", async () => {
   const store = new MemoryIdentityStore();
   const rejected = await routeCustomerIdentity(request("/api/v1/auth/start", {
