@@ -195,18 +195,19 @@ export function spotFlowRead(row = {}, timeframe = "5m") {
 
 export function opportunityLifecycle(row = {}, market = row.market_snapshot || {}) {
   const direction = String(row.observed_direction || "").toLowerCase();
+  const hasDirection = ["long", "short"].includes(direction);
   const currentPrice = finite(market.last_price ?? market.mark_price);
   const entryPrice = finite(row.market_context?.entry_reference_price);
   const rawMove = currentPrice !== null && currentPrice > 0 && entryPrice !== null && entryPrice > 0
     ? ((currentPrice / entryPrice) - 1) * 100
     : null;
-  const signedMove = rawMove === null || !["long", "short"].includes(direction)
+  const signedMove = rawMove === null || !hasDirection
     ? null
     : direction === "short" ? -rawMove : rawMove;
   const comparable = row.matured_comparables || {};
   const sampleSize = finite(comparable.sample_size);
   const positiveRate = finite(comparable.positive_followthrough_rate);
-  const directionalRate = positiveRate === null || !["long", "short"].includes(direction)
+  const directionalRate = positiveRate === null || !hasDirection
     ? null
     : direction === "short" ? 1 - positiveRate : positiveRate;
   const favorable = Math.abs(finite(comparable.median_favorable_excursion_pct) || 0);
@@ -221,11 +222,13 @@ export function opportunityLifecycle(row = {}, market = row.market_snapshot || {
   const invalidationDistance = Math.max(0.5, adverse * 0.8);
   const confirmationDistance = Math.max(0.15, favorable * 0.2);
 
-  let state = "forming";
-  let label = "Forming";
+  let state = hasDirection ? "forming" : "watch";
+  let label = hasDirection ? "Forming" : "Watch";
   let tone = "neutral";
-  let summary = "The setup is current, but price and pressure have not fully aligned.";
-  if (signedMove !== null && signedMove <= -invalidationDistance) {
+  let summary = hasDirection
+    ? "The setup is current, but price and pressure have not fully aligned."
+    : "Current behavior is being monitored, but Raven has not promoted it to a directional setup.";
+  if (hasDirection && signedMove !== null && signedMove <= -invalidationDistance) {
     state = "invalidated";
     label = "Invalidated";
     tone = "negative";
@@ -248,7 +251,7 @@ export function opportunityLifecycle(row = {}, market = row.market_snapshot || {
     summary = "Price is following through in Raven's observed direction.";
   }
 
-  let score = 38;
+  let score = hasDirection ? 38 : 20;
   if (sampleSize !== null) score += sampleSize >= 100 ? 14 : sampleSize >= 30 ? 10 : sampleSize >= 10 ? 6 : 0;
   if (directionalRate !== null) {
     if (directionalRate >= 0.60) score += 16;
@@ -263,10 +266,13 @@ export function opportunityLifecycle(row = {}, market = row.market_snapshot || {
   if (state === "confirmed") score += 12;
   if (state === "fading") score -= 18;
   if (state === "invalidated") score = Math.min(score - 28, 20);
+  if (state === "watch") score = Math.min(score, 34);
   score = Math.round(clamp(score, 0, 99));
 
-  const quality = score >= 75 ? "High signal" : score >= 55 ? "Supported" : score >= 35 ? "Developing" : "Low signal";
-  const invalidationPrice = entryPrice === null || adverse <= 0 || !["long", "short"].includes(direction)
+  const quality = state === "watch"
+    ? "Watch only"
+    : score >= 75 ? "High signal" : score >= 55 ? "Supported" : score >= 35 ? "Developing" : "Low signal";
+  const invalidationPrice = entryPrice === null || adverse <= 0 || !hasDirection
     ? null
     : direction === "short" ? entryPrice * (1 + adverse / 100) : entryPrice * (1 - adverse / 100);
   const invalidation = invalidationPrice === null
@@ -280,8 +286,9 @@ export function opportunityLifecycle(row = {}, market = row.market_snapshot || {
     tone,
     score,
     quality,
+    promoted: state !== "watch" && state !== "invalidated" && score >= 50,
     summary,
-    direction,
+    direction: hasDirection ? direction : "",
     raw_move_pct: rawMove,
     directional_move_pct: signedMove,
     directional_followthrough_rate: directionalRate,
@@ -316,7 +323,7 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
   const distributing = spotReads.filter((row) => ["distribution", "sell_pressure"].includes(row.state)).length;
   const spotVolume = eligibleSpot.reduce((sum, row) => sum + (windowMetric(row, "volume_usd", timeframe) || 0), 0);
   const opportunityReads = opportunityRows.map((row) => opportunityLifecycle(row, row.market_snapshot || {}));
-  const lifecycleCounts = Object.fromEntries(["confirmed", "forming", "fading", "invalidated"].map((key) => [
+  const lifecycleCounts = Object.fromEntries(["confirmed", "forming", "watch", "fading", "invalidated"].map((key) => [
     key,
     opportunityReads.filter((row) => row.state === key).length,
   ]));
@@ -359,12 +366,19 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
     const value = [
       lifecycleCounts.confirmed ? `${lifecycleCounts.confirmed} confirmed` : "",
       lifecycleCounts.forming ? `${lifecycleCounts.forming} forming` : "",
+      !lifecycleCounts.confirmed && !lifecycleCounts.forming && lifecycleCounts.watch ? `${lifecycleCounts.watch} watch-only` : "",
     ].filter(Boolean).join(" · ") || "Queue is decaying";
+    const heldBack = [
+      lifecycleCounts.watch ? `${lifecycleCounts.watch} watch-only held below setups` : "",
+      lifecycleCounts.fading + lifecycleCounts.invalidated
+        ? `${lifecycleCounts.fading + lifecycleCounts.invalidated} fading or invalidated demoted`
+        : "",
+    ].filter(Boolean).join(" · ") || "No lower-quality reads are being promoted";
     cards.push({
       key: "lifecycle",
       label: "Setup lifecycle",
       value,
-      detail: `${lifecycleCounts.fading + lifecycleCounts.invalidated} fading or invalidated setups demoted`,
+      detail: heldBack,
       tone: lifecycleCounts.confirmed ? "positive" : lifecycleCounts.fading + lifecycleCounts.invalidated ? "warning" : "neutral",
     });
   }

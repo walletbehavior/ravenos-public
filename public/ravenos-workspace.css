@@ -567,6 +567,7 @@
 .discover-row[data-freshness="delayed"]::before { background: var(--ws-warning); }
 .discover-row[data-lifecycle="forming"]::before { background: var(--ws-accent); }
 .discover-row[data-lifecycle="confirmed"]::before { background: var(--ws-positive); }
+.discover-row[data-lifecycle="watch"]::before { background: rgba(166, 177, 190, .28); }
 .discover-row[data-lifecycle="fading"]::before { background: var(--ws-warning); }
 .discover-row[data-lifecycle="invalidated"]::before { background: var(--ws-negative); }
 .discover-row:hover { background: var(--ws-panel-raised); }
@@ -838,6 +839,21 @@
 .atlas-visual-chart-meta { min-height: 42px; display: grid; grid-template-columns: auto auto minmax(180px, 1fr); align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--ws-border); color: var(--ws-muted); font: 8px var(--ws-mono); }
 .atlas-visual-chart-meta a { color: var(--ws-accent); text-decoration: none; }
 .atlas-visual-chart-meta small { justify-self: end; text-align: right; line-height: 1.4; }
+.atlas-chart-research { display: grid; border-bottom: 1px solid var(--ws-border); background: linear-gradient(110deg, rgba(166, 177, 190, .035), transparent 62%); }
+.atlas-chart-research-head { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 14px; }
+.atlas-chart-research-head > div { display: grid; gap: 4px; }
+.atlas-chart-research-head strong { font-size: 12px; }
+.atlas-chart-research-head > small { max-width: 410px; color: var(--ws-muted); font-size: 8px; line-height: 1.5; text-align: right; }
+.atlas-chart-research-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--ws-border); }
+.atlas-chart-research-links button { min-width: 0; min-height: 70px; display: grid; grid-template-columns: 28px minmax(0, 1fr) 14px; align-items: center; gap: 9px; border: 0; border-right: 1px solid var(--ws-border); border-radius: 0; padding: 10px 12px; background: rgba(8, 12, 19, .72); color: var(--ws-text); text-align: left; cursor: pointer; }
+.atlas-chart-research-links button:last-child { border-right: 0; }
+.atlas-chart-research-links button:hover,
+.atlas-chart-research-links button:focus-visible { background: rgba(166, 177, 190, .065); outline: 0; }
+.atlas-chart-research-links button > b { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--ws-border-strong); border-radius: 6px; color: var(--ws-accent); font: 780 7px var(--ws-mono); }
+.atlas-chart-research-links button > span { min-width: 0; display: grid; gap: 4px; }
+.atlas-chart-research-links button strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-chart-research-links button small { overflow: hidden; color: var(--ws-muted); font-size: 7.5px; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-chart-research-links button > i { color: var(--ws-accent); font: 12px var(--ws-mono); font-style: normal; }
 
 .atlas-history-chart { width: 100%; min-height: 420px; border-bottom: 1px solid var(--ws-border); }
 .raven-series-chart-shell {
@@ -1228,6 +1244,11 @@
   .atlas-tv-frame { min-height: 330px; }
   .atlas-visual-chart-meta { grid-template-columns: 1fr auto; }
   .atlas-visual-chart-meta small { grid-column: 1 / -1; justify-self: start; text-align: left; }
+  .atlas-chart-research-head { align-items: flex-start; flex-direction: column; gap: 5px; padding: 10px 12px; }
+  .atlas-chart-research-head > small { max-width: none; text-align: left; }
+  .atlas-chart-research-links { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
+  .atlas-chart-research-links::-webkit-scrollbar { display: none; }
+  .atlas-chart-research-links button { flex: 0 0 min(240px, 78vw); border-right: 1px solid var(--ws-border); scroll-snap-align: start; }
   .atlas-eia-controls { grid-template-columns: 1fr 1fr; align-items: stretch; }
   .atlas-eia-series-control { grid-column: 1 / -1; }
   .atlas-eia-controls .workspace-primary-action { grid-column: 1 / -1; }

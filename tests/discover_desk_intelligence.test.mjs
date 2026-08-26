@@ -69,6 +69,26 @@ test("opportunity lifecycle invalidates and sharply demotes an adverse path", ()
   assert.match(read.summary, /demoted/i);
 });
 
+test("directionless evidence remains watch-only and cannot enter the setup queue", () => {
+  const read = opportunityLifecycle(opportunity({
+    observed_direction: "unavailable",
+    raven_atoms: [],
+    matured_comparables: {
+      sample_size: 0,
+      evidence_maturity: "unavailable",
+      positive_followthrough_rate: null,
+      median_favorable_excursion_pct: null,
+      median_adverse_excursion_pct: null,
+    },
+  }));
+  assert.equal(read.state, "watch");
+  assert.equal(read.label, "Watch");
+  assert.equal(read.quality, "Watch only");
+  assert.equal(read.promoted, false);
+  assert.ok(read.score <= 34);
+  assert.doesNotMatch(JSON.stringify(read), /unknown|unavailable/i);
+});
+
 test("spot flow calls accumulation only when distinct participants align across windows", () => {
   const read = spotFlowRead(pool(), "5m");
   assert.equal(read.state, "accumulation");

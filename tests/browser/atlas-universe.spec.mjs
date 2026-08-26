@@ -220,8 +220,29 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   await expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
   await expect(page.locator(".atlas-compute-state")).toHaveCount(0);
   await expect(page.locator("#atlasOpenTerminal")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
+  await expect(page.locator(".atlas-chart-research")).toBeVisible();
+  await expect(page.locator(".atlas-chart-research")).toContainText("Research this move");
+  await expect(page.locator(".atlas-chart-research")).toContainText("Filings");
+  await expect(page.locator(".atlas-chart-research")).toContainText("Insider activity");
+  await expect(page.locator(".atlas-chart-research")).toContainText("Options research");
   expect(calls.filter((call) => call.startsWith("/api/atlas/entity")).length).toBe(1);
   expect(calls.some((call) => call.includes("options"))).toBe(false);
+});
+
+test("Atlas chart research actions deep-link exact filings and insider activity", async ({ page }) => {
+  const calls = await mockAtlas(page);
+  await page.goto("/atlas/?entity_id=etf%3Aus%3ASPY");
+  expect(calls.some((call) => call.startsWith("/api/atlas/sec/"))).toBe(false);
+  await page.getByRole("button", { name: "Open Filings for SPY" }).click();
+  await expect(page).toHaveURL(/entity_id=etf%3Aus%3ASPY&view=filings/);
+  await expect(page.getByRole("tab", { name: "Filings" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".atlas-options-note")).toContainText("has not generated a filing summary");
+  expect(calls.filter((call) => call.startsWith("/api/atlas/sec/filings")).length).toBe(1);
+
+  await page.goto("/atlas/?entity_id=etf%3Aus%3ASPY&view=insiders");
+  await expect(page.getByRole("tab", { name: "Insiders" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".atlas-insider-row").first()).toContainText("Chief Example Officer");
+  await expect(page).toHaveURL(/entity_id=etf%3Aus%3ASPY&view=insiders/);
 });
 
 test("Atlas gives an arbitrary equity a chart only after one exact listing resolves", async ({ page }) => {

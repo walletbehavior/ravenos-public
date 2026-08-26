@@ -42,6 +42,12 @@ function text(value, fallback = "Unavailable") {
   return result || fallback;
 }
 
+function usefulText(value) {
+  const result = String(value ?? "").trim();
+  if (!result || /^(?:unknown|unavailable|not available|not reported|n\/?a|null|none)$/i.test(result)) return "";
+  return result;
+}
+
 function finite(value) {
   if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
@@ -427,10 +433,10 @@ function comparableSupport(row = {}) {
     };
   }
   const atom = Array.isArray(row.raven_atoms)
-    ? row.raven_atoms.map((value) => customerFacingText(value, "")).find(Boolean)
+    ? row.raven_atoms.map((value) => usefulText(customerFacingText(value, ""))).find(Boolean)
     : "";
-  const maturity = text(comparable.evidence_maturity, "");
-  const direction = text(row.observed_direction, "");
+  const maturity = usefulText(comparable.evidence_maturity);
+  const direction = usefulText(row.observed_direction);
   const friction = finite(row.market_context?.roundtrip_bps);
   return {
     headline: atom ? `${atom} observed` : "Current behavior observed",
@@ -863,8 +869,8 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     document.getElementById("discoverTokenTapeList").replaceChildren();
     return;
   }
-  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
-  host.hidden = !["all", "spot"].includes(activeFilter);
+  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  host.hidden = activeFilter !== "spot";
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
     const active = button.dataset.spotTimeframe === state.spotTimeframe;
     button.classList.toggle("active", active);
@@ -976,8 +982,8 @@ function renderListedUniverse(rows = []) {
   }
   state.featuredRows.forEach((row) => host.append(createListedMarketCard(row)));
   document.getElementById("discoverListedCount").textContent = `${state.featuredRows.length} markets`;
-  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
-  section.hidden = !["all", "equity"].includes(active);
+  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  section.hidden = active !== "equity";
 }
 
 function createOpportunityRow(row) {
@@ -1097,19 +1103,39 @@ function renderSourceNotice(source, detail) {
 }
 
 function applyFilter() {
-  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "all";
-  document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || !["all", "spot"].includes(active);
-  document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || !["all", "equity"].includes(active);
+  const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
+  document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || active !== "spot";
+  document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || active !== "equity";
+  document.getElementById("discoverPayoff").hidden = !state.payoff || active !== "signals";
   const opportunityLayout = document.getElementById("discoverOpportunityLayout");
   const perpPulse = document.getElementById("discoverPerpPulse");
   const spotOwnsView = active === "spot" && state.spotRows.length > 0;
-  opportunityLayout.hidden = spotOwnsView;
-  perpPulse.hidden = !["all", "perpetual"].includes(active);
+  const equityOwnsView = active === "equity" && state.featuredRows.length > 0;
+  opportunityLayout.hidden = spotOwnsView || equityOwnsView;
+  perpPulse.hidden = !["signals", "perpetual"].includes(active);
   opportunityLayout.dataset.side = perpPulse.hidden ? "hidden" : "visible";
+  const streamCopy = {
+    signals: ["Raven", "Raven signals", "Evidence-ranked setups with weak and decayed reads held below the live queue."],
+    perpetual: ["Perpetuals", "Perp opportunities", "Raven setups beside the current Hyperliquid market tape."],
+    equity: ["Atlas", "Listed-market context", "Exact stocks and ETFs with deeper research available in Atlas."],
+  }[active] || ["Raven", "Current opportunities", "What changed, why it matters, and the market behind the read."];
+  document.getElementById("discoverStreamEyebrow").textContent = streamCopy[0];
+  document.getElementById("discoverStreamTitle").textContent = streamCopy[1];
+  document.getElementById("discoverStreamSummary").textContent = streamCopy[2];
+  document.querySelectorAll(".discover-source-notice").forEach((notice) => {
+    const source = notice.dataset.discoverSourceNotice;
+    notice.hidden = active === "spot" || (source === "atlas" ? active !== "equity" : !["signals", "perpetual"].includes(active));
+  });
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
-  const matching = rows.filter((row) => active === "all" || row.dataset.marketType === active);
-  const collapsedEligible = matching.filter((row) => row.dataset.lifecycle !== "invalidated");
+  const matching = rows.filter((row) => active === "signals"
+    ? row.dataset.sourceType === "raven"
+    : row.dataset.marketType === active);
+  const collapsedEligible = matching.filter((row) => {
+    if (!row.dataset.lifecycle) return true;
+    if (["watch", "invalidated"].includes(row.dataset.lifecycle)) return false;
+    return Number(row.dataset.signalScore || 0) >= 50;
+  });
   const eligible = state.expanded ? matching : collapsedEligible;
   const eligibleSet = new Set(eligible);
   const collapsedLimit = window.matchMedia("(max-width: 560px)").matches ? 8 : 12;
@@ -1122,35 +1148,51 @@ function applyFilter() {
   });
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
-  const hasFeaturedEquities = active === "equity" && state.featuredRows.length > 0;
+  const hasFeaturedEquities = equityOwnsView;
   const hasTokenTape = active === "spot" && state.spotRows.length > 0;
   if (!eligible.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
     const inner = append(empty, "div", "", "");
     append(inner, "span", "workspace-state-mark", "R");
-    const onlyInvalidated = matching.length > 0 && matching.every((row) => row.dataset.lifecycle === "invalidated");
-    append(inner, "h2", "", onlyInvalidated
+    const onlyHeldBack = matching.length > 0 && matching.every((row) => (
+      ["watch", "invalidated"].includes(row.dataset.lifecycle)
+      || (row.dataset.lifecycle && Number(row.dataset.signalScore || 0) < 50)
+    ));
+    append(inner, "h2", "", onlyHeldBack
       ? "No active setups clear Raven's lifecycle gate"
       : active === "spot" ? "No spot movement meets the current filter" : "No current markets meet this filter");
-    append(inner, "p", "", onlyInvalidated
-      ? "Invalidated reads are demoted from the live queue; they remain available for review below."
+    append(inner, "p", "", onlyHeldBack
+      ? "Watch-only, low-confidence, and invalidated reads stay below the live queue; they remain available for review."
       : active === "spot"
         ? "Search any token or contract to inspect its exact supported markets."
         : "Try another market class or search for an exact instrument.");
+    if (onlyHeldBack && active === "signals" && (state.spotRows.length || state.markets.size)) {
+      const nextSurface = state.spotRows.length ? "spot" : "perpetual";
+      const next = append(inner, "button", "workspace-primary-action", state.spotRows.length ? "Open token scanner" : "Open perp markets");
+      next.type = "button";
+      next.addEventListener("click", () => document.querySelector(`[data-discover-filter="${nextSurface}"]`)?.click());
+    }
     document.getElementById("discoverStream").append(empty);
   }
   const hiddenCount = Math.max(0, matching.length - Math.min(collapsedEligible.length, collapsedLimit));
-  control.hidden = hasTokenTape || hiddenCount <= 0;
+  control.hidden = hasTokenTape || hasFeaturedEquities || hiddenCount <= 0;
   control.textContent = state.expanded
-    ? "Hide decayed setups"
-    : `Review ${hiddenCount.toLocaleString()} lower-ranked or decayed ${hiddenCount === 1 ? "setup" : "setups"}`;
+    ? "Hide watch-only and decayed reads"
+    : `Review ${hiddenCount.toLocaleString()} lower-confidence or decayed ${hiddenCount === 1 ? "read" : "reads"}`;
+  const visibleCount = rows.filter((row) => !row.hidden).length;
+  const surfaceCount = active === "spot"
+    ? state.spotRows.length
+    : active === "perpetual" ? state.markets.size
+      : active === "equity" ? Math.max(state.featuredRows.length, visibleCount)
+        : matching.length;
+  document.getElementById("discoverRowCount").textContent = surfaceCount.toLocaleString();
 }
 
 function renderOpportunities(rows, { generatedAt, appendOnly = false } = {}) {
   const host = document.getElementById("discoverStream");
   if (!appendOnly || !host.querySelector(".discover-row")) host.replaceChildren();
-  const lifecycleRank = { confirmed: 4, forming: 3, atlas: 2, fading: 1, invalidated: 0 };
+  const lifecycleRank = { confirmed: 5, forming: 4, atlas: 3, fading: 2, watch: 1, invalidated: 0 };
   const orderedRows = [...rows].sort((left, right) => {
     const leftAtlas = left.source_type === "atlas_context";
     const rightAtlas = right.source_type === "atlas_context";
@@ -1580,6 +1622,7 @@ async function refresh({ manual = false } = {}) {
     });
   }
 
+  applyFilter();
   state.lastRefresh = new Date().toISOString();
   state.loading = false;
   document.getElementById("discoverRefresh").textContent = "Refresh now";
@@ -1589,7 +1632,11 @@ function bind() {
   document.getElementById("discoverSearchTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   document.querySelectorAll("[data-discover-filter]").forEach((button) => button.addEventListener("click", () => {
     if (button.disabled) return;
-    document.querySelectorAll("[data-discover-filter]").forEach((item) => item.classList.toggle("active", item === button));
+    document.querySelectorAll("[data-discover-filter]").forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
     state.expanded = false;
     applyFilter();
     if (window.matchMedia("(max-width: 820px)").matches) {

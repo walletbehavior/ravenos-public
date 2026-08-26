@@ -275,7 +275,7 @@ const evmPulseRows = [
   },
 ];
 
-function opportunityPayload({ withSpot = false } = {}) {
+function opportunityPayload({ withSpot = false, rows = opportunityRows } = {}) {
   return {
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
@@ -303,7 +303,7 @@ function opportunityPayload({ withSpot = false } = {}) {
       schema_version: "ravenos_opportunity_census_public_v1",
       generated_at: "2026-07-21T12:20:00Z",
       source_state: "current",
-      opportunities: { rows: opportunityRows },
+      opportunities: { rows },
       ...(withSpot ? {
         spot_attention: {
           schema_version: "ravenos.token_attention.v1",
@@ -326,7 +326,7 @@ function opportunityPayload({ withSpot = false } = {}) {
         },
       } : {}),
     },
-    current_opportunity: opportunityRows[0],
+    current_opportunity: rows[0] || null,
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
   };
 }
@@ -416,6 +416,7 @@ function atlasPayload() {
 
 async function mockWorkspaceApis(page, {
   opportunityStatus = 200,
+  opportunityRowsOverride = null,
   withSpot = false,
   withEvmPulse = false,
   spotSearchResults = [],
@@ -434,7 +435,7 @@ async function mockWorkspaceApis(page, {
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: opportunityStatus,
     contentType: "application/json",
-    body: JSON.stringify(opportunityStatus === 200 ? opportunityPayload({ withSpot }) : {
+    body: JSON.stringify(opportunityStatus === 200 ? opportunityPayload({ withSpot, rows: opportunityRowsOverride || opportunityRows }) : {
       ok: false,
       status: "unavailable",
       error: "opportunity_census_projection_unavailable",
@@ -515,7 +516,31 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(page.locator("#discoverDeskGrid")).toContainText("Setup lifecycle");
   await expect(row).toHaveAttribute("data-lifecycle", "confirmed");
   await expect(row.locator(".discover-opportunity-meta")).toContainText(/Confirmed.*High signal/s);
-  await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /\b(?:buy|sell|long|short|sign|submit|execute)\b/i })).toHaveCount(0);
+});
+
+test("Discover holds directionless evidence below the setup queue without placeholder copy", async ({ page }) => {
+  const watchOnly = structuredClone(opportunityRows[0]);
+  watchOnly.observed_direction = "unavailable";
+  watchOnly.raven_atoms = [];
+  watchOnly.matured_comparables = {
+    sample_size: 0,
+    evidence_maturity: "unavailable",
+    positive_followthrough_rate: null,
+    median_favorable_excursion_pct: null,
+    median_adverse_excursion_pct: null,
+  };
+  await mockWorkspaceApis(page, { opportunityRowsOverride: [watchOnly] });
+  await page.goto("/discover/");
+  const row = page.locator(".discover-row");
+  await expect(row).toHaveAttribute("data-lifecycle", "watch");
+  await expect(row).toBeHidden();
+  await expect(page.locator(".discover-filter-empty")).toContainText("No active setups clear Raven's lifecycle gate");
+  await page.getByRole("button", { name: "Review 1 lower-confidence or decayed read" }).click();
+  await expect(row).toBeVisible();
+  await expect(row.locator(".discover-opportunity-meta")).toContainText(/Watch.*Watch only/s);
+  await expect(row).not.toContainText(/unknown|unavailable/i);
+  await expect(row).toContainText("8.0 bps observed round trip");
 });
 
 test("Discover resolves an exact-token movement directly to its best chartable pool", async ({ page }) => {
@@ -585,8 +610,10 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
+  const spotFilter = page.locator("[data-discover-filter='spot']");
+  await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Token movement");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Token scanner");
   await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum"]);
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("[data-spot-sort]")).toHaveText(["Raven", "Velocity", "Activity"]);
@@ -606,11 +633,10 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.locator("[data-spot-sort='activity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("Raven signals and current market activity");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("ranked by Raven, velocity, or activity");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeVisible();
-  const spotFilter = page.locator("[data-discover-filter='spot']");
   await expect(spotFilter).toBeEnabled();
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
@@ -677,6 +703,7 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   });
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(2);
+  await page.locator("[data-discover-filter='spot']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
 
   await page.locator("[data-spot-chain='base']").click();
@@ -734,6 +761,7 @@ test("Discover omits zero-activity pools and lets available anatomy fill the row
 
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(3);
+  await page.locator("[data-discover-filter='spot']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText("DORMANT");
 
@@ -751,6 +779,7 @@ test("Discover updates token facts without reordering the tape under an active s
   await mockWorkspaceApis(page, { withSpot: true });
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
+  await page.locator("[data-discover-filter='spot']").click();
   const rows = page.locator(".discover-token-row");
   await expect(rows.first()).toContainText("RETIRE");
 
@@ -875,6 +904,8 @@ test("Discover exposes a bounded featured stock and ETF universe and opens one e
   });
   await page.goto("/discover/");
   const listed = page.locator("#discoverListedUniverse");
+  await expect(listed).toBeHidden();
+  await page.locator("[data-discover-filter='equity']").click();
   await expect(listed).toBeVisible();
   await expect(page.locator(".discover-listed-card")).toHaveCount(4);
   await expect(listed).toContainText("SPY");

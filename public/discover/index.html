@@ -13,8 +13,8 @@
     <header class="workspace-operator-head">
       <div>
         <span class="workspace-question">What deserves my attention?</span>
-        <h1>Movement worth understanding now.</h1>
-        <p>Live Raven opportunities, token movement, and cross-market signals in one ranked workspace.</p>
+        <h1>Find the markets worth opening.</h1>
+        <p>Raven signals, token scanners, perpetuals, and listed markets ranked from current evidence.</p>
       </div>
       <div class="workspace-mast-actions">
         <button class="workspace-primary-action" id="discoverSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
@@ -25,15 +25,14 @@
       <div><span>Raven</span><strong id="discoverCensusState" data-state="unavailable">Checking</strong></div>
       <div><span>Venue data</span><strong id="discoverMarketState" data-state="unavailable">Checking</strong></div>
       <div><span>Atlas</span><strong id="discoverAtlasState" data-state="unavailable">Checking</strong></div>
-      <div><span>Now showing</span><strong><span id="discoverRowCount">—</span> markets</strong></div>
+      <div><span>Tracking</span><strong><span id="discoverRowCount">—</span> markets</strong></div>
     </section>
 
     <div class="workspace-toolbar" aria-label="Discover filters">
-      <button class="workspace-filter active" type="button" data-discover-filter="all">All current</button>
-      <button class="workspace-filter" type="button" data-discover-filter="perpetual">Perpetuals</button>
-      <button class="workspace-filter" type="button" data-discover-filter="spot">Spot</button>
-      <button class="workspace-filter" type="button" data-discover-filter="equity">Equities / ETFs</button>
-      <button class="workspace-filter" type="button" data-discover-filter="option" disabled title="No current options opportunities are available">Options</button>
+      <button class="workspace-filter active" type="button" data-discover-filter="signals" aria-pressed="true">Raven signals</button>
+      <button class="workspace-filter" type="button" data-discover-filter="spot" aria-pressed="false">Token scanner</button>
+      <button class="workspace-filter" type="button" data-discover-filter="perpetual" aria-pressed="false">Perp markets</button>
+      <button class="workspace-filter" type="button" data-discover-filter="equity" aria-pressed="false">Stocks &amp; ETFs</button>
       <span class="workspace-toolbar-spacer"></span>
       <button id="discoverPause" type="button">Pause updates</button>
       <button class="workspace-refresh" id="discoverRefresh" type="button">Refresh now</button>
@@ -71,8 +70,8 @@
       <header class="discover-token-tape-head">
         <div>
           <span class="workspace-label">Tokens</span>
-          <h2 id="discoverSpotPulseTitle">Token movement</h2>
-          <p>Raven signals and current market activity across Solana, Base, and Ethereum.</p>
+          <h2 id="discoverSpotPulseTitle">Token scanner</h2>
+          <p>Exact pools across Solana, Base, and Ethereum ranked by Raven, velocity, or activity.</p>
         </div>
         <div class="discover-token-tape-controls">
           <div class="discover-token-chains" role="group" aria-label="Token chain">
@@ -118,7 +117,7 @@
     <section class="workspace-layout" id="discoverOpportunityLayout">
       <div class="workspace-main">
         <header class="workspace-section-head">
-          <div><span class="workspace-label">Why now</span><h2>Current opportunities</h2><p>What changed, why it matters, and the market behind the read.</p></div>
+          <div><span class="workspace-label" id="discoverStreamEyebrow">Raven</span><h2 id="discoverStreamTitle">Raven signals</h2><p id="discoverStreamSummary">Evidence-ranked setups with weak and decayed reads held below the live queue.</p></div>
           <strong class="workspace-count" id="discoverUpdatedAt">Awaiting current data</strong>
         </header>
         <div class="discover-stream" id="discoverStream" aria-live="polite">

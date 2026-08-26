@@ -9,6 +9,7 @@ const SEARCH_DELAY_MS = 240;
 const SEARCH_MIN_LENGTH = 2;
 const MAX_VISIBLE_CONTRACTS = 80;
 const GROUP_ORDER = ["Stocks & ETFs", "Indices", "Forex", "Futures", "Rates", "Economy", "Energy", "SEC Issuers", "SEC Filings", "Other"];
+const DETAIL_VIEWS = new Set(["overview", "chart", "options", "filings", "insiders"]);
 
 const state = {
   projection: null,
@@ -203,12 +204,20 @@ function scheduleActiveRefresh(callback, delayMs) {
   }, delayMs);
 }
 
-function updateUrl(entityId = "", { replace = false } = {}) {
+function detailView(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return DETAIL_VIEWS.has(normalized) ? normalized : "overview";
+}
+
+function updateUrl(entityId = "", { replace = false, view = "overview" } = {}) {
   const url = new URL(location.href);
   if (entityId) url.searchParams.set("entity_id", entityId);
   else url.searchParams.delete("entity_id");
   ["instrument_id", "asset", "tab"].forEach((key) => url.searchParams.delete(key));
-  history[replace ? "replaceState" : "pushState"]({ atlasEntityId: entityId }, "", url);
+  const normalizedView = detailView(view);
+  if (entityId && normalizedView !== "overview") url.searchParams.set("view", normalizedView);
+  else url.searchParams.delete("view");
+  history[replace ? "replaceState" : "pushState"]({ atlasEntityId: entityId, atlasView: normalizedView }, "", url);
 }
 
 function closeSearch() {
@@ -539,6 +548,38 @@ function renderMetric(host, label, value, detail = "") {
   if (detail) append(cell, "small", "", detail);
 }
 
+function renderChartResearchNav(host, payload) {
+  const row = payload.entity;
+  if (!["equity", "etf"].includes(row.entity_kind)) return;
+  const availableViews = new Set(detailTabsFor(row).map((tab) => tab.id));
+  const actions = [
+    { id: "filings", mark: "SEC", label: "Filings", detail: "Forms and source documents" },
+    { id: "insiders", mark: "F4", label: "Insider activity", detail: "Reported Form 4 transactions" },
+    { id: "options", mark: "IV", label: "Options research", detail: "Expirations and selected chain" },
+  ].filter((action) => availableViews.has(action.id));
+  if (!actions.length) return;
+  const rail = append(host, "section", "atlas-chart-research");
+  rail.setAttribute("aria-label", "Research this chart");
+  const head = append(rail, "div", "atlas-chart-research-head");
+  const copy = append(head, "div");
+  append(copy, "span", "workspace-label", "Chart intelligence");
+  append(copy, "strong", "", "Research this move");
+  append(head, "small", "", "Jump from price structure to source evidence for this exact instrument.");
+  const links = append(rail, "div", "atlas-chart-research-links");
+  for (const action of actions) {
+    const button = append(links, "button", "", "");
+    button.type = "button";
+    button.dataset.researchView = action.id;
+    button.setAttribute("aria-label", `Open ${action.label} for ${row.symbol}`);
+    append(button, "b", "", action.mark);
+    const buttonCopy = append(button, "span");
+    append(buttonCopy, "strong", "", action.label);
+    append(buttonCopy, "small", "", action.detail);
+    append(button, "i", "", "→");
+    button.addEventListener("click", () => showTab(action.id, payload, { updateHistory: true }));
+  }
+}
+
 function renderOverview(host, payload) {
   const row = payload.entity;
   const view = payload.snapshot || {};
@@ -606,6 +647,7 @@ function renderOverview(host, payload) {
       ? "Atlas resolves the issuer and retrieves filing metadata only when you open Filings or Insiders."
       : cleanReason(view.refusal_reasons?.[0]));
   }
+  renderChartResearchNav(primary, payload);
   const semantics = append(primary, "section", "atlas-decision-grid");
   const decisions = [
     ["Exact market", `${row.name} resolves as a ${entityKindLabel(row.entity_kind).toLowerCase()} through ${providerLabel(row.provider)}. No alternate listing is substituted.`],
@@ -1096,11 +1138,20 @@ async function resolveTerminalLink(row, exactInstrument = null) {
   }
 }
 
-async function showTab(tabId, payload) {
+async function showTab(tabId, payload, { updateHistory = false } = {}) {
+  if (!detailTabsFor(payload.entity).some((tab) => tab.id === tabId)) return;
   destroyChart();
   clearActiveRefresh();
   state.tabController?.abort();
   state.activeTab = tabId;
+  if (updateHistory) {
+    const url = new URL(location.href);
+    const currentEntity = url.searchParams.get("entity_id");
+    const currentView = detailView(url.searchParams.get("view"));
+    if (currentEntity !== payload.entity.entity_id || currentView !== tabId) {
+      updateUrl(payload.entity.entity_id, { view: tabId });
+    }
+  }
   const nav = document.querySelector(".atlas-detail-tabs");
   nav?.querySelectorAll("button").forEach((button) => {
     const active = button.dataset.tab === tabId;
@@ -1114,6 +1165,7 @@ async function showTab(tabId, payload) {
   else if (tabId === "options") await renderOptions(host, payload);
   else if (tabId === "filings") await renderFilings(host, payload);
   else if (tabId === "insiders") await renderInsiders(host, payload);
+  window.__RAVENOS_ATLAS__ = Object.freeze({ state: "detail", entityId: payload.entity.entity_id, activeTab: state.activeTab, signingAvailable: false, submissionAvailable: false });
 }
 
 function renderDetail(payload) {
@@ -1142,12 +1194,12 @@ function renderDetail(payload) {
     button.type = "button";
     button.dataset.tab = tab.id;
     button.setAttribute("role", "tab");
-    button.addEventListener("click", () => showTab(tab.id, payload));
+    button.addEventListener("click", () => showTab(tab.id, payload, { updateHistory: true }));
   }
   const panel = append(host, "section");
   panel.id = "atlasDetailPanel";
   panel.setAttribute("role", "tabpanel");
-  showTab(state.activeTab, payload);
+  showTab(state.activeTab, payload, { updateHistory: false });
   setState("atlasProjectionState", "available", "Exact entity");
   setState("atlasMarketState", payload.snapshot?.state || "unavailable", title(payload.snapshot?.state));
   setState("atlasOptionsState", row.public_display_eligibility === "allowed" ? "available" : "degraded", row.public_display_eligibility === "allowed" ? "Rights checked" : "Restricted");
@@ -1176,15 +1228,15 @@ function renderDetail(payload) {
   window.__RAVENOS_ATLAS__ = Object.freeze({ state: "detail", entityId: row.entity_id, activeTab: state.activeTab, signingAvailable: false, submissionAvailable: false });
 }
 
-async function selectEntity(entityId, { updateHistory = true } = {}) {
+async function selectEntity(entityId, { updateHistory = true, view = "overview" } = {}) {
   const exact = String(entityId || "").trim();
   if (!/^[a-z][a-z0-9_]*:[A-Za-z0-9][A-Za-z0-9:._/-]{0,190}$/.test(exact)) return;
   closeSearch();
   clearActiveRefresh();
   state.detailController?.abort();
   state.detailController = new AbortController();
-  state.activeTab = "overview";
-  if (updateHistory) updateUrl(exact);
+  state.activeTab = detailView(view);
+  if (updateHistory) updateUrl(exact, { view: state.activeTab });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
   stateNode(host, "Opening market context", "Loading the chart, source timing, events, and available research.");
@@ -1219,7 +1271,7 @@ async function boot() {
   await loadLandingData();
   const params = new URLSearchParams(location.search);
   const entityId = params.get("entity_id");
-  if (entityId) await selectEntity(entityId, { updateHistory: false });
+  if (entityId) await selectEntity(entityId, { updateHistory: false, view: params.get("view") });
   else {
     renderLanding();
     const legacyAsset = String(params.get("asset") || "").trim();
@@ -1229,8 +1281,9 @@ async function boot() {
     }
   }
   window.addEventListener("popstate", async () => {
-    const selected = new URLSearchParams(location.search).get("entity_id");
-    if (selected) await selectEntity(selected, { updateHistory: false });
+    const nextParams = new URLSearchParams(location.search);
+    const selected = nextParams.get("entity_id");
+    if (selected) await selectEntity(selected, { updateHistory: false, view: nextParams.get("view") });
     else renderLanding();
   });
   window.__RAVENOS_ATLAS__ = Object.freeze({ state: state.entity ? "detail" : state.featured ? "available" : "degraded", schemaVersion: "atlas_featured_state_v1", signingAvailable: false, submissionAvailable: false });
