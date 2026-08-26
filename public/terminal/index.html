@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS · Live Market Terminal</title>
-  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, fill previews, and Raven intelligence." />
+  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, order-plan review, and Raven intelligence." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-terminal-live.css" />
@@ -202,6 +202,7 @@
             <input id="terminalPlanToggle" type="checkbox" />
             <span><strong>Show on chart</strong><small>Add these levels to the current chart.</small></span>
           </label>
+          <button class="terminal-plan-load" id="terminalPlanLoad" type="button">Load levels into trade ticket</button>
           <p>Based on completed paths for this market. Research only—not personalized targets, stops, or orders.</p>
         </section>
 
@@ -218,9 +219,14 @@
 
         <section class="terminal-order-preview" id="terminalTradeReviewSection" hidden>
           <header>
-            <div><span>Trade setup</span><h2 id="terminalPreviewTitle">Model a Hyperliquid fill</h2></div>
-            <strong id="terminalQuoteState">Live book</strong>
+            <div><span>Order plan</span><h2 id="terminalPreviewTitle">Build a Hyperliquid plan</h2></div>
+            <strong id="terminalQuoteState">Exact market</strong>
           </header>
+          <div class="terminal-order-type-toggle" role="group" aria-label="Order type">
+            <button type="button" class="active" data-order-type="market" aria-pressed="true">Market</button>
+            <button type="button" data-order-type="limit" aria-pressed="false">Limit</button>
+            <button type="button" data-order-type="trigger" aria-pressed="false">Trigger</button>
+          </div>
           <div class="terminal-side-toggle" role="group" aria-label="Preview direction">
             <button type="button" class="active" id="terminalPreviewLong" data-side="long" aria-pressed="true">Long</button>
             <button type="button" id="terminalPreviewShort" data-side="short" aria-pressed="false">Short</button>
@@ -235,27 +241,54 @@
               <select id="terminalPreviewLeverage" aria-label="Preview leverage"></select>
             </label>
           </div>
-          <button class="terminal-preview-action" id="terminalPreviewAction" type="button">Preview long</button>
+          <div class="terminal-preview-inputs terminal-conditional-inputs">
+            <label id="terminalPreviewPriceField" hidden>
+              <span id="terminalPreviewPriceLabel">Limit price</span>
+              <span class="terminal-input-shell"><input id="terminalPreviewPrice" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
+            </label>
+            <label id="terminalPreviewTifField" hidden>
+              <span>Time in force</span>
+              <select id="terminalPreviewTif" aria-label="Time in force">
+                <option value="gtc">Good til canceled</option>
+                <option value="alo">Post only</option>
+                <option value="ioc">Immediate or cancel</option>
+              </select>
+            </label>
+          </div>
+          <details class="terminal-bracket" id="terminalBracket">
+            <summary><span>Add take profit / stop loss</span><strong>Optional</strong></summary>
+            <div class="terminal-preview-inputs">
+              <label>
+                <span>Take profit</span>
+                <span class="terminal-input-shell"><input id="terminalPreviewTakeProfit" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
+              </label>
+              <label>
+                <span>Stop loss</span>
+                <span class="terminal-input-shell"><input id="terminalPreviewStopLoss" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
+              </label>
+            </div>
+          </details>
+          <button class="terminal-preview-action" id="terminalPreviewAction" type="button">Review long market</button>
           <div class="terminal-preview-result" id="terminalPreviewResult" hidden>
             <div class="terminal-preview-fill">
-              <span>Estimated fill</span>
+              <span id="terminalPreviewEntryLabel">Estimated entry</span>
               <strong id="terminalPreviewFill">--</strong>
               <small id="terminalPreviewVwap">--</small>
             </div>
             <dl>
-              <div><dt>Margin</dt><dd id="terminalPreviewMargin">--</dd></div>
-              <div><dt>Impact</dt><dd id="terminalPreviewImpact">--</dd></div>
-              <div><dt>Spread</dt><dd id="terminalPreviewSpread">--</dd></div>
-              <div><dt>Depth used</dt><dd id="terminalPreviewDepth">--</dd></div>
+              <div id="terminalPreviewMarginCell"><dt>Margin</dt><dd id="terminalPreviewMargin">--</dd></div>
+              <div id="terminalPreviewImpactCell"><dt id="terminalPreviewImpactLabel">Impact</dt><dd id="terminalPreviewImpact">--</dd></div>
+              <div id="terminalPreviewSpreadCell"><dt id="terminalPreviewSpreadLabel">Spread</dt><dd id="terminalPreviewSpread">--</dd></div>
+              <div id="terminalPreviewDepthCell"><dt id="terminalPreviewDepthLabel">Depth used</dt><dd id="terminalPreviewDepth">--</dd></div>
             </dl>
             <p id="terminalPreviewTiming">Current book</p>
           </div>
-          <p class="terminal-preview-message" id="terminalPreviewMessage">Uses the exact live book. Fees and liquidation require a connected account.</p>
+          <p class="terminal-preview-message" id="terminalPreviewMessage">Review exact entry semantics and optional risk levels against the current book.</p>
           <div class="terminal-preview-boundary">
-            <strong>Preview only</strong>
-            <span id="terminalQuoteNote">No wallet connected. Nothing is prepared, signed, or sent.</span>
+            <strong>Plan only</strong>
+            <span id="terminalQuoteNote">No order payload is created. Nothing is signed or sent.</span>
           </div>
-          <span id="terminalQuoteContract" hidden>Live-book market preview</span>
+          <span id="terminalQuoteContract" hidden>Exact-market order plan</span>
           <span id="terminalSettlementConsequence" hidden>USDC margin remains at Hyperliquid</span>
           <span id="terminalPortfolioConsequence" hidden>No customer position is connected</span>
         </section>

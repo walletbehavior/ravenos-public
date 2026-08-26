@@ -550,20 +550,20 @@ test("universal exact-market search dismisses on Escape and explicit close", asy
   await expect(palette).not.toBeVisible();
 });
 
-test("live-book market preview stays non-signing even when dormant route-review flags are enabled", async ({ page }) => {
+test("exact-market order plan stays non-signing even when dormant route-review flags are enabled", async ({ page }) => {
   await mockTerminalLiveApis(page, { flagsEnabled: true });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect(page.locator("#terminalQuoteState")).toHaveText("Current book");
-  await expect(page.locator("#terminalQuoteContract")).toHaveText("Live-book market preview");
-  await expect(page.locator("#terminalQuoteNote")).toContainText(/Nothing is prepared, signed, or sent/i);
+  await expect(page.locator("#terminalQuoteContract")).toHaveText("Exact-market order plan");
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order payload is created.*Nothing is signed or sent/i);
   await expect(page.locator("#terminalPreviewFill")).toContainText("SOL");
   await expect(page.getByRole("button", { name: /sign|submit|execute|buy|sell/i })).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"], script[src*="ravenos-access"]')).toHaveCount(0);
 });
 
-test("Hyperliquid preview recomputes exact direction, size, and margin without creating an order", async ({ page }) => {
+test("Hyperliquid market plan recomputes exact direction, size, and margin without creating an order", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
@@ -571,14 +571,61 @@ test("Hyperliquid preview recomputes exact direction, size, and margin without c
   await page.locator("#terminalPreviewNotional").fill("900");
   await page.locator("#terminalPreviewShort").click();
   await expect(page.locator("#terminalPreviewShort")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#terminalPreviewAction")).toHaveText("Preview short");
+  await expect(page.locator("#terminalPreviewAction")).toHaveText("Review short market");
   await expect(page.locator("#terminalPreviewMargin")).toContainText("$300");
-  await expect(page.locator("#terminalPreviewMessage")).toContainText(/Account fees and liquidation are not included/i);
+  await expect(page.locator("#terminalPreviewMessage")).toContainText(/Account-specific effects are not included/i);
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.marketPreviewAvailable).toBe(true);
-  expect(state.marketPreviewState).toBe("market_preview_available");
+  expect(state.orderPlanAvailable).toBe(true);
+  expect(state.orderPlanState).toBe("order_plan_available");
+  expect(state.orderPlanType).toBe("market");
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("limit, trigger, and bracket plans expose execution semantics without implying a fill", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+
+  await page.getByRole("button", { name: "Limit", exact: true }).click();
+  await page.locator("#terminalPreviewPrice").fill("147");
+  await page.locator("#terminalPreviewTif").selectOption("alo");
+  await page.locator("#terminalBracket > summary").click();
+  await page.locator("#terminalPreviewTakeProfit").fill("154");
+  await page.locator("#terminalPreviewStopLoss").fill("144");
+  await page.locator("#terminalPreviewAction").click();
+  await expect(page.locator("#terminalQuoteState")).toHaveText("Resting limit");
+  await expect(page.locator("#terminalPreviewEntryLabel")).toHaveText("Planned resting entry");
+  await expect(page.locator("#terminalPreviewVwap")).toContainText("Post only");
+  await expect(page.locator("#terminalPreviewSpreadLabel")).toHaveText("Stop risk");
+  await expect(page.locator("#terminalPreviewDepthLabel")).toHaveText("Reward : risk");
+  await expect(page.locator("#terminalPreviewMessage")).toContainText(/risk math are reviewed separately/i);
+
+  await page.getByRole("button", { name: "Trigger", exact: true }).click();
+  await expect(page.locator("#terminalPreviewPriceLabel")).toHaveText("Trigger price");
+  await expect(page.locator("#terminalPreviewTifField")).toBeHidden();
+  await expect(page.locator("#terminalQuoteState")).toHaveText("Conditional");
+  await expect(page.locator("#terminalPreviewVwap")).toContainText("reprices when activated");
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.orderPlanType).toBe("trigger");
+  expect(state.signingAvailable).toBe(false);
+  expect(state.submissionAvailable).toBe(false);
+});
+
+test("Raven research levels load into the ticket only after an explicit user action", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await expect(page.locator("#terminalPreviewPrice")).toHaveValue("");
+  await page.locator("#terminalPlanLoad").click();
+  await expect(page.getByRole("button", { name: "Limit", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalPreviewPrice")).toHaveValue("148");
+  await expect(page.locator("#terminalPreviewTakeProfit")).toHaveValue("152.588");
+  await expect(page.locator("#terminalPreviewStopLoss")).toHaveValue("146.224");
+  await expect(page.locator("#terminalBracket")).toHaveAttribute("open", "");
+  await expect(page.locator("#terminalPreviewResult")).toBeVisible();
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order payload is created/i);
 });
 
 test("Terminal ships no seeded market model or synthetic replay client", async ({ page }) => {

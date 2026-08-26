@@ -280,8 +280,33 @@ button, input, select { font: inherit; }
 .terminal-plan-toggle small { display: block; min-width: 0; }
 .terminal-plan-toggle strong { color: var(--terminal-text); font-size: 10px; }
 .terminal-plan-toggle small { margin-top: 3px; color: var(--terminal-muted); font-size: 9px; line-height: 1.35; }
+.terminal-plan-load {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 7px;
+  border: 1px solid rgba(143, 164, 186, .34);
+  background: rgba(143, 164, 186, .08);
+  color: var(--terminal-text);
+  font: 800 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+}
+.terminal-plan-load:hover,
+.terminal-plan-load:focus-visible { border-color: rgba(143, 164, 186, .62); outline: none; background: rgba(143, 164, 186, .13); }
 
 .terminal-order-preview { border-color: rgba(143, 164, 186, .28) !important; }
+.terminal-order-type-toggle { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 10px; border: 1px solid var(--terminal-line-strong); background: var(--terminal-line); }
+.terminal-order-type-toggle button {
+  min-width: 0;
+  min-height: 31px;
+  border: 0;
+  background: #090f17;
+  color: var(--terminal-muted);
+  font: 800 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+}
+.terminal-order-type-toggle button:hover,
+.terminal-order-type-toggle button:focus-visible { outline: none; color: var(--terminal-text); background: #101925; }
+.terminal-order-type-toggle button.active { color: var(--terminal-text); box-shadow: inset 0 -2px var(--terminal-accent); background: #131d29; }
 .terminal-side-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px; }
 .terminal-side-toggle button {
   min-height: 34px;
@@ -306,6 +331,8 @@ button, input, select { font: inherit; }
 }
 .terminal-preview-inputs { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(88px, .65fr); gap: 5px; margin-top: 8px; }
 .terminal-preview-inputs label { min-width: 0; }
+.terminal-preview-inputs label[hidden] { display: none !important; }
+.terminal-conditional-inputs:has(#terminalPreviewTifField[hidden]) { grid-template-columns: 1fr; }
 .terminal-preview-inputs label > span:first-child {
   display: block;
   margin-bottom: 5px;
@@ -332,6 +359,16 @@ button, input, select { font: inherit; }
 }
 .terminal-input-shell input { border: 0; }
 .terminal-input-shell b { padding: 0 8px 0 4px; color: var(--terminal-soft); font: 800 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-bracket { margin-top: 8px; border: 1px solid var(--terminal-line); background: #090e15; }
+.terminal-bracket summary { min-height: 33px; display: flex; justify-content: space-between; gap: 10px; align-items: center; cursor: pointer; list-style: none; padding: 0 8px; color: var(--terminal-muted); font-size: 9px; }
+.terminal-bracket summary::-webkit-details-marker { display: none; }
+.terminal-bracket summary::before { content: "+"; color: var(--terminal-accent); font: 900 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-bracket[open] summary::before { content: "−"; }
+.terminal-bracket summary > span { flex: 1; }
+.terminal-bracket summary > strong { color: var(--terminal-soft); font: 800 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-bracket[open] summary { border-bottom: 1px solid var(--terminal-line); color: var(--terminal-text); }
+.terminal-bracket > .terminal-preview-inputs { margin: 0; padding: 8px; }
+.terminal-bracket .terminal-preview-inputs { grid-template-columns: 1fr 1fr; }
 .terminal-preview-action {
   width: 100%;
   min-height: 38px;
@@ -362,6 +399,7 @@ button, input, select { font: inherit; }
 .terminal-preview-fill small { display: block; margin-top: 5px; color: var(--terminal-muted); font: 9px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-preview-result dl { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0; background: var(--terminal-line); }
 .terminal-preview-result dl > div { padding: 7px 8px; background: #0d1219; }
+.terminal-preview-result dl > div[hidden] { display: none !important; }
 .terminal-preview-result dt { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-preview-result dd { margin: 4px 0 0; font: 700 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-preview-result > p { margin: 0; padding: 7px 8px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font: 9px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace; }

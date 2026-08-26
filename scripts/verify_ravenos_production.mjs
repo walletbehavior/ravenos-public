@@ -105,9 +105,12 @@ if (
   !flagsRes.ok
   || flagsJson?.market_preview_available !== true
   || !flagsJson?.market_preview_markets?.includes("hyperliquid_perpetual")
+  || flagsJson?.order_plan_available !== true
+  || !flagsJson?.order_plan_markets?.includes("hyperliquid_perpetual")
+  || !["market", "limit", "trigger"].every((orderType) => flagsJson?.order_plan_types?.includes(orderType))
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
-) throw new Error("/api/trade/flags does not preserve the market-preview-only execution boundary");
+) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid planning boundary");
 
 const { res: onchainPulseRes, json: onchainPulseJson } = await fetchJson(
   "/api/onchain/trending?chains=base,ethereum&duration=5m",
@@ -155,6 +158,37 @@ const marketPreviewNoLeakFindings = scanJsonValue(marketPreviewJson, "production
 if (marketPreviewNoLeakFindings.length) {
   const fields = marketPreviewNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Production market preview failed the public no-leak gate: ${fields}`);
+}
+
+const { res: orderPlanRes, json: orderPlanJson } = await fetchJson("/api/trade/order-plan", {
+  method: "POST",
+  body: {
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    order_type: "market",
+    notional_usdc: 500,
+    leverage: 3,
+    max_impact_bps: 100,
+  },
+});
+if (
+  !orderPlanRes.ok
+  || orderPlanJson?.ok !== true
+  || orderPlanJson?.schema_version !== "ravenos.hyperliquid_order_plan.v1"
+  || orderPlanJson?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || orderPlanJson?.intent?.order_type !== "market"
+  || orderPlanJson?.entry_model?.state !== "current_book_fill_estimate"
+  || orderPlanJson?.provenance?.source !== "live_l2_book"
+  || orderPlanJson?.provenance?.exact_identity !== true
+  || orderPlanJson?.review?.prepared_payload_included !== false
+  || orderPlanJson?.execution_boundary?.prepared_order_available !== false
+  || orderPlanJson?.execution_boundary?.signing_available !== false
+  || orderPlanJson?.execution_boundary?.submission_available !== false
+) throw new Error("/api/trade/order-plan is not an exact, live-book, non-executable plan");
+const orderPlanNoLeakFindings = scanJsonValue(orderPlanJson, "production:/api/trade/order-plan");
+if (orderPlanNoLeakFindings.length) {
+  const fields = orderPlanNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Production order plan failed the public no-leak gate: ${fields}`);
 }
 
 const { json: claimsJson } = await fetchJson("/api/claims");

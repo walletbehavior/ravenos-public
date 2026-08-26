@@ -107,12 +107,71 @@ test("Worker refuses a non-exact market preview before provider access", async (
   }
 });
 
+test("Worker returns an exact Hyperliquid limit plan with no prepared payload", async () => {
+  const previousFetch = globalThis.fetch;
+  const observedAt = Date.now() - 500;
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(String(init.body || "{}"));
+    if (body.type === "metaAndAssetCtxs") {
+      return jsonResponse([
+        { universe: [{ name: "PREVIEW", maxLeverage: 10 }] },
+        [{ funding: "0.00001", openInterest: "1000", dayNtlVlm: "2500000", markPx: "100", midPx: "100", oraclePx: "99.98", prevDayPx: "98" }],
+      ]);
+    }
+    if (body.type === "l2Book") {
+      return jsonResponse({
+        coin: "PREVIEW",
+        time: observedAt,
+        levels: [
+          [{ px: "99.9", sz: "20", n: 5 }, { px: "99.8", sz: "20", n: 4 }],
+          [{ px: "100.1", sz: "20", n: 5 }, { px: "100.2", sz: "20", n: 4 }],
+        ],
+      });
+    }
+    if (body.type === "recentTrades") return jsonResponse([]);
+    return jsonResponse({}, 404);
+  };
+
+  try {
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/order-plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        instrument_id: "hyperliquid:perp:PREVIEW",
+        side: "long",
+        order_type: "limit",
+        notional_usdc: 500,
+        leverage: 5,
+        limit_price: 99,
+        time_in_force: "gtc",
+        take_profit_price: 105,
+        stop_loss_price: 96,
+      }),
+    }), {});
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.schema_version, "ravenos.hyperliquid_order_plan.v1");
+    assert.equal(body.intent.order_type, "limit");
+    assert.equal(body.entry_model.state, "resting_limit");
+    assert.equal(body.risk_bracket.configured, true);
+    assert.equal(body.review.prepared_payload_included, false);
+    assert.equal(body.execution_boundary.signing_available, false);
+    assert.equal(body.execution_boundary.submission_available, false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("public trade flags distinguish market preview from disabled customer execution", async () => {
   const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/flags"), {});
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.market_preview_available, true);
   assert.deepEqual(body.market_preview_markets, ["hyperliquid_perpetual"]);
+  assert.equal(body.order_plan_available, true);
+  assert.deepEqual(body.order_plan_types, ["market", "limit", "trigger"]);
   assert.equal(body.signing_available, false);
   assert.equal(body.submission_available, false);
   assert.equal(body.flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE, false);

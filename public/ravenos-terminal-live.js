@@ -28,6 +28,10 @@ const state = {
   marketPreviewSide: "long",
   marketPreviewGeneration: 0,
   marketPreviewExpiryTimer: null,
+  orderPlan: null,
+  orderPlanType: "market",
+  orderPlanGeneration: 0,
+  orderPlanExpiryTimer: null,
   planOverlayEnabled: false,
   chartRead: null,
   orderBook: null,
@@ -1403,6 +1407,8 @@ function resetPlanPreview() {
   const toggle = document.getElementById("terminalPlanToggle");
   if (section) section.hidden = true;
   if (toggle) toggle.checked = false;
+  const load = document.getElementById("terminalPlanLoad");
+  if (load) load.disabled = true;
   setText("terminalPlanEntry", "");
   setText("terminalPlanTarget", "");
   setText("terminalPlanRisk", "");
@@ -1436,12 +1442,36 @@ function renderPlanPreview(plan = {}) {
   const { levels, sample } = validated;
   const section = document.getElementById("terminalPlanSection");
   if (section) section.hidden = false;
+  const load = document.getElementById("terminalPlanLoad");
+  if (load) load.disabled = false;
   setText("terminalPlanState", `${titleCase(plan.direction)} · research only`);
   setText("terminalPlanEntry", formatPrice(levels.entry_reference.price));
   setText("terminalPlanTarget", `${formatPrice(levels.target_reference.price)} · ${percent(levels.target_reference.excursion_pct)}`);
   setText("terminalPlanRisk", `${formatPrice(levels.risk_reference.price)} · ${percent(levels.risk_reference.excursion_pct)}`);
   setText("terminalPlanEvidence", `${sample.toLocaleString()} paths · ${titleCase(plan.evidence_maturity)}`);
   return true;
+}
+
+function loadRavenPlanIntoTicket() {
+  const validated = planPreviewData(state.context?.plan_preview || {});
+  if (!validated || state.lane !== "perps") return;
+  const { plan, levels } = validated;
+  setMarketPreviewSide(plan.direction === "short" ? "short" : "long");
+  setOrderPlanType("limit");
+  const price = document.getElementById("terminalPreviewPrice");
+  const takeProfit = document.getElementById("terminalPreviewTakeProfit");
+  const stopLoss = document.getElementById("terminalPreviewStopLoss");
+  if (price) price.value = String(levels.entry_reference.price);
+  if (takeProfit) takeProfit.value = String(levels.target_reference.price);
+  if (stopLoss) stopLoss.value = String(levels.risk_reference.price);
+  const bracket = document.getElementById("terminalBracket");
+  if (bracket) bracket.open = true;
+  setTerminalPane("trade");
+  if (window.matchMedia("(max-width: 820px)").matches) {
+    requestAnimationFrame(() => document.getElementById("terminalTradeReviewSection")?.scrollIntoView({ block: "start" }));
+  }
+  clearMarketPreviewResult("Raven research levels loaded for your review. They do not authorize an order.");
+  void requestOrderPlan();
 }
 
 function setContextUnavailable() {
@@ -1722,25 +1752,27 @@ function updateQuoteBoundary() {
   const customerQuoteEnabled = state.flags?.quote_only === true
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
-  const marketPreviewEnabled = state.flags?.market_preview_available === true
-    && Array.isArray(state.flags?.market_preview_markets)
-    && state.flags.market_preview_markets.includes("hyperliquid_perpetual")
+  const orderPlanEnabled = state.flags?.order_plan_available === true
+    && Array.isArray(state.flags?.order_plan_markets)
+    && state.flags.order_plan_markets.includes("hyperliquid_perpetual")
     && state.lane === "perps"
     && String(state.selected?.instrument_id || "").startsWith("hyperliquid:perp:");
   const section = document.getElementById("terminalTradeReviewSection");
-  if (section) section.hidden = !marketPreviewEnabled;
-  if (!marketPreviewEnabled) {
+  if (section) section.hidden = !orderPlanEnabled;
+  if (!orderPlanEnabled) {
     clearTimeout(state.marketPreviewExpiryTimer);
+    clearTimeout(state.orderPlanExpiryTimer);
     state.marketPreviewExpiryTimer = null;
+    state.orderPlanExpiryTimer = null;
   }
-  setText("terminalQuoteState", marketPreviewEnabled ? "Live book" : customerQuoteEnabled ? "Review only" : "Read only");
-  setText("terminalQuoteContract", marketPreviewEnabled ? "Live-book market preview" : customerQuoteEnabled ? "Read-only route review" : "Quote preview not enabled");
-  setText("terminalQuoteNote", marketPreviewEnabled
-    ? "No wallet connected. Nothing is prepared, signed, or sent."
+  setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : customerQuoteEnabled ? "Review only" : "Read only");
+  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market order plan" : customerQuoteEnabled ? "Read-only route review" : "Quote preview not enabled");
+  setText("terminalQuoteNote", orderPlanEnabled
+    ? "No order payload is created. Nothing is signed or sent."
     : customerQuoteEnabled
       ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
-  if (marketPreviewEnabled) syncMarketPreviewControls();
+  if (orderPlanEnabled) syncMarketPreviewControls();
   updateTerminalPaneAvailability();
   renderTradeConsequences();
 }
@@ -1756,7 +1788,62 @@ function syncMarketPreviewControls() {
   select.replaceChildren(...choices.map((value) => new Option(`${value}×`, String(value))));
   const next = choices.includes(previous) ? previous : choices.includes(3) ? 3 : choices.at(-1);
   select.value = String(next);
-  setText("terminalPreviewTitle", `Model a ${state.selected.asset || "perpetual"} fill`);
+  setText("terminalPreviewTitle", `Plan ${state.selected.asset || "perpetual"}`);
+  syncOrderPlanControls();
+}
+
+function orderPlanActionText() {
+  return `Review ${state.marketPreviewSide} ${state.orderPlanType}`;
+}
+
+function inputPrice(value) {
+  const price = finite(value);
+  if (!(price > 0)) return "";
+  const digits = price >= 1_000 ? 2 : price >= 1 ? 5 : 9;
+  return price.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function seedOrderPlanPrice() {
+  if (state.orderPlanType === "market") return;
+  const price = document.getElementById("terminalPreviewPrice");
+  if (!price) return;
+  const summary = state.orderBook?.summary || {};
+  const mark = finite(state.selected?.mark_price ?? state.selected?.markPrice ?? state.selected?.last_price);
+  const bestBid = finite(summary.best_bid);
+  const bestAsk = finite(summary.best_ask);
+  const reference = state.orderPlanType === "limit"
+    ? state.marketPreviewSide === "long" ? bestBid ?? mark : bestAsk ?? mark
+    : state.marketPreviewSide === "long" ? (mark ?? bestAsk) * 1.005 : (mark ?? bestBid) * 0.995;
+  price.value = inputPrice(reference);
+}
+
+function syncOrderPlanControls() {
+  const priceField = document.getElementById("terminalPreviewPriceField");
+  const tifField = document.getElementById("terminalPreviewTifField");
+  const priceLabel = document.getElementById("terminalPreviewPriceLabel");
+  if (priceField) priceField.hidden = state.orderPlanType === "market";
+  if (tifField) tifField.hidden = state.orderPlanType !== "limit";
+  if (priceLabel) priceLabel.textContent = state.orderPlanType === "trigger" ? "Trigger price" : "Limit price";
+  const action = document.getElementById("terminalPreviewAction");
+  if (action) {
+    action.dataset.side = state.marketPreviewSide;
+    action.textContent = orderPlanActionText();
+  }
+}
+
+function setOrderPlanType(type, { refresh = false, seed = true } = {}) {
+  const supported = Array.isArray(state.flags?.order_plan_types) ? state.flags.order_plan_types : ["market", "limit", "trigger"];
+  const next = supported.includes(type) ? type : "market";
+  state.orderPlanType = next;
+  for (const button of document.querySelectorAll("[data-order-type]")) {
+    const active = button.dataset.orderType === next;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  syncOrderPlanControls();
+  if (seed) seedOrderPlanPrice();
+  clearMarketPreviewResult(`Review the ${next} entry and optional risk levels against the current exact market.`);
+  if (refresh) void requestOrderPlan();
 }
 
 function setMarketPreviewSide(side, { refresh = false } = {}) {
@@ -1770,9 +1857,10 @@ function setMarketPreviewSide(side, { refresh = false } = {}) {
   const action = document.getElementById("terminalPreviewAction");
   if (action) {
     action.dataset.side = next;
-    action.textContent = `Preview ${next}`;
+    action.textContent = orderPlanActionText();
   }
-  if (refresh) void requestMarketPreview();
+  if (state.orderPlanType !== "market") seedOrderPlanPrice();
+  if (refresh) void requestOrderPlan();
 }
 
 function marketPreviewReason(reason) {
@@ -1780,17 +1868,30 @@ function marketPreviewReason(reason) {
     book_stale: "The live book moved before this preview could be shown. Refresh it.",
     current_exact_book_unavailable: "The exact live book is temporarily unavailable. No alternate market was used.",
     market_preview_timeout: "The live book did not respond in time. Try again.",
+    order_plan_timeout: "The exact-market plan did not respond in time. Try again.",
     insufficient_visible_depth: "The visible book cannot cover that size. Reduce the amount.",
+    insufficient_depth_inside_limit: "The current book cannot fill that size without crossing your limit. Reduce the size or revise the limit.",
     price_impact_limit_exceeded: "Estimated impact exceeds the preview limit. Reduce the amount.",
     notional_out_of_bounds: "Enter a size between 10 and 250,000 USDC.",
     leverage_invalid: "Choose a whole-number leverage supported by this market.",
     leverage_exceeds_market_maximum: "That leverage exceeds this market's current maximum.",
     exact_instrument_identity_mismatch: "The exact Hyperliquid instrument could not be confirmed. No substitute was used.",
     market_identity_mismatch: "The market response did not match the selected instrument. No substitute was used.",
+    order_type_invalid: "Choose Market, Limit, or Trigger.",
+    limit_price_invalid: "Enter a valid limit price.",
+    trigger_price_invalid: "Enter a valid trigger price.",
+    time_in_force_invalid: "Choose a supported time in force.",
+    post_only_would_cross: "That post-only limit would cross the current book. Move it behind the best price.",
+    ioc_not_marketable: "That IOC limit does not currently cross the book and would cancel immediately.",
+    trigger_side_mismatch: "A long stop entry must trigger above market; a short stop entry must trigger below market.",
+    take_profit_price_invalid: "Enter a valid take-profit price or leave it blank.",
+    stop_loss_price_invalid: "Enter a valid stop-loss price or leave it blank.",
+    take_profit_side_mismatch: "The take-profit level is on the wrong side of the planned entry.",
+    stop_loss_side_mismatch: "The stop level is on the wrong side of the planned entry.",
     book_order_invalid: "The live book failed continuity checks. Refresh before relying on it.",
     book_summary_invalid: "The current bid and ask could not be verified.",
   };
-  return messages[reason] || "A current exact-market preview is unavailable. Nothing was prepared.";
+  return messages[reason] || "The current exact-market plan could not be verified. Nothing was prepared.";
 }
 
 function formatBaseSize(value) {
@@ -1802,10 +1903,13 @@ function formatBaseSize(value) {
   });
 }
 
-function clearMarketPreviewResult(message = "Uses the exact live book. Fees and liquidation require a connected account.") {
+function clearMarketPreviewResult(message = "Review exact entry semantics and optional risk levels against the current book.") {
   state.marketPreview = null;
+  state.orderPlan = null;
   clearTimeout(state.marketPreviewExpiryTimer);
+  clearTimeout(state.orderPlanExpiryTimer);
   state.marketPreviewExpiryTimer = null;
+  state.orderPlanExpiryTimer = null;
   const result = document.getElementById("terminalPreviewResult");
   if (result) {
     result.hidden = true;
@@ -1818,83 +1922,163 @@ function clearMarketPreviewResult(message = "Uses the exact live book. Fees and 
   }
 }
 
-function renderMarketPreview(preview) {
-  state.marketPreview = preview;
+function setPreviewMetric(cellId, labelId, valueId, label, value, show = hasOperatorValue(value)) {
+  const cell = document.getElementById(cellId);
+  if (cell) cell.hidden = !show;
+  setText(labelId, show ? label : "", "");
+  setText(valueId, show ? value : "", "");
+}
+
+function tifLabel(value) {
+  return ({ gtc: "Good til canceled", alo: "Post only", ioc: "Immediate or cancel" })[String(value || "").toLowerCase()] || "";
+}
+
+function signedBps(value) {
+  const amount = finite(value);
+  if (amount === null) return "";
+  return `${amount >= 0 ? "+" : ""}${amount.toFixed(2)} bps`;
+}
+
+function renderOrderPlan(plan) {
+  state.marketPreview = plan;
+  state.orderPlan = plan;
   const result = document.getElementById("terminalPreviewResult");
   const message = document.getElementById("terminalPreviewMessage");
-  if (!preview?.ok) {
+  if (!plan?.ok) {
     if (result) result.hidden = true;
     if (message) {
-      message.textContent = marketPreviewReason(preview?.unavailable_reason);
+      message.textContent = marketPreviewReason(plan?.unavailable_reason);
       message.dataset.state = "error";
     }
     setText("terminalQuoteState", "Refresh");
     return;
   }
-  const coin = preview.instrument?.exact_market_id || String(state.selected?.asset || "").replace(/-PERP$/i, "");
-  setText("terminalPreviewFill", `${formatBaseSize(preview.fill_estimate?.base_size)} ${coin}`);
-  setText("terminalPreviewVwap", `VWAP ${formatPrice(preview.fill_estimate?.vwap_price)} · worst ${formatPrice(preview.fill_estimate?.worst_price)}`);
-  setText("terminalPreviewMargin", `${compact(preview.intent?.estimated_initial_margin_usdc, { currency: true })} USDC`);
-  setText("terminalPreviewImpact", `${(finite(preview.fill_estimate?.price_impact_bps) || 0).toFixed(2)} bps`);
-  setText("terminalPreviewSpread", finite(preview.fill_estimate?.spread_bps) === null ? "Not reported" : `${Number(preview.fill_estimate.spread_bps).toFixed(2)} bps`);
-  setText("terminalPreviewDepth", `${Math.max(0, Math.trunc(finite(preview.fill_estimate?.visible_levels_consumed) || 0))} level${preview.fill_estimate?.visible_levels_consumed === 1 ? "" : "s"}`);
-  setText("terminalPreviewTiming", `Book ${timestamp(preview.provenance?.observed_at)} · expires in a few seconds`);
-  setText("terminalQuoteState", "Current book");
+  const intent = plan.intent || {};
+  const entry = plan.entry_model || {};
+  const fill = plan.fill_estimate || null;
+  const bracket = plan.risk_bracket || null;
+  const coin = plan.instrument?.exact_market_id || String(state.selected?.asset || "").replace(/-PERP$/i, "");
+  const baseSize = intent.planned_base_size ?? fill?.base_size;
+  setText("terminalPreviewEntryLabel", intent.order_type === "market"
+    ? "Estimated current entry"
+    : entry.state === "currently_marketable_limit"
+      ? "Estimated limit entry"
+      : entry.state === "resting_limit"
+        ? "Planned resting entry"
+        : "Conditional entry");
+  setText("terminalPreviewFill", `${formatBaseSize(baseSize)} ${coin}`);
+  if (fill) {
+    setText("terminalPreviewVwap", `Reference ${formatPrice(fill.vwap_price)} · worst ${formatPrice(fill.worst_price)}`);
+  } else if (intent.order_type === "limit") {
+    setText("terminalPreviewVwap", `Limit ${formatPrice(intent.limit_price)} · ${tifLabel(intent.time_in_force)}`);
+  } else {
+    setText("terminalPreviewVwap", `Triggers at ${formatPrice(intent.trigger_price)} · reprices when activated`);
+  }
+  setText("terminalPreviewMargin", `${compact(intent.estimated_initial_margin_usdc, { currency: true })} USDC`);
+
+  if (fill) {
+    setPreviewMetric("terminalPreviewImpactCell", "terminalPreviewImpactLabel", "terminalPreviewImpact", "Impact", `${(finite(fill.price_impact_bps) || 0).toFixed(2)} bps`);
+  } else {
+    setPreviewMetric("terminalPreviewImpactCell", "terminalPreviewImpactLabel", "terminalPreviewImpact", intent.order_type === "trigger" ? "Trigger distance" : "From mark", signedBps(entry.distance_from_mid_bps));
+  }
+  if (bracket) {
+    const stopValue = finite(bracket.stop_pnl_usdc);
+    const stopLabel = stopValue === null ? "" : `${compact(Math.abs(stopValue), { currency: true })} · ${bracket.risk_pct.toFixed(2)}%`;
+    const rewardRatio = finite(bracket.reward_to_risk);
+    const targetValue = finite(bracket.target_pnl_usdc);
+    setPreviewMetric("terminalPreviewSpreadCell", "terminalPreviewSpreadLabel", "terminalPreviewSpread", "Stop risk", stopLabel);
+    setPreviewMetric(
+      "terminalPreviewDepthCell",
+      "terminalPreviewDepthLabel",
+      "terminalPreviewDepth",
+      rewardRatio !== null ? "Reward : risk" : "Target move",
+      rewardRatio !== null ? `${rewardRatio.toFixed(2)}R` : targetValue === null ? "" : compact(targetValue, { currency: true }),
+    );
+  } else if (intent.order_type === "market") {
+    setPreviewMetric("terminalPreviewSpreadCell", "terminalPreviewSpreadLabel", "terminalPreviewSpread", "Spread", finite(fill?.spread_bps) === null ? "" : `${Number(fill.spread_bps).toFixed(2)} bps`);
+    const levels = Math.max(0, Math.trunc(finite(fill?.visible_levels_consumed) || 0));
+    setPreviewMetric("terminalPreviewDepthCell", "terminalPreviewDepthLabel", "terminalPreviewDepth", "Depth used", `${levels} level${levels === 1 ? "" : "s"}`, levels > 0);
+  } else if (intent.order_type === "limit") {
+    setPreviewMetric("terminalPreviewSpreadCell", "terminalPreviewSpreadLabel", "terminalPreviewSpread", "Time in force", tifLabel(intent.time_in_force));
+    setPreviewMetric("terminalPreviewDepthCell", "terminalPreviewDepthLabel", "terminalPreviewDepth", "Book state", entry.marketable ? "Marketable now" : "Resting order");
+  } else {
+    setPreviewMetric("terminalPreviewSpreadCell", "terminalPreviewSpreadLabel", "terminalPreviewSpread", "Activation", state.marketPreviewSide === "long" ? "Above market" : "Below market");
+    setPreviewMetric("terminalPreviewDepthCell", "terminalPreviewDepthLabel", "terminalPreviewDepth", "On trigger", "Reprice live book");
+  }
+
+  setText("terminalPreviewTiming", `Book ${timestamp(plan.provenance?.observed_at)} · short-lived review`);
+  setText("terminalQuoteState", entry.state === "resting_limit" ? "Resting limit" : intent.order_type === "trigger" ? "Conditional" : "Current book");
   if (result) {
     result.hidden = false;
     result.dataset.state = "current";
   }
   if (message) {
-    message.textContent = "Fill and initial margin are estimated from the exact live book. Account fees and liquidation are not included.";
+    message.textContent = bracket
+      ? "Entry mechanics and risk math are reviewed separately. Fees, slippage after activation, and account liquidation effects are not included."
+      : intent.order_type === "trigger"
+        ? "The trigger is anchored to the current market; its future fill will be repriced when activated."
+        : entry.state === "resting_limit"
+          ? "This price rests behind the current book. A fill is not assumed."
+          : "Current entry mechanics are estimated from the exact live book. Account-specific effects are not included.";
     delete message.dataset.state;
   }
-  clearTimeout(state.marketPreviewExpiryTimer);
-  const remaining = Math.max(0, Date.parse(preview.expires_at || "") - Date.now());
-  state.marketPreviewExpiryTimer = setTimeout(() => {
-    if (state.marketPreview?.preview_id !== preview.preview_id) return;
+  clearTimeout(state.orderPlanExpiryTimer);
+  const remaining = Math.max(0, Date.parse(plan.expires_at || "") - Date.now());
+  state.orderPlanExpiryTimer = setTimeout(() => {
+    if (state.orderPlan?.plan_id !== plan.plan_id) return;
     if (result) result.dataset.state = "expired";
     setText("terminalQuoteState", "Refresh");
-    setText("terminalPreviewTiming", "Preview expired · refresh against the current book");
+    setText("terminalPreviewTiming", "Plan review expired · refresh against the current book");
   }, remaining + 50);
 }
 
-async function requestMarketPreview({ automatic = false } = {}) {
+async function requestOrderPlan({ automatic = false } = {}) {
   if (
     state.lane !== "perps"
     || !state.selected?.instrument_id
-    || state.flags?.market_preview_available !== true
+    || state.flags?.order_plan_available !== true
   ) return;
   const notional = finite(document.getElementById("terminalPreviewNotional")?.value);
   const leverage = finite(document.getElementById("terminalPreviewLeverage")?.value);
+  const price = finite(document.getElementById("terminalPreviewPrice")?.value);
+  const takeProfit = finite(document.getElementById("terminalPreviewTakeProfit")?.value);
+  const stopLoss = finite(document.getElementById("terminalPreviewStopLoss")?.value);
+  const timeInForce = String(document.getElementById("terminalPreviewTif")?.value || "gtc");
   const action = document.getElementById("terminalPreviewAction");
-  const generation = ++state.marketPreviewGeneration;
+  const generation = ++state.orderPlanGeneration;
   if (action) {
     action.disabled = true;
-    action.textContent = automatic ? "Loading live book…" : "Refreshing live book…";
+    action.textContent = automatic ? "Loading exact market…" : "Reviewing exact market…";
   }
   setText("terminalQuoteState", "Checking book");
   try {
-    const { payload } = await fetchJson("/api/trade/market-preview", {
+    const { payload } = await fetchJson("/api/trade/order-plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         instrument_id: state.selected.instrument_id,
         side: state.marketPreviewSide,
+        order_type: state.orderPlanType,
         notional_usdc: notional,
         leverage,
+        limit_price: state.orderPlanType === "limit" ? price : null,
+        trigger_price: state.orderPlanType === "trigger" ? price : null,
+        time_in_force: state.orderPlanType === "limit" ? timeInForce : null,
+        take_profit_price: takeProfit,
+        stop_loss_price: stopLoss,
         max_impact_bps: 100,
       }),
     });
-    if (generation !== state.marketPreviewGeneration) return;
-    renderMarketPreview(payload);
+    if (generation !== state.orderPlanGeneration) return;
+    renderOrderPlan(payload);
   } catch {
-    if (generation !== state.marketPreviewGeneration) return;
-    renderMarketPreview({ ok: false, unavailable_reason: "current_exact_book_unavailable" });
+    if (generation !== state.orderPlanGeneration) return;
+    renderOrderPlan({ ok: false, unavailable_reason: "current_exact_book_unavailable" });
   } finally {
-    if (generation === state.marketPreviewGeneration && action) {
+    if (generation === state.orderPlanGeneration && action) {
       action.disabled = false;
       action.dataset.side = state.marketPreviewSide;
-      action.textContent = `Preview ${state.marketPreviewSide}`;
+      action.textContent = orderPlanActionText();
     }
   }
 }
@@ -1967,7 +2151,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
       observedAt: chartState?.observedAt || row.observed_at,
     }, { updateUrl });
   }
-  void requestMarketPreview({ automatic: true });
+  void requestOrderPlan({ automatic: true });
 }
 
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
@@ -2603,12 +2787,23 @@ function bindControls() {
   });
   document.getElementById("terminalPreviewLong")?.addEventListener("click", () => setMarketPreviewSide("long", { refresh: true }));
   document.getElementById("terminalPreviewShort")?.addEventListener("click", () => setMarketPreviewSide("short", { refresh: true }));
-  document.getElementById("terminalPreviewAction")?.addEventListener("click", () => requestMarketPreview());
+  for (const button of document.querySelectorAll("[data-order-type]")) {
+    button.addEventListener("click", () => setOrderPlanType(button.dataset.orderType, { refresh: true }));
+  }
+  document.getElementById("terminalPreviewAction")?.addEventListener("click", () => requestOrderPlan());
   document.getElementById("terminalPreviewNotional")?.addEventListener("input", () => clearMarketPreviewResult("Size changed. Preview again against the current book."));
   document.getElementById("terminalPreviewNotional")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") void requestMarketPreview();
+    if (event.key === "Enter") void requestOrderPlan();
   });
-  document.getElementById("terminalPreviewLeverage")?.addEventListener("change", () => requestMarketPreview());
+  document.getElementById("terminalPreviewLeverage")?.addEventListener("change", () => requestOrderPlan());
+  document.getElementById("terminalPreviewPrice")?.addEventListener("input", () => clearMarketPreviewResult("Entry changed. Review again against the current book."));
+  document.getElementById("terminalPreviewPrice")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") void requestOrderPlan();
+  });
+  document.getElementById("terminalPreviewTif")?.addEventListener("change", () => requestOrderPlan());
+  document.getElementById("terminalPreviewTakeProfit")?.addEventListener("input", () => clearMarketPreviewResult("Risk levels changed. Review the plan again."));
+  document.getElementById("terminalPreviewStopLoss")?.addEventListener("input", () => clearMarketPreviewResult("Risk levels changed. Review the plan again."));
+  document.getElementById("terminalPlanLoad")?.addEventListener("click", loadRavenPlanIntoTicket);
   document.getElementById("terminalPlanToggle")?.addEventListener("change", (event) => {
     state.planOverlayEnabled = event.target.checked === true;
     if (state.context) applyContextChartEvent(state.context);
@@ -2702,6 +2897,7 @@ async function boot() {
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   bindControls();
   setMarketPreviewSide("long");
+  setOrderPlanType("market", { seed: false });
   bindWorkspaceEvents();
   const instrumentId = String(params.get("instrument_id") || params.get("subject_id") || "").trim();
   const poolIdentity = parsePoolIdentity(instrumentId);
@@ -2780,6 +2976,10 @@ async function boot() {
       marketPreviewAvailable: state.flags?.market_preview_available === true,
       marketPreviewState: state.marketPreview?.state || "unavailable",
       marketPreviewId: state.marketPreview?.preview_id || null,
+      orderPlanAvailable: state.flags?.order_plan_available === true,
+      orderPlanType: state.orderPlanType,
+      orderPlanState: state.orderPlan?.state || "unavailable",
+      orderPlanId: state.orderPlan?.plan_id || null,
       bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
       tapeCount: state.tapeRows.length,
       signingAvailable: false,

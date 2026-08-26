@@ -1,6 +1,6 @@
 # RavenOS native terminal launch v1
 
-Status: Hyperliquid market-preview slice implemented; customer execution remains disabled.
+Status: Hyperliquid market-preview and exact order-plan slices implemented; customer execution remains disabled.
 
 ## Product boundary
 
@@ -35,6 +35,26 @@ The preview fails closed when:
 
 No alternate instrument or historical book substitutes for the selected current market.
 
+## Exact order-plan flow
+
+The second native Terminal slice turns the current exact-market preview into a richer human review without crossing into execution:
+
+```text
+exact Hyperliquid instrument + current normalized L2 book
+  → market, limit, or directional stop-entry semantics
+  → direction, USDC exposure, leverage, price, and time in force
+  → optional take-profit and stop references
+  → marketability, bounded current-book fill behavior, margin estimate, stop risk, and reward:risk
+  → short-lived exact-market order plan
+  → stop
+```
+
+Market plans walk the current book. Limit plans distinguish resting from currently marketable orders, reject post-only prices that would cross, reject IOC prices that would immediately cancel, and depth-check marketable size only through the limit price. Trigger plans require a long stop entry above the current market or a short stop entry below it and explicitly reprice against the future book when activated instead of presenting a current fill as future truth.
+
+A qualified Raven research plan can populate direction, entry, take-profit, and stop fields only after an explicit user click. That handoff is a prefill for human review; it is never transaction authorization. Markets without a qualified plan omit the control.
+
+Contract: `ravenos.hyperliquid_order_plan.v1`
+
 ## Contract
 
 `ravenos.hyperliquid_market_preview.v1`
@@ -68,6 +88,15 @@ The response never contains:
 - Exact current book only.
 - No transaction payload.
 
+### 1b. Exact order plan — current
+
+- Market, limit, and directional trigger entry review.
+- Current-book marketability and bounded fill modeling where applicable.
+- GTC, post-only, and IOC semantics for limit plans.
+- Optional take-profit, stop, projected stop risk, and reward:risk math.
+- Explicit Raven-plan-to-ticket prefill where qualified evidence exists.
+- No customer account, prepared payload, signature, submission, or claimed fill.
+
 ### 2. Account-aware review — not implemented
 
 Requires the customer identity and session security foundation, verified Hyperliquid account proof, current margin and position state, account-specific fees, margin-mode selection, and recent reauthentication.
@@ -91,11 +120,14 @@ Solana spot is the second intended native route. It must retain exact pool ident
 ## Implementation evidence
 
 - `lib/customer_trade/hyperliquid_quote_preview.mjs`
+- `lib/customer_trade/hyperliquid_order_plan.mjs`
 - `lib/customer_trade/execution_readiness.mjs`
 - `lib/cross_market/trade_intent.mjs`
 - `worker.mjs` at `POST /api/trade/market-preview`
+- `worker.mjs` at `POST /api/trade/order-plan`
 - `terminal/index.html`
 - `ravenos-terminal-live.js`
 - `tests/hyperliquid_quote_preview.test.mjs`
+- `tests/hyperliquid_order_plan.test.mjs`
 - `tests/worker_market_preview.test.mjs`
 - `tests/browser/terminal-chart.spec.mjs`

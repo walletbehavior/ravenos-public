@@ -28,6 +28,10 @@ import {
   createHyperliquidMarketPreview,
   HYPERLIQUID_MARKET_PREVIEW_SCHEMA,
 } from "./lib/customer_trade/hyperliquid_quote_preview.mjs";
+import {
+  createHyperliquidOrderPlan,
+  HYPERLIQUID_ORDER_PLAN_SCHEMA,
+} from "./lib/customer_trade/hyperliquid_order_plan.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
@@ -4084,11 +4088,148 @@ function handleTradeFlags(env = {}) {
     quote_only: true,
     market_preview_available: true,
     market_preview_markets: ["hyperliquid_perpetual"],
+    order_plan_available: true,
+    order_plan_markets: ["hyperliquid_perpetual"],
+    order_plan_types: ["market", "limit", "trigger"],
     signing_available: false,
     submission_available: false,
     fees_enabled: false,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
+}
+
+function orderPlanStatus(plan = {}) {
+  if (plan.ok) return 200;
+  if (new Set([
+    "exact_instrument_identity_mismatch",
+    "market_identity_mismatch",
+    "side_invalid",
+    "order_type_invalid",
+    "notional_out_of_bounds",
+    "leverage_invalid",
+    "leverage_exceeds_market_maximum",
+    "limit_price_invalid",
+    "trigger_price_invalid",
+    "time_in_force_invalid",
+    "take_profit_price_invalid",
+    "stop_loss_price_invalid",
+  ]).has(plan.unavailable_reason)) return 400;
+  if (new Set([
+    "post_only_would_cross",
+    "ioc_not_marketable",
+    "trigger_side_mismatch",
+    "take_profit_side_mismatch",
+    "stop_loss_side_mismatch",
+    "price_impact_limit_exceeded",
+  ]).has(plan.unavailable_reason)) return 409;
+  if (new Set(["insufficient_depth_inside_limit", "insufficient_visible_depth"]).has(plan.unavailable_reason)) return 422;
+  return 503;
+}
+
+async function handleTradeOrderPlan(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_order_plan",
+    buildId,
+    schemaVersion: HYPERLIQUID_ORDER_PLAN_SCHEMA,
+    clientOperationType: "exact_market_order_plan",
+    providerComponent: "hyperliquid_order_plan",
+  });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_order_plan").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ORDER_PLAN_SCHEMA,
+      error: error?.code === "request_too_large"
+        ? "order_plan_request_too_large"
+        : badType
+          ? "order_plan_unsupported_content_type"
+          : "invalid_order_plan_json",
+      order_plan_only: true,
+      signing_available: false,
+      submission_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400 }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "invalid_order_plan_json",
+    });
+  }
+
+  const instrumentId = String(body?.instrument_id || "").trim();
+  const match = instrumentId.match(/^hyperliquid:perp:([A-Z0-9][A-Z0-9._:-]{0,31})$/);
+  if (!match) {
+    const plan = createHyperliquidOrderPlan({ ...body, instrument_id: instrumentId });
+    return terminalJson(context, plan, { status: 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: plan.unavailable_reason,
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const instrument = await runProviderOperation({
+        component: "hyperliquid_order_plan",
+        operation_key: match[1],
+        fn: () => hyperliquidInstrument(match[1]),
+      });
+      const plan = createHyperliquidOrderPlan({
+        ...body,
+        instrument_id: instrumentId,
+        book: instrument?.book,
+        market: instrument?.market,
+      });
+      const status = orderPlanStatus(plan);
+      return terminalJson(context, plan, { status, headers: { "cache-control": "no-store" } }, {
+        resultCategory: plan.ok ? "ok" : "unavailable",
+        degradedReason: plan.ok ? null : plan.unavailable_reason,
+        providerComponent: "hyperliquid_order_plan",
+      });
+    } catch {
+      return terminalJson(context, {
+        ok: false,
+        schema_version: HYPERLIQUID_ORDER_PLAN_SCHEMA,
+        state: "unavailable",
+        unavailable_reason: "current_exact_book_unavailable",
+        instrument: {
+          instrument_id: instrumentId,
+          exact_market_id: match[1],
+          venue: "hyperliquid",
+          identity_scope: "exact_instrument",
+        },
+        execution_boundary: {
+          order_plan_only: true,
+          prepared_order_available: false,
+          signing_available: false,
+          submission_available: false,
+        },
+      }, { status: 503, headers: { "cache-control": "no-store" } }, {
+        resultCategory: "provider_error",
+        degradedReason: "current_exact_book_unavailable",
+        providerComponent: "hyperliquid_order_plan",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_order_plan").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: HYPERLIQUID_ORDER_PLAN_SCHEMA,
+      state: "unavailable",
+      unavailable_reason: "order_plan_timeout",
+      execution_boundary: {
+        order_plan_only: true,
+        prepared_order_available: false,
+        signing_available: false,
+        submission_available: false,
+      },
+    }, { status: 504, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "order_plan_timeout",
+      providerComponent: "hyperliquid_order_plan",
+    }),
+  });
 }
 
 function quoteFeatureDisabled(flags) {
@@ -5341,6 +5482,7 @@ async function routeApi(request, env) {
   if (url.pathname.startsWith("/api/chains/") && request.method === "GET") return handleChain(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/trade/flags" && request.method === "GET") return handleTradeFlags(env);
   if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
+  if (url.pathname === "/api/trade/order-plan" && request.method === "POST") return handleTradeOrderPlan(request, env);
   if (url.pathname === "/api/trade/quote" && request.method === "POST") return handleTradeQuote(request, env);
   if (url.pathname === "/api/trade/inspect" && request.method === "POST") return handleTradeInspect(request, env);
   if (url.pathname === "/api/trade/review" && (request.method === "POST" || request.method === "GET")) return handleTradeReview(request, env);

@@ -148,6 +148,9 @@ if (
   flags?.quote_only !== true
   || flags?.market_preview_available !== true
   || !flags?.market_preview_markets?.includes("hyperliquid_perpetual")
+  || flags?.order_plan_available !== true
+  || !flags?.order_plan_markets?.includes("hyperliquid_perpetual")
+  || !["market", "limit", "trigger"].every((orderType) => flags?.order_plan_types?.includes(orderType))
   || flags?.signing_available !== false
   || flags?.submission_available !== false
   || flags?.fees_enabled !== false
@@ -184,6 +187,41 @@ const marketPreviewNoLeakFindings = scanJsonValue(marketPreview, "preview:/api/t
 if (marketPreviewNoLeakFindings.length) {
   const fields = marketPreviewNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
   throw new Error(`Hyperliquid market preview failed the public no-leak gate: ${fields}`);
+}
+
+const orderPlanCapture = await capture("/api/trade/order-plan", {
+  method: "POST",
+  body: {
+    instrument_id: "hyperliquid:perp:SOL",
+    side: "long",
+    order_type: "market",
+    notional_usdc: 500,
+    leverage: 3,
+    max_impact_bps: 100,
+  },
+});
+const orderPlan = JSON.parse(orderPlanCapture.text);
+if (
+  orderPlan?.ok !== true
+  || orderPlan?.schema_version !== "ravenos.hyperliquid_order_plan.v1"
+  || orderPlan?.instrument?.instrument_id !== "hyperliquid:perp:SOL"
+  || orderPlan?.instrument?.identity_scope !== "exact_instrument"
+  || orderPlan?.intent?.order_type !== "market"
+  || orderPlan?.entry_model?.state !== "current_book_fill_estimate"
+  || orderPlan?.provenance?.provider !== "Hyperliquid"
+  || orderPlan?.provenance?.source !== "live_l2_book"
+  || orderPlan?.provenance?.exact_identity !== true
+  || orderPlan?.review?.prepared_payload_included !== false
+  || orderPlan?.execution_boundary?.prepared_order_available !== false
+  || orderPlan?.execution_boundary?.signing_available !== false
+  || orderPlan?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Hyperliquid order plan did not preserve exact identity and the non-execution boundary");
+}
+const orderPlanNoLeakFindings = scanJsonValue(orderPlan, "preview:/api/trade/order-plan");
+if (orderPlanNoLeakFindings.length) {
+  const fields = orderPlanNoLeakFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
+  throw new Error(`Hyperliquid order plan failed the public no-leak gate: ${fields}`);
 }
 
 const atlasFeaturedCapture = await capture("/api/atlas/featured?limit=8");

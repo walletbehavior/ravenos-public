@@ -497,6 +497,9 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       quote_only: true,
       market_preview_available: true,
       market_preview_markets: ["hyperliquid_perpetual"],
+      order_plan_available: true,
+      order_plan_markets: ["hyperliquid_perpetual"],
+      order_plan_types: ["market", "limit", "trigger"],
       signing_available: false,
       submission_available: false,
       flags: {
@@ -508,6 +511,67 @@ export async function mockTerminalLiveApis(page, { chartFailure = false, flagsEn
       },
     }),
   }));
+  await page.route("**/api/trade/order-plan", async (route) => {
+    const input = route.request().postDataJSON();
+    const coin = String(input.instrument_id || "hyperliquid:perp:SOL").split(":").pop();
+    const side = input.side === "short" ? "short" : "long";
+    const orderType = ["market", "limit", "trigger"].includes(input.order_type) ? input.order_type : "market";
+    const notional = Number(input.notional_usdc || 500);
+    const leverage = Number(input.leverage || 3);
+    const mid = coin === "BTC" ? 67_500 : 148.25;
+    const bestBid = mid * 0.99995;
+    const bestAsk = mid * 1.00005;
+    const vwap = side === "long" ? mid * 1.00008 : mid * 0.99992;
+    const limitPrice = orderType === "limit" ? Number(input.limit_price) : null;
+    const triggerPrice = orderType === "trigger" ? Number(input.trigger_price) : null;
+    const marketable = orderType === "market" || (orderType === "limit" && (side === "long" ? limitPrice >= bestAsk : limitPrice <= bestBid));
+    const entryReference = orderType === "market" ? vwap : orderType === "limit" ? limitPrice : triggerPrice;
+    const takeProfit = Number(input.take_profit_price) || null;
+    const stopLoss = Number(input.stop_loss_price) || null;
+    const rewardPct = takeProfit ? Math.abs(takeProfit - entryReference) / entryReference * 100 : null;
+    const riskPct = stopLoss ? Math.abs(stopLoss - entryReference) / entryReference * 100 : null;
+    const observedAt = new Date().toISOString();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.hyperliquid_order_plan.v1",
+        state: "order_plan_available",
+        plan_id: `hlop_fixture_${coin}_${side}_${orderType}_${notional}_${leverage}`,
+        generated_at: observedAt,
+        expires_at: new Date(Date.now() + 30_000).toISOString(),
+        instrument: { instrument_id: input.instrument_id, exact_market_id: coin, symbol: `${coin}-PERP`, venue: "hyperliquid", instrument_type: "perpetual", identity_scope: "exact_instrument", collateral_asset: "USDC" },
+        intent: {
+          side,
+          order_type: orderType,
+          time_in_force: orderType === "limit" ? input.time_in_force || "gtc" : null,
+          requested_notional_usdc: notional,
+          leverage,
+          limit_price: limitPrice,
+          trigger_price: triggerPrice,
+          estimated_initial_margin_usdc: notional / leverage,
+          planned_base_size: notional / entryReference,
+          margin_estimate_excludes_existing_exposure: true,
+        },
+        entry_model: {
+          state: orderType === "market" ? "current_book_fill_estimate" : orderType === "trigger" ? "conditional_stop_entry" : marketable ? "currently_marketable_limit" : "resting_limit",
+          marketable,
+          fill_guaranteed: false,
+          reference_price: entryReference,
+          reference_source: orderType === "market" || marketable ? "current_live_book_vwap" : orderType === "limit" ? "user_limit_price" : "user_trigger_price",
+          distance_from_mid_bps: orderType === "market" ? null : ((entryReference - mid) / mid) * 10_000,
+          future_fill_price_estimated: orderType === "trigger" ? false : undefined,
+        },
+        ...(marketable ? { fill_estimate: { base_size: notional / vwap, vwap_price: vwap, worst_price: side === "long" ? vwap * 1.00002 : vwap * 0.99998, mid_price: mid, best_bid: bestBid, best_ask: bestAsk, spread_bps: 1, price_impact_bps: 0.8, visible_levels_consumed: 2 } } : {}),
+        ...(takeProfit || stopLoss ? { risk_bracket: { configured: true, take_profit_price: takeProfit, stop_loss_price: stopLoss, reward_pct: rewardPct, risk_pct: riskPct, reward_to_risk: rewardPct && riskPct ? rewardPct / riskPct : null, target_pnl_usdc: rewardPct ? notional * rewardPct / 100 : null, stop_pnl_usdc: riskPct ? -notional * riskPct / 100 : null, fees_and_slippage_included: false, orders_prepared: false } } : {}),
+        market_reference: { mid_price: mid, best_bid: bestBid, best_ask: bestAsk, spread_bps: 1 },
+        provenance: { provider: "Hyperliquid", source: "live_l2_book", observed_at: observedAt, age_ms: 0, freshness: "current", exact_identity: true },
+        review: { state: "order_plan_only", prepared_payload_included: false, account_state_included: false, user_confirmation_recorded: false },
+        execution_boundary: { order_plan_only: true, account_connected: false, prepared_order_available: false, signing_available: false, submission_available: false, position_monitoring_available: false },
+      }),
+    });
+  });
   await page.route("**/api/trade/market-preview", async (route) => {
     const request = route.request();
     const input = request.postDataJSON();
