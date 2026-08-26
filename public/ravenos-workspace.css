@@ -401,16 +401,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.discover-token-source-badge {
-  flex: 0 0 auto;
-  padding: 2px 4px;
-  border: 1px solid rgba(143, 164, 186, .22);
-  background: rgba(143, 164, 186, .06);
-  color: #8fb9a2;
-  font: 760 6px/1 var(--ws-mono);
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
 .discover-token-market-id { color: var(--ws-dim); font: 650 7px var(--ws-mono); }
 .discover-token-move { min-width: 0; display: grid; grid-template-columns: auto 54px; align-items: center; gap: 2px 8px; }
 .discover-token-move > strong { font: 740 12px var(--ws-mono); white-space: nowrap; }

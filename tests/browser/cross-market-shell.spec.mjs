@@ -813,7 +813,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 });
 
-test("Discover defaults to Jupiter Velocity, preserves the Meteora pool, and opens Raven's exact-market plan", async ({ page }) => {
+test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's exact-market plan", async ({ page }) => {
   await mockTerminalLiveApis(page, { bullishSpotPlan: true });
   await mockWorkspaceApis(page, { pulseRowsOverride: [jupiterVelocityRow] });
   await page.goto("/discover/");
@@ -823,8 +823,8 @@ test("Discover defaults to Jupiter Velocity, preserves the Meteora pool, and ope
   await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
   const row = page.locator(".discover-token-row").first();
   await expect(row).toContainText("JUP");
-  await expect(row).toContainText("Jupiter velocity");
-  await expect(row).toContainText("Meteora");
+  await expect(row).not.toContainText(/Jupiter velocity|Meteora|Raven tracked/i);
+  await expect(row).toContainText("Exact pool");
   await expect(row).toContainText("+12.80%");
   await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*77% buy-side.*3\/3 windows aligned/s);
   await expect(row).toHaveAttribute("href", /instrument_id=solana%3Apool%3Afixture-pair-address/);
@@ -889,7 +889,8 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
   const base = page.locator(".discover-token-row").first();
   await expect(base).toContainText("AERO");
-  await expect(base).toContainText("Base · Aerodrome");
+  await expect(base.locator(".discover-token-market-id")).toContainText("Base · Exact pool");
+  await expect(base.locator(".discover-token-market-id")).not.toContainText(/Aerodrome|CoinGecko|trending/i);
   await expect(base).toContainText(/Velocity confirmed.*75% buy-side/s);
   await expect(base).not.toContainText("Raven saw it earlier");
   await expect(base).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${basePulsePool}`));
@@ -925,8 +926,9 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
   const row = page.locator(".discover-token-row");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("RUNNER");
-  await expect(row).toContainText("Robinhood velocity");
-  await expect(row).toContainText("Robinhood Chain · Uniswap V3");
+  await expect(row).not.toContainText(/Robinhood velocity|CoinGecko|trending/i);
+  await expect(row.locator(".discover-token-market-id")).toContainText("Robinhood Chain · Exact pool");
+  await expect(row.locator(".discover-token-market-id")).not.toContainText("Uniswap V3");
   await expect(row).toContainText("+1.80%");
   await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*74% buy-side.*3\/3 windows aligned/s);
   await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=robinhood%3Apool%3A${robinhoodPulsePool}`, "i"));
@@ -963,7 +965,8 @@ test("Discover restores live Solana pools when Raven's private attention feed ha
   const row = page.locator(".discover-token-row");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("RAVEN");
-  await expect(row).toContainText("Solana · Raydium");
+  await expect(row.locator(".discover-token-market-id")).toContainText("Solana · Exact pool");
+  await expect(row.locator(".discover-token-market-id")).not.toContainText(/Raydium|CoinGecko|trending/i);
   await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${solanaPulsePool}`));
   await expect(row).not.toContainText(/Raven saw it earlier|unknown|unavailable/i);
   await expect(page.locator(".discover-page .workspace-toolbar")).toHaveCSS("position", "sticky");

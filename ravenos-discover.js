@@ -746,7 +746,6 @@ function updateSpotTokenRow(anchor, row, index) {
   anchor.dataset.signalScore = String(alphaRead.score);
   anchor.dataset.velocityState = velocity.state;
   anchor.dataset.velocityGrade = velocity.grade;
-  anchor.dataset.discoverySource = text(row.discovery_source || row.source_type, "market_activity");
   anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
@@ -761,16 +760,9 @@ function updateSpotTokenRow(anchor, row, index) {
   name.textContent = "";
   append(name, "strong", "", text(row.symbol));
   append(name, "small", "", text(row.name, ""));
-  const trackedBy = row.source_type === "raven_spot_attention"
-    ? "Raven tracked"
-    : row.source_type === "jupiter_velocity" ? "Jupiter velocity" : "";
-  const venueBadge = /meteora/i.test(text(row.venue, "")) ? "Meteora" : "";
-  const chainBadge = text(row.chain_id || row.chain, "").toLowerCase() === "robinhood" ? "Robinhood velocity" : "";
-  const sourceBadge = [trackedBy, chainBadge, venueBadge].filter(Boolean).join(" · ");
-  if (sourceBadge) append(name, "em", "discover-token-source-badge", sourceBadge);
   append(copy, "span", "discover-token-market-id", [
     text(row.chain, ""),
-    text(row.venue, row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token"),
+    row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
     spotTokenFingerprint(row.pool_address || row.token_address),
     spotMarketAge(row.market?.market_age_seconds),
   ].filter(Boolean).join(" · "));
