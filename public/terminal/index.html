@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS · Live Market Terminal</title>
-  <meta name="description" content="Live market charts, exact instrument context, and Raven intelligence in one read-only trading workspace." />
+  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, fill previews, and Raven intelligence." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-terminal-live.css" />
 </head>
 <body>
-  <main class="terminal-live" data-route-slug="terminal">
+  <main class="terminal-live" data-route-slug="terminal" data-terminal-pane="chart">
     <header class="terminal-operator-head">
       <div class="terminal-title">
         <span class="terminal-question">What is happening right now?</span>
@@ -73,6 +73,13 @@
       <div id="terminalMetric6Cell" hidden><span id="terminalMetric6Label">24h change</span><strong id="terminalMetric6">--</strong></div>
     </section>
 
+    <nav class="terminal-pane-nav" aria-label="Terminal workspace pane">
+      <button type="button" data-terminal-pane-button="chart" aria-pressed="true">Chart</button>
+      <button type="button" data-terminal-pane-button="trade" data-perp-only aria-pressed="false" hidden>Trade</button>
+      <button type="button" data-terminal-pane-button="book" data-perp-only aria-pressed="false">Book</button>
+      <button type="button" data-terminal-pane-button="raven" aria-pressed="false">Raven</button>
+    </nav>
+
     <section class="terminal-workspace">
       <article class="terminal-chart-panel">
         <header>
@@ -93,6 +100,30 @@
         </header>
         <div id="terminalChart" aria-label="Selected market chart"></div>
       </article>
+
+      <aside class="terminal-market-rail" id="terminalMarketRail" aria-label="Hyperliquid market microstructure">
+        <section class="terminal-book-panel">
+          <header>
+            <div><span>Hyperliquid L2</span><h2>Order book</h2></div>
+            <strong id="terminalBookState">Connecting</strong>
+          </header>
+          <div class="terminal-book-balance" id="terminalBookBalance" hidden>
+            <div><span id="terminalBookBidShare">Bid</span><span id="terminalBookAskShare">Ask</span></div>
+            <div class="terminal-book-balance-bar" aria-hidden="true"><i id="terminalBookBidBar"></i><b id="terminalBookAskBar"></b></div>
+          </div>
+          <div class="terminal-book-head"><span>Price</span><span>Size</span><span>Orders</span></div>
+          <div class="terminal-book" id="terminalBook" aria-live="off"><div class="terminal-market-wait">Waiting for current venue depth.</div></div>
+        </section>
+
+        <section class="terminal-tape-panel">
+          <header>
+            <div><span>Public venue flow</span><h2>Recent trades</h2></div>
+            <strong id="terminalTapeState">Connecting</strong>
+          </header>
+          <div class="terminal-tape-head"><span>Time</span><span>Price</span><span>Notional</span></div>
+          <div class="terminal-tape" id="terminalTape" aria-live="off"><div class="terminal-market-wait">Waiting for the first public venue trade.</div></div>
+        </section>
+      </aside>
 
       <aside class="terminal-intelligence" aria-label="Selected market intelligence">
         <section class="terminal-alpha" id="terminalAlphaSection" hidden>
@@ -187,7 +218,7 @@
 
         <section class="terminal-order-preview" id="terminalTradeReviewSection" hidden>
           <header>
-            <div><span>Order preview</span><h2 id="terminalPreviewTitle">Model a Hyperliquid fill</h2></div>
+            <div><span>Trade setup</span><h2 id="terminalPreviewTitle">Model a Hyperliquid fill</h2></div>
             <strong id="terminalQuoteState">Live book</strong>
           </header>
           <div class="terminal-side-toggle" role="group" aria-label="Preview direction">

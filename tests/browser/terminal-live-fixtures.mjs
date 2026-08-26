@@ -200,9 +200,27 @@ function contextPayload(asset) {
       generated_at: "2026-07-21T12:20:00Z",
       book: {
         observed_at: "2026-07-21T12:20:00Z",
-        summary: { best_bid: 148.23, best_ask: 148.27, spread_bps: 2.664 },
-        bids: [{ price: 148.23, notional_usd: 12_000 }, { price: 148.2, notional_usd: 8_000 }],
-        asks: [{ price: 148.27, notional_usd: 10_000 }, { price: 148.3, notional_usd: 7_000 }],
+        summary: { best_bid: 148.23, best_ask: 148.27, spread_bps: 2.664, bid_notional_usd: 32_000, ask_notional_usd: 25_500, imbalance_pct: 11.3 },
+        bids: [
+          { price: 148.23, size: 80.96, order_count: 12, notional_usd: 12_000 },
+          { price: 148.2, size: 53.98, order_count: 8, notional_usd: 8_000 },
+          { price: 148.16, size: 47.25, order_count: 9, notional_usd: 7_000 },
+          { price: 148.1, size: 33.76, order_count: 5, notional_usd: 5_000 },
+        ],
+        asks: [
+          { price: 148.27, size: 67.44, order_count: 10, notional_usd: 10_000 },
+          { price: 148.3, size: 47.2, order_count: 7, notional_usd: 7_000 },
+          { price: 148.35, size: 37.75, order_count: 6, notional_usd: 5_600 },
+          { price: 148.41, size: 19.54, order_count: 4, notional_usd: 2_900 },
+        ],
+      },
+      tape: {
+        trades: [
+          { observed_at: "2026-07-21T12:20:00Z", book_side: "bid", price: 148.26, size: 8.4, notional_usd: 1_245.38 },
+          { observed_at: "2026-07-21T12:19:58Z", book_side: "ask", price: 148.24, size: 3.1, notional_usd: 459.54 },
+          { observed_at: "2026-07-21T12:19:55Z", book_side: "bid", price: 148.27, size: 12.7, notional_usd: 1_883.03 },
+          { observed_at: "2026-07-21T12:19:51Z", book_side: "ask", price: 148.23, size: 5.8, notional_usd: 859.73 },
+        ],
       },
       components: { market: "fresh", book: "fresh", tape: "fresh" },
     },

@@ -30,6 +30,8 @@ const state = {
   marketPreviewExpiryTimer: null,
   planOverlayEnabled: false,
   chartRead: null,
+  orderBook: null,
+  tapeRows: [],
 };
 
 function spotChartCapability(row = {}, timeframe = "1h") {
@@ -192,6 +194,223 @@ function ageLabel(milliseconds) {
   return `${Math.round(days / 365)}y`;
 }
 
+function marketTime(value) {
+  const numeric = finite(value);
+  const parsed = numeric === null
+    ? new Date(value || "")
+    : new Date(numeric > 10_000_000_000 ? numeric : numeric * 1_000);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatMarketSize(value) {
+  const amount = finite(value);
+  if (amount === null || amount < 0) return "";
+  if (amount >= 10_000) return compact(amount);
+  if (amount >= 1) return amount.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return amount.toLocaleString("en-US", { maximumSignificantDigits: 5 });
+}
+
+function normalizeBookLevel(row = {}) {
+  const price = finite(row.price ?? row.px);
+  const declaredSize = finite(row.size ?? row.sz);
+  const notional = finite(row.notional_usd);
+  const size = declaredSize ?? (price && notional !== null ? notional / price : null);
+  if (!(price > 0) || size === null || size < 0) return null;
+  return {
+    price,
+    size,
+    orders: finite(row.order_count ?? row.orders ?? row.n),
+    notional: notional ?? price * size,
+  };
+}
+
+function terminalBookSides(book = {}) {
+  const bids = (Array.isArray(book?.bids) ? book.bids : [])
+    .map(normalizeBookLevel)
+    .filter(Boolean)
+    .sort((left, right) => right.price - left.price)
+    .slice(0, 12);
+  const asks = (Array.isArray(book?.asks) ? book.asks : [])
+    .map(normalizeBookLevel)
+    .filter(Boolean)
+    .sort((left, right) => left.price - right.price)
+    .slice(0, 12);
+  return { bids, asks };
+}
+
+function appendBookLevel(host, row, side, maxSize) {
+  const line = document.createElement("div");
+  line.className = `terminal-book-row ${side}`;
+  line.style.setProperty("--depth", `${Math.min(100, (row.size / maxSize) * 100).toFixed(1)}%`);
+  const orders = row.orders === null ? "" : Math.max(0, Math.trunc(row.orders)).toLocaleString();
+  for (const value of [formatPrice(row.price), formatMarketSize(row.size), orders]) {
+    const cell = document.createElement("span");
+    cell.textContent = value;
+    line.append(cell);
+  }
+  host.append(line);
+}
+
+function renderTerminalBook(book = state.orderBook) {
+  const host = document.getElementById("terminalBook");
+  if (!host) return;
+  const { bids, asks } = terminalBookSides(book);
+  host.replaceChildren();
+  if (!bids.length || !asks.length) {
+    state.orderBook = null;
+    const waiting = document.createElement("div");
+    waiting.className = "terminal-market-wait";
+    waiting.textContent = "Waiting for current venue depth.";
+    host.append(waiting);
+    setText("terminalBookState", "Connecting");
+    const balance = document.getElementById("terminalBookBalance");
+    if (balance) balance.hidden = true;
+    return;
+  }
+  state.orderBook = book;
+  const maxSize = Math.max(...bids.map((row) => row.size), ...asks.map((row) => row.size), 1);
+  asks.slice().reverse().forEach((row) => appendBookLevel(host, row, "ask", maxSize));
+  const summary = book?.summary || {};
+  const bestBid = finite(summary.best_bid) ?? bids[0].price;
+  const bestAsk = finite(summary.best_ask) ?? asks[0].price;
+  const mid = bestBid > 0 && bestAsk > 0 ? (bestBid + bestAsk) / 2 : null;
+  const spread = finite(summary.spread_bps) ?? (mid ? ((bestAsk - bestBid) / mid) * 10_000 : null);
+  const separator = document.createElement("div");
+  separator.className = "terminal-book-spread";
+  const spreadLabel = document.createElement("span");
+  spreadLabel.textContent = "Spread";
+  const spreadValue = document.createElement("strong");
+  spreadValue.textContent = spread === null ? "Current book" : `${spread.toFixed(spread < 1 ? 3 : 2)} bps`;
+  separator.append(spreadLabel, spreadValue);
+  host.append(separator);
+  bids.forEach((row) => appendBookLevel(host, row, "bid", maxSize));
+
+  const bidNotional = finite(summary.bid_notional_usd) ?? bids.reduce((sum, row) => sum + row.notional, 0);
+  const askNotional = finite(summary.ask_notional_usd) ?? asks.reduce((sum, row) => sum + row.notional, 0);
+  const total = bidNotional + askNotional;
+  const bidShare = total > 0 ? (bidNotional / total) * 100 : 50;
+  const askShare = 100 - bidShare;
+  setText("terminalBookBidShare", `Bid ${bidShare.toFixed(0)}%`);
+  setText("terminalBookAskShare", `Ask ${askShare.toFixed(0)}%`);
+  const bidBar = document.getElementById("terminalBookBidBar");
+  const askBar = document.getElementById("terminalBookAskBar");
+  if (bidBar) bidBar.style.width = `${bidShare}%`;
+  if (askBar) askBar.style.width = `${askShare}%`;
+  const balance = document.getElementById("terminalBookBalance");
+  if (balance) balance.hidden = total <= 0;
+  setText("terminalBookState", `${Math.min(bids.length, asks.length)} × ${Math.min(bids.length, asks.length)}${spread === null ? "" : ` · ${spread.toFixed(spread < 1 ? 2 : 1)} bps`}`);
+}
+
+function normalizeTapeRow(row = {}) {
+  const observedAt = row.observed_at || row.observedAt || row.time;
+  const time = marketTime(observedAt);
+  const numericTime = finite(observedAt);
+  const observedKey = numericTime === null
+    ? Date.parse(observedAt || "")
+    : numericTime > 10_000_000_000 ? numericTime : numericTime * 1_000;
+  const price = finite(row.price ?? row.px);
+  const size = finite(row.size ?? row.sz);
+  if (!time || !(price > 0) || size === null || size < 0) return null;
+  const bookSide = String(row.book_side || row.side || "").toLowerCase();
+  const side = bookSide === "bid" || bookSide === "buy" || row.side_code === "B"
+    ? "bid"
+    : bookSide === "ask" || bookSide === "sell" || row.side_code === "A"
+      ? "ask"
+      : "trade";
+  return {
+    time,
+    observedAt,
+    observedKey,
+    price,
+    size,
+    side,
+    notional: finite(row.notional_usd) ?? price * size,
+  };
+}
+
+function renderTerminalTape(rows = state.tapeRows) {
+  const host = document.getElementById("terminalTape");
+  if (!host) return;
+  const seen = new Set();
+  const safeRows = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const normalized = normalizeTapeRow(row);
+    if (!normalized) continue;
+    const key = [normalized.observedKey, normalized.side, normalized.price, normalized.size].join(":");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    safeRows.push(normalized);
+    if (safeRows.length >= 60) break;
+  }
+  state.tapeRows = safeRows;
+  host.replaceChildren();
+  if (!safeRows.length) {
+    const waiting = document.createElement("div");
+    waiting.className = "terminal-market-wait";
+    waiting.textContent = "Waiting for the first public venue trade.";
+    host.append(waiting);
+    setText("terminalTapeState", "Connecting");
+    return;
+  }
+  for (const row of safeRows) {
+    const line = document.createElement("div");
+    line.className = `terminal-tape-row ${row.side}`;
+    for (const value of [row.time, formatPrice(row.price), compact(row.notional, { currency: true })]) {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      line.append(cell);
+    }
+    host.append(line);
+  }
+  setText("terminalTapeState", `${safeRows.length} public trades`);
+}
+
+function resetTerminalMarketFlow() {
+  state.orderBook = null;
+  state.tapeRows = [];
+  renderTerminalBook(null);
+  renderTerminalTape([]);
+}
+
+function renderTerminalMarketFlow(marketData = {}) {
+  if (state.lane !== "perps") return;
+  if (marketData?.book) renderTerminalBook(marketData.book);
+  if (Array.isArray(marketData?.tape?.trades)) renderTerminalTape(marketData.tape.trades);
+}
+
+function setTerminalPane(pane = "chart") {
+  const requested = new Set(["chart", "trade", "book", "raven"]).has(pane) ? pane : "chart";
+  const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
+  const next = requestedButton?.hidden ? "chart" : requested;
+  const root = document.querySelector(".terminal-live");
+  if (root) root.dataset.terminalPane = next;
+  for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.terminalPaneButton === next));
+  }
+  if (next === "chart") requestAnimationFrame(() => state.workspace?.chartHandle?.resize?.());
+}
+
+function updateTerminalPaneAvailability() {
+  const perps = state.lane === "perps";
+  const marketRail = document.getElementById("terminalMarketRail");
+  if (marketRail) marketRail.hidden = !perps;
+  const bookButton = document.querySelector('[data-terminal-pane-button="book"]');
+  if (bookButton) bookButton.hidden = !perps;
+  const tradeSection = document.getElementById("terminalTradeReviewSection");
+  const tradeButton = document.querySelector('[data-terminal-pane-button="trade"]');
+  const tradeVisible = perps && tradeSection?.hidden === false;
+  if (tradeButton) tradeButton.hidden = !tradeVisible;
+  const current = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
+  if ((!perps && ["trade", "book"].includes(current)) || (current === "trade" && !tradeVisible)) setTerminalPane("chart");
+}
+
 function readableProvider(value) {
   const provider = String(value || "").trim().toLowerCase();
   const labels = {
@@ -229,7 +448,9 @@ function setAnatomyRows(rows = []) {
   for (let index = 1; index <= 7; index += 1) {
     const row = useful[index - 1];
     setAnatomySlot(index, row?.label || "", row?.value || "", { show: Boolean(row) });
+    document.getElementById(`terminalAnatomy${index}`)?.closest("div")?.classList.remove("terminal-anatomy-wide");
   }
+  if (useful.length % 2 === 1) document.getElementById(`terminalAnatomy${useful.length}`)?.closest("div")?.classList.add("terminal-anatomy-wide");
   const section = document.getElementById("terminalAnatomySection");
   if (section) section.hidden = useful.length === 0;
   return useful.length;
@@ -1055,6 +1276,7 @@ function renderPerpFacts() {
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", market.change !== null && market.change >= 0);
   changeNode?.classList.toggle("terminal-negative", market.change !== null && market.change < 0);
+  updateTerminalPaneAvailability();
   renderMarketAnatomy();
   renderTradeConsequences();
 }
@@ -1085,6 +1307,7 @@ function renderSpotFacts(row = state.selected) {
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.toggle("terminal-positive", change !== null && change >= 0);
   changeNode?.classList.toggle("terminal-negative", change !== null && change < 0);
+  updateTerminalPaneAvailability();
   renderMarketAnatomy();
   renderTradeConsequences();
 }
@@ -1118,6 +1341,7 @@ function renderAtlasFacts(row = state.selected) {
   setMarketMetric(6, "Market session", titleCase(session), { show: Boolean(session) && session !== "unknown" });
   const changeNode = document.getElementById("terminalMetric6");
   changeNode?.classList.remove("terminal-positive", "terminal-negative");
+  updateTerminalPaneAvailability();
   renderMarketAnatomy();
   renderTradeConsequences();
 }
@@ -1142,6 +1366,7 @@ function renderListedFacts(row = state.selected) {
   setMarketMetric(5, "", "", { show: false });
   setMarketMetric(6, "", "", { show: false });
   document.getElementById("terminalMetric6")?.classList.remove("terminal-positive", "terminal-negative");
+  updateTerminalPaneAvailability();
   renderMarketAnatomy();
   renderTradeConsequences();
 }
@@ -1296,6 +1521,7 @@ function applyContextChartEvent(payload) {
 
 function renderPerpContext(payload, { updateUrl = true } = {}) {
   state.context = payload;
+  renderTerminalMarketFlow(payload?.market_data || {});
   const context = payload?.raven_context || {};
   const read = payload?.raven_read || {};
   const delivery = payload?.delivery || {};
@@ -1515,6 +1741,7 @@ function updateQuoteBoundary() {
       ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
   if (marketPreviewEnabled) syncMarketPreviewControls();
+  updateTerminalPaneAvailability();
   renderTradeConsequences();
 }
 
@@ -1689,6 +1916,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   state.lane = "perps";
   state.selected = row;
   state.context = null;
+  resetTerminalMarketFlow();
   clearMarketPreviewResult();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
@@ -1745,6 +1973,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   state.lane = lane;
+  updateTerminalPaneAvailability();
   document.getElementById("terminalModeSelect").value = lane;
   document.getElementById("terminalSpotControl").hidden = true;
   document.getElementById("terminalSpotResults").hidden = true;
@@ -1875,6 +2104,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.lane = "spot";
   state.selected = row;
   state.context = null;
+  updateTerminalPaneAvailability();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
   setText("terminalReadTrigger", "Raven Read");
@@ -2041,6 +2271,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   const generation = ++state.selectionGeneration;
   state.lane = "equity";
   state.selected = selectedRow;
+  updateTerminalPaneAvailability();
   clearExternalChart();
   const options = atlasRow ? atlasOptionsFor(selectedRow) : null;
   state.context = atlasRow ? { atlas_context: { context_available: true, instrument_id: subject.instrumentId } } : null;
@@ -2382,6 +2613,9 @@ function bindControls() {
     state.planOverlayEnabled = event.target.checked === true;
     if (state.context) applyContextChartEvent(state.context);
   });
+  for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
+    button.addEventListener("click", () => setTerminalPane(button.dataset.terminalPaneButton));
+  }
 }
 
 function renderWorkspaceState(workspace = {}) {
@@ -2419,10 +2653,19 @@ function bindWorkspaceEvents() {
   document.addEventListener("ravenos:priceworkspace", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id && event.detail?.state !== "loading") return;
     renderWorkspaceState(event.detail);
+    if (state.lane === "perps" && event.detail?.orderBook) renderTerminalBook(event.detail.orderBook);
   });
   document.addEventListener("ravenos:chartmarket", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id) return;
-    if (state.lane === "perps") renderPerpFacts();
+    if (state.lane === "perps") {
+      if (event.detail?.orderBook) renderTerminalBook(event.detail.orderBook);
+      renderPerpFacts();
+    }
+  });
+  document.addEventListener("ravenos:chartevent", (event) => {
+    if (state.lane !== "perps") return;
+    if (event.detail?.instrument_id !== state.workspace?.state?.instrument?.canonical_id) return;
+    if (event.detail?.type === "trade.append") renderTerminalTape([event.detail.payload, ...state.tapeRows]);
   });
 }
 
@@ -2537,6 +2780,8 @@ async function boot() {
       marketPreviewAvailable: state.flags?.market_preview_available === true,
       marketPreviewState: state.marketPreview?.state || "unavailable",
       marketPreviewId: state.marketPreview?.preview_id || null,
+      bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
+      tapeCount: state.tapeRows.length,
       signingAvailable: false,
       submissionAvailable: false,
       diagnostics: state.workspace?.diagnostics?.() || null,

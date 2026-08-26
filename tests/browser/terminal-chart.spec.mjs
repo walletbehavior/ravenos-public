@@ -75,6 +75,15 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Open interest");
   await expect(page.locator("#terminalAnatomy1")).toContainText("192M");
   await expect(page.locator("#terminalAnatomy4")).toContainText("2.66 bps");
+  await expect(page.locator("#terminalMarketRail")).toBeVisible();
+  await expect(page.locator("#terminalBook .terminal-book-row")).toHaveCount(8);
+  await expect(page.locator("#terminalBookState")).toContainText("4 × 4");
+  await expect(page.locator("#terminalBookBidShare")).toContainText("Bid 56%");
+  await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
+  await expect(page.locator("#terminalTapeState")).toHaveText("4 public trades");
+  await expect(page.locator("#terminalMarketRail")).not.toContainText(/unknown|unavailable|missing/i);
+  await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
+  await expect.poll(() => page.locator("#terminalTradeReviewSection").evaluate((node) => getComputedStyle(node).order)).toBe("1");
   await expect(page.locator("#terminalFingerprint")).toHaveText("hyperliquid:perp:SOL");
   await page.locator("#terminalSourceDetail > summary").click();
   await expect(page.locator("#terminalSourceProvider")).toHaveText("Hyperliquid");
@@ -97,8 +106,38 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.instrumentId).toContain("hyperliquid");
   expect(state.candleCount).toBeGreaterThan(20);
+  expect(state.bookLevels).toBe(4);
+  expect(state.tapeCount).toBe(4);
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("mobile Terminal uses focused Chart, Trade, Book, and Raven panes without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await expect(page.locator('[data-terminal-pane-button="chart"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalChart")).toBeVisible();
+  await expect(page.locator("#terminalMarketRail")).toBeHidden();
+  await expect(page.locator(".terminal-intelligence")).toBeHidden();
+
+  await page.locator('[data-terminal-pane-button="book"]').click();
+  await expect(page.locator("#terminalMarketRail")).toBeVisible();
+  await expect(page.locator("#terminalBook .terminal-book-row")).toHaveCount(8);
+  await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
+  await expect(page.locator("#terminalChart")).toBeHidden();
+
+  await page.locator('[data-terminal-pane-button="trade"]').click();
+  await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
+  await expect(page.locator("#terminalAlphaSection")).toBeHidden();
+  await expect(page.locator("#terminalPreviewResult")).toBeVisible();
+
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator("#terminalAlphaSection")).toBeVisible();
+  await expect(page.locator("#terminalTradeReviewSection")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 
 test("live chart connection status reaches the visible Terminal instead of remaining on Connecting", async ({ page }) => {
