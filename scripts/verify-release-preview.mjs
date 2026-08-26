@@ -42,6 +42,8 @@ async function capture(path, { expectedStatus = 200, method = "GET", body = unde
     status: response.status,
     content_type: response.headers.get("content-type"),
     cache_control: response.headers.get("cache-control"),
+    content_security_policy: response.headers.get("content-security-policy"),
+    x_frame_options: response.headers.get("x-frame-options"),
     release_header: response.headers.get("x-ravenos-release-id"),
     worker_version_header: response.headers.get("x-ravenos-worker-version"),
     bytes: bytes.length,
@@ -100,6 +102,37 @@ for (const assetUrl of referencedAssets) {
   if (!/max-age=31536000/i.test(captureResult.record.cache_control || "") || !/immutable/i.test(captureResult.record.cache_control || "")) {
     throw new Error(`Asset is not immutable: ${assetUrl}`);
   }
+}
+
+const accountCapture = await capture("/account/");
+const accountCsp = accountCapture.record.content_security_policy || "";
+if (!/no-store/i.test(accountCapture.record.cache_control || "")) throw new Error("/account/ must be no-store");
+for (const directive of ["default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'", "form-action 'self'", "script-src 'self'", "connect-src 'self'"]) {
+  if (!accountCsp.includes(directive)) throw new Error(`/account/ CSP is missing ${directive}`);
+}
+if (accountCsp.includes("unsafe-inline") || accountCsp.includes("unsafe-eval")) throw new Error("/account/ CSP permits unsafe script execution");
+if (accountCapture.record.x_frame_options !== "DENY") throw new Error("/account/ must deny framing");
+
+const authConfigCapture = await capture("/api/v1/auth/config");
+const authConfig = JSON.parse(authConfigCapture.text);
+if (
+  authConfig?.schema_version !== "ravenos.customer_auth.v1"
+  || authConfig?.available !== false
+  || authConfig?.state !== "activation_pending"
+  || authConfig?.account_model?.wallet_connection_is_sign_in !== false
+  || authConfig?.execution_boundary?.transaction_signing_available !== false
+  || authConfig?.execution_boundary?.submission_available !== false
+) {
+  throw new Error("Staged account capability boundary is not fail-closed");
+}
+const disabledAuthStart = await capture("/api/v1/auth/start", {
+  expectedStatus: 503,
+  method: "POST",
+  body: { intent: "sign_up", provider: "google", return_to: "/account/" },
+});
+const disabledAuthPayload = JSON.parse(disabledAuthStart.text);
+if (disabledAuthPayload?.error !== "account_activation_pending" || disabledAuthPayload?.customer_system?.signing !== "disabled") {
+  throw new Error("Staged account start route did not preserve the activation gate");
 }
 
 const healthCapture = await capture("/api/health");
@@ -704,6 +737,14 @@ const report = {
   static_asset_manifest_sha256: release.static_asset_manifest_sha256,
   routes_verified: (routeManifest.routes || []).filter((route) => route.public).length,
   referenced_assets_verified: referencedAssets.size,
+  account_security: {
+    state: authConfig.state,
+    account_creation_enabled: authConfig.available,
+    strict_csp_verified: true,
+    no_store_verified: true,
+    signing_available: authConfig.execution_boundary.transaction_signing_available,
+    submission_available: authConfig.execution_boundary.submission_available,
+  },
   health_status: health.status || null,
   intelligence_freshness: health.intelligence_freshness.state,
   market_data_health: health.market_data_health.state,
