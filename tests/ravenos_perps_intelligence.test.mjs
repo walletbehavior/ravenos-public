@@ -45,3 +45,27 @@ test("live perps expose observed facts without fabricated actors or replay", () 
   assert.equal(JSON.stringify(row).includes("Smart Money"), false);
   assert.equal(JSON.stringify(row).includes("May 2025"), false);
 });
+
+test("Hyperliquid markets marked delisted never enter the customer instrument desk", () => {
+  const rows = normalizeHyperliquidPerps([
+    {
+      universe: [
+        { name: "BTC", maxLeverage: 40 },
+        { name: "MATIC", maxLeverage: 20, isDelisted: true },
+      ],
+    },
+    [
+      fixture[1][0],
+      {
+        funding: "0",
+        openInterest: "0",
+        dayNtlVlm: "0",
+        markPx: "0.37621",
+        oraclePx: "0.37621",
+        prevDayPx: "0.37621",
+      },
+    ],
+  ]);
+  assert.deepEqual(rows.map((row) => row.symbol), ["BTC"]);
+  assert.equal(JSON.stringify(rows).includes("MATIC"), false);
+});

@@ -183,8 +183,8 @@ const liveReadCandidate = (perpsUniverse?.results || []).find((row) => (
   && !retainedPerpInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
   && Number(row.mark_price) > 0
   && row.funding_rate !== null
-  && row.open_interest_usd !== null
-  && row.day_notional_volume_usd !== null
+  && Number(row.open_interest_usd) > 0
+  && Number(row.day_notional_volume_usd) > 0
 )) || null;
 if (!liveReadCandidate) {
   throw new Error("Hyperliquid universe has no exact market outside retained Raven decision history");
