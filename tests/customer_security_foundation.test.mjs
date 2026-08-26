@@ -43,6 +43,16 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.portfolio_preview.maximum_provider_calls_per_analysis, 8);
   assert.equal(security.portfolio_preview.signing_available, false);
   assert.equal(security.portfolio_preview.submission_available, false);
+  assert.equal(security.saved_monitor.implementation_status, "local_candidate_not_deployed");
+  assert.equal(security.saved_monitor.authenticated_origin_only, true);
+  assert.equal(security.saved_monitor.csrf_required_for_mutations, true);
+  assert.equal(security.saved_monitor.exact_market_identity_only, true);
+  assert.equal(security.saved_monitor.raw_provider_payloads_persisted, false);
+  assert.equal(security.saved_monitor.wallet_data_persisted, false);
+  assert.equal(security.saved_monitor.alerts_available, false);
+  assert.equal(security.saved_monitor.execution_available, false);
+  assert.equal(security.saved_monitor.production_activation_completed, false);
+  assert(security.blocked_capabilities.includes("saved_monitor_production_activation"));
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -74,7 +84,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 28);
+  assert.equal(rows.length, 30);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -83,7 +93,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -195,14 +205,16 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(api.headers.get("permissions-policy") || "", /camera=\(\)/);
 });
 
-test("the authenticated hostname exposes only account assets, identity APIs, and the fail-closed portfolio preview", async () => {
+test("the authenticated hostname exposes only approved account and Saved Monitor candidates", async () => {
   const accountHtml = readFileSync("account/index.html", "utf8");
+  const monitorHtml = readFileSync("monitor/index.html", "utf8");
   const env = {
     ASSETS: {
       async fetch(request) {
         const pathname = new URL(request.url).pathname;
         if (pathname === "/account/") return new Response(accountHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
-        if (pathname.startsWith("/assets/") || pathname === "/ravenos-account.js") return new Response("asset", { headers: { "content-type": "application/javascript" } });
+        if (pathname === "/monitor/") return new Response(monitorHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname.startsWith("/assets/") || ["/ravenos-account.js", "/ravenos-monitor.js", "/ravenos-monitor.css", "/ravenos-workspace.css"].includes(pathname)) return new Response("asset", { headers: { "content-type": pathname.endsWith(".css") ? "text/css" : "application/javascript" } });
         return new Response("public surface", { headers: { "content-type": "text/html; charset=utf-8" } });
       },
     },
@@ -220,6 +232,22 @@ test("the authenticated hostname exposes only account assets, identity APIs, and
 
   const asset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-account.js"), env);
   assert.equal(asset.status, 200);
+
+  const monitor = await worker.fetch(new Request("https://app.ravenos.xyz/monitor/"), env);
+  assert.equal(monitor.status, 200);
+  assert.match(monitor.headers.get("cache-control") || "", /no-store/);
+  assert.match(monitor.headers.get("content-security-policy") || "", /default-src 'self'/);
+  const researchState = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/research-state"), env);
+  assert.equal(researchState.status, 503);
+  assert.equal(JSON.parse(await researchState.text()).error, "account_activation_pending");
+
+  const publicMonitor = await worker.fetch(new Request("https://ravenos.xyz/monitor/?instrument_id=hyperliquid%3Aperp%3ASOL&wallet=untrusted"), env);
+  assert.equal(publicMonitor.status, 308);
+  const publicMonitorTarget = new URL(publicMonitor.headers.get("location"));
+  assert.equal(publicMonitorTarget.origin, "https://app.ravenos.xyz");
+  assert.equal(publicMonitorTarget.pathname, "/monitor/");
+  assert.equal(publicMonitorTarget.searchParams.get("instrument_id"), "hyperliquid:perp:SOL");
+  assert.equal(publicMonitorTarget.searchParams.has("wallet"), false);
 
   const preview = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/portfolio/preview"), env);
   assert.equal(preview.status, 503);
@@ -258,6 +286,6 @@ test("Portfolio Governor account UI accepts only an opaque selection and preserv
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 7);
+  assert.equal(security.required_documents.length, 8);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

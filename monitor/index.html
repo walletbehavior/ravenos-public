@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Saved Monitor · RavenOS</title>
+  <meta name="description" content="Your account-synced exact RavenOS markets and chart workspaces." />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-monitor.css" />
+</head>
+<body>
+  <main class="monitor-page" data-monitor-state="loading">
+    <header class="monitor-topbar">
+      <a class="monitor-brand" href="https://ravenos.xyz/discover/" aria-label="RavenOS Discover"><span>R</span><strong>RavenOS</strong></a>
+      <div class="monitor-topbar-copy"><span>Authenticated workspace</span><strong>Saved Monitor</strong></div>
+      <nav aria-label="Market workspaces">
+        <a href="https://ravenos.xyz/discover/">Discover</a>
+        <a href="https://ravenos.xyz/terminal/">Terminal</a>
+        <a href="/account/">Account</a>
+      </nav>
+    </header>
+
+    <header class="monitor-hero">
+      <div>
+        <span class="monitor-kicker">Research continuity</span>
+        <h1>Your exact markets,<br />right where you left them.</h1>
+        <p>Save a canonical pool or instrument with its chart timeframe, indicators, Raven overlays, density, and selected panel. Raven never substitutes a similarly named market.</p>
+      </div>
+      <aside class="monitor-boundary">
+        <span>Permission boundary</span>
+        <strong>Research state only</strong>
+        <p>No wallets, alerts, orders, provider payloads, or execution authority are stored here.</p>
+      </aside>
+    </header>
+
+    <section class="monitor-auth" id="monitorAuth" hidden>
+      <div>
+        <span class="monitor-kicker">Sign in required</span>
+        <h2>Continue to your Saved Monitor.</h2>
+        <p>Your RavenOS account keeps this research state synchronized across signed-in devices without sharing session cookies with the public site.</p>
+      </div>
+      <div class="monitor-auth-actions" id="monitorAuthActions" hidden>
+        <form data-monitor-auth="google">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="google" />
+          <input type="hidden" name="return_to" value="/monitor/" />
+          <button type="submit"><span>G</span><strong>Continue with Google</strong><span aria-hidden="true">→</span></button>
+        </form>
+        <form data-monitor-auth="managed">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="managed" />
+          <input type="hidden" name="return_to" value="/monitor/" />
+          <button type="submit"><span>R</span><strong>Email, password, or code</strong><span aria-hidden="true">→</span></button>
+        </form>
+        <p id="monitorAuthStatus" aria-live="polite">Authentication never grants wallet or transaction authority.</p>
+      </div>
+      <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>The account service is not available on this release.</p>
+    </section>
+
+    <section class="monitor-workspace" id="monitorWorkspace" hidden>
+      <section class="monitor-pending" id="monitorPending" hidden>
+        <header><div><span class="monitor-kicker">Public handoff</span><h2>Save this exact market</h2></div><strong id="monitorPendingState">Not saved</strong></header>
+        <div class="monitor-pending-grid">
+          <div><span>Canonical identity</span><strong id="monitorPendingIdentity"></strong></div>
+          <div><span>Timeframe</span><strong id="monitorPendingTimeframe"></strong></div>
+          <div><span>Indicators</span><strong id="monitorPendingIndicators"></strong></div>
+          <div><span>Raven overlays</span><strong id="monitorPendingOverlays"></strong></div>
+          <div><span>Density</span><strong id="monitorPendingDensity"></strong></div>
+          <div><span>Panel</span><strong id="monitorPendingPanel"></strong></div>
+        </div>
+        <footer>
+          <p id="monitorPendingMessage">Identity and workspace parameters will be validated again by RavenOS before storage.</p>
+          <button id="monitorSave" type="button">Save exact market</button>
+          <button id="monitorUnwatch" class="secondary" type="button" hidden>Unwatch</button>
+        </footer>
+      </section>
+
+      <section class="monitor-saved">
+        <header>
+          <div><span class="monitor-kicker">Account-synced</span><h2>Saved exact markets</h2><p id="monitorListSummary" aria-live="polite">Loading saved research state…</p></div>
+          <div class="monitor-list-actions"><button id="monitorReload" type="button">Reload</button><button id="monitorDeleteAll" class="danger" type="button">Delete all saved research state</button></div>
+        </header>
+        <div class="monitor-list" id="monitorList"></div>
+      </section>
+    </section>
+
+    <dialog class="monitor-confirm" id="monitorDeleteDialog" aria-labelledby="monitorDeleteTitle">
+      <form method="dialog">
+        <span class="monitor-kicker">Permanent deletion</span>
+        <h2 id="monitorDeleteTitle">Delete all saved research state?</h2>
+        <p>This removes every exact market and saved workspace owned by this RavenOS account. It does not affect account sessions or any public RavenOS market data.</p>
+        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAllConfirm" class="danger" value="confirm" type="button">Delete everything</button></div>
+      </form>
+    </dialog>
+  </main>
+  <script type="module" src="/ravenos-monitor.js"></script>
+</body>
+</html>

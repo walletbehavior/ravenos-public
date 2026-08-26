@@ -41,7 +41,7 @@ The following are separate security principals and must never be collapsed:
 - The account/session service and isolated databases are implemented but disabled until the managed-provider tenant and production-equivalent preview gates pass.
 - No verified wallet-link registry.
 - No server-enforced subscription entitlement service.
-- No persistent customer Portfolio, watchlist, or alert store.
+- No deployed persistent customer Portfolio or alert store. A narrowly scoped Saved Exact Market candidate exists locally with account ownership, exact identity, allowlisted workspace fields, quotas, CSRF, and self-service deletion; it is not a generic watchlist and has not been deployed.
 - No transaction authorization, customer signing, submission, or position monitoring.
 - The dedicated authenticated application origin is reserved but not active.
 

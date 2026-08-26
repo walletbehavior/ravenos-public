@@ -150,6 +150,70 @@ export function contextSearchParams(contextValue, options = {}) {
   return params;
 }
 
+const SAVED_WORKSPACE_TIMEFRAMES = new Set(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
+const SAVED_WORKSPACE_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
+const SAVED_WORKSPACE_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
+const SAVED_WORKSPACE_DENSITIES = new Set(["compact", "comfortable"]);
+const SAVED_WORKSPACE_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
+
+function allowlistedCsv(values, allowlist) {
+  const source = Array.isArray(values) ? values : String(values || "").split(",");
+  return [...new Set(source.map((value) => String(value || "").trim()).filter((value) => allowlist.has(value)))];
+}
+
+export function savedMonitorHandoffHref(subjectValue = {}, workspaceValue = {}) {
+  const subject = normalizeInstrumentSubject(subjectValue);
+  const id = String(subject.id || "").trim();
+  const exactIdentity = /^([a-z0-9-]+):pool:[^:]+$/.test(id)
+    || /^hyperliquid:perp:[A-Za-z0-9._-]+$/.test(id)
+    || /^(equity|etf):[a-z0-9.-]+:[a-z0-9.-]+$/i.test(id);
+  if (!exactIdentity) return "";
+  const url = new URL("https://app.ravenos.xyz/monitor/");
+  url.searchParams.set("action", "save");
+  url.searchParams.set("instrument_id", id);
+  const values = {
+    instrument_type: subject.instrumentType,
+    identity_scope: subject.identityScope,
+    asset_class: subject.assetClass,
+    chain: subject.chain,
+    venue: subject.venue,
+    market: subject.marketType,
+  };
+  for (const [key, value] of Object.entries(values)) {
+    if (value && !["all", "unknown", "unselected"].includes(String(value).toLowerCase())) url.searchParams.set(key, value);
+  }
+  const timeframe = SAVED_WORKSPACE_TIMEFRAMES.has(workspaceValue.timeframe) ? workspaceValue.timeframe : "1h";
+  const density = SAVED_WORKSPACE_DENSITIES.has(workspaceValue.density) ? workspaceValue.density : "comfortable";
+  const panel = SAVED_WORKSPACE_PANELS.has(workspaceValue.selectedPanel || workspaceValue.selected_panel)
+    ? (workspaceValue.selectedPanel || workspaceValue.selected_panel)
+    : "chart";
+  const indicators = allowlistedCsv(workspaceValue.indicators, SAVED_WORKSPACE_INDICATORS);
+  const overlays = allowlistedCsv(workspaceValue.ravenOverlays || workspaceValue.raven_overlays, SAVED_WORKSPACE_RAVEN_OVERLAYS);
+  url.searchParams.set("timeframe", timeframe);
+  url.searchParams.set("indicators", indicators.join(","));
+  if (overlays.length) url.searchParams.set("raven_overlays", overlays.join(","));
+  url.searchParams.set("density", density);
+  url.searchParams.set("panel", panel);
+  return url.toString();
+}
+
+export function savedMonitorHandoffFromTerminalHref(href, workspace = {}) {
+  try {
+    const terminal = new URL(href, "https://ravenos.xyz");
+    if (terminal.origin !== "https://ravenos.xyz" || terminal.pathname !== "/terminal/") return "";
+    const context = contextFromSearch(terminal.search);
+    return savedMonitorHandoffHref(context.subject, {
+      timeframe: workspace.timeframe || context.timeframe,
+      indicators: workspace.indicators,
+      ravenOverlays: workspace.ravenOverlays || terminal.searchParams.get("raven_overlays"),
+      density: workspace.density,
+      selectedPanel: workspace.selectedPanel,
+    });
+  } catch {
+    return "";
+  }
+}
+
 function sameSubject(a, b) {
   return a?.id === b?.id && a?.type === b?.type && a?.chain === b?.chain && a?.venue === b?.venue;
 }

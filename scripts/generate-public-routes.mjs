@@ -132,6 +132,7 @@ for (const route of routes) {
 
 for (const legacyPath of [
   "account/index.html",
+  "monitor/index.html",
   "pricing/index.html",
   "pro/index.html",
   "token/index.html",
@@ -149,6 +150,8 @@ for (const asset of [
   "ravenos-guide.css",
   "ravenos-account.css",
   "ravenos-account.js",
+  "ravenos-monitor.css",
+  "ravenos-monitor.js",
   "ravenos-evidence.css",
   "ravenos-funnel.css",
   "ravenos-shell.css",

@@ -1,4 +1,4 @@
-import { ravenOSContext } from "/ravenos-context-store.js";
+import { ravenOSContext, savedMonitorHandoffFromTerminalHref } from "/ravenos-context-store.js";
 import { customerFacingText } from "/ravenos-intelligence-contract.js";
 import {
   buildDeskFrame,
@@ -287,6 +287,7 @@ async function primeSpotLink(anchor) {
   if (!exactPool || anchor.__ravenSpotRow !== row) return;
   anchor.__ravenResolvedPool = exactPool;
   anchor.href = spotPoolHref(exactPool, "1m");
+  syncSavedMonitorControl(anchor);
 }
 
 function configureSpotLink(anchor, row) {
@@ -328,6 +329,33 @@ function append(node, tag, className, value) {
   child.textContent = value;
   node.append(child);
   return child;
+}
+
+function syncSavedMonitorControl(anchor) {
+  const shell = anchor.closest(".discover-token-row-shell, .discover-row-shell");
+  const control = shell?.querySelector(".discover-monitor-save");
+  if (!control) return;
+  const href = savedMonitorHandoffFromTerminalHref(anchor.href, { timeframe: state.spotTimeframe || "1h" });
+  control.hidden = !href;
+  if (href) control.href = href;
+}
+
+function wrapSavedMonitorControl(anchor, shellClass) {
+  const existing = anchor.closest(`.${shellClass}`);
+  if (existing) {
+    syncSavedMonitorControl(anchor);
+    return existing;
+  }
+  const shell = document.createElement("div");
+  shell.className = shellClass;
+  const control = document.createElement("a");
+  control.className = "discover-monitor-save";
+  control.textContent = "Save";
+  control.setAttribute("aria-label", "Save this exact market to Saved Monitor");
+  control.hidden = true;
+  shell.append(anchor, control);
+  syncSavedMonitorControl(anchor);
+  return shell;
 }
 
 function renderDeskBrief({ brief = null, markets = [], spotRows = [], opportunityRows = [], atlas = null } = {}) {
@@ -814,6 +842,7 @@ function updateSpotTokenRow(anchor, row, index) {
 
   const open = append(anchor, "span", "discover-token-open", "Terminal");
   open.setAttribute("aria-hidden", "true");
+  syncSavedMonitorControl(anchor);
   return anchor;
 }
 
@@ -847,7 +876,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const id = spotRowId(row);
     const node = existing.get(id) || document.createElement("a");
     updateSpotTokenRow(node, row, index);
-    fragment.append(node);
+    fragment.append(wrapSavedMonitorControl(node, "discover-token-row-shell"));
   });
   if (!ranked.length) {
     const empty = append(fragment, "div", "discover-token-empty", "");
@@ -1125,7 +1154,8 @@ function createOpportunityRow(row) {
 
 function updateOpportunityNode(node, row) {
   const replacement = createOpportunityRow(row);
-  node.replaceWith(replacement);
+  const target = node.closest(".discover-row-shell") || node;
+  target.replaceWith(wrapSavedMonitorControl(replacement, "discover-row-shell"));
   return replacement;
 }
 
@@ -1197,7 +1227,10 @@ function applyFilter() {
   let shown = 0;
   rows.forEach((row) => {
     const matches = eligibleSet.has(row);
-    row.hidden = !matches || shown >= limit;
+    const hidden = !matches || shown >= limit;
+    row.hidden = hidden;
+    const shell = row.closest(".discover-row-shell");
+    if (shell) shell.hidden = hidden;
     if (matches) shown += 1;
   });
   const control = document.getElementById("discoverStreamControl");
@@ -1267,20 +1300,21 @@ function renderOpportunities(rows, { generatedAt, appendOnly = false } = {}) {
     if (existing) updateOpportunityNode(existing, row);
     else {
       state.order.push(id);
-      host.append(createOpportunityRow(row));
+      host.append(wrapSavedMonitorControl(createOpportunityRow(row), "discover-row-shell"));
     }
   }
   for (const id of [...state.rows.keys()]) {
     if (incomingIds.has(id)) continue;
     state.rows.delete(id);
     state.order = state.order.filter((value) => value !== id);
-    host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`)?.remove();
+    const stale = host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`);
+    (stale?.closest(".discover-row-shell") || stale)?.remove();
   }
   if (!state.scrolling) {
     for (const row of orderedRows) {
       const id = text(row.public_opportunity_id, row.instrument_id);
       const node = host.querySelector(`[data-opportunity-id="${CSS.escape(id)}"]`);
-      if (node) host.append(node);
+      if (node) host.append(node.closest(".discover-row-shell") || node);
     }
   }
   state.order = orderedRows.map((row) => text(row.public_opportunity_id, row.instrument_id));

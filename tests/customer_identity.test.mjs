@@ -124,8 +124,8 @@ function sessionCookies(response) {
   };
 }
 
-async function startFlow(store, { provider = "google", intent = "sign_up" } = {}) {
-  const body = new URLSearchParams({ provider, intent, return_to: "/account/" });
+async function startFlow(store, { provider = "google", intent = "sign_up", returnTo = "/account/" } = {}) {
+  const body = new URLSearchParams({ provider, intent, return_to: returnTo });
   const response = await routeCustomerIdentity(request("/api/v1/auth/start", {
     method: "POST",
     headers: {
@@ -244,6 +244,33 @@ test("auth start uses exact Origin, PKCE, state, bounded return paths, and no se
   assert.match(setCookie, /SameSite=Lax/);
   assert(!setCookie.includes("__Host-ravenos_session="));
   assert.equal(store.authStates.size, 1);
+});
+
+test("authentication preserves a bounded exact-market monitor handoff", async () => {
+  const store = new MemoryIdentityStore();
+  const returnTo = `/monitor/?${new URLSearchParams({
+    instrument_id: `solana:pool:${"1".repeat(32)}`,
+    instrument_type: "exact_pool",
+    identity_scope: "exact_pool",
+    asset_class: "crypto",
+    chain: "solana",
+    venue: "meteora",
+    market: "spot",
+    timeframe: "4h",
+    indicators: "ema20,ema50,vwap,bb20,rsi14,macd",
+    raven_overlays: "structure,pressure,participation,replay,risk,pressure-zone,history-window,breadth-line,compression-band,regime-marker,liquidity-zone,participant-shift",
+    density: "compact",
+    panel: "raven",
+  })}`;
+  assert(returnTo.length > 300);
+  const start = await startFlow(store, { returnTo });
+  assert.equal([...store.authStates.values()][0].return_to, returnTo);
+  const callback = await finishFlow(store, start);
+  const target = new URL(callback.headers.get("location"));
+  assert.equal(target.pathname, "/monitor/");
+  assert.equal(target.searchParams.get("instrument_id"), `solana:pool:${"1".repeat(32)}`);
+  assert.equal(target.searchParams.get("raven_overlays"), "structure,pressure,participation,replay,risk,pressure-zone,history-window,breadth-line,compression-band,regime-marker,liquidity-zone,participant-shift");
+  assert.equal(target.searchParams.get("auth"), "success");
 });
 
 test("JavaScript auth start returns only a bounded authorization navigation and state cookie", async () => {

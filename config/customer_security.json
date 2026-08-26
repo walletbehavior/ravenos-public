@@ -65,6 +65,28 @@
     "submission_available": false,
     "custody_available": false
   },
+  "saved_monitor": {
+    "implementation_status": "local_candidate_not_deployed",
+    "surface": "https://app.ravenos.xyz/monitor/",
+    "routes": [
+      "GET /api/v1/research-state",
+      "DELETE /api/v1/research-state",
+      "POST /api/v1/research-state/watch-items",
+      "DELETE /api/v1/research-state/watch-items/:watch_id",
+      "POST /api/v1/research-state/watch-items/:watch_id/refresh"
+    ],
+    "authenticated_origin_only": true,
+    "csrf_required_for_mutations": true,
+    "exact_market_identity_only": true,
+    "maximum_saved_markets_per_account": 100,
+    "maximum_request_bytes": 8192,
+    "raw_provider_payloads_persisted": false,
+    "wallet_data_persisted": false,
+    "cohort_identities_persisted": false,
+    "alerts_available": false,
+    "execution_available": false,
+    "production_activation_completed": false
+  },
   "wallet_challenge_policy": {
     "evm_standard": "ERC-4361",
     "solana_standard": "Wallet Standard SIWS",
@@ -77,7 +99,7 @@
   "blocked_capabilities": [
     "wallet_linking",
     "persistent_portfolio",
-    "persistent_watchlists",
+    "saved_monitor_production_activation",
     "persistent_alerts",
     "subscription_checkout",
     "subscription_entitlements",
@@ -107,7 +129,8 @@
     "docs/ravenos_transaction_authorization_v1.md",
     "docs/ravenos_threat_model_v1.md",
     "docs/ravenos_security_verification_v1.md",
-    "docs/ravenos_auth_provider_review_v1.md"
+    "docs/ravenos_auth_provider_review_v1.md",
+    "docs/ravenos_saved_monitor_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -116,6 +139,8 @@
     { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary" },
     { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "verified_current", "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs" },
     { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
+    { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
+    { "id": "SEC-RSCH-002", "name": "saved research-state CSRF, quotas, deletion, and XSS", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

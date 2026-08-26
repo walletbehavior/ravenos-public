@@ -41,6 +41,7 @@ const requiredBlockedCapabilities = new Set([
   "customer_signing",
   "transaction_submission",
   "customer_position_monitoring",
+  "saved_monitor_production_activation",
 ]);
 const blockedCapabilities = new Set(config.blocked_capabilities || []);
 for (const capability of requiredBlockedCapabilities) {
@@ -68,6 +69,15 @@ assert.equal(config.portfolio_preview.maximum_provider_calls_per_analysis, 8);
 assert.equal(config.portfolio_preview.signing_available, false);
 assert.equal(config.portfolio_preview.submission_available, false);
 assert.equal(config.portfolio_preview.custody_available, false);
+assert.equal(config.saved_monitor.implementation_status, "local_candidate_not_deployed");
+assert.equal(config.saved_monitor.authenticated_origin_only, true);
+assert.equal(config.saved_monitor.csrf_required_for_mutations, true);
+assert.equal(config.saved_monitor.exact_market_identity_only, true);
+assert.equal(config.saved_monitor.raw_provider_payloads_persisted, false);
+assert.equal(config.saved_monitor.wallet_data_persisted, false);
+assert.equal(config.saved_monitor.alerts_available, false);
+assert.equal(config.saved_monitor.execution_available, false);
+assert.equal(config.saved_monitor.production_activation_completed, false);
 
 for (const documentPath of config.required_documents || []) {
   const absolute = join(root, documentPath);
@@ -78,6 +88,7 @@ for (const documentPath of config.required_documents || []) {
 const requiredScenarios = [
   "SEC-SES-001", "SEC-SES-002", "SEC-SES-003", "SEC-CSRF-001",
   "SEC-AUTHZ-001", "SEC-AUTHZ-002", "SEC-WAL-001", "SEC-WAL-002",
+  "SEC-RSCH-001", "SEC-RSCH-002",
   "SEC-WAL-003", "SEC-WAL-004", "SEC-WAL-005", "SEC-WAL-006",
   "SEC-BIL-001", "SEC-BIL-002", "SEC-BIL-003", "SEC-ENUM-001",
   "SEC-EDGE-001", "SEC-XSS-001", "SEC-CSP-001", "SEC-LEAK-001",
@@ -89,7 +100,7 @@ const scenarioIds = new Set(scenarioRows.map((row) => row.id));
 assert.equal(scenarioIds.size, scenarioRows.length, "security scenario IDs must be unique");
 for (const id of requiredScenarios) assert(scenarioIds.has(id), `missing required security scenario: ${id}`);
 for (const row of scenarioRows) {
-  assert(["verified_current", "required_not_implemented", "blocked", "external_review_required", "not_applicable"].includes(row.status), `invalid status for ${row.id}`);
+  assert(["verified_current", "verified_local_candidate", "required_not_implemented", "blocked", "external_review_required", "not_applicable"].includes(row.status), `invalid status for ${row.id}`);
   if (["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate)) assert.notEqual(row.status, "verified_current", `${row.id} cannot be verified before its customer system exists`);
   if (row.status === "verified_current") assert(row.evidence || row.gate === "current", `${row.id} requires current evidence`);
   if (row.status === "not_applicable") assert(row.rationale, `${row.id} requires a not-applicable rationale`);
@@ -100,8 +111,10 @@ assert(stageARows.every((row) => !["blocked", "required_not_implemented"].includ
 
 const worker = readFileSync(join(root, "worker.mjs"), "utf8");
 assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed identity router is missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_research_state.mjs"'), "Saved Monitor research-state router is missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
+assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
 }

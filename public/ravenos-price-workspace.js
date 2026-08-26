@@ -539,6 +539,7 @@ export class PriceWorkspace {
       paint();
       paintCount();
       this.render({ indicators: Array.from(this.activeIndicators) });
+      this.options.onIndicatorChange?.(Array.from(this.activeIndicators));
     });
     this._indicatorPointerHandler = (event) => {
       if (host.hidden || host.contains(event.target) || trigger.contains(event.target)) return;

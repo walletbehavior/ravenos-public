@@ -84,6 +84,10 @@ import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
 import {
+  CUSTOMER_RESEARCH_STATE_ROUTE,
+  routeCustomerResearchState,
+} from "./lib/customer_research_state.mjs";
+import {
   PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
   routePortfolioGovernorPreview,
 } from "./lib/portfolio_governor/preview.mjs";
@@ -94,6 +98,8 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/favicon.ico",
   "/ravenos-account.css",
   "/ravenos-account.js",
+  "/ravenos-monitor.css",
+  "/ravenos-monitor.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
@@ -120,12 +126,37 @@ const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "terminal",
   "terms",
 ]);
+const SAVED_MONITOR_HANDOFF_FIELDS = new Set([
+  "action",
+  "instrument_id",
+  "instrument_type",
+  "identity_scope",
+  "asset_class",
+  "chain",
+  "venue",
+  "market",
+  "timeframe",
+  "indicators",
+  "raven_overlays",
+  "density",
+  "panel",
+]);
+
+function savedMonitorRedirectTarget(sourceUrl) {
+  const target = new URL("/monitor/", `https://${AUTHENTICATED_APP_HOST}`);
+  for (const field of SAVED_MONITOR_HANDOFF_FIELDS) {
+    const value = sourceUrl.searchParams.get(field);
+    if (value !== null) target.searchParams.set(field, String(value).slice(0, field === "instrument_id" ? 220 : 300));
+  }
+  return target;
+}
 
 function authenticatedAppBoundary(request) {
   const url = new URL(request.url);
   if (url.hostname.toLowerCase() !== AUTHENTICATED_APP_HOST) return null;
   const readRequest = request.method === "GET" || request.method === "HEAD";
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
+  const monitorPath = url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html";
   const identityApi = url.pathname === "/api/v1/auth/config"
     || url.pathname === "/api/v1/auth/start"
     || url.pathname === "/api/v1/auth/callback"
@@ -134,9 +165,12 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/sessions"
     || url.pathname.startsWith("/api/v1/sessions/");
   const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE;
+  const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
+    || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
+    || url.pathname.startsWith(`${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items/`);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && accountPath) || identityApi || portfolioPreviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -294,7 +328,14 @@ function attachReleaseHeaders(response, releaseState, pathname = "") {
     "/ravenos_deploy_manifest.json",
   ].includes(pathname)) {
     headers.set("cache-control", "no-store");
-  } else if (pathname === "/account/" || pathname === "/account" || pathname.endsWith("/account/index.html")) {
+  } else if (
+    pathname === "/account/"
+    || pathname === "/account"
+    || pathname.endsWith("/account/index.html")
+    || pathname === "/monitor/"
+    || pathname === "/monitor"
+    || pathname.endsWith("/monitor/index.html")
+  ) {
     headers.set("cache-control", "no-store, max-age=0");
   } else if (String(headers.get("content-type") || "").toLowerCase().includes("text/html")) {
     headers.set("cache-control", "public, max-age=0, must-revalidate");
@@ -3555,6 +3596,83 @@ async function resolveTraditionalExactInstrument(env, ticker, instrumentId = "")
   };
 }
 
+async function resolveSavedMarketAvailability(env, market) {
+  const checkedAt = Math.floor(Date.now() / 1000);
+  if (market.instrument_type === "exact_pool") {
+    const pairAddress = market.instrument_id.slice(`${market.chain_id}:pool:`.length);
+    const rows = await pairDex(market.chain_id, pairAddress);
+    const sameAddress = market.chain_id === "solana"
+      ? (value) => String(value || "") === pairAddress
+      : (value) => String(value || "").toLowerCase() === pairAddress.toLowerCase();
+    const exact = rows.find((row) => String(row.chainId || "").toLowerCase() === market.chain_id && sameAddress(row.pairAddress));
+    if (!exact) {
+      return {
+        availability_state: "unavailable",
+        availability_reason: "exact_market_not_found",
+        availability_checked_at: checkedAt,
+      };
+    }
+    const base = String(exact.symbol || "").trim().slice(0, 32);
+    const quote = String(exact.quoteSymbol || "").trim().slice(0, 32);
+    return {
+      availability_state: "available",
+      availability_reason: "exact_market_verified",
+      availability_checked_at: checkedAt,
+      display_label: [base, quote].filter(Boolean).join("/") || market.display_label,
+      base_symbol: base || null,
+      quote_symbol: quote || null,
+      venue_id: String(exact.dexId || "onchain").toLowerCase(),
+    };
+  }
+
+  if (market.instrument_type === "perpetual") {
+    const payload = await hyperliquidPerps();
+    const exact = (payload.results || []).find((row) => String(row.instrument_id || "") === market.instrument_id);
+    if (!exact) {
+      return {
+        availability_state: "unavailable",
+        availability_reason: "exact_market_not_found",
+        availability_checked_at: checkedAt,
+      };
+    }
+    return {
+      availability_state: "available",
+      availability_reason: "exact_market_verified",
+      availability_checked_at: checkedAt,
+      display_label: `${String(exact.symbol || market.base_symbol).slice(0, 32)} perpetual`,
+      base_symbol: String(exact.symbol || market.base_symbol).slice(0, 32),
+      quote_symbol: "USD",
+      venue_id: "hyperliquid",
+    };
+  }
+
+  if (market.instrument_type === "equity" || market.instrument_type === "etf") {
+    const exact = await resolveTraditionalExactInstrument(env, market.base_symbol, market.instrument_id);
+    if (!exact) {
+      return {
+        availability_state: "unavailable",
+        availability_reason: "exact_market_not_found",
+        availability_checked_at: checkedAt,
+      };
+    }
+    return {
+      availability_state: "available",
+      availability_reason: "exact_market_verified",
+      availability_checked_at: checkedAt,
+      display_label: `${String(exact.symbol || market.base_symbol).slice(0, 32)} · ${String(exact.venue || market.venue_id).toUpperCase().slice(0, 40)}`,
+      base_symbol: String(exact.symbol || market.base_symbol).slice(0, 32),
+      quote_symbol: "USD",
+      venue_id: String(exact.venue || market.venue_id).toLowerCase(),
+    };
+  }
+
+  return {
+    availability_state: "unverified",
+    availability_reason: "instrument_type_unsupported",
+    availability_checked_at: null,
+  };
+}
+
 function unresolvedChart(asset, message, {
   source = "Coverage Developing",
   sourceType = "coverage_developing",
@@ -6141,6 +6259,10 @@ async function routeApi(request, env) {
   const url = new URL(request.url);
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const researchStateResponse = await routeCustomerResearchState(request, env, {
+    resolveMarketAvailability: (market) => resolveSavedMarketAvailability(env, market),
+  });
+  if (researchStateResponse) return researchStateResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
@@ -6329,6 +6451,14 @@ export default {
       return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
     }
     if (["GET", "HEAD"].includes(request.method)) {
+      if (url.hostname.toLowerCase() === "ravenos.xyz" && (url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html")) {
+        const target = savedMonitorRedirectTarget(url);
+        return attachReleaseHeaders(
+          applyAssetSecurityHeaders(Response.redirect(target, 308), url.pathname),
+          releaseState,
+          url.pathname,
+        );
+      }
       if (url.pathname === "/brief" || url.pathname === "/brief/") {
         const target = new URL("/terminal/", url);
         target.search = url.search;

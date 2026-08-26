@@ -1,4 +1,4 @@
-import { ravenOSContext } from "./ravenos-context-store.js";
+import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
   RAVENOS_CHART_TIMEFRAMES,
   getChartDataPlaneDiagnostics,
@@ -10,6 +10,10 @@ import { mountTradingViewChart } from "./ravenos-tradingview-adapter.js";
 document.body.classList.add("ros-terminal-live-shell");
 
 const TIMEFRAMES = new Set(RAVENOS_CHART_TIMEFRAMES);
+const SAVED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
+const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
+const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
+const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
 const state = {
   lane: "perps",
   markets: [],
@@ -35,6 +39,9 @@ const state = {
   planOverlayEnabled: false,
   launchSource: "",
   autoRavenOverlays: false,
+  savedRavenOverlays: [],
+  density: "comfortable",
+  requestedPanel: "chart",
   chartRead: null,
   orderBook: null,
   tapeRows: [],
@@ -425,6 +432,35 @@ function setTerminalPane(pane = "chart") {
     button.setAttribute("aria-pressed", String(button.dataset.terminalPaneButton === next));
   }
   if (next === "chart") requestAnimationFrame(() => state.workspace?.chartHandle?.resize?.());
+  updateMonitorHandoff();
+}
+
+function currentRavenOverlayTypes() {
+  const measured = state.workspace?.diagnostics?.()?.chart?.active_overlay_types || [];
+  return [...new Set([...state.savedRavenOverlays, ...measured].filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
+}
+
+function captureCurrentRavenOverlayTypes() {
+  setTimeout(() => {
+    const measured = state.workspace?.diagnostics?.()?.chart?.active_overlay_types || [];
+    state.savedRavenOverlays = [...new Set(measured.filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
+    updateMonitorHandoff();
+  }, 0);
+}
+
+function updateMonitorHandoff() {
+  const link = document.getElementById("terminalMonitorLink");
+  if (!link) return;
+  const subject = ravenOSContext.getState().subject;
+  const href = savedMonitorHandoffHref(subject, {
+    timeframe: state.timeframe,
+    indicators: Array.from(state.workspace?.activeIndicators || []).filter((value) => SAVED_INDICATORS.has(value)),
+    ravenOverlays: currentRavenOverlayTypes(),
+    density: state.density,
+    selectedPanel: document.querySelector(".terminal-live")?.dataset.terminalPane || "chart",
+  });
+  link.hidden = !href;
+  if (href) link.href = href;
 }
 
 function updateTerminalPaneAvailability() {
@@ -2417,9 +2453,10 @@ function applyContextChartEvent(payload) {
   const overlays = sourceOverlays.filter((overlay) => (
     !String(overlay?.type || "").startsWith("plan-") || state.planOverlayEnabled
   ));
-  const visibleOverlayTypes = state.planOverlayEnabled
-    ? ["plan-entry", "plan-target", "plan-risk"]
-    : [];
+  const visibleOverlayTypes = [
+    ...currentRavenOverlayTypes(),
+    ...(state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : []),
+  ];
   state.workspace?.render?.({
     asset: state.selected?.asset,
     market: "perp",
@@ -2432,6 +2469,7 @@ function applyContextChartEvent(payload) {
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
+    onOverlaySelect: captureCurrentRavenOverlayTypes,
   });
 }
 
@@ -2463,10 +2501,14 @@ function applySpotContextChart(payload = state.context || {}) {
     timeframe: state.timeframe,
     events: Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : [],
     overlays,
-    visibleOverlayTypes: state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : [],
+    visibleOverlayTypes: [
+      ...currentRavenOverlayTypes(),
+      ...(state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : []),
+    ],
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
+    onOverlaySelect: captureCurrentRavenOverlayTypes,
   });
 }
 
@@ -2674,6 +2716,7 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
           : "Use exact-pool market data and any admitted Raven marker separately."
       : "Continue monitoring the selected exact market.",
   });
+  updateMonitorHandoff();
 }
 
 function updateQuoteBoundary() {
@@ -3560,6 +3603,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
+    onOverlaySelect: captureCurrentRavenOverlayTypes,
   });
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} candles · ${titleCase(subject.instrumentType)}`
@@ -3771,6 +3815,7 @@ function bindControls() {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
     state.timeframe = timeframe;
+    updateMonitorHandoff();
     if (state.lane === "perps" && state.selected) selectPerp(state.selected.asset);
     else if (state.lane === "spot" && state.selected) selectSpot(state.selected);
     else if (state.lane === "equity" && state.selected) selectAtlasInstrument(state.selected);
@@ -3911,10 +3956,16 @@ async function boot() {
   const requestedLaunch = String(params.get("launch") || "").toLowerCase();
   state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
   state.autoRavenOverlays = Boolean(state.launchSource && params.get("raven_overlays") === "auto");
+  state.savedRavenOverlays = [...new Set(String(params.get("raven_overlays") || "").split(",").map((value) => value.trim()).filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
+  state.density = SAVED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
+  state.requestedPanel = SAVED_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
+  document.documentElement.dataset.density = state.density;
+  document.body.dataset.density = state.density;
   state.timeframe = TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : TIMEFRAMES.has(ravenOSContext.getState().timeframe) ? ravenOSContext.getState().timeframe : "1h";
   document.getElementById("timeframeSelect").value = state.timeframe;
   state.workspace = window.RavenOSPriceWorkspace?.create?.(document.getElementById("terminalChart"), {
     timeframe: state.timeframe,
+    indicators: [...new Set(String(params.has("indicators") ? params.get("indicators") : "ema20").split(",").map((value) => value.trim()).filter((value) => SAVED_INDICATORS.has(value)))],
     tradeLimit: 60,
     onTimeframeChange: (timeframe) => {
       if (!TIMEFRAMES.has(timeframe)) return;
@@ -3922,6 +3973,7 @@ async function boot() {
       document.getElementById("timeframeSelect").dispatchEvent(new Event("change", { bubbles: true }));
     },
     onMarkerSelect: (marker) => renderMarkerDetail(marker),
+    onIndicatorChange: () => updateMonitorHandoff(),
     onChartReadChange: (read) => {
       state.chartRead = read;
       if (state.lane === "spot" && state.context?.spot_identity_validated) refreshSpotStructurePlan();
@@ -3986,6 +4038,8 @@ async function boot() {
     if (request.error) await renderExplicitSelectionUnavailable({ instrumentId: request.instrumentId, asset: request.asset, lane: "perps", reason: request.error });
     else await selectPerp(request.row?.asset || defaultPerp(), { updateUrl: !request.row });
   }
+  setTerminalPane(state.requestedPanel);
+  updateMonitorHandoff();
   window.__RAVENOS_TERMINAL__ = {
     getState: () => ({
       lane: state.lane,

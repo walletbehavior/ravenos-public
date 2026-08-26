@@ -262,7 +262,7 @@
 .discover-payoff-strip article:last-child { border-right: 0; }
 .discover-payoff-strip article > span {
   color: var(--ws-dim);
-  font: 720 7px var(--ws-mono);
+  font: 720 9px var(--ws-mono);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -345,6 +345,29 @@
   text-transform: uppercase;
 }
 .discover-token-tape-list { display: grid; }
+.discover-token-row-shell,
+.discover-row-shell { position: relative; min-width: 0; }
+.discover-token-row-shell[hidden],
+.discover-row-shell[hidden] { display: none; }
+.discover-monitor-save {
+  position: absolute;
+  z-index: 3;
+  right: 9px;
+  top: 7px;
+  min-width: 38px;
+  border: 1px solid rgba(166, 177, 190, .24);
+  border-radius: 999px;
+  padding: 3px 6px;
+  background: rgba(8, 12, 18, .92);
+  color: var(--ws-muted);
+  font: 720 7px var(--ws-mono);
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.discover-monitor-save:hover,
+.discover-monitor-save:focus-visible { border-color: rgba(99, 197, 148, .45); color: #80d3aa; outline: 0; }
+.discover-monitor-save[hidden] { display: none; }
 .discover-token-row {
   position: relative;
   min-width: 0;
