@@ -831,7 +831,23 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     fragment.append(node);
   });
   if (!ranked.length) {
-    append(fragment, "p", "discover-token-empty", `No current ${state.spotTimeframe} token movement is available.`);
+    const empty = append(fragment, "div", "discover-token-empty", "");
+    const copy = append(empty, "div", "", "");
+    const chain = state.spotChain === "all" ? "Pools" : `${title(state.spotChain)} pools`;
+    append(copy, "h3", "", `${chain} do not clear the current quality gate`);
+    append(copy, "p", "", `Nothing in the ${state.spotTimeframe} feed currently has enough liquidity and decision-useful activity to rank.`);
+    const actions = append(copy, "div", "discover-token-empty-actions", "");
+    if (state.spotChain !== "all") {
+      const reset = append(actions, "button", "", "Scan all chains");
+      reset.type = "button";
+      reset.addEventListener("click", () => {
+        state.spotChain = "all";
+        renderSpotPulse(state.spotRows, { forceOrder: true });
+      });
+    }
+    const search = append(actions, "button", "", "Search exact market");
+    search.type = "button";
+    search.addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   }
   host.replaceChildren(fragment);
 }
@@ -864,11 +880,6 @@ async function hydrateSpotMetadata(rows = state.spotRows) {
 function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
   state.spotRows = Array.isArray(rows) ? rows : [];
-  if (!state.spotRows.length) {
-    host.hidden = true;
-    document.getElementById("discoverTokenTapeList").replaceChildren();
-    return;
-  }
   const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
   host.hidden = activeFilter !== "spot";
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
@@ -1104,12 +1115,13 @@ function renderSourceNotice(source, detail) {
 
 function applyFilter() {
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "signals";
-  document.getElementById("discoverSpotPulse").hidden = !state.spotRows.length || active !== "spot";
+  document.getElementById("discoverDesk").hidden = !state.deskFrame || active !== "signals";
+  document.getElementById("discoverSpotPulse").hidden = active !== "spot";
   document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || active !== "equity";
   document.getElementById("discoverPayoff").hidden = !state.payoff || active !== "signals";
   const opportunityLayout = document.getElementById("discoverOpportunityLayout");
   const perpPulse = document.getElementById("discoverPerpPulse");
-  const spotOwnsView = active === "spot" && state.spotRows.length > 0;
+  const spotOwnsView = active === "spot";
   const equityOwnsView = active === "equity" && state.featuredRows.length > 0;
   opportunityLayout.hidden = spotOwnsView || equityOwnsView;
   perpPulse.hidden = !["signals", "perpetual"].includes(active);
@@ -1149,7 +1161,7 @@ function applyFilter() {
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
   const hasFeaturedEquities = equityOwnsView;
-  const hasTokenTape = active === "spot" && state.spotRows.length > 0;
+  const hasTokenTape = active === "spot";
   if (!eligible.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
@@ -1344,7 +1356,7 @@ function currentOnchainPulsePayload(payload) {
     const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
     return row?.source_type === "market_activity"
       && row?.market_type === "spot"
-      && ["base", "ethereum"].includes(chain)
+      && ["solana", "base", "ethereum"].includes(chain)
       && row?.identity_scope === "exact_pool"
       && row?.instrument_id === `${chain}:pool:${text(row?.pool_address, "")}`
       && row?.token_address
@@ -1453,7 +1465,7 @@ async function refresh({ manual = false } = {}) {
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
-    json(`/api/onchain/trending?chains=base,ethereum&duration=${encodeURIComponent(state.spotTimeframe)}`),
+    json(`/api/onchain/trending?chains=solana,base,ethereum&duration=${encodeURIComponent(state.spotTimeframe)}`),
     json("/api/brief"),
   ]);
 
@@ -1639,14 +1651,6 @@ function bind() {
     });
     state.expanded = false;
     applyFilter();
-    if (window.matchMedia("(max-width: 820px)").matches) {
-      const target = button.dataset.discoverFilter === "spot"
-        ? document.getElementById("discoverSpotPulse")
-        : button.dataset.discoverFilter === "equity"
-          ? document.getElementById("discoverListedUniverse")
-          : document.getElementById("discoverOpportunityLayout");
-      if (target && !target.hidden) requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
-    }
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
     state.spotTimeframe = button.dataset.spotTimeframe;
@@ -1691,6 +1695,7 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     rowCount: state.rows.size,
     marketCount: state.markets.size,
     spotCount: state.spotRows.length,
+    solanaSpotCount: state.spotRows.filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "solana").length,
     evmSpotCount: state.spotRows.filter((row) => ["base", "ethereum"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
     payoffCount: state.payoff?.insights?.length || 0,
     deskCardCount: state.deskFrame?.cards?.length || 0,

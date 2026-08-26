@@ -89,6 +89,7 @@ const CHAIN_ROUTE_MAP = {
   ethereum: { aliases: ["eth", "ethereum"], label: "Ethereum" },
 };
 const ONCHAIN_PULSE_NETWORKS = Object.freeze({
+  solana: Object.freeze({ provider_network: "solana", label: "Solana" }),
   base: Object.freeze({ provider_network: "base", label: "Base" }),
   ethereum: Object.freeze({ provider_network: "eth", label: "Ethereum" }),
 });
@@ -2190,6 +2191,15 @@ function marketPulseRisk({ liquidityUsd, movement }) {
   return null;
 }
 
+function normalizeMarketPulseAddress(chain, value) {
+  const address = String(value || "").trim();
+  if (String(chain || "").toLowerCase() === "solana") {
+    return SOLANA_ADDRESS_RE.test(address) ? address : "";
+  }
+  const normalized = address.toLowerCase();
+  return EVM_ADDRESS_RE.test(normalized) ? normalized : "";
+}
+
 function normalizeGeckoTrendingPool(payload, row, {
   chain,
   chainLabel,
@@ -2199,17 +2209,23 @@ function normalizeGeckoTrendingPool(payload, row, {
   fetchedAt,
 } = {}) {
   if (row?.type !== "pool") return null;
-  const poolAddress = String(row?.attributes?.address || "").trim().toLowerCase();
-  if (!EVM_ADDRESS_RE.test(poolAddress)) return null;
+  const poolAddress = normalizeMarketPulseAddress(chain, row?.attributes?.address);
+  if (!poolAddress) return null;
   const baseRelationship = row?.relationships?.base_token?.data?.id;
   const quoteRelationship = row?.relationships?.quote_token?.data?.id;
   const dexRelationship = row?.relationships?.dex?.data?.id;
   const base = geckoIncludedResource(payload, baseRelationship, "token");
   const quote = geckoIncludedResource(payload, quoteRelationship, "token");
   if (!base || !quote) return null;
-  const baseAddress = String(base?.attributes?.address || geckoRelationshipAddress(base?.id, chain)).trim().toLowerCase();
-  const quoteAddress = String(quote?.attributes?.address || geckoRelationshipAddress(quote?.id, chain)).trim().toLowerCase();
-  if (!EVM_ADDRESS_RE.test(baseAddress) || !EVM_ADDRESS_RE.test(quoteAddress) || baseAddress === quoteAddress) return null;
+  const baseAddress = normalizeMarketPulseAddress(
+    chain,
+    base?.attributes?.address || geckoRelationshipAddress(base?.id, chain),
+  );
+  const quoteAddress = normalizeMarketPulseAddress(
+    chain,
+    quote?.attributes?.address || geckoRelationshipAddress(quote?.id, chain),
+  );
+  if (!baseAddress || !quoteAddress || sameOnchainAddress(chain, baseAddress, quoteAddress)) return null;
   const baseSymbol = boundedPublicLabel(base?.attributes?.symbol, "TOKEN", 24);
   const quoteSymbol = boundedPublicLabel(quote?.attributes?.symbol, "TOKEN", 24);
   const baseStable = STABLE_TOKEN_SYMBOLS.has(baseSymbol.toUpperCase());
@@ -2302,12 +2318,12 @@ function normalizeGeckoTrendingPool(payload, row, {
 }
 
 function parseOnchainPulseChains(value) {
-  const requested = String(value || "base,ethereum")
+  const requested = String(value || "solana,base,ethereum")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   if (!requested.length || requested.some((chain) => !ONCHAIN_PULSE_NETWORKS[chain])) return null;
-  return [...new Set(requested)].slice(0, 2);
+  return [...new Set(requested)].slice(0, 3);
 }
 
 async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {}) {

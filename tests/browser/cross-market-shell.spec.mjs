@@ -57,6 +57,9 @@ const basePulseQuote = "0x3333333333333333333333333333333333333333";
 const ethereumPulsePool = "0x4444444444444444444444444444444444444444";
 const ethereumPulseToken = "0x5555555555555555555555555555555555555555";
 const ethereumPulseQuote = "0x6666666666666666666666666666666666666666";
+const solanaPulsePool = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx";
+const solanaPulseToken = "So11111111111111111111111111111111111111112";
+const solanaPulseQuote = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 const spotAttentionRows = [
   {
@@ -167,7 +170,7 @@ function onchainPulsePayload(rows = []) {
     state: "current",
     freshness: { state: "current", observed_at: "2026-07-21T12:20:00Z", expected_update_seconds: 30 },
     duration: "5m",
-    chains: ["base", "ethereum"],
+    chains: ["solana", "base", "ethereum"],
     rows,
     unavailable: [],
     provenance: {
@@ -274,6 +277,26 @@ const evmPulseRows = [
     execution_available: false,
   },
 ];
+
+const solanaPulseRow = {
+  ...evmPulseRows[0],
+  public_attention_id: `market:solana:${solanaPulsePool}`,
+  instrument_id: `solana:pool:${solanaPulsePool}`,
+  chain: "Solana",
+  chain_id: "solana",
+  venue: "Raydium",
+  symbol: "RAVEN",
+  name: "Raven Test",
+  token_address: solanaPulseToken,
+  quote_token_address: solanaPulseQuote,
+  pool_address: solanaPulsePool,
+  market: {
+    ...evmPulseRows[0].market,
+    price_usd: 0.00042,
+    liquidity_usd: 186_000,
+    market_cap_usd: 420_000,
+  },
+};
 
 function opportunityPayload({ withSpot = false, rows = opportunityRows } = {}) {
   return {
@@ -419,6 +442,7 @@ async function mockWorkspaceApis(page, {
   opportunityRowsOverride = null,
   withSpot = false,
   withEvmPulse = false,
+  pulseRowsOverride = null,
   spotSearchResults = [],
 } = {}) {
   await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
@@ -430,7 +454,7 @@ async function mockWorkspaceApis(page, {
   await page.route("**/api/onchain/trending**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify(onchainPulsePayload(withEvmPulse ? evmPulseRows : [])),
+    body: JSON.stringify(onchainPulsePayload(pulseRowsOverride === null ? (withEvmPulse ? evmPulseRows : []) : pulseRowsOverride)),
   }));
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: opportunityStatus,
@@ -734,6 +758,49 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await page.setViewportSize({ width: 390, height: 844 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Discover restores live Solana pools when Raven's private attention feed has no rows", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspaceApis(page, { pulseRowsOverride: [solanaPulseRow] });
+  await page.goto("/discover/");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().solanaSpotCount)).toBe(1);
+  await expect(page.locator("#discoverDesk")).toBeVisible();
+  await expect(page.locator("#discoverPayoff")).toBeVisible();
+
+  await page.locator("[data-discover-filter='spot']").click();
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(2);
+  await expect(page.locator("#discoverDesk")).toBeHidden();
+  await expect(page.locator("#discoverPayoff")).toBeHidden();
+  await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
+  await expect(page.locator("#discoverSpotPulse")).toBeVisible();
+  await page.locator("[data-spot-chain='solana']").click();
+  const row = page.locator(".discover-token-row");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("RAVEN");
+  await expect(row).toContainText("Solana · Raydium");
+  await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${solanaPulsePool}`));
+  await expect(row).not.toContainText(/Raven saw it earlier|unknown|unavailable/i);
+  await expect(page.locator(".discover-page .workspace-toolbar")).toHaveCSS("position", "sticky");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Discover keeps an absent chain compact and actionable instead of showing an unknown wall", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspaceApis(page, { withEvmPulse: true });
+  await page.goto("/discover/");
+  await page.locator("[data-discover-filter='spot']").click();
+  await page.locator("[data-spot-chain='solana']").click();
+  const empty = page.locator(".discover-token-empty");
+  await expect(empty).toContainText("Solana pools do not clear the current quality gate");
+  await expect(empty).toContainText("Scan all chains");
+  await expect(empty).toContainText("Search exact market");
+  await expect(empty).not.toContainText(/unknown|unavailable/i);
+  await expect(page.locator("#discoverDesk")).toBeHidden();
+  await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
+  await empty.getByRole("button", { name: "Scan all chains" }).click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(2);
 });
 
 test("Discover omits zero-activity pools and lets available anatomy fill the row", async ({ page }) => {
