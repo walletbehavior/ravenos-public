@@ -1,160 +1,268 @@
 # RavenOS Portfolio Governor v1
 
-Status: authority contract and pure domain foundation; no public persistence or execution route is enabled
+Status: Phase 1 read-only Solana exposure engine and Phase 2 read-only deterministic policy monitor are implemented as pure domain modules. No customer persistence, public API, rebalance construction, wallet signing, or execution route is enabled.
 
-Implementation: `lib/portfolio_governor/domain.mjs`
+Implementation:
 
-Tests: `tests/portfolio_governor_authority.test.mjs`
+- `lib/portfolio_governor/domain.mjs`
+- `lib/portfolio_governor/solana_exposure.mjs`
 
-## Product boundary
+Tests:
 
-Portfolio Governor is user-authored portfolio policy plus deterministic Raven accounting, monitoring, and calculation. It is not a Raven-selected portfolio and not an autonomous robo-adviser.
+- `tests/portfolio_governor_authority.test.mjs`
+- `tests/portfolio_governor_solana_exposure.test.mjs`
+- `tests/portfolio_governor_policy_monitor.test.mjs`
 
-The user decides the desired financial structure. Raven determines what exists, compares that measured state with the exact immutable policy version, calculates user-policy-compliant correction paths, and records why an action is available or refused.
+## Invariant
 
-Raven market intelligence never has portfolio authority by itself. A market posture can select another policy only through a separately persisted activation rule explicitly authored by the same user and pointing to another already-authored policy version.
+> Raven's internal treasury policy teaches us how to build the machinery; it does not become the user's investment policy.
 
-Raven's internal treasury teaches implementation patterns—source lineage, idempotency, protected capital, conservation checks, refusal outcomes, and reconciliation. Its targets, asset mix, posture mapping, risk budget, and deployment logic are not customer defaults and are not imported by this module.
+Portfolio Governor v1 is:
 
-## Authority separation
+```text
+user-authored policy
+  + deterministic Raven measurement
+  + non-custodial user authorization at a later, separately gated phase
+```
 
-| Layer | Record | Decides or proves | Cannot do |
+The user decides the desired financial structure. Raven observes the portfolio, resolves economic exposure where evidence permits, measures uncertainty and realizability, and evaluates only the exact rules in the immutable user policy version.
+
+Raven does not infer an objective, risk tolerance, asset list, target allocation, tactical point inside a band, or market-posture consequence. A Raven `MarketPosture` can select another policy only through a separately persisted activation rule authored by the user and referencing another policy version the user already authored.
+
+## Authority and semantic separation
+
+| Layer | Record | Authority or evidence | Explicit limit |
 | --- | --- | --- | --- |
-| External/Raven observation | `Observation` | Timestamped market or account fact | Set portfolio policy |
-| Raven interpretation | `MarketPosture` | A versioned market read | Mutate or select policy without a user-authored activation rule |
-| Raven accounting | `PortfolioSnapshot`, `PortfolioMeasurement` | Positions, values, liabilities, economic exposure, concentration, and freshness | Invent allocation objectives |
-| User authority | `UserPolicyVersion` | Bands, buckets, protected assets, concentration limits, allowed assets/venues, profit routing, and execution limits | Grant Raven custody in v1 |
-| Raven evaluation | `PolicyViolation`, `PolicyEvaluation` | Whether measured state complies with the exact user policy | Choose a tactical point inside a band |
-| Raven calculation | `RebalanceCalculation` | Consequences of an explicit correction path | Authorize execution or substitute an unconfigured asset |
-| External execution evidence | `ExecutionQuote` | Current route, executable amounts, friction, expiry, and confidence | Authorize execution |
-| User authority | `UserAuthorization` | Approval of one exact expiring quote for one linked wallet | Authorize a changed policy, snapshot, quote, or route |
-| Non-custodial orchestration | `ExecutionIntent` | A bounded handoff awaiting the user's wallet signature | Hold assets, access a private key, or imply settlement |
-| External/Raven reconciliation | `ExecutionFill`, `SettlementOutcome` | What actually filled and the resulting observed state | Rewrite earlier policy or calculation history |
+| Observed fact | `Observation` | Wallet, protocol, conversion, mark, or quote-only fact with time and source | Cannot set policy |
+| Raven interpretation | `MarketPosture` | Versioned market interpretation | Has no portfolio effect by itself |
+| Raven accounting | `EconomicExposure`, `PortfolioSnapshot`, `PortfolioMeasurement` | Instrument holdings, look-through exposure, values, liabilities, concentration, freshness, and routeability | Cannot invent a target |
+| User authority | `UserPolicyVersion`, `UserPolicyActivationRule` | Bands, limits, buckets, classifications, protection, routing, and optional posture activation | Must be authored by the user |
+| Raven evaluation | `PolicyViolation`, `PolicyIndeterminacy`, `PolicyEvaluation`, `GovernorOutcome` | Deterministic comparison of measurement bounds with the exact policy version | Cannot calculate a correction in the current phase |
+| Future calculation | `RebalanceCalculation` | Pre-existing forward-compatible contract, not connected by this pass | Cannot authorize or execute |
+| Future execution evidence and authority | `ExecutionQuote`, `UserAuthorization`, `ExecutionIntent` | Pre-existing non-custodial contract, not connected by this pass | No live route, signer, submission, or custody |
 
-Each record is separately typed, canonically hashed, deeply immutable in the pure domain layer, and carries a provenance role. The design intentionally has no generic `recommendation` object that could blur observation, calculation, policy, and authorization.
+There is no generic recommendation object. Every sealed record has a distinct type, canonical content hash, immutable payload, upstream references where applicable, and provenance identifying whether the user decided it, Raven calculated it, or an external source was observed.
 
-## Provenance chain
+## Existing-source audit and adapter decisions
 
-The required persisted chain is:
+This pass reused existing Raven/RavenOS capabilities and added no provider, database, framework, agent, signer, or execution system.
+
+| Requirement | Existing capability found | Phase 1 decision |
+| --- | --- | --- |
+| Native SOL and SPL inventory | Existing Solana JSON-RPC/Helius-compatible request machinery | Use three bounded read-only calls: native balance, SPL Token accounts, and Token-2022 accounts |
+| Token identity and metadata | Existing token-identity machinery plus locally verified canonical identities | Keep the built-in exact set deliberately small; malformed or unknown identity remains unresolved |
+| Mark values | Existing Raven price/data-plane sources | Accept timestamped mark observations through an explicit evidence contract; never infer a price from a symbol |
+| Executable values | Existing Jupiter quote-only machinery | Accept quote-only exit observations; select automatic quote candidates with materiality and count limits |
+| LST recognition | Existing Solana identity knowledge | Recognize JitoSOL, but require contemporaneous conversion evidence before assigning SOL underlying |
+| LP and lending positions | No sufficiently general live customer-position adapter was proven | Support typed protocol observations and adversarial fixtures; unavailable protocol state remains unresolved |
+| Liabilities | Existing accounting concepts, but no general live customer lending adapter | Preserve supplied assets and borrowed liabilities separately when observed |
+| Spam and dust | Existing identity/risk conventions | Preserve spam positions visibly but exclude unverified spam marks from NAV; keep dust in marked NAV and skip automatic quote load |
+| Solana leveraged/perpetual positions | No proven general wallet adapter in this pass | Report the capability gap explicitly; do not synthesize exposure |
+
+The adapter accepts an opaque wallet reference and uses the public address only for the transient RPC request. The address is not copied into observations, diagnostics, snapshots, or measurements. Partial RPC success is preserved with sanitized failure diagnostics.
+
+## Phase 1: read-only Solana exposure engine
+
+The accounting path is explicit:
+
+```text
+public Solana address
+  -> raw Observation records
+  -> normalized visible positions
+  -> EconomicExposure records
+  -> valuation and routeability resolution
+  -> PortfolioSnapshot
+  -> PortfolioMeasurement
+```
+
+### Separate views of the same capital
+
+The engine preserves both instrument truth and economic truth without counting them twice.
+
+Example:
+
+```text
+instrument held: JitoSOL
+economic underlying: SOL
+protocol exposure: Jito
+```
+
+Primary asset and liability components count toward accounting totals. Instrument, protocol, issuer, dependency, and chain rows are analytical overlays over the same capital. Receipt tokens explicitly linked to a protocol position are representation-only and cannot also count as principal.
+
+### Valuation outputs
+
+`PortfolioMeasurement` separates:
+
+- total marked asset value;
+- current executable asset value;
+- liabilities;
+- net equity;
+- gross asset and gross economic exposure;
+- unresolved value;
+- stale value;
+- proven unrouteable value;
+- value with unknown routeability;
+- executable coverage;
+- leverage;
+- asset, instrument, protocol, stablecoin issuer/dependency, chain, liability, and unresolved dimensions.
+
+Displayed mark times balance is never treated as equivalent to realizable value. A current conservative minimum quote is the executable value. Expired quotes remain stale, no-route results remain unrouteable, and missing quotes remain unknown.
+
+Automatic quote planning is bounded by an absolute materiality threshold, a portfolio-weight threshold, and a maximum candidate count. It produces quote-probe descriptions only. It does not produce `ExecutionQuote`, transaction material, signing requests, or submission permission.
+
+### Resolution and uncertainty
+
+Every economic exposure records its source instrument, position and lot, resolution state and basis, source observations, freshness, routeability, marked value, and executable value.
+
+Unresolved underlying is first-class. It is not relabeled as `other`, SOL, or a stablecoin. Measurements can therefore support statements such as:
+
+> Resolved SOL exposure is 58%. Another 12% of net equity has unresolved underlying exposure, so supported SOL exposure is currently bounded between 58% and 70%.
+
+Unresolved bounds are dimension-specific. An unresolved position whose protocol is already observed does not create a second copy of possible protocol exposure. Unknown underlying can widen asset or issuer bounds only where the evidence leaves that dimension unresolved.
+
+### Conservation
+
+The engine verifies:
+
+- each visible position's marked capital equals its primary look-through components;
+- wrapper, LP, and lending receipt overlays do not add NAV;
+- assets minus liabilities equals net equity;
+- an unvalued liability makes net equity unavailable instead of becoming zero debt;
+- gross exposure may exceed net equity only through explicit liabilities/leverage;
+- identical immutable observations produce identical records and hashes.
+
+### Phase 1 support boundary
+
+Proven in adversarial tests:
+
+- native SOL, wrapped SOL, and both together;
+- one and multiple recognized LSTs;
+- USDC, USDT, issuer and shared-dependency dimensions;
+- unknown, spam, dust, malformed, missing-metadata, closed, and zero-balance SPL cases;
+- missing, stale, expired, unrouteable, and materially impaired valuations;
+- non-50/50 LP look-through and unavailable LP state;
+- lending supply, borrow, and combined leveraged accounting;
+- receipt/principal double-count prevention;
+- multiple protocols exposing the same economic asset;
+- large illiquid, unknown-only, empty, and partially observed wallets.
+
+Not claimed as live protocol coverage:
+
+- general Meteora/Orca position discovery;
+- general Solana lending-account discovery;
+- general Solana perpetual or leveraged-position discovery;
+- complete SPL metadata, scam classification, or executable coverage for every asset.
+
+These gaps produce unsupported, unavailable, or unresolved state rather than synthetic exposure.
+
+## Phase 2: read-only user-policy evaluation
+
+The current evaluation path is:
 
 ```text
 UserPolicyVersion
+  + PortfolioSnapshot
+  + PortfolioMeasurement
+  -> deterministic rule evaluation
+  -> PolicyViolation / PolicyIndeterminacy / GovernorOutcome
+```
+
+It stops there.
+
+No `RebalanceCalculation`, `ExecutionQuote`, transaction bundle, wallet authorization request, or `ExecutionIntent` is created.
+
+Supported user-authored rules include:
+
+- allocation minimums and maximums for assets, instruments, protocols, chains, stablecoin issuers/dependencies, and capital buckets;
+- wildcard maximum concentration limits for assets, protocols, issuers, and dependencies;
+- maximum unresolved or unrouteable exposure;
+- minimum executable coverage;
+- maximum liability exposure or gross leverage;
+- position/account/asset/protocol assignments to user-created cold, warm, reserve, retained, excluded, unclassified, or custom buckets;
+- user-selected protected assets and cold/protected bucket semantics.
+
+Classification is not a target. Marking a position cold or reserve does not create a desired percentage. A reserve minimum exists only if the user separately creates that rule.
+
+### Evaluation states
+
+Each configured rule produces one or more inspectable results:
+
+| State | Meaning |
+| --- | --- |
+| `confirmed_compliant` | The complete supported measurement interval stays inside the user's rule |
+| `confirmed_violation` | Even the conservative bound violates the user's rule |
+| `indeterminate` | Unresolved, stale, unavailable, or unknown-routeability evidence can change the answer |
+
+A confirmed violation includes the exact policy, snapshot, measurement, and rule references; current supported bound; user boundary; delta; contributing positions and economic exposures; and a plain explanation. Indeterminacy is separately typed and persistable. Unknown never silently becomes safe.
+
+An absent rule creates no test and no violation. An empty policy is vacuously compliant but reports zero configured rules and zero inferred targets. Conflicting bands for the same scope are rejected when the combined user policy has no feasible intersection.
+
+### Capital and profit accounting fixtures
+
+`FundingEvent` now separates gross amount, fees, friction, net distributable profit, and capital class. Deterministic tests prove:
+
+- deposits remain principal and are never distributable profit;
+- positive settled profit routes only through explicit user-authored percentages;
+- fees and friction reduce distributable profit;
+- zero PnL, losses, and fee-heavy profits with zero net distributable value create a persistable `no_distributable_profit` result;
+- an absent customer profit-routing rule cannot inherit Raven internal treasury percentages;
+- no balance mutation or live asset routing occurs.
+
+## Current provenance
+
+Current read-only chain:
+
+```text
+Observation
+  -> EconomicExposure
   -> PortfolioSnapshot
   -> PortfolioMeasurement
-  -> PolicyViolation / PolicyEvaluation
+
+UserPolicyVersion
+  + PortfolioSnapshot
+  + PortfolioMeasurement
+  -> PolicyViolation / PolicyIndeterminacy / PolicyEvaluation / GovernorOutcome
+```
+
+Every evaluation references the exact immutable policy and measured state. A later policy cannot be made to appear to have governed an earlier finding. Replaying identical immutable inputs produces identical hashes; changing the policy or snapshot changes downstream provenance.
+
+The longer non-custodial chain remains a future architectural gate:
+
+```text
+PolicyViolation
   -> RebalanceCalculation
   -> ExecutionQuote
   -> UserAuthorization
   -> ExecutionIntent
   -> ExecutionFill
-  -> SettlementOutcome
-  -> PortfolioSnapshot
+  -> resulting PortfolioSnapshot
 ```
 
-Every downstream record carries exact record IDs and canonical hashes for its upstream evidence. A new policy version cannot validate a calculation or quote created under an older version. A changed portfolio snapshot likewise invalidates the quote authorization path. Superseding a policy creates a new immutable version; it never edits history.
+Forward-compatible types for that chain predate this pass and remain isolated. They are not a live product capability.
 
-Refusals and no-action results are first-class `GovernorOutcome` records. They are persistable and canonically hashed, including outcomes such as `portfolio_within_policy`, `cold_asset_protected`, `quote_expired`, `authorization_missing`, and `policy_changed_since_quote`.
+## Future UI/API output shape
 
-## Policy contract
+A read-only surface can now render:
 
-`UserPolicyVersion` contains only explicit user inputs:
+- net equity, gross exposure, marked value, current executable value, unresolved value, and liabilities;
+- visible instrument holdings alongside underlying asset exposure;
+- protocol, stablecoin issuer/dependency, chain, liquidity, and routeability dimensions;
+- source positions, evidence state, freshness, and supported exposure ranges;
+- `Your policy`, `Your configured range`, `Policy drift`, `Confirmed violation`, `Indeterminate`, and `No configured rule` language;
+- the exact policy version and snapshot behind each result.
 
-- allocation bands identified by stable rule IDs;
-- capital buckets and cold/protected semantics;
-- concentration limits by asset, protocol, or stablecoin issuer;
-- protected assets;
-- allowed assets and venues;
-- profit-routing percentages;
-- minimum trade, maximum transaction, daily turnover, quote-confidence, and friction limits;
-- the current authority mode.
+Avoid `recommended portfolio`, `optimal mix`, `Raven-selected allocation`, `appropriate for your risk profile`, or any wording that turns Raven measurement into discretionary portfolio authority.
 
-No allocation bands or assets are synthesized when they are absent. An empty policy therefore produces no invented portfolio target. Cold buckets are structurally protected from sale in v1. User-signed mode structurally requires a wallet signature and disallows Raven custody or unrestricted private-key access.
+## Persistence and release boundary
 
-## Deterministic evaluation and planning
+No migration was added. Before public persistence or an authenticated route, resolve:
 
-Portfolio measurements are computed from economic lots using integer minor-unit values. Allocation comparisons use basis points. Missing executable valuations make policy evaluation unavailable rather than silently treating missing value as zero.
+- wallet-link ownership and object-level authorization;
+- explicit public-address persistence consent and retention/deletion behavior;
+- insert-only policy versions, snapshots, measurements, findings, and outcomes;
+- RPC/price/quote cache and rate limits;
+- source freshness budgets and unsupported-protocol presentation;
+- separation from Raven's private wallet-intelligence graph;
+- wallet-data and internal-state no-leak validation.
 
-The initial calculation function accepts an explicit correction path and validates it against the user's policy. It can model:
-
-- routing a new inflow to a user-allowed asset and bucket; or
-- reallocating value from one exact routeable, unprotected position to a user-allowed destination through a user-allowed venue.
-
-It refuses paths that sell cold/protected assets, exceed transaction or turnover limits, use unallowed assets or venues, fail to reduce the cited violation, cross the opposite side of a user band, create a new band violation, or worsen a configured protocol/issuer concentration limit.
-
-The result is an expected calculated state, not a factual `PortfolioSnapshot`. Only post-settlement observation may create the next factual snapshot.
-
-## Execution boundary
-
-The domain foundation has no Worker route, database mutation, signer, provider submission, wallet adapter, or live venue import. A successful v1 authorization can create only an `ExecutionIntent` in `awaiting_user_signature` state with:
-
-- non-custodial custody model;
-- exact policy, snapshot, calculation, quote, authorization, and wallet-link references;
-- no Raven private-key access;
-- no Raven omnibus account;
-- no submission authorization.
-
-Future integration should adapt a Governor intent into the existing exact customer transaction-authorization pipeline. The adapter must preserve the Governor references in the immutable review binding. It must not treat a policy, Raven Read, connected wallet, or quote as authorization.
-
-## Persistence proposal
-
-The existing authenticated customer D1 boundary can support future storage without a new database or framework. The proposed tables are append-oriented:
-
-| Table | Key and immutable linkage |
-| --- | --- |
-| `portfolio_governor_portfolios` | Customer-scoped portfolio identity and state only |
-| `portfolio_governor_policy_versions` | `(policy_id, version)` unique; immutable JSON/hash; supersedes reference |
-| `portfolio_governor_snapshots` | Snapshot ID/hash, owner, observation time, normalized payload |
-| `portfolio_governor_measurements` | Snapshot ID/hash plus methodology version and measurement payload |
-| `portfolio_governor_violations` | Exact policy, snapshot, measurement, and rule references |
-| `portfolio_governor_calculations` | Exact violation and expected-state calculation |
-| `portfolio_governor_quotes` | Exact calculation plus source time, expiry, route, and execution evidence |
-| `portfolio_governor_authorizations` | User/session/wallet link plus exact quote hash and expiry |
-| `portfolio_governor_intents` | Authorization-bound non-custodial state machine |
-| `portfolio_governor_fills` | Provider/chain settlement evidence and idempotency identity |
-| `portfolio_governor_settlement_outcomes` | Fill-to-resulting-snapshot reconciliation |
-| `portfolio_governor_outcomes` | Refusal/no-action records and exact evidence references |
-
-This pass deliberately does not add the migration. Wallet-link ownership, explicit public-address persistence consent, retention/deletion policy, transaction authorization rollout, and quote/fill reconciliation must be resolved before freezing a customer-data schema.
-
-## Phase 1 implementation boundary
-
-Phase 1 remains read-only Solana policy monitoring:
-
-1. accept a public Solana wallet address with explicit observation/persistence semantics;
-2. normalize spot tokens, liquid staking tokens, LPs, lending positions, liabilities, protocols, and stablecoin issuers into economic lots;
-3. append a factual snapshot and deterministic measurement;
-4. let the user author buckets, bands, protection, and concentration rules;
-5. show current exposure, policy drift, exact rule deltas, valuation confidence, and routeability;
-6. calculate deposit-first correction paths without executing them;
-7. persist no-action and refusal outcomes alongside actionable calculations.
-
-Execution quotes, wallet authorization, and settlement types exist now only to prevent an architectural rewrite later. They are not public execution capability.
-
-## UI language
-
-Use:
-
-- Your policy
-- Your configured range
-- Outside your selected allocation
-- Policy drift
-- Portfolio exposure
-- Current executable value
-- Correction required by your policy
-- Proposed rebalance
-- Expected post-trade allocation
-- Approve / Reject
-- No action economically justified
-
-Do not use `recommended portfolio for you`, `optimal portfolio`, `Raven-selected allocation`, `best investment mix`, or language implying that Raven inferred the user's objective or risk tolerance.
-
-## Required release gates
-
-- authenticated ownership and object-level authorization for every persisted resource;
-- insert-only policy versions and provenance records, with explicit supersession;
-- no address flow from customer Portfolio into Raven's private wallet-intelligence graph;
-- no execution without exact unexpired user authorization and wallet signature;
-- quote/policy/snapshot invalidation under concurrent changes;
-- append-only refusal visibility;
-- source freshness, routeability, valuation confidence, and partial-portfolio behavior;
-- no-leak scanning for wallet data, credentials, transaction payloads, and internal Raven research state.
+The smallest next implementation step is an authenticated, rate-limited, read-only Solana portfolio preview that uses the existing wallet-link/RPC and price contracts, keeps the submitted address transient unless the user opts into persistence, and returns the sealed snapshot/measurement contract. Policy persistence and evaluation should follow only after that preview is validated against live wallets. Rebalancing remains behind a separate evidence review.
