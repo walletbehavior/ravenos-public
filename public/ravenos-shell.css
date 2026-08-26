@@ -304,6 +304,22 @@ body.ros-utility-open .ros-utility-drawer {
 .ros-context-section { padding: 15px 16px; border-bottom: 1px solid var(--ros-line); }
 .ros-context-section ul { display: grid; gap: 9px; margin: 10px 0 0; padding: 0; list-style: none; }
 .ros-context-section li { padding-left: 11px; border-left: 2px solid var(--ros-line-strong); color: #b6c2d2; font-size: 11px; line-height: 1.48; }
+.ros-evidence-navigation > div { display: grid; gap: 1px; margin: 10px -16px -15px; background: var(--ros-line); }
+.ros-evidence-destination {
+  min-width: 0;
+  min-height: 51px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 16px;
+  background: var(--ros-surface);
+}
+a.ros-evidence-destination:hover,
+a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised); outline: 0; }
+.ros-evidence-destination strong { color: var(--ros-text); font-size: 10px; }
+.ros-evidence-destination small { color: var(--ros-muted); font-size: 8px; line-height: 1.4; }
+.ros-evidence-destination[data-state="unavailable"] strong { color: var(--ros-muted); }
+.ros-evidence-destination[data-state="declared"] { box-shadow: inset 2px 0 var(--ros-accent); }
 .ros-context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 0; background: var(--ros-line); }
 .ros-context-grid div { min-width: 0; display: grid; gap: 5px; padding: 13px 15px; background: #0a0f17; }
 .ros-context-grid strong { font-size: 11px; text-transform: capitalize; overflow-wrap: anywhere; }

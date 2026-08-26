@@ -6,6 +6,7 @@ import {
   spotFlowRead,
   spotMarketHealth,
   spotVelocityRead,
+  validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
 
 const REFRESH_MS = 45 * 1_000;
@@ -393,6 +394,34 @@ function renderDeskBrief({ brief = null, markets = [], spotRows = [], opportunit
   document.getElementById("discoverDeskFreshness").textContent = Number.isNaN(observedAt.getTime())
     ? "Live composite"
     : when(frame.observed_at);
+  section.hidden = false;
+}
+
+function renderAttentionBenchmark(census = null) {
+  const section = document.getElementById("discoverAttentionBenchmark");
+  const metrics = document.getElementById("discoverAttentionMetrics");
+  const benchmark = validateAttentionBenchmark(census || {});
+  metrics.replaceChildren();
+  section.hidden = true;
+  if (!benchmark) return;
+
+  const percentOfSample = (share) => `${(share * 100).toFixed(1)}% of retained sample`;
+  const rows = [
+    ["Retained benchmark", benchmark.referenceEpisodes.toLocaleString("en-US"), benchmark.referenceLabel],
+    ["Distinct exact markets", benchmark.distinctMarkets.toLocaleString("en-US"), benchmark.deduplication],
+    ["Raven observation overlap", benchmark.observation.episodes.toLocaleString("en-US"), percentOfSample(benchmark.observation.share)],
+    ["Median observation lead", `${Math.round(benchmark.observation.medianLeadSeconds / 60)}m`, "Among retained overlapping Raven observations"],
+    ["Behavioral-change overlap", benchmark.behavior.episodes.toLocaleString("en-US"), percentOfSample(benchmark.behavior.share)],
+    ["Exact-decision-context overlap", benchmark.exactDecisionContext.episodes.toLocaleString("en-US"), percentOfSample(benchmark.exactDecisionContext.share)],
+  ];
+  for (const [label, value, detail] of rows) {
+    const article = document.createElement("article");
+    append(article, "span", "", label);
+    append(article, "strong", "", value);
+    append(article, "small", "", detail);
+    metrics.append(article);
+  }
+  document.getElementById("discoverAttentionFreshness").textContent = when(benchmark.generatedAt);
   section.hidden = false;
 }
 
@@ -1593,15 +1622,18 @@ async function refresh({ manual = false } = {}) {
       }));
       spotAttentionRows = current.spotRows;
       renderParticipationPayoff(current.participationPayoff);
+      renderAttentionBenchmark(current.census);
       ravenGeneratedAt = current.generatedAt;
       setState("discoverCensusState", current.freshness, title(current.freshness));
     } catch {
       renderParticipationPayoff(null);
+      renderAttentionBenchmark(null);
       setState("discoverCensusState", "unavailable", "Unavailable");
       ravenFailure = "Current Raven opportunities are temporarily unavailable. Historical reads are not shown as current.";
     }
   } else {
     renderParticipationPayoff(null);
+    renderAttentionBenchmark(null);
     setState("discoverCensusState", "unavailable", "Unavailable");
     const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
     ravenFailure = `Current Raven opportunities could not be reached${status === "network" ? "" : ` (${status})`}. Historical reads are not shown as current.`;

@@ -14,6 +14,7 @@ const files = [
   "claims/index.html",
   "memory/index.html",
   "behavior/index.html",
+  "intelligence/index.html",
   "research/index.html",
   "perps/index.html",
   "chains/solana/index.html",

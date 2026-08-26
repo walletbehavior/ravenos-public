@@ -84,6 +84,26 @@
       </aside>
     </div>
 
+    <section class="perps-intelligence" id="perpsIntelligence" aria-labelledby="perpsIntelligenceTitle">
+      <header class="perps-intelligence-head">
+        <div><span>Aggregate venue intelligence</span><h2 id="perpsIntelligenceTitle">Perps Intelligence</h2><p>Positioning, pressure, liquidity, and forward outcome context across current Hyperliquid markets.</p></div>
+        <div><strong id="perpsIntelligenceState" data-state="unavailable">Checking current projection</strong><small id="perpsIntelligenceObserved">Timestamp pending</small></div>
+      </header>
+      <div class="perps-intelligence-tabs" role="tablist" aria-label="Perps Intelligence view">
+        <button id="perpsIntelTabOverview" type="button" role="tab" aria-selected="true" aria-controls="perpsIntelOverview" tabindex="0" data-perps-intel-tab="overview">Overview</button>
+        <button id="perpsIntelTabPositioning" type="button" role="tab" aria-selected="false" aria-controls="perpsIntelPositioning" tabindex="-1" data-perps-intel-tab="positioning">Positioning</button>
+        <button id="perpsIntelTabPressure" type="button" role="tab" aria-selected="false" aria-controls="perpsIntelPressure" tabindex="-1" data-perps-intel-tab="pressure">Pressure &amp; crowding</button>
+        <button id="perpsIntelTabLiquidity" type="button" role="tab" aria-selected="false" aria-controls="perpsIntelLiquidity" tabindex="-1" data-perps-intel-tab="liquidity">Liquidity</button>
+        <button id="perpsIntelTabOutcomes" type="button" role="tab" aria-selected="false" aria-controls="perpsIntelOutcomes" tabindex="-1" data-perps-intel-tab="outcomes">Outcomes</button>
+      </div>
+      <div class="perps-intelligence-panel" id="perpsIntelOverview" role="tabpanel" aria-labelledby="perpsIntelTabOverview" data-perps-intel-panel="overview"></div>
+      <div class="perps-intelligence-panel" id="perpsIntelPositioning" role="tabpanel" aria-labelledby="perpsIntelTabPositioning" data-perps-intel-panel="positioning" hidden></div>
+      <div class="perps-intelligence-panel" id="perpsIntelPressure" role="tabpanel" aria-labelledby="perpsIntelTabPressure" data-perps-intel-panel="pressure" hidden></div>
+      <div class="perps-intelligence-panel" id="perpsIntelLiquidity" role="tabpanel" aria-labelledby="perpsIntelTabLiquidity" data-perps-intel-panel="liquidity" hidden></div>
+      <div class="perps-intelligence-panel" id="perpsIntelOutcomes" role="tabpanel" aria-labelledby="perpsIntelTabOutcomes" data-perps-intel-panel="outcomes" hidden></div>
+      <footer><strong>Aggregate evidence</strong><span>These views describe current venue structure and early forward-observation results. They are not liquidation data, participant identities, or a trade recommendation.</span><a href="/intelligence/">All Intelligence →</a></footer>
+    </section>
+
     <section class="perps-evidence-deck" aria-label="Raven research evidence">
       <article id="perpsComparablePanel">
         <header><div><span>Future-only validation</span><h2>Matured comparables</h2></div><strong id="perpsComparableMaturity">Forming</strong></header>

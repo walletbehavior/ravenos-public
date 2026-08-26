@@ -50,7 +50,7 @@ function renderGeneratedRoute(route) {
     ...route,
     question: prompt,
     route_manifest_version: config.route_manifest_version,
-    fallback_message: hasFallbackArtifact ? null : "Current read forming. Verified fallback data is not yet available for this route.",
+    fallback_message: route.fallback_message ?? (hasFallbackArtifact ? null : "Current read forming. Verified fallback data is not yet available for this route."),
     surface_state: "live_intelligence_workspace",
   };
   return `<!doctype html>

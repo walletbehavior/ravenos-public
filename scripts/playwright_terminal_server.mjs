@@ -241,6 +241,17 @@ async function servePublicOriginFixture(req, res) {
     res.end(JSON.stringify(atlasFixture()));
     return true;
   }
+  if (["/__playwright_public_origin/behavior.json", "/__playwright_public_origin/perps.json"].includes(url.pathname)) {
+    const filename = url.pathname.endsWith("behavior.json") ? "behavior.json" : "perps.json";
+    const payload = JSON.parse(await readFile(join(root, "ravenos", filename), "utf8"));
+    const generatedAt = new Date().toISOString();
+    payload.generated_at = generatedAt;
+    payload.updated_at = generatedAt;
+    payload.data = { ...payload.data, generated_at: generatedAt, source_generated_at: generatedAt };
+    res.statusCode = 200;
+    res.end(JSON.stringify(payload));
+    return true;
+  }
   if (url.pathname !== "/__playwright_public_origin/opportunities.json") {
     res.statusCode = 404;
     res.end(JSON.stringify({ ok: false, error: "fixture_not_found" }));
@@ -263,6 +274,36 @@ async function servePublicOriginFixture(req, res) {
         context_age_seconds: 0,
         context_state: "fresh",
       })),
+    },
+    attention_benchmark: {
+      schema_version: "ravenos_market_attention_benchmark_public_v1",
+      generated_at: generatedAt,
+      freshness: { state: "current", age_seconds: 0, target_seconds: 3_600 },
+      public_safety: {
+        market_addresses_exposed: false,
+        participant_identities_exposed: false,
+        private_lineage_exposed: false,
+        raw_reference_payloads_exposed: false,
+        reference_source_identity_exposed: false,
+      },
+      interpretation: {
+        headline: "Raven frequently observed the market before broader attention arrived.",
+        scope: "Descriptive timing overlap in the retained benchmark only.",
+        profitability_claimed: false,
+        selected_instrument_claimed: false,
+        tradeable_rule_claimed: false,
+      },
+      reference_scope: {
+        episode_count: 3_799,
+        distinct_markets: 3_460,
+        label: "Third-party market-attention episodes",
+        deduplication: "Exact chain and market identity within a thirty-minute attention session",
+      },
+      raven_lead: {
+        observation: { episodes: 745, label: "Raven observation", median_lead_seconds: 2_206.45, share_of_reference_episodes: 745 / 3_799 },
+        behavior: { episodes: 555, label: "Behavioral change", median_lead_seconds: 8_259.73, share_of_reference_episodes: 555 / 3_799 },
+        exact_decision_context: { episodes: 109, label: "Exact market and friction context", median_lead_seconds: 3_872, share_of_reference_episodes: 109 / 3_799 },
+      },
     },
   };
   res.statusCode = 200;

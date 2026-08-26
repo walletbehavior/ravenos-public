@@ -16,6 +16,7 @@ const state = {
 };
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
 }
@@ -89,6 +90,283 @@ function setList(id, values, fallback) {
     item.textContent = String(value || fallback);
     host.append(item);
   }
+}
+
+function strictFinite(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const result = Number(value);
+  return Number.isFinite(result) ? result : null;
+}
+
+function appendText(parent, tag, className, value) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = String(value ?? "");
+  parent.append(node);
+  return node;
+}
+
+function currentPublicPerps(payload) {
+  const delivery = payload?.delivery || {};
+  const data = payload?.data;
+  const tables = data?.tables;
+  if (
+    payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== "ravenos_perps_public_origin_v1"
+    || payload?.redaction_policy !== "aggregate_public_market_context_only"
+    || delivery.source !== "current_public_origin"
+    || delivery.fallback !== false
+    || !["fresh", "delayed"].includes(delivery.freshness_state)
+    || data?.schema_version !== "ravenos_perps_evidence_public_v2"
+    || data?.safe_public !== true
+    || data?.public_safe !== true
+    || !data?.summary
+    || !tables
+    || !["top_volume", "top_pressure", "tightest_books", "wide_or_thin_books"].every((key) => Array.isArray(tables[key]))
+  ) return null;
+  return { data, delivery, generatedAt: data.generated_at || payload.generated_at };
+}
+
+function intelligencePanel(name) {
+  return document.querySelector(`[data-perps-intel-panel="${name}"]`);
+}
+
+function renderIntelligenceUnavailable(message = "Current Perps Intelligence is unavailable. Older data was not substituted.") {
+  setState("perpsIntelligenceState", "unavailable", "Unavailable");
+  setText("perpsIntelligenceObserved", "No current artifact");
+  for (const panel of document.querySelectorAll("[data-perps-intel-panel]")) {
+    panel.replaceChildren();
+    const empty = document.createElement("div");
+    empty.className = "perps-intelligence-unavailable";
+    appendText(empty, "strong", "", "Current intelligence unavailable");
+    appendText(empty, "p", "", message);
+    panel.append(empty);
+  }
+}
+
+function appendMetricGrid(host, metrics, className = "") {
+  const grid = document.createElement("div");
+  grid.className = `perps-intel-metrics${className ? ` ${className}` : ""}`;
+  for (const [label, value, detail, stateName] of metrics) {
+    const card = document.createElement("article");
+    if (stateName) card.dataset.state = stateName;
+    appendText(card, "span", "", label);
+    appendText(card, "strong", "", value);
+    if (detail) appendText(card, "small", "", detail);
+    grid.append(card);
+  }
+  host.append(grid);
+  return grid;
+}
+
+function appendBucketSet(host, title, buckets = {}) {
+  const values = Object.entries(buckets || {}).filter(([, value]) => strictFinite(value) !== null);
+  if (!values.length) return;
+  const section = document.createElement("section");
+  section.className = "perps-intel-section";
+  appendText(section, "h3", "", title);
+  appendMetricGrid(section, values.map(([label, value]) => [titleCase(label), Number(value).toLocaleString("en-US"), "markets", ""]), "compact");
+  host.append(section);
+}
+
+function appendDataTable(host, { title, detail = "", columns = [], rows = [] } = {}) {
+  const section = document.createElement("section");
+  section.className = "perps-intel-section";
+  const header = document.createElement("header");
+  const copy = document.createElement("div");
+  appendText(copy, "h3", "", title);
+  if (detail) appendText(copy, "p", "", detail);
+  header.append(copy);
+  section.append(header);
+  if (!rows.length) {
+    appendText(section, "p", "perps-intel-empty", "Current rows are unavailable.");
+    host.append(section);
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "perps-intel-table-wrap";
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const column of columns) {
+    const cell = appendText(headRow, "th", "", column.label);
+    cell.scope = "col";
+  }
+  thead.append(headRow);
+  table.append(thead);
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    columns.forEach((column, index) => {
+      const value = typeof column.value === "function" ? column.value(row) : row?.[column.value];
+      const cell = appendText(tr, index === 0 ? "th" : "td", "", value ?? "—");
+      cell.dataset.label = column.label;
+      if (index === 0) cell.scope = "row";
+    });
+    tbody.append(tr);
+  }
+  table.append(tbody);
+  wrap.append(table);
+  section.append(wrap);
+  host.append(section);
+}
+
+function renderPerpsOverview(data) {
+  const host = intelligencePanel("overview");
+  host.replaceChildren();
+  const summary = data.summary || {};
+  appendMetricGrid(host, [
+    ["Markets observed", Number(summary.markets_observed || 0).toLocaleString("en-US"), `${Number(summary.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
+    ["Forward observations", Number(summary.forward_observations || 0).toLocaleString("en-US"), `${Number(summary.matured_12h_windows || 0).toLocaleString("en-US")} matured through 12h`, "forming"],
+    ["Participant context", titleCase(data.actor_evidence?.actor_evidence_freshness, "Unavailable"), data.actor_evidence?.actor_evidence_freshness === "stale" ? "Stale aggregate evidence is withheld from live leaderboards" : "Aggregate status only; identities withheld", data.actor_evidence?.actor_evidence_freshness || "unavailable"],
+    ["Liquidation stream", "Unavailable", "No qualified public liquidation source is attached; nothing is synthesized", "unavailable"],
+  ]);
+  const participant = document.createElement("div");
+  participant.className = "perps-intel-boundary";
+  appendText(participant, "strong", "", data.actor_evidence?.actor_evidence_freshness === "stale" ? "Participant context is stale" : "Participant context is aggregate");
+  appendText(participant, "span", "", data.actor_evidence?.actor_evidence_freshness === "stale"
+    ? `Last aggregate participant observation: ${timestamp(data.actor_evidence?.observed_at)}. No live leaderboard is shown.`
+    : "No wallet identities, labels, relationship graphs, or smart-money ranking is exposed.");
+  host.append(participant);
+  appendBucketSet(host, "Pressure states", summary.pressure_buckets);
+  appendBucketSet(host, "Liquidity quality", summary.liquidity_buckets);
+}
+
+function renderPerpsPositioning(data) {
+  const host = intelligencePanel("positioning");
+  host.replaceChildren();
+  appendDataTable(host, {
+    title: "Funding and open interest",
+    detail: "Highest current venue volume, with funding posture and outstanding open interest kept separate.",
+    columns: [
+      { label: "Market", value: "symbol" },
+      { label: "Funding regime", value: (row) => row.funding_regime || "Unavailable" },
+      { label: "Funding", value: (row) => rate(row.funding_rate) },
+      { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
+      { label: "24h volume", value: (row) => strictFinite(row.day_volume_usd) === null ? "—" : `$${compact(row.day_volume_usd)}` },
+    ],
+    rows: data.tables.top_volume.slice(0, 12),
+  });
+}
+
+function renderPerpsPressure(data) {
+  const host = intelligencePanel("pressure");
+  host.replaceChildren();
+  appendBucketSet(host, "Current pressure distribution", data.summary?.pressure_buckets);
+  appendDataTable(host, {
+    title: "Highest-pressure markets",
+    detail: "Pressure and crowding are Raven measurements derived from current public venue structure, not liquidation events.",
+    columns: [
+      { label: "Market", value: "symbol" },
+      { label: "Pressure state", value: "pressure_state" },
+      { label: "Direction context", value: "pressure_direction" },
+      { label: "Funding regime", value: "funding_regime" },
+      { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
+    ],
+    rows: data.tables.top_pressure.slice(0, 12),
+  });
+}
+
+function renderPerpsLiquidity(data) {
+  const host = intelligencePanel("liquidity");
+  host.replaceChildren();
+  appendBucketSet(host, "Current liquidity distribution", data.summary?.liquidity_buckets);
+  const columns = [
+    { label: "Market", value: "symbol" },
+    { label: "Quality", value: "liquidity_quality" },
+    { label: "Spread", value: (row) => strictFinite(row.spread_bps) === null ? "—" : `${Number(row.spread_bps).toFixed(2)} bps` },
+    { label: "20-level depth", value: (row) => strictFinite(row.depth_20_usd) === null ? "—" : `$${compact(row.depth_20_usd)}` },
+    { label: "24h volume", value: (row) => strictFinite(row.day_volume_usd) === null ? "—" : `$${compact(row.day_volume_usd)}` },
+  ];
+  appendDataTable(host, { title: "Tightest books", detail: "Lowest observed spreads among current qualified books.", columns, rows: data.tables.tightest_books.slice(0, 10) });
+  appendDataTable(host, { title: "Wide or thin books", detail: "Markets where visible depth or spread warrants explicit friction caution.", columns, rows: data.tables.wide_or_thin_books.slice(0, 10) });
+}
+
+function renderPerpsOutcomes(data) {
+  const host = intelligencePanel("outcomes");
+  host.replaceChildren();
+  const forward = data.forward_observation || {};
+  const windows = ["15m", "1h", "4h", "12h"];
+  appendMetricGrid(host, windows.map((windowName) => {
+    const matured = strictFinite(forward.matured_windows?.[windowName]);
+    const observed = strictFinite(forward.median_observed_change_pct?.[windowName]);
+    const favorable = strictFinite(forward.median_max_favorable_movement_pct?.[windowName]);
+    return [
+      `${windowName} maturity`,
+      matured === null ? "Unavailable" : `${matured.toLocaleString("en-US")} / ${Number(forward.observations || 0).toLocaleString("en-US")}`,
+      observed === null ? "No matured median" : `Median ${percentagePoint(observed)} · favorable ${percentagePoint(favorable)}`,
+      matured ? "forming" : "unavailable",
+    ];
+  }));
+  const caveat = document.createElement("div");
+  caveat.className = "perps-intel-boundary";
+  appendText(caveat, "strong", "", "Forward-observation maturity");
+  appendText(caveat, "span", "", forward.sample_caveat || "The public forward sample is forming and is not a recommendation.");
+  host.append(caveat);
+  const attribution = data.outcome_attribution || {};
+  const grouped = attribution.grouped || {};
+  const outcomeRows = [
+    ...(Array.isArray(grouped.funding_regime) ? grouped.funding_regime : []),
+    ...(Array.isArray(grouped.pressure_bucket) ? grouped.pressure_bucket : []),
+    ...(Array.isArray(grouped.instrument_group) ? grouped.instrument_group : []),
+  ].slice(0, 12);
+  appendDataTable(host, {
+    title: "Aggregate outcome attribution",
+    detail: attribution.public_caveat || "Outcome attribution is aggregate validation context.",
+    columns: [
+      { label: "Group", value: (row) => `${row.label || "Context"}: ${row.group || "Unavailable"}` },
+      { label: "Read", value: "read" },
+      { label: "Sample", value: (row) => Number(row.sample_size || 0).toLocaleString("en-US") },
+      { label: "Confidence", value: "confidence" },
+      { label: "Median observed", value: (row) => percentagePoint(row.median_observed_change_pct) },
+    ],
+    rows: outcomeRows,
+  });
+}
+
+function renderPublicPerps(payload) {
+  const projection = currentPublicPerps(payload);
+  if (!projection) {
+    renderIntelligenceUnavailable();
+    return;
+  }
+  const { data, delivery, generatedAt } = projection;
+  setState("perpsIntelligenceState", delivery.freshness_state, delivery.freshness_state === "delayed" ? "Delayed · current origin" : "Current");
+  setText("perpsIntelligenceObserved", timestamp(generatedAt));
+  renderPerpsOverview(data);
+  renderPerpsPositioning(data);
+  renderPerpsPressure(data);
+  renderPerpsLiquidity(data);
+  renderPerpsOutcomes(data);
+}
+
+function selectPerpsIntelligenceTab(name, { focus = false } = {}) {
+  const buttons = [...document.querySelectorAll("[data-perps-intel-tab]")];
+  for (const button of buttons) {
+    const selected = button.dataset.perpsIntelTab === name;
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    button.tabIndex = selected ? 0 : -1;
+    if (selected && focus) button.focus();
+  }
+  document.querySelectorAll("[data-perps-intel-panel]").forEach((panel) => { panel.hidden = panel.dataset.perpsIntelPanel !== name; });
+}
+
+function bindPerpsIntelligenceTabs() {
+  const buttons = [...document.querySelectorAll("[data-perps-intel-tab]")];
+  buttons.forEach((button, index) => {
+    button.addEventListener("click", () => selectPerpsIntelligenceTab(button.dataset.perpsIntelTab));
+    button.addEventListener("keydown", (event) => {
+      let next = index;
+      if (event.key === "ArrowRight") next = (index + 1) % buttons.length;
+      else if (event.key === "ArrowLeft") next = (index - 1 + buttons.length) % buttons.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = buttons.length - 1;
+      else return;
+      event.preventDefault();
+      selectPerpsIntelligenceTab(buttons[next].dataset.perpsIntelTab, { focus: true });
+    });
+  });
 }
 
 function biasLabel(value) {
@@ -498,8 +776,11 @@ async function loadPublicPerps() {
     const response = await fetch("/api/perps", { cache: "no-store" });
     const payload = await response.json().catch(() => null);
     state.publicPerps = response.ok ? payload : null;
+    if (state.publicPerps) renderPublicPerps(state.publicPerps);
+    else renderIntelligenceUnavailable();
   } catch {
     state.publicPerps = null;
+    renderIntelligenceUnavailable();
   }
 }
 
@@ -563,6 +844,7 @@ async function boot() {
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   buildTimeframes();
   bindMobilePanes();
+  bindPerpsIntelligenceTabs();
   document.getElementById("perpsInstrument").addEventListener("change", (event) => selectInstrument(event.target.value));
   document.getElementById("perpsRavenMarker").addEventListener("click", (event) => {
     if (event.currentTarget.disabled) return;

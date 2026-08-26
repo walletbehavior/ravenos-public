@@ -900,8 +900,8 @@ test("selected context survives navigation to Discover", async ({ page }) => {
 });
 
 test("primary navigation is coherent across workspace and static support surfaces", async ({ page }) => {
-  const expected = ["Discover", "Terminal", "Portfolio", "Atlas"];
-  const shellRoutes = ["/discover/", "/terminal/", "/opportunity/", "/replay/", "/outcomes/", "/memory/", "/behavior/", "/research/", "/perps/", "/atlas/", "/account/"];
+  const expected = ["Discover", "Terminal", "Intel", "Portfolio", "Atlas"];
+  const shellRoutes = ["/discover/", "/terminal/", "/intelligence/", "/opportunity/", "/replay/", "/outcomes/", "/memory/", "/behavior/", "/research/", "/perps/", "/atlas/", "/account/"];
   await mockTerminalLiveApis(page);
 
   for (const route of shellRoutes) {

@@ -6,6 +6,7 @@ const requireJupiterVelocity = ["1", "true", "yes"].includes(String(process.env.
 const pageRoutes = [
   "/",
   "/discover/",
+  "/intelligence/",
   "/opportunity/",
   "/terminal/",
   "/portfolio/",

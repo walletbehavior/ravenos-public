@@ -16,9 +16,17 @@ const NAV_ITEMS = Object.freeze([
     label: "Discover",
     href: "/discover/",
     glyph: "D",
-    match: ["discover", "home", "opportunity", "behavior", "outcomes", "claims", "replay", "memory", "research", "chain-solana", "chain-base", "chain-ethereum"],
+    match: ["discover", "home", "opportunity"],
   },
   { key: "terminal", label: "Terminal", href: "/terminal/", glyph: "T", match: ["terminal", "perps"] },
+  {
+    key: "intelligence",
+    label: "Intel",
+    href: "/intelligence/",
+    glyph: "I",
+    mobile: false,
+    match: ["intelligence", "behavior", "outcomes", "claims", "replay", "memory", "research", "chain-solana", "chain-base", "chain-ethereum"],
+  },
   { key: "portfolio", label: "Portfolio", href: "/portfolio/", glyph: "P", match: ["portfolio"] },
   { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", match: ["atlas"] },
 ]);
@@ -132,7 +140,7 @@ function terminalHref(subject = {}) {
 }
 
 function navMarkup(slug, { mobile = false } = {}) {
-  const items = NAV_ITEMS.map((item) => {
+  const items = NAV_ITEMS.filter((item) => !mobile || item.mobile !== false).map((item) => {
     const active = item.match.includes(slug) ? " active" : "";
     const className = mobile ? "ros-mobile-nav-item" : "ros-workspace-nav-item";
     return `<a class="${className}${active}" href="${ravenOSContext.decorateHref(item.href)}" data-ros-context-link data-ros-base-href="${item.href}" data-ros-nav="${item.key}"><span class="ros-nav-glyph" aria-hidden="true">${item.glyph}</span><span>${item.label}</span></a>`;
@@ -182,6 +190,7 @@ function createShellMarkup(slug) {
       <section class="ros-context-section"><span>What supports it</span><ul id="rosSupportingEvidence"><li>No confirming evidence is currently available.</li></ul></section>
       <section class="ros-context-section"><span>What would weaken it</span><ul id="rosContradictingEvidence"><li>No explicit invalidation is currently available.</li></ul></section>
       <section class="ros-context-section"><span>Next transition</span><p id="rosNextTransition">No transition is currently declared.</p></section>
+      <section class="ros-context-section ros-evidence-navigation"><span>Evidence trail</span><div id="rosEvidenceNavigation"></div></section>
       <footer class="ros-context-footer"><button type="button" data-ros-context-action="terminal">Open in Terminal</button></footer>
     </aside>
     <aside class="ros-utility-drawer" id="rosUtilityDrawer" aria-label="RavenOS utilities">
@@ -208,6 +217,47 @@ function setList(id, values, fallback) {
     li.textContent = value?.label || String(value);
     host.append(li);
   }
+}
+
+function renderEvidenceNavigation(context, intelligence) {
+  const host = document.getElementById("rosEvidenceNavigation");
+  if (!host) return;
+  host.replaceChildren();
+  const exactSelected = context?.subject?.id && context.subject.id !== "unselected";
+  const claimCandidates = [context?.detectionId, ...(intelligence?.sourceReferences || [])];
+  const claimId = claimCandidates.find((value) => /^claim_[a-z0-9_-]{8,96}$/i.test(String(value || ""))) || "";
+  const destinations = [
+    { label: "Participant Intelligence", detail: "Broader aggregate context", href: "/behavior/" },
+    { label: "Similar History", detail: exactSelected ? "Exact context requested; match is verified there" : "Broader historical context", href: "/replay/" },
+    { label: "Measured Followthrough", detail: context?.outcomeId ? "Outcome reference attached" : "Broader measured context", href: "/outcomes/" },
+  ];
+  if (claimId) destinations.splice(1, 0, { label: "Original claim", detail: "Exact claim reference attached", href: `/claims/?id=${encodeURIComponent(claimId)}` });
+  else destinations.splice(1, 0, { label: "Original claim", detail: "Exact claim not attached", href: "" });
+
+  for (const destination of destinations) {
+    const row = document.createElement(destination.href ? "a" : "div");
+    row.className = "ros-evidence-destination";
+    if (destination.href) {
+      row.dataset.rosContextLink = "";
+      row.dataset.rosBaseHref = destination.href;
+      row.href = ravenOSContext.decorateHref(destination.href);
+    } else row.dataset.state = "unavailable";
+    const label = document.createElement("strong");
+    label.textContent = destination.label;
+    const detail = document.createElement("small");
+    detail.textContent = destination.detail;
+    row.append(label, detail);
+    host.append(row);
+  }
+  const invalidation = document.createElement("div");
+  invalidation.className = "ros-evidence-destination";
+  invalidation.dataset.state = intelligence?.invalidation?.length ? "declared" : "unavailable";
+  const invalidationLabel = document.createElement("strong");
+  invalidationLabel.textContent = "Invalidation state";
+  const invalidationDetail = document.createElement("small");
+  invalidationDetail.textContent = intelligence?.invalidation?.length ? "Declared in this Raven Read" : "Unavailable for this Raven Read";
+  invalidation.append(invalidationLabel, invalidationDetail);
+  host.append(invalidation);
 }
 
 function unwrap(payload) {
@@ -447,7 +497,7 @@ function utilityMarkup(kind, context) {
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
     : customerAccountState.available ? "Google, email, password, or code" : "Account activation status";
-  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
+  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -482,6 +532,7 @@ export function mountRavenOSShell(options = {}) {
     document.querySelectorAll("[data-ros-context-link]").forEach((link) => {
       link.setAttribute("href", ravenOSContext.decorateHref(link.dataset.rosBaseHref || link.getAttribute("href")));
     });
+    renderEvidenceNavigation(context, intelligence);
   }
 
   function setIntelligence(next) {
@@ -528,6 +579,7 @@ export function mountRavenOSShell(options = {}) {
     document.getElementById("rosNextTransition").textContent = intelligence.nextExpectedTransition;
     setList("rosSupportingEvidence", intelligence.supportingEvidence, "No confirming evidence is currently available.");
     setList("rosContradictingEvidence", [...intelligence.contradictingEvidence, ...intelligence.invalidation], "No explicit invalidation is currently available.");
+    renderEvidenceNavigation(ravenOSContext.getState(), intelligence);
     return intelligence;
   }
 

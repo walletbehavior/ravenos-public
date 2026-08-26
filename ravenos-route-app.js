@@ -1015,8 +1015,44 @@ function renderMemory(payload) {
   `;
 }
 
+function currentBehaviorProjection(payload) {
+  const delivery = payload?.delivery || {};
+  const data = payload?.data;
+  const rows = data?.rows;
+  if (
+    payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.redaction_policy !== "aggregate_public_market_context_only"
+    || payload?.schema_version !== "ravenos_behavior_public_origin_v1"
+    || delivery.source !== "current_public_origin"
+    || delivery.fallback !== false
+    || !["fresh", "delayed"].includes(delivery.freshness_state)
+    || data?.schema_version !== "ravenos_participant_heatmap_v0"
+    || !Array.isArray(rows)
+    || rows.some((row) => row?.public_safe !== true)
+    || (data.actor_evidence && data.actor_evidence.public_safe !== true)
+  ) return null;
+  return data;
+}
+
+function renderBehaviorUnavailable() {
+  document.getElementById("routeHeadline").textContent = "Current Participant Intelligence unavailable.";
+  document.getElementById("routeHeroSummary").textContent = "The aggregate behavior feed did not pass its current-data and privacy checks. Older participant data is not substituted as current.";
+  document.getElementById("routeStateStrip").innerHTML = [
+    routeStateCard("Projection", "Unavailable"),
+    routeStateCard("Substitution", "None"),
+    routeStateCard("Participant identities", "Withheld"),
+  ].join("");
+  document.getElementById("routePrimaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Participant Intelligence</div><h2>Current aggregate evidence unavailable</h2></div><span class="route-pill unavailable">Unavailable</span></div><div class="route-unavailable"><strong>No stale behavior presented as current.</strong><p>RavenOS will restore this matrix only when the feed carries complete aggregate rows, denominators, current timestamps, and privacy boundaries.</p></div>`;
+  document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Privacy boundary</div><h2>Nothing private substituted</h2></div></div><div class="route-boundary"><span>Aggregate only</span><strong>No wallet identity, label, relationship graph, coordination claim, or smart-money ranking is exposed.</strong></div>`;
+}
+
 function renderBehavior(payload) {
-  const data = payload?.data || {};
+  const data = currentBehaviorProjection(payload);
+  if (!data) {
+    renderBehaviorUnavailable();
+    return;
+  }
   const allRows = Array.isArray(data.rows) ? data.rows : [];
   const actorEvidence = data.actor_evidence || {};
   const strengthOrder = { strong: 3, mixed: 2, building: 1 };
@@ -1032,41 +1068,44 @@ function renderBehavior(payload) {
     raw_wallet_redacted: "Raw wallet identities remain private; this surface uses aggregates.",
     stale_sweep_dependency: "Some participant activity has not refreshed yet.",
   };
-  const warnings = [...new Set((data.warnings || []).map((item) => limitations[item] || "A participant-evidence limitation remains attached to this read."))];
+  const warnings = [...new Set([...(data.warnings || []), ...(actorEvidence.warnings || [])].map((item) => limitations[item] || "A participant-evidence limitation remains attached to this read."))];
   const focusLabel = focus ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.cap_band)}`) : "Participation context";
   document.getElementById("routeHeadline").textContent = focus
-    ? `${focusLabel} is strengthening.`
+    ? `${focusLabel}: ${titleCase(focus.trend || "forming")} participation, ${titleCase(focus.outcome_strength || "forming")} followthrough.`
     : "Participation context is forming.";
-  document.getElementById("routeHeroSummary").textContent = "Behavior shows where aggregate participation is broadening, repeating, or failing to follow through. It preserves denominators and privacy boundaries instead of turning wallet activity into anonymous hype.";
+  document.getElementById("routeHeroSummary").textContent = "Participant Intelligence shows where aggregate participation is broadening, repeating, or failing to follow through. Every row retains its chain, capitalization band, window, denominator, confidence, and privacy boundary.";
+  const chains = new Set(allRows.map((row) => String(row.chain || "").toLowerCase()).filter(Boolean));
+  const capBands = new Set(allRows.map((row) => String(row.cap_band || "").toLowerCase()).filter(Boolean));
+  const participantFreshness = actorEvidence.actor_evidence_freshness || data.actor_evidence_freshness || "unavailable";
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Aggregate surfaces", fmtNumber(data.count || allRows.length)),
-    routeStateCard("Actor aggregates", fmtNumber(actorEvidence.actor_count ?? data.actor_count)),
-    routeStateCard("Cohorts", fmtNumber(actorEvidence.cohort_count ?? data.cohort_count)),
-    routeStateCard("Repeat actors", fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count)),
-    routeStateCard("Actor evidence", titleCase(actorEvidence.actor_evidence_freshness || data.actor_evidence_freshness || "forming")),
-    routeStateCard("Outcome status", titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven")),
+    routeStateCard("Chains", fmtNumber(chains.size)),
+    routeStateCard("Capitalization bands", fmtNumber(capBands.size)),
+    routeStateCard("Projection", titleCase(payload.delivery?.freshness_state || "unavailable")),
+    routeStateCard("Participant snapshot", titleCase(participantFreshness)),
+    routeStateCard("Privacy", "Aggregate only"),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Participation field</div><h2>Where behavior is strengthening</h2></div><span class="route-pill ${statusClass(actorEvidence.participation_quality || data.participation_quality)}">${escapeHtml(titleCase(actorEvidence.participation_quality || data.participation_quality || "forming"))}</span></div>
-    ${focus ? `<section class="behavior-focus"><div><span>Clearest supported aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.plain_language_summary, "Participation context is forming."))}</p></div><dl><div><dt>Trend</dt><dd>${escapeHtml(titleCase(focus.trend || "forming"))}</dd></div><div><dt>Followthrough</dt><dd>${escapeHtml(titleCase(focus.outcome_strength || "forming"))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(`${fmtNumber(rowUsableSample(focus))} usable / ${fmtNumber(rowObservedSample(focus))} observed`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || focus.timeframe || "current")}</dd></div></dl></section>` : ""}
+    ${focus ? `<section class="behavior-focus"><div><span>Clearest supported aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.plain_language_summary, "Participation context is forming."))}</p></div><dl><div><dt>Participation trend</dt><dd>${escapeHtml(titleCase(focus.trend || "forming"))}</dd></div><div><dt>Participant success rate</dt><dd>${escapeHtml(fmtOptionalPct(focus.participant_success_rate))}</dd></div><div><dt>Win-rate band</dt><dd>${escapeHtml(titleCase(focus.win_rate_band || "unavailable"))}</dd></div><div><dt>Outcome strength</dt><dd>${escapeHtml(titleCase(focus.outcome_strength || "forming"))}</dd></div><div><dt>Average outcome</dt><dd>${escapeHtml(titleCase(focus.avg_outcome || "unavailable"))}</dd></div><div><dt>Confidence / score</dt><dd>${escapeHtml(`${titleCase(focus.confidence || "forming")} / ${titleCase(focus.score_strength || "forming")}`)}</dd></div><div><dt>Sample integrity</dt><dd>${escapeHtml(`${fmtNumber(focus.sample_summary?.usable ?? rowUsableSample(focus))} usable · ${fmtNumber(focus.sample_summary?.observed ?? rowObservedSample(focus))} observed · ${fmtNumber(focus.sample_summary?.excluded_or_unusable ?? focus.sample_gap)} excluded`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || focus.timeframe || "current")}</dd></div></dl></section>` : ""}
     <div class="behavior-matrix" aria-label="Aggregate participation matrix">
-      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.cap_band)}`))}</span><b>${escapeHtml(titleCase(row.outcome_strength || "forming"))}</b></header><p>${escapeHtml(traderText(row.plain_language_summary, "Participation context is forming."))}</p><footer><span>${escapeHtml(`${fmtNumber(rowUsableSample(row))} / ${fmtNumber(rowObservedSample(row))} usable`)}</span><span>${escapeHtml(titleCase(row.trend || "forming"))}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span></footer></article>`).join("")}
+      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.cap_band)}`))}</span><b>${escapeHtml(titleCase(row.outcome_strength || "forming"))}</b></header><p>${escapeHtml(traderText(row.plain_language_summary, "Participation context is forming."))}</p><dl class="behavior-row-metrics"><div><dt>Trend</dt><dd>${escapeHtml(titleCase(row.trend || "forming"))}</dd></div><div><dt>Success rate</dt><dd>${escapeHtml(fmtOptionalPct(row.participant_success_rate))}</dd></div><div><dt>Win-rate band</dt><dd>${escapeHtml(titleCase(row.win_rate_band || "unavailable"))}</dd></div><div><dt>Average outcome</dt><dd>${escapeHtml(titleCase(row.avg_outcome || "unavailable"))}</dd></div><div><dt>Confidence</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div><div><dt>Score strength</dt><dd>${escapeHtml(titleCase(row.score_strength || "forming"))}</dd></div></dl><footer><span>${escapeHtml(`${fmtNumber(row.sample_summary?.usable ?? rowUsableSample(row))} usable / ${fmtNumber(row.sample_summary?.observed ?? rowObservedSample(row))} observed / ${fmtNumber(row.sample_summary?.excluded_or_unusable ?? row.sample_gap)} excluded`)}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span><span>Aggregate · identities withheld</span></footer></article>`).join("")}
     </div>
     <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Aggregate, recurring, privacy-safe</h2></div></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Aggregate, recurring, privacy-safe</h2></div><span class="route-pill ${escapeHtml(statusClass(participantFreshness))}">${escapeHtml(titleCase(participantFreshness))}</span></div>
     <section class="participant-ledger">
-      <div><span>Observed actors</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>Aggregate evidence only</small></div>
-      <div><span>Observed cohorts</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Public cohort counts</small></div>
-      <div><span>Repeat actors</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
-      <div><span>Actor-linked large moves</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_backed_big_moves ?? data.actor_backed_big_moves))}</strong><small>Descriptive, not causal</small></div>
+      <div><span>Aggregate participants</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>${escapeHtml(`${titleCase(participantFreshness)} evidence snapshot`)}</small></div>
+      <div><span>Aggregate cohorts</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>No cohort identities exposed</small></div>
+      <div><span>Recurring participants</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
+      <div><span>Large-move overlap</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_backed_big_moves ?? data.actor_backed_big_moves))}</strong><small>Descriptive overlap, not causal attribution</small></div>
       <div><span>10% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Post-observation evidence</small></div>
       <div><span>25% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe25_count ?? data.actual_mfe25_count))}</strong><small>Not capturable performance</small></div>
     </section>
-    <div class="participant-read"><span>Current participant read</span><strong>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Participant evidence is forming."))}</strong><p>Outcome status: ${escapeHtml(titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven"))}. Participation can lead price behavior; it does not prove followthrough.</p></div>
+    <div class="participant-read"><span>Participant snapshot status</span><strong>${escapeHtml(participantFreshness === "stale" ? "Participant context is stale; it is not used as a live leaderboard." : traderText(actorEvidence.public_read_label || data.public_read_label, "Participant evidence is forming."))}</strong><p>Observed ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. Outcome status: ${escapeHtml(titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven"))}. Participation can lead price behavior; it does not prove followthrough.</p></div>
     <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    <div class="route-boundary"><span>Privacy boundary</span><strong>No raw wallet identity, relationship graph, ownership claim, or coordination claim is exposed.</strong></div>
+    <div class="route-boundary"><span>Privacy boundary</span><strong>No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed.</strong></div>
   `;
 }
 

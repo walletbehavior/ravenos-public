@@ -53,6 +53,23 @@
       <div class="discover-desk-grid" id="discoverDeskGrid"></div>
     </section>
 
+    <section class="discover-attention" id="discoverAttentionBenchmark" aria-labelledby="discoverAttentionTitle" hidden>
+      <header>
+        <div>
+          <span class="workspace-label">Measured timing</span>
+          <h2 id="discoverAttentionTitle">Raven observation timing benchmark</h2>
+          <p>How Raven observations overlapped with broader market attention in the retained historical benchmark.</p>
+        </div>
+        <strong id="discoverAttentionFreshness">Current artifact</strong>
+      </header>
+      <div class="discover-attention-grid" id="discoverAttentionMetrics"></div>
+      <footer>
+        <strong>Descriptive evidence only.</strong>
+        <span>This is timing overlap in a retained historical sample—not profitability, a claim about the selected instrument, or a tradeable rule.</span>
+        <a href="/research/">Inspect evidence context →</a>
+      </footer>
+    </section>
+
     <section class="discover-payoff" id="discoverPayoff" aria-labelledby="discoverPayoffTitle" hidden>
       <header>
         <div>
@@ -77,9 +94,9 @@
           <div class="discover-token-chains" role="group" aria-label="Token chain">
             <button class="active" type="button" data-spot-chain="all" aria-pressed="true">All</button>
             <button type="button" data-spot-chain="solana" aria-pressed="false">Solana</button>
+            <button type="button" data-spot-chain="robinhood" aria-label="Robinhood Chain" title="Robinhood Chain" aria-pressed="false">RH</button>
             <button type="button" data-spot-chain="base" aria-pressed="false">Base</button>
-            <button type="button" data-spot-chain="ethereum" aria-pressed="false">Ethereum</button>
-            <button type="button" data-spot-chain="robinhood" aria-pressed="false">Robinhood</button>
+            <button type="button" data-spot-chain="ethereum" aria-label="Ethereum" title="Ethereum" aria-pressed="false">ETH</button>
           </div>
           <div class="discover-token-sort" role="group" aria-label="Token ranking">
             <button class="active" type="button" data-spot-sort="velocity" aria-pressed="true">Velocity</button>

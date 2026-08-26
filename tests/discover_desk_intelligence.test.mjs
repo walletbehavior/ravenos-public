@@ -7,6 +7,7 @@ import {
   spotFlowRead,
   spotMarketHealth,
   spotVelocityRead,
+  validateAttentionBenchmark,
 } from "../ravenos-discover-intelligence.js";
 
 function opportunity(overrides = {}) {
@@ -53,6 +54,77 @@ function pool(overrides = {}) {
     ...overrides,
   };
 }
+
+function benchmark(overrides = {}) {
+  const generatedAt = "2026-08-26T21:25:20Z";
+  return {
+    attention_benchmark: {
+      schema_version: "ravenos_market_attention_benchmark_public_v1",
+      generated_at: generatedAt,
+      freshness: { state: "current", age_seconds: 743, target_seconds: 3_600 },
+      public_safety: {
+        market_addresses_exposed: false,
+        participant_identities_exposed: false,
+        private_lineage_exposed: false,
+        raw_reference_payloads_exposed: false,
+        reference_source_identity_exposed: false,
+      },
+      interpretation: {
+        headline: "Raven frequently observed the market before broader attention arrived.",
+        scope: "Descriptive timing overlap in the retained benchmark only.",
+        profitability_claimed: false,
+        selected_instrument_claimed: false,
+        tradeable_rule_claimed: false,
+      },
+      reference_scope: {
+        episode_count: 3_799,
+        distinct_markets: 3_460,
+        label: "Third-party market-attention episodes",
+        deduplication: "Exact chain and market identity within a thirty-minute attention session",
+      },
+      raven_lead: {
+        observation: { episodes: 745, label: "Raven observation", median_lead_seconds: 2_206.45, share_of_reference_episodes: 745 / 3_799 },
+        behavior: { episodes: 555, label: "Behavioral change", median_lead_seconds: 8_259.73, share_of_reference_episodes: 555 / 3_799 },
+        exact_decision_context: { episodes: 109, label: "Exact market and friction context", median_lead_seconds: 3_872, share_of_reference_episodes: 109 / 3_799 },
+      },
+      ...overrides,
+    },
+  };
+}
+
+test("attention benchmark passes only as a current, complete, public-safe descriptive contract", () => {
+  const result = validateAttentionBenchmark(benchmark(), { nowMs: Date.parse("2026-08-26T21:37:43Z") });
+  assert.equal(result.referenceEpisodes, 3_799);
+  assert.equal(result.distinctMarkets, 3_460);
+  assert.equal(result.observation.episodes, 745);
+  assert.equal(Math.round(result.observation.medianLeadSeconds / 60), 37);
+  assert.equal(result.behavior.episodes, 555);
+  assert.equal(result.exactDecisionContext.episodes, 109);
+});
+
+test("attention benchmark fails closed when stale, incomplete, unsafe, or framed as a trading claim", () => {
+  const nowMs = Date.parse("2026-08-26T21:37:43Z");
+  assert.equal(validateAttentionBenchmark(benchmark({
+    freshness: { state: "stale", age_seconds: 7_200, target_seconds: 3_600 },
+  }), { nowMs }), null);
+  assert.equal(validateAttentionBenchmark(benchmark({ raven_lead: { observation: null } }), { nowMs }), null);
+  assert.equal(validateAttentionBenchmark(benchmark({
+    public_safety: {
+      market_addresses_exposed: false,
+      participant_identities_exposed: true,
+      private_lineage_exposed: false,
+      raw_reference_payloads_exposed: false,
+      reference_source_identity_exposed: false,
+    },
+  }), { nowMs }), null);
+  assert.equal(validateAttentionBenchmark(benchmark({
+    interpretation: {
+      profitability_claimed: true,
+      selected_instrument_claimed: false,
+      tradeable_rule_claimed: false,
+    },
+  }), { nowMs }), null);
+});
 
 test("opportunity lifecycle confirms supported directional follow-through", () => {
   const read = opportunityLifecycle(opportunity());

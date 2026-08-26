@@ -595,10 +595,10 @@ async function mockWorkspaceApis(page, {
   }));
 }
 
-test("four primary destinations replace chain and market mode navigation", async ({ page }) => {
+test("desktop adds an Intelligence index without crowding the four mobile workspaces", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
-  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Portfolio", "Atlas"]);
+  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Intel", "Portfolio", "Atlas"]);
   await expect(page.locator(".ros-left-nav")).toHaveCount(0);
   await expect(page.locator(".ros-workspace-nav")).not.toContainText(/Solana|Base|Spot|Perps|Robinhood|Tradier/);
   await expect(page.locator("#discoverSearchTrigger")).toContainText("Search any supported instrument");
@@ -758,7 +758,9 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
-  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "Base", "Ethereum", "Robinhood"]);
+  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "RH", "Base", "ETH"]);
+  await expect(page.locator("[data-spot-chain='robinhood']")).toHaveAttribute("aria-label", "Robinhood Chain");
+  await expect(page.locator("[data-spot-chain='ethereum']")).toHaveAttribute("aria-label", "Ethereum");
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");

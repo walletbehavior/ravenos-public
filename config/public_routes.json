@@ -91,6 +91,21 @@
       "next_route": "/terminal/"
     },
     {
+      "route": "/intelligence/",
+      "slug": "intelligence",
+      "title": "Intelligence",
+      "question": "What supports, contradicts, or matures this read?",
+      "funnel_stage": "understand",
+      "evidence_role": "public_intelligence_directory",
+      "api_endpoint": "/api/status",
+      "fallback_artifact": null,
+      "template": "existing",
+      "source_path": "intelligence/index.html",
+      "public": true,
+      "nav_group": "primary",
+      "next_route": "/discover/"
+    },
+    {
       "route": "/replay/",
       "slug": "replay",
       "title": "Similar History",
@@ -155,6 +170,7 @@
       "evidence_role": "leading",
       "api_endpoint": "/api/behavior",
       "fallback_artifact": "/ravenos/behavior.json",
+      "fallback_message": "Current aggregate behavior is unavailable; older participant evidence is not substituted as current.",
       "template": "generated",
       "public": true,
       "nav_group": "primary",

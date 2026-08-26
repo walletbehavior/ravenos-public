@@ -6,6 +6,100 @@ function finite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+const ATTENTION_BENCHMARK_SCHEMA = "ravenos_market_attention_benchmark_public_v1";
+const ATTENTION_SAFETY_FLAGS = Object.freeze([
+  "market_addresses_exposed",
+  "participant_identities_exposed",
+  "private_lineage_exposed",
+  "raw_reference_payloads_exposed",
+  "reference_source_identity_exposed",
+]);
+
+function validBenchmarkOverlap(row, referenceEpisodes) {
+  const episodes = finite(row?.episodes);
+  const medianLeadSeconds = finite(row?.median_lead_seconds);
+  const share = finite(row?.share_of_reference_episodes);
+  if (
+    episodes === null
+    || medianLeadSeconds === null
+    || share === null
+    || episodes < 0
+    || episodes > referenceEpisodes
+    || medianLeadSeconds < 0
+    || share < 0
+    || share > 1
+  ) return null;
+  const calculatedShare = referenceEpisodes > 0 ? episodes / referenceEpisodes : 0;
+  if (Math.abs(calculatedShare - share) > 0.002) return null;
+  return Object.freeze({
+    episodes,
+    label: cleanText(row?.label),
+    medianLeadSeconds,
+    share,
+  });
+}
+
+export function validateAttentionBenchmark(census = {}, { nowMs = Date.now(), clockSkewMs = 5 * 60 * 1_000 } = {}) {
+  const benchmark = census?.attention_benchmark;
+  if (!benchmark || benchmark.schema_version !== ATTENTION_BENCHMARK_SCHEMA) return null;
+
+  const generatedMs = Date.parse(benchmark.generated_at || "");
+  const ageSeconds = finite(benchmark.freshness?.age_seconds);
+  const targetSeconds = finite(benchmark.freshness?.target_seconds);
+  if (
+    !Number.isFinite(generatedMs)
+    || !["current", "delayed"].includes(benchmark.freshness?.state)
+    || ageSeconds === null
+    || targetSeconds === null
+    || ageSeconds < 0
+    || targetSeconds <= 0
+    || ageSeconds > targetSeconds
+    || generatedMs > nowMs + clockSkewMs
+    || nowMs - generatedMs > targetSeconds * 1_000 + clockSkewMs
+  ) return null;
+
+  const publicSafety = benchmark.public_safety || {};
+  if (ATTENTION_SAFETY_FLAGS.some((flag) => publicSafety[flag] !== false)) return null;
+  const interpretation = benchmark.interpretation || {};
+  if (
+    interpretation.profitability_claimed !== false
+    || interpretation.selected_instrument_claimed !== false
+    || interpretation.tradeable_rule_claimed !== false
+  ) return null;
+
+  const referenceEpisodes = finite(benchmark.reference_scope?.episode_count);
+  const distinctMarkets = finite(benchmark.reference_scope?.distinct_markets);
+  if (
+    referenceEpisodes === null
+    || distinctMarkets === null
+    || referenceEpisodes <= 0
+    || distinctMarkets <= 0
+    || distinctMarkets > referenceEpisodes
+    || !cleanText(benchmark.reference_scope?.label)
+    || !cleanText(benchmark.reference_scope?.deduplication)
+  ) return null;
+
+  const observation = validBenchmarkOverlap(benchmark.raven_lead?.observation, referenceEpisodes);
+  const behavior = validBenchmarkOverlap(benchmark.raven_lead?.behavior, referenceEpisodes);
+  const exactDecisionContext = validBenchmarkOverlap(benchmark.raven_lead?.exact_decision_context, referenceEpisodes);
+  if (!observation || !behavior || !exactDecisionContext) return null;
+
+  return Object.freeze({
+    schemaVersion: ATTENTION_BENCHMARK_SCHEMA,
+    generatedAt: benchmark.generated_at,
+    freshness: benchmark.freshness.state,
+    referenceLabel: cleanText(benchmark.reference_scope.label),
+    deduplication: cleanText(benchmark.reference_scope.deduplication),
+    referenceEpisodes,
+    distinctMarkets,
+    observation,
+    behavior,
+    exactDecisionContext,
+    headline: cleanText(interpretation.headline),
+    scope: cleanText(interpretation.scope),
+  });
+}
+
 function cleanText(value) {
   const result = String(value ?? "").trim();
   if (!result || /\b(?:unknown|unavailable|not available|stale)\b/i.test(result)) return "";

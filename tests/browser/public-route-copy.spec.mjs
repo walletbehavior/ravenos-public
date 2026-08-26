@@ -247,9 +247,9 @@ test("/outcomes/ mobile funnel stays compact and preserves the lesson", async ({
 test("/behavior/ exposes aggregate participation with denominators and privacy boundaries", async ({ page }) => {
   await page.goto("/behavior/");
   await expect(page.locator(".behavior-focus")).toContainText(/Clearest supported aggregate/i);
-  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable/i);
-  await expect(page.locator(".participant-ledger")).toContainText(/Observed actors/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, relationship graph, ownership claim, or coordination claim is exposed/i);
+  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable.*observed.*excluded/i);
+  await expect(page.locator(".participant-ledger")).toContainText(/Aggregate participants/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed/i);
   const body = await visibleBodyText(page);
   expect(body).toMatch(/Outcome status[\s\S]*Unproven/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
