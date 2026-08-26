@@ -173,14 +173,15 @@ const perpsUniverseCapture = await capture("/api/hyperliquid/perps");
 const perpsUniverse = JSON.parse(perpsUniverseCapture.text);
 const perpsProjectionCapture = await capture("/api/perps");
 const perpsProjection = JSON.parse(perpsProjectionCapture.text);
-const retainedPerpInstruments = new Set(
+const attachedDecisionHistoryInstruments = new Set(
   (perpsProjection?.data?.instrument_context?.rows || [])
+    .filter((row) => row?.context_available === true)
     .map((row) => String(row?.instrument || "").trim().toUpperCase())
     .filter(Boolean),
 );
 const liveReadCandidate = (perpsUniverse?.results || []).find((row) => (
   row?.symbol
-  && !retainedPerpInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
+  && !attachedDecisionHistoryInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
   && Number(row.mark_price) > 0
   && row.funding_rate !== null
   && Number(row.open_interest_usd) > 0

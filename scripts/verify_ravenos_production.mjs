@@ -125,14 +125,15 @@ if (
 
 const { res: perpsUniverseRes, json: perpsUniverseJson } = await fetchJson("/api/hyperliquid/perps");
 const { res: perpsProjectionRes, json: perpsProjectionJson } = await fetchJson("/api/perps");
-const retainedPerpInstruments = new Set(
+const attachedDecisionHistoryInstruments = new Set(
   (perpsProjectionJson?.data?.instrument_context?.rows || [])
+    .filter((row) => row?.context_available === true)
     .map((row) => String(row?.instrument || "").trim().toUpperCase())
     .filter(Boolean),
 );
 const liveReadCandidate = (perpsUniverseJson?.results || []).find((row) => (
   row?.symbol
-  && !retainedPerpInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
+  && !attachedDecisionHistoryInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
   && Number(row.mark_price) > 0
   && row.funding_rate !== null
   && Number(row.open_interest_usd) > 0
