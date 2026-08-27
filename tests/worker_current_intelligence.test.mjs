@@ -267,6 +267,7 @@ test("Worker opportunity route is backed by the current Census projection", asyn
           observed_sample: 94,
           confidence: "medium",
           derived_state: "participation rewarding",
+          plain_language_summary: "Jupiter Velocity participation on Solana is mixed or still unclear.",
         },
         {
           chain: "solana",
@@ -309,6 +310,11 @@ test("Worker opportunity route is backed by the current Census projection", asyn
       [["rewarding", "Solana cohorts"], ["punishing", "Solana fresh pairs"]],
     );
     assert.equal(body.participation_payoff.measurement.causal_claim, false);
+    assert.equal(
+      body.behavior_context.rows[0].plain_language_summary,
+      "High-velocity token participation on Solana is mixed or still unclear.",
+    );
+    assert.doesNotMatch(JSON.stringify(body.behavior_context), /Jupiter Velocity/i);
     assert.equal(body.current_opportunity.instrument_id, "hyperliquid:perp:SOL");
     assert.equal(body.selection.state, "default_current_row");
     assert.equal(body.delivery.source, "current_public_origin");

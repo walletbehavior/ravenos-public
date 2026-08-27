@@ -6282,6 +6282,19 @@ function currentOnlyContext(result) {
   return result.payload;
 }
 
+function sanitizePublicDiscoveryNarrative(value, depth = 0) {
+  if (typeof value === "string") {
+    return value.replace(/\bJupiter Velocity\b/gi, "High-velocity token");
+  }
+  if (depth >= 8 || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizePublicDiscoveryNarrative(entry, depth + 1));
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, sanitizePublicDiscoveryNarrative(entry, depth + 1)]),
+  );
+}
+
 function requestedOpportunityIdentity(request) {
   const url = new URL(request.url);
   const instrumentId = String(url.searchParams.get("instrument_id") || "").trim().slice(0, 128);
@@ -6342,6 +6355,7 @@ async function handleOpportunity(request, env) {
   const claimsPayload = currentOnlyContext(claimsResult);
   const outcomesPayload = currentOnlyContext(outcomesResult);
   const behaviorPayload = currentOnlyContext(behaviorResult);
+  const publicBehaviorContext = sanitizePublicDiscoveryNarrative(behaviorPayload?.data || null);
   const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
   const survivingCensus = applyOpportunitySurvivalGate(currentProjection.census);
   const discoveryRadar = validateDiscoverRadarProjection(survivingCensus.discovery_radar);
@@ -6385,7 +6399,7 @@ async function handleOpportunity(request, env) {
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
   const participationPayoff = buildParticipationPayoffProjection(
     outcomesPayload?.data || {},
-    behaviorPayload?.data || {},
+    publicBehaviorContext || {},
   );
   return json({
     ok: true,
@@ -6408,7 +6422,7 @@ async function handleOpportunity(request, env) {
     },
     recent_raven_reads: (claimsPayload?.data || {}).recent_raven_reads || [],
     outcomes_context: outcomesPayload?.data?.recent_raven_reads?.slice(0, 12) || [],
-    behavior_context: behaviorPayload?.data || null,
+    behavior_context: publicBehaviorContext,
     participation_payoff: participationPayoff,
     context_delivery: contextDelivery,
     delivery,
@@ -6561,7 +6575,9 @@ async function handleChain(request, env, slug) {
   const aliases = info.aliases;
 
   const currentClaim = (claimsData.current_claims || []).find((row) => chainMatches(row.market_scope?.chain, aliases)) || null;
-  const rawBehaviorRows = (behaviorData.rows || []).filter((row) => chainMatches(row.chain, aliases));
+  const rawBehaviorRows = sanitizePublicDiscoveryNarrative(
+    (behaviorData.rows || []).filter((row) => chainMatches(row.chain, aliases)),
+  );
   const participantSplitActive = resolveCoordinatedIntelligenceSplits(env).participants;
   let behaviorRows = rawBehaviorRows;
   if (participantSplitActive) {
