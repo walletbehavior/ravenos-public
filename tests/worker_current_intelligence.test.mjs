@@ -575,10 +575,10 @@ test("Worker reuses persistent exact-market history before publishing current ac
   }], { timeframe: "5m", generatedAt, nowMs: Date.parse(generatedAt), sourceState: "shadow" });
   const originProjection = projection("opportunities", "ravenos_opportunity_census_public_origin_v1", {
     schema_version: "ravenos_opportunity_census_public_v1",
-    source_state: "current",
+    source_state: "delayed",
     opportunities: { rows: [] },
     discovery_radar: history,
-  }, generatedAt, 3_600);
+  }, isoAgo(5_000), 3_600);
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));

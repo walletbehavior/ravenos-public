@@ -2975,9 +2975,25 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
 async function discoverRegistryHistory(env, request) {
   try {
     const result = await readPublicProjection(env, request, "opportunities");
-    const current = validateCurrentOpportunityProjection(result);
-    if (!current.ok) return new Map();
-    const radar = currentDiscoverRadarProjection(current.census?.discovery_radar);
+    const payload = result?.payload;
+    const delivery = result?.delivery;
+    const census = payload?.data;
+    const envelopeQualified = result?.available === true
+      && delivery?.source === "current_public_origin"
+      && delivery?.fallback === false
+      && payload?.fallback !== true
+      && payload?.ok === true
+      && payload?.safe_public === true
+      && payload?.key === "opportunities"
+      && payload?.schema_version === CURRENT_OPPORTUNITY_SCHEMA
+      && payload?.redaction_policy === "aggregate_public_market_context_only"
+      && payload?.source_artifact === CURRENT_OPPORTUNITY_SOURCE
+      && census?.schema_version === CURRENT_OPPORTUNITY_DATA_SCHEMA;
+    if (!envelopeQualified) return new Map();
+    // Radar freshness and exact identity are independently sealed inside the
+    // opportunity envelope. A delayed aggregate Census must not discard a
+    // current radar, and a current perp lane must not make an old radar valid.
+    const radar = currentDiscoverRadarProjection(census.discovery_radar);
     if (!radar) return new Map();
     return new Map(radar.rows.map((row) => [row.instrument_id, row]));
   } catch {
