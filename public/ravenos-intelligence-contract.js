@@ -65,6 +65,23 @@ export function customerFacingText(value, fallback = "") {
     .replace(/\bsample depth is public\b/gi, "sample depth is available")
     .replace(/\bclosest comparable\b/gi, "closest prior case")
     .replace(/\bcomparable setup\b/gi, "prior setup")
+    .replace(/\bConfigured short-window market change\b/gi, "Material short-window move")
+    .replace(/\bCurrent qualified provider input\b/gi, "Current market update")
+    .replace(/\bCurrent provider input admitted for observation\b/gi, "Current market added to tracking")
+    .replace(
+      /^The exact-market registry has one real observation and is waiting for another before assigning a behavioral state\.?$/i,
+      "First market update recorded; waiting for another before naming the pattern.",
+    )
+    .replace(
+      /^The exact market remains in Raven's registry after leaving the current provider feed; its latest facts are stale and are not rescored as current\.?$/i,
+      "Still tracked after leaving trending; the latest market update is older, so RavenOS is not treating it as current.",
+    )
+    .replace(
+      /^The classifier changed while this retained exact market was stale; a current observation is required before assigning its next state\.?$/i,
+      "The market model changed between updates; a current update is needed before naming the next pattern.",
+    )
+    .replace(/\bthe next qualified observation\b/gi, "the next market update")
+    .replace(/\bthe next real observation\b/gi, "the next market update")
     .replace(/\bLive Activity\b/gi, "market activity")
     .replace(/\bCurrent Raven Read\b/gi, "Current market read")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")

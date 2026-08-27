@@ -127,6 +127,13 @@ const spotAttentionRows = [
       summary: "Raven recorded this market 20m before broader attention appeared.",
     },
     inspection: { state: "exact_pool_ready", silent_pool_selection: false },
+    decision_support: {
+      what_changed: "Configured short-window market change",
+      why_now: "Current qualified provider input",
+      what_strengthens: "Participation and route depth must persist through the next qualified observation.",
+      what_weakens: "Flow divergence or thinning liquidity weakens the read.",
+      next_checkpoint: "Await the next real observation.",
+    },
     research_only: true,
     actionable: false,
     execution_available: false,
@@ -207,7 +214,7 @@ function radarSourceRows(rows, { raven = false, generatedAt = new Date().toISOSt
         first_seen_market_cap_usd: Number(source.market?.market_cap_usd || 0) * 0.8 || null,
         primary_behavior_state: "forming",
         admission_lanes: [raven ? "raven_observation" : "provider_current_input"],
-        admission_reason: raven ? "Exact Raven observation" : "Current qualified provider input",
+        admission_reason: raven ? "Exact Raven observation" : "Current market update",
         event_evidence_append_only: true,
       },
       raven_signal: false,
@@ -867,6 +874,9 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await retireShell.locator(".discover-token-evidence > summary").click();
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Ranking score only");
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText(/Grade [A-D]/);
+  await expect(retireShell).toContainText("Current market update");
+  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Material short-window move");
+  await expect(retireShell).not.toContainText(/qualified provider|provider input|exact-market registry|configured short-window|qualified observation|next real observation|cohort forming|Exact chart required/i);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { window.__copiedTokenCa = value; } } });
   });

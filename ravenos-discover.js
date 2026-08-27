@@ -836,9 +836,34 @@ function scoreLabel(score, label) {
   const value = finite(score?.score);
   if (score?.availability !== "available" || value === null) return `${label} forming`;
   const cohort = finite(score?.cohort_rank) !== null && finite(score?.cohort_size) >= 3
-    ? ` · #${Math.round(score.cohort_rank)}/${Math.round(score.cohort_size)} cohort`
-    : " · cohort forming";
+    ? ` · peer rank #${Math.round(score.cohort_rank)}/${Math.round(score.cohort_size)}`
+    : " · peer group forming";
   return `${label} ${Math.round(value)}/99${cohort}`;
+}
+
+function opportunityLaneLabel(value) {
+  const labels = {
+    emerging_acceleration: "Emerging acceleration",
+    breakout_continuation: "Breakout / continuation",
+    absorption_accumulation: "Absorption / accumulation",
+    resurrection_reclaim: "Resurrection / reclaim",
+    distribution_chase_risk: "Distribution / chase risk",
+    majors_wrapped: "Majors",
+  };
+  const key = text(value, "").toLowerCase();
+  return labels[key] || title(key, "");
+}
+
+function riskLabel(value) {
+  const labels = {
+    late_chase: "Late chase risk",
+    flow_divergence: "Flow divergence",
+    liquidity_thinning: "Liquidity thinning",
+    concentration_risk: "Concentration risk",
+    manipulation_risk: "Manipulation risk",
+  };
+  const key = text(value, "").toLowerCase();
+  return labels[key] || title(key, "");
 }
 
 function usableRadarScore(score) {
@@ -1216,15 +1241,15 @@ function renderSpotEvidence(shell, row) {
   ]) {
     const line = append(narrative, "p", "", "");
     append(line, "strong", "", `${label}: `);
-    line.append(document.createTextNode(text(value, "Unavailable")));
+    line.append(document.createTextNode(customerFacingText(value, "Unavailable")));
   }
   const raven = discovery.raven_evidence_state;
   const ravenSection = append(body, "section", "discover-token-evidence-narrative", "");
   append(ravenSection, "h4", "", "Raven evidence");
   if (raven?.qualified === true) {
-    append(ravenSection, "p", "", text(raven.why_raven_noticed, "Qualified exact-market Raven observation."));
-    if (raven.what_changed) append(ravenSection, "p", "", text(raven.what_changed));
-    if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => text(value, "")).filter(Boolean).join(" · ")}`);
+    append(ravenSection, "p", "", customerFacingText(raven.why_raven_noticed, "Raven has a current read for this exact market."));
+    if (raven.what_changed) append(ravenSection, "p", "", customerFacingText(raven.what_changed));
+    if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => customerFacingText(value, "")).filter(Boolean).join(" · ")}`);
     append(ravenSection, "small", "", `${title(raven.state)} · ${title(raven.confidence_maturity, "Forming")} maturity · ${title(raven.forward_evidence_status, "Forming")} forward evidence`);
   } else {
     append(ravenSection, "p", "", text(raven?.why_not_available, "Raven does not have a current read for this exact market yet."));
@@ -1232,7 +1257,7 @@ function renderSpotEvidence(shell, row) {
   const risks = rowRiskValues(row);
   append(body, "small", "discover-token-evidence-footer", [
     `Exact pool ${text(row.pool_address)}`,
-    risks.length ? `Risk flags: ${risks.map((value) => title(value)).join(", ")}` : "No current risk flag",
+    risks.length ? `Risk flags: ${risks.map((value) => riskLabel(value)).join(", ")}` : "No current risk flag",
     `Observed ${row.observed_at ? when(row.observed_at) : "time unavailable"}`,
     `Source: ${sourceScopeLabel(discovery.facts?.source_scope)}`,
   ].join(" · "));
@@ -1336,13 +1361,13 @@ function updateSpotTokenRow(anchor, row, index) {
     const label = scoreLabel(velocityScore, "Velocity");
     append(raven, "span", "", [
       risks.includes("late_chase") ? "Chase risk" : "",
-      exactChartRequired ? "Exact chart required" : "",
+      exactChartRequired ? "Open chart to confirm" : "",
       label,
     ].filter(Boolean).join(" · "));
     append(raven, "strong", "", [...new Set([title(velocityState), title(primary)])].join(" · "));
   } else if (state.spotSort === "activity") {
     append(raven, "span", "", [
-      exactChartRequired ? "Exact chart required" : "",
+      exactChartRequired ? "Open chart to confirm" : "",
       scoreLabel(activityScore, "Activity strength"),
     ].filter(Boolean).join(" · "));
     const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
@@ -1351,14 +1376,14 @@ function updateSpotTokenRow(anchor, row, index) {
     const ravenEvidence = discovery.raven_evidence_state;
     append(raven, "span", "", [
       `Raven observation · ${title(ravenEvidence.state)}`,
-      exactChartRequired ? "Exact chart required" : "",
+      exactChartRequired ? "Open chart to confirm" : "",
     ].filter(Boolean).join(" · "));
-    append(raven, "strong", "", text(ravenEvidence.why_raven_noticed, "Qualified exact-market Raven observation."));
+    append(raven, "strong", "", customerFacingText(ravenEvidence.why_raven_noticed, "Raven has a current read for this exact market."));
   }
   const compactDetail = [
-    title(discovery.opportunity_lane?.value, ""),
-    text(discovery.decision_support?.why_now, ""),
-    risks.length ? risks.slice(0, 2).map((value) => title(value)).join(" · ") : "",
+    opportunityLaneLabel(discovery.opportunity_lane?.value),
+    customerFacingText(discovery.decision_support?.why_now, ""),
+    risks.length ? risks.slice(0, 2).map((value) => riskLabel(value)).join(" · ") : "",
   ].filter(Boolean).join(" · ");
   if (compactDetail) append(raven, "small", "", compactDetail);
 

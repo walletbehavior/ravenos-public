@@ -507,7 +507,7 @@ window.__RAVENOS_SAVED_MONITOR__ = Object.freeze({
   schemaVersion: "ravenos.saved_monitor_surface.v2",
   exactIdentityOnly: true,
   browserStoredBearerTokens: false,
-  alertsImplementation: "implemented_dormant",
+  alertsAccessVariesByAccount: true,
   inAppOnly: true,
   planPricesStored: false,
   walletsPersisted: false,

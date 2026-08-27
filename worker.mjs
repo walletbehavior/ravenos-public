@@ -16,6 +16,10 @@ import {
   projectionHeaders,
   sanitizeOriginControlDocument,
 } from "./lib/ravenos_public_origin.mjs";
+import {
+  PUBLIC_PROJECTION_TRANSPORT_POLICY,
+  loadResilientPublicProjection,
+} from "./lib/ravenos_projection_transport.mjs";
 import { atlasObservationDecision } from "./lib/atlas_display_rights.mjs";
 import { buildAtlasFreeSourceRegistry } from "./lib/atlas_free_sources.mjs";
 import {
@@ -118,6 +122,7 @@ import {
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
+let publicProjectionCachePromise = null;
 const PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES = Object.freeze({
   perps: new Set(["/perps.json", "/ravenos/perps.json", "/public/ravenos/perps.json"]),
   participants: new Set(["/behavior.json", "/ravenos/behavior.json", "/public/ravenos/behavior.json"]),
@@ -467,7 +472,20 @@ function handleBuildIdentity(releaseState) {
 
 async function readPublicProjection(env, request, key, assetPath = `/ravenos/${key}.json`) {
   const fallbackPayload = await readAssetPayload(env, request, assetPath);
-  return loadPublicProjection({ env, key, fallbackPayload });
+  if (!publicProjectionCachePromise) {
+    publicProjectionCachePromise = (async () => {
+      try {
+        return globalThis.caches?.open
+          ? await globalThis.caches.open(PUBLIC_PROJECTION_TRANSPORT_POLICY.cache_namespace)
+          : null;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  const cache = await publicProjectionCachePromise;
+  if (!cache) publicProjectionCachePromise = null;
+  return loadResilientPublicProjection({ env, key, fallbackPayload, cache });
 }
 
 function monitorTimestamp(value) {
@@ -616,6 +634,7 @@ function projectionRouteHeaders(pathname, delivery) {
     ...base,
     "cache-control": cacheControl,
     ...projectionHeaders(delivery),
+    ...(delivery?.transport?.state ? { "x-ravenos-origin-transport": String(delivery.transport.state) } : {}),
   };
 }
 

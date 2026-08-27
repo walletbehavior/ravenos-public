@@ -75,6 +75,12 @@ test("a bounded operator label may clarify which intelligence layer is unavailab
 test("legacy implementation language is normalized for customer renderings", () => {
   assert.equal(customerFacingText("Solana Live Activity"), "Solana market activity");
   assert.equal(customerFacingText("The closest comparable has sample depth is public-safe."), "The closest prior case has sample depth is available.");
+  assert.equal(customerFacingText("Configured short-window market change"), "Material short-window move");
+  assert.equal(customerFacingText("Current qualified provider input"), "Current market update");
+  assert.equal(
+    customerFacingText("The exact-market registry has one real observation and is waiting for another before assigning a behavioral state."),
+    "First market update recorded; waiting for another before naming the pattern.",
+  );
   assert.equal(
     customerFacingText("Raven froze a crowding fade observation while mixed pressure was present."),
     "Crowding risk appeared in a choppy market; direction is still unconfirmed.",

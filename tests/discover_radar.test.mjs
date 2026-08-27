@@ -67,7 +67,7 @@ function pool(overrides = {}) {
       first_seen_market_cap_usd: 200_000,
       primary_behavior_state: "forming",
       admission_lanes: ["short_window_anomaly"],
-      admission_reason: "Configured short-window market change",
+      admission_reason: "Material short-window move",
       event_evidence_append_only: true,
       ...registryOverrides,
     },
@@ -161,8 +161,8 @@ test("an extreme provider move is surfaced for exact-chart verification rather t
   assert.equal(Object.hasOwn(discovery.notability, "thresholds"), false);
   assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_pct"), false);
   assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_multiple"), false);
-  assert.match(discovery.decision_support.why_now, /exact-market registry has one real observation/i);
-  assert.doesNotMatch(discovery.decision_support.why_now, /Raven has one real observation/i);
+  assert.match(discovery.decision_support.why_now, /first market update recorded/i);
+  assert.doesNotMatch(discovery.decision_support.why_now, /registry|provider|classifier/i);
 });
 
 test("the selected-window move outranks a larger historical-window print while preserving exact-chart verification", () => {
@@ -384,7 +384,8 @@ test("a retained stale market re-baselines after a classifier change instead of 
   });
   const discovery = build([row]).rows[0].discovery;
   assert.equal(discovery.primary_behavior_state.value, "forming");
-  assert.match(discovery.primary_behavior_state.explanation, /classifier changed/i);
+  assert.match(discovery.primary_behavior_state.explanation, /market model changed/i);
+  assert.doesNotMatch(discovery.primary_behavior_state.explanation, /classifier|registry|provider/i);
 });
 
 test("activity ranking responds to acceleration rather than equal absolute volume", () => {
