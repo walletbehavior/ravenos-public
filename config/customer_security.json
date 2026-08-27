@@ -87,6 +87,43 @@
     "execution_available": false,
     "production_activation_completed": false
   },
+  "raven_monitor": {
+    "implementation_status": "local_dormant_candidate_not_deployed",
+    "surface": "https://app.ravenos.xyz/monitor/",
+    "capability": "research.alerts",
+    "routes": [
+      "GET /api/v1/monitor-alerts",
+      "DELETE /api/v1/monitor-alerts",
+      "GET /api/v1/monitor-alerts/rules",
+      "POST /api/v1/monitor-alerts/rules",
+      "PATCH /api/v1/monitor-alerts/rules/:rule_id",
+      "DELETE /api/v1/monitor-alerts/rules/:rule_id",
+      "GET /api/v1/monitor-alerts/notifications",
+      "DELETE /api/v1/monitor-alerts/notifications",
+      "POST /api/v1/monitor-alerts/notifications/:notification_id/read"
+    ],
+    "authenticated_origin_only": true,
+    "csrf_required_for_mutations": true,
+    "exact_market_identity_only": true,
+    "all_activation_controls_default_off": true,
+    "activation_controls": [
+      "RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE",
+      "RAVENOS_RESEARCH_ALERTS_ENABLE",
+      "RAVENOS_RESEARCH_ALERT_RULE_ROUTES_ENABLE",
+      "RAVENOS_RESEARCH_ALERT_EVALUATION_ENABLE",
+      "RAVENOS_NOTIFICATION_HISTORY_ENABLE"
+    ],
+    "maximum_rules_per_account": 100,
+    "maximum_notification_history_per_account": 1000,
+    "notification_retention_days": 90,
+    "maximum_evaluator_batch": 100,
+    "raw_provider_payloads_persisted": false,
+    "plan_prices_persisted": false,
+    "wallet_or_execution_data_persisted": false,
+    "out_of_app_delivery_active": false,
+    "scheduler_trigger_configured": false,
+    "production_activation_completed": false
+  },
   "entitlement_foundation": {
     "implementation_status": "local_dormant_foundation",
     "surface": "https://app.ravenos.xyz/account/intelligence/",
@@ -113,7 +150,8 @@
       "RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE",
       "RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE",
       "RAVENOS_PRO_PERPS_ADVANCED_ENABLE",
-      "RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE"
+      "RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE",
+      "RAVENOS_RESEARCH_ALERTS_ENABLE"
     ],
     "customer_mutation_available": false,
     "checkout_available": false,
@@ -135,7 +173,7 @@
     "wallet_linking",
     "persistent_portfolio",
     "saved_monitor_production_activation",
-    "persistent_alerts",
+    "persistent_alerts_production_activation",
     "subscription_checkout",
     "subscription_entitlements",
     "broker_account_linking",
@@ -167,7 +205,8 @@
     "docs/ravenos_auth_provider_review_v1.md",
     "docs/ravenos_saved_monitor_v1.md",
     "docs/ravenos_entitlements_foundation_v1.md",
-    "docs/ravenos_free_pro_projection_workspace_v1.md"
+    "docs/ravenos_free_pro_projection_workspace_v1.md",
+    "docs/ravenos_monitor_alerts_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -180,6 +219,8 @@
     { "id": "SEC-RSCH-002", "name": "saved research-state CSRF, quotas, deletion, and XSS", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
     { "id": "SEC-ENT-001", "name": "server-owned entitlement ownership, lifecycle and fail-closed resolution", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs" },
     { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites" },
+    { "id": "SEC-ALT-001", "name": "exact-market monitor ownership, entitlement, CSRF and lifecycle enforcement", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; tests/browser/monitor-alerts.spec.mjs" },
+    { "id": "SEC-ALT-002", "name": "qualified transition dedupe, batching, retention, deletion and prohibited-data boundary", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; public no-leak and Worker-response validation" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

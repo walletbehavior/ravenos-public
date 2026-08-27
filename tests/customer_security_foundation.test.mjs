@@ -53,6 +53,21 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.saved_monitor.execution_available, false);
   assert.equal(security.saved_monitor.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("saved_monitor_production_activation"));
+  assert.equal(security.raven_monitor.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.raven_monitor.authenticated_origin_only, true);
+  assert.equal(security.raven_monitor.csrf_required_for_mutations, true);
+  assert.equal(security.raven_monitor.exact_market_identity_only, true);
+  assert.equal(security.raven_monitor.all_activation_controls_default_off, true);
+  assert.equal(security.raven_monitor.maximum_rules_per_account, 100);
+  assert.equal(security.raven_monitor.maximum_notification_history_per_account, 1000);
+  assert.equal(security.raven_monitor.notification_retention_days, 90);
+  assert.equal(security.raven_monitor.raw_provider_payloads_persisted, false);
+  assert.equal(security.raven_monitor.plan_prices_persisted, false);
+  assert.equal(security.raven_monitor.wallet_or_execution_data_persisted, false);
+  assert.equal(security.raven_monitor.out_of_app_delivery_active, false);
+  assert.equal(security.raven_monitor.scheduler_trigger_configured, false);
+  assert.equal(security.raven_monitor.production_activation_completed, false);
+  assert(security.blocked_capabilities.includes("persistent_alerts_production_activation"));
   assert.equal(security.entitlement_foundation.implementation_status, "local_dormant_foundation");
   assert.equal(security.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
   assert.equal(security.entitlement_foundation.all_activation_controls_default_off, true);
@@ -97,7 +112,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 32);
+  assert.equal(rows.length, 34);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -106,7 +121,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -332,6 +347,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 10);
+  assert.equal(security.required_documents.length, 11);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

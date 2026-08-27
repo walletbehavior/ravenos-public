@@ -1,10 +1,26 @@
 const RESEARCH_ROUTE = "/api/v1/research-state";
+const ENTITLEMENT_ROUTE = "/api/v1/entitlements";
+const ALERT_ROUTE = "/api/v1/monitor-alerts";
 const WORKSPACE_SCHEMA = "ravenos.saved_workspace.v1";
 const ALLOWED_TIMEFRAMES = new Set(["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]);
 const ALLOWED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
 const ALLOWED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
 const ALLOWED_DENSITIES = new Set(["compact", "comfortable"]);
 const ALLOWED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
+const EVENT_LABELS = Object.freeze({
+  setup_state_changed: "Raven setup state",
+  evidence_strengthened: "Evidence strengthened",
+  evidence_weakened: "Evidence weakened",
+  evidence_invalid_or_unavailable: "Evidence invalid / unavailable",
+  pressure_regime_changed: "Pressure / crowding regime",
+  funding_regime_changed: "Funding regime",
+  liquidity_quality_changed: "Liquidity quality",
+  attention_state_changed: "Attention accelerated / faded",
+  launch_lifecycle_changed: "Launch lifecycle",
+  exact_market_availability_changed: "Exact-market availability",
+});
+const DEFAULT_PERP_EVENTS = ["evidence_strengthened", "evidence_weakened", "evidence_invalid_or_unavailable", "pressure_regime_changed", "funding_regime_changed", "liquidity_quality_changed", "exact_market_availability_changed"];
+const DEFAULT_EXACT_EVENTS = ["evidence_strengthened", "evidence_weakened", "evidence_invalid_or_unavailable", "exact_market_availability_changed"];
 
 const page = document.querySelector(".monitor-page");
 const auth = document.getElementById("monitorAuth");
@@ -12,9 +28,10 @@ const authActions = document.getElementById("monitorAuthActions");
 const workspaceNode = document.getElementById("monitorWorkspace");
 const pendingNode = document.getElementById("monitorPending");
 const listNode = document.getElementById("monitorList");
+const notificationNode = document.getElementById("monitorNotifications");
 const saveButton = document.getElementById("monitorSave");
 const unwatchButton = document.getElementById("monitorUnwatch");
-const state = { csrf: "", items: [], pending: null, config: null };
+const state = { csrf: "", items: [], rules: [], notifications: [], pending: null, pendingIntent: "save", config: null, alerts: { available: false, state: "loading" } };
 
 function setText(id, value) {
   const node = document.getElementById(id);
@@ -32,11 +49,9 @@ function csv(value, allowlist) {
 
 function safeQueryHandoff() {
   const params = new URLSearchParams(location.search);
+  state.pendingIntent = params.get("action") === "monitor" ? "monitor" : "save";
   const instrumentId = String(params.get("instrument_id") || "").trim().slice(0, 220);
   if (!instrumentId) return null;
-  const timeframe = ALLOWED_TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : "1h";
-  const density = ALLOWED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
-  const selectedPanel = ALLOWED_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
   const market = { instrument_id: instrumentId };
   for (const key of ["instrument_type", "identity_scope", "asset_class", "chain", "venue", "market"]) {
     const value = String(params.get(key) || "").trim().slice(0, 100);
@@ -46,21 +61,19 @@ function safeQueryHandoff() {
     market,
     workspace: {
       schema_version: WORKSPACE_SCHEMA,
-      timeframe,
+      timeframe: ALLOWED_TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : "1h",
       indicators: csv(params.get("indicators"), ALLOWED_INDICATORS),
       raven_overlays: csv(params.get("raven_overlays"), ALLOWED_RAVEN_OVERLAYS),
-      density,
-      selected_panel: selectedPanel,
+      density: ALLOWED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable",
+      selected_panel: ALLOWED_PANELS.has(params.get("panel")) ? params.get("panel") : "chart",
     },
   };
 }
 
 function authenticatedReturnTo(pending) {
   if (!pending) return "/monitor/";
-  const params = new URLSearchParams({ action: "save", instrument_id: pending.market.instrument_id });
-  for (const key of ["instrument_type", "identity_scope", "asset_class", "chain", "venue", "market"]) {
-    if (pending.market[key]) params.set(key, pending.market[key]);
-  }
+  const params = new URLSearchParams({ action: state.pendingIntent, instrument_id: pending.market.instrument_id });
+  for (const key of ["instrument_type", "identity_scope", "asset_class", "chain", "venue", "market"]) if (pending.market[key]) params.set(key, pending.market[key]);
   params.set("timeframe", pending.workspace.timeframe);
   params.set("indicators", pending.workspace.indicators.join(","));
   params.set("raven_overlays", pending.workspace.raven_overlays.join(","));
@@ -76,19 +89,16 @@ async function api(url, init = {}) {
     headers["x-ravenos-csrf"] = state.csrf;
   }
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init, headers });
-  const payload = await response.json().catch(() => null);
-  return { response, payload };
+  return { response, payload: await response.json().catch(() => null) };
 }
 
 function formatWhen(value) {
   const date = new Date(value || "");
-  if (Number.isNaN(date.getTime())) return "Not checked";
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+  return Number.isNaN(date.getTime()) ? "Not yet" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function listLabel(values, fallback = "None") {
-  return Array.isArray(values) && values.length ? values.join(", ") : fallback;
-}
+function listLabel(values, fallback = "None") { return Array.isArray(values) && values.length ? values.join(", ") : fallback; }
+function eventLabel(value) { return EVENT_LABELS[value] || "Qualified evidence change"; }
 
 function button(label, className, handler) {
   const node = document.createElement("button");
@@ -110,26 +120,108 @@ function fact(label, value) {
   return node;
 }
 
+function defaultEvents(item) { return item.market?.instrument_id?.startsWith("hyperliquid:perp:") ? DEFAULT_PERP_EVENTS : DEFAULT_EXACT_EVENTS; }
+
+function eventEditor(item, rule = null) {
+  const details = document.createElement("details");
+  details.className = "monitor-rule-editor";
+  details.dataset.monitorEditor = item.watch_id;
+  const summary = document.createElement("summary");
+  summary.textContent = rule ? "Edit monitored changes" : "Choose qualified changes";
+  const grid = document.createElement("div");
+  grid.className = "monitor-event-grid";
+  const selected = new Set(rule?.event_types || defaultEvents(item));
+  for (const [eventType, label] of Object.entries(EVENT_LABELS)) {
+    const control = document.createElement("label");
+    const input = document.createElement("input");
+    const copy = document.createElement("span");
+    input.type = "checkbox";
+    input.value = eventType;
+    input.checked = selected.has(eventType);
+    copy.textContent = label;
+    control.append(input, copy);
+    grid.append(control);
+  }
+  const action = button(rule ? "Update monitor" : "Enable Raven Monitor", "", async (node) => {
+    const eventTypes = [...grid.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+    if (!eventTypes.length) return setText("monitorAlertSummary", "Select at least one qualified state change.");
+    node.disabled = true;
+    const result = rule
+      ? await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "PATCH", body: JSON.stringify({ state: rule.state, event_types: eventTypes, expected_revision: rule.revision }) })
+      : await api(`${ALERT_ROUTE}/rules`, { method: "POST", body: JSON.stringify({ watch_id: item.watch_id, event_types: eventTypes }) });
+    node.disabled = false;
+    if (!result.response.ok) return setText("monitorAlertSummary", `Raven Monitor refused this rule: ${String(result.payload?.error || "evidence unavailable").replaceAll("_", " ")}.`);
+    setText("monitorAlertSummary", rule ? "Monitor updated from the latest revision." : "Raven Monitor is active for this exact market.");
+    await loadRules();
+  });
+  details.append(summary, grid, action);
+  return details;
+}
+
+function ruleNode(item) {
+  const host = document.createElement("section");
+  host.className = "monitor-rule";
+  const summary = document.createElement("div");
+  summary.className = "monitor-rule-summary";
+  const copy = document.createElement("div");
+  const title = document.createElement("strong");
+  const note = document.createElement("p");
+  const actions = document.createElement("div");
+  actions.className = "monitor-rule-actions";
+  copy.append(title, note);
+  summary.append(copy, actions);
+  if (!state.alerts.available) {
+    title.textContent = "Raven Monitor unavailable";
+    note.textContent = state.alerts.state === "loading" ? "Checking operator-granted access…" : "This dormant beta is not active for the current account and server configuration.";
+    host.append(summary);
+    return host;
+  }
+  const rule = state.rules.find((candidate) => candidate.watch_id === item.watch_id);
+  if (!rule) {
+    title.textContent = "Not monitored";
+    note.textContent = "Choose bounded Raven evidence classifications. Numeric price movement and plan levels are never stored as alert rules.";
+    host.append(summary, eventEditor(item));
+    return host;
+  }
+  title.textContent = `Raven Monitor · ${rule.state}`;
+  note.textContent = `${rule.event_types.map(eventLabel).join(" · ")} · last qualified ${formatWhen(rule.last_qualified_evaluation_at)}`;
+  actions.append(
+    button(rule.state === "active" ? "Pause" : "Resume", "", async (node) => {
+      node.disabled = true;
+      const nextState = rule.state === "active" ? "paused" : "active";
+      const result = await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "PATCH", body: JSON.stringify({ state: nextState, event_types: rule.event_types, expected_revision: rule.revision }) });
+      if (!result.response.ok) setText("monitorAlertSummary", `Monitor update refused: ${result.payload?.error || "unavailable"}.`);
+      await loadRules();
+    }),
+    button("Delete monitor", "danger", async (node) => {
+      node.disabled = true;
+      const result = await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "DELETE", body: "{}" });
+      if (!result.response.ok) setText("monitorAlertSummary", `Monitor deletion refused: ${result.payload?.error || "unavailable"}.`);
+      await Promise.all([loadRules(), loadNotifications()]);
+    }),
+  );
+  host.append(summary, eventEditor(item, rule));
+  return host;
+}
+
 function itemNode(item) {
   const row = document.createElement("article");
   row.className = "monitor-item";
   row.dataset.watchId = item.watch_id;
-
   const main = document.createElement("div");
   main.className = "monitor-item-main";
   const headline = document.createElement("div");
   const title = document.createElement("h3");
-  title.textContent = item.market?.display_label || "Exact market";
   const chip = document.createElement("span");
+  const identity = document.createElement("span");
+  title.textContent = item.market?.display_label || "Exact market";
   chip.className = "monitor-state-chip";
   chip.dataset.state = item.availability?.state || "unverified";
   chip.textContent = item.availability?.state || "unverified";
-  headline.append(title, chip);
-  const identity = document.createElement("span");
   identity.className = "monitor-identity";
   identity.textContent = item.market?.instrument_id || "Identity unavailable";
+  headline.append(title, chip);
   main.append(headline, identity);
-
   const facts = document.createElement("div");
   facts.className = "monitor-item-facts";
   facts.append(
@@ -138,7 +230,6 @@ function itemNode(item) {
     fact("Indicators", listLabel(item.workspace?.indicators)),
     fact("Last checked", `${formatWhen(item.availability?.checked_at)} · revision ${item.revision || 1}`),
   );
-
   const actions = document.createElement("div");
   actions.className = "monitor-item-actions";
   const open = document.createElement("a");
@@ -153,12 +244,9 @@ function itemNode(item) {
       if (!result.response.ok) setText("monitorListSummary", `Availability check refused: ${result.payload?.error || "unavailable"}.`);
       await loadItems();
     }),
-    button("Remove", "danger", async (node) => {
-      node.disabled = true;
-      await removeItem(item.watch_id);
-    }),
+    button("Remove", "danger", async (node) => { node.disabled = true; await removeItem(item.watch_id); }),
   );
-  row.append(main, facts, actions);
+  row.append(main, facts, actions, ruleNode(item));
   return row;
 }
 
@@ -167,16 +255,14 @@ function renderItems() {
   if (!state.items.length) {
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = "No exact markets saved. Open a public Discover or Terminal market and choose Save market.";
+    empty.textContent = "No exact markets saved. Open a public Discover or Terminal market and choose Monitor with Raven or Save.";
     listNode.append(empty);
-  } else {
-    listNode.append(...state.items.map(itemNode));
-  }
+  } else listNode.append(...state.items.map(itemNode));
   setText("monitorListSummary", `${state.items.length} of 100 exact markets saved across this account.`);
   const current = state.pending ? state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id) : null;
   pendingNode.dataset.state = current ? "saved" : "pending";
   setText("monitorPendingState", current ? `Saved · revision ${current.revision}` : "Not saved");
-  saveButton.textContent = current ? "Update saved workspace" : "Save exact market";
+  saveButton.textContent = current ? "Update saved workspace" : state.pendingIntent === "monitor" ? "Save exact market first" : "Save exact market";
   unwatchButton.hidden = !current;
   unwatchButton.dataset.watchId = current?.watch_id || "";
 }
@@ -195,6 +281,7 @@ async function loadItems() {
 function renderPending() {
   if (!state.pending) return;
   pendingNode.hidden = false;
+  pendingNode.querySelector("h2").textContent = state.pendingIntent === "monitor" ? "Save and monitor this exact market" : "Save this exact market";
   setText("monitorPendingIdentity", state.pending.market.instrument_id);
   setText("monitorPendingTimeframe", state.pending.workspace.timeframe);
   setText("monitorPendingIndicators", listLabel(state.pending.workspace.indicators));
@@ -209,44 +296,166 @@ async function savePending() {
   setText("monitorPendingMessage", "Validating canonical identity and saving…");
   const current = state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id);
   const body = current ? { ...state.pending, expected_revision: current.revision } : state.pending;
-  const { response, payload } = await api(`${RESEARCH_ROUTE}/watch-items`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const { response, payload } = await api(`${RESEARCH_ROUTE}/watch-items`, { method: "POST", body: JSON.stringify(body) });
   saveButton.disabled = false;
   if (!response.ok) {
     pendingNode.dataset.state = "invalid";
     setText("monitorPendingState", "Save refused");
-    setText("monitorPendingMessage", `RavenOS refused this handoff: ${String(payload?.error || "request unavailable").replaceAll("_", " ")}.`);
-    return;
+    return setText("monitorPendingMessage", `RavenOS refused this handoff: ${String(payload?.error || "request unavailable").replaceAll("_", " ")}.`);
   }
   history.replaceState({}, "", "/monitor/");
-  setText("monitorPendingMessage", "Saved to this RavenOS account. The exact identity will never be replaced by a similarly named market.");
+  setText("monitorPendingMessage", state.pendingIntent === "monitor" ? "Saved exactly. Choose the qualified Raven changes below; unsupported evidence fails closed." : "Saved to this account without symbol substitution.");
   await loadItems();
+  if (state.pendingIntent === "monitor") {
+    const currentItem = state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id);
+    const editor = currentItem ? document.querySelector(`[data-monitor-editor="${currentItem.watch_id}"]`) : null;
+    if (editor) { editor.open = true; editor.scrollIntoView({ behavior: "smooth", block: "center" }); editor.querySelector("input")?.focus({ preventScroll: true }); }
+  }
 }
 
 async function removeItem(watchId) {
   const { response, payload } = await api(`${RESEARCH_ROUTE}/watch-items/${encodeURIComponent(watchId)}`, { method: "DELETE", body: "{}" });
   if (!response.ok) setText("monitorListSummary", `Deletion refused: ${payload?.error || "request unavailable"}.`);
-  await loadItems();
+  await Promise.all([loadItems(), state.alerts.available ? loadNotifications() : Promise.resolve()]);
 }
 
 async function deleteAll() {
-  const buttonNode = document.getElementById("monitorDeleteAllConfirm");
-  buttonNode.disabled = true;
-  const { response, payload } = await api(RESEARCH_ROUTE, {
-    method: "DELETE",
-    body: JSON.stringify({ confirm: "delete_all_saved_research_state" }),
-  });
-  buttonNode.disabled = false;
-  if (!response.ok) {
-    setText("monitorListSummary", `Delete-all refused: ${payload?.error || "request unavailable"}.`);
-    return;
-  }
+  const control = document.getElementById("monitorDeleteAllConfirm");
+  control.disabled = true;
+  const { response, payload } = await api(RESEARCH_ROUTE, { method: "DELETE", body: JSON.stringify({ confirm: "delete_all_saved_research_state" }) });
+  control.disabled = false;
+  if (!response.ok) return setText("monitorListSummary", `Delete-all refused: ${payload?.error || "request unavailable"}.`);
   document.getElementById("monitorDeleteDialog").close();
-  state.items = [];
+  state.items = []; state.rules = []; state.notifications = [];
+  renderItems(); renderNotifications();
+  setText("monitorListSummary", `Deleted ${payload.deleted_count || 0} saved research-state record${payload.deleted_count === 1 ? "" : "s"}. Associated monitor state was removed by owner cascade.`);
+}
+
+function renderAlertState() {
+  const available = state.alerts.available;
+  for (const id of ["monitorReloadAlerts", "monitorDeleteNotifications", "monitorDeleteAlertState"]) document.getElementById(id).disabled = !available;
+  if (!available) {
+    notificationNode.replaceChildren();
+    const empty = document.createElement("p");
+    empty.className = "monitor-empty";
+    empty.textContent = state.alerts.state === "not_granted" ? "Raven Monitor has not been operator-granted to this account." : "Raven Monitor and in-app notifications are dormant on this server configuration.";
+    notificationNode.append(empty);
+    setText("monitorAlertSummary", `Monitor beta ${String(state.alerts.state || "unavailable").replaceAll("_", " ")}.`);
+  }
   renderItems();
-  setText("monitorListSummary", `Deleted ${payload.deleted_count || 0} saved research-state record${payload.deleted_count === 1 ? "" : "s"}.`);
+}
+
+async function loadRules() {
+  const { response, payload } = await api(`${ALERT_ROUTE}/rules`);
+  if (!response.ok || !Array.isArray(payload?.rules)) {
+    state.alerts = { available: false, state: payload?.state || payload?.error || "unavailable" };
+    renderAlertState();
+    return false;
+  }
+  state.rules = payload.rules;
+  renderItems();
+  updateAlertSummary();
+  return true;
+}
+
+function notificationItem(item) {
+  const row = document.createElement("article");
+  row.className = "monitor-notification";
+  row.dataset.read = item.read_at ? "true" : "false";
+  const main = document.createElement("div");
+  main.className = "monitor-notification-main";
+  const title = document.createElement("h3");
+  const identity = document.createElement("span");
+  title.textContent = item.market?.display_label || "Exact market";
+  identity.textContent = item.market?.instrument_id || "Identity unavailable";
+  main.append(title, identity);
+  const copy = document.createElement("div");
+  copy.className = "monitor-notification-copy";
+  const explanation = document.createElement("strong");
+  const transition = document.createElement("p");
+  const limitation = document.createElement("p");
+  explanation.textContent = item.explanation || eventLabel(item.event_type);
+  transition.textContent = `${item.before?.value || "Unavailable"} → ${item.after?.value || "Unavailable"} · source ${formatWhen(item.source_as_of)} · detected ${formatWhen(item.detected_at)}`;
+  limitation.textContent = listLabel(item.limitations, "Research monitoring only. This is not a trade or execution alert.");
+  copy.append(explanation, transition, limitation);
+  const actions = document.createElement("div");
+  actions.className = "monitor-notification-actions";
+  const open = document.createElement("a");
+  open.href = item.terminal_url || "https://ravenos.xyz/terminal/";
+  open.textContent = "Open exact chart";
+  open.rel = "noopener";
+  actions.append(open);
+  if (!item.read_at) actions.append(button("Mark read", "", async (node) => {
+    node.disabled = true;
+    const result = await api(`${ALERT_ROUTE}/notifications/${encodeURIComponent(item.notification_id)}/read`, { method: "POST", body: JSON.stringify({ read: true }) });
+    if (!result.response.ok) setText("monitorAlertSummary", `Read state unavailable: ${result.payload?.error || "request failed"}.`);
+    await loadNotifications();
+  }));
+  row.append(main, copy, actions);
+  return row;
+}
+
+function renderNotifications() {
+  notificationNode.replaceChildren();
+  if (!state.alerts.available || !state.notifications.length) {
+    const empty = document.createElement("p");
+    empty.className = "monitor-empty";
+    empty.textContent = state.alerts.available ? "No qualified Raven evidence transitions have been recorded." : "Notification history unavailable.";
+    notificationNode.append(empty);
+  } else notificationNode.append(...state.notifications.map(notificationItem));
+}
+
+function updateAlertSummary() {
+  const active = state.rules.filter((rule) => rule.state === "active").length;
+  const unread = state.notifications.filter((item) => !item.read_at).length;
+  setText("monitorAlertSummary", `${active} active monitor${active === 1 ? "" : "s"} · ${unread} unread notification${unread === 1 ? "" : "s"}.`);
+}
+
+async function loadNotifications() {
+  const { response, payload } = await api(`${ALERT_ROUTE}/notifications`);
+  if (!response.ok || !Array.isArray(payload?.notifications)) {
+    setText("monitorAlertSummary", `Notification history unavailable: ${payload?.error || "request failed"}.`);
+    return false;
+  }
+  state.notifications = payload.notifications;
+  renderNotifications(); updateAlertSummary();
+  return true;
+}
+
+async function loadAlertAccess() {
+  const entitlements = await api(ENTITLEMENT_ROUTE);
+  const capability = Array.isArray(entitlements.payload?.capabilities) ? entitlements.payload.capabilities.find((item) => item.capability === "research.alerts") : null;
+  if (!entitlements.response.ok || capability?.available !== true) {
+    state.alerts = { available: false, state: capability?.state || entitlements.payload?.state || entitlements.payload?.error || "server_disabled" };
+    return renderAlertState();
+  }
+  const contract = await api(ALERT_ROUTE);
+  if (!contract.response.ok) {
+    state.alerts = { available: false, state: contract.payload?.state || contract.payload?.error || "server_disabled" };
+    return renderAlertState();
+  }
+  state.alerts = { available: true, state: "available" };
+  await Promise.all([loadRules(), loadNotifications()]);
+  renderAlertState();
+}
+
+async function deleteNotificationHistory() {
+  const result = await api(`${ALERT_ROUTE}/notifications`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_notification_history" }) });
+  if (!result.response.ok) return setText("monitorAlertSummary", `Notification deletion refused: ${result.payload?.error || "request failed"}.`);
+  state.notifications = []; renderNotifications();
+  setText("monitorAlertSummary", `Deleted ${result.payload.deleted_count || 0} notification${result.payload.deleted_count === 1 ? "" : "s"}. Monitor rules remain active.`);
+}
+
+async function deleteAlertState() {
+  const control = document.getElementById("monitorDeleteAlertStateConfirm");
+  control.disabled = true;
+  const result = await api(ALERT_ROUTE, { method: "DELETE", body: JSON.stringify({ confirm: "delete_all_alert_research_state" }) });
+  control.disabled = false;
+  if (!result.response.ok) return setText("monitorAlertSummary", `Monitor-state deletion refused: ${result.payload?.error || "request failed"}.`);
+  document.getElementById("monitorAlertDeleteDialog").close();
+  state.rules = []; state.notifications = [];
+  renderItems(); renderNotifications();
+  setText("monitorAlertSummary", `Deleted ${result.payload.deleted?.rules || 0} monitor rule${result.payload.deleted?.rules === 1 ? "" : "s"} and ${result.payload.deleted?.notifications || 0} notification${result.payload.deleted?.notifications === 1 ? "" : "s"}. Saved markets remain.`);
 }
 
 async function submitAuth(form) {
@@ -256,11 +465,7 @@ async function submitAuth(form) {
   status.textContent = "Opening secure sign-in…";
   const values = Object.fromEntries(new FormData(form));
   values.return_to = authenticatedReturnTo(state.pending);
-  const result = await api("/api/v1/auth/start", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(values),
-  });
+  const result = await api("/api/v1/auth/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) });
   try {
     const target = new URL(result.payload?.authorization_url || "");
     if (!result.response.ok || target.protocol !== "https:" || target.hostname !== "api.workos.com") throw new Error("invalid_authorization_url");
@@ -274,44 +479,37 @@ async function submitAuth(form) {
 async function initialize() {
   state.pending = safeQueryHandoff();
   renderPending();
-  for (const form of document.querySelectorAll("[data-monitor-auth]")) {
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      submitAuth(form);
-    });
-  }
+  for (const form of document.querySelectorAll("[data-monitor-auth]")) form.addEventListener("submit", (event) => { event.preventDefault(); submitAuth(form); });
   saveButton.addEventListener("click", savePending);
   unwatchButton.addEventListener("click", () => removeItem(unwatchButton.dataset.watchId));
   document.getElementById("monitorReload").addEventListener("click", loadItems);
+  document.getElementById("monitorReloadAlerts").addEventListener("click", async () => Promise.all([loadRules(), loadNotifications()]));
+  document.getElementById("monitorDeleteNotifications").addEventListener("click", deleteNotificationHistory);
+  document.getElementById("monitorDeleteAlertState").addEventListener("click", () => document.getElementById("monitorAlertDeleteDialog").showModal());
+  document.getElementById("monitorDeleteAlertStateConfirm").addEventListener("click", deleteAlertState);
   document.getElementById("monitorDeleteAll").addEventListener("click", () => document.getElementById("monitorDeleteDialog").showModal());
   document.getElementById("monitorDeleteAllConfirm").addEventListener("click", deleteAll);
-
   const config = await api("/api/v1/auth/config");
   state.config = config.payload;
   if (!config.response.ok || !config.payload?.available || !config.payload?.on_authenticated_origin) {
-    page.dataset.monitorState = "unavailable";
-    auth.hidden = false;
-    document.getElementById("monitorServiceUnavailable").hidden = false;
-    return;
+    page.dataset.monitorState = "unavailable"; auth.hidden = false; document.getElementById("monitorServiceUnavailable").hidden = false; return;
   }
   const session = await api("/api/v1/auth/session");
-  if (!session.response.ok || !session.payload?.authenticated) {
-    page.dataset.monitorState = "anonymous";
-    auth.hidden = false;
-    authActions.hidden = false;
-    return;
-  }
+  if (!session.response.ok || !session.payload?.authenticated) { page.dataset.monitorState = "anonymous"; auth.hidden = false; authActions.hidden = false; return; }
   state.csrf = session.payload.csrf_token || "";
   page.dataset.monitorState = "authenticated";
   workspaceNode.hidden = false;
   await loadItems();
+  await loadAlertAccess();
 }
 
 window.__RAVENOS_SAVED_MONITOR__ = Object.freeze({
-  schemaVersion: "ravenos.saved_monitor_surface.v1",
+  schemaVersion: "ravenos.saved_monitor_surface.v2",
   exactIdentityOnly: true,
   browserStoredBearerTokens: false,
-  alertsAvailable: false,
+  alertsImplementation: "implemented_dormant",
+  inAppOnly: true,
+  planPricesStored: false,
   walletsPersisted: false,
   executionAvailable: false,
 });

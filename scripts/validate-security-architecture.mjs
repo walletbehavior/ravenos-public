@@ -78,6 +78,20 @@ assert.equal(config.saved_monitor.wallet_data_persisted, false);
 assert.equal(config.saved_monitor.alerts_available, false);
 assert.equal(config.saved_monitor.execution_available, false);
 assert.equal(config.saved_monitor.production_activation_completed, false);
+assert.equal(config.raven_monitor.implementation_status, "local_dormant_candidate_not_deployed");
+assert.equal(config.raven_monitor.authenticated_origin_only, true);
+assert.equal(config.raven_monitor.csrf_required_for_mutations, true);
+assert.equal(config.raven_monitor.exact_market_identity_only, true);
+assert.equal(config.raven_monitor.all_activation_controls_default_off, true);
+assert.equal(config.raven_monitor.maximum_rules_per_account, 100);
+assert.equal(config.raven_monitor.maximum_notification_history_per_account, 1000);
+assert.equal(config.raven_monitor.notification_retention_days, 90);
+assert.equal(config.raven_monitor.raw_provider_payloads_persisted, false);
+assert.equal(config.raven_monitor.plan_prices_persisted, false);
+assert.equal(config.raven_monitor.wallet_or_execution_data_persisted, false);
+assert.equal(config.raven_monitor.out_of_app_delivery_active, false);
+assert.equal(config.raven_monitor.scheduler_trigger_configured, false);
+assert.equal(config.raven_monitor.production_activation_completed, false);
 assert.equal(config.entitlement_foundation.implementation_status, "local_dormant_foundation");
 assert.equal(config.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
 assert.equal(config.entitlement_foundation.authenticated_origin_only, true);
@@ -105,6 +119,7 @@ const requiredScenarios = [
   "SEC-AUTHZ-001", "SEC-AUTHZ-002", "SEC-WAL-001", "SEC-WAL-002",
   "SEC-RSCH-001", "SEC-RSCH-002",
   "SEC-ENT-001", "SEC-ENT-002",
+  "SEC-ALT-001", "SEC-ALT-002",
   "SEC-WAL-003", "SEC-WAL-004", "SEC-WAL-005", "SEC-WAL-006",
   "SEC-BIL-001", "SEC-BIL-002", "SEC-BIL-003", "SEC-ENUM-001",
   "SEC-EDGE-001", "SEC-XSS-001", "SEC-CSP-001", "SEC-LEAK-001",
@@ -129,10 +144,13 @@ const worker = readFileSync(join(root, "worker.mjs"), "utf8");
 assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed identity router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_research_state.mjs"'), "Saved Monitor research-state router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_entitlements.mjs"'), "server-owned entitlement router is missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_monitor_alerts.mjs"'), "Raven Monitor router and evaluator are missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
 assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerEntitlements(request, env"), "entitlement routes are not wired through the authenticated Worker boundary");
+assert(worker.includes("routeCustomerMonitorAlerts(request, env"), "Raven Monitor routes are not wired through the authenticated Worker boundary");
+assert(worker.includes("runCustomerMonitorEvaluator(env"), "Raven Monitor evaluator is not wired through the dormant scheduled boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
 }
@@ -159,6 +177,7 @@ for (const activationFlag of [
   "RAVENOS_CUSTOMER_TRADE_SIGN_ENABLE",
   "RAVENOS_CUSTOMER_TRADE_SUBMIT_ENABLE",
   ...config.entitlement_foundation.activation_controls,
+  ...config.raven_monitor.activation_controls,
 ]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }
@@ -167,6 +186,7 @@ const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 assert.match(packageJson.scripts["validate:security"] || "", /validate-security-architecture\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /customer_monitor_alerts\.test\.mjs/);
 
 console.log(JSON.stringify({
   ok: true,

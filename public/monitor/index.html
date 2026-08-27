@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Saved Monitor · RavenOS</title>
-  <meta name="description" content="Your account-synced exact RavenOS markets and chart workspaces." />
+  <meta name="description" content="Your account-synced exact RavenOS markets, chart workspaces, and qualified Raven evidence notifications." />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
   <link rel="stylesheet" href="/ravenos-monitor.css" />
 </head>
@@ -24,12 +24,12 @@
       <div>
         <span class="monitor-kicker">Research continuity</span>
         <h1>Your exact markets,<br />right where you left them.</h1>
-        <p>Save a canonical pool or instrument with its chart timeframe, indicators, Raven overlays, density, and selected panel. Raven never substitutes a similarly named market.</p>
+        <p>Save a canonical pool or instrument with its chart workspace. When the dormant Raven Monitor beta is enabled for your account, Raven can watch qualified evidence classifications without ever substituting a similarly named market.</p>
       </div>
       <aside class="monitor-boundary">
         <span>Permission boundary</span>
-        <strong>Research state only</strong>
-        <p>No wallets, alerts, orders, provider payloads, or execution authority are stored here.</p>
+        <strong>Research monitoring only</strong>
+        <p>No wallets, positions, orders, provider payloads, plan prices, signing, or execution authority are stored here. v1 notifications remain in-app.</p>
       </aside>
     </header>
 
@@ -82,6 +82,18 @@
         </header>
         <div class="monitor-list" id="monitorList"></div>
       </section>
+
+      <section class="monitor-alerts" id="monitorAlerts" aria-labelledby="monitorAlertsTitle">
+        <header>
+          <div><span class="monitor-kicker">Qualified changes</span><h2 id="monitorAlertsTitle">Raven notifications</h2><p id="monitorAlertSummary" aria-live="polite">Checking Raven Monitor access…</p></div>
+          <div class="monitor-list-actions"><button id="monitorReloadAlerts" type="button">Reload</button><button id="monitorDeleteNotifications" class="danger" type="button">Delete notification history</button><button id="monitorDeleteAlertState" class="danger" type="button">Delete all alert research state</button></div>
+        </header>
+        <div class="monitor-alert-boundary" id="monitorAlertBoundary">
+          <strong>Operator-granted beta · dormant by default</strong>
+          <p>Raven compares bounded evidence states—not prices or arbitrary rules. No email, SMS, Telegram, Discord, or push delivery is active in v1.</p>
+        </div>
+        <div class="monitor-notifications" id="monitorNotifications"></div>
+      </section>
     </section>
 
     <dialog class="monitor-confirm" id="monitorDeleteDialog" aria-labelledby="monitorDeleteTitle">
@@ -90,6 +102,15 @@
         <h2 id="monitorDeleteTitle">Delete all saved research state?</h2>
         <p>This removes every exact market and saved workspace owned by this RavenOS account. It does not affect account sessions or any public RavenOS market data.</p>
         <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAllConfirm" class="danger" value="confirm" type="button">Delete everything</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="monitor-confirm" id="monitorAlertDeleteDialog" aria-labelledby="monitorAlertDeleteTitle">
+      <form method="dialog">
+        <span class="monitor-kicker">Permanent deletion</span>
+        <h2 id="monitorAlertDeleteTitle">Delete all Raven Monitor state?</h2>
+        <p>This removes every monitor rule and in-app notification owned by this account. Saved exact markets and chart workspaces remain.</p>
+        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAlertStateConfirm" class="danger" value="confirm" type="button">Delete monitor state</button></div>
       </form>
     </dialog>
   </main>

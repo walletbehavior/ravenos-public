@@ -169,7 +169,7 @@ export function savedMonitorHandoffHref(subjectValue = {}, workspaceValue = {}) 
     || /^(equity|etf):[a-z0-9.-]+:[a-z0-9.-]+$/i.test(id);
   if (!exactIdentity) return "";
   const url = new URL("https://app.ravenos.xyz/monitor/");
-  url.searchParams.set("action", "save");
+  url.searchParams.set("action", workspaceValue.action === "monitor" ? "monitor" : "save");
   url.searchParams.set("instrument_id", id);
   const values = {
     instrument_type: subject.instrumentType,

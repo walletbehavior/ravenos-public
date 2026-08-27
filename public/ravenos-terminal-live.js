@@ -479,6 +479,7 @@ function updateMonitorHandoff() {
   if (!link) return;
   const subject = ravenOSContext.getState().subject;
   const href = savedMonitorHandoffHref(subject, {
+    action: "monitor",
     timeframe: state.timeframe,
     indicators: Array.from(state.workspace?.activeIndicators || []).filter((value) => SAVED_INDICATORS.has(value)),
     ravenOverlays: currentRavenOverlayTypes(),

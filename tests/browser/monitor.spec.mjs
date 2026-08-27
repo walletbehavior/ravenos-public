@@ -253,13 +253,14 @@ test("unwatch, individual deletion, and delete-all are explicit customer control
   expect(JSON.parse(deleteAll.body)).toEqual({ confirm: "delete_all_saved_research_state" });
 });
 
-test("Terminal exposes an explicit exact-market Saved Monitor handoff", async ({ page }) => {
+test("Terminal exposes an explicit exact-market Raven Monitor handoff", async ({ page }) => {
   await page.goto("/terminal/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&instrument_type=perpetual&asset_class=crypto&identity_scope=exact_instrument&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h", { waitUntil: "domcontentloaded" });
   const link = page.locator("#terminalMonitorLink");
   await expect(link).toBeVisible({ timeout: 15_000 });
   const href = new URL(await link.getAttribute("href"));
   expect(href.origin).toBe("https://app.ravenos.xyz");
   expect(href.pathname).toBe("/monitor/");
+  expect(href.searchParams.get("action")).toBe("monitor");
   expect(href.searchParams.get("instrument_id")).toBe("hyperliquid:perp:SOL");
   expect(href.searchParams.get("timeframe")).toBe("4h");
   expect(href.searchParams.has("wallet")).toBe(false);

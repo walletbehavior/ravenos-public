@@ -104,6 +104,11 @@ import {
   PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
   routePortfolioGovernorPreview,
 } from "./lib/portfolio_governor/preview.mjs";
+import {
+  CUSTOMER_MONITOR_ALERTS_ROUTE,
+  routeCustomerMonitorAlerts,
+  runCustomerMonitorEvaluator,
+} from "./lib/customer_monitor_alerts.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -207,9 +212,11 @@ function authenticatedAppBoundary(request) {
   const entitlementApi = url.pathname === CUSTOMER_ENTITLEMENT_ROUTE
     || url.pathname === CUSTOMER_PRO_PERPS_ROUTE
     || url.pathname === CUSTOMER_PRO_PARTICIPANTS_ROUTE;
+  const monitorAlertsApi = url.pathname === CUSTOMER_MONITOR_ALERTS_ROUTE
+    || url.pathname.startsWith(`${CUSTOMER_MONITOR_ALERTS_ROUTE}/`);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || proIntelligencePath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || proIntelligencePath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -453,6 +460,105 @@ function handleBuildIdentity(releaseState) {
 async function readPublicProjection(env, request, key, assetPath = `/ravenos/${key}.json`) {
   const fallbackPayload = await readAssetPayload(env, request, assetPath);
   return loadPublicProjection({ env, key, fallbackPayload });
+}
+
+function monitorTimestamp(value) {
+  const milliseconds = Date.parse(String(value || ""));
+  return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null;
+}
+
+function monitorPerpsRows(payload) {
+  const tables = payload?.data?.tables;
+  if (!tables || typeof tables !== "object") return new Map();
+  const output = new Map();
+  for (const key of ["top_volume", "top_pressure", "tightest_books", "wide_or_thin_books"]) {
+    for (const row of Array.isArray(tables[key]) ? tables[key] : []) {
+      const coin = String(row?.symbol || "").trim().toUpperCase().replace(/-PERP$/, "");
+      if (!/^[A-Z0-9._-]{1,40}$/.test(coin)) continue;
+      const instrumentId = `hyperliquid:perp:${coin}`;
+      const current = output.get(instrumentId) || {};
+      output.set(instrumentId, {
+        ...current,
+        funding_regime: current.funding_regime || String(row.funding_regime || "").trim(),
+        pressure_regime: current.pressure_regime || String(row.pressure_state || "").trim(),
+        liquidity_quality: current.liquidity_quality || String(row.liquidity_quality || "").trim(),
+        evidence_strength: current.evidence_strength || (String(row.coverage || "").toLowerCase() === "active" ? "qualified" : "developing"),
+      });
+    }
+  }
+  return output;
+}
+
+async function loadMonitorEvidenceBatch(env, request, instrumentIds = []) {
+  const ids = [...new Set(instrumentIds.map((value) => String(value || "").trim()).filter((value) => value.length <= 220))];
+  const evidence = {};
+  let sourceCalls = 0;
+  const perpIds = ids.filter((value) => /^hyperliquid:perp:[A-Z0-9._-]{1,40}$/.test(value));
+  if (!perpIds.length) return { source_calls: 0, evidence };
+
+  let perpsProjection = null;
+  try {
+    perpsProjection = await readPublicProjection(env, request, "perps");
+    sourceCalls += 1;
+  } catch {
+    perpsProjection = null;
+  }
+  const delivery = perpsProjection?.delivery;
+  const projectionQualified = perpsProjection?.available === true
+    && perpsProjection?.payload?.safe_public === true
+    && perpsProjection?.payload?.data?.public_safe === true
+    && delivery?.fallback === false
+    && ["fresh", "delayed"].includes(String(delivery?.freshness_state || "").toLowerCase());
+  const ravenTimestamp = projectionQualified
+    ? monitorTimestamp(delivery?.source_generated_at || perpsProjection?.payload?.generated_at)
+    : null;
+  const ravenRows = projectionQualified && ravenTimestamp !== null ? monitorPerpsRows(perpsProjection.payload) : new Map();
+
+  let venueRows = new Map();
+  let venueTimestamp = null;
+  try {
+    const venue = await hyperliquidPerps();
+    sourceCalls += 1;
+    if (venue?.ok === true && venue?.isLive === true && Array.isArray(venue.results)) {
+      venueTimestamp = monitorTimestamp(venue.lastUpdated);
+      venueRows = new Map(venue.results.map((row) => [String(row.instrument_id || ""), row]).filter(([instrumentId]) => instrumentId));
+    }
+  } catch {
+    venueRows = new Map();
+  }
+
+  for (const instrumentId of perpIds) {
+    const raven = ravenRows.get(instrumentId);
+    const venueKnown = venueTimestamp !== null;
+    const venueAvailable = venueRows.has(instrumentId);
+    if (!raven && !venueKnown) continue;
+    const classifications = {};
+    const exactUnavailable = venueKnown && !venueAvailable;
+    if (!exactUnavailable) {
+      if (raven?.funding_regime) classifications.funding_regime = raven.funding_regime;
+      if (raven?.pressure_regime) classifications.pressure_regime = raven.pressure_regime;
+      if (raven?.liquidity_quality) classifications.liquidity_quality = raven.liquidity_quality;
+      if (raven?.evidence_strength) classifications.evidence_strength = raven.evidence_strength;
+    }
+    if (venueKnown) classifications.availability_state = venueAvailable ? "available" : "unavailable";
+    else if (raven) classifications.availability_state = "available";
+    const sourceTimestamp = exactUnavailable || !raven ? venueTimestamp : ravenTimestamp;
+    if (sourceTimestamp === null || !Object.keys(classifications).length) continue;
+    evidence[instrumentId] = {
+      schema_version: "ravenos.monitor_evidence.v1",
+      instrument_id: instrumentId,
+      source_timestamp: sourceTimestamp,
+      source_state: "qualified",
+      source_kind: exactUnavailable || !raven ? "hyperliquid_market_availability" : "raven_perps_public_safe_projection",
+      evidence_role: exactUnavailable || !raven ? "market_fact" : "raven_measurement",
+      maximum_age_seconds: exactUnavailable || !raven ? 300 : Math.max(300, Number(delivery?.freshness_target_seconds || 900) * 2),
+      classifications,
+      limitations: !exactUnavailable && raven
+        ? ["Research monitoring only; this is not a position or execution alert.", "No qualified liquidation stream is included."]
+        : ["Only exact-market availability is qualified for this observation."],
+    };
+  }
+  return { source_calls: sourceCalls, evidence };
 }
 
 function aggregateDeliveries(results = []) {
@@ -6461,6 +6567,13 @@ async function routeApi(request, env) {
     resolveMarketAvailability: (market) => resolveSavedMarketAvailability(env, market),
   });
   if (researchStateResponse) return researchStateResponse;
+  const monitorAlertsResponse = await routeCustomerMonitorAlerts(request, env, {
+    resolveCurrentEvidence: async (market) => {
+      const result = await loadMonitorEvidenceBatch(env, request, [market.instrument_id]);
+      return result.evidence[market.instrument_id] || null;
+    },
+  });
+  if (monitorAlertsResponse) return monitorAlertsResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
@@ -6635,6 +6748,14 @@ async function routeApi(request, env) {
 }
 
 export default {
+  async scheduled(_controller, env, context) {
+    const request = new Request("https://ravenos.xyz/ravenos/perps.json", { method: "GET" });
+    const work = runCustomerMonitorEvaluator(env || {}, {
+      loadEvidenceBatch: (instrumentIds) => loadMonitorEvidenceBatch(env || {}, request, instrumentIds),
+    });
+    if (context?.waitUntil) context.waitUntil(work);
+    else await work;
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/.git") || url.pathname.startsWith("/.wrangler")) {

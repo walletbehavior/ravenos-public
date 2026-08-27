@@ -124,6 +124,7 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
     capability_enablement: {
       "intelligence.perps_advanced": false,
       "intelligence.participant_advanced": false,
+      "research.alerts": false,
     },
   });
   assert.deepEqual(resolveCoordinatedIntelligenceSplits({}), { perps: false, participants: false });
@@ -140,12 +141,12 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
   assert.equal(CustomerEntitlementContract.browser_bearer_tokens, false);
   assert.equal(CustomerEntitlementContract.capabilities["intelligence.perps_advanced"].implementation_state, "implemented_dormant");
   assert.equal(CustomerEntitlementContract.capabilities["intelligence.participant_advanced"].implementation_state, "implemented_dormant");
+  assert.equal(CustomerEntitlementContract.capabilities["research.alerts"].implementation_state, "implemented_dormant");
   for (const key of [
     "intelligence.replay_advanced",
     "intelligence.export",
     "research.saved_state_extended",
     "research.saved_scans",
-    "research.alerts",
     "atlas.native_breadth",
     "atlas.filing_comparisons",
     "atlas.native_filing_marks",
