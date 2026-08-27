@@ -54,7 +54,13 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.saved_monitor.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("saved_monitor_production_activation"));
   assert.equal(security.entitlement_foundation.implementation_status, "local_dormant_foundation");
+  assert.equal(security.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
   assert.equal(security.entitlement_foundation.all_activation_controls_default_off, true);
+  assert.equal(security.entitlement_foundation.coordinated_projection_split_required, true);
+  assert.deepEqual(security.entitlement_foundation.free_projection_limits, { perps_markets: 6, participant_conditions: 6 });
+  assert.deepEqual(security.entitlement_foundation.pro_projection_limits, { perps_rows_per_table: 40, participant_conditions: 160 });
+  assert.equal(security.entitlement_foundation.direct_public_artifact_aliases_projected_when_active, true);
+  assert.equal(security.entitlement_foundation.public_behavior_unchanged_while_off, true);
   assert.equal(security.entitlement_foundation.customer_mutation_available, false);
   assert.equal(security.entitlement_foundation.checkout_available, false);
   assert.equal(security.entitlement_foundation.billing_available, false);
@@ -214,14 +220,16 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
 
 test("the authenticated hostname exposes only approved account, Saved Monitor, and dormant entitlement candidates", async () => {
   const accountHtml = readFileSync("account/index.html", "utf8");
+  const intelligenceHtml = readFileSync("account/intelligence/index.html", "utf8");
   const monitorHtml = readFileSync("monitor/index.html", "utf8");
   const env = {
     ASSETS: {
       async fetch(request) {
         const pathname = new URL(request.url).pathname;
         if (pathname === "/account/") return new Response(accountHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname === "/account/intelligence/") return new Response(intelligenceHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
         if (pathname === "/monitor/") return new Response(monitorHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
-        if (pathname.startsWith("/assets/") || ["/ravenos-account.js", "/ravenos-monitor.js", "/ravenos-monitor.css", "/ravenos-workspace.css"].includes(pathname)) return new Response("asset", { headers: { "content-type": pathname.endsWith(".css") ? "text/css" : "application/javascript" } });
+        if (pathname.startsWith("/assets/") || ["/ravenos-account.js", "/ravenos-monitor.js", "/ravenos-monitor.css", "/ravenos-pro-intelligence.js", "/ravenos-pro-intelligence.css", "/ravenos-workspace.css"].includes(pathname)) return new Response("asset", { headers: { "content-type": pathname.endsWith(".css") ? "text/css" : "application/javascript" } });
         return new Response("public surface", { headers: { "content-type": "text/html; charset=utf-8" } });
       },
     },
@@ -239,6 +247,13 @@ test("the authenticated hostname exposes only approved account, Saved Monitor, a
 
   const asset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-account.js"), env);
   assert.equal(asset.status, 200);
+
+  const intelligence = await worker.fetch(new Request("https://app.ravenos.xyz/account/intelligence/"), env);
+  assert.equal(intelligence.status, 200);
+  assert.match(intelligence.headers.get("cache-control") || "", /no-store/);
+  assert.match(intelligence.headers.get("content-security-policy") || "", /default-src 'self'/);
+  const intelligenceAsset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-pro-intelligence.js"), env);
+  assert.equal(intelligenceAsset.status, 200);
 
   const monitor = await worker.fetch(new Request("https://app.ravenos.xyz/monitor/"), env);
   assert.equal(monitor.status, 200);
@@ -298,7 +313,25 @@ test("Portfolio Governor account UI accepts only an opaque selection and preserv
   assert(client.includes("No portfolio policy configured"));
 });
 
+test("authenticated Pro workspace keeps authorization server-owned and renders without executable markup", () => {
+  const html = readFileSync("account/intelligence/index.html", "utf8");
+  const client = readFileSync("ravenos-pro-intelligence.js", "utf8");
+  assert(html.includes("Operator-granted access only"));
+  assert(html.includes("Entitlement never expands Atlas rights"));
+  assert(html.includes("No wallet, broker, signing, submission, order, or position authority is present."));
+  assert(!/<input[^>]+name=["'](?:owner|user|capability|plan|tier|token)["']/i.test(html));
+  assert(!/<(?:a|button|form)[^>]*(?:checkout|subscribe|purchase|upgrade)/i.test(html));
+  assert(!client.includes("innerHTML"));
+  assert(!client.includes("localStorage"));
+  assert(!client.includes("sessionStorage"));
+  assert(!/authorization\s*:/i.test(client));
+  assert(client.includes('credentials: "same-origin"'));
+  assert(client.includes('cache: "no-store"'));
+  assert(client.includes("textContent"));
+  assert(client.includes("exactPerpInstrumentId"));
+});
+
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 9);
+  assert.equal(security.required_documents.length, 10);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

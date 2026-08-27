@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pro Intelligence · RavenOS</title>
+  <meta name="description" content="Authenticated, read-only RavenOS Perps and Participant Intelligence workspace." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-pro-intelligence.css" />
+</head>
+<body>
+  <main class="pro-intelligence-page" data-route-slug="account-intelligence" data-workspace-state="loading">
+    <header class="pro-intelligence-head">
+      <div>
+        <a href="/account/">← Account</a>
+        <span>Authenticated workspace</span>
+        <h1>Pro Intelligence</h1>
+        <p>Server-authorized Perps and Participant Intelligence. Read only, public-safe, and separate from Atlas display rights or transaction authority.</p>
+      </div>
+      <div class="pro-intelligence-session" aria-live="polite">
+        <span>Access state</span>
+        <strong id="proWorkspaceState">Checking session</strong>
+        <small id="proWorkspaceIdentity">No account data loaded</small>
+      </div>
+    </header>
+
+    <section class="pro-intelligence-signin" id="proWorkspaceSignIn" hidden>
+      <div>
+        <span>Secure RavenOS session required</span>
+        <h2>Sign in to inspect server-authorized intelligence.</h2>
+        <p>This workspace never accepts a browser-selected plan, capability, owner, or bearer token. A host-only RavenOS session is required.</p>
+      </div>
+      <div class="pro-intelligence-signin-actions" id="proWorkspaceSignInActions">
+        <form method="post" action="/api/v1/auth/start">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="google" />
+          <input type="hidden" name="return_to" value="/account/intelligence/" data-pro-return-to />
+          <button type="submit">Continue with Google <span aria-hidden="true">→</span></button>
+        </form>
+        <form method="post" action="/api/v1/auth/start">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="managed" />
+          <input type="hidden" name="return_to" value="/account/intelligence/" data-pro-return-to />
+          <button type="submit">Email, password, or code <span aria-hidden="true">→</span></button>
+        </form>
+        <a href="/account/">Create or manage an account</a>
+      </div>
+    </section>
+
+    <section class="pro-intelligence-workspace" id="proWorkspace" hidden>
+      <nav class="pro-intelligence-tabs" role="tablist" aria-label="Pro Intelligence view">
+        <button id="proTabPerps" type="button" role="tab" aria-selected="true" aria-controls="proPanelPerps" tabindex="0" data-pro-view="perps">Perps Intelligence</button>
+        <button id="proTabParticipants" type="button" role="tab" aria-selected="false" aria-controls="proPanelParticipants" tabindex="-1" data-pro-view="participants">Participant Intelligence</button>
+      </nav>
+
+      <section class="pro-intelligence-panel" id="proPanelPerps" role="tabpanel" aria-labelledby="proTabPerps" data-pro-panel="perps">
+        <header class="pro-panel-head">
+          <div><span>Hyperliquid aggregate context</span><h2>Advanced Perps Intelligence</h2><p id="proPerpsContext">No exact market context selected.</p></div>
+          <strong id="proPerpsState" data-state="loading">Checking capability</strong>
+        </header>
+        <div class="pro-capability-message" id="proPerpsMessage" aria-live="polite"></div>
+        <div class="pro-projection" id="proPerpsProjection" hidden>
+          <div class="pro-filter-bar" id="proPerpsFilters" aria-label="Perps filters"></div>
+          <div class="pro-subtabs" role="tablist" aria-label="Advanced Perps Intelligence section">
+            <button type="button" role="tab" aria-selected="true" tabindex="0" data-pro-perps-section="positioning">Positioning</button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" data-pro-perps-section="pressure">Pressure</button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" data-pro-perps-section="liquidity">Liquidity</button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" data-pro-perps-section="outcomes">Outcomes</button>
+          </div>
+          <div id="proPerpsContent"></div>
+        </div>
+      </section>
+
+      <section class="pro-intelligence-panel" id="proPanelParticipants" role="tabpanel" aria-labelledby="proTabParticipants" data-pro-panel="participants" hidden>
+        <header class="pro-panel-head">
+          <div><span>Aggregate and privacy-safe</span><h2>Advanced Participant Intelligence</h2><p>Complete qualified condition matrix with denominators and evidence strength. No wallet identity or label is included.</p></div>
+          <strong id="proParticipantsState" data-state="loading">Checking capability</strong>
+        </header>
+        <div class="pro-capability-message" id="proParticipantsMessage" aria-live="polite"></div>
+        <div class="pro-projection" id="proParticipantsProjection" hidden>
+          <div class="pro-filter-bar" id="proParticipantFilters" aria-label="Participant Intelligence filters"></div>
+          <div id="proParticipantsContent"></div>
+        </div>
+      </section>
+    </section>
+
+    <footer class="pro-intelligence-boundary">
+      <div><span>Authority</span><strong>Operator-granted access only</strong><p>No checkout, subscription enrollment, or customer capability mutation exists in this workspace.</p></div>
+      <div><span>Data rights</span><strong>Entitlement never expands Atlas rights</strong><p>Restricted, internal-only, and unknown Atlas observations remain unavailable.</p></div>
+      <div><span>Execution</span><strong>Read only</strong><p>No wallet, broker, signing, submission, order, or position authority is present.</p></div>
+    </footer>
+  </main>
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-pro-intelligence.js"></script>
+</body>
+</html>

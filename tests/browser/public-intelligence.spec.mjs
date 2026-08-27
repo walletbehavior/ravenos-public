@@ -82,6 +82,93 @@ function perpsProjection() {
   };
 }
 
+function freePerpsProjection() {
+  const generatedAt = new Date().toISOString();
+  const rows = ["BTC", "SOL", "ETH", "HYPE", "XRP", "DOGE"].map((coin, index) => ({
+    instrument_id: `hyperliquid:perp:${coin}`,
+    symbol: `${coin}-PERP`,
+    venue: "Hyperliquid",
+    instrument_group: index < 3 ? "Majors" : "Liquid alts",
+    funding_rate: 0.00001 * (index + 1),
+    funding_regime: index % 2 ? "Positive funding" : "Funding neutral",
+    open_interest_usd: 900_000_000 - index * 80_000_000,
+    day_volume_usd: 1_200_000_000 - index * 90_000_000,
+    mark_price: 100 - index,
+    pressure_state: index % 2 ? "Long crowding watch" : "Mixed pressure",
+    coverage: "active",
+  }));
+  return {
+    ok: true,
+    schema_version: "ravenos.customer_intelligence_projection.v1",
+    intelligence_kind: "perps",
+    access_scope: "free",
+    generated_at: generatedAt,
+    provenance: {
+      source_category: "current_public_safe_projection",
+      freshness: { state: "fresh", generated_at: generatedAt },
+      raw_provider_payload_included: false,
+      participant_identity_included: false,
+      execution_data_included: false,
+    },
+    delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
+    overview: {
+      state: "active",
+      markets_observed: 176,
+      books_observed: 176,
+      public_read: "Funding is balanced while pressure remains selective.",
+      pressure_buckets: [{ label: "Mixed pressure", count: 130 }, { label: "Long crowding watch", count: 10 }],
+      liquidity_buckets: [{ label: "deep", count: 4 }, { label: "usable", count: 41 }, { label: "thin", count: 131 }],
+      participant_context: { state: "actor_evidence_stale", freshness: "stale", observed_at: generatedAt, privacy: "aggregate_status_only" },
+    },
+    selected_market: { state: "not_selected", instrument_id: null, market: null },
+    market_overview: rows,
+    limitations: {
+      liquidation_data: "unavailable_no_qualified_stream",
+      actor_leaderboards: "withheld_pending_separate_qualification",
+      wallet_identity: "not_included",
+      execution: "not_included",
+    },
+    advanced: null,
+  };
+}
+
+function freeParticipantProjection() {
+  const generatedAt = new Date().toISOString();
+  return {
+    ok: true,
+    schema_version: "ravenos.customer_intelligence_projection.v1",
+    intelligence_kind: "participants",
+    access_scope: "free",
+    generated_at: generatedAt,
+    provenance: {
+      source_category: "current_public_safe_projection",
+      freshness: { state: "fresh", generated_at: generatedAt },
+      raw_provider_payload_included: false,
+      participant_identity_included: false,
+      execution_data_included: false,
+    },
+    delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
+    headline: { state: "available", public_read: "Participation is selective.", aggregate_evidence_freshness: "fresh", conditions_observed: 97 },
+    participation_overview: ["solana", "base", "ethereum", "solana", "base", "ethereum"].map((chain, index) => ({
+      chain,
+      capitalization_band: index < 3 ? "micro" : "mid",
+      window: index % 2 ? "1h" : "4h",
+      participation_trend: index % 2 ? "expanding" : "selective",
+      observed_sample: 40 + index,
+      usable_sample: 30 + index,
+      interpretation: `${chain} aggregate condition ${index + 1} remains evidence-bound.`,
+    })),
+    limitations: {
+      aggregation: "aggregate_conditions_only",
+      wallet_identity: "not_included",
+      wallet_labels: "not_included",
+      relationship_graphs: "not_included",
+      smart_money_rankings: "not_included",
+    },
+    advanced: null,
+  };
+}
+
 test("Intelligence hub makes every existing evidence surface discoverable without expanding mobile primary navigation", async ({ page }) => {
   await page.goto("/intelligence/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h");
   await expect(page.getByRole("heading", { name: "Follow the evidence behind the read." })).toBeVisible();
@@ -159,6 +246,37 @@ test("Perps Intelligence renders positioning, pressure, liquidity, and outcome m
   expect(tabOverflow).toBeLessThanOrEqual(2);
 });
 
+test("Free Perps Intelligence receives six current rows and a real server boundary instead of hidden advanced data", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.unroute("**/api/perps");
+  await page.route("**/api/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(freePerpsProjection()) }));
+  await page.goto("/perps/#perpsIntelligence");
+
+  await expect(page.locator("#perpsIntelligenceState")).toHaveText("Current");
+  await page.getByRole("tab", { name: "Positioning" }).click();
+  await expect(page.locator("#perpsIntelPositioning tbody tr")).toHaveCount(6);
+  await expect(page.locator("#perpsIntelPositioning")).toContainText("Six-market positioning overview");
+  await page.getByRole("tab", { name: "Liquidity" }).click();
+  await expect(page.locator("#perpsIntelLiquidity")).toContainText("Spread and depth comparisons are not in the Free response");
+  await expect(page.locator("#perpsIntelLiquidity tbody tr")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Outcomes" }).click();
+  await expect(page.locator("#perpsIntelOutcomes")).toContainText("Outcome attribution is not in the Free response");
+  await expect(page.locator("#perpsProBoundary")).toBeVisible();
+  await expect(page.locator("#perpsProBoundary")).toContainText(/Full pressure and crowding matrix.*Spread and depth comparisons.*Outcome attribution/s);
+  await expect(page.locator("#perpsProWorkspaceLink")).toHaveAttribute("href", /view=perps&instrument_id=hyperliquid%3Aperp%3ASOL/);
+
+  const publicDom = await page.locator("#perpsIntelligence").innerText();
+  expect(publicDom).not.toContain("Tightest books");
+  expect(publicDom).not.toContain("Wide or thin books");
+  expect(publicDom).not.toContain("20-level depth");
+  expect(publicDom).not.toMatch(/leaderboard|wallet label/i);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#perpsProBoundary").scrollIntoViewIfNeeded();
+  const overflow = await page.locator("#perpsIntelligence").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+});
+
 test("Participant Intelligence keeps denominators, evidence strength, and privacy boundaries visible", async ({ page }) => {
   const currentResponse = await page.request.get("/api/behavior");
   const behavior = await currentResponse.json();
@@ -176,6 +294,23 @@ test("Participant Intelligence keeps denominators, evidence strength, and privac
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed/i);
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
+});
+
+test("Free Participant Intelligence receives six aggregate conditions with no advanced rows in the DOM", async ({ page }) => {
+  await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(freeParticipantProjection()) }));
+  await page.goto("/behavior/");
+
+  await expect(page.locator(".behavior-matrix article")).toHaveCount(6);
+  await expect(page.locator(".behavior-focus")).toContainText(/Sample.*usable.*observed.*Window.*Privacy.*Aggregate/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Complete aggregate condition matrix.*Success, win-rate, confidence and outcome bands.*Chain, capitalization and window/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText("No advanced rows are sent to this public page");
+  const publicDom = await page.locator("main").innerText();
+  expect(publicDom).not.toMatch(/\bSuccess rate\s+\d|\bWin-rate band\s+(?:high|low|mixed)|Score strength\s+(?:high|low|strong)/i);
+  expect(publicDom).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
 });
 
 test("Participant Intelligence keeps an unavailable live feed explicit without stale substitution", async ({ page }) => {

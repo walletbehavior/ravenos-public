@@ -89,6 +89,7 @@
   },
   "entitlement_foundation": {
     "implementation_status": "local_dormant_foundation",
+    "surface": "https://app.ravenos.xyz/account/intelligence/",
     "authenticated_origin_only": true,
     "routes": [
       "GET /api/v1/entitlements",
@@ -96,6 +97,17 @@
       "GET /api/v1/intelligence/participants"
     ],
     "all_activation_controls_default_off": true,
+    "coordinated_projection_split_required": true,
+    "free_projection_limits": {
+      "perps_markets": 6,
+      "participant_conditions": 6
+    },
+    "pro_projection_limits": {
+      "perps_rows_per_table": 40,
+      "participant_conditions": 160
+    },
+    "direct_public_artifact_aliases_projected_when_active": true,
+    "public_behavior_unchanged_while_off": true,
     "activation_controls": [
       "RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE",
       "RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE",
@@ -154,7 +166,8 @@
     "docs/ravenos_security_verification_v1.md",
     "docs/ravenos_auth_provider_review_v1.md",
     "docs/ravenos_saved_monitor_v1.md",
-    "docs/ravenos_entitlements_foundation_v1.md"
+    "docs/ravenos_entitlements_foundation_v1.md",
+    "docs/ravenos_free_pro_projection_workspace_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -166,7 +179,7 @@
     { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
     { "id": "SEC-RSCH-002", "name": "saved research-state CSRF, quotas, deletion, and XSS", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
     { "id": "SEC-ENT-001", "name": "server-owned entitlement ownership, lifecycle and fail-closed resolution", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs" },
-    { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; Atlas regression suites" },
+    { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

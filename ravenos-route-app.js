@@ -1017,6 +1017,17 @@ function renderMemory(payload) {
 
 function currentBehaviorProjection(payload) {
   const delivery = payload?.delivery || {};
+  if (
+    payload?.ok === true
+    && payload?.schema_version === "ravenos.customer_intelligence_projection.v1"
+    && payload?.intelligence_kind === "participants"
+    && payload?.access_scope === "free"
+    && payload?.advanced === null
+    && ["fresh", "delayed"].includes(payload?.provenance?.freshness?.state)
+    && ["fresh", "delayed"].includes(delivery.freshness_state)
+    && Array.isArray(payload.participation_overview)
+    && payload.participation_overview.length <= 6
+  ) return { accessScope: "free", projection: payload };
   const data = payload?.data;
   const rows = data?.rows;
   if (
@@ -1032,7 +1043,7 @@ function currentBehaviorProjection(payload) {
     || rows.some((row) => row?.public_safe !== true)
     || (data.actor_evidence && data.actor_evidence.public_safe !== true)
   ) return null;
-  return data;
+  return { accessScope: "legacy_full", data };
 }
 
 function renderBehaviorUnavailable() {
@@ -1047,12 +1058,59 @@ function renderBehaviorUnavailable() {
   document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Privacy boundary</div><h2>Nothing private substituted</h2></div></div><div class="route-boundary"><span>Aggregate only</span><strong>No wallet identity, label, relationship graph, coordination claim, or smart-money ranking is exposed.</strong></div>`;
 }
 
+function renderBehaviorFree(payload, projection) {
+  const rows = Array.isArray(projection.participation_overview) ? projection.participation_overview : [];
+  const focus = rows[0] || null;
+  const focusLabel = focus
+    ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.capitalization_band)}`)
+    : "Participant context";
+  const freshness = projection.provenance?.freshness?.state || payload.delivery?.freshness_state || "unavailable";
+  document.getElementById("routeHeadline").textContent = focus
+    ? `${focusLabel}: ${titleCase(focus.participation_trend || "forming")} participation.`
+    : "Participant Intelligence is forming.";
+  document.getElementById("routeHeroSummary").textContent = "The Free projection keeps six aggregate conditions, their observed and usable denominators, timing window, and plain-language interpretation. Identities remain withheld.";
+  const stateStrip = document.getElementById("routeStateStrip");
+  stateStrip.dataset.columns = "4";
+  stateStrip.innerHTML = [
+    routeStateCard("Free conditions", fmtNumber(rows.length)),
+    routeStateCard("Conditions observed", fmtNumber(projection.headline?.conditions_observed)),
+    routeStateCard("Projection", titleCase(freshness)),
+    routeStateCard("Privacy", "Aggregate only"),
+  ].join("");
+
+  document.getElementById("routePrimaryPanel").innerHTML = `
+    <div class="route-panel-head"><div><div class="route-chip-label">Free Participant overview</div><h2>Current aggregate conditions</h2></div><span class="route-pill ${escapeHtml(statusClass(freshness))}">${escapeHtml(titleCase(freshness))}</span></div>
+    ${focus ? `<section class="behavior-focus"><div><span>Current aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.interpretation, "Participation context is forming."))}</p></div><dl><div><dt>Participation trend</dt><dd>${escapeHtml(titleCase(focus.participation_trend || "forming"))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(`${fmtNumber(focus.usable_sample)} usable · ${fmtNumber(focus.observed_sample)} observed`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || "current")}</dd></div><div><dt>Privacy</dt><dd>Aggregate · identities withheld</dd></div></dl></section>` : ""}
+    <div class="behavior-matrix" aria-label="Free aggregate participation overview">
+      ${rows.map((row) => `<article data-strength="building"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.capitalization_band)}`))}</span><b>${escapeHtml(titleCase(row.participation_trend || "forming"))}</b></header><p>${escapeHtml(traderText(row.interpretation, "Participation context is forming."))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Trend</dt><dd>${escapeHtml(titleCase(row.participation_trend || "forming"))}</dd></div><div><dt>Usable sample</dt><dd>${escapeHtml(fmtNumber(row.usable_sample))}</dd></div><div><dt>Observed sample</dt><dd>${escapeHtml(fmtNumber(row.observed_sample))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(row.window || "current")}</dd></div></dl><footer><span>${escapeHtml(`${fmtNumber(row.usable_sample)} usable / ${fmtNumber(row.observed_sample)} observed`)}</span><span>Aggregate · identities withheld</span></footer></article>`).join("")}
+    </div>
+    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
+  `;
+  document.getElementById("routeSecondaryPanel").innerHTML = `
+    <div class="route-panel-head"><div><div class="route-chip-label">Authenticated depth</div><h2>Advanced Participant Intelligence</h2></div><span class="route-pill forming">Operator-granted beta</span></div>
+    <p class="route-summary">The public page does not receive the complete condition matrix or its advanced fields.</p>
+    <div class="route-continuity-list participant-pro-metadata">
+      <div><span>Matrix</span><strong>Complete aggregate condition matrix</strong><small>No wallet identities or labels</small></div>
+      <div><span>Evidence</span><strong>Success, win-rate, confidence and outcome bands</strong><small>Aggregate denominators remain attached</small></div>
+      <div><span>Integrity</span><strong>Excluded-sample and sample-gap detail</strong><small>Unavailable evidence stays unavailable</small></div>
+      <div><span>Filters</span><strong>Chain, capitalization and window</strong><small>Applied to an authorized private response</small></div>
+    </div>
+    <div class="route-boundary"><span>Server boundary</span><strong>No advanced rows are sent to this public page or hidden behind a visual lock.</strong></div>
+    <div class="route-next"><a class="primary" href="https://app.ravenos.xyz/account/intelligence/?view=participants">Open authenticated workspace</a><a href="/intelligence/">All Intelligence</a></div>
+  `;
+}
+
 function renderBehavior(payload) {
-  const data = currentBehaviorProjection(payload);
-  if (!data) {
+  const current = currentBehaviorProjection(payload);
+  if (!current) {
     renderBehaviorUnavailable();
     return;
   }
+  if (current.accessScope === "free") {
+    renderBehaviorFree(payload, current.projection);
+    return;
+  }
+  const data = current.data;
   const allRows = Array.isArray(data.rows) ? data.rows : [];
   const actorEvidence = data.actor_evidence || {};
   const strengthOrder = { strong: 3, mixed: 2, building: 1 };
@@ -1436,7 +1494,7 @@ function renderChain(payload) {
     <div class="route-panel-head"><div><div class="route-chip-label">Current Chain Read</div><h2>${escapeHtml(label)} Synthesis</h2></div></div>
     <p class="route-summary">${escapeHtml(traderText(data.current_read, "Developing coverage."))}</p>
     <div class="route-card-grid" style="margin-top:12px;">
-      ${summaryMetric("Behavior context", traderText(data.behavior_context?.plain_language_summary))}
+      ${summaryMetric("Behavior context", traderText(data.behavior_context?.plain_language_summary || data.behavior_context?.interpretation))}
       ${summaryMetric("Similar history", traderText(data.replay_context?.public_read))}
       ${summaryMetric("Memory context", traderText(data.memory_context?.title))}
     </div>

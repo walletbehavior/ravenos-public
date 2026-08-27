@@ -18,6 +18,7 @@ const build = JSON.parse(readFileSync(join(repoRoot, "ravenos_build.json"), "utf
 
 const legacyRouteFiles = [
   "account/index.html",
+  "account/intelligence/index.html",
   "monitor/index.html",
   "pricing/index.html",
   "pro/index.html",
@@ -37,6 +38,8 @@ const runtimeAssets = [
   "ravenos-account.js",
   "ravenos-monitor.css",
   "ravenos-monitor.js",
+  "ravenos-pro-intelligence.css",
+  "ravenos-pro-intelligence.js",
   "ravenos-context-store.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",

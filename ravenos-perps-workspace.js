@@ -108,6 +108,20 @@ function appendText(parent, tag, className, value) {
 
 function currentPublicPerps(payload) {
   const delivery = payload?.delivery || {};
+  if (
+    payload?.ok === true
+    && payload?.schema_version === "ravenos.customer_intelligence_projection.v1"
+    && payload?.intelligence_kind === "perps"
+    && payload?.access_scope === "free"
+    && payload?.advanced === null
+    && ["fresh", "delayed"].includes(payload?.provenance?.freshness?.state)
+    && ["fresh", "delayed"].includes(delivery.freshness_state)
+    && Array.isArray(payload.market_overview)
+    && payload.market_overview.length <= 6
+    && payload.market_overview.every((row) => /^hyperliquid:perp:[A-Z0-9][A-Z0-9._-]{0,28}$/.test(String(row?.instrument_id || "")))
+  ) {
+    return { accessScope: "free", projection: payload, delivery, generatedAt: payload.generated_at };
+  }
   const data = payload?.data;
   const tables = data?.tables;
   if (
@@ -125,7 +139,7 @@ function currentPublicPerps(payload) {
     || !tables
     || !["top_volume", "top_pressure", "tightest_books", "wide_or_thin_books"].every((key) => Array.isArray(tables[key]))
   ) return null;
-  return { data, delivery, generatedAt: data.generated_at || payload.generated_at };
+  return { accessScope: "legacy_full", data, delivery, generatedAt: data.generated_at || payload.generated_at };
 }
 
 function intelligencePanel(name) {
@@ -161,13 +175,102 @@ function appendMetricGrid(host, metrics, className = "") {
 }
 
 function appendBucketSet(host, title, buckets = {}) {
-  const values = Object.entries(buckets || {}).filter(([, value]) => strictFinite(value) !== null);
+  const values = (Array.isArray(buckets)
+    ? buckets.map((row) => [row?.label, row?.count])
+    : Object.entries(buckets || {})).filter(([label, value]) => label && strictFinite(value) !== null);
   if (!values.length) return;
   const section = document.createElement("section");
   section.className = "perps-intel-section";
   appendText(section, "h3", "", title);
   appendMetricGrid(section, values.map(([label, value]) => [titleCase(label), Number(value).toLocaleString("en-US"), "markets", ""]), "compact");
   host.append(section);
+}
+
+function setProBoundaryVisible(visible) {
+  const boundary = document.getElementById("perpsProBoundary");
+  if (boundary) boundary.hidden = !visible;
+}
+
+function syncProWorkspaceLink(row = state.row) {
+  const link = document.getElementById("perpsProWorkspaceLink");
+  if (!link) return;
+  const target = new URL("https://app.ravenos.xyz/account/intelligence/");
+  target.searchParams.set("view", "perps");
+  const instrumentId = String(row?.instrument_id || "").trim();
+  if (/^hyperliquid:perp:[A-Z0-9][A-Z0-9._-]{0,28}$/.test(instrumentId)) {
+    target.searchParams.set("instrument_id", instrumentId);
+  }
+  link.href = target.toString();
+}
+
+function renderFreePerps(projection) {
+  const overview = projection.overview || {};
+  const participantContext = overview.participant_context || {};
+  const rows = Array.isArray(projection.market_overview) ? projection.market_overview : [];
+
+  const overviewHost = intelligencePanel("overview");
+  overviewHost.replaceChildren();
+  appendMetricGrid(overviewHost, [
+    ["Markets observed", Number(overview.markets_observed || 0).toLocaleString("en-US"), `${Number(overview.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
+    ["Free market view", `${rows.length} markets`, "Bounded server projection", "current"],
+    ["Participant context", titleCase(participantContext.freshness), participantContext.privacy === "aggregate_status_only" ? "Aggregate state only; identities withheld" : "Unavailable", participantContext.freshness || "unavailable"],
+    ["Liquidation stream", "Unavailable", "No qualified public liquidation source is attached; nothing is synthesized", "unavailable"],
+  ]);
+  const read = document.createElement("div");
+  read.className = "perps-intel-boundary";
+  appendText(read, "strong", "", "Current public Perps overview");
+  appendText(read, "span", "", overview.public_read || "Current venue context is forming.");
+  overviewHost.append(read);
+  appendBucketSet(overviewHost, "Pressure states", overview.pressure_buckets);
+  appendBucketSet(overviewHost, "Liquidity quality", overview.liquidity_buckets);
+
+  const positioningHost = intelligencePanel("positioning");
+  positioningHost.replaceChildren();
+  appendDataTable(positioningHost, {
+    title: "Six-market positioning overview",
+    detail: "Current funding and open interest remain free. The server sends no additional positioning rows to this page.",
+    columns: [
+      { label: "Market", value: "symbol" },
+      { label: "Funding regime", value: (row) => row.funding_regime || "Unavailable" },
+      { label: "Funding", value: (row) => rate(row.funding_rate) },
+      { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
+      { label: "24h volume", value: (row) => strictFinite(row.day_volume_usd) === null ? "—" : `$${compact(row.day_volume_usd)}` },
+    ],
+    rows,
+  });
+
+  const pressureHost = intelligencePanel("pressure");
+  pressureHost.replaceChildren();
+  appendBucketSet(pressureHost, "Current pressure distribution", overview.pressure_buckets);
+  appendDataTable(pressureHost, {
+    title: "Basic pressure overview",
+    detail: "A bounded current state is shown without the complete cross-market pressure and crowding matrix.",
+    columns: [
+      { label: "Market", value: "symbol" },
+      { label: "Pressure state", value: "pressure_state" },
+      { label: "Funding regime", value: "funding_regime" },
+      { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
+    ],
+    rows,
+  });
+
+  const liquidityHost = intelligencePanel("liquidity");
+  liquidityHost.replaceChildren();
+  appendBucketSet(liquidityHost, "Current liquidity distribution", overview.liquidity_buckets);
+  const liquidityBoundary = document.createElement("div");
+  liquidityBoundary.className = "perps-intel-boundary";
+  appendText(liquidityBoundary, "strong", "", "Spread and depth comparisons are not in the Free response");
+  appendText(liquidityBoundary, "span", "", "Exact-market book and tape remain available in the Terminal. Cross-market tightest-book and wide/thin-book rows require an authorized private projection.");
+  liquidityHost.append(liquidityBoundary);
+
+  const outcomesHost = intelligencePanel("outcomes");
+  outcomesHost.replaceChildren();
+  const outcomesBoundary = document.createElement("div");
+  outcomesBoundary.className = "perps-intel-boundary";
+  appendText(outcomesBoundary, "strong", "", "Outcome attribution is not in the Free response");
+  appendText(outcomesBoundary, "span", "", "Current Raven Reads and their evidence timestamps remain public. The complete cross-market attribution tables are available only through an authorized private projection.");
+  outcomesHost.append(outcomesBoundary);
+  setProBoundaryVisible(true);
 }
 
 function appendDataTable(host, { title, detail = "", columns = [], rows = [] } = {}) {
@@ -328,12 +431,19 @@ function renderPerpsOutcomes(data) {
 function renderPublicPerps(payload) {
   const projection = currentPublicPerps(payload);
   if (!projection) {
+    setProBoundaryVisible(false);
     renderIntelligenceUnavailable();
     return;
   }
-  const { data, delivery, generatedAt } = projection;
+  const { delivery, generatedAt } = projection;
   setState("perpsIntelligenceState", delivery.freshness_state, delivery.freshness_state === "delayed" ? "Delayed · current origin" : "Current");
   setText("perpsIntelligenceObserved", timestamp(generatedAt));
+  if (projection.accessScope === "free") {
+    renderFreePerps(projection.projection);
+    return;
+  }
+  setProBoundaryVisible(false);
+  const { data } = projection;
   renderPerpsOverview(data);
   renderPerpsPositioning(data);
   renderPerpsPressure(data);
@@ -708,6 +818,7 @@ async function selectInstrument(asset, { updateContext = true } = {}) {
   state.marketState = {};
   state.orderBook = null;
   state.tapeRows = [];
+  syncProWorkspaceLink(row);
   document.getElementById("perpsInstrument").value = row.asset;
   setText("perpsInstrumentTitle", row.asset);
   setText("perpsVenueState", "Hyperliquid · requesting exact market");

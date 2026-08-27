@@ -93,8 +93,13 @@ import {
   CUSTOMER_ENTITLEMENT_ROUTE,
   CUSTOMER_PRO_PARTICIPANTS_ROUTE,
   CUSTOMER_PRO_PERPS_ROUTE,
+  resolveCoordinatedIntelligenceSplits,
   routeCustomerEntitlements,
 } from "./lib/customer_entitlements.mjs";
+import {
+  buildParticipantFreeProjection,
+  buildPerpsFreeProjection,
+} from "./lib/customer_intelligence_projections.mjs";
 import {
   PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
   routePortfolioGovernorPreview,
@@ -102,12 +107,18 @@ import {
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
+const PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES = Object.freeze({
+  perps: new Set(["/perps.json", "/ravenos/perps.json", "/public/ravenos/perps.json"]),
+  participants: new Set(["/behavior.json", "/ravenos/behavior.json", "/public/ravenos/behavior.json"]),
+});
 const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/favicon.ico",
   "/ravenos-account.css",
   "/ravenos-account.js",
   "/ravenos-monitor.css",
   "/ravenos-monitor.js",
+  "/ravenos-pro-intelligence.css",
+  "/ravenos-pro-intelligence.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
@@ -150,6 +161,20 @@ const SAVED_MONITOR_HANDOFF_FIELDS = new Set([
   "panel",
 ]);
 
+function publicIntelligenceArtifactKind(pathname) {
+  let normalized;
+  try {
+    normalized = decodeURIComponent(String(pathname || ""));
+  } catch {
+    return null;
+  }
+  if (normalized.includes("\\") || normalized.includes("\u0000")) return null;
+  normalized = normalized.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
+  if (PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES.perps.has(normalized)) return "perps";
+  if (PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES.participants.has(normalized)) return "participants";
+  return null;
+}
+
 function savedMonitorRedirectTarget(sourceUrl) {
   const target = new URL("/monitor/", `https://${AUTHENTICATED_APP_HOST}`);
   for (const field of SAVED_MONITOR_HANDOFF_FIELDS) {
@@ -164,6 +189,9 @@ function authenticatedAppBoundary(request) {
   if (url.hostname.toLowerCase() !== AUTHENTICATED_APP_HOST) return null;
   const readRequest = request.method === "GET" || request.method === "HEAD";
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
+  const proIntelligencePath = url.pathname === "/account/intelligence"
+    || url.pathname === "/account/intelligence/"
+    || url.pathname === "/account/intelligence/index.html";
   const monitorPath = url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html";
   const identityApi = url.pathname === "/api/v1/auth/config"
     || url.pathname === "/api/v1/auth/start"
@@ -181,7 +209,7 @@ function authenticatedAppBoundary(request) {
     || url.pathname === CUSTOMER_PRO_PARTICIPANTS_ROUTE;
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || proIntelligencePath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -343,6 +371,9 @@ function attachReleaseHeaders(response, releaseState, pathname = "") {
     pathname === "/account/"
     || pathname === "/account"
     || pathname.endsWith("/account/index.html")
+    || pathname === "/account/intelligence/"
+    || pathname === "/account/intelligence"
+    || pathname.endsWith("/account/intelligence/index.html")
     || pathname === "/monitor/"
     || pathname === "/monitor"
     || pathname.endsWith("/monitor/index.html")
@@ -5613,6 +5644,52 @@ async function handlePublicArtifact(env, request, pathname, key, assetPath, fall
   });
 }
 
+async function handlePublicIntelligenceProjection(env, request, pathname, kind) {
+  const key = kind === "perps" ? "perps" : "behavior";
+  const result = await readPublicProjection(env, request, key, `/ravenos/${key}.json`);
+  const freshness = String(result?.delivery?.freshness_state || "unavailable").toLowerCase();
+  if (!result.available || !["fresh", "delayed"].includes(freshness)) {
+    return json({
+      ok: false,
+      schema_version: "ravenos.customer_intelligence_projection.v1",
+      access_scope: "free",
+      state: "unavailable",
+      error: "current_intelligence_projection_unavailable",
+      intelligence_kind: kind === "perps" ? "perps" : "participants",
+      delivery: result.delivery,
+    }, {
+      status: 503,
+      headers: projectionRouteHeaders(pathname, result.delivery),
+    });
+  }
+  try {
+    const projection = kind === "perps"
+      ? buildPerpsFreeProjection(result.payload, { delivery: result.delivery })
+      : buildParticipantFreeProjection(result.payload, { delivery: result.delivery });
+    const response = json(attachDelivery(projection, result.delivery), {
+      headers: {
+        ...projectionRouteHeaders(pathname, result.delivery),
+        "x-ravenos-access-scope": "free",
+      },
+    });
+    if (request.method !== "HEAD") return response;
+    return new Response(null, { status: response.status, headers: response.headers });
+  } catch {
+    return json({
+      ok: false,
+      schema_version: "ravenos.customer_intelligence_projection.v1",
+      access_scope: "free",
+      state: "unavailable",
+      error: "intelligence_projection_contract_rejected",
+      intelligence_kind: kind === "perps" ? "perps" : "participants",
+      delivery: result.delivery,
+    }, {
+      status: 503,
+      headers: projectionRouteHeaders(pathname, result.delivery),
+    });
+  }
+}
+
 function researchFallback() {
   return {
     source: "last known research snapshot",
@@ -6296,12 +6373,29 @@ async function handleChain(request, env, slug) {
   const aliases = info.aliases;
 
   const currentClaim = (claimsData.current_claims || []).find((row) => chainMatches(row.market_scope?.chain, aliases)) || null;
-  const behaviorRows = (behaviorData.rows || []).filter((row) => chainMatches(row.chain, aliases));
+  const rawBehaviorRows = (behaviorData.rows || []).filter((row) => chainMatches(row.chain, aliases));
+  const participantSplitActive = resolveCoordinatedIntelligenceSplits(env).participants;
+  let behaviorRows = rawBehaviorRows;
+  if (participantSplitActive) {
+    try {
+      if (!["fresh", "delayed"].includes(String(behaviorResult.delivery?.freshness_state || "").toLowerCase())) {
+        throw new Error("participant_projection_not_current");
+      }
+      behaviorRows = buildParticipantFreeProjection(behaviorPayload, {
+        delivery: behaviorResult.delivery,
+        chains: aliases,
+      }).participation_overview;
+    } catch {
+      behaviorRows = [];
+    }
+  }
   const outcomeRows = (outcomesData.outcomes || []).filter((row) => chainMatches(row.chain, aliases));
   const replayRows = (replayData.comparables || []).filter((row) => chainMatches(row.chain, aliases));
   const bestBehavior = behaviorRows[0] || null;
-  const weakestBehavior = [...behaviorRows].sort((a, b) => num(a.outcome_score) - num(b.outcome_score))[0] || null;
-  const claimBand = currentClaim?.market_scope?.cap_band || bestBehavior?.cap_band || null;
+  const weakestBehavior = participantSplitActive
+    ? null
+    : [...behaviorRows].sort((a, b) => num(a.outcome_score) - num(b.outcome_score))[0] || null;
+  const claimBand = currentClaim?.market_scope?.cap_band || bestBehavior?.cap_band || bestBehavior?.capitalization_band || null;
   const matchedOutcomeRows = claimBand ? outcomeRows.filter((row) => String(row.cap_band || "") === String(claimBand)) : [];
   const latestValidation = [...(matchedOutcomeRows.length ? matchedOutcomeRows : outcomeRows)]
     .sort((a, b) => num(b.clean_sample || b.sample_size) - num(a.clean_sample || a.sample_size))[0] || null;
@@ -6330,9 +6424,9 @@ async function handleChain(request, env, slug) {
     generated_at: claimsPayload?.generated_at || outcomesPayload?.generated_at || behaviorPayload?.generated_at || null,
     coverage: behaviorRows.length || outcomeRows.length || replayRows.length ? "active" : "developing",
     current_claim: currentClaim,
-    current_summary: currentClaim?.headline || bestBehavior?.plain_language_summary || `${info.label} coverage is developing.`,
-    current_read: currentClaim?.summary || bestBehavior?.participant_outcome_context || "Current chain synthesis is forming from public behavior, replay, and outcomes context.",
-    best_surface: bestBehavior?.cap_band || latestValidation?.cap_band || null,
+    current_summary: currentClaim?.headline || bestBehavior?.plain_language_summary || bestBehavior?.interpretation || `${info.label} coverage is developing.`,
+    current_read: currentClaim?.summary || bestBehavior?.participant_outcome_context || bestBehavior?.interpretation || "Current chain synthesis is forming from public behavior, replay, and outcomes context.",
+    best_surface: bestBehavior?.cap_band || bestBehavior?.capitalization_band || latestValidation?.cap_band || null,
     weakest_surface: weakestBehavior?.cap_band || null,
     latest_validation: latestValidation
       ? {
@@ -6384,9 +6478,15 @@ async function routeApi(request, env) {
     return handlePublicArtifact(env, request, url.pathname, "memory", "/ravenos/memory.json", { status: "degraded", message: "Current memory context forming." });
   }
   if (url.pathname === "/api/behavior" && request.method === "GET") {
+    if (resolveCoordinatedIntelligenceSplits(env).participants) {
+      return handlePublicIntelligenceProjection(env, request, url.pathname, "participants");
+    }
     return handlePublicArtifact(env, request, url.pathname, "behavior", "/ravenos/behavior.json", { status: "degraded", message: "Current behavior context forming." });
   }
   if (url.pathname === "/api/perps" && request.method === "GET") {
+    if (resolveCoordinatedIntelligenceSplits(env).perps) {
+      return handlePublicIntelligenceProjection(env, request, url.pathname, "perps");
+    }
     return handlePublicArtifact(env, request, url.pathname, "perps", "/ravenos/perps.json", { status: "degraded", message: "Current perps context forming." });
   }
   if (url.pathname === "/api/perps/instrument" && request.method === "GET") return handlePerpInstrumentContext(request, env);
@@ -6558,6 +6658,16 @@ export default {
       return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
     }
     if (["GET", "HEAD"].includes(request.method)) {
+      const intelligenceSplits = resolveCoordinatedIntelligenceSplits(env || {});
+      const artifactKind = publicIntelligenceArtifactKind(url.pathname);
+      if (artifactKind === "perps" && intelligenceSplits.perps) {
+        const response = await handlePublicIntelligenceProjection(env || {}, request, url.pathname, "perps");
+        return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
+      }
+      if (artifactKind === "participants" && intelligenceSplits.participants) {
+        const response = await handlePublicIntelligenceProjection(env || {}, request, url.pathname, "participants");
+        return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
+      }
       if (url.hostname.toLowerCase() === "ravenos.xyz" && (url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html")) {
         const target = savedMonitorRedirectTarget(url);
         return attachReleaseHeaders(

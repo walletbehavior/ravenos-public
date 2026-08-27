@@ -423,6 +423,14 @@ button, input, select { font: inherit; }
 .behavior-row-metrics dt { color: var(--route-soft); font: 800 7px var(--route-mono); text-transform: uppercase; }
 .behavior-row-metrics dd { margin: 4px 0 0; overflow-wrap: anywhere; color: #d4dce0; font: 700 8px/1.35 var(--route-mono); }
 .behavior-matrix footer span { color: var(--route-soft); font: 8px var(--route-mono); text-transform: uppercase; }
+
+@media (min-width: 901px) {
+  .route-state-strip[data-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 431px) {
+  .behavior-row-metrics[data-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 .participant-ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .participant-ledger > div { min-width: 0; min-height: 89px; padding: 12px 13px; display: grid; align-content: space-between; gap: 5px; border-bottom: 1px solid var(--route-line); }
 .participant-ledger > div:nth-child(odd) { border-right: 1px solid var(--route-line); }

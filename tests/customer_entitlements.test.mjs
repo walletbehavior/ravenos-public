@@ -9,6 +9,7 @@ import {
   CustomerEntitlementContract,
   createD1CustomerEntitlementStore,
   resolveCapabilityAccess,
+  resolveCoordinatedIntelligenceSplits,
   resolveEntitlementFeatureFlags,
   routeCustomerEntitlements,
 } from "../lib/customer_entitlements.mjs";
@@ -125,6 +126,8 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
       "intelligence.participant_advanced": false,
     },
   });
+  assert.deepEqual(resolveCoordinatedIntelligenceSplits({}), { perps: false, participants: false });
+  assert.deepEqual(resolveCoordinatedIntelligenceSplits(flagsEnv()), { perps: true, participants: true });
   assert.deepEqual(CustomerEntitlementContract.routes, [
     CUSTOMER_ENTITLEMENT_ROUTE,
     CUSTOMER_PRO_PERPS_ROUTE,
@@ -240,12 +243,17 @@ test("Perps free and Pro projections are deterministic, bounded, and exclude dis
   });
   assert.equal(contradictorySelected.selected_market.state, "unavailable");
   assert.equal(freeA.limitations.liquidation_data, "unavailable_no_qualified_stream");
+  assert.deepEqual(Object.keys(freeA.market_overview[0]).sort(), [...CustomerIntelligenceProjectionContract.free_field_contracts.perps_market].sort());
+  assert.equal(Object.hasOwn(freeA.market_overview[0], "spread_bps"), false);
+  assert.equal(Object.hasOwn(freeA.market_overview[0], "depth_20_usd"), false);
+  assert.equal(Object.hasOwn(freeA.market_overview[0], "pressure_direction"), false);
   assert.equal(pro.access_scope, "pro");
   assert(pro.advanced.positioning.length > 0);
   assert(pro.advanced.pressure_and_crowding.length > 0);
   assert(pro.advanced.liquidity.tightest_books.length > 0);
   assert(pro.advanced.liquidity.wide_or_thin_books.length > 0);
   assert(pro.advanced.positioning.length <= CustomerIntelligenceProjectionContract.pro_limits.perps_table_rows);
+  assert.deepEqual(Object.keys(pro.advanced.positioning[0]).sort(), [...CustomerIntelligenceProjectionContract.pro_field_contracts.perps_market].sort());
   assert.equal(pro.provenance.raw_provider_payload_included, false);
   assert.equal(pro.provenance.participant_identity_included, false);
   assert.equal(pro.provenance.execution_data_included, false);
@@ -263,9 +271,11 @@ test("Participant free and Pro projections retain aggregate denominators while w
   assert.equal(free.advanced, null);
   assert(free.participation_overview.length <= CustomerIntelligenceProjectionContract.free_limits.participant_conditions);
   assert(free.participation_overview.every((row) => Number.isSafeInteger(row.observed_sample) && Number.isSafeInteger(row.usable_sample)));
+  assert.deepEqual(Object.keys(free.participation_overview[0]).sort(), [...CustomerIntelligenceProjectionContract.free_field_contracts.participant_condition].sort());
   assert.equal(proA.access_scope, "pro");
   assert(proA.advanced.condition_matrix.length > free.participation_overview.length);
   assert(proA.advanced.condition_matrix.length <= CustomerIntelligenceProjectionContract.pro_limits.participant_conditions);
+  assert.deepEqual(Object.keys(proA.advanced.condition_matrix[0]).sort(), [...CustomerIntelligenceProjectionContract.pro_field_contracts.participant_condition].sort());
   assert(proA.advanced.condition_matrix.every((row) => row.sample_integrity.observed >= row.sample_integrity.usable));
   assert.equal(proA.limitations.aggregation, "aggregate_conditions_only");
   assert.equal(proA.limitations.wallet_identity, "not_included");
@@ -286,7 +296,7 @@ test("projection builders reject unsafe or malformed public inputs rather than w
     mark_price: malformedNumbers.selected_market.market.mark_price,
     spread_bps: malformedNumbers.selected_market.market.spread_bps,
     depth_20_usd: malformedNumbers.selected_market.market.depth_20_usd,
-  }, { open_interest_usd: null, mark_price: null, spread_bps: null, depth_20_usd: null });
+  }, { open_interest_usd: null, mark_price: null, spread_bps: undefined, depth_20_usd: undefined });
 });
 
 test("authenticated routes enforce app origin, Fetch Metadata, no parameters, GET-only, and request bounds before authorization", async () => {
@@ -449,26 +459,125 @@ test("public routes are not claimed by the entitlement router and splitting defa
   assert.equal(CustomerIntelligenceProjectionContract.atlas_projection_splitting_included, false);
 });
 
-test("projection-split flag in isolation cannot remove fields or add Pro fields to the public Perps API", async () => {
+test("projection-split flag in isolation cannot remove fields or add Pro fields to public intelligence APIs", async () => {
   const assets = {
     async fetch(assetRequest) {
-      if (new URL(assetRequest.url).pathname === "/ravenos/perps.json") {
-        return new Response(JSON.stringify(PERPS_PAYLOAD), { headers: { "content-type": "application/json" } });
-      }
+      const pathname = new URL(assetRequest.url).pathname;
+      if (pathname === "/ravenos/perps.json") return new Response(JSON.stringify(PERPS_PAYLOAD), { headers: { "content-type": "application/json" } });
+      if (pathname === "/ravenos/behavior.json") return new Response(JSON.stringify(PARTICIPANT_PAYLOAD), { headers: { "content-type": "application/json" } });
       return new Response("not found", { status: 404 });
     },
   };
-  const baseline = await worker.fetch(new Request("https://ravenos.xyz/api/perps"), { ASSETS: assets });
-  const isolatedFlag = await worker.fetch(new Request("https://ravenos.xyz/api/perps"), {
+  for (const path of ["/api/perps", "/api/behavior", "/ravenos/perps.json", "/ravenos/behavior.json"]) {
+    const baseline = await worker.fetch(new Request(`https://ravenos.xyz${path}`), { ASSETS: assets });
+    const isolatedFlag = await worker.fetch(new Request(`https://ravenos.xyz${path}`), {
+      ASSETS: assets,
+      RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: "1",
+    });
+    assert.equal(isolatedFlag.status, baseline.status, path);
+    const isolatedPayload = await body(isolatedFlag);
+    const baselinePayload = await body(baseline);
+    delete isolatedPayload.delivery?.fetched_at;
+    delete isolatedPayload.delivery?.age_seconds;
+    delete baselinePayload.delivery?.fetched_at;
+    delete baselinePayload.delivery?.age_seconds;
+    assert.deepEqual(isolatedPayload, baselinePayload, path);
+  }
+});
+
+function freshArtifact(payload) {
+  const generatedAt = new Date().toISOString();
+  return {
+    ...structuredClone(payload),
+    generated_at: generatedAt,
+    updated_at: generatedAt,
+    data: { ...structuredClone(payload.data), generated_at: generatedAt },
+  };
+}
+
+function intelligenceAssets({ perps = freshArtifact(PERPS_PAYLOAD), behavior = freshArtifact(PARTICIPANT_PAYLOAD) } = {}) {
+  return {
+    async fetch(assetRequest) {
+      const pathname = new URL(assetRequest.url).pathname;
+      if (pathname === "/ravenos/perps.json") return new Response(JSON.stringify(perps), { headers: { "content-type": "application/json" } });
+      if (pathname === "/ravenos/behavior.json") return new Response(JSON.stringify(behavior), { headers: { "content-type": "application/json" } });
+      return new Response("not found", { status: 404 });
+    },
+  };
+}
+
+test("coordinated activation enforces Free projections on APIs and direct public artifact paths", async () => {
+  const env = { ...flagsEnv(), ASSETS: intelligenceAssets() };
+  for (const [path, kind, rowKey, limit] of [
+    ["/api/perps", "perps", "market_overview", 6],
+    ["/ravenos/perps.json", "perps", "market_overview", 6],
+    ["/public/ravenos/perps.json", "perps", "market_overview", 6],
+    ["/perps.json?scope=pro&capability=intelligence.perps_advanced", "perps", "market_overview", 6],
+    ["/ravenos/%70erps.json", "perps", "market_overview", 6],
+    ["/api/behavior", "participants", "participation_overview", 6],
+    ["/ravenos/behavior.json", "participants", "participation_overview", 6],
+    ["/public/ravenos/behavior.json", "participants", "participation_overview", 6],
+    ["/behavior.json?scope=pro&capability=intelligence.participant_advanced", "participants", "participation_overview", 6],
+    ["/ravenos/%62ehavior.json", "participants", "participation_overview", 6],
+  ]) {
+    const response = await worker.fetch(new Request(`https://ravenos.xyz${path}`), env);
+    const payload = await body(response);
+    assert.equal(response.status, 200, path);
+    assert.equal(payload.schema_version, "ravenos.customer_intelligence_projection.v1", path);
+    assert.equal(payload.intelligence_kind, kind, path);
+    assert.equal(payload.access_scope, "free", path);
+    assert.equal(payload.advanced, null, path);
+    assert(Array.isArray(payload[rowKey]) && payload[rowKey].length <= limit, path);
+    assert.equal(response.headers.get("x-ravenos-access-scope"), "free", path);
+    const serialized = JSON.stringify(payload);
+    for (const forbidden of ["actor_leaders", "top_pressure", "tightest_books", "wide_or_thin_books", "condition_matrix", "participant_success_rate", "win_rate_band", "score_strength", "sample_gap"]) {
+      assert(!serialized.includes(forbidden), `${path} leaked ${forbidden}`);
+    }
+    assert.equal(payload.provenance?.raw_provider_payload_included, false, `${path} raw payload boundary`);
+  }
+
+  const head = await worker.fetch(new Request("https://ravenos.xyz/public/ravenos/perps.json", { method: "HEAD" }), env);
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), "");
+  assert.equal(head.headers.get("x-ravenos-access-scope"), "free");
+});
+
+test("partial activation cannot split either capability and stale or malformed coordinated inputs fail closed", async () => {
+  const assets = intelligenceAssets();
+  const partial = {
+    ...flagsEnv({ RAVENOS_PRO_PERPS_ADVANCED_ENABLE: "0", RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE: "0" }),
     ASSETS: assets,
-    RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: "1",
+  };
+  const rawPerps = await body(await worker.fetch(new Request("https://ravenos.xyz/api/perps"), partial));
+  const rawBehavior = await body(await worker.fetch(new Request("https://ravenos.xyz/api/behavior"), partial));
+  assert.equal(rawPerps.schema_version, "ravenos_perps_public_origin_v1");
+  assert.equal(rawBehavior.schema_version, "ravenos_behavior_public_origin_v1");
+
+  const stale = await worker.fetch(new Request("https://ravenos.xyz/api/perps"), { ...flagsEnv(), ASSETS: intelligenceAssets({ perps: PERPS_PAYLOAD }) });
+  assert.equal(stale.status, 503);
+  assert.equal((await body(stale)).state, "unavailable");
+  const unsafePayload = freshArtifact(PERPS_PAYLOAD);
+  unsafePayload.safe_public = false;
+  const unsafe = await worker.fetch(new Request("https://ravenos.xyz/ravenos/perps.json"), { ...flagsEnv(), ASSETS: intelligenceAssets({ perps: unsafePayload }) });
+  assert.equal(unsafe.status, 503);
+  assert.equal((await body(unsafe)).error, "intelligence_projection_contract_rejected");
+});
+
+test("coordinated Participant split also bounds chain-route behavior context", async () => {
+  const response = await worker.fetch(new Request("https://ravenos.xyz/api/chains/solana"), {
+    ...flagsEnv(),
+    ASSETS: intelligenceAssets(),
   });
-  assert.equal(isolatedFlag.status, baseline.status);
-  const isolatedPayload = await body(isolatedFlag);
-  const baselinePayload = await body(baseline);
-  delete isolatedPayload.delivery?.fetched_at;
-  delete isolatedPayload.delivery?.age_seconds;
-  delete baselinePayload.delivery?.fetched_at;
-  delete baselinePayload.delivery?.age_seconds;
-  assert.deepEqual(isolatedPayload, baselinePayload);
+  const payload = await body(response);
+  assert.equal(response.status, 200);
+  assert(Array.isArray(payload.behavior_rows));
+  assert(payload.behavior_rows.length <= 6);
+  for (const row of payload.behavior_rows) {
+    assert.deepEqual(Object.keys(row).sort(), [...CustomerIntelligenceProjectionContract.free_field_contracts.participant_condition].sort());
+  }
+  const serialized = JSON.stringify(payload.behavior_rows);
+  assert(!serialized.includes("participant_success_rate"));
+  assert(!serialized.includes("win_rate_band"));
+  assert(!serialized.includes("score_strength"));
+  assert(!serialized.includes("sample_gap"));
 });

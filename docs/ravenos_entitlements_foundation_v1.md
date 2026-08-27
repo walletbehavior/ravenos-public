@@ -1,6 +1,6 @@
 # RavenOS Server-Enforced Pro Entitlements Foundation v1
 
-Status: local dormant foundation. It is not deployed, commercially active, or a customer purchase path.
+Status: local dormant foundation with a coordinated Free/Pro projection and authenticated-workspace candidate. It is not deployed, commercially active, or a customer purchase path. The detailed projection and workspace contract is documented in `docs/ravenos_free_pro_projection_workspace_v1.md`.
 
 ## Boundary
 
@@ -74,6 +74,12 @@ No authenticated Atlas intelligence route is created. Atlas risk posture must co
 A later zero-incremental-cost public security-master milestone may normalize SEC `company_tickers_exchange.json` and `company_tickers_mf.json` into ticker, issuer or fund name, CIK, equity-versus-ETF class, exchange, and TradingView symbol. Ambiguous symbols must fail closed. SEC requests must use a monitored RavenOS contact in the User-Agent. OpenFIGI may later validate ambiguity but is not required initially. Tradier must not remain the public security-master dependency.
 
 This foundation does not implement that security master, native filing marks, options, SnapTrade, brokerage overlays, or SEC filing comparisons.
+
+## Current local workspace candidate
+
+The authenticated candidate at `/account/intelligence/` resolves the existing host-only RavenOS session and server-owned capability summary before requesting either advanced projection. It accepts no customer-selected owner, plan, tier, or capability. A bounded exact Hyperliquid instrument context may be carried for visual continuity, but it cannot remap identity or widen authorization. Signed-out return navigation is canonicalized to the allowlisted view and exact instrument only.
+
+When a capability's complete coordinated flag set is active, the corresponding public API and direct artifact alias return the deterministic six-row Free DTO. Partial activation leaves the existing anonymous contract unchanged and leaves the private route unavailable. The workspace and projection split remain local and dormant until the activation sequence below receives separate approval.
 
 ## Activation sequence
 
