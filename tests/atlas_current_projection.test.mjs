@@ -193,6 +193,7 @@ test("current fresh Atlas projection preserves exact ETF identity and safety bou
     assert.equal(result.status, 200);
     assert.equal(result.headers.get("x-ravenos-data-source"), "current_public_origin");
     assert.equal(result.headers.get("x-ravenos-freshness"), "fresh");
+    assert.equal(result.headers.get("x-ravenos-origin-transport"), "origin_current");
     const body = await result.json();
     assert.equal(body.schema_version, "ravenos.atlas_projection.v1");
     assert.equal(body.market_context.rows[0].instrument_id, "etf:nyse-arca:spy");

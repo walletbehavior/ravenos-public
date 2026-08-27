@@ -4866,7 +4866,7 @@ function sanitizeCurrentAtlasProjection(atlas) {
 }
 
 async function handleAtlas(request, env = {}) {
-  const result = await loadPublicProjection({ env, key: "atlas", fallbackPayload: null });
+  const result = await readPublicProjection(env, request, "atlas");
   const current = validateCurrentAtlasProjection(result);
   if (!current.ok) {
     return json({

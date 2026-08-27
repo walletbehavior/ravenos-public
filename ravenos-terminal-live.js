@@ -4170,13 +4170,13 @@ function requestedAtlas(params) {
   const rows = state.atlas?.market_context?.rows || [];
   if (instrumentId) {
     const row = rows.find((item) => String(item.instrument_id || "").toLowerCase() === instrumentId);
-    if (!row) return { error: "The exact listed instrument is not available in the current Atlas registry.", instrumentId, asset };
+    if (!row) return { error: "That exact listed instrument is not in the current market list.", instrumentId, asset };
     if (asset && String(row.symbol || "").toUpperCase() !== asset) return { error: "The requested symbol and exact listed-instrument identity do not match.", instrumentId, asset };
     return { row };
   }
   if (asset) {
     const matches = rows.filter((item) => String(item.symbol || "").toUpperCase() === asset);
-    if (matches.length !== 1) return { error: matches.length ? "The symbol is ambiguous. Select an exact listed instrument." : "The requested listed instrument is not available in the current Atlas registry.", asset };
+    if (matches.length !== 1) return { error: matches.length ? "The symbol is ambiguous. Select an exact listed instrument." : "That listed instrument is not in the current market list.", asset };
     return { row: matches[0] };
   }
   return { error: "Select an exact equity or ETF. RavenOS will not choose a listing for you.", asset };
@@ -4400,13 +4400,13 @@ function requestedPerp(params) {
   const asset = String(params.get("asset") || "").trim().toUpperCase();
   if (instrumentId) {
     const row = state.markets.find((item) => String(item.instrument_id || "").toLowerCase() === instrumentId.toLowerCase());
-    if (!row) return { error: "The exact perpetual instrument is not available in the current Hyperliquid registry.", instrumentId, asset };
+    if (!row) return { error: "That exact perpetual is not in the current market list.", instrumentId, asset };
     if (asset && row.asset !== asset) return { error: "The requested symbol and exact instrument identity do not match.", instrumentId, asset };
     return { row };
   }
   if (asset) {
     const row = state.markets.find((item) => item.asset === asset);
-    return row ? { row } : { error: "The requested perpetual symbol is not available in the current Hyperliquid registry.", asset };
+    return row ? { row } : { error: "That perpetual is not in the current market list.", asset };
   }
   return { row: null };
 }

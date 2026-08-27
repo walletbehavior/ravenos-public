@@ -1268,13 +1268,13 @@ function renderInsiderRows(host, rows) {
 async function renderInsiders(host, entityPayload) {
   state.tabController?.abort();
   state.tabController = new AbortController();
-  stateNode(host, "Normalizing recent Form 4 filings", "Atlas preserves transaction time, public filing time, transaction class, and ambiguity separately.");
+  stateNode(host, "Loading recent Form 4 filings", "Transaction time and public filing time are shown separately.");
   try {
     const payload = await fetchJson(`/api/atlas/sec/insiders?entity_id=${encodeURIComponent(entityPayload.entity.entity_id)}&limit=5`, { signal: state.tabController.signal, viewer: true });
     host.replaceChildren();
     const note = append(host, "div", "atlas-options-note");
     append(note, "strong", "", "Reported insider activity");
-    append(note, "span", "", "Neutral Form 4 normalization · no options enrichment · no misconduct inference");
+    append(note, "span", "", "Reported Form 4 records · no motive or misconduct inferred");
     renderInsiderRows(host, Array.isArray(payload.events) ? payload.events : []);
     const source = append(host, "small", "atlas-attribution", "Source: U.S. Securities and Exchange Commission EDGAR. Filing documents remain authoritative.");
     source.dataset.state = payload.parse_failures?.length ? "degraded" : "available";

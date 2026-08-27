@@ -168,7 +168,7 @@
 
     const warnings = [];
     if (!backing.hasFunding || !backing.hasOpenInterest) warnings.push("One or more pressure components are unavailable; this read omits unsupported language.");
-    if (!metadata.evidence_id && !metadata.public_artifact_ref) warnings.push("evidence_ref unavailable");
+    if (!metadata.evidence_id && !metadata.public_artifact_ref) warnings.push("Evidence link not yet available.");
     if (backing.stale) warnings.push("Perps pressure source is not fresh.");
 
     return {
@@ -218,7 +218,7 @@
     const warnings = [];
     if (!hasActorCount) warnings.push("Actor count unavailable; this read does not claim actor breadth.");
     if (!hasRepeatActors) warnings.push("Repeat actor count unavailable; this read does not claim repeat actors.");
-    if (!metadata.evidence_id && !metadata.claim_id && !metadata.public_artifact_ref) warnings.push("evidence_ref unavailable");
+    if (!metadata.evidence_id && !metadata.claim_id && !metadata.public_artifact_ref) warnings.push("Evidence link not yet available.");
     if (backing.stale) warnings.push("Participation source is not fresh.");
     return {
       title,
@@ -291,9 +291,9 @@
     else if (hasDepth && (Number(metadata.spread_bps) > 50 || Number(metadata.book_depth) < 1)) title = "Thin book risk";
     else if (hasDrag && Number(metadata.execution_drag ?? metadata.estimated_slippage) > 0) title = "High execution drag";
     const warnings = [];
-    if (!hasDepth) warnings.push("Depth/book field unavailable; this read does not claim book depth.");
-    if (!hasDrag) warnings.push("Execution drag field unavailable; this read does not claim cost drag.");
-    if (!metadata.evidence_id && !metadata.claim_id && !metadata.public_artifact_ref) warnings.push("evidence_ref unavailable");
+    if (!hasDepth) warnings.push("Live order-book depth is not available, so this read does not grade depth.");
+    if (!hasDrag) warnings.push("Estimated trading cost is not available, so this read does not grade execution drag.");
+    if (!metadata.evidence_id && !metadata.claim_id && !metadata.public_artifact_ref) warnings.push("Evidence link not yet available.");
     return {
       title,
       shortLabel: title,
