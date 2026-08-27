@@ -277,6 +277,12 @@ test("velocity alpha labels chase risk and omits fragile pools from qualificatio
 });
 
 test("desk frame fuses live markets, flows, lifecycle, and Atlas without empty-language cards", () => {
+  const classifiedSpot = pool();
+  classifiedSpot.discovery = {
+    schema_version: "ravenos.discover_market.v1",
+    measurements: { timeframe: "5m" },
+    activity_state: { value: "accumulation" },
+  };
   const frame = buildDeskFrame({
     brief: {
       generated_at: "2026-08-26T01:02:00Z",
@@ -293,7 +299,7 @@ test("desk frame fuses live markets, flows, lifecycle, and Atlas without empty-l
       funding_rate: 0.00001,
       observed_at: "2026-08-26T01:03:00Z",
     })),
-    spotRows: [pool()],
+    spotRows: [classifiedSpot],
     opportunityRows: [opportunity()],
     atlas: {
       generated_at: "2026-08-26T01:01:00Z",

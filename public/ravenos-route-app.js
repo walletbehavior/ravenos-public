@@ -57,6 +57,7 @@ function traderSurfaceLabel(value, fallback = "market context") {
     .map((part) => publicMarketLabel(part))
     .join(" · ");
   return humanized
+    .replace(/\bJupiter Velocity\b/gi, "High-velocity tokens")
     .replace(/^Current public participation regime$/i, "Current markets are mixed, not uniformly strong")
     .replace(sourceRegex(`^(.+?) · ${SOURCE_ACTIVITY_LABEL}$`), "$1")
     .replace(sourceRegex(`^(.+?) ${SOURCE_ACTIVITY_LABEL}$`), "$1 activity")
@@ -78,6 +79,7 @@ function surfaceVerb(value) {
 
 function capBandLabel(value) {
   const raw = titleCase(value || "surface");
+  if (/^Jupiter Velocity$/i.test(raw)) return "high-velocity tokens";
   if (/^Live Activity$/i.test(raw)) return "activity";
   if (/^Participant Cohorts$/i.test(raw)) return "participant cohorts";
   return traderSurfaceLabel(raw);
@@ -87,6 +89,7 @@ function traderText(value, fallback = FORMING_TEXT) {
   const raw = text(value, fallback).trim();
   if (!raw) return fallback;
   let out = raw
+    .replace(/\bJupiter Velocity\b/gi, "High-velocity token")
     .replace(sourceRegex(`^(.+?)\\s+${SOURCE_ACTIVITY_LABEL} shows the clearest public opportunity read while weaker cohorts remain selective\\.$`), "$1 is leading current opportunity, but followthrough remains selective.")
     .replace(sourceRegex(`^(.+?)\\s+${SOURCE_ACTIVITY_LABEL} looks most favorable now\\.$`), "$1 is leading current opportunity, but followthrough is still mixed.")
     .replace(sourceRegex(`^(.+?)\\s+${SOURCE_ACTIVITY_LABEL} is the ${SOURCE_CLEAREST_SURFACE_TEXT} because participation is expanding and the ${SOURCE_PUBLIC_READ_TEXT}\\.$`), "Participation is expanding on $1, but settled followthrough is not fully confirmed yet.")

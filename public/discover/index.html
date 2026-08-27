@@ -87,8 +87,8 @@
       <header class="discover-token-tape-head">
         <div>
           <span class="workspace-label">Tokens</span>
-          <h2 id="discoverSpotPulseTitle">Velocity alpha</h2>
-          <p id="discoverSpotPulseSummary">Exact pools ranked by price expansion, flow confirmation, participation, depth, and chase risk.</p>
+          <h2 id="discoverSpotPulseTitle">Velocity radar</h2>
+          <p id="discoverSpotPulseSummary">Exact pools ranked by server-measured acceleration, flow alignment, liquidity, persistence, and chase risk.</p>
         </div>
         <div class="discover-token-tape-controls">
           <div class="discover-token-chains" role="group" aria-label="Token chain">
@@ -110,11 +110,74 @@
           </div>
         </div>
       </header>
+      <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
+        <div class="discover-lifecycle-filters" role="group" aria-label="Market lifecycle cohort">
+          <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
+          <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
+          <button type="button" data-spot-cohort="migrated" aria-pressed="false">Migrated</button>
+          <button type="button" data-spot-cohort="mature" aria-pressed="false">Mature</button>
+          <button type="button" data-spot-cohort="pullback" aria-pressed="false">Pullback</button>
+          <button type="button" data-spot-cohort="resurrection" aria-pressed="false">Resurrection</button>
+          <button type="button" data-spot-cohort="reclaim" aria-pressed="false">Reclaim</button>
+          <button type="button" data-spot-cohort="ath" aria-pressed="false">ATH</button>
+          <button type="button" data-spot-cohort="distribution" aria-pressed="false">Distribution</button>
+        </div>
+        <details class="discover-advanced-filters">
+          <summary>More filters</summary>
+          <div>
+            <label>Market cap
+              <select id="discoverMarketCapFilter">
+                <option value="all">All</option>
+                <option value="under_100k">Under $100K</option>
+                <option value="100k_500k">$100K–$500K</option>
+                <option value="500k_2m">$500K–$2M</option>
+                <option value="2m_plus">$2M+</option>
+              </select>
+            </label>
+            <label>Liquidity
+              <select id="discoverLiquidityFilter">
+                <option value="all">All</option>
+                <option value="under_10k">Under $10K</option>
+                <option value="10k_50k">$10K–$50K</option>
+                <option value="50k_250k">$50K–$250K</option>
+                <option value="250k_plus">$250K+</option>
+              </select>
+            </label>
+            <label>Pool age
+              <select id="discoverAgeFilter">
+                <option value="all">All</option>
+                <option value="under_24h">Under 24h</option>
+                <option value="1d_14d">1–14d</option>
+                <option value="14d_plus">14d+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label>Bundle risk
+              <select id="discoverBundleFilter">
+                <option value="all">All</option>
+                <option value="lower">Lower</option>
+                <option value="graduated">20%–40%</option>
+                <option value="elevated">Above 40%</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label>Route capacity
+              <select id="discoverRouteFilter">
+                <option value="all">All</option>
+                <option value="routeable">Routeable</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label class="discover-changed-filter"><input id="discoverChangedFilter" type="checkbox" /> Changed this session / publication</label>
+          </div>
+        </details>
+      </div>
       <div class="discover-token-tape-columns" aria-hidden="true">
-        <span>Market</span><span>Move</span><span>Market anatomy</span><span id="discoverSpotWhyColumn">Velocity alpha</span><span></span>
+        <span>Market</span><span>Move</span><span>Market anatomy</span><span id="discoverSpotWhyColumn">Velocity ranking</span><span></span>
       </div>
       <div class="discover-token-tape-list" id="discoverTokenTapeList"></div>
       <button class="discover-token-updates" id="discoverTokenUpdates" type="button" hidden>Apply refreshed ranking</button>
+      <div class="workspace-sr-only" id="discoverCopyStatus" role="status" aria-live="polite" aria-atomic="true"></div>
     </section>
 
     <section class="discover-listed-universe" id="discoverListedUniverse" aria-labelledby="discoverListedTitle" hidden>

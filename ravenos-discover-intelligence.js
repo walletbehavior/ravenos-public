@@ -560,10 +560,12 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
     ? activePerps.reduce((sum, row) => sum + (finite(row.funding_rate) || 0) * (finite(row.open_interest_usd) || 0), 0) / totalOpenInterest
     : null;
 
-  const eligibleSpot = spotRows.filter((row) => !["inactive", "fragile"].includes(spotMarketHealth(row).state));
-  const spotReads = eligibleSpot.map((row) => spotFlowRead(row, timeframe));
-  const accumulating = spotReads.filter((row) => ["accumulation", "buy_pressure"].includes(row.state)).length;
-  const distributing = spotReads.filter((row) => ["distribution", "sell_pressure"].includes(row.state)).length;
+  const eligibleSpot = spotRows.filter((row) => (
+    row?.discovery?.schema_version === "ravenos.discover_market.v1"
+    && row?.discovery?.measurements?.timeframe === timeframe
+  ));
+  const accumulating = eligibleSpot.filter((row) => ["accumulation", "absorption", "participation_accelerating"].includes(row?.discovery?.activity_state?.value)).length;
+  const distributing = eligibleSpot.filter((row) => ["distribution", "participation_decelerating"].includes(row?.discovery?.activity_state?.value)).length;
   const spotVolume = eligibleSpot.reduce((sum, row) => sum + (windowMetric(row, "volume_usd", timeframe) || 0), 0);
   const opportunityReads = opportunityRows.map((row) => opportunityLifecycle(row, row.market_snapshot || {}));
   const lifecycleCounts = Object.fromEntries(["confirmed", "forming", "watch", "fading", "invalidated"].map((key) => [

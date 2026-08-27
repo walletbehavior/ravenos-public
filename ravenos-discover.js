@@ -3,9 +3,6 @@ import { customerFacingText } from "/ravenos-intelligence-contract.js";
 import {
   buildDeskFrame,
   opportunityLifecycle,
-  spotFlowRead,
-  spotMarketHealth,
-  spotVelocityRead,
   validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
 
@@ -21,6 +18,16 @@ const state = {
   spotTimeframe: "5m",
   spotSort: "velocity",
   spotChain: "all",
+  spotCohort: "all",
+  spotMarketCapFilter: "all",
+  spotLiquidityFilter: "all",
+  spotAgeFilter: "all",
+  spotBundleFilter: "all",
+  spotRouteFilter: "all",
+  spotChangedOnly: false,
+  spotSessionSnapshots: new Map(),
+  spotSessionChanged: new Set(),
+  spotRadarState: "forming",
   spotMetadata: new Map(),
   spotMetadataPending: null,
   spotDisplayOrder: [],
@@ -35,6 +42,7 @@ const state = {
   paused: false,
   expanded: false,
   loading: false,
+  refreshQueued: false,
   lastRefresh: null,
   timer: null,
 };
@@ -335,10 +343,50 @@ function append(node, tag, className, value) {
 function syncSavedMonitorControl(anchor) {
   const shell = anchor.closest(".discover-token-row-shell, .discover-row-shell");
   const control = shell?.querySelector(".discover-monitor-save");
-  if (!control) return;
-  const href = savedMonitorHandoffFromTerminalHref(anchor.href, { timeframe: state.spotTimeframe || "1h" });
-  control.hidden = !href;
-  if (href) control.href = href;
+  if (control) {
+    const href = savedMonitorHandoffFromTerminalHref(anchor.href, { timeframe: state.spotTimeframe || "1h" });
+    control.hidden = !href;
+    if (href) control.href = href;
+  }
+  const copy = shell?.querySelector(".discover-copy-ca");
+  if (copy) {
+    const address = text(anchor.__ravenSpotRow?.token_address, "");
+    const symbol = text(anchor.__ravenSpotRow?.symbol, "token");
+    copy.hidden = !address;
+    copy.dataset.copyValue = address;
+    copy.setAttribute("aria-label", `Copy ${symbol} token contract address`);
+    copy.title = "Copy token contract address";
+  }
+}
+
+async function copyTokenAddress(button) {
+  const value = text(button?.dataset?.copyValue, "");
+  if (!value) return;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(value);
+    copied = true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = value;
+    field.readOnly = true;
+    field.setAttribute("aria-hidden", "true");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.append(field);
+    field.select();
+    copied = document.execCommand("copy");
+    field.remove();
+  }
+  const status = document.getElementById("discoverCopyStatus");
+  const symbol = text(button.closest(".discover-token-row-shell")?.querySelector(".discover-token-name strong")?.textContent, "Token");
+  if (status) status.textContent = copied ? `${symbol} token contract address copied.` : `Could not copy ${symbol} token contract address.`;
+  button.dataset.copyState = copied ? "copied" : "failed";
+  button.title = copied ? "Copied" : "Copy failed";
+  window.setTimeout(() => {
+    button.dataset.copyState = "ready";
+    button.title = "Copy token contract address";
+  }, 1_600);
 }
 
 function wrapSavedMonitorControl(anchor, shellClass) {
@@ -355,6 +403,20 @@ function wrapSavedMonitorControl(anchor, shellClass) {
   control.setAttribute("aria-label", "Save this exact market to Saved Monitor");
   control.hidden = true;
   shell.append(anchor, control);
+  if (shellClass === "discover-token-row-shell") {
+    const copy = document.createElement("button");
+    copy.className = "discover-copy-ca";
+    copy.type = "button";
+    copy.hidden = true;
+    copy.dataset.copyState = "ready";
+    copy.append(document.createElement("span"), document.createElement("span"));
+    copy.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void copyTokenAddress(copy);
+    });
+    shell.append(copy);
+  }
   syncSavedMonitorControl(anchor);
   return shell;
 }
@@ -613,7 +675,7 @@ function survivesCurrentSpotMarket(row = {}) {
 }
 
 function spotRowId(row = {}) {
-  return text(row.public_attention_id, `${text(row.chain, "solana")}:${text(row.token_address, row.instrument_id)}`);
+  return text(row.instrument_id, text(row.public_attention_id, `${text(row.chain, "solana")}:${text(row.token_address, "")}`));
 }
 
 function spotTokenFingerprint(value) {
@@ -658,54 +720,211 @@ function safeTokenImage(value) {
   }
 }
 
+function validRadarScore(value, kind) {
+  const score = finite(value?.score);
+  if (
+    value?.score_kind !== kind
+    || finite(value?.scale_max) !== 99
+    || !["available", "insufficient_history", "stale", "unavailable"].includes(value?.availability)
+    || (score !== null && (score < 0 || score > 99))
+    || value?.raven_confidence !== false
+    || value?.win_probability !== false
+    || value?.calibrated_alpha !== false
+    || value?.expected_return !== false
+  ) return null;
+  return value;
+}
+
+function validDiscoverRow(row) {
+  const discovery = row?.discovery;
+  const identity = discovery?.exact_identity;
+  const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
+  if (
+    discovery?.schema_version !== "ravenos.discover_market.v1"
+    || row?.identity_scope !== "exact_pool"
+    || !["solana", "robinhood", "base", "ethereum"].includes(chain)
+    || identity?.instrument_id !== row?.instrument_id
+    || identity?.instrument_id !== `${chain}:pool:${text(row?.pool_address, "")}`
+    || identity?.token_address !== text(row?.token_address, "")
+    || !discovery?.primary_behavior_state?.classifier?.version
+    || discovery?.primary_behavior_state?.hysteresis?.contradictory_directional_state_published !== false
+    || !validRadarScore(discovery?.velocity_state?.score, "velocity_ranking")
+    || !validRadarScore(discovery?.activity_state?.score, "activity_ranking")
+    || (discovery?.raven_evidence_state?.raven_signal === true && discovery?.raven_evidence_state?.qualified !== true)
+  ) return false;
+  return true;
+}
+
+function currentDiscoverRadar(value, expectedTimeframe = null) {
+  const generatedMs = Date.parse(String(value?.generated_at || ""));
+  if (
+    value?.ok !== true
+    || value?.safe_public !== true
+    || value?.schema_version !== "ravenos.discover_radar.v1"
+    || !["current", "degraded", "forming", "shadow"].includes(value?.state)
+    || !["5m", "1h", "24h"].includes(value?.timeframe)
+    || (expectedTimeframe && value.timeframe !== expectedTimeframe)
+    || value?.classifier?.name !== "raven_behavioral_radar"
+    || !value?.classifier?.version
+    || value?.classifier?.monitor_eligible !== false
+    || value?.monitor_safety?.enabled !== false
+    || value?.public_safety?.raw_provider_payloads_exposed !== false
+    || value?.public_safety?.private_participant_identities_exposed !== false
+    || value?.public_safety?.execution_data_exposed !== false
+    || !Array.isArray(value?.rows)
+    || value.rows.length > 240
+    || !Number.isFinite(generatedMs)
+    || generatedMs > Date.now() + 300_000
+    || Date.now() - generatedMs > 3_600_000
+    || value.rows.some((row) => !validDiscoverRow(row))
+  ) return null;
+  return value;
+}
+
+function radarScore(row, lane) {
+  const score = lane === "activity"
+    ? validRadarScore(row?.discovery?.activity_state?.score, "activity_ranking")
+    : validRadarScore(row?.discovery?.velocity_state?.score, "velocity_ranking");
+  if (!score || row?.discovery?.measurements?.timeframe !== state.spotTimeframe) return null;
+  return score;
+}
+
+function scoreLabel(score, label) {
+  const value = finite(score?.score);
+  return score?.availability !== "available" || value === null
+    ? `${label} unavailable`
+    : `${label} ${Math.round(value)}/99`;
+}
+
+function usableRadarScore(score) {
+  return score?.availability === "available" && finite(score?.score) !== null ? finite(score.score) : null;
+}
+
+function rowRiskValues(row) {
+  return (Array.isArray(row?.discovery?.risk_flags) ? row.discovery.risk_flags : [])
+    .map((risk) => text(risk?.value, ""))
+    .filter(Boolean);
+}
+
+function radarSnapshotKey(row) {
+  const discovery = row?.discovery || {};
+  return JSON.stringify([
+    discovery.primary_behavior_state?.value,
+    rowRiskValues(row),
+    discovery.raven_evidence_state?.state,
+    discovery.velocity_state?.value,
+    discovery.activity_state?.value,
+    discovery.velocity_state?.score?.score,
+    discovery.activity_state?.score?.score,
+  ]);
+}
+
+function recordSpotSessionChanges(rows) {
+  for (const row of rows) {
+    const id = spotRowId(row);
+    const sessionKey = `${id}:${text(row?.discovery?.measurements?.timeframe, state.spotTimeframe)}`;
+    const next = radarSnapshotKey(row);
+    const prior = state.spotSessionSnapshots.get(sessionKey);
+    if ((prior && prior !== next) || row?.discovery?.registry?.changed_since_last_published_observation === true) {
+      state.spotSessionChanged.add(id);
+    }
+    state.spotSessionSnapshots.set(sessionKey, next);
+  }
+}
+
+function cohortMatches(row) {
+  const filter = state.spotCohort;
+  if (filter === "all") return true;
+  const cohort = text(row?.discovery?.migration_cohort?.value, "");
+  const behavior = text(row?.discovery?.primary_behavior_state?.value, "");
+  if (filter === "new") return cohort === "initial_discovery" || behavior === "initial_discovery";
+  if (filter === "migrated") return cohort === "post_migration" || behavior === "post_migration_expansion";
+  if (filter === "mature") return cohort === "mature";
+  if (filter === "pullback") return ["pullback_holding", "sell_pressure_absorption"].includes(behavior);
+  if (filter === "resurrection") return behavior === "post_dump_resurrection";
+  if (filter === "reclaim") return behavior === "reclaiming_range";
+  if (filter === "ath") return ["approaching_ath", "ath_breakout"].includes(behavior);
+  if (filter === "distribution") return ["distribution", "extended", "failed_breakout"].includes(behavior);
+  return false;
+}
+
+function numericBand(value, filter, bands) {
+  const amount = finite(value);
+  if (filter === "all") return true;
+  if (amount === null) return filter === "unavailable";
+  const range = bands[filter];
+  return Boolean(range && amount >= range[0] && amount < range[1]);
+}
+
+function advancedFiltersMatch(row) {
+  const market = row?.market || {};
+  if (!numericBand(market.market_cap_usd ?? market.fdv_usd, state.spotMarketCapFilter, {
+    under_100k: [0, 100_000],
+    "100k_500k": [100_000, 500_000],
+    "500k_2m": [500_000, 2_000_000],
+    "2m_plus": [2_000_000, Number.POSITIVE_INFINITY],
+  })) return false;
+  if (!numericBand(market.liquidity_usd, state.spotLiquidityFilter, {
+    under_10k: [0, 10_000],
+    "10k_50k": [10_000, 50_000],
+    "50k_250k": [50_000, 250_000],
+    "250k_plus": [250_000, Number.POSITIVE_INFINITY],
+  })) return false;
+  if (!numericBand(market.market_age_seconds, state.spotAgeFilter, {
+    under_24h: [0, 86_400],
+    "1d_14d": [86_400, 14 * 86_400],
+    "14d_plus": [14 * 86_400, Number.POSITIVE_INFINITY],
+  })) return false;
+  const bundle = row?.discovery?.control_intelligence?.bundled_pct;
+  const bundledPct = bundle?.availability === "available" ? finite(bundle.value) : null;
+  if (state.spotBundleFilter !== "all") {
+    if (state.spotBundleFilter === "unavailable" && bundledPct !== null) return false;
+    if (state.spotBundleFilter === "lower" && !(bundledPct !== null && bundledPct < 20)) return false;
+    if (state.spotBundleFilter === "graduated" && !(bundledPct !== null && bundledPct >= 20 && bundledPct <= 40)) return false;
+    if (state.spotBundleFilter === "elevated" && !(bundledPct !== null && bundledPct > 40)) return false;
+  }
+  const route = row?.discovery?.routeability;
+  if (state.spotRouteFilter === "routeable" && !(route?.availability === "available" && finite(route.routeable_size_usd) > 0)) return false;
+  if (state.spotRouteFilter === "unavailable" && route?.availability === "available") return false;
+  if (state.spotChangedOnly && !state.spotSessionChanged.has(spotRowId(row))) return false;
+  return true;
+}
+
 function spotRankedRows() {
   const current = state.spotRows.filter((row) => {
-    const age = finite(row.age_seconds);
-    const liquidity = finite(row.market?.liquidity_usd);
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
+    const retained = row?.discovery?.registry?.retained_after_trending === true;
     return ["solana", "base", "ethereum", "robinhood"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
-      && (age === null || age <= 3_600)
-      && liquidity !== null
-      && liquidity > 0
-      && survivesCurrentSpotMarket(row)
-      && !["inactive", "fragile"].includes(spotMarketHealth(row).state)
-      && hasDecisionUsefulSpotActivity(row);
+      && validDiscoverRow(row)
+      && cohortMatches(row)
+      && advancedFiltersMatch(row)
+      && (retained || (survivesCurrentSpotMarket(row) && hasDecisionUsefulSpotActivity(row)));
   });
   if (state.spotSort === "raven") {
-    return current.sort((left, right) => {
-      const leftScore = spotFlowRead(left, state.spotTimeframe).score + (left.source_type === "raven_spot_attention" ? 18 : 0);
-      const rightScore = spotFlowRead(right, state.spotTimeframe).score + (right.source_type === "raven_spot_attention" ? 18 : 0);
-      if (leftScore !== rightScore) return rightScore - leftScore;
-      return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
-    });
+    return current
+      .filter((row) => row?.discovery?.raven_evidence_state?.qualified === true && row?.discovery?.raven_evidence_state?.raven_signal === true)
+      .sort((left, right) => {
+        const order = { strengthened: 4, qualified: 3, forming: 2, weakened: 1, invalidated: 0 };
+        const stateDifference = (order[right.discovery.raven_evidence_state.state] || 0) - (order[left.discovery.raven_evidence_state.state] || 0);
+        if (stateDifference) return stateDifference;
+        return (finite(right.discovery.raven_evidence_state.timing_lead_seconds) || 0) - (finite(left.discovery.raven_evidence_state.timing_lead_seconds) || 0);
+      });
   }
   if (state.spotSort === "velocity") {
-    return current
-      .map((row) => ({ row, read: spotVelocityRead(row, state.spotTimeframe) }))
-      .filter(({ read }) => read.qualified)
-      .sort((left, right) => {
-        if (left.read.score !== right.read.score) return right.read.score - left.read.score;
-        if (left.read.flow_aligned !== right.read.flow_aligned) return Number(right.read.flow_aligned) - Number(left.read.flow_aligned);
-        if (left.read.chase_risk !== right.read.chase_risk) return Number(left.read.chase_risk) - Number(right.read.chase_risk);
-        return (spotMetric(right.row, "volume_usd") || 0) - (spotMetric(left.row, "volume_usd") || 0);
-      })
-      .map(({ row }) => row);
-  }
-  return current
-    .filter((row) => (
-      spotMetric(row, "traders") !== null
-      || spotMetric(row, "buys") !== null
-      || spotMetric(row, "sells") !== null
-    ))
-    .sort((left, right) => {
-      const traders = (spotMetric(right, "traders") || 0) - (spotMetric(left, "traders") || 0);
-      if (traders) return traders;
-      const rightTransactions = (spotMetric(right, "buys") || 0) + (spotMetric(right, "sells") || 0);
-      const leftTransactions = (spotMetric(left, "buys") || 0) + (spotMetric(left, "sells") || 0);
-      if (rightTransactions !== leftTransactions) return rightTransactions - leftTransactions;
+    return current.sort((left, right) => {
+      const leftScore = usableRadarScore(radarScore(left, "velocity"));
+      const rightScore = usableRadarScore(radarScore(right, "velocity"));
+      if (leftScore !== rightScore) return (rightScore ?? -1) - (leftScore ?? -1);
       return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
     });
+  }
+  return current.sort((left, right) => {
+    const leftScore = usableRadarScore(radarScore(left, "activity"));
+    const rightScore = usableRadarScore(radarScore(right, "activity"));
+    if (leftScore !== rightScore) return (rightScore ?? -1) - (leftScore ?? -1);
+    return (spotMetric(right, "volume_usd") || 0) - (spotMetric(left, "volume_usd") || 0);
+  });
 }
 
 function momentumGlyph(row) {
@@ -789,21 +1008,151 @@ function renderTokenStat(host, label, value) {
   append(node, "strong", "", value);
 }
 
+function evidenceMetric(value, { percentValue = false, ratio = false } = {}) {
+  if (value?.availability !== "available" || finite(value?.value) === null) return "Unavailable";
+  const amount = finite(value.value);
+  if (percentValue) return percent(amount);
+  if (ratio) return `${Math.round(amount * 100)}%`;
+  return Number(amount).toLocaleString("en-US", { maximumFractionDigits: 3 });
+}
+
+function appendEvidenceItem(host, label, value) {
+  const item = document.createElement("div");
+  append(item, "dt", "", label);
+  append(item, "dd", "", value || "Unavailable");
+  host.append(item);
+}
+
+function renderScoreEvidence(host, label, score) {
+  const section = append(host, "section", "discover-score-evidence", "");
+  section.textContent = "";
+  const heading = append(section, "div", "discover-score-evidence-head", "");
+  append(heading, "strong", "", scoreLabel(score, label));
+  if (usableRadarScore(score) !== null && score?.grade) append(heading, "span", "", `Grade ${score.grade}`);
+  append(section, "p", "", "Ranking score only—not Raven confidence, win probability, expected return, or proof Raven selected this market.");
+  const components = append(section, "dl", "", "");
+  components.textContent = "";
+  for (const component of Array.isArray(score?.components) ? score.components : []) {
+    const value = component?.availability === "available" && finite(component?.value) !== null
+      ? `${Number(component.value).toLocaleString("en-US", { maximumFractionDigits: 3 })}${component.unit ? ` ${text(component.unit, "")}` : ""}`
+      : "Unavailable";
+    appendEvidenceItem(components, text(component?.label, "Component"), value);
+  }
+  if (score?.score_cap_reason) append(section, "p", "discover-score-cap", text(score.score_cap_reason));
+  for (const penalty of Array.isArray(score?.penalties) ? score.penalties : []) {
+    append(section, "p", "discover-score-penalty", text(penalty?.explanation, "Penalty applied"));
+  }
+  append(section, "small", "", [
+    text(score?.classifier_version, "Classifier unavailable"),
+    score?.observed_at ? when(score.observed_at) : "Observation time unavailable",
+    title(score?.freshness, "Freshness unavailable"),
+  ].join(" · "));
+}
+
+function renderSpotEvidence(shell, row) {
+  let details = shell.querySelector(".discover-token-evidence");
+  if (!details) {
+    details = document.createElement("details");
+    details.className = "discover-token-evidence";
+    const summary = document.createElement("summary");
+    summary.textContent = "Evidence";
+    details.append(summary);
+    shell.append(details);
+  }
+  const wasOpen = details.open;
+  const summary = details.querySelector("summary");
+  details.replaceChildren(summary);
+  details.open = wasOpen;
+  const discovery = row.discovery;
+  const body = append(details, "div", "discover-token-evidence-body", "");
+  body.textContent = "";
+  const overview = append(body, "dl", "discover-token-evidence-grid", "");
+  overview.textContent = "";
+  appendEvidenceItem(overview, "Behavior", title(discovery.primary_behavior_state?.value, "Forming"));
+  appendEvidenceItem(overview, "Migration cohort", title(discovery.migration_cohort?.value, "Forming"));
+  appendEvidenceItem(overview, "Velocity state", title(discovery.velocity_state?.value, "Forming"));
+  appendEvidenceItem(overview, "Activity state", title(discovery.activity_state?.value, "Forming"));
+  appendEvidenceItem(overview, "Change since first observed", finite(discovery.path?.change_since_first_observation_pct) === null ? "Unavailable" : percent(discovery.path.change_since_first_observation_pct));
+  appendEvidenceItem(overview, "ATH distance", finite(discovery.path?.ath_distance_pct) === null ? "Unavailable" : percent(discovery.path.ath_distance_pct));
+  appendEvidenceItem(overview, "Market-cap / liquidity", finite(row.market?.market_cap_usd) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(row.market.market_cap_usd / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
+  appendEvidenceItem(overview, "Routeable size", discovery.routeability?.availability === "available" && finite(discovery.routeability.routeable_size_usd) !== null ? compact(discovery.routeability.routeable_size_usd, { currency: true }) : "Unavailable");
+  appendEvidenceItem(overview, "Estimated slippage", discovery.routeability?.availability === "available" && finite(discovery.routeability.estimated_slippage_bps) !== null ? `${Number(discovery.routeability.estimated_slippage_bps).toFixed(1)} bps` : "Unavailable");
+  appendEvidenceItem(overview, "Bundle percentage", discovery.control_intelligence?.bundled_pct?.availability === "available" && finite(discovery.control_intelligence.bundled_pct.value) !== null ? `${Number(discovery.control_intelligence.bundled_pct.value).toFixed(1)}%` : "Unavailable");
+  appendEvidenceItem(overview, "Holder concentration", discovery.control_intelligence?.top_holder_concentration_pct?.availability === "available" && finite(discovery.control_intelligence.top_holder_concentration_pct.value) !== null ? `${Number(discovery.control_intelligence.top_holder_concentration_pct.value).toFixed(1)}%` : "Unavailable");
+  appendEvidenceItem(overview, "Stored observations", String(discovery.registry?.observation_count || 0));
+  appendEvidenceItem(overview, "Selected timeframe", state.spotTimeframe);
+
+  const scoreGrid = append(body, "div", "discover-score-evidence-grid", "");
+  renderScoreEvidence(scoreGrid, "Velocity", radarScore(row, "velocity"));
+  renderScoreEvidence(scoreGrid, "Flow quality", radarScore(row, "activity"));
+
+  const measurements = append(body, "dl", "discover-token-evidence-grid discover-token-measurements", "");
+  measurements.textContent = "";
+  appendEvidenceItem(measurements, "Price acceleration", evidenceMetric(discovery.measurements?.price_acceleration));
+  appendEvidenceItem(measurements, "Volume acceleration", evidenceMetric(discovery.measurements?.volume_acceleration));
+  appendEvidenceItem(measurements, "Transaction-rate acceleration", evidenceMetric(discovery.measurements?.transaction_rate_acceleration));
+  appendEvidenceItem(measurements, "Participant acceleration", evidenceMetric(discovery.measurements?.participant_acceleration));
+  appendEvidenceItem(measurements, "Liquidity change", evidenceMetric(discovery.measurements?.liquidity_change, { percentValue: true }));
+  appendEvidenceItem(measurements, "Holder change", evidenceMetric(discovery.measurements?.holder_change, { percentValue: true }));
+  appendEvidenceItem(measurements, "Buy share", evidenceMetric(discovery.measurements?.buy_share, { ratio: true }));
+  appendEvidenceItem(measurements, "Net buy flow", evidenceMetric(discovery.measurements?.net_buy_flow));
+
+  const narrative = append(body, "section", "discover-token-evidence-narrative", "");
+  append(narrative, "h4", "", "Decision context");
+  for (const [label, value] of [
+    ["What changed", discovery.decision_support?.what_changed],
+    ["Why now", discovery.decision_support?.why_now],
+    ["What strengthens", discovery.decision_support?.what_strengthens],
+    ["What weakens", discovery.decision_support?.what_weakens],
+    ["Next checkpoint", discovery.decision_support?.next_checkpoint],
+  ]) {
+    const line = append(narrative, "p", "", "");
+    append(line, "strong", "", `${label}: `);
+    line.append(document.createTextNode(text(value, "Unavailable")));
+  }
+  const raven = discovery.raven_evidence_state;
+  const ravenSection = append(body, "section", "discover-token-evidence-narrative", "");
+  append(ravenSection, "h4", "", "Raven evidence");
+  if (raven?.qualified === true) {
+    append(ravenSection, "p", "", text(raven.why_raven_noticed, "Qualified exact-market Raven observation."));
+    if (raven.what_changed) append(ravenSection, "p", "", text(raven.what_changed));
+    if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => text(value, "")).filter(Boolean).join(" · ")}`);
+    append(ravenSection, "small", "", `${title(raven.state)} · ${title(raven.confidence_maturity, "Forming")} maturity · ${title(raven.forward_evidence_status, "Forming")} forward evidence`);
+  } else {
+    append(ravenSection, "p", "", text(raven?.why_not_available, "No current exact-market Raven observation qualifies."));
+  }
+  const risks = rowRiskValues(row);
+  append(body, "small", "discover-token-evidence-footer", [
+    `Exact pool ${text(row.pool_address)}`,
+    risks.length ? `Risk flags: ${risks.map((value) => title(value)).join(", ")}` : "No qualified risk flag",
+    `Observed ${row.observed_at ? when(row.observed_at) : "time unavailable"}`,
+    `Source ${text(discovery.facts?.source_scope, "unavailable")}`,
+  ].join(" · "));
+}
+
 function updateSpotTokenRow(anchor, row, index) {
-  const flow = spotFlowRead(row, state.spotTimeframe);
-  const velocity = spotVelocityRead(row, state.spotTimeframe);
-  const alphaRead = state.spotSort === "velocity" ? velocity : flow;
+  const discovery = row.discovery;
+  const velocityScore = radarScore(row, "velocity");
+  const activityScore = radarScore(row, "activity");
+  const risks = rowRiskValues(row);
+  const primary = text(discovery.primary_behavior_state?.value, "forming");
+  const velocityState = text(discovery.velocity_state?.value, "forming");
+  const activityState = text(discovery.activity_state?.value, "forming");
+  const tone = ["distribution", "capitulation", "failed_breakout", "invalidated_dead"].includes(primary)
+    ? "negative"
+    : risks.includes("late_chase") || risks.includes("flow_divergence") || risks.includes("liquidity_thinning") ? "warning"
+      : ["breakout", "continuation", "sell_pressure_absorption", "reacceleration", "post_dump_resurrection", "reclaiming_range", "ath_breakout"].includes(primary) ? "positive" : "neutral";
   anchor.className = "discover-token-row";
   anchor.dataset.tokenRowId = spotRowId(row);
   anchor.dataset.tokenAddress = text(row.token_address, "");
   anchor.dataset.identityScope = text(row.identity_scope, "");
   anchor.dataset.freshness = text(row.context_state, "current").toLowerCase();
-  anchor.dataset.flowState = flow.state;
-  anchor.dataset.flowTone = alphaRead.tone;
-  anchor.dataset.signalScore = String(alphaRead.score);
-  anchor.dataset.velocityState = velocity.state;
-  anchor.dataset.velocityGrade = velocity.grade;
-  anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal`);
+  anchor.dataset.flowState = activityState;
+  anchor.dataset.flowTone = tone;
+  anchor.dataset.signalScore = String(usableRadarScore(state.spotSort === "activity" ? activityScore : velocityScore) ?? "");
+  anchor.dataset.velocityState = velocityState;
+  anchor.dataset.velocityGrade = usableRadarScore(velocityScore) === null ? "" : text(velocityScore?.grade, "");
+  anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal. ${scoreLabel(velocityScore, "Velocity ranking score").replace("/99", " out of 99")}${usableRadarScore(velocityScore) !== null && velocityScore?.grade ? `, grade ${velocityScore.grade}` : ""}${velocityScore?.score_cap_reason ? ", chase-risk cap applied" : ""}.`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
 
@@ -818,9 +1167,11 @@ function updateSpotTokenRow(anchor, row, index) {
   append(name, "strong", "", text(row.symbol));
   append(name, "small", "", text(row.name, ""));
   append(copy, "span", "discover-token-market-id", [
-    text(row.chain, ""),
+    spotChainLabel(row.chain_id || row.chain),
+    text(row.venue, ""),
+    text(row.quote_symbol, ""),
     row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
-    spotTokenFingerprint(row.pool_address || row.token_address),
+    `CA ${spotTokenFingerprint(row.token_address)}`,
     spotMarketAge(row.market?.market_age_seconds),
   ].filter(Boolean).join(" · "));
 
@@ -840,6 +1191,10 @@ function updateSpotTokenRow(anchor, row, index) {
   renderTokenStat(anatomy, "Vol", finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
   renderTokenStat(anatomy, "Liq", finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
   renderTokenStat(anatomy, "MCap", finite(row.market?.market_cap_usd) === null ? "" : compact(row.market.market_cap_usd, { currency: true }));
+  const marketCapLiquidity = finite(row.market?.market_cap_usd) !== null && finite(row.market?.liquidity_usd) > 0
+    ? row.market.market_cap_usd / row.market.liquidity_usd
+    : null;
+  renderTokenStat(anatomy, "MC/Liq", marketCapLiquidity === null ? "" : `${marketCapLiquidity.toFixed(marketCapLiquidity < 10 ? 1 : 0)}×`);
   const traders = spotMetric(row, "traders");
   const transactions = (spotMetric(row, "buys") || 0) + (spotMetric(row, "sells") || 0);
   renderTokenStat(
@@ -847,27 +1202,27 @@ function updateSpotTokenRow(anchor, row, index) {
     traders === null ? "Tx" : "Traders",
     traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
   );
-  renderTokenStat(
-    anatomy,
-    "Holders",
-    finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count),
-  );
-
+  renderTokenStat(anatomy, "Holders", finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
-  const ravenTiming = row.broader_attention?.raven_observed_first === true;
-  const flowLabel = ravenTiming && flow.state !== "balanced" ? `Raven timing · ${flow.label}` : ravenTiming ? "Raven timing" : flow.label;
-  append(raven, "span", "", state.spotSort === "velocity"
-    ? `${velocity.label} · ${velocity.grade}${velocity.score}`
-    : `${flowLabel} · Q${flow.score}`);
-  append(raven, "strong", "", state.spotSort === "velocity"
-    ? velocity.headline
-    : row.source_type === "market_activity" && flow.state !== "balanced"
-      ? flow.summary
-      : spotRavenRead(row));
-  const risk = text(row.risk, "");
-  const flowDetail = [state.spotSort === "velocity" ? velocity.detail : flow.detail, risk].filter(Boolean).join(" · ");
-  if (flowDetail) append(raven, "small", "", flowDetail);
+  if (state.spotSort === "velocity") {
+    const label = scoreLabel(velocityScore, "Velocity");
+    append(raven, "span", "", risks.includes("late_chase") ? `Chase risk · ${label}` : label);
+    append(raven, "strong", "", `${title(velocityState)} · ${title(primary)}`);
+  } else if (state.spotSort === "activity") {
+    append(raven, "span", "", scoreLabel(activityScore, "Flow quality"));
+    const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
+    append(raven, "strong", "", [title(activityState), buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`].filter(Boolean).join(" · "));
+  } else {
+    const ravenEvidence = discovery.raven_evidence_state;
+    append(raven, "span", "", `Raven observation · ${title(ravenEvidence.state)}`);
+    append(raven, "strong", "", text(ravenEvidence.why_raven_noticed, "Qualified exact-market Raven observation."));
+  }
+  const compactDetail = [
+    text(discovery.decision_support?.why_now, ""),
+    risks.length ? risks.slice(0, 2).map((value) => title(value)).join(" · ") : "",
+  ].filter(Boolean).join(" · ");
+  if (compactDetail) append(raven, "small", "", compactDetail);
 
   const open = append(anchor, "span", "discover-token-open", "Terminal");
   open.setAttribute("aria-hidden", "true");
@@ -888,7 +1243,11 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
     [...host.querySelectorAll(".discover-token-row")].forEach((node, index) => {
       const row = byId.get(node.dataset.tokenRowId);
-      if (row) updateSpotTokenRow(node, row, index);
+      if (row) {
+        updateSpotTokenRow(node, row, index);
+        const shell = node.closest(".discover-token-row-shell");
+        if (shell) renderSpotEvidence(shell, row);
+      }
     });
     if (!sameOrder(rankedIds, state.spotDisplayOrder)) {
       state.spotPendingOrder = rankedIds;
@@ -905,16 +1264,18 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const id = spotRowId(row);
     const node = existing.get(id) || document.createElement("a");
     updateSpotTokenRow(node, row, index);
-    fragment.append(wrapSavedMonitorControl(node, "discover-token-row-shell"));
+    const shell = wrapSavedMonitorControl(node, "discover-token-row-shell");
+    renderSpotEvidence(shell, row);
+    fragment.append(shell);
   });
   if (!ranked.length) {
     const empty = append(fragment, "div", "discover-token-empty", "");
     const copy = append(empty, "div", "", "");
     const chain = state.spotChain === "all" ? "Pools" : `${spotChainLabel(state.spotChain)} pools`;
-    append(copy, "h3", "", `${chain} do not clear the current alpha gate`);
-    append(copy, "p", "", state.spotSort === "velocity"
-      ? `Nothing in the ${state.spotTimeframe} feed currently combines a compelling move with confirmed flow and usable depth.`
-      : `Nothing in the ${state.spotTimeframe} feed currently has enough liquidity and decision-useful activity to rank.`);
+    append(copy, "h3", "", state.spotSort === "raven" ? `No current ${chain.toLowerCase()} Raven observations qualify` : `${chain} have no matching radar candidates`);
+    append(copy, "p", "", state.spotSort === "raven"
+      ? "Provider trending and Velocity rankings cannot create Raven evidence. Velocity and Activity remain available."
+      : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
     const actions = append(copy, "div", "discover-token-empty-actions", "");
     if (state.spotChain !== "all") {
       const reset = append(actions, "button", "", "Scan all chains");
@@ -959,6 +1320,7 @@ async function hydrateSpotMetadata(rows = state.spotRows) {
 function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
   state.spotRows = Array.isArray(rows) ? rows : [];
+  recordSpotSessionChanges(state.spotRows);
   const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
   host.hidden = activeFilter !== "spot";
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
@@ -976,21 +1338,26 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.querySelectorAll("[data-spot-cohort]").forEach((button) => {
+    const active = button.dataset.spotCohort === state.spotCohort;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   const views = {
     velocity: {
-      title: "Velocity alpha",
-      summary: "Exact pools ranked by price expansion, flow confirmation, participation, depth, and chase risk.",
-      column: "Velocity alpha",
+      title: "Velocity radar",
+      summary: "Exact pools ranked by server-measured acceleration, flow alignment, liquidity, persistence, and chase risk.",
+      column: "Velocity ranking",
     },
     raven: {
       title: "Raven token reads",
-      summary: "Exact pools ranked by Raven timing and current evidence-backed flow quality.",
-      column: "Why Raven noticed",
+      summary: "Only exact pools with a genuine timestamped Raven observation and qualified lineage appear here.",
+      column: "Raven evidence",
     },
     activity: {
-      title: "Active token markets",
-      summary: "Exact pools ranked by current traders, transactions, and volume.",
-      column: "Current flow",
+      title: "Activity acceleration",
+      summary: "Exact pools ranked by change in transaction rate, unique participation, volume, liquidity, and buy/sell flow—not raw activity alone.",
+      column: "Flow-quality ranking",
     },
   };
   const view = views[state.spotSort] || views.velocity;
@@ -1130,7 +1497,7 @@ function createOpportunityRow(row) {
     lifecycleNode.textContent = "";
     const badge = append(lifecycleNode, "b", "", lifecycle.label);
     badge.dataset.tone = lifecycle.tone;
-    append(lifecycleNode, "small", "", `${lifecycle.quality} · Q${lifecycle.score}`);
+    append(lifecycleNode, "small", "", `${lifecycle.quality} · Lifecycle quality ${lifecycle.score}/99`);
   }
 
   const thesis = append(anchor, "div", "discover-thesis", "");
@@ -1403,6 +1770,7 @@ function currentOpportunityPayload(payload) {
   if (delivery.freshness_state !== "fresh") throw new Error(`current_origin_${delivery.freshness_state || "unavailable"}`);
   if (!census || !["current", "delayed"].includes(census.source_state) || !Array.isArray(rows)) throw new Error("current_census_schema_rejected");
   const spot = census.spot_attention;
+  const discoveryRadar = currentDiscoverRadar(census.discovery_radar);
   const spotBoundary = spot?.execution_boundary || {};
   const spotRows = (
     spot?.schema_version === "ravenos.token_attention.v1"
@@ -1434,6 +1802,8 @@ function currentOpportunityPayload(payload) {
     freshness: census.source_state,
     rows: rows.filter((row) => String(row?.market_type || "").toLowerCase() !== "spot" || survivesCurrentSpotMarket(row)),
     spotRows,
+    radarRows: discoveryRadar?.rows || [],
+    radarState: discoveryRadar?.state || "forming",
     participationPayoff: currentParticipationPayoff(payload?.participation_payoff),
     generatedAt: [census.generated_at, spot?.generated_at]
       .filter(Boolean)
@@ -1457,7 +1827,12 @@ function currentOnchainPulsePayload(payload) {
     || !["exact_pool_market_activity", "token_velocity_plus_exact_pool_market_activity"].includes(provenance.role)
     || provenance.raven_signal !== false
   ) throw new Error("onchain_market_pulse_contract_rejected");
-  const rows = payload.rows.filter((row) => {
+  const discoveryRadar = currentDiscoverRadar(payload.discovery_radar, state.spotTimeframe);
+  if (!discoveryRadar) throw new Error("onchain_discover_radar_contract_rejected");
+  const payloadIds = payload.rows.map((row) => text(row?.instrument_id, ""));
+  const radarIds = discoveryRadar.rows.map((row) => text(row?.instrument_id, ""));
+  if (payloadIds.length !== radarIds.length || payloadIds.some((value, index) => value !== radarIds[index])) throw new Error("onchain_radar_row_identity_mismatch");
+  const rows = discoveryRadar.rows.filter((row) => {
     const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
     const sourceValid = row?.source_type === "market_activity" || (
       row?.source_type === "jupiter_velocity"
@@ -1476,13 +1851,51 @@ function currentOnchainPulsePayload(payload) {
       && row?.research_only === true
       && row?.actionable === false
       && row?.execution_available === false
+      && row?.raven_signal === false
+      && row?.discovery?.raven_evidence_state?.raven_signal === false
       && survivesCurrentSpotMarket(row);
   });
   return {
     rows,
     generatedAt: payload.generated_at,
     state: payload.state,
+    radarState: discoveryRadar.state,
   };
+}
+
+function mergeSpotRadarRows(registryRows = [], currentRows = []) {
+  const registry = new Map(registryRows.filter(validDiscoverRow).map((row) => [row.instrument_id, row]));
+  const merged = new Map(registry);
+  for (const current of currentRows.filter(validDiscoverRow)) {
+    const retained = registry.get(current.instrument_id);
+    if (!retained) {
+      merged.set(current.instrument_id, current);
+      continue;
+    }
+    const retainedDiscovery = retained.discovery;
+    const currentDiscovery = current.discovery;
+    const raven = retainedDiscovery.raven_evidence_state?.qualified === true
+      ? retainedDiscovery.raven_evidence_state
+      : currentDiscovery.raven_evidence_state;
+    merged.set(current.instrument_id, {
+      ...retained,
+      ...current,
+      raven_signal: raven?.raven_signal === true,
+      discovery: {
+        ...retainedDiscovery,
+        facts: currentDiscovery.facts,
+        velocity_state: currentDiscovery.velocity_state,
+        activity_state: currentDiscovery.activity_state,
+        measurements: currentDiscovery.measurements,
+        normalization: currentDiscovery.normalization,
+        raven_evidence_state: raven,
+        routeability: retainedDiscovery.routeability?.availability === "available" ? retainedDiscovery.routeability : currentDiscovery.routeability,
+        control_intelligence: retainedDiscovery.control_intelligence?.availability === "available" ? retainedDiscovery.control_intelligence : currentDiscovery.control_intelligence,
+        exact_identity: currentDiscovery.exact_identity,
+      },
+    });
+  }
+  return [...merged.values()];
 }
 
 function currentAtlasPayload(payload) {
@@ -1568,7 +1981,12 @@ function currentFeaturedAtlasPayload(payload) {
 }
 
 async function refresh({ manual = false } = {}) {
-  if (state.loading || (state.paused && !manual)) return;
+  if (state.loading) {
+    if (manual) state.refreshQueued = true;
+    return;
+  }
+  if (state.paused && !manual) return;
+  const requestedTimeframe = state.spotTimeframe;
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
   const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;
@@ -1577,7 +1995,7 @@ async function refresh({ manual = false } = {}) {
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
-    json(`/api/onchain/trending?chains=solana,base,ethereum,robinhood&duration=${encodeURIComponent(state.spotTimeframe)}`),
+    json(`/api/onchain/trending?chains=solana,base,ethereum,robinhood&duration=${encodeURIComponent(requestedTimeframe)}`),
     json("/api/brief"),
   ]);
 
@@ -1608,6 +2026,7 @@ async function refresh({ manual = false } = {}) {
 
   let ravenRows = [];
   let spotAttentionRows = [];
+  let registryRadarRows = [];
   let marketPulseRows = [];
   let ravenGeneratedAt = null;
   let marketPulseGeneratedAt = null;
@@ -1621,6 +2040,8 @@ async function refresh({ manual = false } = {}) {
         market_snapshot: state.markets.get(row.instrument_id) || null,
       }));
       spotAttentionRows = current.spotRows;
+      registryRadarRows = current.radarRows;
+      state.spotRadarState = current.radarState;
       renderParticipationPayoff(current.participationPayoff);
       renderAttentionBenchmark(current.census);
       ravenGeneratedAt = current.generatedAt;
@@ -1644,11 +2065,12 @@ async function refresh({ manual = false } = {}) {
       const current = currentOnchainPulsePayload(onchainPulse.value.payload);
       marketPulseRows = current.rows;
       marketPulseGeneratedAt = current.generatedAt;
+      state.spotRadarState = current.radarState === "current" && state.spotRadarState === "shadow" ? "shadow" : current.radarState;
     } catch {
       marketPulseRows = [];
     }
   }
-  const tokenRows = [...spotAttentionRows, ...marketPulseRows];
+  const tokenRows = mergeSpotRadarRows(registryRadarRows, marketPulseRows);
   renderSpotPulse(tokenRows);
 
   let briefData = null;
@@ -1753,6 +2175,10 @@ async function refresh({ manual = false } = {}) {
   state.lastRefresh = new Date().toISOString();
   state.loading = false;
   document.getElementById("discoverRefresh").textContent = "Refresh now";
+  if (state.refreshQueued || requestedTimeframe !== state.spotTimeframe) {
+    state.refreshQueued = false;
+    void refresh({ manual: true });
+  }
 }
 
 function bind() {
@@ -1780,6 +2206,26 @@ function bind() {
     state.spotChain = button.dataset.spotChain;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
+  document.querySelectorAll("[data-spot-cohort]").forEach((button) => button.addEventListener("click", () => {
+    state.spotCohort = button.dataset.spotCohort;
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }));
+  for (const [id, key] of [
+    ["discoverMarketCapFilter", "spotMarketCapFilter"],
+    ["discoverLiquidityFilter", "spotLiquidityFilter"],
+    ["discoverAgeFilter", "spotAgeFilter"],
+    ["discoverBundleFilter", "spotBundleFilter"],
+    ["discoverRouteFilter", "spotRouteFilter"],
+  ]) {
+    document.getElementById(id)?.addEventListener("change", (event) => {
+      state[key] = event.currentTarget.value;
+      renderSpotPulse(state.spotRows, { forceOrder: true });
+    });
+  }
+  document.getElementById("discoverChangedFilter")?.addEventListener("change", (event) => {
+    state.spotChangedOnly = event.currentTarget.checked;
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  });
   document.getElementById("discoverTokenUpdates").addEventListener("click", () => renderSpotPulse(state.spotRows, { forceOrder: true }));
   document.getElementById("discoverStreamControl").addEventListener("click", () => {
     state.expanded = !state.expanded;
@@ -1819,6 +2265,8 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotTimeframe: state.spotTimeframe,
     spotSort: state.spotSort,
     spotChain: state.spotChain,
+    spotCohort: state.spotCohort,
+    spotRadarState: state.spotRadarState,
     paused: state.paused,
     expanded: state.expanded,
     loading: state.loading,

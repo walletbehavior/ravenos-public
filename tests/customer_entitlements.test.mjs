@@ -282,6 +282,9 @@ test("Participant free and Pro projections retain aggregate denominators while w
   assert.equal(proA.limitations.wallet_identity, "not_included");
   assert.equal(proA.limitations.smart_money_ranking, "not_included");
   assert.equal(proA.provenance.participant_identity_included, false);
+  const participantCopy = JSON.stringify(proA);
+  assert(!/jupiter[ _-]+velocity/i.test(participantCopy), "internal participant-lane labels must not reach customers");
+  assert.match(participantCopy, /high-velocity token/i);
 });
 
 test("projection builders reject unsafe or malformed public inputs rather than widening them", () => {

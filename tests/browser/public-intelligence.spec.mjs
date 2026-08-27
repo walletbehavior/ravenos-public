@@ -283,6 +283,8 @@ test("Participant Intelligence keeps denominators, evidence strength, and privac
   behavior.data.actor_evidence.actor_evidence_freshness = "stale";
   behavior.data.actor_evidence.actor_evidence_state = "actor_evidence_stale";
   behavior.data.actor_evidence.public_read_label = "Participant evidence is stale.";
+  behavior.data.rows[0].cap_band = "jupiter_velocity";
+  behavior.data.rows[0].plain_language_summary = "Jupiter Velocity participation on Solana is mixed or still unclear.";
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(behavior) }));
   await page.goto("/behavior/");
   await expect(page.locator(".behavior-focus")).toContainText(/Participant success rate.*Win-rate band.*Outcome strength.*Average outcome.*Confidence \/ score.*Sample integrity.*Window/s);
@@ -291,6 +293,7 @@ test("Participant Intelligence keeps denominators, evidence strength, and privac
   await expect(first).toContainText(/usable.*observed.*excluded/s);
   await expect(first).toContainText("Aggregate · identities withheld");
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Participant context is stale.*not used as a live leaderboard/s);
+  await expect(page.locator("body")).not.toContainText(/Jupiter velocity/i);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed/i);
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { buildDiscoverRadarProjection } from "../lib/discover_radar.mjs";
 import worker from "../worker.mjs";
 
 const ORIGIN = "https://origin.example/public/ravenos";
@@ -325,6 +326,7 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
     assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
     assert.equal(url.searchParams.get("duration"), "5m");
     assert.equal(url.searchParams.get("include"), "base_token,quote_token,dex");
@@ -376,6 +378,10 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.equal(body.safe_public, true);
     assert.equal(body.state, "current");
     assert.equal(body.rows.length, 4);
+    assert.equal(body.discovery_radar.schema_version, "ravenos.discover_radar.v1");
+    assert.equal(body.discovery_radar.timeframe, "5m");
+    assert.equal(body.discovery_radar.classifier.monitor_eligible, false);
+    assert.equal(body.discovery_radar.monitor_safety.enabled, false);
     assert.deepEqual(body.rows.map((row) => row.chain_id), ["solana", "base", "ethereum", "robinhood"]);
     const solana = body.rows.find((row) => row.chain_id === "solana");
     assert.equal(solana.pool_address, solanaPool);
@@ -386,6 +392,11 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.ok(body.rows.every((row) => row.source_type === "market_activity"));
     assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
     assert.ok(body.rows.every((row) => row.research_only === true && row.execution_available === false));
+    assert.ok(body.rows.every((row) => row.discovery.schema_version === "ravenos.discover_market.v1"));
+    assert.ok(body.rows.every((row) => row.discovery.raven_evidence_state.raven_signal === false));
+    assert.ok(body.rows.every((row) => row.discovery.primary_behavior_state.value === "forming"));
+    assert.ok(body.rows.every((row) => row.discovery.velocity_state.score.scale_max === 99));
+    assert.ok(body.rows.every((row) => row.discovery.velocity_state.score.raven_confidence === false));
     assert.equal(body.provenance.raven_signal, false);
     assert.equal(body.discovery_lanes.robinhood_velocity, true);
     assert.equal(body.rows.find((row) => row.chain_id === "robinhood").discovery_source, "coingecko_robinhood_trending");
@@ -406,6 +417,7 @@ test("Worker merges Jupiter token velocity into a verified exact Solana pool wit
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
     if (url.hostname === "api.jup.ag") {
       assert.equal(init.headers["x-api-key"], jupiterSecret);
       assert.equal(url.pathname, "/tokens/v2/toptrending/1h");
@@ -492,8 +504,101 @@ test("Worker merges Jupiter token velocity into a verified exact Solana pool wit
     assert.equal(velocity.jupiter.route_scope, "best_current_exact_pool");
     assert.equal(velocity.research_only, true);
     assert.equal(velocity.execution_available, false);
+    assert.equal(velocity.discovery.raven_evidence_state.raven_signal, false);
+    assert.equal(velocity.discovery.velocity_state.score.score_kind, "velocity_ranking");
+    assert.equal(velocity.discovery.velocity_state.score.scale_max, 99);
     assert.equal(JSON.stringify(body).includes(coinGeckoSecret), false);
     assert.equal(JSON.stringify(body).includes(jupiterSecret), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker reuses persistent exact-market history before publishing current acceleration", async () => {
+  const poolAddress = "0x1111111111111111111111111111111111111111";
+  const tokenAddress = "0x2222222222222222222222222222222222222222";
+  const quoteAddress = "0x3333333333333333333333333333333333333333";
+  const generatedAt = new Date().toISOString();
+  const history = buildDiscoverRadarProjection([{
+    instrument_id: `base:pool:${poolAddress}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Base",
+    chain_id: "base",
+    venue: "Aerodrome",
+    identity_scope: "exact_pool",
+    symbol: "TOKEN",
+    name: "Test Token",
+    token_address: tokenAddress,
+    quote_token_address: quoteAddress,
+    quote_symbol: "USDC",
+    pool_address: poolAddress,
+    observed_at: generatedAt,
+    context_state: "current",
+    market: {
+      price_usd: 1.25,
+      liquidity_usd: 920_000,
+      market_cap_usd: 84_000_000,
+      price_change_5m_pct: 4.2,
+      price_change_1h_pct: 8.4,
+      volume_usd_5m: 42_000,
+      volume_usd_1h: 280_000,
+      buys_5m: 48,
+      sells_5m: 20,
+      buyers_5m: 36,
+      sellers_5m: 18,
+      buys_1h: 210,
+      sells_1h: 122,
+      buyers_1h: 140,
+      sellers_1h: 90,
+    },
+    registry: {
+      state: "tracking",
+      first_seen_at: isoAgo(7_200),
+      last_seen_at: generatedAt,
+      observation_count: 4,
+      first_seen_market_cap_usd: 70_000_000,
+      primary_behavior_state: "continuation",
+      admission_lanes: ["renewed_mature_activity"],
+      admission_reason: "Renewed exact-market participation",
+      event_evidence_append_only: true,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], { timeframe: "5m", generatedAt, nowMs: Date.parse(generatedAt), sourceState: "shadow" });
+  const originProjection = projection("opportunities", "ravenos_opportunity_census_public_origin_v1", {
+    schema_version: "ravenos_opportunity_census_public_v1",
+    source_state: "current",
+    opportunities: { rows: [] },
+    discovery_radar: history,
+  }, generatedAt, 3_600);
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse(originProjection);
+    if (url.pathname.includes("/networks/base/")) return jsonResponse(geckoTrendingFixture("base", { pool: poolAddress, token: tokenAddress, quote: quoteAddress }));
+    throw new Error(`unexpected_url:${url}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=base&duration=5m"),
+      {
+        ...environment(),
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: "registry-history-provider-token",
+      },
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.rows.length, 1);
+    assert.equal(payload.rows[0].instrument_id, `base:pool:${poolAddress}`);
+    assert.equal(payload.rows[0].discovery.measurements.historical_window_coverage.stored_observation_count, 4);
+    assert.equal(payload.rows[0].discovery.velocity_state.score.availability, "available");
+    assert.notEqual(payload.rows[0].discovery.primary_behavior_state.value, "forming");
+    assert.equal(payload.rows[0].discovery.raven_evidence_state.raven_signal, false);
   } finally {
     globalThis.fetch = previousFetch;
   }

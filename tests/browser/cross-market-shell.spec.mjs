@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { buildDiscoverRadarProjection } from "../../lib/discover_radar.mjs";
 
 import {
   HYPERLIQUID_ACCOUNT_ADDRESS,
@@ -57,6 +58,7 @@ const opportunityRows = [
 const spotTokenAddress = "11111111111111111111111111111111";
 const spotPoolAddress = "22222222222222222222222222222222";
 const spotTokenOnlyAddress = "33333333333333333333333333333333";
+const spotTokenOnlyPoolAddress = "44444444444444444444444444444444";
 const basePulsePool = "0x1111111111111111111111111111111111111111";
 const basePulseToken = "0x2222222222222222222222222222222222222222";
 const basePulseQuote = "0x3333333333333333333333333333333333333333";
@@ -72,14 +74,17 @@ const solanaPulseQuote = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const spotAttentionRows = [
   {
     public_attention_id: "rta_retire_fixture",
-    instrument_id: "spot_retire_fixture",
+    instrument_id: `solana:pool:${spotPoolAddress}`,
     market_type: "spot",
     chain: "Solana",
+    chain_id: "solana",
     venue: "Meteora",
     identity_scope: "exact_pool",
     symbol: "RETIRE",
     name: "Retire",
     token_address: spotTokenAddress,
+    quote_token_address: solanaPulseQuote,
+    quote_symbol: "USDC",
     pool_address: spotPoolAddress,
     observed_at: "2026-07-21T12:20:00Z",
     age_seconds: 20,
@@ -121,15 +126,18 @@ const spotAttentionRows = [
   },
   {
     public_attention_id: "rta_search_fixture",
-    instrument_id: "spot_search_fixture",
+    instrument_id: `solana:pool:${spotTokenOnlyPoolAddress}`,
     market_type: "spot",
     chain: "Solana",
-    venue: null,
-    identity_scope: "exact_token",
+    chain_id: "solana",
+    venue: "Raydium",
+    identity_scope: "exact_pool",
     symbol: "BIRD",
     name: "Bird",
     token_address: spotTokenOnlyAddress,
-    pool_address: null,
+    quote_token_address: "55555555555555555555555555555555",
+    quote_symbol: "USDC",
+    pool_address: spotTokenOnlyPoolAddress,
     observed_at: "2026-07-21T12:20:00Z",
     age_seconds: 35,
     movement_state: "Fast expansion",
@@ -154,6 +162,7 @@ const spotAttentionRows = [
       volume_usd_24h: 940_000,
       liquidity_usd: 41_000,
       holder_count: 620,
+      market_age_seconds: 18_000,
     },
     broader_attention: {
       state: "not_confirmed",
@@ -169,18 +178,71 @@ const spotAttentionRows = [
   },
 ];
 
-function onchainPulsePayload(rows = []) {
+function radarSourceRows(rows, { raven = false, generatedAt = new Date().toISOString() } = {}) {
+  return rows.flatMap((source) => {
+    if (source.identity_scope !== "exact_pool" || !source.pool_address || !source.token_address || !source.quote_token_address) return [];
+    const chain = String(source.chain_id || source.chain || "").toLowerCase();
+    const row = {
+      ...source,
+      instrument_id: `${chain}:pool:${source.pool_address}`,
+      observed_at: generatedAt,
+      context_state: "current",
+      registry: {
+        state: "tracking",
+        first_seen_at: new Date(Date.parse(generatedAt) - 7_200_000).toISOString(),
+        last_seen_at: generatedAt,
+        observation_count: 4,
+        first_seen_market_cap_usd: Number(source.market?.market_cap_usd || 0) * 0.8 || null,
+        primary_behavior_state: "forming",
+        admission_lanes: [raven ? "raven_observation" : "provider_current_input"],
+        admission_reason: raven ? "Exact Raven observation" : "Current qualified provider input",
+        event_evidence_append_only: true,
+      },
+      raven_signal: false,
+    };
+    if (raven) {
+      row.source_type = "raven_spot_attention";
+      row.raven_evidence = {
+        genuine_internal_observation: true,
+        instrument_id: row.instrument_id,
+        observed_at: generatedAt,
+        freshness: "current",
+        state: "qualified",
+        classifier: { name: "raven_velocity_attention", version: "fixture.v1" },
+        lineage: { public_artifact_id: source.public_attention_id },
+        why_raven_noticed: source.movement_state,
+        what_changed: source.what_changed,
+        behavioral_evidence: [source.what_changed],
+        timing_lead_seconds: source.broader_attention?.lead_seconds ?? null,
+        confidence_maturity: "forming",
+        contradictions: source.risk ? [source.risk] : [],
+        forward_evidence_status: "forming",
+      };
+    }
+    return [row];
+  });
+}
+
+function onchainPulsePayload(rows = [], duration = "5m") {
+  const generatedAt = new Date().toISOString();
+  const discoveryRadar = buildDiscoverRadarProjection(radarSourceRows(rows, { generatedAt }), {
+    timeframe: duration,
+    generatedAt,
+    nowMs: Date.parse(generatedAt),
+    sourceState: "current",
+  });
   const hasJupiterVelocity = rows.some((row) => row.source_type === "jupiter_velocity");
   return {
     ok: true,
     safe_public: true,
     schema_version: "ravenos.onchain_market_pulse.v1",
-    generated_at: "2026-07-21T12:20:00Z",
+    generated_at: generatedAt,
     state: "current",
-    freshness: { state: "current", observed_at: "2026-07-21T12:20:00Z", expected_update_seconds: 30 },
-    duration: "5m",
+    freshness: { state: "current", observed_at: generatedAt, expected_update_seconds: 30 },
+    duration,
     chains: [...new Set(rows.map((row) => row.chain_id).filter(Boolean))],
-    rows,
+    rows: discoveryRadar.rows,
+    discovery_radar: discoveryRadar,
     unavailable: [],
     provenance: {
       provider: hasJupiterVelocity ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",
@@ -417,6 +479,11 @@ const jupiterVelocityRow = {
 };
 
 function opportunityPayload({ withSpot = false, rows = opportunityRows } = {}) {
+  const generatedAt = new Date().toISOString();
+  const discoveryRadar = buildDiscoverRadarProjection(
+    withSpot ? radarSourceRows(spotAttentionRows, { raven: true, generatedAt }) : [],
+    { timeframe: "5m", generatedAt, nowMs: Date.parse(generatedAt), sourceState: withSpot ? "shadow" : "forming" },
+  );
   return {
     ok: true,
     schema_version: "ravenos.opportunity_workspace.v2",
@@ -445,6 +512,7 @@ function opportunityPayload({ withSpot = false, rows = opportunityRows } = {}) {
       generated_at: "2026-07-21T12:20:00Z",
       source_state: "current",
       opportunities: { rows },
+      discovery_radar: discoveryRadar,
       ...(withSpot ? {
         spot_attention: {
           schema_version: "ravenos.token_attention.v1",
@@ -569,11 +637,14 @@ async function mockWorkspaceApis(page, {
     body: JSON.stringify({ ok: true, results: spotSearchResults }),
   }));
   await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: markets }) }));
-  await page.route("**/api/onchain/trending**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify(onchainPulsePayload(pulseRowsOverride === null ? (withEvmPulse ? evmPulseRows : []) : pulseRowsOverride)),
-  }));
+  await page.route("**/api/onchain/trending**", (route) => {
+    const duration = new URL(route.request().url()).searchParams.get("duration") || "5m";
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(onchainPulsePayload(pulseRowsOverride === null ? (withEvmPulse ? evmPulseRows : []) : pulseRowsOverride, duration)),
+    });
+  });
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: opportunityStatus,
     contentType: "application/json",
@@ -659,6 +730,8 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(page.locator("#discoverDeskGrid")).toContainText("Setup lifecycle");
   await expect(row).toHaveAttribute("data-lifecycle", "confirmed");
   await expect(row.locator(".discover-opportunity-meta")).toContainText(/Confirmed.*High signal/s);
+  await expect(row.locator(".discover-opportunity-meta")).toContainText(/Lifecycle quality \d+\/99/);
+  await expect(page.locator("#discoverOpportunityLayout")).not.toContainText(/\b[CDQ]\d{2}\b/);
   await expect(page.getByRole("button", { name: /\b(?:buy|sell|long|short|sign|submit|execute)\b/i })).toHaveCount(0);
 });
 
@@ -687,7 +760,7 @@ test("Discover holds directionless evidence below the setup queue without placeh
   await expect(row).toContainText("8.0 bps observed round trip");
 });
 
-test("Discover resolves an exact-token movement directly to its best chartable pool", async ({ page }) => {
+test("Discover preserves exact-pool identity from radar to the chartable Terminal", async ({ page }) => {
   const resolvedPool = {
     chainId: "solana",
     dexId: "raydium",
@@ -757,7 +830,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   const spotFilter = page.locator("[data-discover-filter='spot']");
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity radar");
   await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "RH", "Base", "ETH"]);
   await expect(page.locator("[data-spot-chain='robinhood']")).toHaveAttribute("aria-label", "Robinhood Chain");
   await expect(page.locator("[data-spot-chain='ethereum']")).toHaveAttribute("aria-label", "Ethereum");
@@ -768,8 +841,19 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(page.locator(".discover-token-row").first()).toContainText("72");
   await expect(page.locator(".discover-token-row").first()).toContainText("1.24K");
   await expect(page.locator(".discover-token-row").first()).toContainText("2h old");
-  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText(/Velocity confirmed.*71% buy-side/s);
+  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*(?:Reacceleration|Upside Velocity)/s);
   await expect(page.locator(".discover-token-row").first()).toHaveAttribute("data-signal-score", /\d+/);
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText(/\b[CDQ]\d{2}\b/);
+  const retireShell = page.locator(".discover-token-row-shell").filter({ hasText: "RETIRE" });
+  await retireShell.locator(".discover-token-evidence > summary").click();
+  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Ranking score only");
+  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText(/Grade [A-D]/);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { window.__copiedTokenCa = value; } } });
+  });
+  await retireShell.locator(".discover-copy-ca").click();
+  await expect.poll(() => page.evaluate(() => window.__copiedTokenCa)).toBe(spotTokenAddress);
+  await expect(page.locator("#discoverCopyStatus")).toHaveText("RETIRE token contract address copied.");
   await page.locator("[data-spot-timeframe='24h']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("24h");
   await page.locator("[data-spot-sort='velocity']").click();
@@ -780,7 +864,7 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await page.locator("[data-spot-sort='activity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
-  await expect(page.locator("#discoverSpotPulse")).toContainText("current traders, transactions, and volume");
+  await expect(page.locator("#discoverSpotPulse")).toContainText("change in transaction rate, unique participation, volume, liquidity, and buy/sell flow");
   await page.locator("[data-discover-filter='perpetual']").click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeVisible();
@@ -789,22 +873,26 @@ test("Discover resolves an exact-token movement directly to its best chartable p
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeHidden();
+  await page.locator("[data-spot-sort='velocity']").click();
   const spotRows = page.locator(".discover-token-row");
   await expect(spotRows).toHaveCount(2);
-  await expect(spotRows.filter({ hasText: "RETIRE" })).toContainText("Raven 20m earlier");
   await expect(spotRows.filter({ hasText: "RETIRE" })).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotPoolAddress}`));
   const tokenOnly = spotRows.filter({ hasText: "BIRD" });
   await expect(tokenOnly).toContainText("Terminal");
-  await expect(tokenOnly).toContainText("Exact token");
-  await expect(tokenOnly).toHaveAttribute("href", "#");
+  await expect(tokenOnly).toContainText("Exact pool");
+  await expect(tokenOnly).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${spotTokenOnlyPoolAddress}`));
+  await page.locator("[data-spot-timeframe='5m']").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("5m");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toBeVisible();
-  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toContainText("Raven 20m earlier");
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toContainText(/Velocity \d+\/99/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+  await page.locator("[data-spot-sort='activity']").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotSort)).toBe("activity");
   await tokenOnly.click();
   await page.waitForURL((url) => url.pathname === "/terminal/"
-    && url.searchParams.get("instrument_id") === `solana:pool:${resolvedPool.pairAddress}`
+    && url.searchParams.get("instrument_id") === `solana:pool:${spotTokenOnlyPoolAddress}`
     && url.searchParams.get("timeframe") === "1m"
     && url.searchParams.get("launch") === "activity"
     && url.searchParams.get("raven_overlays") === "auto");
@@ -822,16 +910,20 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
 
   await expect(page.locator("[data-discover-filter='spot']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
-  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity alpha");
+  await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity radar");
   const row = page.locator(".discover-token-row").first();
   await expect(row).toContainText("JUP");
-  await expect(row).not.toContainText(/Jupiter velocity|Meteora|Raven tracked/i);
+  await expect(page.locator("#discoverSpotPulse")).not.toContainText(/Jupiter velocity|Raven tracked/i);
   await expect(row).toContainText("Exact pool");
   await expect(row).toContainText("+12.80%");
-  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*77% buy-side.*3\/3 windows aligned/s);
+  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*(?:Reacceleration|Upside Velocity)/s);
   await expect(row).toHaveAttribute("href", /instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(row).toHaveAttribute("href", /launch=velocity/);
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
+  await page.locator("[data-spot-sort='raven']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(0);
+  await expect(page.locator(".discover-token-empty")).toContainText("Provider trending and Velocity rankings cannot create Raven evidence");
+  await page.locator("[data-spot-sort='velocity']").click();
 
   await row.click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
@@ -891,9 +983,9 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
   const base = page.locator(".discover-token-row").first();
   await expect(base).toContainText("AERO");
-  await expect(base.locator(".discover-token-market-id")).toContainText("Base · Exact pool");
-  await expect(base.locator(".discover-token-market-id")).not.toContainText(/Aerodrome|CoinGecko|trending/i);
-  await expect(base).toContainText(/Velocity confirmed.*75% buy-side/s);
+  await expect(base.locator(".discover-token-market-id")).toContainText("Base · Aerodrome · USDC · Exact pool");
+  await expect(base.locator(".discover-token-market-id")).not.toContainText(/CoinGecko|trending/i);
+  await expect(base).toContainText(/Velocity \d+\/99.*Upside Velocity/s);
   await expect(base).not.toContainText("Raven saw it earlier");
   await expect(base).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${basePulsePool}`));
 
@@ -929,10 +1021,9 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("RUNNER");
   await expect(row).not.toContainText(/Robinhood velocity|CoinGecko|trending/i);
-  await expect(row.locator(".discover-token-market-id")).toContainText("Robinhood Chain · Exact pool");
-  await expect(row.locator(".discover-token-market-id")).not.toContainText("Uniswap V3");
+  await expect(row.locator(".discover-token-market-id")).toContainText("Robinhood Chain · Uniswap V3 · WETH · Exact pool");
   await expect(row).toContainText("+1.80%");
-  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity confirmed.*74% buy-side.*3\/3 windows aligned/s);
+  await expect(row.locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*Upside Velocity/s);
   await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=robinhood%3Apool%3A${robinhoodPulsePool}`, "i"));
   await expect(row).toHaveAttribute("href", /launch=velocity/);
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
@@ -967,8 +1058,8 @@ test("Discover restores live Solana pools when Raven's private attention feed ha
   const row = page.locator(".discover-token-row");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("RAVEN");
-  await expect(row.locator(".discover-token-market-id")).toContainText("Solana · Exact pool");
-  await expect(row.locator(".discover-token-market-id")).not.toContainText(/Raydium|CoinGecko|trending/i);
+  await expect(row.locator(".discover-token-market-id")).toContainText("Solana · Raydium · USDC · Exact pool");
+  await expect(row.locator(".discover-token-market-id")).not.toContainText(/CoinGecko|trending/i);
   await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=solana%3Apool%3A${solanaPulsePool}`));
   await expect(row).not.toContainText(/Raven saw it earlier|unknown|unavailable/i);
   await expect(page.locator(".discover-page .workspace-toolbar")).toHaveCSS("position", "sticky");
@@ -983,10 +1074,10 @@ test("Discover keeps an absent chain compact and actionable instead of showing a
   await page.locator("[data-discover-filter='spot']").click();
   await page.locator("[data-spot-chain='solana']").click();
   const empty = page.locator(".discover-token-empty");
-  await expect(empty).toContainText("Solana pools do not clear the current alpha gate");
+  await expect(empty).toContainText("Solana pools have no matching radar candidates");
   await expect(empty).toContainText("Scan all chains");
   await expect(empty).toContainText("Search exact market");
-  await expect(empty).not.toContainText(/unknown|unavailable/i);
+  await expect(empty).toContainText("Unavailable measurements were not treated as zero");
   await expect(page.locator("#discoverDesk")).toBeHidden();
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await empty.getByRole("button", { name: "Scan all chains" }).click();
@@ -1051,6 +1142,11 @@ test("Discover updates token facts without reordering the tape under an active s
   bird.market.sells_5m = 50;
   bird.market.traders_5m = 300;
   refreshed.census.spot_attention.rows.reverse();
+  const refreshedAt = new Date().toISOString();
+  refreshed.census.discovery_radar = buildDiscoverRadarProjection(
+    radarSourceRows(refreshed.census.spot_attention.rows, { raven: true, generatedAt: refreshedAt }),
+    { timeframe: "5m", generatedAt: refreshedAt, nowMs: Date.parse(refreshedAt), sourceState: "shadow" },
+  );
   await page.unroute("**/api/opportunity**");
   await page.route("**/api/opportunity**", (route) => route.fulfill({
     status: 200,

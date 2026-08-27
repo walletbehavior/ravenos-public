@@ -84,6 +84,11 @@ import {
 } from "./lib/chart_continuity.mjs";
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
+import {
+  DISCOVER_RADAR_SCHEMA,
+  buildDiscoverRadarProjection,
+  validateDiscoverRadarProjection,
+} from "./lib/discover_radar.mjs";
 import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
 import {
   CUSTOMER_RESEARCH_STATE_ROUTE,
@@ -2844,7 +2849,41 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   return rows;
 }
 
-async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {}) {
+async function discoverRegistryHistory(env, request) {
+  try {
+    const result = await readPublicProjection(env, request, "opportunities");
+    const current = validateCurrentOpportunityProjection(result);
+    if (!current.ok) return new Map();
+    const radar = validateDiscoverRadarProjection(current.census?.discovery_radar);
+    if (!radar) return new Map();
+    return new Map(radar.rows.map((row) => [row.instrument_id, row]));
+  } catch {
+    return new Map();
+  }
+}
+
+function attachDiscoverRegistryHistory(rows, history) {
+  if (!(history instanceof Map) || !history.size) return rows;
+  return rows.map((row) => {
+    const prior = history.get(row.instrument_id);
+    if (!prior?.registry || prior?.discovery?.exact_identity?.instrument_id !== row.instrument_id) return row;
+    return {
+      ...row,
+      registry: {
+        ...prior.registry,
+        primary_behavior_state: prior.discovery.primary_behavior_state?.value || prior.registry.primary_behavior_state || "forming",
+      },
+      migration_cohort: prior.discovery.migration_cohort,
+      outcome_evidence: prior.discovery.outcome_evidence,
+      decision_support: prior.discovery.decision_support,
+      routeability: prior.discovery.routeability?.availability === "available"
+        ? prior.discovery.routeability
+        : row.routeability,
+    };
+  });
+}
+
+async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
   const runtime = onchainProviderRuntime("coingecko_onchain", env);
@@ -2882,8 +2921,8 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
         providerRank: index + 1,
         fetchedAt,
       });
-      if (!normalized || deduped.has(normalized.token_address)) continue;
-      deduped.add(normalized.token_address);
+      if (!normalized || deduped.has(normalized.instrument_id)) continue;
+      deduped.add(normalized.instrument_id);
       rows.push(normalized);
       if (rows.length >= 8) break;
     }
@@ -2903,13 +2942,20 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
       state: "temporarily_unavailable",
     });
   });
-  const rowsByToken = new Map();
+  const rowsByMarket = new Map();
   for (const row of [...jupiterRows, ...providerRows]) {
-    const tokenKey = `${String(row.chain_id || row.chain || "").toLowerCase()}:${String(row.token_address || "")}`;
-    if (!rowsByToken.has(tokenKey)) rowsByToken.set(tokenKey, row);
+    const marketKey = String(row.instrument_id || "");
+    if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
-  const rows = [...rowsByToken.values()];
+  const rows = [...rowsByMarket.values()];
   if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
+  const registryHistory = request ? await discoverRegistryHistory(env, request) : new Map();
+  const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory);
+  const discoveryRadar = buildDiscoverRadarProjection(classifiedRows, {
+    timeframe: duration,
+    generatedAt: fetchedAt,
+    sourceState: failures.length ? "degraded" : registryHistory.size ? "shadow" : "forming",
+  });
   const result = {
     ok: true,
     safe_public: true,
@@ -2923,7 +2969,8 @@ async function onchainMarketPulse({ env = {}, chains = [], duration = "5m" } = {
     },
     duration,
     chains,
-    rows,
+    rows: discoveryRadar.rows,
+    discovery_radar: discoveryRadar,
     unavailable: failures,
     provenance: {
       provider: jupiterRows.length ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",
@@ -6297,7 +6344,43 @@ async function handleOpportunity(request, env) {
   const behaviorPayload = currentOnlyContext(behaviorResult);
   const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
   const survivingCensus = applyOpportunitySurvivalGate(currentProjection.census);
-  const rows = survivingCensus.opportunities.rows;
+  const discoveryRadar = validateDiscoverRadarProjection(survivingCensus.discovery_radar);
+  const publicCensus = {
+    ...survivingCensus,
+    discovery_radar: discoveryRadar || {
+      ok: false,
+      safe_public: true,
+      schema_version: DISCOVER_RADAR_SCHEMA,
+      generated_at: currentProjection.payload.generated_at,
+      timeframe: "5m",
+      state: "forming",
+      row_count: 0,
+      rows: [],
+      reason: "persistent_registry_forming_or_unavailable",
+      classifier: {
+        name: "raven_behavioral_radar",
+        version: "unavailable",
+        monitor_eligible: false,
+        shadow_evaluation: true,
+      },
+      monitor_safety: {
+        enabled: false,
+        classifier_version_change_action: "rebaseline_without_notification",
+        version_changes_are_market_transitions: false,
+        external_notifications_enabled: false,
+      },
+      public_safety: {
+        raw_provider_payloads_exposed: false,
+        private_participant_identities_exposed: false,
+        wallet_data_exposed: false,
+        execution_data_exposed: false,
+        plan_prices_persisted: false,
+        customer_state_in_registry: false,
+        payment_overrides_display_rights: false,
+      },
+    },
+  };
+  const rows = publicCensus.opportunities.rows;
   const requested = requestedOpportunityIdentity(request);
   const selected = selectOpportunityRow(rows, requested);
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
@@ -6314,7 +6397,7 @@ async function handleOpportunity(request, env) {
     projection_scope: currentProjection.projection_scope,
     evidence_contract_version: "1.0",
     claim_lineage_version: (claimsPayload?.data || {}).lineage_version || null,
-    census: survivingCensus,
+    census: publicCensus,
     current_claim_context: current,
     current_opportunity: selected,
     selected_opportunity: selected,
@@ -6665,7 +6748,7 @@ async function routeApi(request, env) {
       }, { status: 400 });
     }
     try {
-      return json(await onchainMarketPulse({ env, chains, duration }), {
+      return json(await onchainMarketPulse({ env, request, chains, duration }), {
         headers: {
           "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60",
         },
