@@ -567,6 +567,7 @@ test("Worker reuses persistent exact-market history before publishing current ac
       primary_behavior_state: "continuation",
       admission_lanes: ["renewed_mature_activity"],
       admission_reason: "Renewed exact-market participation",
+      retained_after_trending: true,
       event_evidence_append_only: true,
     },
     research_only: true,
@@ -599,6 +600,11 @@ test("Worker reuses persistent exact-market history before publishing current ac
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
+    assert.equal(payload.state, "current");
+    assert.equal(payload.freshness.state, "current");
+    assert.equal(payload.provenance.role, "current_plus_retained_exact_pool_market_activity");
+    assert.equal(payload.discovery_lanes.retained_exact_markets, 1);
+    assert.deepEqual(payload.unavailable, []);
     assert.equal(payload.rows.length, 1);
     assert.equal(payload.rows[0].instrument_id, `base:pool:${poolAddress}`);
     assert.equal(payload.rows[0].discovery.measurements.historical_window_coverage.stored_observation_count, 4);

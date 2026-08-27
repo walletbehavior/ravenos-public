@@ -3168,7 +3168,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory);
   const registryOnly = !hasCurrentProviderRows;
   const generatedAt = registryOnly ? latestObservedAt(retainedRows, fetchedAt) : fetchedAt;
-  const degraded = failures.length > 0 || retainedRows.length > 0;
+  const degraded = failures.length > 0 || registryOnly;
   const discoveryRadar = buildDiscoverRadarProjection(classifiedRows, {
     timeframe: duration,
     generatedAt,
