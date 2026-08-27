@@ -4,6 +4,8 @@ import { createPriceWorkspace } from "./ravenos-price-workspace.js";
 
 const state = {
   opportunities: [],
+  displayRows: [],
+  listMode: "unavailable",
   markets: new Map(),
   atlas: null,
   selected: null,
@@ -136,6 +138,42 @@ function validOpportunities(payload) {
   return rows.filter((row) => row?.instrument_id?.startsWith("hyperliquid:perp:") && row?.instrument);
 }
 
+function validLiveMarkets(payload) {
+  if (payload?.ok !== true || payload?.schema_version !== "ravenos.hyperliquid.markets.v2" || payload?.isLive !== true || !Array.isArray(payload?.results)) return null;
+  const seen = new Set();
+  return payload.results.filter((row) => {
+    const match = /^hyperliquid:perp:([A-Z0-9._-]+)$/.exec(String(row?.instrument_id || ""));
+    if (!match || seen.has(row.instrument_id)) return false;
+    const asset = match[1];
+    const observedAt = Date.parse(String(row?.observed_at || ""));
+    const exact = row?.instrument_scope === "exact_instrument"
+      && row?.market_type === "perpetual"
+      && String(row?.venue || "").toLowerCase() === "hyperliquid"
+      && row?.asset === `${asset}-PERP`
+      && row?.symbol === asset;
+    const qualified = exact
+      && row?.coverage === "live"
+      && row?.freshness_state === "fresh"
+      && row?.is_live === true
+      && row?.is_synthetic === false
+      && Number.isFinite(observedAt)
+      && finite(row?.last_price ?? row?.lastPrice) !== null;
+    if (qualified) seen.add(row.instrument_id);
+    return qualified;
+  }).sort((left, right) => (finite(right.day_notional_volume_usd ?? right.dayNtlVlm) || 0) - (finite(left.day_notional_volume_usd ?? left.dayNtlVlm) || 0));
+}
+
+function marketFactRow(row) {
+  return {
+    instrument_id: row.instrument_id,
+    instrument: row.asset,
+    market_type: "perpetual",
+    context_state: row.freshness_state,
+    observed_at: row.observed_at,
+    landing_context_kind: "market_fact",
+  };
+}
+
 function validAtlas(payload) {
   const rows = payload?.market_context?.rows;
   if (payload?.schema_version !== "ravenos.atlas_projection.v1" || payload?.delivery?.source !== "current_public_origin" || payload?.delivery?.fallback !== false || !["fresh", "delayed"].includes(payload?.freshness?.state) || !Array.isArray(rows) || payload?.execution_boundary?.signing_available !== false || payload?.execution_boundary?.submission_available !== false) return null;
@@ -145,17 +183,24 @@ function validAtlas(payload) {
 function renderOpportunityList() {
   const host = document.getElementById("landingOpportunityList");
   host.replaceChildren();
-  if (!state.opportunities.length) {
+  setText("landingListEyebrow", state.listMode === "market_facts" ? "Market facts" : "Discover");
+  setText("landingListTitle", state.listMode === "market_facts" ? "Live markets" : state.listMode === "raven" ? "Current attention" : "Market data");
+  if (!state.displayRows.length) {
     const node = document.createElement("div"); node.className = "landing-empty-action";
-    const strong = document.createElement("strong"); strong.textContent = "Raven is refreshing current attention";
-    const span = document.createElement("span"); span.textContent = "Search any supported market while the next evidence cycle completes.";
+    const strong = document.createElement("strong"); strong.textContent = "Current market data is refreshing";
+    const span = document.createElement("span"); span.textContent = "Search any supported exact market while the next market cycle completes.";
     const link = document.createElement("a"); link.href = "/terminal/"; link.textContent = "Search markets →";
     node.append(strong, span, link); host.append(node); return;
   }
-  for (const row of state.opportunities.slice(0, 5)) {
+  for (const row of state.displayRows.slice(0, 5)) {
     const button = document.createElement("button"); button.type = "button"; button.className = "landing-opportunity"; button.dataset.instrumentId = row.instrument_id;
-    const copy = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.instrument; const small = document.createElement("small"); small.textContent = customerFacingText(row.why_raven_noticed, "Current Raven observation"); copy.append(strong, small);
-    const freshness = document.createElement("span"); freshness.textContent = ravenReadTiming(row); button.append(copy, freshness);
+    const copy = document.createElement("span"); const strong = document.createElement("strong"); strong.textContent = row.instrument;
+    const small = document.createElement("small");
+    small.textContent = state.listMode === "market_facts"
+      ? "Exact live market · Raven Read refreshing"
+      : customerFacingText(row.why_raven_noticed, "Current Raven observation");
+    copy.append(strong, small);
+    const freshness = document.createElement("span"); freshness.textContent = state.listMode === "market_facts" ? "Market live" : ravenReadTiming(row); button.append(copy, freshness);
     button.addEventListener("click", () => selectOpportunity(row)); host.append(button);
   }
 }
@@ -212,7 +257,7 @@ function selectOpportunity(row) {
   setText("landingPrice", price(market.last_price ?? market.lastPrice)); const change = finite(market.day_change_pct ?? market.dayChangePct); setText("landingChange", percent(change));
   const changeNode = document.getElementById("landingChange"); changeNode.classList.toggle("positive", change !== null && change >= 0); changeNode.classList.toggle("negative", change !== null && change < 0);
   setText("landingVenue", "Hyperliquid"); setText("landingFunding", percent(market.funding_rate ?? market.funding, { ratio: true })); setText("landingOpenInterest", compact(market.open_interest_usd)); setText("landingFreshness", "Checking chart");
-  const why = customerFacingText(row.why_raven_noticed, "");
+  const why = row.landing_context_kind === "market_fact" ? "" : customerFacingText(row.why_raven_noticed, "");
   const read = document.querySelector(".landing-read");
   const productGrid = document.querySelector(".landing-product-grid");
   if (read) read.hidden = !why;
@@ -259,10 +304,14 @@ async function boot() {
   });
   const [opportunityResult, marketResult, atlasResult, healthResult] = await Promise.allSettled([json("/api/opportunity"), json("/api/hyperliquid/perps"), json("/api/atlas"), json("/api/health")]);
   const marketPayload = marketResult.status === "fulfilled" && marketResult.value.response.ok ? marketResult.value.payload : null;
-  for (const row of marketPayload?.results || []) if (row?.instrument_id) state.markets.set(row.instrument_id, row);
+  const liveMarkets = validLiveMarkets(marketPayload) || [];
+  for (const row of liveMarkets) state.markets.set(row.instrument_id, row);
   const opportunityPayload = opportunityResult.status === "fulfilled" && opportunityResult.value.response.ok ? opportunityResult.value.payload : null;
   state.opportunities = validOpportunities(opportunityPayload) || [];
-  renderOpportunityList(); renderAttentionBenchmark(opportunityPayload); setText("landingOpportunityCount", state.opportunities.length ? `${state.opportunities.length} current markets` : "Refreshing");
+  state.listMode = state.opportunities.length ? "raven" : liveMarkets.length ? "market_facts" : "unavailable";
+  state.displayRows = state.opportunities.length ? state.opportunities : liveMarkets.slice(0, 5).map(marketFactRow);
+  renderOpportunityList(); renderAttentionBenchmark(opportunityPayload);
+  setText("landingOpportunityCount", state.listMode === "raven" ? `${state.opportunities.length} current markets` : state.listMode === "market_facts" ? `${liveMarkets.length} live markets · Raven refreshing` : "Refreshing");
   const atlasPayload = atlasResult.status === "fulfilled" && atlasResult.value.response.ok ? atlasResult.value.payload : null; renderAtlas(validAtlas(atlasPayload), atlasPayload);
   const health = healthResult.status === "fulfilled" && healthResult.value.response.ok ? healthResult.value.payload : null;
   const marketState = health?.market_data_health?.state || (state.markets.size ? "live" : "waiting"); const intelligenceState = health?.intelligence_freshness?.state || (state.opportunities.length ? "fresh" : "waiting");
@@ -274,13 +323,15 @@ async function boot() {
   setText("landingIntelligenceState", intelligenceState === "delayed" ? "Raven updating" : `Raven ${title(intelligenceState)}`);
   intelligenceStateNode.dataset.state = intelligenceState;
   intelligenceStateNode.hidden = ["waiting", "unavailable", "unknown"].includes(String(intelligenceState).toLowerCase());
-  const originCurrent = state.opportunities.length > 0 || Boolean(validAtlas(atlasPayload)?.length); setText("landingOriginState", originCurrent ? "Current opportunities" : "Raven refreshing"); document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "waiting";
-  setText("landingGeneratedAt", when(opportunityPayload?.census?.generated_at || atlasPayload?.generated_at), "Updating source time");
-  if (state.opportunities[0]) selectOpportunity(state.opportunities[0]);
+  const originCurrent = state.displayRows.length > 0;
+  setText("landingOriginState", state.listMode === "raven" ? "Current opportunities" : state.listMode === "market_facts" ? "Live markets · Raven refreshing" : "Market data refreshing");
+  document.getElementById("landingOriginDot").dataset.state = originCurrent ? "live" : "waiting";
+  setText("landingGeneratedAt", when(state.listMode === "raven" ? opportunityPayload?.census?.generated_at : liveMarkets[0]?.observed_at || atlasPayload?.generated_at), "Updating source time");
+  if (state.displayRows[0]) selectOpportunity(state.displayRows[0]);
   else {
     const read = document.querySelector(".landing-read"); const productGrid = document.querySelector(".landing-product-grid"); if (read) read.hidden = true; if (productGrid) productGrid.dataset.read = "hidden"; document.getElementById("landingChartWrap").dataset.state = "unavailable";
     state.workspace.showUnavailable({
-      message: "Raven is refreshing current opportunities. Search an exact market to continue.",
+      message: "Current live market data is refreshing. Search an exact market to continue.",
       instrumentScope: "exact_instrument",
       source: "Hyperliquid",
       timeframe: state.timeframe,
@@ -291,6 +342,7 @@ async function boot() {
       const diagnostics = state.workspace?.diagnostics?.() || {};
       return {
         opportunityCount: state.opportunities.length,
+        listMode: state.listMode,
         marketCount: state.markets.size,
         atlasCount: validAtlas(state.atlas)?.length || 0,
         instrumentId: state.selected?.instrument_id || null,

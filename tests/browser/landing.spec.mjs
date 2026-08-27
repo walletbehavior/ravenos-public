@@ -36,10 +36,19 @@ const MARKET = {
   asset: "SOL-PERP",
   symbol: "SOL",
   instrument_id: "hyperliquid:perp:SOL",
+  instrument_scope: "exact_instrument",
+  market_type: "perpetual",
+  venue: "Hyperliquid",
   last_price: 148.25,
   day_change_pct: 2.4,
   funding_rate: -0.000012,
   open_interest_usd: 192_000_000,
+  day_notional_volume_usd: 480_000_000,
+  observed_at: "2026-07-21T12:20:00Z",
+  coverage: "live",
+  freshness_state: "fresh",
+  is_live: true,
+  is_synthetic: false,
 };
 
 const BTC_OPPORTUNITY = {
@@ -99,7 +108,7 @@ async function mockLanding(page, { current = true, chartIdentityMismatch = false
       delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
     } : { ok: false, error: "opportunity_census_projection_unavailable", census: null }),
   }));
-  await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: markets }) }));
+  await page.route("**/api/hyperliquid/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "ravenos.hyperliquid.markets.v2", isLive: true, results: markets }) }));
   await page.route("**/api/atlas", (route) => route.fulfill({ status: current ? 200 : 503, contentType: "application/json", body: JSON.stringify(current ? atlasPayload() : { ok: false, error: "atlas_projection_unavailable" }) }));
   await page.route("**/api/health", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ market_data_health: { state: "fresh" }, intelligence_freshness: { state: current ? "fresh" : "unavailable" } }) }));
   await page.route("**/api/terminal/chart**", (route) => {
@@ -195,16 +204,34 @@ test("landing chart uses the shared timeframe controls and keeps exact identity"
   expect(product.chartInstrumentId).toBe("perpetual:hyperliquid:hyperliquid:SOL:USD:aggregate");
 });
 
-test("landing page keeps current-origin failure explicit and generates no fallback chart", async ({ page }) => {
+test("landing page keeps live exact markets usable while stale Raven evidence stays withheld", async ({ page }) => {
   await mockLanding(page, { current: false });
   await page.goto("/");
-  await expect(page.locator("#landingOriginState")).toHaveText("Raven refreshing");
-  await expect(page.locator("#landingOpportunityList")).toContainText("Raven is refreshing current attention");
+  await expect(page.locator("#landingOriginState")).toHaveText("Live markets · Raven refreshing");
+  await expect(page.locator("#landingListTitle")).toHaveText("Live markets");
+  await expect(page.locator("#landingOpportunityList")).toContainText("Exact live market · Raven Read refreshing");
   await expect(page.locator(".landing-read")).toBeHidden();
   await expect(page.locator(".landing-atlas-band")).toBeHidden();
   await expect(page.locator("#landingEdge")).toBeHidden();
+  await expect(page.locator("#landingInstrumentId")).toHaveText("hyperliquid:perp:SOL");
+  await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
+  const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
+  expect(product.listMode).toBe("market_facts");
+  expect(product.opportunityCount).toBe(0);
+  expect(product.candleCount).toBeGreaterThan(20);
+  expect(product.chartType).toBe("candlestick");
+  expect(product.instrumentId).toBe("hyperliquid:perp:SOL");
+});
+
+test("landing page fails closed when neither current Raven evidence nor live exact markets qualify", async ({ page }) => {
+  await mockLanding(page, { current: false, markets: [] });
+  await page.goto("/");
+  await expect(page.locator("#landingOriginState")).toHaveText("Market data refreshing");
+  await expect(page.locator("#landingOpportunityList")).toContainText("Current market data is refreshing");
+  await expect(page.locator(".landing-read")).toBeHidden();
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "unavailable");
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
+  expect(product.listMode).toBe("unavailable");
   expect(product.candleCount).toBe(0);
   expect(product.chartType).toBeNull();
   expect(product.instrumentId).toBeNull();
