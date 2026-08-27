@@ -118,8 +118,8 @@ button { font: inherit; }
 .monitor-notification:first-child { border-top: 0; }
 .monitor-notification[data-read="false"] { box-shadow: inset 3px 0 0 var(--monitor-positive); background: rgba(99, 197, 148, .025); }
 .monitor-notification-main { min-width: 0; display: grid; gap: 5px; }
-.monitor-notification-main h3 { margin: 0; font-size: 13px; }
-.monitor-notification-main span { overflow-wrap: anywhere; color: var(--monitor-dim); font: 9px/1.5 var(--monitor-mono); }
+.monitor-notification-main h3 { min-width: 0; max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: 13px; }
+.monitor-notification-main span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--monitor-dim); font: 9px/1.5 var(--monitor-mono); }
 .monitor-notification-copy { display: grid; gap: 5px; }
 .monitor-notification-copy strong { overflow-wrap: anywhere; font-size: 12px; }
 .monitor-notification-copy p { margin: 0; overflow-wrap: anywhere; color: var(--monitor-muted); font-size: 10px; line-height: 1.5; }
