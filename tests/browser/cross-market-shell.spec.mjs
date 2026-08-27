@@ -958,6 +958,26 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   expect(terminal.submissionAvailable).toBe(false);
 });
 
+test("Discover keeps ordinary provider activity out of the default shortlist but available in Everything", async ({ page }) => {
+  const quiet = structuredClone(robinhoodPulseRow);
+  quiet.symbol = "QUIET";
+  quiet.name = "Quiet market";
+  quiet.market.price_change_5m_pct = 0.8;
+  quiet.market.price_change_1h_pct = 2.4;
+  quiet.market.price_change_24h_pct = 4.9;
+  quiet.what_changed = "The exact pool is active without a material move.";
+  await mockWorkspaceApis(page, { pulseRowsOverride: [quiet] });
+  await page.goto("/discover/");
+  await page.locator("[data-spot-chain='robinhood']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(0);
+  await expect(page.locator(".discover-token-empty")).toContainText("No exact market clears the current high-signal gate");
+  await page.getByRole("button", { name: "Open everything" }).click();
+  const row = page.locator(".discover-token-row");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("QUIET");
+  await expect(row).toContainText("+0.80%");
+});
+
 test("Discover adds live Base and Ethereum exact pools without presenting them as Raven signals", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await mockWorkspaceApis(page, { withSpot: true, withEvmPulse: true });
@@ -1042,7 +1062,8 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
   await expect(row).toContainText("RUNNER");
   await expect(row).not.toContainText(/Robinhood velocity|CoinGecko|trending/i);
   await expect(row.locator(".discover-token-market-id")).toContainText("Robinhood Chain · Uniswap V3 · WETH · Exact pool");
-  await expect(row).toContainText("+1.80%");
+  await expect(row).toContainText("+14.20%");
+  await expect(row).toContainText("1h trigger · 5m now +1.80%");
   await expect(row.locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*Upside Velocity/s);
   await expect(row).toHaveAttribute("href", new RegExp(`instrument_id=robinhood%3Apool%3A${robinhoodPulsePool}`, "i"));
   await expect(row).toHaveAttribute("href", /launch=velocity/);

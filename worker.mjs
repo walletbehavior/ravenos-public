@@ -2939,7 +2939,7 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
     || value?.safe_public !== true
     || value?.schema_version !== DISCOVER_RADAR_SCHEMA
     || value?.classifier?.name !== "raven_behavioral_radar"
-    || value?.classifier?.version !== "2026-08-27.3"
+    || !new Set(["2026-08-27.3", "2026-08-27.4"]).has(value?.classifier?.version)
     || value?.classifier?.monitor_eligible !== false
     || value?.monitor_safety?.enabled !== false
     || value?.public_safety?.raw_provider_payloads_exposed !== false

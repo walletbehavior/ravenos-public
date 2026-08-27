@@ -763,6 +763,16 @@ function validDiscoverRow(row) {
     || identity?.token_address !== text(row?.token_address, "")
     || !["speculative_or_unclassified", "major", "wrapped_major", "stable", "staking", "tokenized_asset"].includes(discovery?.asset_taxonomy?.value)
     || !["emerging_acceleration", "breakout_continuation", "absorption_accumulation", "resurrection_reclaim", "distribution_chase_risk", "majors_wrapped", "reference_assets"].includes(discovery?.opportunity_lane?.value)
+    || discovery?.notability?.schema_version !== "ravenos.discover_notability.v1"
+    || !["notable", "watch_only"].includes(discovery?.notability?.state)
+    || typeof discovery?.notability?.qualified !== "boolean"
+    || typeof discovery?.notability?.default_opportunity_eligible !== "boolean"
+    || finite(discovery?.notability?.priority) === null
+    || discovery.notability.priority < 0
+    || discovery.notability.priority > 199
+    || discovery?.notability?.browser_derived !== false
+    || discovery?.notability?.provider_rank_used !== false
+    || (discovery?.notability?.qualified === true && !discovery?.notability?.primary_trigger)
     || !["robust", "developing", "fragile", "insufficient"].includes(discovery?.sample_evidence?.state)
     || discovery?.ranking?.velocity?.absolute_volume_tiebreaker_used !== false
     || discovery?.ranking?.activity?.absolute_volume_tiebreaker_used !== false
@@ -838,6 +848,9 @@ function radarSnapshotKey(row) {
     discovery.activity_state?.value,
     discovery.velocity_state?.score?.score,
     discovery.activity_state?.score?.score,
+    discovery.notability?.state,
+    discovery.notability?.reason_code,
+    discovery.notability?.priority,
   ]);
 }
 
@@ -872,9 +885,8 @@ function cohortMatches(row) {
 
 function opportunityLaneMatches(row) {
   const lane = text(row?.discovery?.opportunity_lane?.value, "");
-  const taxonomy = row?.discovery?.asset_taxonomy || {};
   if (state.spotLane === "all") return true;
-  if (state.spotLane === "opportunities") return taxonomy.default_opportunity_eligible === true;
+  if (state.spotLane === "opportunities") return row?.discovery?.notability?.default_opportunity_eligible === true;
   return lane === state.spotLane;
 }
 
@@ -933,6 +945,11 @@ function radarSortIndex(row, lane) {
     : usableRadarScore(radarScore(row, lane));
 }
 
+function notabilityPriority(row) {
+  const notability = row?.discovery?.notability;
+  return notability?.qualified === true ? finite(notability.priority) : null;
+}
+
 function spotRankedRows() {
   const current = state.spotRows.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
@@ -957,6 +974,10 @@ function spotRankedRows() {
   }
   if (state.spotSort === "velocity") {
     return current.sort((left, right) => {
+      if (state.spotLane === "opportunities") {
+        const notabilityDifference = (notabilityPriority(right) ?? -1) - (notabilityPriority(left) ?? -1);
+        if (notabilityDifference) return notabilityDifference;
+      }
       const leftScore = radarSortIndex(left, "velocity");
       const rightScore = radarSortIndex(right, "velocity");
       if (leftScore !== rightScore) return (rightScore ?? -1) - (leftScore ?? -1);
@@ -967,6 +988,10 @@ function spotRankedRows() {
     });
   }
   return current.sort((left, right) => {
+    if (state.spotLane === "opportunities") {
+      const notabilityDifference = (notabilityPriority(right) ?? -1) - (notabilityPriority(left) ?? -1);
+      if (notabilityDifference) return notabilityDifference;
+    }
     const leftScore = radarSortIndex(left, "activity");
     const rightScore = radarSortIndex(right, "activity");
     if (leftScore !== rightScore) return (rightScore ?? -1) - (leftScore ?? -1);
@@ -1139,6 +1164,12 @@ function renderSpotEvidence(shell, row) {
   appendEvidenceItem(overview, "Holder concentration", discovery.control_intelligence?.top_holder_concentration_pct?.availability === "available" && finite(discovery.control_intelligence.top_holder_concentration_pct.value) !== null ? `${Number(discovery.control_intelligence.top_holder_concentration_pct.value).toFixed(1)}%` : "Unavailable");
   appendEvidenceItem(overview, "Stored observations", String(discovery.registry?.observation_count || 0));
   appendEvidenceItem(overview, "Opportunity lane", title(discovery.opportunity_lane?.value, "Forming"));
+  appendEvidenceItem(overview, "Default shortlist", discovery.notability?.default_opportunity_eligible === true ? "Qualified" : "Watch only");
+  appendEvidenceItem(overview, "Shortlist reason", title(discovery.notability?.reason_code, "Watch only"));
+  appendEvidenceItem(overview, "Primary trigger", discovery.notability?.primary_trigger?.kind === "material_price_move"
+    ? `${percent(discovery.notability.primary_trigger.value_pct)} over ${text(discovery.notability.primary_trigger.window, "window unavailable")}`
+    : title(discovery.notability?.primary_trigger?.kind, "Unavailable"));
+  appendEvidenceItem(overview, "Trigger verification", title(discovery.notability?.verification_state, "Unavailable"));
   appendEvidenceItem(overview, "Asset classification", title(discovery.asset_taxonomy?.value, "Unclassified"));
   appendEvidenceItem(overview, "Sample maturity", text(discovery.sample_evidence?.label, "Unavailable"));
   appendEvidenceItem(overview, "Current transactions", finite(discovery.sample_evidence?.transactions) === null ? "Unavailable" : compact(discovery.sample_evidence.transactions));
@@ -1219,6 +1250,8 @@ function updateSpotTokenRow(anchor, row, index) {
   anchor.dataset.assetTaxonomy = text(discovery.asset_taxonomy?.value, "speculative_or_unclassified");
   anchor.dataset.sampleMaturity = text(discovery.sample_evidence?.state, "insufficient");
   anchor.dataset.velocityGrade = usableRadarScore(velocityScore) === null ? "" : text(velocityScore?.grade, "");
+  anchor.dataset.notability = text(discovery.notability?.state, "watch_only");
+  anchor.dataset.notabilityPriority = String(notabilityPriority(row) ?? "");
   const announcedScore = state.spotSort === "activity" ? activityScore : velocityScore;
   const announcedLabel = state.spotSort === "activity" ? "Activity strength" : state.spotSort === "raven" ? "Raven evidence" : "Velocity strength";
   anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal. ${state.spotSort === "raven" ? "Qualified Raven evidence." : scoreLabel(announcedScore, announcedLabel).replace("/99", " out of 99")}. ${text(discovery.sample_evidence?.label, "Sample unavailable")}.`);
@@ -1246,14 +1279,24 @@ function updateSpotTokenRow(anchor, row, index) {
 
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
-  const movement = spotMetric(row, "price_change");
+  const selectedMovement = spotMetric(row, "price_change");
+  const primaryTrigger = discovery.notability?.primary_trigger;
+  const triggerMovement = primaryTrigger?.kind === "material_price_move" ? finite(primaryTrigger.value_pct) : null;
+  const showPrimaryTrigger = state.spotLane === "opportunities"
+    && discovery.notability?.qualified === true
+    && triggerMovement !== null;
+  const movement = showPrimaryTrigger ? triggerMovement : selectedMovement;
   const movementValue = append(move, "strong", "", percent(movement));
   if (movement !== null) movementValue.classList.add(movement >= 0 ? "positive" : "negative");
   const currentPrice = tokenPrice(row.market?.price_usd);
   if (currentPrice) append(move, "span", "", currentPrice);
   const glyph = momentumGlyph(row);
   if (glyph) move.append(glyph);
-  append(move, "small", "", `${state.spotTimeframe} move`);
+  append(move, "small", "", showPrimaryTrigger
+    ? primaryTrigger.window === state.spotTimeframe
+      ? `${primaryTrigger.window} material move`
+      : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)}`
+    : `${state.spotTimeframe} move`);
 
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
@@ -1346,8 +1389,18 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     append(copy, "h3", "", state.spotSort === "raven" ? `No current ${chain.toLowerCase()} Raven observations qualify` : `${chain} have no matching radar candidates`);
     append(copy, "p", "", state.spotSort === "raven"
       ? "Provider trending and Velocity rankings cannot create Raven evidence. Velocity and Activity remain available."
-      : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
+      : state.spotLane === "opportunities"
+        ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity."
+        : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
     const actions = append(copy, "div", "discover-token-empty-actions", "");
+    if (state.spotLane === "opportunities") {
+      const everything = append(actions, "button", "", "Open everything");
+      everything.type = "button";
+      everything.addEventListener("click", () => {
+        state.spotLane = "all";
+        renderSpotPulse(state.spotRows, { forceOrder: true });
+      });
+    }
     if (state.spotChain !== "all") {
       const reset = append(actions, "button", "", "Scan all chains");
       reset.type = "button";
@@ -1438,7 +1491,9 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   };
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
-  document.getElementById("discoverSpotPulseSummary").textContent = view.summary;
+  document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
+    ? "High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence."
+    : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
   void hydrateSpotMetadata(state.spotRows);

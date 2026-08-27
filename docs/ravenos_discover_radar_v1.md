@@ -36,6 +36,7 @@ The public market contract keeps these dimensions separate:
 - `activity_state`
 - `asset_taxonomy`
 - `opportunity_lane`
+- `notability`
 - `sample_evidence`
 - `ranking`
 
@@ -59,7 +60,9 @@ Every score carries its kind, value, scale, grade, classifier version, observati
 
 Cross-cohort ordering remains server-derived. It combines behavioral strength with explicit sample maturity, evidence coverage, novelty, persistence, qualified exact-route usability, and risk penalties. Pool liquidity alone is not relabeled as route capacity, and absolute volume is never a tie-breaker. A strong move from a fragile four-transaction sample remains visibly fragile rather than being presented with the authority of a robust observation set.
 
-The default Opportunities lane removes known or reference-like majors, wrapped majors, stable assets, staking assets, and tokenized assets from the primary speculative queue. Those markets remain available under Majors, asset-class filters, Everything, and universal exact-market search. Unknown assets remain `speculative_or_unclassified`; RavenOS does not assert that every unknown token is a meme.
+The default Opportunities lane is a server-qualified shortlist, not a synonym for every provider input. An exact market qualifies through at least one of: a supported activity-backed move of 5% in 5m, 10% in 1h, or 25% in 24h; a qualified participation or lifecycle transition; or exact Raven evidence. The strongest qualifying window is shown as the row trigger even when another timeframe is selected. Ordinary activity remains inspectable in Everything without being relabeled an opportunity.
+
+Known or reference-like majors, wrapped majors, stable assets, staking assets, and tokenized assets remain outside the primary speculative queue. Those markets remain available under Majors, asset-class filters, Everything, and universal exact-market search. Unknown assets remain `speculative_or_unclassified`; RavenOS does not assert that every unknown token is a meme. Provider rank cannot satisfy notability, and extreme or fragile moves require exact-chart verification instead of being presented as confirmed.
 
 ## Candidate admission and retention
 

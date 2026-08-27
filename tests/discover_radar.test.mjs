@@ -101,6 +101,65 @@ test("a mature 200K to 450K exact market is admitted as a breakout rather than e
   assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
 });
 
+test("default opportunities require material server-qualified notability instead of relative rank alone", () => {
+  const quiet = pool({
+    pool_address: "0x0000000000000000000000000000000000000081",
+    market: {
+      price_change_5m_pct: 0.4,
+      price_change_1h_pct: 1.8,
+      price_change_24h_pct: 4.5,
+    },
+    registry: { first_seen_market_cap_usd: 450_000, primary_behavior_state: "forming" },
+  });
+  const material = pool({
+    pool_address: "0x0000000000000000000000000000000000000082",
+    market: {
+      price_change_5m_pct: 1.2,
+      price_change_1h_pct: 8,
+      price_change_24h_pct: 74,
+      volume_usd_24h: 900_000,
+      buys_24h: 850,
+      sells_24h: 640,
+      buyers_24h: 410,
+      sellers_24h: 330,
+    },
+    registry: { first_seen_market_cap_usd: 450_000, primary_behavior_state: "forming" },
+  });
+  const result = build([quiet, material]);
+  const quietNotability = result.rows.find((row) => row.instrument_id === quiet.instrument_id).discovery.notability;
+  const materialNotability = result.rows.find((row) => row.instrument_id === material.instrument_id).discovery.notability;
+  assert.equal(quietNotability.qualified, false);
+  assert.equal(quietNotability.default_opportunity_eligible, false);
+  assert.equal(quietNotability.reason_code, "watch_only");
+  assert.equal(materialNotability.qualified, true);
+  assert.equal(materialNotability.default_opportunity_eligible, true);
+  assert.equal(materialNotability.primary_trigger.window, "24h");
+  assert.equal(materialNotability.primary_trigger.value_pct, 74);
+  assert.equal(materialNotability.browser_derived, false);
+  assert.equal(materialNotability.provider_rank_used, false);
+});
+
+test("an extreme provider move is surfaced for exact-chart verification rather than buried or asserted as confirmed", () => {
+  const discovery = build([pool({
+    pool_address: "0x0000000000000000000000000000000000000083",
+    market: {
+      price_change_5m_pct: 650,
+      price_change_1h_pct: 700,
+      price_change_24h_pct: 900,
+      volume_usd_5m: 18_000,
+      buys_5m: 18,
+      sells_5m: 12,
+      buyers_5m: 9,
+      sellers_5m: 7,
+    },
+    registry: { observation_count: 1, first_seen_at: OBSERVED_AT, first_seen_market_cap_usd: 450_000 },
+  })]).rows[0].discovery;
+  assert.equal(discovery.notability.qualified, true);
+  assert.equal(discovery.notability.primary_trigger.window, "5m");
+  assert.equal(discovery.notability.verification_state, "exact_chart_required");
+  assert.equal(discovery.primary_behavior_state.value, "forming");
+});
+
 test("zero market-cap falls back to available FDV without fabricating a collapse", () => {
   const result = build([pool({
     market: { market_cap_usd: 0, fdv_usd: 450_000 },
