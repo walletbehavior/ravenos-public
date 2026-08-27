@@ -158,6 +158,9 @@ test("an extreme provider move is surfaced for exact-chart verification rather t
   assert.equal(discovery.notability.primary_trigger.window, "5m");
   assert.equal(discovery.notability.verification_state, "exact_chart_required");
   assert.equal(discovery.primary_behavior_state.value, "forming");
+  assert.equal(Object.hasOwn(discovery.notability, "thresholds"), false);
+  assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_pct"), false);
+  assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_multiple"), false);
   assert.match(discovery.decision_support.why_now, /exact-market registry has one real observation/i);
   assert.doesNotMatch(discovery.decision_support.why_now, /Raven has one real observation/i);
 });
