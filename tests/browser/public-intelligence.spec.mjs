@@ -180,8 +180,9 @@ test("Intelligence hub makes every existing evidence surface discoverable withou
   expect(behaviorHref).toMatch(/instrument_id=hyperliquid%3Aperp%3ASOL/);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".ros-mobile-nav a")).toHaveCount(4);
-  await page.locator("#rosProfileTrigger").click();
+  await expect(page.locator(".ros-mobile-nav > *")).toHaveCount(4);
+  await expect(page.locator(".ros-mobile-nav a")).toHaveCount(3);
+  await page.getByRole("button", { name: "More RavenOS destinations" }).click();
   await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toContainText("Intelligence");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);

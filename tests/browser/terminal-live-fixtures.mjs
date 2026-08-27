@@ -47,6 +47,8 @@ function bullishSpotCandles(asset, timeframe = "1h") {
 }
 
 export const ROBINHOOD_CONTRACT = "0x230442c8133a9efb4c278b3723043444749ca08b";
+export const BNB_MEMESTOCK_CONTRACT = "0x6ff45323817d1d53bbb8a8dfba9245ae74057777";
+export const BNB_MEMESTOCK_POOL = "0x7bdc9582aca6ca25e5db1f2c8e59003b880672cb";
 export const HYPERLIQUID_ACCOUNT_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 
 export function hyperliquidAccountSnapshotFixture(address = HYPERLIQUID_ACCOUNT_ADDRESS) {
@@ -100,6 +102,28 @@ export function hyperliquidAccountSnapshotFixture(address = HYPERLIQUID_ACCOUNT_
 
 function spotFixtureRows(query = "") {
   const normalized = String(query || "").trim().toLowerCase();
+  if (normalized === BNB_MEMESTOCK_CONTRACT || normalized.includes("memestock")) {
+    return [{
+      chainId: "bsc",
+      dexId: "pancakeswap",
+      pairAddress: BNB_MEMESTOCK_POOL,
+      tokenAddress: BNB_MEMESTOCK_CONTRACT,
+      quoteTokenAddress: "0x46ceefda28dd7207059ed19b0acdc026955bb15c",
+      symbol: "MEMESTOCK",
+      name: "memestock",
+      quoteSymbol: "GMEB",
+      priceUsd: 0.0042113,
+      liquidityUsd: 0,
+      volume24h: 548_095,
+      txns24h: 3_639,
+      marketCap: null,
+      fdv: null,
+      priceChange24h: 11.12,
+      coverage: "Exact provider pool",
+      isSample: false,
+      lastUpdated: "2026-08-27T12:13:31Z",
+    }];
+  }
   if (normalized === ROBINHOOD_CONTRACT || normalized.includes("runner")) {
     return [{
       chainId: "robinhood",
@@ -444,6 +468,65 @@ export async function mockTerminalLiveApis(page, {
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
+  await page.route("**/api/opportunity**", (route) => {
+    const instrumentId = new URL(route.request().url()).searchParams.get("instrument_id") || "";
+    const exactSpot = instrumentId === "solana:pool:fixture-pair-address" && spotRavenContext;
+    const observedAt = new Date(Date.now() - 45_000).toISOString();
+    const selectedDiscoveryMarket = exactSpot ? {
+      instrument_id: instrumentId,
+      symbol: "JUP",
+      name: "Jupiter",
+      discovery: {
+        exact_identity: {
+          instrument_id: instrumentId,
+          identity_scope: "exact_pool",
+          chain: "solana",
+          venue: "fixture-dex",
+          pool_address: "fixture-pair-address",
+          token_address: "fixture-token-address",
+          quote_token_address: "fixture-quote-address",
+          quote_asset: "USDC",
+        },
+        primary_behavior_state: { value: "reacceleration" },
+        raven_evidence_state: {
+          availability: "available",
+          qualified: true,
+          state: "qualified",
+          raven_signal: true,
+          observed_at: observedAt,
+          freshness: "current",
+          why_raven_noticed: "Raven recorded this market 20m before broader attention appeared.",
+          what_changed: "Price rose while volume, buyers, and active traders expanded.",
+          behavioral_evidence: ["Buy participation expanded without losing exact-pool liquidity."],
+          confidence_maturity: "developing",
+          contradictions: ["Short-window movement still needs follow-through."],
+          lineage: { public_artifact_id: "raven-spot-fixture" },
+        },
+        decision_support: {
+          what_changed: "Price rose while volume, buyers, and active traders expanded.",
+          why_now: "Participation accelerated at the exact market.",
+          what_strengthens: "Buy participation and usable depth persist.",
+          what_weakens: "Liquidity thins or expanded participation fades.",
+          next_checkpoint: "Review the next qualified 5m observation.",
+        },
+      },
+    } : null;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.opportunity_workspace.v2",
+        generated_at: new Date().toISOString(),
+        selected_opportunity: null,
+        selected_discovery_market: selectedDiscoveryMarket,
+        selection: { requested: true, state: "not_present", silently_replaced: false },
+        discovery_selection: { requested: true, state: selectedDiscoveryMarket ? "matched" : "not_present", silently_replaced: false },
+        census: { discovery_radar: { rows: selectedDiscoveryMarket ? [selectedDiscoveryMarket] : [] } },
+        delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+      }),
+    });
+  });
   await page.route("**/api/terminal/chart**", (route) => {
     const url = new URL(route.request().url());
     const asset = url.searchParams.get("asset") || "SOL-PERP";
@@ -672,7 +755,10 @@ export async function mockTerminalLiveApis(page, {
   });
   await page.route("**/api/dexscreener/pair**", (route) => {
     const url = new URL(route.request().url());
-    const rows = url.searchParams.get("chainId") === "robinhood" ? spotFixtureRows(ROBINHOOD_CONTRACT) : spotFixtureRows("JUP");
+    const chainId = url.searchParams.get("chainId");
+    const rows = chainId === "robinhood"
+      ? spotFixtureRows(ROBINHOOD_CONTRACT)
+      : chainId === "bsc" ? spotFixtureRows(BNB_MEMESTOCK_CONTRACT) : spotFixtureRows("JUP");
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: rows }) });
   });
   await page.route("**/api/trade/flags", (route) => route.fulfill({

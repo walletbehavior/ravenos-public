@@ -117,6 +117,58 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   expect(state.submissionAvailable).toBe(false);
 });
 
+test("an exact Discover Raven observation survives a missing generic context join", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.route("**/api/perps/instrument**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "context_refreshing" }),
+  }));
+  await page.route("**/api/opportunity**", (route) => {
+    const requested = new URL(route.request().url()).searchParams.get("instrument_id");
+    const row = requested === "hyperliquid:perp:SOL" ? {
+      public_opportunity_id: "rop-sol-exact-continuity",
+      instrument_id: "hyperliquid:perp:SOL",
+      instrument: "SOL-PERP",
+      context_state: "fresh",
+      why_raven_noticed: "Pressure reaccelerated while exact-market depth remained usable.",
+      pressure_state: "Upside pressure",
+      observed_direction: "long",
+      context_age_seconds: 75,
+      path_review: { state: "Await the next pressure checkpoint" },
+      matured_comparables: { sample_size: 41, evidence_maturity: "developing", median_observed_change_pct: 1.2, median_favorable_excursion_pct: 2.4, median_adverse_excursion_pct: -0.8 },
+      research_only: true,
+      execution_available: false,
+    } : null;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.opportunity_workspace.v2",
+        generated_at: new Date().toISOString(),
+        selected_opportunity: row,
+        selection: { requested: true, state: row ? "matched" : "not_present", silently_replaced: false },
+        selected_discovery_market: null,
+        discovery_selection: { requested: true, state: "not_present", silently_replaced: false },
+        census: { discovery_radar: { rows: [] } },
+        delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+      }),
+    });
+  });
+  await page.goto("/terminal/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&launch=raven");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await expect(page.locator("#terminalWhy")).toContainText("Pressure reaccelerated");
+  await expect(page.locator("#terminalDecisionReference")).toHaveText("rop-sol-exact-continuity");
+  await expect(page.locator("#terminalDecisionCheckpoint")).toContainText("next pressure checkpoint");
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(terminal.contextState).toBe("fresh");
+  expect(terminal.signingAvailable).toBe(false);
+  expect(terminal.submissionAvailable).toBe(false);
+});
+
 test("Terminal adds a real public account ledger and selected-market position context", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
@@ -667,11 +719,15 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalInstrumentImage")).toHaveAttribute("src", "https://assets.geckoterminal.com/token-fixture.png");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadTrigger")).toBeVisible();
-  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
+  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
   await expect(page.locator("#terminalReadSummary")).toContainText("volume, buyers, and active traders expanded");
   await expect(page.locator("#terminalWhy")).toContainText("20m before broader attention");
   await expect(page.locator("#terminalContextIdentity")).toHaveText("This exact pool");
-  await expect(page.locator("#terminalEvidenceMaturity")).toContainText("needs follow-through");
+  await expect(page.locator("#terminalEvidenceMaturity")).toHaveText("developing");
+  await expect(page.locator("#terminalDecisionSupport")).toBeVisible();
+  await expect(page.locator("#terminalDecisionStrengthens")).toContainText("usable depth persist");
+  await expect(page.locator("#terminalDecisionWeakens")).toContainText("Liquidity thins");
+  await expect(page.locator("#terminalDecisionReference")).toHaveText("raven-spot-fixture");
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Liquidity");

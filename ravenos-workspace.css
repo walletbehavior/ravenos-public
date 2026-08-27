@@ -384,6 +384,48 @@
   padding: 7px 15px;
   border-bottom: 1px solid var(--ws-border);
   background: rgba(7, 11, 17, .42);
+  flex-wrap: wrap;
+}
+.discover-opportunity-lanes {
+  order: -2;
+  flex: 1 1 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.discover-opportunity-lanes::-webkit-scrollbar { display: none; }
+.discover-opportunity-lanes button {
+  min-height: 29px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ws-border);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: rgba(10, 15, 23, .82);
+  color: var(--ws-dim);
+  font: 750 7px var(--ws-mono);
+  white-space: nowrap;
+}
+.discover-opportunity-lanes button.active {
+  border-color: rgba(99, 197, 148, .48);
+  background: rgba(99, 197, 148, .1);
+  color: #93dcb9;
+}
+.discover-changed-filter-prominent {
+  order: -1;
+  flex: 0 0 auto;
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--ws-border);
+  border-radius: 999px;
+  color: var(--ws-muted);
+  font: 700 7px var(--ws-mono);
+  white-space: nowrap;
 }
 .discover-lifecycle-filters {
   min-width: 0;
@@ -1438,11 +1480,14 @@
   .discover-token-sort { min-width: 0; }
   .discover-token-sort button { min-width: 0; padding-inline: 9px; }
   .discover-timeframes button { min-width: 30px; min-height: 22px; padding-inline: 5px; }
-  .discover-radar-filters { align-items: stretch; flex-direction: column; gap: 6px; padding: 7px 8px; }
+  .discover-radar-filters { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: 6px; padding: 7px 8px; }
+  .discover-opportunity-lanes { order: 0; width: 100%; padding-bottom: 1px; }
+  .discover-opportunity-lanes button { min-height: 31px; }
+  .discover-changed-filter-prominent { order: 0; align-self: flex-start; min-height: 30px; }
   .discover-lifecycle-filters { width: 100%; padding-bottom: 1px; }
   .discover-lifecycle-filters button { min-height: 28px; line-height: 26px; }
-  .discover-advanced-filters { align-self: flex-start; }
-  .discover-advanced-filters > div { position: fixed; z-index: 20; top: auto; right: 8px; bottom: calc(var(--ros-mobile-nav-height) + 10px); left: 8px; width: auto; grid-template-columns: 1fr 1fr; max-height: 65vh; overflow-y: auto; }
+  .discover-advanced-filters { align-self: stretch; }
+  .discover-advanced-filters > div { position: static; width: 100%; grid-template-columns: 1fr 1fr; max-height: none; overflow: visible; }
   .discover-token-tape-columns { display: none; }
   .discover-token-tape-list { gap: 8px; padding: 8px; background: #070b11; }
   .discover-token-empty { min-height: 154px; border: 1px solid var(--ws-border); border-radius: 10px; background: rgba(12, 17, 25, .62); }

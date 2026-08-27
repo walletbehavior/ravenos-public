@@ -85,6 +85,7 @@ import {
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import {
+  DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_RADAR_SCHEMA,
   buildDiscoverRadarProjection,
   validateDiscoverRadarProjection,
@@ -261,12 +262,14 @@ const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, W
 const CHAIN_ROUTE_MAP = {
   solana: { aliases: ["solana"], label: "Solana" },
   base: { aliases: ["base"], label: "Base" },
+  bsc: { aliases: ["bsc", "bnb", "binance-smart-chain"], label: "BNB Chain" },
   ethereum: { aliases: ["eth", "ethereum"], label: "Ethereum" },
   robinhood: { aliases: ["robinhood"], label: "Robinhood Chain" },
 };
 const ONCHAIN_PULSE_NETWORKS = Object.freeze({
   solana: Object.freeze({ provider_network: "solana", label: "Solana" }),
   base: Object.freeze({ provider_network: "base", label: "Base" }),
+  bsc: Object.freeze({ provider_network: "bsc", label: "BNB Chain" }),
   ethereum: Object.freeze({ provider_network: "eth", label: "Ethereum" }),
   robinhood: Object.freeze({ provider_network: "robinhood", label: "Robinhood Chain" }),
 });
@@ -772,12 +775,26 @@ async function cachedDexPaprika(path, { ttlMs = 30_000, maxBytes = 768 * 1024 } 
   return payload;
 }
 
-function normalizeDexPair(pair = {}) {
-  const base = pair.baseToken || {};
-  const quote = pair.quoteToken || {};
+function sameDexAddress(left, right, { caseSensitive = false } = {}) {
+  const a = String(left || "").trim();
+  const b = String(right || "").trim();
+  if (!a || !b) return false;
+  return caseSensitive ? a === b : a.toLowerCase() === b.toLowerCase();
+}
+
+function normalizeDexPair(pair = {}, selectedTokenAddress = "") {
+  const providerBase = pair.baseToken || {};
+  const providerQuote = pair.quoteToken || {};
+  const selectedIsQuote = sameDexAddress(providerQuote.address, selectedTokenAddress, {
+    caseSensitive: String(pair.chainId || "").toLowerCase() === "solana",
+  });
+  const base = selectedIsQuote ? providerQuote : providerBase;
+  const quote = selectedIsQuote ? providerBase : providerQuote;
   const imageUrl = safeDexImageUrl(pair.info?.imageUrl);
-  const buys24h = optionalFiniteNumber(pair.txns?.h24?.buys);
-  const sells24h = optionalFiniteNumber(pair.txns?.h24?.sells);
+  const providerBuys24h = optionalFiniteNumber(pair.txns?.h24?.buys);
+  const providerSells24h = optionalFiniteNumber(pair.txns?.h24?.sells);
+  const buys24h = selectedIsQuote ? providerSells24h : providerBuys24h;
+  const sells24h = selectedIsQuote ? providerBuys24h : providerSells24h;
   return {
     id: `${pair.chainId || "unknown"}:${pair.pairAddress || base.address || ""}`,
     chainId: pair.chainId || "unknown",
@@ -788,15 +805,16 @@ function normalizeDexPair(pair = {}) {
     symbol: base.symbol || "UNKNOWN",
     name: base.name || base.symbol || "Unknown token",
     quoteSymbol: quote.symbol || "",
-    priceUsd: num(pair.priceUsd),
+    quoteName: quote.name || quote.symbol || "",
+    priceUsd: selectedIsQuote ? null : num(pair.priceUsd),
     liquidityUsd: num(pair.liquidity?.usd),
     volume24h: num(pair.volume?.h24),
     txns24h: (buys24h || 0) + (sells24h || 0),
     buys24h,
     sells24h,
-    marketCap: num(pair.marketCap),
-    fdv: num(pair.fdv),
-    priceChange24h: num(pair.priceChange?.h24),
+    marketCap: selectedIsQuote ? null : num(pair.marketCap),
+    fdv: selectedIsQuote ? null : num(pair.fdv),
+    priceChange24h: selectedIsQuote ? null : num(pair.priceChange?.h24),
     pairAgeMs: pair.pairCreatedAt ? Date.now() - Number(pair.pairCreatedAt) : null,
     imageUrl,
     provider: "Dexscreener",
@@ -806,6 +824,7 @@ function normalizeDexPair(pair = {}) {
     isSample: false,
     lastUpdated: new Date().toISOString(),
     warning: "Limited public coverage",
+    tokenOrientation: selectedIsQuote ? "quote" : "base",
   };
 }
 
@@ -861,7 +880,7 @@ function matchingDexPaprikaToken(pool = {}, query = "") {
     || null;
 }
 
-function normalizeDexPaprikaPool(pool = {}, query = "") {
+function normalizeDexPaprikaPool(pool = {}, query = "", token = null) {
   const base = matchingDexPaprikaToken(pool, query);
   if (!base) return null;
   const quote = (Array.isArray(pool?.tokens) ? pool.tokens : []).find((token) => token?.id && token.id !== base.id) || {};
@@ -869,14 +888,14 @@ function normalizeDexPaprikaPool(pool = {}, query = "") {
   return {
     id: `${pool.chain || "unknown"}:${pool.id || base.id || ""}`,
     chainId: String(pool.chain || "unknown").toLowerCase(),
-    dexId: pool.dex_id || pool.dex_name || "unknown",
+    dexId: pool.dex_name || pool.dex_id || "unknown",
     pairAddress: pool.id || "",
     tokenAddress: base.id || "",
     quoteTokenAddress: quote.id || "",
     symbol: base.symbol || "UNKNOWN",
     name: base.name || base.symbol || "Unknown token",
     quoteSymbol: quote.symbol || "",
-    priceUsd: null,
+    priceUsd: optionalFiniteNumber(token?.price_usd),
     liquidityUsd: null,
     volume24h: num(pool.volume_usd),
     txns24h: num(pool.transactions),
@@ -884,7 +903,7 @@ function normalizeDexPaprikaPool(pool = {}, query = "") {
     sells24h: null,
     marketCap: null,
     fdv: Number.isFinite(Number(base.fdv)) ? Number(base.fdv) : null,
-    priceChange24h: Number.isFinite(Number(pool.last_price_change_usd_24h)) ? Number(pool.last_price_change_usd_24h) : null,
+    priceChange24h: optionalFiniteNumber(token?.price_usd_change),
     pairAgeMs: Number.isFinite(createdAtMs) ? Date.now() - createdAtMs : null,
     provider: "DexPaprika",
     coverage: "Exact provider pool",
@@ -893,12 +912,17 @@ function normalizeDexPaprikaPool(pool = {}, query = "") {
     isSample: false,
     lastUpdated: new Date().toISOString(),
     warning: "Exact pool identity; current price loads from the selected market.",
+    tokenOrientation: "selected",
   };
 }
 
 function mergeOnchainSearchRows(rows = []) {
   const deduped = new Map();
   const finiteMetric = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  const providerLabels = (...values) => [...new Set(values
+    .flatMap((value) => String(value || "").split(/\s+\+\s+/))
+    .map((value) => value.trim())
+    .filter(Boolean))].join(" + ");
   for (const row of rows.filter(Boolean)) {
     const key = `${String(row.chainId || "").toLowerCase()}:${String(row.pairAddress || "").toLowerCase()}:${String(row.tokenAddress || "").toLowerCase()}`;
     if (!row.chainId || !row.pairAddress || !row.tokenAddress) continue;
@@ -916,7 +940,7 @@ function mergeOnchainSearchRows(rows = []) {
     deduped.set(key, {
       ...secondary,
       ...preferred,
-      provider: [...new Set([previous.provider, row.provider].filter(Boolean))].join(" + "),
+      provider: providerLabels(previous.provider, row.provider),
       priceUsd: finiteMetric(preferred.priceUsd) ? Number(preferred.priceUsd) : (finiteMetric(secondary.priceUsd) ? Number(secondary.priceUsd) : null),
       liquidityUsd: finiteMetric(preferred.liquidityUsd) ? Number(preferred.liquidityUsd) : (finiteMetric(secondary.liquidityUsd) ? Number(secondary.liquidityUsd) : null),
     });
@@ -934,8 +958,10 @@ function rankDexPair(pair = {}) {
     + age;
 }
 
-function sortedDexResults(pairs = []) {
-  return [...pairs].sort((a, b) => rankDexPair(b) - rankDexPair(a)).map(normalizeDexPair);
+function sortedDexResults(pairs = [], selectedTokenAddress = "") {
+  return [...pairs]
+    .sort((a, b) => rankDexPair(b) - rankDexPair(a))
+    .map((pair) => normalizeDexPair(pair, selectedTokenAddress));
 }
 
 async function hyperliquidPerps({ forceRefresh = false } = {}) {
@@ -2686,12 +2712,12 @@ function normalizeGeckoTrendingPool(payload, row, {
 }
 
 function parseOnchainPulseChains(value) {
-  const requested = String(value || "solana,base,ethereum,robinhood")
+  const requested = String(value || "solana,robinhood,base,bsc,ethereum")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   if (!requested.length || requested.some((chain) => !ONCHAIN_PULSE_NETWORKS[chain])) return null;
-  return [...new Set(requested)].slice(0, 4);
+  return [...new Set(requested)].slice(0, 5);
 }
 
 function jupiterVelocityStats(token = {}, duration = "5m") {
@@ -2849,12 +2875,102 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   return rows;
 }
 
+function legacyDiscoverRavenEvidence(row = {}) {
+  const evidence = row?.discovery?.raven_evidence_state;
+  if (evidence?.qualified !== true || evidence?.raven_signal !== true) return undefined;
+  return {
+    genuine_internal_observation: true,
+    instrument_id: row.instrument_id,
+    observed_at: evidence.observed_at,
+    freshness: evidence.freshness,
+    state: evidence.state,
+    classifier: evidence.classifier,
+    lineage: evidence.lineage,
+    why_raven_noticed: evidence.why_raven_noticed,
+    what_changed: evidence.what_changed,
+    behavioral_evidence: evidence.behavioral_evidence,
+    timing_lead_seconds: evidence.timing_lead_seconds,
+    confidence_maturity: evidence.confidence_maturity,
+    contradictions: evidence.contradictions,
+    forward_evidence_status: evidence.forward_evidence_status,
+  };
+}
+
+function legacyDiscoverControlEvidence(row = {}) {
+  const control = row?.discovery?.control_intelligence;
+  if (control?.availability !== "available" || control?.display_policy?.state !== "qualified") return undefined;
+  const value = (key) => control[key]?.availability === "available" ? control[key].value : null;
+  return {
+    availability: "available",
+    observed_at: control.bundled_pct?.observed_at || row.observed_at,
+    freshness: control.bundled_pct?.freshness || "current",
+    bundled_pct: value("bundled_pct"),
+    bundle_change_pct: value("bundle_change_pct"),
+    original_bundle_selling: value("original_bundle_selling"),
+    new_bundle_accumulation: value("new_bundle_accumulation"),
+    bundle_turnover: value("bundle_turnover"),
+    developer_exposure_pct: value("developer_exposure_pct"),
+    sniper_concentration_pct: value("sniper_concentration_pct"),
+    top_holder_concentration_pct: value("top_holder_concentration_pct"),
+    liquidity_control_risk: value("liquidity_control_risk"),
+    display_policy: {
+      reviewed: true,
+      customer_display_allowed: true,
+      provider: control.display_policy.provider,
+      product: control.display_policy.product,
+      reviewed_at: control.display_policy.reviewed_at,
+    },
+  };
+}
+
+function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
+  const current = validateDiscoverRadarProjection(value, { nowMs });
+  if (current) return current;
+  const generatedMs = Date.parse(String(value?.generated_at || ""));
+  if (
+    value?.ok !== true
+    || value?.safe_public !== true
+    || value?.schema_version !== DISCOVER_RADAR_SCHEMA
+    || value?.classifier?.name !== "raven_behavioral_radar"
+    || value?.classifier?.version !== "2026-08-27.3"
+    || value?.classifier?.monitor_eligible !== false
+    || value?.monitor_safety?.enabled !== false
+    || value?.public_safety?.raw_provider_payloads_exposed !== false
+    || value?.public_safety?.private_participant_identities_exposed !== false
+    || value?.public_safety?.execution_data_exposed !== false
+    || !["5m", "1h", "24h"].includes(value?.timeframe)
+    || !Array.isArray(value?.rows)
+    || value.rows.length > 240
+    || !Number.isFinite(generatedMs)
+    || generatedMs > nowMs + 300_000
+    || nowMs - generatedMs > 3_600_000
+  ) return null;
+  const rebuilt = buildDiscoverRadarProjection(value.rows.map((row) => ({
+    ...row,
+    migration_cohort: row?.discovery?.migration_cohort,
+    routeability: row?.discovery?.routeability?.availability === "available" ? row.discovery.routeability : row.routeability,
+    control_intelligence: legacyDiscoverControlEvidence(row),
+    raven_evidence: legacyDiscoverRavenEvidence(row),
+    registry: {
+      ...(row.registry || {}),
+      classifier_version: DISCOVER_CLASSIFIER_VERSION,
+      primary_behavior_state: row?.discovery?.primary_behavior_state?.value || row?.registry?.primary_behavior_state || "forming",
+    },
+  })), {
+    timeframe: value.timeframe,
+    generatedAt: value.generated_at,
+    nowMs,
+    sourceState: value.state === "degraded" ? "degraded" : value.state === "current" ? "current" : "shadow",
+  });
+  return validateDiscoverRadarProjection(rebuilt, { nowMs });
+}
+
 async function discoverRegistryHistory(env, request) {
   try {
     const result = await readPublicProjection(env, request, "opportunities");
     const current = validateCurrentOpportunityProjection(result);
     if (!current.ok) return new Map();
-    const radar = validateDiscoverRadarProjection(current.census?.discovery_radar);
+    const radar = currentDiscoverRadarProjection(current.census?.discovery_radar);
     if (!radar) return new Map();
     return new Map(radar.rows.map((row) => [row.instrument_id, row]));
   } catch {
@@ -4209,35 +4325,54 @@ async function terminalChartPayload({
 async function searchDex(query) {
   if (!query) return [];
   const payload = await cachedDex(`/latest/dex/search?q=${encodeURIComponent(query)}`);
-  return sortedDexResults(Array.isArray(payload.pairs) ? payload.pairs : []);
+  return sortedDexResults(Array.isArray(payload.pairs) ? payload.pairs : [], query);
 }
 
 async function searchDexPaprika(query) {
   const cleanQuery = String(query || "").trim();
   if (!cleanQuery) return [];
   const payload = await cachedDexPaprika(`/search?query=${encodeURIComponent(cleanQuery)}`, { ttlMs: 30_000, maxBytes: 1024 * 1024 });
+  const token = (Array.isArray(payload?.tokens) ? payload.tokens : [])
+    .find((row) => sameDexAddress(row?.id, cleanQuery));
   return (Array.isArray(payload?.pools) ? payload.pools : [])
     .slice(0, 100)
-    .map((pool) => normalizeDexPaprikaPool(pool, cleanQuery))
+    .map((pool) => normalizeDexPaprikaPool(pool, cleanQuery, token))
     .filter(Boolean);
 }
 
 async function tokenDex(chainId, tokenAddress) {
   if (!chainId || !tokenAddress) return [];
   const payload = await cachedDex(`/token-pairs/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddress)}`);
-  return sortedDexResults(Array.isArray(payload) ? payload : []);
+  return sortedDexResults(Array.isArray(payload) ? payload : [], tokenAddress);
 }
 
-async function pairDex(chainId, pairAddress) {
+async function pairDex(chainId, pairAddress, selectedTokenAddress = "") {
   if (!chainId || !pairAddress) return [];
-  const payload = await cachedDex(`/latest/dex/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`);
-  return sortedDexResults(Array.isArray(payload.pairs) ? payload.pairs : []);
+  const [dexResult, paprikaResult] = await Promise.allSettled([
+    cachedDex(`/latest/dex/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`),
+    selectedTokenAddress ? searchDexPaprika(selectedTokenAddress) : Promise.resolve([]),
+  ]);
+  const dexRows = dexResult.status === "fulfilled"
+    ? sortedDexResults(Array.isArray(dexResult.value?.pairs) ? dexResult.value.pairs : [], selectedTokenAddress)
+    : [];
+  const caseSensitive = String(chainId).toLowerCase() === "solana";
+  const same = (left, right) => caseSensitive
+    ? String(left || "") === String(right || "")
+    : String(left || "").toLowerCase() === String(right || "").toLowerCase();
+  const paprikaRows = paprikaResult.status === "fulfilled"
+    ? paprikaResult.value.filter((row) => same(row?.chainId, chainId) && same(row?.pairAddress, pairAddress))
+    : [];
+  const merged = mergeOnchainSearchRows([...dexRows, ...paprikaRows]);
+  if (selectedTokenAddress) return exactTokenDexResults(merged, selectedTokenAddress, { caseSensitive });
+  if (!merged.length && dexResult.status === "rejected" && paprikaResult.status === "rejected") throw dexResult.reason;
+  return merged;
 }
 
 async function tokensDex(chainId, tokenAddresses) {
   if (!chainId || !tokenAddresses) return [];
   const payload = await cachedDex(`/tokens/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddresses)}`);
-  return sortedDexResults(Array.isArray(payload) ? payload : []);
+  const selected = String(tokenAddresses).includes(",") ? "" : tokenAddresses;
+  return sortedDexResults(Array.isArray(payload) ? payload : [], selected);
 }
 
 function exactTokenDexResults(rows, tokenAddress, { caseSensitive = false } = {}) {
@@ -4247,15 +4382,47 @@ function exactTokenDexResults(rows, tokenAddress, { caseSensitive = false } = {}
     : (value) => String(value || "").toLowerCase() === expected.toLowerCase();
   const deduped = new Map();
   for (const row of rows) {
-    if (!same(row?.tokenAddress)) continue;
-    const key = `${String(row.chainId || "").toLowerCase()}:${String(row.pairAddress || "").toLowerCase()}`;
+    let oriented = row;
+    if (!same(row?.tokenAddress) && same(row?.quoteTokenAddress)) {
+      oriented = {
+        ...row,
+        tokenAddress: row.quoteTokenAddress,
+        quoteTokenAddress: row.tokenAddress,
+        symbol: row.quoteSymbol || "UNKNOWN",
+        quoteSymbol: row.symbol || "",
+        name: row.quoteName || row.quoteSymbol || "Unknown token",
+        quoteName: row.name || row.symbol || "",
+        priceUsd: null,
+        marketCap: null,
+        fdv: null,
+        priceChange24h: null,
+        buys24h: row.sells24h,
+        sells24h: row.buys24h,
+        tokenOrientation: "quote",
+      };
+    }
+    if (!same(oriented?.tokenAddress)) continue;
+    const key = `${String(oriented.chainId || "").toLowerCase()}:${String(oriented.pairAddress || "").toLowerCase()}`;
     if (!row?.chainId || !row?.pairAddress || deduped.has(key)) continue;
-    deduped.set(key, row);
+    deduped.set(key, oriented);
   }
   return [...deduped.values()].sort((left, right) => num(right.liquidityUsd) - num(left.liquidityUsd));
 }
 
-async function resolveDexInput(input) {
+function extractDexInputTerms(input) {
+  const clean = String(input || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 512);
+  if (!clean) return [];
+  const evm = clean.match(/0x[a-fA-F0-9]{40}/g) || [];
+  const solanaScan = clean.replace(/0x[a-fA-F0-9]{40}/g, (match) => " ".repeat(match.length));
+  const matches = [
+    ...evm,
+    ...(solanaScan.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/g) || []),
+  ];
+  const exact = [...new Map(matches.map((value) => [value.toLowerCase().startsWith("0x") ? value.toLowerCase() : value, value])).values()];
+  return exact.length ? exact.slice(0, 3) : [clean.slice(0, 96)];
+}
+
+async function resolveSingleDexInput(input) {
   const q = String(input || "").trim();
   if (!q) return [];
   if (SOLANA_ADDRESS_RE.test(q)) {
@@ -4274,6 +4441,13 @@ async function resolveDexInput(input) {
   if (pair) return pairDex(pair[1], pair[2]);
   const settled = await Promise.allSettled([searchDex(q), searchDexPaprika(q)]);
   return mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : []));
+}
+
+async function resolveDexInput(input) {
+  const terms = extractDexInputTerms(input);
+  if (!terms.length) return [];
+  const settled = await Promise.allSettled(terms.map((term) => resolveSingleDexInput(term)));
+  return mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])).slice(0, 90);
 }
 
 function onchainSearchChartCoverage(row = {}, env = {}) {
@@ -6317,6 +6491,12 @@ function selectOpportunityRow(rows, requested) {
   }) || null;
 }
 
+function selectDiscoveryRadarRow(rows, requested) {
+  if (!requested?.instrument_id) return null;
+  const requestedId = String(requested.instrument_id).toLowerCase();
+  return rows.find((row) => String(row?.instrument_id || "").toLowerCase() === requestedId) || null;
+}
+
 async function handleOpportunity(request, env) {
   const [opportunitiesResult, claimsResult, outcomesResult, behaviorResult] = await Promise.all([
     readPublicProjection(env, request, "opportunities"),
@@ -6344,6 +6524,7 @@ async function handleOpportunity(request, env) {
       census: null,
       current_opportunity: null,
       selected_opportunity: null,
+      selected_discovery_market: null,
       historical_context: {
         current_data_substituted: false,
         replay_contract: "/api/replay",
@@ -6358,7 +6539,7 @@ async function handleOpportunity(request, env) {
   const publicBehaviorContext = sanitizePublicDiscoveryNarrative(behaviorPayload?.data || null);
   const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
   const survivingCensus = applyOpportunitySurvivalGate(currentProjection.census);
-  const discoveryRadar = validateDiscoverRadarProjection(survivingCensus.discovery_radar);
+  const discoveryRadar = currentDiscoverRadarProjection(survivingCensus.discovery_radar);
   const publicCensus = {
     ...survivingCensus,
     discovery_radar: discoveryRadar || {
@@ -6396,6 +6577,7 @@ async function handleOpportunity(request, env) {
   const rows = publicCensus.opportunities.rows;
   const requested = requestedOpportunityIdentity(request);
   const selected = selectOpportunityRow(rows, requested);
+  const selectedDiscoveryMarket = selectDiscoveryRadarRow(publicCensus.discovery_radar.rows, requested);
   const current = ((claimsPayload?.data || {}).current_claims || []).find((row) => row.surface === "opportunity") || null;
   const participationPayoff = buildParticipationPayoffProjection(
     outcomesPayload?.data || {},
@@ -6414,10 +6596,17 @@ async function handleOpportunity(request, env) {
     current_claim_context: current,
     current_opportunity: selected,
     selected_opportunity: selected,
+    selected_discovery_market: selectedDiscoveryMarket,
     selection: {
       requested: Boolean(requested),
       requested_identity: requested,
       state: requested ? (selected ? "matched" : "not_present") : (selected ? "default_current_row" : "no_current_rows"),
+      silently_replaced: false,
+    },
+    discovery_selection: {
+      requested: Boolean(requested?.instrument_id),
+      requested_identity: requested?.instrument_id || null,
+      state: requested?.instrument_id ? (selectedDiscoveryMarket ? "matched" : "not_present") : "not_requested",
       silently_replaced: false,
     },
     recent_raven_reads: (claimsPayload?.data || {}).recent_raven_reads || [],
@@ -6818,7 +7007,14 @@ async function routeApi(request, env) {
   }
   if (url.pathname === "/api/dexscreener/pair" && request.method === "GET") {
     try {
-      return json({ ok: true, results: await pairDex(url.searchParams.get("chainId") || "", url.searchParams.get("pairAddress") || "") });
+      return json({
+        ok: true,
+        results: await pairDex(
+          url.searchParams.get("chainId") || "",
+          url.searchParams.get("pairAddress") || "",
+          url.searchParams.get("tokenAddress") || "",
+        ),
+      });
     } catch (error) {
       return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
     }

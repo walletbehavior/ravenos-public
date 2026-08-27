@@ -320,15 +320,15 @@ test("retained candidates and same-symbol pools preserve exact identities", () =
   assert.equal(mergeExactRadarRows(result.rows).length, 2);
 });
 
-test("Solana, Robinhood Chain, Base and Ethereum use the same classifier semantics", () => {
-  const rows = ["solana", "robinhood", "base", "ethereum"].map((chain, index) => pool({
+test("Solana, Robinhood Chain, Base, BNB and Ethereum use the same classifier semantics", () => {
+  const rows = ["solana", "robinhood", "base", "bsc", "ethereum"].map((chain, index) => pool({
     chain_id: chain,
     pool_address: `${chain === "solana" ? "pool" : "0x"}${String(index + 30).padStart(chain === "solana" ? 20 : 40, "0")}`,
     token_address: `${chain === "solana" ? "token" : "0x"}${String(index + 1).padStart(chain === "solana" ? 20 : 40, "0")}`,
     quote_token_address: `${chain === "solana" ? "quote" : "0x"}${String(index + 10).padStart(chain === "solana" ? 20 : 40, "0")}`,
   }));
   const result = build(rows);
-  assert.equal(result.rows.length, 4);
+  assert.equal(result.rows.length, 5);
   assert.deepEqual(new Set(result.rows.map((row) => row.discovery.primary_behavior_state.classifier.version)), new Set([DISCOVER_CLASSIFIER_VERSION]));
 });
 

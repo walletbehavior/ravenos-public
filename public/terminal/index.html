@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS · Live Market Terminal</title>
-  <meta name="description" content="A Hyperliquid-native market terminal with live charts, exact L2 depth, public trade flow, account risk, order-plan review, and Raven intelligence." />
+  <meta name="description" content="A chain-extensible crypto terminal with exact-market charts, Hyperliquid depth and trade review, and Raven intelligence." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-terminal-live.css" />
@@ -41,7 +41,7 @@
       </div>
       <label id="terminalSpotControl" hidden>
         <span>Resolve exact spot market</span>
-        <input id="terminalSpotSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Symbol, token, pool, or contract" />
+        <input id="terminalSpotSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Symbol, contract, pool, or pasted message" />
       </label>
       <label class="terminal-timeframe-control" id="terminalTimeframeControl">
         <span>Timeframe</span>
@@ -59,6 +59,12 @@
     </section>
 
     <div class="terminal-search-results" id="terminalSpotResults" hidden aria-live="polite"></div>
+
+    <details class="terminal-chain-coverage" id="terminalChainCoverage">
+      <summary><span>Multi-chain Terminal</span><strong id="terminalChainCoverageSummary">Exact lookup across chains · reviewed capabilities shown separately</strong></summary>
+      <div class="terminal-chain-coverage-grid" id="terminalChainCoverageGrid"></div>
+      <p>Provider-listed pools can resolve by exact identity. A chain receives charts, route review, signing, and submission only after each capability is independently verified.</p>
+    </details>
 
     <section class="terminal-market-head" aria-label="Selected market facts">
       <div class="terminal-instrument">
@@ -214,6 +220,13 @@
             <div hidden><dt id="terminalBehaviorLabel">Behavior</dt><dd id="terminalBehavior"></dd></div>
             <div hidden><dt id="terminalPathLabel">Path</dt><dd id="terminalPath"></dd></div>
             <div hidden><dt id="terminalEvidenceMaturityLabel">Evidence</dt><dd id="terminalEvidenceMaturity"></dd></div>
+          </dl>
+          <dl class="terminal-decision-support" id="terminalDecisionSupport" hidden>
+            <div hidden><dt>What changed</dt><dd id="terminalDecisionChanged"></dd></div>
+            <div hidden><dt>What strengthens</dt><dd id="terminalDecisionStrengthens"></dd></div>
+            <div hidden><dt>What weakens / invalidates</dt><dd id="terminalDecisionWeakens"></dd></div>
+            <div hidden><dt>Next checkpoint</dt><dd id="terminalDecisionCheckpoint"></dd></div>
+            <div hidden><dt>Evidence reference</dt><dd id="terminalDecisionReference"></dd></div>
           </dl>
         </section>
 

@@ -4,6 +4,7 @@ export const RAVENOS_CHART_DIAGNOSTICS_SCHEMA = "ravenos.chart_diagnostics.v1";
 export const RAVENOS_CHART_CANDLE_SERIES_SCHEMA = "ravenos.chart_candle_series.v1";
 export const RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA = "ravenos.chart_capability_registry.v1";
 export const RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY_SCHEMA = "ravenos.onchain_chart_provider_registry.v1";
+export const RAVENOS_TERMINAL_CHAIN_ROLLOUT_SCHEMA = "ravenos.terminal_chain_rollout.v1";
 
 export const CHART_INSTRUMENT_TYPES = Object.freeze({
   SPOT_TOKEN: "spot_token",
@@ -40,8 +41,11 @@ function deepFreeze(value) {
 
 export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
   schema_version: RAVENOS_CHART_CAPABILITY_REGISTRY_SCHEMA,
-  revision: "2026-07-23",
+  revision: "2026-08-27",
   network_aliases: {
+    bnb: "bsc",
+    bnb_chain: "bsc",
+    binance_smart_chain: "bsc",
     eth: "ethereum",
     avax: "avalanche",
     hyperliquid: "hyperliquid",
@@ -114,6 +118,7 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       raven_overlay_support: true,
       route_preview_support: true,
       execution_support: false,
+      trading_state: "route_review_only",
     },
     base: {
       provider_networks: { dexpaprika: "base", coingecko_onchain: "base" },
@@ -129,6 +134,23 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
+      trading_state: "adapter_not_activated",
+    },
+    bsc: {
+      provider_networks: { dexpaprika: "bsc", coingecko_onchain: "bsc" },
+      provider_order: ["dexpaprika", "coingecko_onchain"],
+      discovery_supported: true,
+      historical_candles_supported: true,
+      live_candles_supported: true,
+      intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
+      maximum_history_bars: 366,
+      history_provider: "dexpaprika",
+      live_provider: "dexpaprika",
+      freshness_policy_seconds: 120,
+      raven_overlay_support: true,
+      route_preview_support: false,
+      execution_support: false,
+      trading_state: "adapter_not_activated",
     },
     ethereum: {
       provider_networks: { dexpaprika: "ethereum", coingecko_onchain: "eth" },
@@ -144,6 +166,7 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
+      trading_state: "adapter_not_activated",
     },
     robinhood: {
       provider_networks: { dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
@@ -159,7 +182,37 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       raven_overlay_support: true,
       route_preview_support: false,
       execution_support: false,
+      trading_state: "adapter_not_activated",
     },
+  },
+});
+
+export const RAVENOS_TERMINAL_CHAIN_ROLLOUT = deepFreeze({
+  schema_version: RAVENOS_TERMINAL_CHAIN_ROLLOUT_SCHEMA,
+  revision: "2026-08-27",
+  current: [
+    { chain: "hyperliquid", label: "Hyperliquid", market_scope: "perpetuals", lookup: true, chart: true, route_review: true, signing: false, submission: false, state: "review_only" },
+    { chain: "solana", label: "Solana", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: true, signing: false, submission: false, state: "route_review_separate" },
+    { chain: "bsc", label: "BNB Chain", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "base", label: "Base", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "ethereum", label: "Ethereum", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "robinhood", label: "Robinhood Chain", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+  ],
+  next_adapter_cohorts: [
+    { cohort: "evm_expansion", chains: ["arbitrum", "polygon", "avalanche", "optimism"] },
+    { cohort: "high_activity_non_evm", chains: ["tron", "sui"] },
+  ],
+  long_tail_lookup: {
+    state: "provider_listed_exact_identity_only",
+    chart_requires_chain_verification: true,
+    route_requires_chain_adapter: true,
+    signing_never_inferred_from_lookup: true,
+  },
+  safety: {
+    exact_pool_identity_required: true,
+    silent_pool_substitution: false,
+    chart_capability_does_not_imply_route_capability: true,
+    route_review_does_not_imply_signing_or_submission: true,
   },
 });
 
@@ -183,6 +236,7 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
       raven_overlay_support: true,
       route_preview_support: true,
       execution_support: false,
+      trading_state: "review_only",
     };
   }
   if (["equity", "etf"].includes(cleanType) || ["equities", "atlas"].includes(cleanMarket)) {
@@ -201,6 +255,7 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
       raven_overlay_support: false,
       route_preview_support: false,
       execution_support: false,
+      trading_state: "market_data_only",
       refusal_reason: provider.production_state,
     };
   }
@@ -221,6 +276,7 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
       raven_overlay_support: false,
       route_preview_support: false,
       execution_support: false,
+      trading_state: "lookup_only",
       unavailable_reason: "No exact-pool chart provider has been verified for this network.",
     };
   }

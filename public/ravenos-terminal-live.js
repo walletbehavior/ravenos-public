@@ -1,6 +1,7 @@
 import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
   RAVENOS_CHART_TIMEFRAMES,
+  RAVENOS_TERMINAL_CHAIN_ROLLOUT,
   getChartDataPlaneDiagnostics,
   resolveChartCapability,
 } from "./ravenos-chart-data-plane.js";
@@ -24,6 +25,7 @@ const state = {
   timeframe: "1h",
   workspace: null,
   context: null,
+  opportunityEvidence: null,
   flags: null,
   searchGeneration: 0,
   selectionGeneration: 0,
@@ -179,7 +181,42 @@ function routeStateLabel(value) {
 
 function chainDisplayName(value) {
   const chain = String(value || "").trim().toLowerCase();
-  return chain === "robinhood" ? "Robinhood Chain" : titleCase(chain, "Unknown chain");
+  if (chain === "robinhood") return "Robinhood Chain";
+  if (chain === "bsc") return "BNB Chain";
+  return titleCase(chain, "Unknown chain");
+}
+
+function tradeCapabilityLabel(value) {
+  const labels = {
+    review_only: "route review · signing off",
+    route_review_only: "route review · signing off",
+    route_review_separate: "route review separate · signing off",
+    adapter_not_activated: "trading adapter not active",
+    market_data_only: "market data only",
+    lookup_only: "exact lookup only",
+  };
+  return labels[String(value || "").toLowerCase()] || "trading capability unavailable";
+}
+
+function renderChainCoverage() {
+  const host = document.getElementById("terminalChainCoverageGrid");
+  if (!host) return;
+  host.replaceChildren();
+  for (const row of RAVENOS_TERMINAL_CHAIN_ROLLOUT.current) {
+    const card = document.createElement("article");
+    const label = document.createElement("strong");
+    const detail = document.createElement("span");
+    label.textContent = row.label;
+    detail.textContent = [
+      row.chart ? "exact chart" : row.lookup ? "exact lookup" : "planned",
+      row.route_review ? "route review" : "adapter queued",
+      "signing off",
+    ].join(" · ");
+    card.dataset.chain = row.chain;
+    card.dataset.state = row.state;
+    card.append(label, detail);
+    host.append(card);
+  }
 }
 
 function formatPrice(value) {
@@ -1102,6 +1139,26 @@ function setContextField(id, value, label = "") {
   return setOptionalField(id, value);
 }
 
+function decisionSupportValue(value) {
+  if (Array.isArray(value)) return operatorList(value, "");
+  return customerFacingText(value, "").trim();
+}
+
+function renderDecisionSupport({ changed = "", strengthens = [], weakens = [], checkpoint = "", reference = "" } = {}) {
+  const fields = [
+    ["terminalDecisionChanged", decisionSupportValue(changed)],
+    ["terminalDecisionStrengthens", decisionSupportValue(strengthens)],
+    ["terminalDecisionWeakens", decisionSupportValue(weakens)],
+    ["terminalDecisionCheckpoint", decisionSupportValue(checkpoint)],
+    ["terminalDecisionReference", decisionSupportValue(reference)],
+  ];
+  let visible = 0;
+  for (const [id, value] of fields) visible += Number(setOptionalField(id, value));
+  const host = document.getElementById("terminalDecisionSupport");
+  if (host) host.hidden = visible === 0;
+  return visible;
+}
+
 const ALPHA_EMPTY_LANGUAGE = /\b(?:unknown|unavailable|insufficient|missing|not projected|checking|resolving)\b/i;
 
 function cleanAlphaCard(card = {}) {
@@ -1474,7 +1531,7 @@ function spotPlanOverlays(plan = {}) {
 }
 
 function refreshSpotStructurePlan() {
-  if (state.lane !== "spot" || !state.context?.spot_identity_validated) return false;
+  if (state.lane !== "spot" || !(state.context?.spot_identity_validated || state.context?.spot_plan_identity_validated)) return false;
   const planPreview = createSpotStructurePlan(state.context.spot_context, state.workspace?.state || {});
   const nextContext = { ...state.context };
   delete nextContext.plan_preview;
@@ -2138,6 +2195,66 @@ async function fetchJson(url, init = {}) {
   return { response, payload: unwrap(payload) };
 }
 
+function exactInstrumentMatch(left, right) {
+  const a = String(left || "").trim().toLowerCase();
+  const b = String(right || "").trim().toLowerCase();
+  return Boolean(a && b && a === b);
+}
+
+function qualifiedPerpOpportunity(payload, instrumentId) {
+  const row = payload?.selected_opportunity;
+  if (
+    !row
+    || !exactInstrumentMatch(row.instrument_id, instrumentId)
+    || !["fresh", "current"].includes(String(row.context_state || "").toLowerCase())
+    || row.research_only !== true
+    || row.execution_available !== false
+    || payload?.selection?.silently_replaced === true
+  ) return null;
+  return row;
+}
+
+function qualifiedSpotOpportunity(payload, instrumentId) {
+  const rows = Array.isArray(payload?.census?.discovery_radar?.rows) ? payload.census.discovery_radar.rows : [];
+  const selected = payload?.selected_discovery_market
+    || rows.find((row) => exactInstrumentMatch(row?.instrument_id, instrumentId));
+  const discovery = selected?.discovery;
+  const evidence = discovery?.raven_evidence_state;
+  if (
+    !selected
+    || !exactInstrumentMatch(selected.instrument_id, instrumentId)
+    || !exactInstrumentMatch(discovery?.exact_identity?.instrument_id, instrumentId)
+    || discovery?.exact_identity?.identity_scope !== "exact_pool"
+    || evidence?.qualified !== true
+    || evidence?.raven_signal !== true
+    || evidence?.availability !== "available"
+    || !["current", "fresh"].includes(String(evidence.freshness || "").toLowerCase())
+    || payload?.discovery_selection?.silently_replaced === true
+  ) return null;
+  return selected;
+}
+
+async function fetchExactOpportunityEvidence(instrumentId, instrument = "") {
+  if (!instrumentId) return { perp: null, spot: null, generatedAt: null };
+  const params = new URLSearchParams({ instrument_id: instrumentId });
+  if (instrument) params.set("instrument", instrument);
+  try {
+    const { response, payload } = await fetchJson(`/api/opportunity?${params.toString()}`);
+    const currentDelivery = payload?.delivery?.freshness_state === "fresh"
+      && payload?.delivery?.fallback === false;
+    if (!response.ok || payload?.ok !== true || payload?.schema_version !== "ravenos.opportunity_workspace.v2" || !currentDelivery) {
+      return { perp: null, spot: null, generatedAt: null };
+    }
+    return {
+      perp: qualifiedPerpOpportunity(payload, instrumentId),
+      spot: qualifiedSpotOpportunity(payload, instrumentId),
+      generatedAt: payload.generated_at || null,
+    };
+  } catch {
+    return { perp: null, spot: null, generatedAt: null };
+  }
+}
+
 function perpSubject(row = {}) {
   return {
     id: row.instrument_id,
@@ -2173,6 +2290,7 @@ function spotSubject(row = {}, { ravenIntelligence = false } = {}) {
   const chain = String(row.chainId || "").toLowerCase();
   const pairAddress = String(row.pairAddress || "");
   const label = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
+  const capability = spotChartCapability(row, state.timeframe);
   return {
     id: `${chain}:pool:${pairAddress}`,
     instrumentId: `${chain}:pool:${pairAddress}`,
@@ -2189,11 +2307,14 @@ function spotSubject(row = {}, { ravenIntelligence = false } = {}) {
     settlementAsset: String(row.quoteSymbol || "").toUpperCase(),
     preferredCashAsset: "USDC",
     economicNumeraire: "USDC",
+    tokenAddress: String(row.tokenAddress || ""),
+    quoteTokenAddress: String(row.quoteTokenAddress || ""),
+    poolAddress: pairAddress,
     capabilities: {
-      chart: spotChartCapability(row, state.timeframe).chart_ready,
-      live_price: true,
-      liquidity: true,
-      route_preview: chain === "solana",
+      chart: capability.chart_ready,
+      live_price: finite(row.priceUsd) !== null,
+      liquidity: finite(row.liquidityUsd) !== null,
+      route_preview: capability.route_preview_support === true,
       raven_intelligence: ravenIntelligence === true,
       execution: false,
     },
@@ -2505,7 +2626,7 @@ function planEvidenceIsCurrent() {
     const context = state.context?.spot_context;
     const providerState = String(state.workspace?.state?.providerFreshnessState || "current").toLowerCase();
     const candleState = String(state.workspace?.state?.candleFreshnessState || "current").toLowerCase();
-    return state.context?.spot_identity_validated === true
+    return (state.context?.spot_identity_validated === true || state.context?.spot_plan_identity_validated === true)
       && context?.state === "current"
       && ["current", "fresh"].includes(providerState)
       && ["current", "fresh"].includes(candleState);
@@ -2768,6 +2889,7 @@ function loadRavenPlanIntoTicket() {
 
 function setContextUnavailable() {
   state.context = null;
+  state.opportunityEvidence = null;
   clearMarkerInspection();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", "", "Market");
@@ -2778,6 +2900,7 @@ function setContextUnavailable() {
   setText("terminalReadSummary", "");
   setText("terminalWhy", "");
   setText("terminalEvidenceState", "");
+  renderDecisionSupport();
   resetComparableEvidence();
   resetPlanPreview();
   renderAlphaStack();
@@ -2785,10 +2908,12 @@ function setContextUnavailable() {
 
 function setContextChecking({ identity } = {}) {
   state.context = null;
+  state.opportunityEvidence = null;
   clearMarkerInspection();
   resetPlanPreview();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", identity || "");
+  renderDecisionSupport();
   resetComparableEvidence();
   renderAlphaStack();
 }
@@ -2905,16 +3030,103 @@ function applyActiveContextOverlays() {
   syncPlanActionSurfaces();
 }
 
-function renderPerpContext(payload, { updateUrl = true } = {}) {
+function opportunityReference(row = {}) {
+  return customerFacingText(row?.public_opportunity_id || row?.discovery?.raven_evidence_state?.lineage?.public_artifact_id, "");
+}
+
+function renderPerpOpportunityFallback(row, { updateUrl = true, generatedAt = null } = {}) {
+  const selectedId = state.selected?.instrument_id;
+  if (!row || !exactInstrumentMatch(row.instrument_id, selectedId)) return false;
+  const maturity = customerFacingText(row.matured_comparables?.evidence_maturity, "")
+    || (finite(row.matured_comparables?.sample_size) > 0 ? "Observed history" : "Forming");
+  const why = customerFacingText(row.why_raven_noticed, "");
+  const path = customerFacingText(row.path_review?.state, "");
+  const observedAt = row.observed_at || generatedAt || null;
+  const reference = opportunityReference(row);
+  state.context = {
+    instrument: { instrument_id: selectedId },
+    raven_context: {
+      instrument_id: selectedId,
+      context_available: true,
+      context_state: "fresh",
+      observed_at: observedAt,
+      observed_side: row.observed_direction,
+      pressure_state: row.pressure_state,
+      behavior_family: row.pressure_state || "Raven observation",
+      current_path: path,
+      outcomes: { ...row.matured_comparables, evidence_maturity: maturity },
+      public_context_id: reference || null,
+    },
+    raven_read: {
+      headline: `${row.instrument || state.selected?.asset || "Instrument"} · ${customerFacingText(row.pressure_state, "Raven observation")}`,
+      summary: why,
+      why_raven_noticed: why,
+      what_would_strengthen: [],
+      what_would_weaken: [],
+    },
+    delivery: { freshness_state: "fresh", fallback: false },
+    exact_opportunity_only: true,
+  };
+  state.opportunityEvidence = row;
+  resetPlanPreview();
+  setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
+  setText("terminalReadHeadline", state.context.raven_read.headline);
+  setText("terminalReadSummary", why);
+  setText("terminalWhy", why);
+  setContextField("terminalContextIdentity", selectedId, "Market");
+  setContextField("terminalBehavior", row.pressure_state, "Pressure");
+  setContextField("terminalPath", path, "Path");
+  setContextField("terminalEvidenceMaturity", maturity, "Evidence");
+  setText("terminalEvidenceState", finite(row.context_age_seconds) !== null ? `Observed ${durationLabel(row.context_age_seconds)} · current feed` : "Exact current opportunity");
+  setState("terminalContextFreshness", "fresh", "Current");
+  renderComparables(row.matured_comparables || {});
+  renderDecisionSupport({ changed: why, checkpoint: path, reference });
+  renderMarketAnatomy();
+  updateShell({
+    subject: perpSubject(state.selected),
+    marketLabel: state.context.raven_read.headline,
+    thesis: why,
+    setup: path || row.context_state,
+    supporting: [why].filter(Boolean),
+    contradicting: [],
+    invalidation: [],
+    evidenceState: maturity,
+    freshnessState: "fresh",
+    freshnessLabel: "Exact Raven opportunity",
+    observedAt,
+    nextTransition: path,
+  }, { updateUrl });
+  renderAlphaStack();
+  return true;
+}
+
+function renderPerpContext(payload, { updateUrl = true, opportunityEvidence = null, opportunityGeneratedAt = null } = {}) {
   state.context = payload;
+  state.opportunityEvidence = opportunityEvidence;
   renderTerminalMarketFlow(payload?.market_data || {});
   const context = payload?.raven_context || {};
   const read = payload?.raven_read || {};
   const delivery = payload?.delivery || {};
-  const available = context.context_available === true;
+  const selectedId = state.selected?.instrument_id;
+  const available = context.context_available === true
+    && ["fresh", "current"].includes(String(context.context_state || "").toLowerCase())
+    && delivery.freshness_state === "fresh"
+    && delivery.fallback === false
+    && exactInstrumentMatch(payload?.instrument?.instrument_id, selectedId)
+    && exactInstrumentMatch(context.instrument_id, selectedId);
   if (!available) {
+    if (renderPerpOpportunityFallback(opportunityEvidence, { updateUrl, generatedAt: opportunityGeneratedAt })) return;
+    const staleEvidenceWithheld = context.context_available === true
+      && (!["fresh", "current"].includes(String(context.context_state || "").toLowerCase()) || delivery.freshness_state !== "fresh");
     setContextUnavailable();
-    applyContextChartEvent(payload);
+    if (staleEvidenceWithheld) {
+      state.context = {
+        ...payload,
+        raven_context: { ...context, context_available: false },
+        stale_context_withheld: true,
+      };
+      state.planQualificationIssue = "evidence_not_current";
+    }
     renderMarketAnatomy();
     updateShell({
       subject: perpSubject({ ...state.selected, instrument_id: payload?.instrument?.instrument_id || state.selected?.instrument_id }),
@@ -2945,6 +3157,13 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
   setContextField("terminalEvidenceMaturity", titleCase(context.outcomes?.evidence_maturity, ""), "Evidence");
   setText("terminalEvidenceState", `${observationLabel} · ${deliveryLabel}`);
   setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
+  renderDecisionSupport({
+    changed: read.summary,
+    strengthens: read.what_would_strengthen,
+    weakens: read.what_would_weaken,
+    checkpoint: opportunityEvidence?.path_review?.state,
+    reference: opportunityReference(opportunityEvidence) || context.public_context_id,
+  });
   renderComparables(payload?.matured_comparables || {});
   renderPlanPreview(payload?.plan_preview || {});
   applyContextChartEvent(payload);
@@ -2961,6 +3180,7 @@ function renderPerpContext(payload, { updateUrl = true } = {}) {
     freshnessState: delivery.freshness_state || "data_unavailable",
     freshnessLabel: "Raven read",
     observedAt: context.observed_at || payload?.market_data?.generated_at || null,
+    nextTransition: opportunityEvidence?.path_review?.state,
   }, { updateUrl });
   renderAlphaStack();
 }
@@ -2972,9 +3192,96 @@ function sameSelectedAddress(chain, left, right) {
   return String(chain || "").toLowerCase() === "solana" ? a === b : a.toLowerCase() === b.toLowerCase();
 }
 
-function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
+function spotContextFromRadar(radarRow, row) {
+  const discovery = radarRow?.discovery;
+  const identity = discovery?.exact_identity;
+  const evidence = discovery?.raven_evidence_state;
+  const chain = String(row?.chainId || "").toLowerCase();
+  if (
+    !radarRow
+    || !exactInstrumentMatch(radarRow.instrument_id, `${chain}:pool:${row?.pairAddress || ""}`)
+    || !sameSelectedAddress(chain, identity?.pool_address, row?.pairAddress)
+    || !sameSelectedAddress(chain, identity?.token_address, row?.tokenAddress)
+    || evidence?.qualified !== true
+    || evidence?.raven_signal !== true
+  ) return null;
+  const decision = discovery.decision_support || {};
+  const behavior = discovery.primary_behavior_state || {};
+  const contradictions = Array.isArray(evidence.contradictions) ? evidence.contradictions : [];
+  return {
+    schema_version: "ravenos.spot_market_context.v1",
+    state: "current",
+    evidence_scope: "exact_pool",
+    scope_label: "This exact pool",
+    chain,
+    token_address: identity.token_address,
+    selected_pool_address: identity.pool_address,
+    evidence_pool_address: identity.pool_address,
+    symbol: radarRow.symbol || row.symbol,
+    name: radarRow.name || row.name,
+    observed_at: evidence.observed_at,
+    movement_state: titleCase(behavior.value, "Raven observation"),
+    what_changed: customerFacingText(evidence.what_changed || decision.what_changed, ""),
+    risk: operatorList(contradictions, ""),
+    raven_why: customerFacingText(evidence.why_raven_noticed || decision.why_now, ""),
+    behavioral_evidence: Array.isArray(evidence.behavioral_evidence) ? evidence.behavioral_evidence : [],
+    confidence_maturity: evidence.confidence_maturity,
+    decision_support: decision,
+    public_reference: evidence.lineage?.public_artifact_id || null,
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+    signing_available: false,
+    submission_available: false,
+  };
+}
+
+function providerSpotPlanContext(workspace, row) {
   const context = workspace?.marketAnatomy?.raven_context || {};
   const chain = String(row?.chainId || "").toLowerCase();
+  const identityMatches = context.schema_version === "ravenos.spot_market_context.v1"
+    && context.state === "current"
+    && String(context.chain || "").toLowerCase() === chain
+    && sameSelectedAddress(chain, context.token_address, row?.tokenAddress)
+    && sameSelectedAddress(chain, context.selected_pool_address, row?.pairAddress)
+    && (
+      context.evidence_scope === "exact_token"
+      || (context.evidence_scope === "exact_pool" && sameSelectedAddress(chain, context.evidence_pool_address, row?.pairAddress))
+    );
+  if (
+    !identityMatches
+    || context.research_only !== true
+    || context.actionable !== false
+    || context.execution_available !== false
+    || context.signing_available !== false
+    || context.submission_available !== false
+    || !hasOperatorValue(context.what_changed)
+  ) return null;
+  return context;
+}
+
+function renderSpotContext(workspace, row, { updateUrl = true, radarEvidence = null } = {}) {
+  const chain = String(row?.chainId || "").toLowerCase();
+  const radarContext = spotContextFromRadar(radarEvidence, row);
+  const workspaceContext = workspace?.marketAnatomy?.raven_context || {};
+  const workspaceContextMatches = workspaceContext.schema_version === "ravenos.spot_market_context.v1"
+    && workspaceContext.state === "current"
+    && String(workspaceContext.chain || "").toLowerCase() === chain
+    && sameSelectedAddress(chain, workspaceContext.token_address, row?.tokenAddress)
+    && sameSelectedAddress(chain, workspaceContext.selected_pool_address, row?.pairAddress);
+  const context = radarContext && workspaceContextMatches
+    ? {
+        ...workspaceContext,
+        movement_state: radarContext.movement_state,
+        what_changed: radarContext.what_changed,
+        risk: radarContext.risk || workspaceContext.risk,
+        raven_why: radarContext.raven_why,
+        behavioral_evidence: radarContext.behavioral_evidence,
+        confidence_maturity: radarContext.confidence_maturity,
+        decision_support: radarContext.decision_support,
+        public_reference: radarContext.public_reference,
+      }
+    : radarContext || {};
   const identityMatches = context.schema_version === "ravenos.spot_market_context.v1"
     && context.state === "current"
     && String(context.chain || "").toLowerCase() === chain
@@ -2994,7 +3301,17 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
     && context.submission_available === false
     && hasOperatorValue(context.what_changed);
   if (!available) {
+    const planContext = providerSpotPlanContext(workspace, row);
     setContextUnavailable();
+    if (planContext) {
+      state.context = {
+        spot_context: planContext,
+        spot_identity_validated: false,
+        spot_plan_identity_validated: true,
+        selected_market_analysis_only: true,
+      };
+      refreshSpotStructurePlan();
+    }
     updateShell({
       subject: spotSubject(row),
       marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
@@ -3014,7 +3331,7 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
     : null;
   const movement = customerFacingText(context.movement_state, "Activity changed");
   const why = customerFacingText(
-    context.broader_attention?.raven_observed_first ? context.broader_attention?.summary : context.what_changed,
+    context.raven_why || context.what_changed,
     context.what_changed,
   );
   const risk = customerFacingText(context.risk, "");
@@ -3027,8 +3344,10 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
       evidence_scope: context.evidence_scope,
     },
     spot_context: context,
+    radar_evidence: radarEvidence,
     spot_identity_validated: true,
   };
+  state.opportunityEvidence = radarEvidence;
   setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
   setWhyLabel("Why Raven noticed this");
   setText("terminalReadHeadline", `${row.symbol || context.symbol || "Token"} · ${movement}`);
@@ -3038,15 +3357,22 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
   setContextField("terminalBehavior", movement, "Activity");
   setContextField(
     "terminalPath",
-    context.broader_attention?.raven_observed_first ? "Raven observed first" : "",
-    "Timing",
+    context.decision_support?.next_checkpoint || "",
+    "Checkpoint",
   );
-  setContextField("terminalEvidenceMaturity", risk, "Risk");
+  setContextField("terminalEvidenceMaturity", context.confidence_maturity || risk, context.confidence_maturity ? "Evidence" : "Risk");
   setText(
     "terminalEvidenceState",
     observedAge === null ? "Observed · current feed" : `Observed ${durationLabel(observedAge)} · current feed`,
   );
   setState("terminalContextFreshness", "fresh", "Current");
+  renderDecisionSupport({
+    changed: context.what_changed,
+    strengthens: context.decision_support?.what_strengthens,
+    weakens: context.decision_support?.what_weakens || context.risk,
+    checkpoint: context.decision_support?.next_checkpoint,
+    reference: context.public_reference,
+  });
   resetComparableEvidence();
   refreshSpotStructurePlan();
   updateShell({
@@ -3054,18 +3380,22 @@ function renderSpotContext(workspace, row, { updateUrl = true } = {}) {
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
     thesis: context.what_changed,
     setup: context.movement_state,
-    supporting: [why].filter(Boolean),
-    contradicting: [risk].filter(Boolean),
-    evidenceState: "observed",
+    supporting: [why, ...(context.behavioral_evidence || [])].filter(Boolean),
+    contradicting: [
+      ...(Array.isArray(context.decision_support?.what_weakens) ? context.decision_support.what_weakens : [context.decision_support?.what_weakens]),
+      risk,
+    ].filter(Boolean),
+    evidenceState: context.confidence_maturity || "observed",
     freshnessState: workspace?.state || "live",
     freshnessLabel: workspace?.operatorStateLabel || "Raven read",
     observedAt: context.observed_at,
+    nextTransition: context.decision_support?.next_checkpoint,
   }, { updateUrl });
   renderAlphaStack();
   return true;
 }
 
-function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], evidenceState, freshnessState, freshnessLabel = "", observedAt }, { updateUrl = true } = {}) {
+function updateShell({ subject, marketLabel, thesis, setup, supporting = [], contradicting = [], invalidation = [], evidenceState, freshnessState, freshnessLabel = "", observedAt, nextTransition = "" }, { updateUrl = true } = {}) {
   ravenOSContext.setSelection({ subject, timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const hasIntelligence = Boolean(
     hasOperatorValue(thesis)
@@ -3092,12 +3422,21 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
     thesis: customerFacingText(thesis, marketLabel || "Market data available"),
     supportingEvidence: supporting,
     contradictingEvidence: contradicting,
-    invalidation: [],
+    invalidation,
     timeHorizon: state.timeframe,
     confidence: { label: evidenceState || "market_data_only" },
-    evidenceQuality: { state: evidenceState || "market_data_only", lineageComplete: Boolean(state.context?.raven_context?.context_available || state.context?.atlas_context?.context_available) },
+    evidenceQuality: {
+      state: evidenceState || "market_data_only",
+      lineageComplete: Boolean(
+        state.context?.raven_context?.context_available
+        || state.context?.atlas_context?.context_available
+        || (state.context?.spot_identity_validated && state.context?.spot_context?.public_reference),
+      ),
+    },
     freshness: { state: freshnessState || "data_unavailable", label: freshnessLabel, observedAt },
-    nextExpectedTransition: hasIntelligence
+    nextExpectedTransition: hasOperatorValue(nextTransition)
+      ? nextTransition
+      : hasIntelligence
       ? state.lane === "perps"
         ? "Watch for the next market or evidence transition."
         : state.lane === "equity"
@@ -3534,6 +3873,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   renderLaunchBadge();
   state.selected = row;
   state.context = null;
+  state.opportunityEvidence = null;
   resetTerminalMarketFlow();
   clearMarketPreviewResult();
   clearExternalChart();
@@ -3567,12 +3907,17 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
     },
   });
   const contextPromise = fetchJson(`/api/perps/instrument?symbol=${encodeURIComponent(row.asset)}`).catch(() => null);
-  const [chartState, contextResult] = await Promise.all([chartPromise, contextPromise]);
+  const opportunityPromise = fetchExactOpportunityEvidence(row.instrument_id, row.asset);
+  const [chartState, contextResult, opportunityResult] = await Promise.all([chartPromise, contextPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
   renderPerpFacts();
   renderWorkspaceState(state.workspace?.state || chartState);
-  if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload, { updateUrl });
-  else {
+  if (contextResult?.response?.ok && contextResult.payload?.ok) renderPerpContext(contextResult.payload, {
+    updateUrl,
+    opportunityEvidence: opportunityResult.perp,
+    opportunityGeneratedAt: opportunityResult.generatedAt,
+  });
+  else if (!renderPerpOpportunityFallback(opportunityResult.perp, { updateUrl, generatedAt: opportunityResult.generatedAt })) {
     setContextUnavailable();
     updateShell({
       subject: perpSubject(row),
@@ -3710,7 +4055,7 @@ async function searchSpot(query) {
     const { response, payload } = await fetchJson(`/api/dexscreener/search?q=${encodeURIComponent(clean)}`);
     if (generation !== state.searchGeneration) return;
     const rows = response.ok && Array.isArray(payload?.results)
-      ? rankSpotRows(payload.results.filter((row) => row?.chainId && row?.pairAddress && row?.tokenAddress && finite(row?.priceUsd) > 0), clean)
+      ? rankSpotRows(payload.results.filter((row) => row?.chainId && row?.pairAddress && row?.tokenAddress), clean)
       : [];
     renderSpotResults(rows, response.ok ? "No verified public pool matched this search." : "Public spot lookup is unavailable.");
   } catch {
@@ -3724,6 +4069,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   renderLaunchBadge();
   state.selected = row;
   state.context = null;
+  state.opportunityEvidence = null;
   updateTerminalPaneAvailability();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
@@ -3741,7 +4087,8 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   setContextUnavailable();
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: spotSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
-  const chartState = await state.workspace.load({
+  const instrumentId = `${String(row.chainId || "").toLowerCase()}:pool:${row.pairAddress}`;
+  const chartPromise = state.workspace.load({
     market: "crypto_spot",
     asset: `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`,
     timeframe: state.timeframe,
@@ -3750,7 +4097,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
     tokenAddress: row.tokenAddress,
     quoteAddress: row.quoteTokenAddress,
     instrumentScope: "exact_pool",
-    marketIdentity: `${row.chainId}:pool:${row.pairAddress}`,
+    marketIdentity: instrumentId,
     expectedIdentity: {
       instrumentType: "spot_pool",
       identityScope: "exact_pool",
@@ -3759,12 +4106,18 @@ async function selectSpot(row, { updateUrl = true } = {}) {
       tokenAddress: row.tokenAddress,
     },
   });
+  const opportunityPromise = fetchExactOpportunityEvidence(instrumentId);
+  const [chartState, opportunityResult] = await Promise.all([chartPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} candles · exact pool`
     : chartState?.message || "Exact-pool candles unavailable.");
-  setText("terminalCapabilityLabel", `Spot · ${row.quoteSymbol || "quote"} quote · ${chartState?.candles?.length ? `${chartState.candles.length.toLocaleString()} candles` : "chart unavailable"}`);
-  renderSpotContext(chartState, row, { updateUrl });
+  setText("terminalCapabilityLabel", [
+    `Spot · ${row.quoteSymbol || "quote"} quote`,
+    chartState?.candles?.length ? `${chartState.candles.length.toLocaleString()} candles` : "chart unavailable",
+    tradeCapabilityLabel(chartCapability.trading_state),
+  ].join(" · "));
+  renderSpotContext(chartState, row, { updateUrl, radarEvidence: opportunityResult.spot });
 }
 
 async function loadMarkets() {
@@ -4172,19 +4525,31 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
   }, { updateUrl: false });
 }
 
-async function loadExactPool(instrumentId, { updateUrl = false } = {}) {
+async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "", quoteAddress = "" } = {}) {
   const identity = parsePoolIdentity(instrumentId);
   if (!identity) {
     await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The requested exact-pool identity is malformed." });
     return;
   }
   try {
-    const { response, payload } = await fetchJson(`/api/dexscreener/pair?chainId=${encodeURIComponent(identity.chainId)}&pairAddress=${encodeURIComponent(identity.pairAddress)}`);
+    const pairParams = new URLSearchParams({
+      chainId: identity.chainId,
+      pairAddress: identity.pairAddress,
+    });
+    if (tokenAddress) pairParams.set("tokenAddress", tokenAddress);
+    const { response, payload } = await fetchJson(`/api/dexscreener/pair?${pairParams.toString()}`);
     const rows = response.ok && Array.isArray(payload?.results) ? payload.results : [];
     const row = rows.find((item) => String(item.pairAddress || "").toLowerCase() === identity.pairAddress.toLowerCase()
       && String(item.chainId || "").toLowerCase() === identity.chainId.toLowerCase());
     if (!row) {
       await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact requested pool is not available from the current public provider." });
+      return;
+    }
+    if (
+      (tokenAddress && !sameSelectedAddress(identity.chainId, row.tokenAddress, tokenAddress))
+      || (quoteAddress && !sameSelectedAddress(identity.chainId, row.quoteTokenAddress, quoteAddress))
+    ) {
+      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact pool resolved with different token orientation. RavenOS did not substitute the other side of the pair." });
       return;
     }
     setLane("spot", { updateUrl: false, selectDefault: false });
@@ -4342,6 +4707,7 @@ async function loadBuildIdentity() {
 }
 
 async function boot() {
+  renderChainCoverage();
   const params = new URLSearchParams(location.search);
   const requestedLaunch = String(params.get("launch") || "").toLowerCase();
   state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
@@ -4366,7 +4732,7 @@ async function boot() {
     onIndicatorChange: () => updateMonitorHandoff(),
     onChartReadChange: (read) => {
       state.chartRead = read;
-      if (state.lane === "spot" && state.context?.spot_identity_validated) refreshSpotStructurePlan();
+      if (state.lane === "spot" && (state.context?.spot_identity_validated || state.context?.spot_plan_identity_validated)) refreshSpotStructurePlan();
       else renderAlphaStack();
     },
   });
@@ -4391,7 +4757,11 @@ async function boot() {
       : "perps";
   await Promise.all([loadTradeFlags(), loadBuildIdentity()]);
   if (requestedLane === "spot") {
-    if (instrumentId) await loadExactPool(instrumentId, { updateUrl: false });
+    if (instrumentId) await loadExactPool(instrumentId, {
+      updateUrl: false,
+      tokenAddress: String(params.get("token_address") || "").trim(),
+      quoteAddress: String(params.get("quote_address") || "").trim(),
+    });
     else {
       setLane("spot", { updateUrl: false, selectDefault: false });
       const query = String(params.get("search") || params.get("asset") || "").trim();

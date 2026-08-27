@@ -29,6 +29,7 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /acceptProviderTransition/);
   assert.match(workspace, /chart_provider_transition_pool_mismatch/);
   assert.match(workspace, /validateExpectedInstrument/);
+  assert.match(workspace, /\["base", "bsc", "ethereum"/);
   assert.match(workspace, /different exact market than the one selected/);
   assert.match(workspace, /onMarkerSelect/);
   assert.match(workspace, /visibilitychange/);

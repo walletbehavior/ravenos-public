@@ -32,13 +32,13 @@
         <div class="route-delivery-state" data-state="unavailable"><span>Not open</span><strong>Commercial plans unavailable</strong><small>No price or checkout is active</small></div>
       </div>
       <h1>Commercial access is not open yet.</h1>
-      <p class="route-summary">Use the current RavenOS public preview to evaluate the intelligence. Paid access, persistent customer features, and execution will be introduced only after their server-side protections and safety controls are real.</p>
+      <p class="route-summary">Use the current RavenOS public preview to evaluate the intelligence. Secure account-synced saved markets are live; paid access and execution remain separate, inactive milestones.</p>
       <div class="route-state-strip">
         <div class="route-state-card"><span>Preview</span><b>Public and read only</b></div>
         <div class="route-state-card"><span>Price</span><b>Not published</b></div>
         <div class="route-state-card"><span>Checkout</span><b>Unavailable</b></div>
         <div class="route-state-card"><span>Plan tiers</span><b>Not enforced</b></div>
-        <div class="route-state-card"><span>Saved tools</span><b>Not available</b></div>
+        <div class="route-state-card"><span>Saved markets</span><b>Available with account</b></div>
         <div class="route-state-card"><span>Trades</span><b>Preview only</b></div>
       </div>
     </section>
@@ -51,6 +51,7 @@
           <tr><td><strong>Opportunities</strong></td><td>Current Census continuity and exact Hyperliquid decision contexts</td><td>Research queue, not ranked trades</td><td><a class="route-open-link" href="/opportunity/">Open →</a></td></tr>
           <tr><td><strong>Perps</strong></td><td>Live Hyperliquid candles, book, tape, funding, OI, and exact Raven context</td><td>No signing, submission, or monitoring</td><td><a class="route-open-link" href="/perps/">Open →</a></td></tr>
           <tr><td><strong>Terminal</strong></td><td>Real charts and read-only quote review</td><td>Quote preview is not execution</td><td><a class="route-open-link" href="/terminal/">Open →</a></td></tr>
+          <tr><td><strong>Saved Monitor</strong></td><td>Account-synced exact markets and bounded chart workspaces</td><td>Secure app origin; no silent pool substitution</td><td><a class="route-open-link" href="https://app.ravenos.xyz/monitor/">Open →</a></td></tr>
           <tr><td><strong>Behavior</strong></td><td>Privacy-preserving aggregate participation and cohort evidence</td><td>No raw wallet identities or relationship graphs</td><td><a class="route-open-link" href="/behavior/">Open →</a></td></tr>
           <tr><td><strong>Followthrough</strong></td><td>Future-only validation of earlier reads</td><td>Evidence maturity and sample remain visible</td><td><a class="route-open-link" href="/outcomes/">Open →</a></td></tr>
         </tbody></table></div>
@@ -63,7 +64,8 @@
           <div><span>Accounts</span><strong>Google and managed email authentication</strong><small>Available on the secure app origin</small></div>
           <div><span>Billing</span><strong>Products, prices, checkout, portal, webhooks</strong><small>Not configured</small></div>
           <div><span>Access</span><strong>Subscriber, Pro, founder, or token entitlements</strong><small>Not enforced</small></div>
-          <div><span>Persistence</span><strong>Alerts, watchlists, saved reviews, portfolio</strong><small>Not available</small></div>
+          <div><span>Persistence</span><strong>Saved exact markets and chart workspace</strong><small>Available on the secure app origin; generic saved scans and portfolio history remain unavailable</small></div>
+          <div><span>Alerts</span><strong>In-app evaluator and notification contracts</strong><small>Customer activation and delivery remain unavailable until their coordinated controls are enabled</small></div>
           <div><span>Plans</span><strong>Personalized entry, TP, SL, and management policy</strong><small>Research-only preview where evidence exists</small></div>
           <div><span>Execution</span><strong>Customer signing, submission, and position monitoring</strong><small>Separate authorization required</small></div>
         </div>
@@ -84,7 +86,6 @@
   <script type="module">
     import { ravenOSContext } from "/ravenos-context-store.js";
     import { mountRavenOSShell } from "/ravenos-shell.js";
-    ravenOSContext.setSelection({ subject: { id: "commercial-foundation", label: "Commercial foundation", type: "product", chain: "all", venue: "all", marketType: "all" } });
     const shell = mountRavenOSShell({ slug: "pricing" });
     shell.setCapabilities({ market: "Public preview", wallet: "No customer session", mode: "Read only", signing: "Sign off", broadcast: "Broadcast off", evidence: "Scope verified" });
     shell.setIntelligence({
@@ -94,7 +95,7 @@
       setupState: { state: "not configured", confirmation: "inactive" },
       thesis: "Current RavenOS access is public and read only. No paid plan, token tier, or customer execution path is active.",
       supportingEvidence: ["Live market and current Raven intelligence surfaces can be evaluated without an account."],
-      contradictingEvidence: ["Checkout, entitlements, saved customer tools, and execution are unavailable."],
+      contradictingEvidence: ["Checkout, public enrollment, alert delivery, and execution are unavailable. Saved exact markets are separate and already account-synced."],
       invalidation: ["Do not infer a paid offer from dormant scaffolding."],
       timeHorizon: "separate product milestones",
       confidence: { label: "verified boundary" },

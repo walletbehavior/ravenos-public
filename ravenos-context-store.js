@@ -17,6 +17,9 @@ const QUERY_FIELDS = Object.freeze({
   settlement: ["subject", "settlementAsset"],
   cash: ["subject", "preferredCashAsset"],
   numeraire: ["subject", "economicNumeraire"],
+  token_address: ["subject", "tokenAddress"],
+  quote_address: ["subject", "quoteTokenAddress"],
+  pair_address: ["subject", "poolAddress"],
   timeframe: ["timeframe"],
   workspace: ["workspace"],
   detection: ["detectionId"],
@@ -48,6 +51,9 @@ function defaultContext() {
       preferredCashAsset: "USDC",
       economicNumeraire: "USDC",
       capabilities: {},
+      tokenAddress: "",
+      quoteTokenAddress: "",
+      poolAddress: "",
     },
     timeframe: "1h",
     workspace: "market-monitor",
@@ -79,6 +85,9 @@ export function normalizeInstrumentSubject(value = {}) {
     settlementAsset: clean(row.settlementAsset?.symbol || row.settlement_asset?.symbol || row.settlementAsset || row.settlement_asset || row.settlement_asset_symbol).toUpperCase(),
     preferredCashAsset: clean(row.preferredCashAsset?.symbol || row.preferred_cash_asset?.symbol || row.preferredCashAsset || row.preferred_cash_asset || row.preferred_cash_asset_symbol, assetClass === "crypto" ? "USDC" : "USD").toUpperCase(),
     economicNumeraire: clean(row.economicNumeraire || row.economic_numeraire, assetClass === "crypto" ? "USDC" : "USD").toUpperCase(),
+    tokenAddress: clean(row.tokenAddress || row.token_address),
+    quoteTokenAddress: clean(row.quoteTokenAddress || row.quote_token_address || row.quoteAddress || row.quote_address),
+    poolAddress: clean(row.poolAddress || row.pool_address || row.pairAddress || row.pair_address),
     capabilities: row.capabilities && typeof row.capabilities === "object"
       ? Object.fromEntries(Object.entries(row.capabilities).map(([key, enabled]) => [key, Boolean(enabled)]))
       : {},
@@ -137,6 +146,9 @@ export function contextSearchParams(contextValue, options = {}) {
     settlement: context.subject.settlementAsset,
     cash: context.subject.preferredCashAsset,
     numeraire: context.subject.economicNumeraire,
+    token_address: context.subject.tokenAddress,
+    quote_address: context.subject.quoteTokenAddress,
+    pair_address: context.subject.poolAddress,
     timeframe: context.timeframe,
     workspace: context.workspace,
     detection: context.detectionId || "",
@@ -258,10 +270,15 @@ export function createRavenOSContextStore(options = {}) {
 
   function setContext(patch = {}, options = {}) {
     const previous = state;
+    const incomingSubject = patch.subject && typeof patch.subject === "object" ? patch.subject : null;
+    const incomingSubjectId = incomingSubject
+      ? clean(incomingSubject.instrumentId || incomingSubject.instrument_id || incomingSubject.id || incomingSubject.address || incomingSubject.symbol)
+      : "";
+    const replaceSubject = Boolean(incomingSubjectId && incomingSubjectId !== state.subject.id);
     const next = normalizeContext({
       ...state,
       ...patch,
-      subject: patch.subject ? { ...state.subject, ...patch.subject } : state.subject,
+      subject: incomingSubject ? (replaceSubject ? incomingSubject : { ...state.subject, ...incomingSubject }) : state.subject,
       history: state.history,
       updatedAt: new Date().toISOString(),
     });

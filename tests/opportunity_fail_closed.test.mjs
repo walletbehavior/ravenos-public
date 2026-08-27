@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../worker.mjs";
+import { DISCOVER_CLASSIFIER_VERSION, buildDiscoverRadarProjection } from "../lib/discover_radar.mjs";
 
 const ORIGIN = "https://origin.example/public/ravenos";
 const TOKEN = "server-only-opportunity-test-token";
@@ -378,6 +379,129 @@ test("9. explicitly selected instrument is matched exactly and never replaced", 
       assert.equal(absentBody.selection.silently_replaced, false);
       assert.equal(absentBody.selected_opportunity, null);
       assert.equal(absentBody.current_opportunity, null);
+    },
+  );
+});
+
+test("9b. an exact spot request returns only its qualified discovery evidence", async () => {
+  const generatedAt = isoAgo(5);
+  const poolAddress = "0x1111111111111111111111111111111111111111";
+  const tokenAddress = "0x2222222222222222222222222222222222222222";
+  const instrumentId = `base:pool:${poolAddress}`;
+  const discoveryRadar = buildDiscoverRadarProjection([{
+    instrument_id: instrumentId,
+    identity_scope: "exact_pool",
+    market_type: "spot",
+    chain: "Base",
+    chain_id: "base",
+    venue: "Uniswap V3",
+    pool_address: poolAddress,
+    token_address: tokenAddress,
+    quote_token_address: "0x3333333333333333333333333333333333333333",
+    quote_symbol: "USDC",
+    symbol: "RADAR",
+    name: "Radar",
+    observed_at: generatedAt,
+    context_state: "current",
+    source_type: "raven_spot_attention",
+    market: { price_usd: 0.004, price_change_5m_pct: 8, volume_usd_5m: 24_000, volume_usd_1h: 90_000, buys_5m: 80, sells_5m: 30, traders_5m: 72, liquidity_usd: 180_000, market_cap_usd: 420_000, market_age_seconds: 12_000 },
+    registry: { observation_count: 3, first_seen_at: isoAgo(605), last_seen_at: generatedAt, admission_lanes: ["raven_observation"] },
+    raven_evidence: {
+      instrument_id: instrumentId,
+      observed_at: generatedAt,
+      genuine_internal_observation: true,
+      state: "qualified",
+      freshness: "current",
+      classifier: { name: "raven_spot_test", version: "1" },
+      lineage: { public_artifact_id: "public-radar-exact" },
+      why_raven_noticed: "Exact-pool participation accelerated.",
+      what_changed: "Buy participation expanded with usable liquidity.",
+      behavioral_evidence: ["Transaction rate increased across real observations."],
+      confidence_maturity: "developing",
+      contradictions: ["The next observation could lose flow alignment."],
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], { generatedAt, nowMs: Date.parse(generatedAt), sourceState: "current" });
+  await withOriginFetch(
+    async () => jsonResponse(opportunityEnvelope({ generatedAt, data: { discovery_radar: discoveryRadar } })),
+    async () => {
+      const response = await opportunityRequest(`/api/opportunity?instrument_id=${encodeURIComponent(instrumentId)}`);
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.selected_opportunity, null);
+      assert.equal(body.discovery_selection.state, "matched");
+      assert.equal(body.discovery_selection.silently_replaced, false);
+      assert.equal(body.selected_discovery_market.instrument_id, instrumentId);
+      assert.equal(body.selected_discovery_market.discovery.raven_evidence_state.qualified, true);
+      assert.equal(body.selected_discovery_market.discovery.raven_evidence_state.lineage.public_artifact_id, "public-radar-exact");
+    },
+  );
+});
+
+test("9c. the Worker upgrades the immediately previous safe radar contract during publisher rollout", async () => {
+  const generatedAt = isoAgo(5);
+  const poolAddress = "0x4444444444444444444444444444444444444444";
+  const tokenAddress = "0x5555555555555555555555555555555555555555";
+  const current = buildDiscoverRadarProjection([{
+    instrument_id: `bsc:pool:${poolAddress}`,
+    identity_scope: "exact_pool",
+    market_type: "spot",
+    chain: "BNB Chain",
+    chain_id: "bsc",
+    venue: "PancakeSwap",
+    pool_address: poolAddress,
+    token_address: tokenAddress,
+    quote_token_address: "0x6666666666666666666666666666666666666666",
+    quote_symbol: "USDT",
+    symbol: "MOVE",
+    name: "Move",
+    observed_at: generatedAt,
+    context_state: "current",
+    source_type: "market_activity",
+    market: {
+      price_usd: 0.004,
+      price_change_5m_pct: 8,
+      price_change_1h_pct: 10,
+      volume_usd_5m: 24_000,
+      volume_usd_1h: 90_000,
+      buys_5m: 80,
+      sells_5m: 30,
+      traders_5m: 72,
+      buys_1h: 210,
+      sells_1h: 120,
+      traders_1h: 190,
+      liquidity_usd: 180_000,
+      market_cap_usd: 420_000,
+      market_age_seconds: 12_000,
+    },
+    registry: { observation_count: 3, first_seen_at: isoAgo(605), last_seen_at: generatedAt, admission_lanes: ["provider_current_input"] },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], { generatedAt, nowMs: Date.parse(generatedAt), sourceState: "current" });
+  const legacy = structuredClone(current);
+  legacy.classifier.version = "2026-08-27.3";
+  for (const row of legacy.rows) {
+    row.discovery.primary_behavior_state.classifier.version = "2026-08-27.3";
+    delete row.discovery.asset_taxonomy;
+    delete row.discovery.opportunity_lane;
+    delete row.discovery.sample_evidence;
+    delete row.discovery.ranking;
+  }
+  await withOriginFetch(
+    async () => jsonResponse(opportunityEnvelope({ generatedAt, data: { discovery_radar: legacy } })),
+    async () => {
+      const response = await opportunityRequest();
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.census.discovery_radar.classifier.version, DISCOVER_CLASSIFIER_VERSION);
+      assert.equal(body.census.discovery_radar.rows.length, 1);
+      assert.equal(body.census.discovery_radar.rows[0].instrument_id, `bsc:pool:${poolAddress}`);
+      assert.equal(body.census.discovery_radar.rows[0].discovery.opportunity_lane.availability, "available");
+      assert.equal(body.census.discovery_radar.rows[0].discovery.ranking.velocity.absolute_volume_tiebreaker_used, false);
+      assert.equal(body.census.discovery_radar.rows[0].discovery.raven_evidence_state.raven_signal, false);
     },
   );
 });

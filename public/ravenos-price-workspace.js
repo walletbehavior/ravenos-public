@@ -306,7 +306,7 @@ function sameExpectedIdentity(chain, left, right) {
   const second = String(right || "").trim();
   if (!first || !second) return false;
   const network = String(chain || "").trim().toLowerCase();
-  return ["base", "ethereum", "arbitrum", "optimism", "polygon", "robinhood"].includes(network)
+  return ["base", "bsc", "ethereum", "arbitrum", "optimism", "polygon", "avalanche", "robinhood"].includes(network)
     ? first.toLowerCase() === second.toLowerCase()
     : first === second;
 }

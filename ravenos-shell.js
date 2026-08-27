@@ -28,7 +28,7 @@ const NAV_ITEMS = Object.freeze([
     match: ["intelligence", "behavior", "outcomes", "claims", "replay", "memory", "research", "chain-solana", "chain-base", "chain-ethereum"],
   },
   { key: "portfolio", label: "Portfolio", href: "/portfolio/", glyph: "P", match: ["portfolio"] },
-  { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", match: ["atlas"] },
+  { key: "atlas", label: "Atlas", href: "/atlas/", glyph: "A", mobile: false, match: ["atlas"] },
 ]);
 
 let customerAccountState = Object.freeze({
@@ -105,7 +105,19 @@ function shortMarketId(value) {
 function chainDisplayName(value) {
   const chain = String(value || "").trim().toLowerCase();
   if (chain === "robinhood") return "Robinhood Chain";
+  if (chain === "bsc") return "BNB Chain";
   return chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : "Unknown chain";
+}
+
+function extractedMarketAddresses(value = "") {
+  const clean = String(value || "").slice(0, 512);
+  const evm = clean.match(/0x[a-fA-F0-9]{40}/g) || [];
+  const solanaScan = clean.replace(/0x[a-fA-F0-9]{40}/g, (match) => " ".repeat(match.length));
+  const matches = [
+    ...evm,
+    ...(solanaScan.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/g) || []),
+  ];
+  return [...new Map(matches.map((address) => [address.toLowerCase().startsWith("0x") ? address.toLowerCase() : address, address])).values()].slice(0, 3);
 }
 
 function escapeHtml(value) {
@@ -132,6 +144,9 @@ function terminalHref(subject = {}) {
     settlement: subject.settlementAsset,
     cash: subject.preferredCashAsset,
     numeraire: subject.economicNumeraire,
+    token_address: subject.tokenAddress,
+    quote_address: subject.quoteTokenAddress,
+    pair_address: subject.poolAddress,
   };
   for (const [key, value] of Object.entries(values)) {
     if (value && !["all", "unknown", "unselected"].includes(String(value).toLowerCase())) params.set(key, value);
@@ -145,7 +160,9 @@ function navMarkup(slug, { mobile = false } = {}) {
     const className = mobile ? "ros-mobile-nav-item" : "ros-workspace-nav-item";
     return `<a class="${className}${active}" href="${ravenOSContext.decorateHref(item.href)}" data-ros-context-link data-ros-base-href="${item.href}" data-ros-nav="${item.key}"><span class="ros-nav-glyph" aria-hidden="true">${item.glyph}</span><span>${item.label}</span></a>`;
   }).join("");
-  return items;
+  if (!mobile) return items;
+  const moreActive = NAV_ITEMS.some((item) => item.mobile === false && item.match.includes(slug)) ? " active" : "";
+  return `${items}<button class="ros-mobile-nav-item${moreActive}" type="button" data-ros-utility="more" aria-label="More RavenOS destinations"><span class="ros-nav-glyph" aria-hidden="true">M</span><span>More</span></button>`;
 }
 
 function providerCreditMarkup() {
@@ -174,7 +191,7 @@ function createShellMarkup(slug) {
       <nav class="ros-workspace-nav" aria-label="RavenOS workspaces">${navMarkup(slug)}</nav>
       <button class="ros-command-trigger" id="rosCommandTrigger" type="button" aria-haspopup="dialog" aria-controls="rosCommandPalette">
         <span class="ros-search-icon" aria-hidden="true"></span>
-        <span class="ros-command-copy"><strong>Search instruments</strong><small>Symbol, name, or contract address</small></span>
+        <span class="ros-command-copy"><strong>Search instruments</strong><small>Symbol, contract, or pasted message</small></span>
         <kbd>⌘ K</kbd>
       </button>
       <div class="ros-freshness" id="rosFreshness" hidden><span class="ros-state-dot"></span><span><strong>Data unavailable</strong><time>No timestamp</time></span></div>
@@ -199,8 +216,8 @@ function createShellMarkup(slug) {
     </aside>
     <nav class="ros-mobile-nav" aria-label="Mobile primary navigation">${navMarkup(slug, { mobile: true })}</nav>
     <dialog class="ros-command-palette" id="rosCommandPalette" aria-label="Universal instrument search">
-      <div class="ros-command-head"><div><span>Universal search</span><strong>Type a symbol, name, or contract address.</strong></div><button type="button" id="rosCommandClose" aria-label="Close search">Close</button></div>
-      <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, or 0x…" /></label>
+      <div class="ros-command-head"><div><span>Universal search</span><strong>Type a market—or paste a full message containing its contract.</strong></div><button type="button" id="rosCommandClose" aria-label="Close search">Close</button></div>
+      <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, 0x… or a Telegram message" /></label>
       <div class="ros-search-status" id="rosSearchStatus">Loading live supported instruments…</div>
       <div class="ros-command-results" id="rosCommandResults"></div>
       <footer><span>Exact identity</span><span>Source and freshness shown</span><span>No signing</span></footer>
@@ -416,6 +433,9 @@ function spotInstrumentSubject(row = {}) {
     settlementAsset: quote,
     preferredCashAsset: "USDC",
     economicNumeraire: "USDC",
+    tokenAddress: String(row.tokenAddress || "").trim(),
+    quoteTokenAddress: String(row.quoteTokenAddress || "").trim(),
+    poolAddress: pairAddress,
     capabilities: {
       chart: spotChartRequestSupported(row),
       live_price: finiteNumber(row.priceUsd) !== null,
@@ -447,12 +467,13 @@ function spotSearchInstrument(row = {}) {
 
 function spotSearchQuality(row = {}, query = "") {
   const normalized = String(query || "").trim().toLowerCase();
+  const addressTerms = extractedMarketAddresses(query).map((value) => value.toLowerCase());
   const chain = String(row.chainId || "").toLowerCase();
   const symbol = String(row.symbol || "").trim().toLowerCase();
   const name = String(row.name || "").trim().toLowerCase();
   const exactAddress = normalized && [row.tokenAddress, row.quoteTokenAddress, row.pairAddress]
     .filter(Boolean)
-    .some((value) => String(value).toLowerCase() === normalized);
+    .some((value) => addressTerms.includes(String(value).toLowerCase()) || String(value).toLowerCase() === normalized);
   const exactName = normalized && (symbol === normalized || name === normalized);
   const chartReady = spotChartRequestSupported(row, "1h");
   const volume = Math.max(0, finiteNumber(row.volume24h) || 0);
@@ -485,10 +506,10 @@ function utilityMarkup(kind, context) {
         return `<a href="${escapeHtml(terminalHref(subject))}" data-recent-instrument="${escapeHtml(subject.id)}"><strong>${escapeHtml(subject.label || subject.symbol || subject.id)}</strong><span>${escapeHtml(meta || "Exact instrument")}</span></a>`;
       }).join("")}</div>`
       : `<div class="ros-utility-empty"><strong>No recent instruments</strong><p>Markets you inspect will appear here. Nothing is populated as user data until you select it.</p></div>`;
-    return `<section><span>Recent instruments</span>${recent}</section><section class="ros-utility-unavailable"><span>Saved markets</span><strong>Not available yet</strong><p>Your recent local history is shown above. Nothing is presented as a saved list until RavenOS can securely retain it for your account.</p></section>`;
+    return `<section><span>Recent instruments</span>${recent}</section><section><span>Saved exact markets</span><strong>Available with a RavenOS account</strong><p>Save an exact pool or venue instrument with its bounded chart workspace, then reopen it across signed-in devices.</p><a href="https://app.ravenos.xyz/monitor/">Open Saved Monitor</a></section>`;
   }
   if (kind === "alerts") {
-    return `<section class="ros-utility-unavailable"><span>Alerts</span><strong>Not available yet</strong><p>RavenOS cannot safely save or deliver alerts for this account yet. No sample alerts are shown.</p><a href="/docs/">Why features can be unavailable</a></section>`;
+    return `<section class="ros-utility-unavailable"><span>Raven Monitor</span><strong>Rules built · evaluation activation staged</strong><p>Exact-market monitor rules and in-app history are account-bound. Evaluation remains fail-closed until the production activation controls are enabled; Telegram, email, and push delivery are not active.</p><a href="https://app.ravenos.xyz/monitor/">Open Monitor</a></section>`;
   }
   const accountHref = customerAccountState.available && customerAccountState.canonicalOrigin
     ? `${customerAccountState.canonicalOrigin}/account/`
@@ -497,7 +518,7 @@ function utilityMarkup(kind, context) {
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
     : customerAccountState.available ? "Google, email, password, or code" : "Account activation status";
-  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recent markets now; saved lists when available</span></button><button type="button" data-ros-utility="alerts"><strong>Alerts</strong><span>Availability and delivery state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
+  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Local history + account-synced exact markets</span></button><button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Rules, in-app history, and activation state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -726,7 +747,7 @@ export function mountRavenOSShell(options = {}) {
   function commandFamilyRank(item, normalized, rows) {
     const family = commandFamily(item);
     const explicitPerp = /(?:-perp|\bperp(?:etual)?s?)$/i.test(normalized);
-    const addressQuery = /^0x[a-f0-9]{40}$/i.test(normalized) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalized);
+    const addressQuery = extractedMarketAddresses(normalized).length > 0;
     const exactPerp = rows.some((row) => commandFamily(row) === "Perpetuals" && commandMatchRank(row, normalized) === 0);
     const contextFamilies = ["Indices", "Macro markets", "Rates & economy", "Energy", "Companies & filings", "Other exact instruments"];
     const order = addressQuery
@@ -819,7 +840,7 @@ export function mountRavenOSShell(options = {}) {
     const registryState = searchFailure
       ? "Live market catalog unavailable"
       : searchReady
-        ? `${instrumentIndex.length.toLocaleString()} exact markets ready · ${instrumentSources.join(" + ")}`
+        ? `${instrumentIndex.length.toLocaleString()} indexed exact markets · ${instrumentSources.join(" + ")} · live onchain lookup checks provider-listed pools`
         : "Loading supported markets…";
     const spotState = clean.length < 1 || spotSearch.query !== normalized
       ? ""
@@ -839,8 +860,10 @@ export function mountRavenOSShell(options = {}) {
     clearTimeout(spotSearchTimer);
     spotSearchController?.abort();
     spotSearchController = null;
-    const clean = query.trim().slice(0, 80);
-    const normalized = clean.toLowerCase();
+    const raw = query.trim().slice(0, 512);
+    const addressTerms = extractedMarketAddresses(raw);
+    const clean = addressTerms.length ? addressTerms.join(" ") : raw.slice(0, 96);
+    const normalized = raw.toLowerCase();
     if (clean.length < 1) {
       ++spotSearchGeneration;
       spotSearch = { query: "", rows: [], state: "idle", summary: "" };
@@ -854,7 +877,7 @@ export function mountRavenOSShell(options = {}) {
       spotSearchController = controller;
       const timeout = setTimeout(() => controller.abort(), 6_000);
       try {
-        const likelyContractAddress = /^0x[a-f0-9]{40}$/i.test(clean) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean);
+        const likelyContractAddress = addressTerms.length > 0;
         const spotApplicable = clean.length >= 2;
         const listedApplicable = !likelyContractAddress;
         const atlasApplicable = clean.length >= 2 && !likelyContractAddress;

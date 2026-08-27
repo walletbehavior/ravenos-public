@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 import { buildDiscoverRadarProjection } from "../../lib/discover_radar.mjs";
 
 import {
+  BNB_MEMESTOCK_CONTRACT,
+  BNB_MEMESTOCK_POOL,
   HYPERLIQUID_ACCOUNT_ADDRESS,
   hyperliquidAccountSnapshotFixture,
   mockTerminalLiveApis,
@@ -105,9 +107,14 @@ const spotAttentionRows = [
       buys_24h: 1_280,
       sells_24h: 520,
       traders_24h: 300,
+      buys_7d: 8_400,
+      sells_7d: 6_600,
+      traders_7d: 4_900,
       volume_usd_5m: 14_000,
       volume_usd_1h: 92_000,
       volume_usd_24h: 510_000,
+      volume_usd_7d: 5_000_000,
+      price_change_7d_pct: 80,
       liquidity_usd: 82_000,
       holder_count: 1_240,
       market_age_seconds: 7_200,
@@ -157,9 +164,14 @@ const spotAttentionRows = [
       buys_24h: 2_400,
       sells_24h: 1_100,
       traders_24h: 700,
+      buys_7d: 5_900,
+      sells_7d: 3_100,
+      traders_7d: 2_800,
       volume_usd_5m: 8_000,
       volume_usd_1h: 48_000,
       volume_usd_24h: 940_000,
+      volume_usd_7d: 2_000_000,
+      price_change_7d_pct: 100,
       liquidity_usd: 41_000,
       holder_count: 620,
       market_age_seconds: 18_000,
@@ -682,7 +694,12 @@ test("desktop adds an Intelligence index without crowding the four mobile worksp
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
-  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "AAtlas"]);
+  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "MMore"]);
+  await page.getByRole("button", { name: "More RavenOS destinations" }).click();
+  await expect(page.locator("#rosUtilityDrawer")).toBeVisible();
+  await expect(page.locator("#rosUtilityContent")).toContainText("Intelligence");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Atlas");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Recent & saved");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });
@@ -787,6 +804,7 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await mockTerminalLiveApis(page);
   await mockWorkspaceApis(page, {
     withSpot: true,
+    pulseRowsOverride: spotAttentionRows.map((row) => ({ ...row, source_type: "market_activity" })),
     spotSearchResults: [{
       ...resolvedPool,
       pairAddress: "66666666666666666666666666666666",
@@ -831,8 +849,9 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await spotFilter.click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity radar");
-  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "RH", "Base", "ETH"]);
+  await expect(page.locator("[data-spot-chain]")).toHaveText(["All", "Solana", "RH", "Base", "BNB", "ETH"]);
   await expect(page.locator("[data-spot-chain='robinhood']")).toHaveAttribute("aria-label", "Robinhood Chain");
+  await expect(page.locator("[data-spot-chain='bsc']")).toHaveAttribute("aria-label", "BNB Chain");
   await expect(page.locator("[data-spot-chain='ethereum']")).toHaveAttribute("aria-label", "Ethereum");
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
   await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
@@ -977,6 +996,7 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(2);
   await page.locator("[data-discover-filter='spot']").click();
+  await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
 
   await page.locator("[data-spot-chain='base']").click();
@@ -1081,6 +1101,8 @@ test("Discover keeps an absent chain compact and actionable instead of showing a
   await expect(page.locator("#discoverDesk")).toBeHidden();
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await empty.getByRole("button", { name: "Scan all chains" }).click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(2);
 });
 
@@ -1110,6 +1132,7 @@ test("Discover omits zero-activity pools and lets available anatomy fill the row
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(3);
   await page.locator("[data-discover-filter='spot']").click();
+  await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText("DORMANT");
 
@@ -1135,7 +1158,11 @@ test("Discover updates token facts without reordering the tape under an active s
   const retire = refreshed.census.spot_attention.rows[0];
   const bird = refreshed.census.spot_attention.rows[1];
   retire.market.price_change_5m_pct = 9.25;
-  retire.what_changed = "Price rose 9.25% in 5m. Buys led 70 to 29 · 78 active traders.";
+  retire.market.volume_usd_5m = 4_000;
+  retire.market.buys_5m = 8;
+  retire.market.sells_5m = 7;
+  retire.market.traders_5m = 14;
+  retire.what_changed = "Price rose 9.25% in 5m while transaction and participant rates decelerated.";
   bird.market.volume_usd_5m = 500_000;
   bird.market.liquidity_usd = 2_000_000;
   bird.market.buys_5m = 400;
@@ -1731,7 +1758,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
-  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Activity accelerating");
+  await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomySection")).not.toContainText(/Review unavailable|capability check|required/i);
 });
@@ -1857,6 +1884,37 @@ test("contract-address search resolves a provider-backed Robinhood Chain chart w
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("a pasted message resolves the exact BNB token and opens its provider-backed chart without implying execution", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await mockTerminalLiveApis(page);
+  await page.goto("/discover/");
+  await page.keyboard.press("Control+K");
+  const input = page.locator("#rosCommandInput");
+  await input.fill(`Can you check this BNB token? ${BNB_MEMESTOCK_CONTRACT} looks active.`);
+  const result = page.locator(".ros-command-result.instrument").filter({ hasText: "MEMESTOCK/GMEB" }).first();
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("Spot · BNB Chain");
+  await expect(result).toContainText("Exact pool");
+  await result.click();
+
+  await expect(page).toHaveURL(new RegExp(`instrument_id=bsc%3Apool%3A${BNB_MEMESTOCK_POOL}`, "i"));
+  await expect(page.locator("#terminalInstrument")).toHaveText("MEMESTOCK/GMEB");
+  await expect(page.locator("#terminalPickerMeta")).toContainText(`bsc:pool:${BNB_MEMESTOCK_POOL}`);
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · GMEB quote · \d+ candles · trading adapter not active/);
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+
+  await page.locator("#terminalChainCoverage > summary").click();
+  const coverage = page.locator("#terminalChainCoverageGrid");
+  await expect(coverage.locator("article")).toHaveCount(6);
+  await expect(coverage.locator("[data-chain='bsc']")).toContainText("BNB Chain");
+  await expect(coverage.locator("[data-chain='bsc']")).toContainText("exact chart · adapter queued · signing off");
+  await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
 });
 
 test("provider attribution stays visible and opens a bounded source ledger", async ({ page }) => {

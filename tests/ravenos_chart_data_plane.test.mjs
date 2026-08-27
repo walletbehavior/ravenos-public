@@ -9,6 +9,7 @@ import {
   PollingChartFeed,
   RAVENOS_CHART_CAPABILITY_REGISTRY,
   RAVENOS_CHART_CANDLE_SERIES_SCHEMA,
+  RAVENOS_TERMINAL_CHAIN_ROLLOUT,
   SharedChartSubscriptionHub,
   hyperliquidInterval,
   normalizeChartInstrument,
@@ -183,6 +184,14 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   assert.equal(listed.historical_candles_supported, false);
   assert.equal(listed.history_provider, null);
   assert.match(listed.refusal_reason, /commercial_public_display_rights/);
+  assert.deepEqual(RAVENOS_TERMINAL_CHAIN_ROLLOUT.current.map((row) => row.chain), ["hyperliquid", "solana", "bsc", "base", "ethereum", "robinhood"]);
+  assert.equal(RAVENOS_TERMINAL_CHAIN_ROLLOUT.current.every((row) => row.signing === false && row.submission === false), true);
+  assert.deepEqual(RAVENOS_TERMINAL_CHAIN_ROLLOUT.next_adapter_cohorts[0].chains, ["arbitrum", "polygon", "avalanche", "optimism"]);
+  assert.equal(RAVENOS_TERMINAL_CHAIN_ROLLOUT.long_tail_lookup.signing_never_inferred_from_lookup, true);
+  const longTail = resolveChartCapability({ market: "crypto_spot", chain: "arbitrum", instrumentType: "spot_pool", pairAddress: "0xPool", timeframe: "15m" });
+  assert.equal(longTail.discovery_supported, true);
+  assert.equal(longTail.chart_request_supported, false);
+  assert.equal(longTail.trading_state, "lookup_only");
 });
 
 test("on-chain provider selection is explicit and not inferred from a CoinGecko key", () => {
@@ -683,6 +692,113 @@ test("DexPaprika discovery resolves the supplied Robinhood Chain contract when D
     assert.equal(body.results[0].chart_coverage.state, "probe_required");
     assert.equal(body.results[0].chart_coverage.request_supported, true);
     assert.equal(body.results[0].chart_coverage.exact_market_verified, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BNB contract lookup preserves a searched quote-side token and exposes exact-pool chart capability", async () => {
+  const originalFetch = globalThis.fetch;
+  const tokenAddress = "0x6ff45323817d1d53bbb8a8dfba9245ae74057777";
+  const counterAddress = "0x46ceefda28dd7207059ed19b0acdc026955bb15c";
+  const pairAddress = "0x7bdc9582aca6ca25e5db1f2c8e59003b880672cb";
+  const pair = {
+    chainId: "bsc",
+    dexId: "pancakeswap",
+    pairAddress,
+    baseToken: { address: counterAddress, name: "GameStop", symbol: "GMEB" },
+    quoteToken: { address: tokenAddress, name: "memestock", symbol: "memestock" },
+    liquidity: { usd: 232_265 },
+    volume: { h24: 554_286 },
+    txns: { h24: { buys: 1_836, sells: 1_872 } },
+  };
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("api.dexpaprika.com/search")) return new Response(JSON.stringify({
+        tokens: [{ id: tokenAddress, name: "memestock", symbol: "memestock", chain: "bsc", price_usd: 0.0045, price_usd_change: 10.5 }],
+        pools: [{
+          id: pairAddress,
+          chain: "bsc",
+          dex_id: "pancakeswap_v2",
+          dex_name: "PancakeSwap V2",
+          created_at: "2026-08-12T13:45:20Z",
+          volume_usd: 554_286,
+          transactions: 3_708,
+          tokens: [
+            { id: counterAddress, name: "GameStop", symbol: "GMEB" },
+            { id: tokenAddress, name: "memestock", symbol: "memestock" },
+          ],
+        }],
+      }), { status: 200 });
+      if (url.includes("/latest/dex/pairs/")) return new Response(JSON.stringify({ pairs: [pair] }), { status: 200 });
+      if (url.includes("/latest/dex/search")) return new Response(JSON.stringify({ pairs: [pair] }), { status: 200 });
+      if (url.includes("/tokens/v1/bsc/")) return new Response(JSON.stringify([pair]), { status: 200 });
+      if (url.includes("/tokens/v1/")) return new Response(JSON.stringify([]), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].chainId, "bsc");
+    assert.equal(body.results[0].pairAddress, pairAddress);
+    assert.equal(body.results[0].tokenAddress, tokenAddress);
+    assert.equal(body.results[0].quoteTokenAddress, counterAddress);
+    assert.equal(body.results[0].symbol, "memestock");
+    assert.equal(body.results[0].quoteSymbol, "GMEB");
+    assert.equal(body.results[0].chart_coverage.state, "probe_required");
+    assert.equal(body.results[0].chart_coverage.request_supported, true);
+    assert.equal(RAVENOS_CHART_CAPABILITY_REGISTRY.onchain_networks.bsc.trading_state, "adapter_not_activated");
+
+    const pairResponse = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/pair?chainId=bsc&pairAddress=${pairAddress}&tokenAddress=${tokenAddress}`), {});
+    const pairBody = await pairResponse.json();
+    assert.equal(pairResponse.status, 200);
+    assert.equal(pairBody.results.length, 1);
+    assert.equal(pairBody.results[0].tokenAddress, tokenAddress);
+    assert.equal(pairBody.results[0].quoteTokenAddress, counterAddress);
+    assert.equal(pairBody.results[0].priceUsd, 0.0045);
+    assert.equal(pairBody.results[0].volume24h, 554_286);
+    assert.equal(pairBody.results[0].provider, "Dexscreener + DexPaprika");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pasted chat text extracts an exact BNB contract without treating surrounding words as selectors", async () => {
+  const originalFetch = globalThis.fetch;
+  const tokenAddress = "0x7ff45323817d1d53bbb8a8dfba9245ae74057777";
+  const pairAddress = "0x8bdc9582aca6ca25e5db1f2c8e59003b880672cb";
+  const searchedTerms = [];
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input?.url || input);
+      if (url.includes("api.dexpaprika.com/search")) {
+        searchedTerms.push(new URL(url).searchParams.get("query"));
+        return new Response(JSON.stringify({
+        pools: [{
+          id: pairAddress,
+          chain: "bsc",
+          dex_id: "pancakeswap_v2",
+          tokens: [
+            { id: "0x46ceefda28dd7207059ed19b0acdc026955bb15c", name: "GameStop", symbol: "GMEB" },
+            { id: tokenAddress, name: "memestock", symbol: "memestock" },
+          ],
+        }],
+        }), { status: 200 });
+      }
+      if (url.includes("/latest/dex/search")) searchedTerms.push(new URL(url).searchParams.get("q"));
+      if (url.includes("dexscreener.com")) return new Response(JSON.stringify(url.includes("/tokens/v1/") ? [] : { pairs: [] }), { status: 200 });
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const pasted = `Telegram call: BNB token ${tokenAddress} — do your own research`;
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${encodeURIComponent(pasted)}`), {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].tokenAddress, tokenAddress);
+    assert.equal(body.results[0].pairAddress, pairAddress);
+    assert.deepEqual([...new Set(searchedTerms)], [tokenAddress]);
   } finally {
     globalThis.fetch = originalFetch;
   }

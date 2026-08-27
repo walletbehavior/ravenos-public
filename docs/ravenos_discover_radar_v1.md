@@ -34,6 +34,10 @@ The public market contract keeps these dimensions separate:
 - `raven_evidence_state`
 - `velocity_state`
 - `activity_state`
+- `asset_taxonomy`
+- `opportunity_lane`
+- `sample_evidence`
+- `ranking`
 
 Only the primary behavioral state is mutually exclusive. Independently evidenced risk flags can coexist. A provider rank or Velocity score can never create a Raven signal.
 
@@ -53,11 +57,15 @@ Velocity and Flow quality are ranking scores on a 0–99 scale. They are not Rav
 
 Every score carries its kind, value, scale, grade, classifier version, observation time, freshness, availability, supported components, penalties, and any score cap. A missing or insufficient score is displayed as unavailable, never zero. Letter grades appear only in expanded evidence.
 
+Cross-cohort ordering remains server-derived. It combines behavioral strength with explicit sample maturity, evidence coverage, novelty, persistence, qualified exact-route usability, and risk penalties. Pool liquidity alone is not relabeled as route capacity, and absolute volume is never a tie-breaker. A strong move from a fragile four-transaction sample remains visibly fragile rather than being presented with the authority of a robust observation set.
+
+The default Opportunities lane removes known or reference-like majors, wrapped majors, stable assets, staking assets, and tokenized assets from the primary speculative queue. Those markets remain available under Majors, asset-class filters, Everything, and universal exact-market search. Unknown assets remain `speculative_or_unclassified`; RavenOS does not assert that every unknown token is a meme.
+
 ## Candidate admission and retention
 
 Admissions are deterministic and versioned. Supported lanes include Raven observations, bounded saved/monitored exact-market admissions, short-window anomalies, qualified migration evidence, breakout/continuation, pullback/absorption, capitulation/resurrection, renewed mature-market activity, and recently removed provider candidates.
 
-Provider trending is an input, not the registry. Pool age is a cohort feature, not an eligibility veto. Broad scans are bounded to four supported chains and three windows, with a fixed call budget, timeout, circuit breaker, cooldown, candidate ceiling, and retention policy.
+Provider trending is an input, not the registry. Pool age is a cohort feature, not an eligibility veto. Broad scans are bounded to five supported chains—Solana, Robinhood Chain, Base, BNB Chain, and Ethereum—and three windows, with a fixed call budget, timeout, circuit breaker, cooldown, candidate ceiling, and retention policy.
 
 ## Future-sealed evidence
 

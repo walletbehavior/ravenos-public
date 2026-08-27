@@ -96,6 +96,7 @@
             <button type="button" data-spot-chain="solana" aria-pressed="false">Solana</button>
             <button type="button" data-spot-chain="robinhood" aria-label="Robinhood Chain" title="Robinhood Chain" aria-pressed="false">RH</button>
             <button type="button" data-spot-chain="base" aria-pressed="false">Base</button>
+            <button type="button" data-spot-chain="bsc" aria-label="BNB Chain" title="BNB Chain" aria-pressed="false">BNB</button>
             <button type="button" data-spot-chain="ethereum" aria-label="Ethereum" title="Ethereum" aria-pressed="false">ETH</button>
           </div>
           <div class="discover-token-sort" role="group" aria-label="Token ranking">
@@ -111,6 +112,17 @@
         </div>
       </header>
       <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
+        <div class="discover-opportunity-lanes" role="group" aria-label="Opportunity lane">
+          <button class="active" type="button" data-spot-lane="opportunities" aria-pressed="true">Opportunities</button>
+          <button type="button" data-spot-lane="emerging_acceleration" aria-pressed="false">Emerging</button>
+          <button type="button" data-spot-lane="breakout_continuation" aria-pressed="false">Expansion</button>
+          <button type="button" data-spot-lane="absorption_accumulation" aria-pressed="false">Accumulation</button>
+          <button type="button" data-spot-lane="resurrection_reclaim" aria-pressed="false">Resurrection</button>
+          <button type="button" data-spot-lane="distribution_chase_risk" aria-pressed="false">Risk</button>
+          <button type="button" data-spot-lane="majors_wrapped" aria-pressed="false">Majors</button>
+          <button type="button" data-spot-lane="all" aria-pressed="false">Everything</button>
+        </div>
+        <label class="discover-changed-filter discover-changed-filter-prominent"><input id="discoverChangedFilter" type="checkbox" /> Changed since last read</label>
         <div class="discover-lifecycle-filters" role="group" aria-label="Market lifecycle cohort">
           <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
           <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
@@ -168,7 +180,17 @@
                 <option value="unavailable">Unavailable</option>
               </select>
             </label>
-            <label class="discover-changed-filter"><input id="discoverChangedFilter" type="checkbox" /> Changed this session / publication</label>
+            <label>Asset class
+              <select id="discoverAssetFilter">
+                <option value="all">All classifications</option>
+                <option value="speculative_or_unclassified">Opportunity set</option>
+                <option value="staking">Staking</option>
+                <option value="major">Majors</option>
+                <option value="wrapped_major">Wrapped majors</option>
+                <option value="stable">Stable assets</option>
+                <option value="tokenized_asset">Tokenized assets</option>
+              </select>
+            </label>
           </div>
         </details>
       </div>
