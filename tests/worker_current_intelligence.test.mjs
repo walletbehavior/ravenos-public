@@ -727,6 +727,54 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
 
+    manifest.endpoints.find((row) => row.key === "opportunities").payload_age_seconds = 5_000;
+    byPath["/public/ravenos/opportunities.json"] = projection(
+      "opportunities",
+      "ravenos_opportunity_census_public_origin_v1",
+      {
+        schema_version: "ravenos_opportunity_census_public_v1",
+        source_state: "delayed",
+        opportunities: {
+          rows: [{
+            public_opportunity_id: "rop_current_lane_fixture",
+            instrument_id: "hyperliquid:perp:SOL",
+            instrument: "SOL-PERP",
+            market_type: "perpetual",
+            context_state: "current",
+            observed_at: isoAgo(10),
+            research_only: true,
+            actionable: false,
+            execution_available: false,
+          }],
+        },
+      },
+      isoAgo(5_000),
+      3_600,
+    );
+    const recoveredLaneResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const recoveredLane = await recoveredLaneResponse.json();
+    const recoveredOpportunityHealth = recoveredLane.intelligence_freshness.core_endpoints
+      .find((row) => row.key === "opportunities");
+    assert.equal(recoveredLane.status, "ok");
+    assert.equal(recoveredLane.intelligence_freshness.state, "fresh");
+    assert.equal(recoveredLane.raven_read_health.state, "fresh");
+    assert.equal(recoveredOpportunityHealth.state, "fresh");
+    assert.equal(recoveredOpportunityHealth.projection_scope, "current_rows_only");
+    assert.equal(recoveredOpportunityHealth.aggregate_freshness_state, "stale");
+    assert.equal(recoveredOpportunityHealth.current_rows_only, true);
+    assert.equal(recoveredOpportunityHealth.stale_aggregate_counts_included, false);
+    assert.equal(recoveredOpportunityHealth.historical_context_substituted, false);
+
+    delete byPath["/public/ravenos/opportunities.json"];
+    const rejectedLaneResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const rejectedLane = await rejectedLaneResponse.json();
+    const rejectedOpportunityHealth = rejectedLane.intelligence_freshness.core_endpoints
+      .find((row) => row.key === "opportunities");
+    assert.equal(rejectedLane.status, "degraded");
+    assert.equal(rejectedOpportunityHealth.state, "stale");
+    assert.equal("projection_scope" in rejectedOpportunityHealth, false);
+    manifest.endpoints.find((row) => row.key === "opportunities").payload_age_seconds = 10;
+
     manifest.endpoints.find((row) => row.key === "atlas").payload_age_seconds = 1_900;
     const delayedAtlasResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
     const delayedAtlas = await delayedAtlasResponse.json();

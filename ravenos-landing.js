@@ -302,7 +302,7 @@ async function boot() {
       await loadChart(state.selected);
     },
   });
-  const [opportunityResult, marketResult, atlasResult, healthResult] = await Promise.allSettled([json("/api/opportunity"), json("/api/hyperliquid/perps"), json("/api/atlas"), json("/api/health")]);
+  const [opportunityResult, marketResult, atlasResult] = await Promise.allSettled([json("/api/opportunity"), json("/api/hyperliquid/perps"), json("/api/atlas")]);
   const marketPayload = marketResult.status === "fulfilled" && marketResult.value.response.ok ? marketResult.value.payload : null;
   const liveMarkets = validLiveMarkets(marketPayload) || [];
   for (const row of liveMarkets) state.markets.set(row.instrument_id, row);
@@ -313,8 +313,8 @@ async function boot() {
   renderOpportunityList(); renderAttentionBenchmark(opportunityPayload);
   setText("landingOpportunityCount", state.listMode === "raven" ? `${state.opportunities.length} current markets` : state.listMode === "market_facts" ? `${liveMarkets.length} live markets · Raven refreshing` : "Refreshing");
   const atlasPayload = atlasResult.status === "fulfilled" && atlasResult.value.response.ok ? atlasResult.value.payload : null; renderAtlas(validAtlas(atlasPayload), atlasPayload);
-  const health = healthResult.status === "fulfilled" && healthResult.value.response.ok ? healthResult.value.payload : null;
-  const marketState = health?.market_data_health?.state || (state.markets.size ? "live" : "waiting"); const intelligenceState = health?.intelligence_freshness?.state || (state.opportunities.length ? "fresh" : "waiting");
+  const marketState = state.markets.size ? "live" : "waiting";
+  const intelligenceState = state.opportunities.length ? "fresh" : "updating";
   const marketStateNode = document.getElementById("landingMarketState");
   setText("landingMarketState", `Market ${title(marketState)}`);
   marketStateNode.dataset.state = marketState;

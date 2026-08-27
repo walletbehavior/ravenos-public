@@ -4865,7 +4865,34 @@ async function handleHealth(request, env = {}) {
   const manifest = manifestResult.ok ? sanitizeOriginControlDocument("manifest", manifestResult.payload) : null;
   const projectionStatus = statusResult.ok ? sanitizeOriginControlDocument("status", statusResult.payload) : null;
   const terminalHealth = terminalHealthResult.ok ? sanitizeOriginControlDocument("terminal_health", terminalHealthResult.payload) : null;
-  const endpointHealth = (manifest?.endpoints || []).map(manifestEndpointHealth);
+  const aggregateEndpointHealth = (manifest?.endpoints || []).map(manifestEndpointHealth);
+  const aggregateOpportunityHealth = aggregateEndpointHealth.find((row) => row.key === "opportunities");
+  const opportunityResult = aggregateOpportunityHealth && aggregateOpportunityHealth.state !== "fresh"
+    ? await readPublicProjection(env, request, "opportunities").catch(() => ({
+      available: false,
+      payload: null,
+      delivery: { reason: "current_opportunity_health_check_failed" },
+    }))
+    : null;
+  const currentOpportunity = validateCurrentOpportunityProjection(opportunityResult);
+  const endpointHealth = aggregateEndpointHealth.map((row) => {
+    if (row.key !== "opportunities" || currentOpportunity.ok !== true) return row;
+    const delivery = currentOpportunity.delivery || {};
+    const ageSeconds = Number(delivery.age_seconds);
+    const targetSeconds = Number(delivery.freshness_target_seconds);
+    return {
+      key: "opportunities",
+      state: delivery.freshness_state === "fresh" ? "fresh" : row.state,
+      age_seconds: Number.isFinite(ageSeconds) ? ageSeconds : row.age_seconds,
+      freshness_target_seconds: Number.isFinite(targetSeconds) ? targetSeconds : row.freshness_target_seconds,
+      generated_at: delivery.source_generated_at || currentOpportunity.payload?.generated_at || row.generated_at,
+      projection_scope: currentOpportunity.projection_scope,
+      aggregate_freshness_state: row.state,
+      current_rows_only: currentOpportunity.projection_scope === "current_rows_only",
+      stale_aggregate_counts_included: false,
+      historical_context_substituted: false,
+    };
+  });
   const coreKeys = new Set(["brief", "replay", "outcomes", "memory", "behavior", "perps", "opportunities", "claims"]);
   const coreEndpointHealth = endpointHealth.filter((row) => coreKeys.has(row.key));
   const researchEndpoint = endpointHealth.find((row) => row.key === "research") || {
