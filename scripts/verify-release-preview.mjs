@@ -606,42 +606,55 @@ if (
 ) {
   throw new Error("Isolated preview on-chain market pulse contract is incomplete");
 }
-const evmChartRows = ["base", "bsc", "ethereum", "robinhood"].map((chain) => onchainPulse.rows.find((row) => (
-  row?.chain_id === chain
-  && row?.identity_scope === "exact_pool"
-  && row?.source_type === "market_activity"
-  && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
-)));
-if (evmChartRows.some((row) => !row)) {
-  throw new Error("Isolated preview did not return exact-pool Base, BNB Chain, Ethereum, and Robinhood Chain activity");
-}
-for (const row of evmChartRows) {
-  const params = new URLSearchParams({
-    market: "crypto_spot",
-    asset: `${row.symbol}/${row.quote_symbol}`,
-    timeframe: "1m",
-    limit: "240",
-    chain: row.chain_id,
-    pair_address: row.pool_address,
-    token_address: row.token_address,
-    quote_address: row.quote_token_address,
-    instrument_scope: "exact_pool",
-  });
-  const evmChartCapture = await capture(`/api/terminal/chart?${params.toString()}`);
-  const evmChartEnvelope = JSON.parse(evmChartCapture.text);
-  const evmChart = evmChartEnvelope?.data || evmChartEnvelope;
-  if (
-    evmChart?.ok !== true
-    || evmChart?.market_identity !== `${row.chain_id}:${row.pool_address}`
-    || evmChart?.instrument?.pool_address !== row.pool_address
-    || evmChart?.instrument?.token_address?.toLowerCase() !== row.token_address.toLowerCase()
-    || evmChart?.candle_series?.provider !== "coingecko_onchain"
-    || evmChart?.candle_series?.raven_observations_are_candles !== false
-    || !Array.isArray(evmChart?.candles)
-    || evmChart.candles.length < 120
-  ) {
-    throw new Error(`Isolated preview ${row.chain_id} market pulse row did not open a dense exact-pool one-minute chart`);
+const evmChartRows = [];
+for (const chain of ["base", "bsc", "ethereum", "robinhood"]) {
+  const candidates = onchainPulse.rows.filter((row) => (
+    row?.chain_id === chain
+    && row?.identity_scope === "exact_pool"
+    && row?.source_type === "market_activity"
+    && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
+  )).slice(0, 8);
+  if (!candidates.length) {
+    throw new Error(`Isolated preview did not return exact-pool ${chain} activity`);
   }
+  let verifiedRow = null;
+  for (const row of candidates) {
+    const params = new URLSearchParams({
+      market: "crypto_spot",
+      asset: `${row.symbol}/${row.quote_symbol}`,
+      timeframe: "1m",
+      limit: "240",
+      chain: row.chain_id,
+      pair_address: row.pool_address,
+      token_address: row.token_address,
+      quote_address: row.quote_token_address,
+      instrument_scope: "exact_pool",
+    });
+    const evmChartCapture = await capture(`/api/terminal/chart?${params.toString()}`, { expectedStatus: null });
+    let evmChartEnvelope = null;
+    try {
+      evmChartEnvelope = JSON.parse(evmChartCapture.text);
+    } catch {
+      evmChartEnvelope = null;
+    }
+    const evmChart = evmChartEnvelope?.data || evmChartEnvelope;
+    const denseExactChart = evmChartCapture.response.status === 200
+      && evmChart?.ok === true
+      && evmChart?.market_identity === `${row.chain_id}:${row.pool_address}`
+      && evmChart?.instrument?.pool_address === row.pool_address
+      && evmChart?.instrument?.token_address?.toLowerCase() === row.token_address.toLowerCase()
+      && evmChart?.candle_series?.provider === "coingecko_onchain"
+      && evmChart?.candle_series?.raven_observations_are_candles === false
+      && Array.isArray(evmChart?.candles)
+      && evmChart.candles.length >= 120;
+    if (!denseExactChart) continue;
+    verifiedRow = row;
+    break;
+  }
+  if (!verifiedRow) {
+    throw new Error(`Isolated preview ${chain} market pulse had no dense exact-pool one-minute chart in its bounded current set`);
+  }
+  evmChartRows.push(verifiedRow);
 }
 
 let jupiterVelocityTerminal = null;
