@@ -768,6 +768,7 @@ test("BNB contract lookup preserves a searched quote-side token and exposes exac
 test("pasted chat text extracts an exact BNB contract without treating surrounding words as selectors", async () => {
   const originalFetch = globalThis.fetch;
   const tokenAddress = "0x7ff45323817d1d53bbb8a8dfba9245ae74057777";
+  const counterAddress = "0x46ceefda28dd7207059ed19b0acdc026955bb15c";
   const pairAddress = "0x8bdc9582aca6ca25e5db1f2c8e59003b880672cb";
   const searchedTerms = [];
   try {
@@ -781,13 +782,26 @@ test("pasted chat text extracts an exact BNB contract without treating surroundi
           chain: "bsc",
           dex_id: "pancakeswap_v2",
           tokens: [
-            { id: "0x46ceefda28dd7207059ed19b0acdc026955bb15c", name: "GameStop", symbol: "GMEB" },
+            { id: counterAddress, name: "GameStop", symbol: "GMEB" },
             { id: tokenAddress, name: "memestock", symbol: "memestock" },
           ],
         }],
         }), { status: 200 });
       }
-      if (url.includes("/latest/dex/search")) searchedTerms.push(new URL(url).searchParams.get("q"));
+      if (url.includes("/latest/dex/search")) {
+        searchedTerms.push(new URL(url).searchParams.get("q"));
+        return new Response(JSON.stringify({ pairs: [{
+          chainId: "bsc",
+          dexId: "pancakeswap",
+          pairAddress,
+          baseToken: { address: counterAddress, name: "GameStop", symbol: "GMEB" },
+          quoteToken: { address: tokenAddress, name: "memestock", symbol: "memestock" },
+          priceUsd: null,
+          liquidity: null,
+          volume: { h24: 0 },
+          txns: { h24: { buys: 5, sells: 3 } },
+        }] }), { status: 200 });
+      }
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify(url.includes("/tokens/v1/") ? [] : { pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
@@ -800,7 +814,7 @@ test("pasted chat text extracts an exact BNB contract without treating surroundi
     assert.equal(body.results[0].pairAddress, pairAddress);
     assert.equal(body.results[0].liquidityUsd, null);
     assert.equal(body.results[0].volume24h, null);
-    assert.equal(body.results[0].txns24h, null);
+    assert.equal(body.results[0].txns24h, 8);
     assert.deepEqual([...new Set(searchedTerms)], [tokenAddress]);
   } finally {
     globalThis.fetch = originalFetch;

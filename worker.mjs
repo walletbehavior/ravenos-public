@@ -795,6 +795,13 @@ function normalizeDexPair(pair = {}, selectedTokenAddress = "") {
   const providerSells24h = optionalFiniteNumber(pair.txns?.h24?.sells);
   const buys24h = selectedIsQuote ? providerSells24h : providerBuys24h;
   const sells24h = selectedIsQuote ? providerBuys24h : providerSells24h;
+  const providerPriceUsd = optionalFiniteNumber(pair.priceUsd);
+  const liquidityUsd = optionalFiniteNumber(pair.liquidity?.usd);
+  const providerVolume24h = optionalFiniteNumber(pair.volume?.h24);
+  const txns24h = buys24h === null && sells24h === null ? null : (buys24h || 0) + (sells24h || 0);
+  const volume24h = providerVolume24h === 0 && txns24h > 0 && providerPriceUsd === null && liquidityUsd === null
+    ? null
+    : providerVolume24h;
   return {
     id: `${pair.chainId || "unknown"}:${pair.pairAddress || base.address || ""}`,
     chainId: pair.chainId || "unknown",
@@ -806,10 +813,10 @@ function normalizeDexPair(pair = {}, selectedTokenAddress = "") {
     name: base.name || base.symbol || "Unknown token",
     quoteSymbol: quote.symbol || "",
     quoteName: quote.name || quote.symbol || "",
-    priceUsd: selectedIsQuote ? null : optionalFiniteNumber(pair.priceUsd),
-    liquidityUsd: optionalFiniteNumber(pair.liquidity?.usd),
-    volume24h: optionalFiniteNumber(pair.volume?.h24),
-    txns24h: buys24h === null && sells24h === null ? null : (buys24h || 0) + (sells24h || 0),
+    priceUsd: selectedIsQuote ? null : providerPriceUsd,
+    liquidityUsd,
+    volume24h,
+    txns24h,
     buys24h,
     sells24h,
     marketCap: selectedIsQuote ? null : optionalFiniteNumber(pair.marketCap),
