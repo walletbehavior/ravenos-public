@@ -10,7 +10,18 @@ const state = {
   capabilities: new Map(),
   projections: new Map(),
   perpsFilters: { instrument_group: "", funding_regime: "", pressure_state: "", liquidity_quality: "" },
-  participantFilters: { chain: "", capitalization_band: "", window: "" },
+  participantFilters: {
+    query: "",
+    chain: "",
+    capitalization_band: "",
+    window: "",
+    participation_trend: "",
+    behavior_state: "",
+    average_outcome_classification: "",
+    confidence: "",
+    minimum_usable_sample: "",
+    sort: "usable_desc",
+  },
 };
 
 function text(value, fallback = "Unavailable") {
@@ -217,6 +228,32 @@ function filterSelect(label, key, values, selected, onChange) {
   return wrapper;
 }
 
+function filterInput(label, key, value, placeholder, onInput) {
+  const wrapper = node("label");
+  wrapper.append(node("span", "", label));
+  const input = node("input");
+  input.type = "search";
+  input.dataset.filter = key;
+  input.value = value || "";
+  input.placeholder = placeholder;
+  input.autocomplete = "off";
+  input.addEventListener("input", () => onInput(input.value.slice(0, 80)));
+  wrapper.append(input);
+  return wrapper;
+}
+
+function choiceSelect(label, key, choices, selected, onChange) {
+  const wrapper = node("label");
+  wrapper.append(node("span", "", label));
+  const select = node("select");
+  select.dataset.filter = key;
+  for (const choice of choices) select.append(new Option(choice.label, choice.value));
+  select.value = selected || choices[0]?.value || "";
+  select.addEventListener("change", () => onChange(select.value));
+  wrapper.append(select);
+  return wrapper;
+}
+
 function renderPerpsFilters(projection) {
   const host = document.getElementById("proPerpsFilters");
   const filters = projection.advanced.filters || {};
@@ -304,25 +341,81 @@ function renderParticipantFilters(projection) {
   const host = document.getElementById("proParticipantFilters");
   const filters = projection.advanced.filters || {};
   host.replaceChildren(
+    filterInput("Search cohorts", "query", state.participantFilters.query, "chain, cohort, behavior…", (value) => { state.participantFilters.query = value; renderParticipantProjection(projection, { refreshFilters: false }); }),
     filterSelect("Chain", "chain", filters.chains, state.participantFilters.chain, (value) => { state.participantFilters.chain = value; renderParticipantProjection(projection); }),
     filterSelect("Capitalization", "capitalization_band", filters.capitalization_bands, state.participantFilters.capitalization_band, (value) => { state.participantFilters.capitalization_band = value; renderParticipantProjection(projection); }),
     filterSelect("Window", "window", filters.windows, state.participantFilters.window, (value) => { state.participantFilters.window = value; renderParticipantProjection(projection); }),
+    filterSelect("Participation", "participation_trend", filters.participation_trends, state.participantFilters.participation_trend, (value) => { state.participantFilters.participation_trend = value; renderParticipantProjection(projection); }),
+    filterSelect("Behavior", "behavior_state", filters.behavior_states, state.participantFilters.behavior_state, (value) => { state.participantFilters.behavior_state = value; renderParticipantProjection(projection); }),
+    filterSelect("Outcome", "average_outcome_classification", filters.outcome_classes, state.participantFilters.average_outcome_classification, (value) => { state.participantFilters.average_outcome_classification = value; renderParticipantProjection(projection); }),
+    filterSelect("Confidence", "confidence", filters.confidences, state.participantFilters.confidence, (value) => { state.participantFilters.confidence = value; renderParticipantProjection(projection); }),
+    choiceSelect("Minimum usable sample", "minimum_usable_sample", [
+      { label: "Any sample", value: "" },
+      { label: "25+ usable", value: "25" },
+      { label: "50+ usable", value: "50" },
+      { label: "100+ usable", value: "100" },
+    ], state.participantFilters.minimum_usable_sample, (value) => { state.participantFilters.minimum_usable_sample = value; renderParticipantProjection(projection); }),
+    choiceSelect("Sort", "sort", [
+      { label: "Largest usable sample", value: "usable_desc" },
+      { label: "Highest outcome score", value: "outcome_desc" },
+      { label: "Highest success rate", value: "success_desc" },
+      { label: "Chain and cohort", value: "cohort_asc" },
+    ], state.participantFilters.sort, (value) => { state.participantFilters.sort = value; renderParticipantProjection(projection); }),
   );
 }
 
-function renderParticipantProjection(projection) {
-  renderParticipantFilters(projection);
-  const rows = filterRows(projection.advanced.condition_matrix, state.participantFilters, {});
+function participantRows(projection) {
+  const filters = state.participantFilters;
+  const queryTokens = String(filters.query || "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
+  const minimumUsable = Math.max(0, Number(filters.minimum_usable_sample) || 0);
+  const exactFilters = {
+    chain: filters.chain,
+    capitalization_band: filters.capitalization_band,
+    window: filters.window,
+    participation_trend: filters.participation_trend,
+    behavior_state: filters.behavior_state,
+    average_outcome_classification: filters.average_outcome_classification,
+    confidence: filters.confidence,
+  };
+  const rows = filterRows(projection.advanced.condition_matrix, exactFilters, {}).filter((row) => {
+    if ((finite(row.sample_integrity?.usable) || 0) < minimumUsable) return false;
+    if (!queryTokens.length) return true;
+    const haystack = [
+      row.cohort_id,
+      row.chain,
+      row.capitalization_band,
+      row.window,
+      row.participation_trend,
+      row.behavior_state,
+      row.average_outcome_classification,
+      row.outcome_context,
+      ...(Array.isArray(row.search_terms) ? row.search_terms : []),
+    ].join(" ").toLowerCase();
+    return queryTokens.every((token) => haystack.includes(token));
+  });
+  const sorters = {
+    outcome_desc: (left, right) => (finite(right.outcome_score) ?? -1) - (finite(left.outcome_score) ?? -1),
+    success_desc: (left, right) => (finite(right.participant_success_rate) ?? -1) - (finite(left.participant_success_rate) ?? -1),
+    cohort_asc: (left, right) => String(left.cohort_id || "").localeCompare(String(right.cohort_id || "")),
+    usable_desc: (left, right) => (finite(right.sample_integrity?.usable) ?? -1) - (finite(left.sample_integrity?.usable) ?? -1),
+  };
+  return rows.sort(sorters[filters.sort] || sorters.usable_desc);
+}
+
+function renderParticipantProjection(projection, { refreshFilters = true } = {}) {
+  if (refreshFilters) renderParticipantFilters(projection);
+  const rows = participantRows(projection);
   const host = document.getElementById("proParticipantsContent");
-  host.replaceChildren(table("Complete aggregate condition matrix", "Aggregate behavior only. Sample counts and excluded-sample detail stay attached to every row.", [
-    { label: "Condition", value: (row) => `${readable(row.chain)} · ${readable(row.capitalization_band)}` },
+  host.replaceChildren(table("Behavior cohort relationships", "Searchable aggregate Raven conditions with observed forward outcomes, denominators, and exclusions attached.", [
+    { label: "Cohort", value: (row) => `${readable(row.chain)} · ${readable(row.capitalization_band)}` },
     { label: "Window", value: (row) => text(row.window) },
-    { label: "Trend", value: (row) => readable(row.participation_trend) },
+    { label: "Participation", value: (row) => readable(row.participation_trend) },
+    { label: "Observed association", value: (row) => `${readable(row.behavior_state)} · ${readable(row.association_direction)}` },
     { label: "Success rate", value: (row) => finite(row.participant_success_rate) === null ? "—" : `${(Number(row.participant_success_rate) * 100).toFixed(1)}%` },
-    { label: "Win-rate band", value: (row) => readable(row.win_rate_band) },
-    { label: "Outcome", value: (row) => `${readable(row.outcome_strength)} · ${readable(row.average_outcome_classification)}` },
-    { label: "Confidence / score", value: (row) => `${readable(row.confidence)} / ${readable(row.score_strength)}` },
+    { label: "Forward outcome", value: (row) => `${readable(row.outcome_strength)} · ${readable(row.average_outcome_classification)}${finite(row.outcome_score) === null ? "" : ` · score ${Number(row.outcome_score).toFixed(3)}`}` },
+    { label: "Confidence", value: (row) => `${readable(row.confidence)} · ${readable(row.score_strength)}` },
     { label: "Sample integrity", value: (row) => `${compact(row.sample_integrity?.usable)} usable / ${compact(row.sample_integrity?.observed)} observed / ${compact(row.sample_integrity?.excluded_or_unusable)} excluded` },
+    { label: "Association read", value: (row) => text(row.outcome_context) },
   ], rows));
 }
 

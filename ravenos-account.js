@@ -16,7 +16,7 @@ const state = { config: null, session: null, csrf: "", intent: "sign_up", previe
 
 const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
-  "intelligence.participant_advanced": Object.freeze({ label: "Advanced Participant Intelligence", route: "/api/v1/intelligence/participants" }),
+  "intelligence.participant_advanced": Object.freeze({ label: "Behavior Lab", route: "/api/v1/intelligence/participants" }),
 });
 
 async function getJson(url, init = {}) {

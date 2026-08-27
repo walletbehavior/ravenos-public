@@ -61,6 +61,9 @@ const spotTokenAddress = "11111111111111111111111111111111";
 const spotPoolAddress = "22222222222222222222222222222222";
 const spotTokenOnlyAddress = "33333333333333333333333333333333";
 const spotTokenOnlyPoolAddress = "44444444444444444444444444444444";
+const bitcatPoolAddress = "3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj";
+const bitcatTokenAddress = "EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump";
+const wrappedSolAddress = "So11111111111111111111111111111111111111112";
 const basePulsePool = "0x1111111111111111111111111111111111111111";
 const basePulseToken = "0x2222222222222222222222222222222222222222";
 const basePulseQuote = "0x3333333333333333333333333333333333333333";
@@ -1826,6 +1829,47 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomySection")).not.toContainText(/Review unavailable|capability check|required/i);
+});
+
+test("a copied BITCAT pool address round-trips through universal search to the same exact pool", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await mockTerminalLiveApis(page);
+  await page.unroute("**/api/dexscreener/search**");
+  await page.unroute("**/api/dexscreener/pair**");
+  const bitcatResponse = {
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      results: [{
+        chainId: "solana",
+        dexId: "pumpswap",
+        pairAddress: bitcatPoolAddress,
+        tokenAddress: bitcatTokenAddress,
+        quoteTokenAddress: wrappedSolAddress,
+        symbol: "BITCAT",
+        name: "bitcat",
+        quoteSymbol: "SOL",
+        priceUsd: 0.0005663,
+        liquidityUsd: 64_600,
+        volume24h: 208_000,
+        input_match: "pool_address",
+        chart_coverage: { schema_version: "ravenos.search_chart_coverage.v1", state: "probe_required", request_supported: true, provider_id: "dexpaprika" },
+      }],
+    }),
+  };
+  await page.route("**/api/dexscreener/search**", (route) => route.fulfill(bitcatResponse));
+  await page.route("**/api/dexscreener/pair**", (route) => route.fulfill(bitcatResponse));
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill(bitcatPoolAddress);
+  const result = page.locator(".ros-command-result.instrument").filter({ hasText: "BITCAT/SOL" });
+  await expect(result).toHaveCount(1);
+  await expect(result).toContainText("Pool address resolved");
+  await result.click();
+  await expect(page).toHaveURL(new RegExp(`instrument_id=solana%3Apool%3A${bitcatPoolAddress}`));
+  await expect(page.locator("#terminalPickerMeta")).toHaveText(`solana:pool:${bitcatPoolAddress}`);
+  await expect(page.locator("#terminalInstrument")).toHaveText("BITCAT/SOL");
 });
 
 test("token-name search ranks chartable active pools ahead of unsupported inactive listings", async ({ page }) => {

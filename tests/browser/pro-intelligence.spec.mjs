@@ -131,6 +131,12 @@ function participantRow(chain, cap, overrides = {}) {
     observed_sample: 52,
     usable_sample: 44,
     interpretation: "Aggregate participation is expanding.",
+    cohort_id: `${String(chain).replace(/[^a-z0-9_-]/gi, "_").toLowerCase()}_${cap}_4h`,
+    behavior_state: "participation rewarding",
+    association_direction: "favorable",
+    association_method: "descriptive_forward_outcome_association",
+    outcome_score: 0.616,
+    search_terms: [String(chain).toLowerCase(), cap, "expanding", "participation rewarding"],
     participant_success_rate: 0.613,
     win_rate_band: "55-65%",
     confidence: "qualified",
@@ -170,6 +176,10 @@ function proParticipantsPayload() {
           chains: ["solana", "base", "ethereum"],
           capitalization_bands: ["micro", "mid", "large"],
           windows: ["1h", "4h"],
+          participation_trends: ["expanding", "selective"],
+          behavior_states: ["participation rewarding"],
+          outcome_classes: ["positive"],
+          confidences: ["qualified"],
         },
       },
     },
@@ -240,14 +250,19 @@ test("active owner-resolved capabilities render bounded private Perps and Partic
   const mainTab = page.getByRole("tab", { name: "Perps Intelligence" });
   await mainTab.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "Participant Intelligence" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#proParticipantsContent")).toContainText(/61\.3%.*55-65%.*44 usable \/ 52 observed \/ 8 excluded/s);
+  await expect(page.getByRole("tab", { name: "Behavior Lab" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#proParticipantsProjection")).toContainText("not causal claims or calibrated probabilities");
+  await expect(page.locator("#proParticipantsContent")).toContainText(/Participation Rewarding.*Favorable.*61\.3%.*score 0\.616.*44 usable \/ 52 observed \/ 8 excluded/s);
   await expect(page.locator("#proParticipantsContent img, #proParticipantsContent script")).toHaveCount(0);
   expect(await page.evaluate(() => window.__proExecuted === true)).toBe(false);
 
   await page.locator('#proParticipantFilters select[data-filter="chain"]').selectOption("solana");
   await expect(page.locator("#proParticipantsContent tbody tr")).toHaveCount(1);
   await expect(page.locator("#proParticipantsContent")).toContainText("Solana · Micro");
+  await page.locator('#proParticipantFilters select[data-filter="chain"]').selectOption("");
+  await page.locator('#proParticipantFilters input[data-filter="query"]').fill("ethereum large");
+  await expect(page.locator("#proParticipantsContent tbody tr")).toHaveCount(1);
+  await expect(page.locator("#proParticipantsContent")).toContainText("Ethereum · Large");
   expect(requested.sort()).toEqual(["participants", "perps"]);
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
@@ -294,6 +309,32 @@ test("denied grant lifecycle states stay explicit and never request private data
     await expect(page.locator("#proWorkspaceState")).toHaveText("Pro access not available");
   }
   expect(projectionRequests).toBe(0);
+});
+
+test("Behavior Lab cohort search stays usable and contained at 390px", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await routeAuth(page, baseURL);
+  await page.route("**/api/v1/entitlements", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(entitlementPayload([
+      capability("intelligence.perps_advanced", "not_granted", false),
+      capability("intelligence.participant_advanced"),
+    ])),
+  }));
+  await page.route("**/api/v1/intelligence/perps", (route) => route.fulfill({ status: 500, body: "must not request" }));
+  await page.route("**/api/v1/intelligence/participants", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(proParticipantsPayload()) }));
+
+  await page.goto("/account/intelligence/?view=participants");
+  await expect(page.getByRole("tab", { name: "Behavior Lab" })).toHaveAttribute("aria-selected", "true");
+  await page.locator('#proParticipantFilters input[data-filter="query"]').fill("ethereum large");
+  await expect(page.locator("#proParticipantsContent tbody tr")).toHaveCount(1);
+  await expect(page.locator("#proParticipantsContent")).toContainText("Ethereum · Large");
+  await expect(page.locator("#proParticipantsProjection")).toContainText("not causal claims or calibrated probabilities");
+  const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const workspaceOverflow = await page.locator("#proWorkspace").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(documentOverflow).toBeLessThanOrEqual(2);
+  expect(workspaceOverflow).toBeLessThanOrEqual(2);
 });
 
 test("Pro workspace stays readable and contained at 390px without exposing execution or Atlas data", async ({ page, baseURL }) => {

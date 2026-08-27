@@ -32,6 +32,8 @@ const env = {
   RAVENOS_PUBLIC_ORIGIN_TOKEN: "worker-response-validation-token",
   RAVENOS_SPOT_CHART_ORIGIN_URL: "https://validation-origin.example/public/ravenos/chart.json",
   RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "worker-response-validation-token",
+  RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: "1",
+  RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL: "https://validation-solana-rpc.example/rpc",
 };
 const checks = [
   ["GET", "/api/health"],
@@ -51,6 +53,7 @@ const checks = [
   ["GET", "/api/instruments/search?q=AAPL"],
   ["GET", "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m"],
   ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
+  ["GET", "/api/onchain/holders?chain=solana&pair_address=3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj&token_address=EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump&quote_address=So11111111111111111111111111111111111111112"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],
   ["GET", "/api/terminal"],
@@ -101,6 +104,12 @@ const checks = [
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input?.url || input);
+  if (url === "https://validation-solana-rpc.example/rpc") {
+    const rpc = JSON.parse(init.body || "{}");
+    if (rpc.method === "getTokenLargestAccounts") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 42 }, value: [{ address: "SysvarRent111111111111111111111111111111111", amount: "125000000", decimals: 6, uiAmountString: "125" }] } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (rpc.method === "getTokenSupply") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 42 }, value: { amount: "1000000000", decimals: 6, uiAmountString: "1000" } } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (rpc.method === "getMultipleAccounts") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 43 }, value: [{ data: { program: "spl-token", parsed: { info: { mint: "EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump", owner: "Stake11111111111111111111111111111111111111", tokenAmount: { amount: "125000000", decimals: 6, uiAmountString: "125" } }, type: "account" }, space: 165 } }] } }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.includes("validation-origin.example/public/ravenos/chart.json")) {
     const now = Math.floor(Date.now() / 900_000) * 900;
     return new Response(JSON.stringify({
@@ -232,6 +241,16 @@ globalThis.fetch = async (input, init = {}) => {
     return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: rows } } }), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (url.includes("api.dexscreener.com")) {
+    if (url.includes("/latest/dex/pairs/solana/3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj")) {
+      return new Response(JSON.stringify({ pairs: [{
+        chainId: "solana",
+        dexId: "pumpswap",
+        pairAddress: "3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj",
+        baseToken: { address: "EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump", name: "bitcat", symbol: "BITCAT" },
+        quoteToken: { address: "So11111111111111111111111111111111111111112", name: "Wrapped SOL", symbol: "SOL" },
+        liquidity: { usd: 64_000 },
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/tokens/v1/")) {
       return new Response(JSON.stringify([{
         chainId: "solana",

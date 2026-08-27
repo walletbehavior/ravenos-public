@@ -278,9 +278,16 @@ test("Participant free and Pro projections retain aggregate denominators while w
   assert(proA.advanced.condition_matrix.length <= CustomerIntelligenceProjectionContract.pro_limits.participant_conditions);
   assert.deepEqual(Object.keys(proA.advanced.condition_matrix[0]).sort(), [...CustomerIntelligenceProjectionContract.pro_field_contracts.participant_condition].sort());
   assert(proA.advanced.condition_matrix.every((row) => row.sample_integrity.observed >= row.sample_integrity.usable));
+  assert(proA.advanced.condition_matrix.every((row) => row.association_method === "descriptive_forward_outcome_association"));
+  assert(proA.advanced.condition_matrix.every((row) => ["favorable", "mixed", "unfavorable"].includes(row.association_direction)));
+  assert(proA.advanced.condition_matrix.every((row) => Array.isArray(row.search_terms) && row.search_terms.length <= 20));
+  assert(proA.advanced.filters.behavior_states.length > 0);
+  assert(proA.advanced.filters.participation_trends.length > 0);
   assert.equal(proA.limitations.aggregation, "aggregate_conditions_only");
   assert.equal(proA.limitations.wallet_identity, "not_included");
   assert.equal(proA.limitations.smart_money_ranking, "not_included");
+  assert.equal(proA.limitations.causality, "not_established_by_descriptive_associations");
+  assert.equal(proA.limitations.calibrated_probability, "not_claimed");
   assert.equal(proA.provenance.participant_identity_included, false);
   const participantCopy = JSON.stringify(proA);
   assert(!/jupiter[ _-]+velocity/i.test(participantCopy), "internal participant-lane labels must not reach customers");

@@ -160,6 +160,25 @@
     "atlas_display_rights_override_available": false,
     "production_activation_completed": false
   },
+  "public_holder_lists": {
+    "implementation_status": "local_provider_gated_candidate",
+    "surface": "https://ravenos.xyz/terminal/",
+    "route": "GET /api/onchain/holders",
+    "authenticated_origin_only": false,
+    "free_tier_capability": true,
+    "exact_pool_and_mint_identity_required": true,
+    "supported_chains": ["solana"],
+    "maximum_source_token_accounts": 20,
+    "complete_holder_census_claimed": false,
+    "raw_rpc_payload_returned": false,
+    "wallet_labels_inferred": false,
+    "private_rpc_fallback_allowed": false,
+    "activation_controls": [
+      "RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED",
+      "RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"
+    ],
+    "production_activation_completed": false
+  },
   "operator_solana_canary": {
     "implementation_status": "operator_unsigned_mainnet_preflight",
     "surface": "operator_cli_only",

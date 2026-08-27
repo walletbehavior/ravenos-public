@@ -59,6 +59,9 @@ const state = {
   paneScrollPositions: {},
   selectedMarker: null,
   planQualificationIssue: "unavailable",
+  holderListGeneration: 0,
+  holderListCache: new Map(),
+  holderListLoadingKey: "",
 };
 
 function renderLaunchBadge() {
@@ -1798,6 +1801,190 @@ function safeProfileLink(value) {
   }
 }
 
+const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+function currentHolderIdentity() {
+  if (state.lane !== "spot" || String(state.selected?.chainId || "").toLowerCase() !== "solana") return null;
+  const poolAddress = String(state.selected?.pairAddress || "").trim();
+  const tokenAddress = String(state.selected?.tokenAddress || "").trim();
+  const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
+  if (!poolAddress || !tokenAddress) return null;
+  return {
+    key: `solana:${poolAddress}:${tokenAddress}`,
+    chain: "solana",
+    pool_address: poolAddress,
+    token_address: tokenAddress,
+    quote_address: quoteAddress,
+  };
+}
+
+function compactHolderAddress(value) {
+  const address = String(value || "");
+  return address.length > 15 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+}
+
+function holderBalanceLabel(value) {
+  const clean = String(value ?? "").trim();
+  const number = Number(clean);
+  if (clean && Number.isFinite(number) && Math.abs(number) < 1e15) {
+    return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 3 }).format(number);
+  }
+  return clean || "—";
+}
+
+function verifiedHolderProjection(payload, identity) {
+  if (
+    payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== "ravenos.onchain_holder_list.v1"
+    || payload?.state !== "available"
+    || payload?.identity?.chain !== "solana"
+    || payload.identity.pool_address !== identity.pool_address
+    || payload.identity.token_address !== identity.token_address
+    || !Array.isArray(payload.holders)
+    || payload.holders.length > 20
+    || payload?.coverage?.complete_holder_census !== false
+  ) return null;
+  const holders = payload.holders.filter((row) => (
+    Number.isInteger(row?.rank)
+    && row.rank >= 1
+    && SOLANA_DISPLAY_ADDRESS_RE.test(String(row?.holder_address || ""))
+    && typeof row?.balance === "string"
+    && finite(row?.supply_share_pct) !== null
+    && finite(row.supply_share_pct) >= 0
+    && finite(row.supply_share_pct) <= 100
+    && ["owner", "token_account", "exact_pool_account"].includes(row?.classification)
+  ));
+  if (holders.length !== payload.holders.length) return null;
+  return { ...payload, holders };
+}
+
+function renderHolderListMessage(message) {
+  const host = document.getElementById("terminalHolderListRows");
+  if (!host) return;
+  host.replaceChildren();
+  const paragraph = document.createElement("p");
+  paragraph.className = "terminal-holder-list-message";
+  paragraph.textContent = message;
+  host.append(paragraph);
+}
+
+function renderHolderListProjection(payload) {
+  const host = document.getElementById("terminalHolderListRows");
+  if (!host) return;
+  host.replaceChildren();
+  for (const row of payload.holders) {
+    const item = document.createElement("article");
+    item.className = "terminal-holder-row";
+    item.dataset.classification = row.classification;
+    const rank = document.createElement("span");
+    rank.className = "terminal-holder-rank";
+    rank.textContent = `#${row.rank}`;
+    const identity = document.createElement("div");
+    const address = document.createElement("a");
+    address.href = `https://solscan.io/account/${row.holder_address}`;
+    address.target = "_blank";
+    address.rel = "noopener noreferrer nofollow";
+    address.textContent = compactHolderAddress(row.holder_address);
+    address.title = row.holder_address;
+    const classification = document.createElement("small");
+    classification.textContent = row.classification === "exact_pool_account"
+      ? "Exact pool account · excluded from wallet concentration"
+      : row.classification === "owner"
+        ? row.token_account_count > 1 ? `${row.token_account_count} top token accounts · same owner` : "On-chain owner"
+        : "Token account · owner unresolved";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Copy";
+    copy.setAttribute("aria-label", `Copy holder ${row.rank} address`);
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(row.holder_address);
+        copy.textContent = "Copied";
+        setTimeout(() => { copy.textContent = "Copy"; }, 1_200);
+      } catch {
+        copy.textContent = "Copy failed";
+      }
+    });
+    identity.append(address, classification, copy);
+    const balance = document.createElement("strong");
+    balance.textContent = holderBalanceLabel(row.balance);
+    balance.title = row.balance;
+    const share = document.createElement("strong");
+    share.textContent = profilePercent(row.supply_share_pct) || "—";
+    item.append(rank, identity, balance, share);
+    host.append(item);
+  }
+  setText("terminalHolderListState", `${payload.holders.length} owners`);
+  const observed = timestamp(payload.observed_at);
+  setText("terminalHolderListNote", `Largest 20 token accounts, grouped by owner when available · not a complete holder census · ${observed}.`);
+}
+
+function renderHolderListSurface() {
+  const details = document.getElementById("terminalHolderList");
+  if (!details) return;
+  const identity = currentHolderIdentity();
+  details.hidden = !identity;
+  if (!identity) {
+    details.dataset.identityKey = "";
+    return;
+  }
+  const changed = details.dataset.identityKey !== identity.key;
+  details.dataset.identityKey = identity.key;
+  const cached = state.holderListCache.get(identity.key);
+  if (cached) renderHolderListProjection(cached);
+  else if (state.holderListLoadingKey === identity.key) {
+    setText("terminalHolderListState", "Loading");
+    setText("terminalHolderListNote", "Reading the largest on-chain token accounts for this exact token.");
+    renderHolderListMessage("Loading top holders…");
+  } else {
+    setText("terminalHolderListState", "View list");
+    setText("terminalHolderListNote", "Ranked on-chain owners for this exact token.");
+    renderHolderListMessage("Open this section to load the current holder list.");
+  }
+  if (changed && details.open && !cached) void loadHolderList();
+}
+
+async function loadHolderList() {
+  const identity = currentHolderIdentity();
+  if (!identity || state.holderListLoadingKey === identity.key) return;
+  const cached = state.holderListCache.get(identity.key);
+  if (cached) {
+    renderHolderListProjection(cached);
+    return;
+  }
+  const generation = ++state.holderListGeneration;
+  state.holderListLoadingKey = identity.key;
+  renderHolderListSurface();
+  const params = new URLSearchParams({
+    chain: identity.chain,
+    pair_address: identity.pool_address,
+    token_address: identity.token_address,
+  });
+  if (identity.quote_address) params.set("quote_address", identity.quote_address);
+  try {
+    const { response, payload } = await fetchJson(`/api/onchain/holders?${params.toString()}`);
+    if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
+    const verified = response.ok ? verifiedHolderProjection(payload, identity) : null;
+    if (!verified) {
+      setText("terminalHolderListState", "Unavailable");
+      setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
+      renderHolderListMessage("The exact holder list could not be verified, so RavenOS did not show partial or substituted accounts.");
+      return;
+    }
+    state.holderListCache.set(identity.key, verified);
+    if (state.holderListCache.size > 24) state.holderListCache.delete(state.holderListCache.keys().next().value);
+    renderHolderListProjection(verified);
+  } catch {
+    if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
+    setText("terminalHolderListState", "Unavailable");
+    setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
+    renderHolderListMessage("The exact holder list could not be loaded. No substitute market was used.");
+  } finally {
+    if (state.holderListLoadingKey === identity.key) state.holderListLoadingKey = "";
+  }
+}
+
 function setInstrumentImage(value) {
   const image = document.getElementById("terminalInstrumentImage");
   const root = image?.closest(".terminal-instrument");
@@ -1822,6 +2009,7 @@ function setInstrumentImage(value) {
 }
 
 function renderSpotMarketProfile(anatomy = {}) {
+  renderHolderListSurface();
   const distributionRoot = document.getElementById("terminalHolderMap");
   const bar = document.getElementById("terminalHolderBar");
   const facts = document.getElementById("terminalProfileFacts");
@@ -3991,7 +4179,8 @@ function createSpotResult(row, index) {
   const coverage = row.chart_coverage || {};
   const chartLabel = coverage.request_supported ? "chart check on open" : "chart unavailable";
   const providerLabel = coverage.provider_id ? ` · ${String(coverage.provider_id).replace("_onchain", "")}` : "";
-  venue.textContent = `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}${providerLabel} · ${chartLabel}`;
+  const matchLabel = row.input_match === "pool_address" ? "exact pool address · " : "";
+  venue.textContent = `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}${providerLabel} · ${matchLabel}${chartLabel}`;
   const liquidity = document.createElement("span");
   liquidity.textContent = `Liquidity ${compact(row.liquidityUsd, { currency: true })}`;
   const price = document.createElement("small");
@@ -4588,6 +4777,9 @@ function bindControls() {
     if (!event.target.closest("#terminalSpotControl, #terminalSpotResults")) document.getElementById("terminalSpotResults").hidden = true;
   });
   document.getElementById("terminalMarkerClose")?.addEventListener("click", clearMarkerInspection);
+  document.getElementById("terminalHolderList")?.addEventListener("toggle", (event) => {
+    if (event.currentTarget.open) void loadHolderList();
+  });
   document.getElementById("terminalChartMarkerClose")?.addEventListener("click", clearMarkerInspection);
   document.getElementById("terminalChartMarkerEvidence")?.addEventListener("click", showFullMarkerEvidence);
   document.getElementById("terminalPreviewLong")?.addEventListener("click", () => setMarketPreviewSide("long", { refresh: true }));

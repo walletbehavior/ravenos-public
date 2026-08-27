@@ -427,6 +427,7 @@ export async function mockTerminalLiveApis(page, {
   includeContextPressureOverlay = false,
 } = {}) {
   const calls = [];
+  const holderCalls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
     status: 200,
@@ -467,6 +468,33 @@ export async function mockTerminalLiveApis(page, {
       });
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
+  });
+  await page.route("**/api/onchain/holders**", (route) => {
+    const url = new URL(route.request().url());
+    const poolAddress = url.searchParams.get("pair_address");
+    const tokenAddress = url.searchParams.get("token_address");
+    const quoteAddress = url.searchParams.get("quote_address");
+    holderCalls.push({ poolAddress, tokenAddress, quoteAddress });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        safe_public: true,
+        schema_version: "ravenos.onchain_holder_list.v1",
+        state: "available",
+        identity: { chain: "solana", pool_address: poolAddress, token_address: tokenAddress, quote_token_address: quoteAddress },
+        observed_at: new Date().toISOString(),
+        slot: 42,
+        coverage: { scope: "largest_20_token_accounts", maximum_source_accounts: 20, returned_owner_rows: 2, complete_holder_census: false, owners_aggregated_across_top_accounts: true },
+        holders: [
+          { rank: 1, holder_address: "Stake11111111111111111111111111111111111111", token_account_address: "SysvarRent111111111111111111111111111111111", token_account_count: 2, balance: "123456789.25", supply_share_pct: 12.345, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: "https://solscan.io/account/Stake11111111111111111111111111111111111111" },
+          { rank: 2, holder_address: "Vote111111111111111111111111111111111111111", token_account_address: "SysvarC1ock11111111111111111111111111111111", token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "exact_pool_account", excluded_from_wallet_concentration: true, explorer_url: "https://solscan.io/account/Vote111111111111111111111111111111111111111" },
+        ],
+        source: { label: "Solana on-chain accounts", network: "mainnet-beta", raw_rpc_included: false },
+        limitations: ["This is the largest-account view, not a complete paginated holder census."],
+      }),
+    });
   });
   await page.route("**/api/opportunity**", (route) => {
     const instrumentId = new URL(route.request().url()).searchParams.get("instrument_id") || "";
@@ -959,7 +987,7 @@ export async function mockTerminalLiveApis(page, {
       }),
     });
   });
-  return { calls, markets };
+  return { calls, holderCalls, markets };
 }
 
 export async function waitForTerminalLive(page, expected = {}) {

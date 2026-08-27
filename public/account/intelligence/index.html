@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pro Intelligence · RavenOS</title>
-  <meta name="description" content="Deeper read-only RavenOS Perps and Participant Intelligence for approved Pro accounts." />
+  <meta name="description" content="Deeper read-only RavenOS Perps Intelligence and aggregate Behavior Lab research for Pro accounts." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-pro-intelligence.css" />
 </head>
@@ -15,7 +15,7 @@
         <a href="/account/">← Account</a>
         <span>Your RavenOS account</span>
         <h1>Pro Intelligence</h1>
-        <p>Deeper Perps and Participant Intelligence for approved Pro accounts. It stays read-only and separate from wallets, brokers, and trading.</p>
+        <p>Deeper Perps Intelligence and searchable aggregate market-behavior research. It stays read-only and separate from wallets, brokers, and trading.</p>
       </div>
       <div class="pro-intelligence-session" aria-live="polite">
         <span>Pro access</span>
@@ -50,7 +50,7 @@
     <section class="pro-intelligence-workspace" id="proWorkspace" hidden>
       <nav class="pro-intelligence-tabs" role="tablist" aria-label="Pro Intelligence view">
         <button id="proTabPerps" type="button" role="tab" aria-selected="true" aria-controls="proPanelPerps" tabindex="0" data-pro-view="perps">Perps Intelligence</button>
-        <button id="proTabParticipants" type="button" role="tab" aria-selected="false" aria-controls="proPanelParticipants" tabindex="-1" data-pro-view="participants">Participant Intelligence</button>
+        <button id="proTabParticipants" type="button" role="tab" aria-selected="false" aria-controls="proPanelParticipants" tabindex="-1" data-pro-view="participants">Behavior Lab</button>
       </nav>
 
       <section class="pro-intelligence-panel" id="proPanelPerps" role="tabpanel" aria-labelledby="proTabPerps" data-pro-panel="perps">
@@ -73,12 +73,13 @@
 
       <section class="pro-intelligence-panel" id="proPanelParticipants" role="tabpanel" aria-labelledby="proTabParticipants" data-pro-panel="participants" hidden>
         <header class="pro-panel-head">
-          <div><span>Aggregate market behavior</span><h2>Advanced Participant Intelligence</h2><p>Explore the full condition matrix, sample counts, and evidence strength without exposing wallet identities.</p></div>
+          <div><span>Aggregate market behavior</span><h2>Behavior Lab</h2><p>Search Raven’s market cohorts and compare observed forward outcomes with the denominator and exclusions attached.</p></div>
           <strong id="proParticipantsState" data-state="loading">Checking access</strong>
         </header>
         <div class="pro-capability-message" id="proParticipantsMessage" aria-live="polite"></div>
         <div class="pro-projection" id="proParticipantsProjection" hidden>
-          <div class="pro-filter-bar" id="proParticipantFilters" aria-label="Participant Intelligence filters"></div>
+          <div class="pro-filter-bar" id="proParticipantFilters" aria-label="Behavior Lab filters"></div>
+          <p class="pro-method-note">Descriptive observed associations only—not causal claims or calibrated probabilities. Wallet identities and private labels are not included.</p>
           <div id="proParticipantsContent"></div>
         </div>
       </section>

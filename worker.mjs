@@ -89,6 +89,11 @@ import {
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import {
+  PUBLIC_SOLANA_HOLDER_ROUTE,
+  buildPublicSolanaHolderProjection,
+  publicHolderUnavailable,
+} from "./lib/onchain_holder_projection.mjs";
+import {
   DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_RADAR_SCHEMA,
   buildDiscoverRadarProjection,
@@ -4526,6 +4531,22 @@ function exactTokenDexResults(rows, tokenAddress, { caseSensitive = false } = {}
   return [...deduped.values()].sort((left, right) => num(right.liquidityUsd) - num(left.liquidityUsd));
 }
 
+function exactAddressDexResults(rows, address, { caseSensitive = false } = {}) {
+  const expected = String(address || "");
+  const same = caseSensitive
+    ? (value) => String(value || "") === expected
+    : (value) => String(value || "").toLowerCase() === expected.toLowerCase();
+  const poolRows = rows
+    .filter((row) => same(row?.pairAddress))
+    .map((row) => ({ ...row, input_match: "pool_address" }));
+  const tokenRows = exactTokenDexResults(rows, address, { caseSensitive })
+    .map((row) => ({ ...row, input_match: "token_address" }));
+  return mergeOnchainSearchRows([...poolRows, ...tokenRows]).sort((left, right) => (
+    Number(right.input_match === "pool_address") - Number(left.input_match === "pool_address")
+    || num(right.liquidityUsd) - num(left.liquidityUsd)
+  ));
+}
+
 function extractDexInputTerms(input) {
   const clean = String(input || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 512);
   if (!clean) return [];
@@ -4543,8 +4564,8 @@ async function resolveSingleDexInput(input) {
   const q = String(input || "").trim();
   if (!q) return [];
   if (SOLANA_ADDRESS_RE.test(q)) {
-    const settled = await Promise.allSettled([tokenDex("solana", q), searchDex(q), searchDexPaprika(q)]);
-    return exactTokenDexResults(mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])), q, { caseSensitive: true });
+    const settled = await Promise.allSettled([pairDex("solana", q), tokenDex("solana", q), searchDex(q), searchDexPaprika(q)]);
+    return exactAddressDexResults(mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])), q, { caseSensitive: true });
   }
   if (EVM_ADDRESS_RE.test(q)) {
     const settled = await Promise.allSettled([
@@ -4552,7 +4573,7 @@ async function resolveSingleDexInput(input) {
       searchDexPaprika(q),
       ...EVM_CHAINS.map((chain) => tokensDex(chain, q)),
     ]);
-    return exactTokenDexResults(mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])), q);
+    return exactAddressDexResults(mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])), q);
   }
   const pair = q.match(/^([a-z0-9_-]+):([A-Za-z0-9x]+)$/i);
   if (pair) return pairDex(pair[1], pair[2]);
@@ -7133,6 +7154,61 @@ async function routeApi(request, env) {
       });
     } catch (error) {
       return json({ ok: false, error: "onchain_market_search_unavailable", results: [] }, { status: 502 });
+    }
+  }
+  if (url.pathname === PUBLIC_SOLANA_HOLDER_ROUTE && request.method === "GET") {
+    const allowedParameters = new Set(["chain", "pair_address", "token_address", "quote_address"]);
+    if ([...url.searchParams.keys()].some((key) => !allowedParameters.has(key))) {
+      return json({
+        ok: false,
+        safe_public: true,
+        schema_version: "ravenos.onchain_holder_list.v1",
+        state: "unavailable",
+        error: "holder_request_invalid",
+        holders: [],
+      }, { status: 400 });
+    }
+    const chain = String(url.searchParams.get("chain") || "").trim().toLowerCase();
+    const pairAddress = String(url.searchParams.get("pair_address") || "").trim();
+    const tokenAddress = String(url.searchParams.get("token_address") || "").trim();
+    const quoteAddress = String(url.searchParams.get("quote_address") || "").trim();
+    try {
+      if (chain !== "solana" || !SOLANA_ADDRESS_RE.test(pairAddress) || !SOLANA_ADDRESS_RE.test(tokenAddress) || (quoteAddress && !SOLANA_ADDRESS_RE.test(quoteAddress))) {
+        const invalid = new Error("holder_identity_invalid");
+        invalid.code = "holder_identity_invalid";
+        invalid.status = 400;
+        throw invalid;
+      }
+      const exactRows = await pairDex(chain, pairAddress, tokenAddress);
+      const exact = exactRows.find((row) => (
+        sameOnchainAddress(chain, row?.pairAddress, pairAddress)
+        && sameOnchainAddress(chain, row?.tokenAddress, tokenAddress)
+        && (!quoteAddress || sameOnchainAddress(chain, row?.quoteTokenAddress, quoteAddress))
+      ));
+      if (!exact) {
+        const mismatch = new Error("holder_exact_market_unavailable");
+        mismatch.code = "holder_exact_market_unavailable";
+        mismatch.status = 404;
+        throw mismatch;
+      }
+      const projection = await buildPublicSolanaHolderProjection({
+        env,
+        identity: {
+          chain,
+          pool_address: pairAddress,
+          token_address: tokenAddress,
+          quote_token_address: quoteAddress || exact.quoteTokenAddress,
+        },
+      });
+      return json(projection, {
+        headers: {
+          "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=120",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch (error) {
+      const unavailable = publicHolderUnavailable(error);
+      return json(unavailable.payload, { status: unavailable.status });
     }
   }
   if (url.pathname === "/api/onchain/trending" && request.method === "GET") {

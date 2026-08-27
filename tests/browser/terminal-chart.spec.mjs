@@ -705,7 +705,7 @@ test("provider failure remains explicit and never creates substitute candles", a
 });
 
 test("spot search loads one exact pool and joins only its admitted current Raven context", async ({ page }) => {
-  const { calls } = await mockTerminalLiveApis(page);
+  const { calls, holderCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "JUP");
@@ -747,6 +747,16 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalHolderNext20")).toHaveText("15.2%");
   await expect(page.locator("#terminalHolderRest")).toHaveText("42.4%");
   await expect(page.locator("#terminalHolderBar > span")).toHaveCount(4);
+  expect(holderCalls).toHaveLength(0);
+  await page.locator("#terminalHolderList > summary").click();
+  await expect.poll(() => holderCalls.length).toBe(1);
+  await expect(page.locator("#terminalHolderListState")).toHaveText("2 owners");
+  await expect(page.locator("#terminalHolderListNote")).toContainText("not a complete holder census");
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
+  await expect(page.locator("#terminalHolderListRows")).toContainText(/#1.*123\.457M.*12\.3%/s);
+  await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
+  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /solscan\.io\/account\/Stake/);
+  expect(holderCalls[0]).toEqual({ poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
   await expect(page.locator("#terminalAlphaStack")).toContainText("Raven read");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Accumulation");
@@ -789,6 +799,21 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
+});
+
+test("free top-holder rows remain readable and contained in the 390px Terminal Raven pane", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { holderCalls } = await mockTerminalLiveApis(page);
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await page.locator("#terminalHolderList > summary").click();
+  await expect.poll(() => holderCalls.length).toBe(1);
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
+  const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const holderOverflow = await page.locator("#terminalHolderList").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(documentOverflow).toBeLessThanOrEqual(2);
+  expect(holderOverflow).toBeLessThanOrEqual(2);
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {

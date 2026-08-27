@@ -191,6 +191,12 @@
               <div><dt>Rest</dt><dd id="terminalHolderRest"></dd></div>
             </dl>
           </div>
+          <details class="terminal-holder-list" id="terminalHolderList" hidden>
+            <summary><span>Top holders</span><strong id="terminalHolderListState">View list</strong></summary>
+            <p id="terminalHolderListNote">Ranked on-chain owners for this exact token.</p>
+            <div class="terminal-holder-list-columns" aria-hidden="true"><span>Rank</span><span>Address</span><span>Balance</span><span>Supply</span></div>
+            <div class="terminal-holder-list-rows" id="terminalHolderListRows" aria-live="polite"></div>
+          </details>
           <div class="terminal-profile-facts" id="terminalProfileFacts" hidden>
             <div class="terminal-profile-chips" id="terminalProfileChips"></div>
             <nav class="terminal-profile-links" id="terminalProfileLinks" aria-label="Token links"></nav>
