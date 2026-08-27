@@ -338,7 +338,7 @@ function createMarkup() {
     <section class="rpw" data-price-workspace-state="data_unavailable">
       <header class="rpw-provenance" aria-live="polite">
         <strong data-rpw-state>Data unavailable</strong>
-        <span data-rpw-source>No provider selected</span>
+        <span data-rpw-source>No market source selected</span>
         <span data-rpw-market>Market identity unavailable</span>
         <span data-rpw-coverage hidden></span>
         <span data-rpw-connection>Disconnected</span>
@@ -370,7 +370,7 @@ function createMarkup() {
         </div>
       </div>
       <div class="rpw-indicator-popover" data-rpw-indicators aria-label="Chart indicators" hidden>
-        <header><strong>Indicators</strong><span>Calculated from exact provider candles</span></header>
+        <header><strong>Indicators</strong><span>Calculated from exact-market candles</span></header>
         <button type="button" data-rpw-indicator="ema20" aria-pressed="true"><strong>EMA 20</strong><span>Fast trend</span></button>
         <button type="button" data-rpw-indicator="ema50" aria-pressed="false"><strong>EMA 50</strong><span>Medium trend</span></button>
         <button type="button" data-rpw-indicator="vwap" aria-pressed="false"><strong>VWAP</strong><span>Volume-weighted price</span></button>
@@ -685,7 +685,7 @@ export class PriceWorkspace {
     const label = this.state.operatorStateLabel || STATE_LABELS[this.state.state] || "Data unavailable";
     this.root.dataset.priceWorkspaceState = this.state.state;
     this.container.querySelector("[data-rpw-state]").textContent = label;
-    this.container.querySelector("[data-rpw-source]").textContent = this.state.source || "No provider selected";
+    this.container.querySelector("[data-rpw-source]").textContent = this.state.source || "No market source selected";
     this.container.querySelector("[data-rpw-market]").textContent = this.state.marketIdentity || "Market identity unavailable";
     const coverage = this.container.querySelector("[data-rpw-coverage]");
     const returnedBars = Number(this.state.returnedBars ?? this.state.candles.length);
@@ -749,7 +749,7 @@ export class PriceWorkspace {
         `RSI ${read.facts.rsi.toFixed(0)}`,
         read.facts.volume_ratio === null ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}× recent`,
         read.structure_map ? `structure risk ${read.structure_map.risk_pct.toFixed(1)}%` : "",
-        "provider-backed price action",
+        "current price action",
       ].filter(Boolean);
       detail.textContent = details.join(" · ");
     } else {
@@ -1098,7 +1098,7 @@ export class PriceWorkspace {
     message = "The exact requested market is unavailable. No substitute data was loaded.",
     marketIdentity = "",
     instrumentScope = "unselected",
-    source = "No provider selected",
+    source = "No market source selected",
     timeframe = this.state.timeframe,
   } = {}) {
     ++this.requestSequence;

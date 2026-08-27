@@ -941,7 +941,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
-  await expect(page.locator(".discover-token-empty")).toContainText("Provider trending and Velocity rankings cannot create Raven evidence");
+  await expect(page.locator(".discover-token-empty")).toContainText("Only markets Raven observed directly appear here");
   await page.locator("[data-spot-sort='velocity']").click();
 
   await row.click();
@@ -1329,10 +1329,27 @@ test("Discover retains current Atlas rows when Raven Census is unavailable", asy
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(atlasPayload()) }));
   await page.goto("/discover/");
   await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
-  await expect(page.locator("#discoverAtlasState")).toHaveText("Fresh");
+  await expect(page.locator("#discoverAtlasState")).toHaveText("Current");
+  await expect(page.locator("#discoverAtlasState")).toHaveAttribute("aria-label", /Atlas Current/);
   await expect(page.locator(".discover-row[data-source-type='atlas']")).toHaveCount(1);
   await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Historical reads are not shown as current");
   await expect(page.locator(".discover-row[data-source-type='raven']")).toHaveCount(0);
+});
+
+test("Discover explains limited and updating Atlas context without contradictory internal health language", async ({ page }) => {
+  await mockWorkspaceApis(page, { opportunityStatus: 503 });
+  const payload = atlasPayload();
+  payload.state = "degraded";
+  payload.posture = { state: "unavailable", confidence: "unknown", alignment: "unknown" };
+  payload.delivery.freshness_state = "delayed";
+  await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) }));
+  await page.goto("/discover/");
+  const atlasState = page.locator("#discoverAtlasState");
+  await expect(atlasState).toHaveText("Limited · Updating");
+  await expect(atlasState).toHaveAttribute("data-state", "delayed");
+  await expect(atlasState).toHaveAttribute("aria-label", /refreshing.*cleared for public display/i);
+  await expect(atlasState).not.toContainText(/degraded|fresh/i);
+  await expect(page.locator(".discover-row[data-source-type='atlas']")).toHaveCount(1);
 });
 
 test("Terminal rejects mismatched explicit symbol and instrument without provider fallback", async ({ page }) => {

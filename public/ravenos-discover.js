@@ -413,7 +413,7 @@ function wrapSavedMonitorControl(anchor, shellClass) {
   const control = document.createElement("a");
   control.className = "discover-monitor-save";
   control.textContent = "Save";
-  control.setAttribute("aria-label", "Save this exact market to Saved Monitor");
+  control.setAttribute("aria-label", "Save this exact market to your saved markets");
   control.hidden = true;
   shell.append(anchor, control);
   if (shellClass === "discover-token-row-shell") {
@@ -821,7 +821,7 @@ function radarScore(row, lane) {
 
 function scoreLabel(score, label) {
   const value = finite(score?.score);
-  if (score?.availability !== "available" || value === null) return `${label} unavailable`;
+  if (score?.availability !== "available" || value === null) return `${label} forming`;
   const cohort = finite(score?.cohort_rank) !== null && finite(score?.cohort_size) >= 3
     ? ` · #${Math.round(score.cohort_rank)}/${Math.round(score.cohort_size)} cohort`
     : " · cohort forming";
@@ -1125,7 +1125,7 @@ function renderScoreEvidence(host, label, score) {
     append(section, "p", "discover-score-penalty", text(penalty?.explanation, "Penalty applied"));
   }
   append(section, "small", "", [
-    text(score?.classifier_version, "Classifier unavailable"),
+    "RavenOS measured",
     score?.observed_at ? when(score.observed_at) : "Observation time unavailable",
     title(score?.freshness, "Freshness unavailable"),
   ].join(" · "));
@@ -1219,7 +1219,7 @@ function renderSpotEvidence(shell, row) {
   const risks = rowRiskValues(row);
   append(body, "small", "discover-token-evidence-footer", [
     `Exact pool ${text(row.pool_address)}`,
-    risks.length ? `Risk flags: ${risks.map((value) => title(value)).join(", ")}` : "No qualified risk flag",
+    risks.length ? `Risk flags: ${risks.map((value) => title(value)).join(", ")}` : "No current risk flag",
     `Observed ${row.observed_at ? when(row.observed_at) : "time unavailable"}`,
     `Source ${text(discovery.facts?.source_scope, "unavailable")}`,
   ].join(" · "));
@@ -1399,7 +1399,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const chain = state.spotChain === "all" ? "Pools" : `${spotChainLabel(state.spotChain)} pools`;
     append(copy, "h3", "", state.spotSort === "raven" ? `No current ${chain.toLowerCase()} Raven observations qualify` : `${chain} have no matching radar candidates`);
     append(copy, "p", "", state.spotSort === "raven"
-      ? "Provider trending and Velocity rankings cannot create Raven evidence. Velocity and Activity remain available."
+      ? "Only markets Raven observed directly appear here. Velocity and Activity remain available."
       : state.spotLane === "opportunities"
         ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity. Unavailable measurements were not treated as zero."
         : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
@@ -1486,12 +1486,12 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const views = {
     velocity: {
       title: "Velocity radar",
-      summary: "Exact pools ranked by server-measured acceleration, flow alignment, liquidity, persistence, and chase risk.",
+      summary: "Exact pools ranked by measured acceleration, flow alignment, liquidity, persistence, and chase risk.",
       column: "Velocity ranking",
     },
     raven: {
       title: "Raven token reads",
-      summary: "Only exact pools with a genuine timestamped Raven observation and qualified lineage appear here.",
+      summary: "Only exact pools Raven observed directly, with a timestamp and traceable market identity, appear here.",
       column: "Raven evidence",
     },
     activity: {
@@ -1503,7 +1503,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
-    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence. Selected-window moves rank first; qualified longer-window changes remain available below them. ${view.summary}`
+    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a meaningful participation or lifecycle change, or exact Raven evidence. Selected-window moves rank first; important longer-window changes remain available below them. ${view.summary}`
     : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
@@ -2063,7 +2063,9 @@ function mergeSpotRadarRows(registryRows = [], currentRows = []) {
 function currentAtlasPayload(payload) {
   const rows = payload?.market_context?.rows;
   const execution = payload?.execution_boundary || {};
+  const deliveryFreshness = payload?.delivery?.freshness_state;
   if (payload?.delivery?.source !== "current_public_origin" || payload?.delivery?.fallback !== false) throw new Error("atlas_current_origin_rejected");
+  if (!["fresh", "delayed"].includes(deliveryFreshness)) throw new Error("atlas_delivery_freshness_rejected");
   if (!payload?.schema_version || payload.schema_version !== "ravenos.atlas_projection.v1") throw new Error("atlas_schema_rejected");
   if (!["fresh", "delayed"].includes(payload?.freshness?.state) || !["available", "degraded"].includes(payload?.state)) throw new Error("atlas_freshness_rejected");
   if (!Array.isArray(rows)) throw new Error("atlas_rows_rejected");
@@ -2085,7 +2087,7 @@ function currentAtlasPayload(payload) {
       instrument: row.symbol || instrument.symbol,
       instrument_contract: instrument,
       market_type: instrument.instrument_type,
-      context_state: payload.freshness.state,
+      context_state: deliveryFreshness,
       what_changed: changes.length
         ? changes.join(" · ")
         : finite(row.price) !== null
@@ -2105,9 +2107,30 @@ function currentAtlasPayload(payload) {
     generatedAt: payload.generated_at,
     generated_at: payload.generated_at,
     state: payload.state,
-    freshness: payload.freshness.state,
+    freshness: deliveryFreshness,
+    sourceFreshness: payload.freshness.state,
     market_context: payload.market_context,
   };
+}
+
+function renderAtlasStatus(context) {
+  const node = document.getElementById("discoverAtlasState");
+  const limited = context.state === "degraded";
+  const updating = context.freshness === "delayed";
+  const label = limited
+    ? updating ? "Limited · Updating" : "Limited"
+    : updating ? "Updating" : "Current";
+  setState("discoverAtlasState", updating ? "delayed" : limited ? "degraded" : "fresh", label);
+  if (node) {
+    node.title = limited
+      ? updating
+        ? "Atlas is refreshing. Only context cleared for public display is shown."
+        : "Only Atlas context cleared for public display is shown."
+      : updating
+        ? "Atlas is refreshing; the latest available context remains visible."
+        : "Atlas context is current.";
+    node.setAttribute("aria-label", `Atlas ${label}. ${node.title}`);
+  }
 }
 
 function currentFeaturedAtlasPayload(payload) {
@@ -2251,7 +2274,7 @@ async function refresh({ manual = false } = {}) {
       atlasGeneratedAt = current.generatedAt;
       state.atlasRows = atlasRows;
       state.atlasContext = current;
-      setState("discoverAtlasState", current.freshness, current.state === "degraded" ? `Degraded · ${title(current.freshness)}` : title(current.freshness));
+      renderAtlasStatus(current);
     } catch {
       state.atlasRows = [];
       state.atlasContext = null;

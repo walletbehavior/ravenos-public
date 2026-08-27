@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pro Intelligence · RavenOS</title>
-  <meta name="description" content="Authenticated, read-only RavenOS Perps and Participant Intelligence workspace." />
+  <meta name="description" content="Deeper read-only RavenOS Perps and Participant Intelligence for approved Pro accounts." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-pro-intelligence.css" />
 </head>
@@ -13,22 +13,22 @@
     <header class="pro-intelligence-head">
       <div>
         <a href="/account/">← Account</a>
-        <span>Authenticated workspace</span>
+        <span>Your RavenOS account</span>
         <h1>Pro Intelligence</h1>
-        <p>Server-authorized Perps and Participant Intelligence. Read only, public-safe, and separate from Atlas display rights or transaction authority.</p>
+        <p>Deeper Perps and Participant Intelligence for approved Pro accounts. It stays read-only and separate from wallets, brokers, and trading.</p>
       </div>
       <div class="pro-intelligence-session" aria-live="polite">
-        <span>Access state</span>
+        <span>Pro access</span>
         <strong id="proWorkspaceState">Checking session</strong>
-        <small id="proWorkspaceIdentity">No account data loaded</small>
+        <small id="proWorkspaceIdentity">Waiting for sign-in</small>
       </div>
     </header>
 
     <section class="pro-intelligence-signin" id="proWorkspaceSignIn" hidden>
       <div>
-        <span>Secure RavenOS session required</span>
-        <h2>Sign in to inspect server-authorized intelligence.</h2>
-        <p>This workspace never accepts a browser-selected plan, capability, owner, or bearer token. A host-only RavenOS session is required.</p>
+        <span>RavenOS account required</span>
+        <h2>Sign in to open Pro Intelligence.</h2>
+        <p>Use your RavenOS account to continue. Signing in does not connect a wallet or allow trades.</p>
       </div>
       <div class="pro-intelligence-signin-actions" id="proWorkspaceSignInActions">
         <form method="post" action="/api/v1/auth/start">
@@ -55,8 +55,8 @@
 
       <section class="pro-intelligence-panel" id="proPanelPerps" role="tabpanel" aria-labelledby="proTabPerps" data-pro-panel="perps">
         <header class="pro-panel-head">
-          <div><span>Hyperliquid aggregate context</span><h2>Advanced Perps Intelligence</h2><p id="proPerpsContext">No exact market context selected.</p></div>
-          <strong id="proPerpsState" data-state="loading">Checking capability</strong>
+          <div><span>Across Hyperliquid markets</span><h2>Advanced Perps Intelligence</h2><p id="proPerpsContext">No exact market selected.</p></div>
+          <strong id="proPerpsState" data-state="loading">Checking access</strong>
         </header>
         <div class="pro-capability-message" id="proPerpsMessage" aria-live="polite"></div>
         <div class="pro-projection" id="proPerpsProjection" hidden>
@@ -73,8 +73,8 @@
 
       <section class="pro-intelligence-panel" id="proPanelParticipants" role="tabpanel" aria-labelledby="proTabParticipants" data-pro-panel="participants" hidden>
         <header class="pro-panel-head">
-          <div><span>Aggregate and privacy-safe</span><h2>Advanced Participant Intelligence</h2><p>Complete qualified condition matrix with denominators and evidence strength. No wallet identity or label is included.</p></div>
-          <strong id="proParticipantsState" data-state="loading">Checking capability</strong>
+          <div><span>Aggregate market behavior</span><h2>Advanced Participant Intelligence</h2><p>Explore the full condition matrix, sample counts, and evidence strength without exposing wallet identities.</p></div>
+          <strong id="proParticipantsState" data-state="loading">Checking access</strong>
         </header>
         <div class="pro-capability-message" id="proParticipantsMessage" aria-live="polite"></div>
         <div class="pro-projection" id="proParticipantsProjection" hidden>
@@ -85,9 +85,9 @@
     </section>
 
     <footer class="pro-intelligence-boundary">
-      <div><span>Authority</span><strong>Operator-granted access only</strong><p>No checkout, subscription enrollment, or customer capability mutation exists in this workspace.</p></div>
-      <div><span>Data rights</span><strong>Entitlement never expands Atlas rights</strong><p>Restricted, internal-only, and unknown Atlas observations remain unavailable.</p></div>
-      <div><span>Execution</span><strong>Read only</strong><p>No wallet, broker, signing, submission, order, or position authority is present.</p></div>
+      <div><span>Access</span><strong>Available to approved Pro accounts</strong><p>Self-serve checkout is not open yet.</p></div>
+      <div><span>Atlas</span><strong>Atlas availability stays separate</strong><p>Only listed-market context RavenOS is permitted to display appears here.</p></div>
+      <div><span>Trading</span><strong>Read only</strong><p>This workspace cannot connect a wallet, place an order, or manage a position.</p></div>
     </footer>
   </main>
   <script type="module" src="/ravenos-shell.js"></script>

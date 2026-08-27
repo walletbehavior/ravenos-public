@@ -111,11 +111,11 @@ function setHeader({ title: heading, summary, detail = false }) {
 function cleanReason(reason) {
   const value = String(reason || "").toLowerCase();
   if (!value) return "The required data is not available for this view.";
-  if (value.includes("redistribution") || value.includes("display") || value.includes("restricted")) return "The provider permits RavenOS to resolve this market, but its values are not cleared for public display here.";
-  if (value.includes("rights") || value.includes("license")) return "Public display rights have not been verified for this data.";
+  if (value.includes("redistribution") || value.includes("display") || value.includes("restricted")) return "RavenOS can identify this market, but these values cannot be shown publicly.";
+  if (value.includes("rights") || value.includes("license")) return "RavenOS has not confirmed permission to show this data publicly.";
   if (value.includes("mapping") || value.includes("issuer")) return "An exact issuer match has not been established.";
   if (value.includes("optionable")) return "This exact instrument does not have a supported options path.";
-  if (value.includes("provider") || value.includes("unavailable") || value.includes("circuit")) return "The required provider path is currently unavailable. No substitute was used.";
+  if (value.includes("provider") || value.includes("unavailable") || value.includes("circuit")) return "The required data source is currently unavailable. RavenOS did not substitute another market.";
   if (value.includes("history")) return "Public historical coverage has not been established for this exact entity.";
   return "The required data did not meet RavenOS identity, freshness, or display requirements.";
 }
@@ -364,7 +364,7 @@ function marketFrameSummary(projection) {
   ].filter(Boolean);
   return parts.length
     ? `${parts.join(", ")}.`
-    : "Atlas is waiting for enough public-display-qualified signals to call risk-on or risk-off. No proxy score is being substituted.";
+    : "Atlas is waiting for enough verified public data to call risk-on or risk-off. It does not substitute a proxy score.";
 }
 
 function marketReturn(value) {
@@ -382,7 +382,7 @@ function renderPosture(host, projection) {
   const postureAvailable = marketFrameHeading(projection) !== "Risk posture is forming.";
   const freshnessLabel = postureAvailable && projection?.generated_at
     ? relativeAge(projection.generated_at)
-    : "Awaiting qualified signals";
+    : "Awaiting enough public data";
   const freshness = append(postureHead, "span", "atlas-frame-freshness", freshnessLabel);
   freshness.dataset.state = postureAvailable ? projection?.freshness?.state || "available" : "forming";
   append(posture, "h2", "", marketFrameHeading(projection));
@@ -412,7 +412,7 @@ function renderPosture(host, projection) {
     : [
       ["Risk posture", "Forming"],
       ["Equity breadth", "Visual view below"],
-      ["Signal standard", "Public-display qualified"],
+      ["Public data", "Verified sources only"],
       ["Assessment", "No proxy score"],
     ];
   for (const [label, value] of facts) {
@@ -538,9 +538,34 @@ function renderLanding() {
   });
   renderAtlasRoadmap(host);
   setState("atlasProjectionState", state.featured ? "available" : "unavailable", state.featured ? "Searchable" : "Unavailable");
-  setState("atlasMarketState", state.projection?.freshness?.state || (state.featured ? "available" : "unavailable"), state.projection ? title(state.projection.freshness?.state) : state.featured ? "Catalog ready" : "Unavailable");
+  renderAtlasMarketStatus();
   setState("atlasOptionsState", "available", "Protected");
   window.RavenOSShell?.setCapabilities?.({ market: "Atlas searchable", mode: "Research", evidence: "Source timing visible", signing: "Unavailable", broadcast: "Unavailable" });
+}
+
+function renderAtlasMarketStatus() {
+  const node = document.getElementById("atlasMarketState");
+  if (!state.projection) {
+    setState("atlasMarketState", state.featured ? "available" : "unavailable", state.featured ? "Catalog ready" : "Unavailable");
+    return;
+  }
+  const delivery = state.projection.delivery?.freshness_state || state.projection.freshness?.state || "unavailable";
+  const limited = state.projection.state === "degraded";
+  const updating = delivery === "delayed";
+  const label = limited
+    ? updating ? "Limited · Updating" : "Limited"
+    : updating ? "Updating" : delivery === "fresh" ? "Current" : title(delivery);
+  setState("atlasMarketState", updating ? "delayed" : limited ? "degraded" : delivery, label);
+  if (node) {
+    node.title = limited
+      ? updating
+        ? "Atlas is refreshing. Only context cleared for public display is shown."
+        : "Only Atlas context cleared for public display is shown."
+      : updating
+        ? "Atlas is refreshing; the latest available context remains visible."
+        : "Atlas context is current.";
+    node.setAttribute("aria-label", `Atlas ${label}. ${node.title}`);
+  }
 }
 
 function providerStateView(host, view, heading = "Current observation") {
@@ -811,7 +836,7 @@ function renderOverview(host, payload) {
   providerStateView(side, view, "Source & timing");
   const meaning = append(side, "section", "atlas-market-meaning");
   append(meaning, "span", "workspace-label", "What this view can answer");
-  append(meaning, "strong", "", externalChart ? "Price structure is visible" : externalReference ? "Exact identity is preserved" : data ? "A source-qualified observation is available" : "Identity is established; values are not");
+  append(meaning, "strong", "", externalChart ? "Price structure is visible" : externalReference ? "Exact identity is preserved" : data ? "A verified observation is available" : "Identity is established; values are not");
   append(meaning, "p", "", externalChart
     ? "Use the chart for visual market context. Atlas events, filings, options, and Raven evidence remain separate so their authority stays clear."
     : externalReference
@@ -1351,7 +1376,7 @@ function renderDetail(payload) {
   showTab(state.activeTab, payload, { updateHistory: false });
   setState("atlasProjectionState", "available", "Exact entity");
   setState("atlasMarketState", payload.snapshot?.state || "unavailable", title(payload.snapshot?.state));
-  setState("atlasOptionsState", row.public_display_eligibility === "allowed" ? "available" : "degraded", row.public_display_eligibility === "allowed" ? "Rights checked" : "Restricted");
+  setState("atlasOptionsState", row.public_display_eligibility === "allowed" ? "available" : "degraded", row.public_display_eligibility === "allowed" ? "Available" : "Not available");
   resolveTerminalLink(row, payload.exact_instrument);
   ravenOSContext.setSelection({ subject: { id: row.entity_id, symbol: row.symbol, name: row.name, type: row.entity_kind }, workspace: "atlas" }, { updateUrl: false });
   window.RavenOSShell?.setCapabilities?.({ market: `${entityKindLabel(row.entity_kind)} · ${timingLabel(row)}`, mode: "Research", evidence: `${providerLabel(row.provider)} source`, signing: "Unavailable", broadcast: "Unavailable" });
@@ -1369,7 +1394,7 @@ function renderDetail(payload) {
     evidenceQuality: { state: payload.snapshot?.state || "unavailable", lineageComplete: true },
     freshness: {
       state: payload.snapshot?.stale ? "stale" : payload.snapshot?.delayed ? "delayed" : payload.snapshot?.state === "available" ? "live" : "unavailable",
-      label: payload.snapshot?.state === "available" ? "Atlas current" : "Raven unavailable",
+      label: payload.snapshot?.state === "available" ? "Atlas current" : "Atlas limited",
       observedAt: payload.snapshot?.provider_timestamp,
     },
     nextExpectedTransition: "Open the context needed for this decision; unsupported detail remains explicitly unavailable.",
@@ -1397,7 +1422,7 @@ async function selectEntity(entityId, { updateHistory = true, view = "overview" 
   } catch (error) {
     if (error.name === "AbortError") return;
     host.replaceChildren();
-    stateNode(host, "Exact entity unavailable", "Atlas could not establish the selected identity, provider path, and public-display state together. No alternate market was loaded.");
+    stateNode(host, "Exact entity unavailable", "Atlas could not verify this exact market and its available public data together. No alternate market was loaded.");
     setHeader({ title: "This exact entity is unavailable.", summary: "Search for another supported market or series. RavenOS will not silently switch instruments." });
     setState("atlasMarketState", "unavailable", "Unavailable");
   }

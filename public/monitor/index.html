@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Saved Monitor · RavenOS</title>
-  <meta name="description" content="Your account-synced exact RavenOS markets, chart workspaces, and qualified Raven evidence notifications." />
+  <title>Saved markets · RavenOS</title>
+  <meta name="description" content="Save exact RavenOS markets and chart setups, reopen them on any signed-in device, and review Raven alerts when available." />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
   <link rel="stylesheet" href="/ravenos-monitor.css" />
 </head>
@@ -12,7 +12,7 @@
   <main class="monitor-page" data-monitor-state="loading">
     <header class="monitor-topbar">
       <a class="monitor-brand" href="https://ravenos.xyz/discover/" aria-label="RavenOS Discover"><span>R</span><strong>RavenOS</strong></a>
-      <div class="monitor-topbar-copy"><span>Authenticated workspace</span><strong>Saved Monitor</strong></div>
+      <div class="monitor-topbar-copy"><span>Your workspace</span><strong>Saved markets</strong></div>
       <nav aria-label="Market workspaces">
         <a href="https://ravenos.xyz/discover/">Discover</a>
         <a href="https://ravenos.xyz/terminal/">Terminal</a>
@@ -22,22 +22,22 @@
 
     <header class="monitor-hero">
       <div>
-        <span class="monitor-kicker">Research continuity</span>
+        <span class="monitor-kicker">Saved markets</span>
         <h1>Your exact markets,<br />right where you left them.</h1>
-        <p>Save a canonical pool or instrument with its chart workspace. When the dormant Raven Monitor beta is enabled for your account, Raven can watch qualified evidence classifications without ever substituting a similarly named market.</p>
+        <p>Save an exact token pool or market with the chart setup you use. Reopen the same market on any signed-in device—RavenOS never swaps it for a similarly named one.</p>
       </div>
       <aside class="monitor-boundary">
-        <span>Permission boundary</span>
-        <strong>Research monitoring only</strong>
-        <p>No wallets, positions, orders, provider payloads, plan prices, signing, or execution authority are stored here. v1 notifications remain in-app.</p>
+        <span>Private by default</span>
+        <strong>You stay in control</strong>
+        <p>Only the market identity and chart settings you choose are saved. Saving a market never connects a wallet or places a trade.</p>
       </aside>
     </header>
 
     <section class="monitor-auth" id="monitorAuth" hidden>
       <div>
         <span class="monitor-kicker">Sign in required</span>
-        <h2>Continue to your Saved Monitor.</h2>
-        <p>Your RavenOS account keeps this research state synchronized across signed-in devices without sharing session cookies with the public site.</p>
+        <h2>Continue to your saved markets.</h2>
+        <p>Sign in to sync your saved markets and chart setups across your devices.</p>
       </div>
       <div class="monitor-auth-actions" id="monitorAuthActions" hidden>
         <form data-monitor-auth="google">
@@ -52,16 +52,16 @@
           <input type="hidden" name="return_to" value="/monitor/" />
           <button type="submit"><span>R</span><strong>Email, password, or code</strong><span aria-hidden="true">→</span></button>
         </form>
-        <p id="monitorAuthStatus" aria-live="polite">Authentication never grants wallet or transaction authority.</p>
+        <p id="monitorAuthStatus" aria-live="polite">Signing in here does not connect a wallet.</p>
       </div>
       <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>The account service is not available on this release.</p>
     </section>
 
     <section class="monitor-workspace" id="monitorWorkspace" hidden>
       <section class="monitor-pending" id="monitorPending" hidden>
-        <header><div><span class="monitor-kicker">Public handoff</span><h2>Save this exact market</h2></div><strong id="monitorPendingState">Not saved</strong></header>
+        <header><div><span class="monitor-kicker">Ready to save</span><h2>Save this exact market</h2></div><strong id="monitorPendingState">Not saved</strong></header>
         <div class="monitor-pending-grid">
-          <div><span>Canonical identity</span><strong id="monitorPendingIdentity"></strong></div>
+          <div><span>Exact market</span><strong id="monitorPendingIdentity"></strong></div>
           <div><span>Timeframe</span><strong id="monitorPendingTimeframe"></strong></div>
           <div><span>Indicators</span><strong id="monitorPendingIndicators"></strong></div>
           <div><span>Raven overlays</span><strong id="monitorPendingOverlays"></strong></div>
@@ -69,28 +69,28 @@
           <div><span>Panel</span><strong id="monitorPendingPanel"></strong></div>
         </div>
         <footer>
-          <p id="monitorPendingMessage">Identity and workspace parameters will be validated again by RavenOS before storage.</p>
+          <p id="monitorPendingMessage">RavenOS will confirm this exact market and chart setup before saving.</p>
           <button id="monitorSave" type="button">Save exact market</button>
-          <button id="monitorUnwatch" class="secondary" type="button" hidden>Unwatch</button>
+          <button id="monitorUnwatch" class="secondary" type="button" hidden>Remove saved market</button>
         </footer>
       </section>
 
       <section class="monitor-saved">
         <header>
-          <div><span class="monitor-kicker">Account-synced</span><h2>Saved exact markets</h2><p id="monitorListSummary" aria-live="polite">Loading saved research state…</p></div>
-          <div class="monitor-list-actions"><button id="monitorReload" type="button">Reload</button><button id="monitorDeleteAll" class="danger" type="button">Delete all saved research state</button></div>
+          <div><span class="monitor-kicker">Across your devices</span><h2>Saved exact markets</h2><p id="monitorListSummary" aria-live="polite">Loading your saved markets…</p></div>
+          <div class="monitor-list-actions"><button id="monitorReload" type="button">Reload</button><button id="monitorDeleteAll" class="danger" type="button">Delete all saved markets</button></div>
         </header>
         <div class="monitor-list" id="monitorList"></div>
       </section>
 
       <section class="monitor-alerts" id="monitorAlerts" aria-labelledby="monitorAlertsTitle">
         <header>
-          <div><span class="monitor-kicker">Qualified changes</span><h2 id="monitorAlertsTitle">Raven notifications</h2><p id="monitorAlertSummary" aria-live="polite">Checking Raven Monitor access…</p></div>
-          <div class="monitor-list-actions"><button id="monitorReloadAlerts" type="button">Reload</button><button id="monitorDeleteNotifications" class="danger" type="button">Delete notification history</button><button id="monitorDeleteAlertState" class="danger" type="button">Delete all alert research state</button></div>
+          <div><span class="monitor-kicker">Raven alerts</span><h2 id="monitorAlertsTitle">Changes worth reopening</h2><p id="monitorAlertSummary" aria-live="polite">Checking alert access…</p></div>
+          <div class="monitor-list-actions"><button id="monitorReloadAlerts" type="button">Reload</button><button id="monitorDeleteNotifications" class="danger" type="button">Clear notification history</button><button id="monitorDeleteAlertState" class="danger" type="button">Delete all alerts</button></div>
         </header>
         <div class="monitor-alert-boundary" id="monitorAlertBoundary">
-          <strong>Operator-granted beta · dormant by default</strong>
-          <p>Raven compares bounded evidence states—not prices or arbitrary rules. No email, SMS, Telegram, Discord, or push delivery is active in v1.</p>
+          <strong>Meaningful changes, not constant noise</strong>
+          <p>When Raven alerts are available, they appear here with what changed and a direct link back to the exact market.</p>
         </div>
         <div class="monitor-notifications" id="monitorNotifications"></div>
       </section>
@@ -98,19 +98,19 @@
 
     <dialog class="monitor-confirm" id="monitorDeleteDialog" aria-labelledby="monitorDeleteTitle">
       <form method="dialog">
-        <span class="monitor-kicker">Permanent deletion</span>
-        <h2 id="monitorDeleteTitle">Delete all saved research state?</h2>
-        <p>This removes every exact market and saved workspace owned by this RavenOS account. It does not affect account sessions or any public RavenOS market data.</p>
-        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAllConfirm" class="danger" value="confirm" type="button">Delete everything</button></div>
+        <span class="monitor-kicker">Can’t be undone</span>
+        <h2 id="monitorDeleteTitle">Delete all saved markets?</h2>
+        <p>This removes every saved market and chart setup from your RavenOS account. Your account and public market data are unchanged.</p>
+        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAllConfirm" class="danger" value="confirm" type="button">Delete saved markets</button></div>
       </form>
     </dialog>
 
     <dialog class="monitor-confirm" id="monitorAlertDeleteDialog" aria-labelledby="monitorAlertDeleteTitle">
       <form method="dialog">
-        <span class="monitor-kicker">Permanent deletion</span>
-        <h2 id="monitorAlertDeleteTitle">Delete all Raven Monitor state?</h2>
-        <p>This removes every monitor rule and in-app notification owned by this account. Saved exact markets and chart workspaces remain.</p>
-        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAlertStateConfirm" class="danger" value="confirm" type="button">Delete monitor state</button></div>
+        <span class="monitor-kicker">Can’t be undone</span>
+        <h2 id="monitorAlertDeleteTitle">Delete all Raven alerts?</h2>
+        <p>This removes every alert and notification from this account. Saved markets and chart setups remain.</p>
+        <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAlertStateConfirm" class="danger" value="confirm" type="button">Delete alerts</button></div>
       </form>
     </dialog>
   </main>

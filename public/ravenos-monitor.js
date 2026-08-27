@@ -98,7 +98,7 @@ function formatWhen(value) {
 }
 
 function listLabel(values, fallback = "None") { return Array.isArray(values) && values.length ? values.join(", ") : fallback; }
-function eventLabel(value) { return EVENT_LABELS[value] || "Qualified evidence change"; }
+function eventLabel(value) { return EVENT_LABELS[value] || "Raven change"; }
 
 function button(label, className, handler) {
   const node = document.createElement("button");
@@ -127,7 +127,7 @@ function eventEditor(item, rule = null) {
   details.className = "monitor-rule-editor";
   details.dataset.monitorEditor = item.watch_id;
   const summary = document.createElement("summary");
-  summary.textContent = rule ? "Edit monitored changes" : "Choose qualified changes";
+  summary.textContent = rule ? "Edit alert settings" : "Choose changes";
   const grid = document.createElement("div");
   grid.className = "monitor-event-grid";
   const selected = new Set(rule?.event_types || defaultEvents(item));
@@ -142,16 +142,16 @@ function eventEditor(item, rule = null) {
     control.append(input, copy);
     grid.append(control);
   }
-  const action = button(rule ? "Update monitor" : "Enable Raven Monitor", "", async (node) => {
+  const action = button(rule ? "Update alerts" : "Turn on Raven alerts", "", async (node) => {
     const eventTypes = [...grid.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
-    if (!eventTypes.length) return setText("monitorAlertSummary", "Select at least one qualified state change.");
+    if (!eventTypes.length) return setText("monitorAlertSummary", "Select at least one change.");
     node.disabled = true;
     const result = rule
       ? await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "PATCH", body: JSON.stringify({ state: rule.state, event_types: eventTypes, expected_revision: rule.revision }) })
       : await api(`${ALERT_ROUTE}/rules`, { method: "POST", body: JSON.stringify({ watch_id: item.watch_id, event_types: eventTypes }) });
     node.disabled = false;
-    if (!result.response.ok) return setText("monitorAlertSummary", `Raven Monitor refused this rule: ${String(result.payload?.error || "evidence unavailable").replaceAll("_", " ")}.`);
-    setText("monitorAlertSummary", rule ? "Monitor updated from the latest revision." : "Raven Monitor is active for this exact market.");
+    if (!result.response.ok) return setText("monitorAlertSummary", "This alert could not be saved. Please try again.");
+    setText("monitorAlertSummary", rule ? "Alert settings updated." : "Raven alerts are on for this exact market.");
     await loadRules();
   });
   details.append(summary, grid, action);
@@ -171,32 +171,32 @@ function ruleNode(item) {
   copy.append(title, note);
   summary.append(copy, actions);
   if (!state.alerts.available) {
-    title.textContent = "Raven Monitor unavailable";
-    note.textContent = state.alerts.state === "loading" ? "Checking operator-granted access…" : "This dormant beta is not active for the current account and server configuration.";
+    title.textContent = "Raven alerts aren’t available yet";
+    note.textContent = state.alerts.state === "loading" ? "Checking alert access…" : "Your saved markets still work normally. Alert controls will appear here when they’re ready for your account.";
     host.append(summary);
     return host;
   }
   const rule = state.rules.find((candidate) => candidate.watch_id === item.watch_id);
   if (!rule) {
-    title.textContent = "Not monitored";
-    note.textContent = "Choose bounded Raven evidence classifications. Numeric price movement and plan levels are never stored as alert rules.";
+    title.textContent = "Alerts off";
+    note.textContent = "Choose the Raven changes you want to review for this market. Price targets and plan levels are not saved as alert rules.";
     host.append(summary, eventEditor(item));
     return host;
   }
-  title.textContent = `Raven Monitor · ${rule.state}`;
-  note.textContent = `${rule.event_types.map(eventLabel).join(" · ")} · last qualified ${formatWhen(rule.last_qualified_evaluation_at)}`;
+  title.textContent = `Raven alerts · ${rule.state}`;
+  note.textContent = `${rule.event_types.map(eventLabel).join(" · ")} · last checked ${formatWhen(rule.last_qualified_evaluation_at)}`;
   actions.append(
     button(rule.state === "active" ? "Pause" : "Resume", "", async (node) => {
       node.disabled = true;
       const nextState = rule.state === "active" ? "paused" : "active";
       const result = await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "PATCH", body: JSON.stringify({ state: nextState, event_types: rule.event_types, expected_revision: rule.revision }) });
-      if (!result.response.ok) setText("monitorAlertSummary", `Monitor update refused: ${result.payload?.error || "unavailable"}.`);
+      if (!result.response.ok) setText("monitorAlertSummary", "Alert settings could not be updated. Please try again.");
       await loadRules();
     }),
-    button("Delete monitor", "danger", async (node) => {
+    button("Delete alert", "danger", async (node) => {
       node.disabled = true;
       const result = await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "DELETE", body: "{}" });
-      if (!result.response.ok) setText("monitorAlertSummary", `Monitor deletion refused: ${result.payload?.error || "unavailable"}.`);
+      if (!result.response.ok) setText("monitorAlertSummary", "This alert could not be deleted. Please try again.");
       await Promise.all([loadRules(), loadNotifications()]);
     }),
   );
@@ -228,7 +228,7 @@ function itemNode(item) {
     fact("Workspace", `${item.workspace?.timeframe || "1h"} · ${item.workspace?.density || "comfortable"} · ${item.workspace?.selected_panel || "chart"}`),
     fact("Raven overlays", listLabel(item.workspace?.raven_overlays)),
     fact("Indicators", listLabel(item.workspace?.indicators)),
-    fact("Last checked", `${formatWhen(item.availability?.checked_at)} · revision ${item.revision || 1}`),
+    fact("Last checked", formatWhen(item.availability?.checked_at)),
   );
   const actions = document.createElement("div");
   actions.className = "monitor-item-actions";
@@ -241,7 +241,7 @@ function itemNode(item) {
     button("Check availability", "", async (node) => {
       node.disabled = true;
       const result = await api(`${RESEARCH_ROUTE}/watch-items/${encodeURIComponent(item.watch_id)}/refresh`, { method: "POST", body: "{}" });
-      if (!result.response.ok) setText("monitorListSummary", `Availability check refused: ${result.payload?.error || "unavailable"}.`);
+      if (!result.response.ok) setText("monitorListSummary", "Market availability could not be refreshed. Please try again.");
       await loadItems();
     }),
     button("Remove", "danger", async (node) => { node.disabled = true; await removeItem(item.watch_id); }),
@@ -255,14 +255,14 @@ function renderItems() {
   if (!state.items.length) {
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = "No exact markets saved. Open a public Discover or Terminal market and choose Monitor with Raven or Save.";
+    empty.textContent = "No exact markets saved. Open a market in Discover or Terminal and choose Save or Monitor with Raven.";
     listNode.append(empty);
   } else listNode.append(...state.items.map(itemNode));
   setText("monitorListSummary", `${state.items.length} of 100 exact markets saved across this account.`);
   const current = state.pending ? state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id) : null;
   pendingNode.dataset.state = current ? "saved" : "pending";
-  setText("monitorPendingState", current ? `Saved · revision ${current.revision}` : "Not saved");
-  saveButton.textContent = current ? "Update saved workspace" : state.pendingIntent === "monitor" ? "Save exact market first" : "Save exact market";
+  setText("monitorPendingState", current ? "Saved" : "Not saved");
+  saveButton.textContent = current ? "Update chart setup" : state.pendingIntent === "monitor" ? "Save exact market first" : "Save exact market";
   unwatchButton.hidden = !current;
   unwatchButton.dataset.watchId = current?.watch_id || "";
 }
@@ -270,7 +270,7 @@ function renderItems() {
 async function loadItems() {
   const { response, payload } = await api(RESEARCH_ROUTE);
   if (!response.ok || !Array.isArray(payload?.items)) {
-    setText("monitorListSummary", `Saved research state unavailable: ${payload?.error || "request failed"}.`);
+    setText("monitorListSummary", "Your saved markets could not be loaded. Please refresh and try again.");
     return false;
   }
   state.items = payload.items;
@@ -281,7 +281,7 @@ async function loadItems() {
 function renderPending() {
   if (!state.pending) return;
   pendingNode.hidden = false;
-  pendingNode.querySelector("h2").textContent = state.pendingIntent === "monitor" ? "Save and monitor this exact market" : "Save this exact market";
+  pendingNode.querySelector("h2").textContent = state.pendingIntent === "monitor" ? "Save this market and add alerts" : "Save this exact market";
   setText("monitorPendingIdentity", state.pending.market.instrument_id);
   setText("monitorPendingTimeframe", state.pending.workspace.timeframe);
   setText("monitorPendingIndicators", listLabel(state.pending.workspace.indicators));
@@ -293,18 +293,18 @@ function renderPending() {
 async function savePending() {
   if (!state.pending) return;
   saveButton.disabled = true;
-  setText("monitorPendingMessage", "Validating canonical identity and saving…");
+  setText("monitorPendingMessage", "Confirming the exact market and saving…");
   const current = state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id);
   const body = current ? { ...state.pending, expected_revision: current.revision } : state.pending;
   const { response, payload } = await api(`${RESEARCH_ROUTE}/watch-items`, { method: "POST", body: JSON.stringify(body) });
   saveButton.disabled = false;
   if (!response.ok) {
     pendingNode.dataset.state = "invalid";
-    setText("monitorPendingState", "Save refused");
-    return setText("monitorPendingMessage", `RavenOS refused this handoff: ${String(payload?.error || "request unavailable").replaceAll("_", " ")}.`);
+    setText("monitorPendingState", "Couldn’t save");
+    return setText("monitorPendingMessage", "This market could not be saved. Please return to its exact Terminal page and try again.");
   }
   history.replaceState({}, "", "/monitor/");
-  setText("monitorPendingMessage", state.pendingIntent === "monitor" ? "Saved exactly. Choose the qualified Raven changes below; unsupported evidence fails closed." : "Saved to this account without symbol substitution.");
+  setText("monitorPendingMessage", state.pendingIntent === "monitor" ? "Saved. Choose which Raven changes you want to follow below." : "Saved to your account. RavenOS will always reopen this exact market.");
   await loadItems();
   if (state.pendingIntent === "monitor") {
     const currentItem = state.items.find((item) => item.market?.instrument_id === state.pending.market.instrument_id);
@@ -315,7 +315,7 @@ async function savePending() {
 
 async function removeItem(watchId) {
   const { response, payload } = await api(`${RESEARCH_ROUTE}/watch-items/${encodeURIComponent(watchId)}`, { method: "DELETE", body: "{}" });
-  if (!response.ok) setText("monitorListSummary", `Deletion refused: ${payload?.error || "request unavailable"}.`);
+  if (!response.ok) setText("monitorListSummary", "This saved market could not be removed. Please try again.");
   await Promise.all([loadItems(), state.alerts.available ? loadNotifications() : Promise.resolve()]);
 }
 
@@ -324,11 +324,11 @@ async function deleteAll() {
   control.disabled = true;
   const { response, payload } = await api(RESEARCH_ROUTE, { method: "DELETE", body: JSON.stringify({ confirm: "delete_all_saved_research_state" }) });
   control.disabled = false;
-  if (!response.ok) return setText("monitorListSummary", `Delete-all refused: ${payload?.error || "request unavailable"}.`);
+  if (!response.ok) return setText("monitorListSummary", "Your saved markets could not be deleted. Please try again.");
   document.getElementById("monitorDeleteDialog").close();
   state.items = []; state.rules = []; state.notifications = [];
   renderItems(); renderNotifications();
-  setText("monitorListSummary", `Deleted ${payload.deleted_count || 0} saved research-state record${payload.deleted_count === 1 ? "" : "s"}. Associated monitor state was removed by owner cascade.`);
+  setText("monitorListSummary", `Deleted ${payload.deleted_count || 0} saved market${payload.deleted_count === 1 ? "" : "s"}.`);
 }
 
 function renderAlertState() {
@@ -338,9 +338,9 @@ function renderAlertState() {
     notificationNode.replaceChildren();
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = state.alerts.state === "not_granted" ? "Raven Monitor has not been operator-granted to this account." : "Raven Monitor and in-app notifications are dormant on this server configuration.";
+    empty.textContent = "Raven alerts aren’t available for this account yet. Your saved markets still work normally.";
     notificationNode.append(empty);
-    setText("monitorAlertSummary", `Monitor beta ${String(state.alerts.state || "unavailable").replaceAll("_", " ")}.`);
+    setText("monitorAlertSummary", "Alerts aren’t available for this account yet.");
   }
   renderItems();
 }
@@ -375,8 +375,8 @@ function notificationItem(item) {
   const transition = document.createElement("p");
   const limitation = document.createElement("p");
   explanation.textContent = item.explanation || eventLabel(item.event_type);
-  transition.textContent = `${item.before?.value || "Unavailable"} → ${item.after?.value || "Unavailable"} · source ${formatWhen(item.source_as_of)} · detected ${formatWhen(item.detected_at)}`;
-  limitation.textContent = listLabel(item.limitations, "Research monitoring only. This is not a trade or execution alert.");
+  transition.textContent = `${item.before?.value || "Unavailable"} → ${item.after?.value || "Unavailable"} · observed ${formatWhen(item.source_as_of)} · alerted ${formatWhen(item.detected_at)}`;
+  limitation.textContent = listLabel(item.limitations, "This alert is research context, not an instruction to trade.");
   copy.append(explanation, transition, limitation);
   const actions = document.createElement("div");
   actions.className = "monitor-notification-actions";
@@ -388,7 +388,7 @@ function notificationItem(item) {
   if (!item.read_at) actions.append(button("Mark read", "", async (node) => {
     node.disabled = true;
     const result = await api(`${ALERT_ROUTE}/notifications/${encodeURIComponent(item.notification_id)}/read`, { method: "POST", body: JSON.stringify({ read: true }) });
-    if (!result.response.ok) setText("monitorAlertSummary", `Read state unavailable: ${result.payload?.error || "request failed"}.`);
+    if (!result.response.ok) setText("monitorAlertSummary", "This notification could not be marked as read. Please try again.");
     await loadNotifications();
   }));
   row.append(main, copy, actions);
@@ -400,7 +400,7 @@ function renderNotifications() {
   if (!state.alerts.available || !state.notifications.length) {
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = state.alerts.available ? "No qualified Raven evidence transitions have been recorded." : "Notification history unavailable.";
+    empty.textContent = state.alerts.available ? "No Raven changes have been recorded yet." : "Raven alerts aren’t available for this account yet.";
     notificationNode.append(empty);
   } else notificationNode.append(...state.notifications.map(notificationItem));
 }
@@ -408,13 +408,13 @@ function renderNotifications() {
 function updateAlertSummary() {
   const active = state.rules.filter((rule) => rule.state === "active").length;
   const unread = state.notifications.filter((item) => !item.read_at).length;
-  setText("monitorAlertSummary", `${active} active monitor${active === 1 ? "" : "s"} · ${unread} unread notification${unread === 1 ? "" : "s"}.`);
+  setText("monitorAlertSummary", `${active} active alert${active === 1 ? "" : "s"} · ${unread} unread notification${unread === 1 ? "" : "s"}.`);
 }
 
 async function loadNotifications() {
   const { response, payload } = await api(`${ALERT_ROUTE}/notifications`);
   if (!response.ok || !Array.isArray(payload?.notifications)) {
-    setText("monitorAlertSummary", `Notification history unavailable: ${payload?.error || "request failed"}.`);
+    setText("monitorAlertSummary", "Notifications could not be loaded. Please try again.");
     return false;
   }
   state.notifications = payload.notifications;
@@ -441,9 +441,9 @@ async function loadAlertAccess() {
 
 async function deleteNotificationHistory() {
   const result = await api(`${ALERT_ROUTE}/notifications`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_notification_history" }) });
-  if (!result.response.ok) return setText("monitorAlertSummary", `Notification deletion refused: ${result.payload?.error || "request failed"}.`);
+  if (!result.response.ok) return setText("monitorAlertSummary", "Notification history could not be cleared. Please try again.");
   state.notifications = []; renderNotifications();
-  setText("monitorAlertSummary", `Deleted ${result.payload.deleted_count || 0} notification${result.payload.deleted_count === 1 ? "" : "s"}. Monitor rules remain active.`);
+  setText("monitorAlertSummary", `Cleared ${result.payload.deleted_count || 0} notification${result.payload.deleted_count === 1 ? "" : "s"}. Your alerts remain active.`);
 }
 
 async function deleteAlertState() {
@@ -451,11 +451,11 @@ async function deleteAlertState() {
   control.disabled = true;
   const result = await api(ALERT_ROUTE, { method: "DELETE", body: JSON.stringify({ confirm: "delete_all_alert_research_state" }) });
   control.disabled = false;
-  if (!result.response.ok) return setText("monitorAlertSummary", `Monitor-state deletion refused: ${result.payload?.error || "request failed"}.`);
+  if (!result.response.ok) return setText("monitorAlertSummary", "Your Raven alerts could not be deleted. Please try again.");
   document.getElementById("monitorAlertDeleteDialog").close();
   state.rules = []; state.notifications = [];
   renderItems(); renderNotifications();
-  setText("monitorAlertSummary", `Deleted ${result.payload.deleted?.rules || 0} monitor rule${result.payload.deleted?.rules === 1 ? "" : "s"} and ${result.payload.deleted?.notifications || 0} notification${result.payload.deleted?.notifications === 1 ? "" : "s"}. Saved markets remain.`);
+  setText("monitorAlertSummary", `Deleted ${result.payload.deleted?.rules || 0} alert${result.payload.deleted?.rules === 1 ? "" : "s"} and ${result.payload.deleted?.notifications || 0} notification${result.payload.deleted?.notifications === 1 ? "" : "s"}. Saved markets remain.`);
 }
 
 async function submitAuth(form) {

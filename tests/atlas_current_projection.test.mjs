@@ -168,7 +168,7 @@ function env() {
 async function withOrigin(handler, callback) {
   const previous = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
-    assert.equal(String(url), `${ORIGIN}/atlas.json`);
+    assert.equal(String(url), `${ORIGIN}/atlas.json?projection=2`);
     assert.equal(init.headers?.["x-ravenos-public-token"], TOKEN);
     return handler(url, init);
   };

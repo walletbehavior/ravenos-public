@@ -1418,7 +1418,7 @@ test("exact spot charts join current public token anatomy without changing candl
           return [now - index * 60, close, close * 1.01, close * 0.99, close * 1.002, 1_000 + index];
         }) } } }), { status: 200, headers: { "content-type": "application/json" } });
       }
-      if (url.endsWith("/public/ravenos/opportunities.json")) {
+      if (new URL(url).pathname.endsWith("/public/ravenos/opportunities.json")) {
         assert.equal(init.headers["x-ravenos-public-token"], originSecret);
         return new Response(JSON.stringify({
           ok: true,

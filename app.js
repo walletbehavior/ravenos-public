@@ -76,7 +76,7 @@ async function loadData() {
     setText("freshness", data.freshness?.status || "unknown");
     setText("read-mode", data.read_mode || data.behavior_guidance?.read_mode || "watchlist");
     setText("generated-at", fmtDate(data.generated_at));
-    setText("public-read", data.public_read || data.regime_quality?.public_read || "Public-safe summary unavailable.");
+    setText("public-read", data.public_read || data.regime_quality?.public_read || "Current Raven summary unavailable.");
     setText("regime-direction", data.regime?.direction || data.regime_quality?.latest_window_direction || "unknown");
     setText("regime-confirmation", data.regime?.confirmation || data.regime_quality?.longer_window_confirmation || "unknown");
     setText("regime-consistency", data.regime?.consistency || data.regime_quality?.consistency || "unknown");
@@ -98,7 +98,7 @@ async function loadData() {
     setText("freshness", "stale");
     setText("read-mode", "watchlist");
     setText("generated-at", "Awaiting sync");
-    setText("public-read", "Public-safe summary is unavailable. The site is live, but the data sync has not yet populated a fresh snapshot.");
+    setText("public-read", "The current Raven summary is unavailable while data refreshes. Other live market views remain available.");
     setText("regime-direction", "unknown");
     setText("regime-confirmation", "unknown");
     setText("regime-consistency", "unknown");

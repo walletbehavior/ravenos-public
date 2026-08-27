@@ -1212,7 +1212,7 @@ function technicalAlphaCard(read = state.chartRead) {
     label: "Chart setup",
     headline: `${read.setup === "breakout_confirmed" ? "Breakout confirmed" : "Trend aligned"} ${direction} · ${read.score}/${read.score_max}`,
     detail: facts.join(" · "),
-    meta: `${read.timeframe} · provider-backed price action`,
+    meta: `${read.timeframe} · current price action`,
     tone: read.direction === "long" ? "positive" : "negative",
   });
 }
@@ -1459,9 +1459,9 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     frozen_context_id: frozenId,
     review_horizon: `${read.timeframe} structure map`,
     sample_size: sample,
-    evidence_unit: "provider candles",
+    evidence_unit: "market candles",
     evidence_maturity: "current_structure",
-    evidence_label: `${sample.toLocaleString()} provider candles · ${flow.scope === "exact_token" ? "token-wide current buy flow" : "exact-pool current buy flow"}`,
+    evidence_label: `${sample.toLocaleString()} market candles · ${flow.scope === "exact_token" ? "token-wide current buy flow" : "exact-pool current buy flow"}`,
     strategy_id: policy.id,
     strategy_label: policy.label,
     strategy_reasons: strategyReasons,
@@ -1483,9 +1483,9 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     },
     methodology: `${policy.label}: target spacing and trim sizes adapt to current exact-pool structure, volatility, flow participation, holders, depth, age, concentration, and available token-control evidence.`,
     levels: {
-      entry_reference: { price: entry, observed_at: observedAt, source: "latest provider-backed close" },
+      entry_reference: { price: entry, observed_at: observedAt, source: "latest observed close" },
       target_reference: { price: takeProfits[1].price, excursion_pct: takeProfits[1].excursion_pct, source: `${policy.label} primary scale-out reference` },
-      risk_reference: { price: risk, excursion_pct: -riskPct, source: "recent provider-backed structure invalidation" },
+      risk_reference: { price: risk, excursion_pct: -riskPct, source: "recent market-structure invalidation" },
     },
     take_profits: takeProfits,
     production_qualified: false,
@@ -1517,7 +1517,7 @@ function spotPlanOverlays(plan = {}) {
     lineage,
   });
   return [
-    level({ id: "entry", type: "plan-entry", label: "Decision reference", summary: "Latest provider-backed close", severity: "info", price: validated.levels.entry_reference.price }),
+    level({ id: "entry", type: "plan-entry", label: "Decision reference", summary: "Latest observed close", severity: "info", price: validated.levels.entry_reference.price }),
     ...validated.takeProfits.map((target, index) => level({
       id: `target-${index + 1}`,
       type: "plan-target",
@@ -2797,7 +2797,7 @@ function setPlanOverlayActive(requested, { source = "plan", switchToChart = requ
 
 function focusPlanPreview() {
   if (!qualifiedPlanData()) {
-    announceRavenAction("A current qualified Raven plan is not available for this exact market.");
+    announceRavenAction("A current Raven plan is not available for this exact market.");
     return false;
   }
   if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
@@ -3156,7 +3156,7 @@ function renderPerpContext(payload, { updateUrl = true, opportunityEvidence = nu
   setContextField("terminalPath", titleCase(context.current_path || context.pressure_state || context.context_state, ""), "Path");
   setContextField("terminalEvidenceMaturity", titleCase(context.outcomes?.evidence_maturity, ""), "Evidence");
   setText("terminalEvidenceState", `${observationLabel} · ${deliveryLabel}`);
-  setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Fallback · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
+  setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Earlier data · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderDecisionSupport({
     changed: read.summary,
     strengthens: read.what_would_strengthen,
@@ -3921,7 +3921,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
     setContextUnavailable();
     updateShell({
       subject: perpSubject(row),
-      marketLabel: `${row.asset} provider market`,
+      marketLabel: `${row.asset} market`,
       thesis: "",
       setup: "",
       evidenceState: "",
@@ -4079,7 +4079,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   document.getElementById("venueSelect").replaceChildren(new Option(`${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
   renderSpotFacts(row);
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
-  setText("terminalChartStatus", "Requesting exact-pool provider candles.");
+  setText("terminalChartStatus", "Loading exact-pool candles.");
   const chartCapability = spotChartCapability(row, state.timeframe);
   const hasChartCoverage = chartCapability.chart_request_supported;
   setText("terminalDeepLink", hasChartCoverage ? "Market anatomy" : "Coverage unavailable");
@@ -4369,7 +4369,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
       : "",
     setup: atlasRow ? state.atlas?.posture?.state || "atlas_context" : "",
     supporting: atlasRow ? Object.entries(state.atlas?.rail_breadth || {}).slice(0, 4).map(([rail, value]) => `${titleCase(rail)}: ${titleCase(value?.trend)} trend · ${titleCase(value?.participation)} participation.`) : [],
-    contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} market data is degraded.`) : [],
+    contradicting: atlasRow ? Object.entries(state.atlas?.provider_health || {}).filter(([, value]) => value?.degraded).map(([rail]) => `${titleCase(rail)} market data is updating.`) : [],
     evidenceState: atlasRow ? "atlas_context" : "",
     freshnessState: atlasRow ? state.atlas?.freshness?.state === "fresh" ? "live" : "delayed" : visualChart ? "visual_context" : chartState?.state || "data_unavailable",
     freshnessLabel: atlasRow ? "Atlas context" : visualChart ? "Chart context" : chartState?.operatorStateLabel || "",
@@ -4542,7 +4542,7 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
     const row = rows.find((item) => String(item.pairAddress || "").toLowerCase() === identity.pairAddress.toLowerCase()
       && String(item.chainId || "").toLowerCase() === identity.chainId.toLowerCase());
     if (!row) {
-      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact requested pool is not available from the current public provider." });
+      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact requested pool is not available from the current market-data sources." });
       return;
     }
     if (
@@ -4555,7 +4555,7 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
     setLane("spot", { updateUrl: false, selectDefault: false });
     await selectSpot(row, { updateUrl });
   } catch {
-    await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact-pool provider lookup is currently unavailable." });
+    await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "Exact-pool lookup is currently unavailable." });
   }
 }
 
@@ -4872,7 +4872,7 @@ boot().catch((error) => {
   if (boundary) {
     boundary.dataset.state = "unavailable";
     boundary.querySelector("strong").textContent = "Market path unavailable";
-    boundary.querySelector("small").textContent = "No fallback market state was generated";
+    boundary.querySelector("small").textContent = "No earlier market state was substituted";
   }
   window.RavenOSShell?.setCapabilities?.({ market: "Data unavailable", wallet: "No customer session", mode: "Read only", signing: "Sign off", broadcast: "Broadcast off", evidence: "Evidence unavailable" });
   window.__RAVENOS_TERMINAL_BOOT_ERROR__ = error instanceof Error ? error.message : "terminal_boot_failed";

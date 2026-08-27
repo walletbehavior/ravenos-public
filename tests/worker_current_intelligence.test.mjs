@@ -116,7 +116,7 @@ test("Worker serves current origin intelligence with explicit delivery provenanc
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     assert.equal(init.headers["x-ravenos-public-token"], "server-only-test-token");
-    assert.equal(String(url), `${ORIGIN}/brief.json`);
+    assert.equal(String(url), `${ORIGIN}/brief.json?projection=2`);
     return jsonResponse(projection(
       "brief",
       "ravenos_brief_public_origin_v1",

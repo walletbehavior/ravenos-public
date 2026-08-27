@@ -245,9 +245,9 @@ test("unwatch, individual deletion, and delete-all are explicit customer control
   await expect(page.locator(".monitor-item")).toHaveCount(2);
   await page.locator(".monitor-item").first().getByRole("button", { name: "Remove" }).click();
   await expect(page.locator(".monitor-item")).toHaveCount(1);
-  await page.getByRole("button", { name: "Delete all saved research state" }).click();
+  await page.getByRole("button", { name: "Delete all saved markets" }).click();
   await expect(page.locator("#monitorDeleteDialog")).toBeVisible();
-  await page.getByRole("button", { name: "Delete everything" }).click();
+  await page.getByRole("button", { name: "Delete saved markets" }).click();
   await expect(page.locator(".monitor-item")).toHaveCount(0);
   const deleteAll = shared.requests.find((entry) => entry.method === "DELETE" && entry.path === "/api/v1/research-state");
   expect(JSON.parse(deleteAll.body)).toEqual({ confirm: "delete_all_saved_research_state" });

@@ -13,9 +13,9 @@
   <main class="workspace-page account-page" data-route-slug="account" data-account-state="loading">
     <header class="workspace-operator-head account-operator-head">
       <div>
-        <span class="workspace-question">Your RavenOS identity</span>
+        <span class="workspace-question">Your RavenOS account</span>
         <h1>One account for your entire desk.</h1>
-        <p>Create a secure RavenOS identity and manage your signed-in devices while wallets, saved workspace data, entitlements, and trading permissions stay independently controlled.</p>
+        <p>Sync saved markets and chart setups across devices, manage sign-ins, and keep wallet access and trading approval separate.</p>
       </div>
       <div class="account-head-status" aria-live="polite">
         <span class="account-state-dot"></span>
@@ -27,8 +27,8 @@
       <div class="account-auth-primary">
         <div class="account-auth-copy">
           <span class="workspace-label">RavenOS account</span>
-          <h2>Secure access.<br />Clean permission boundaries.</h2>
-          <p>Use Google for speed, or continue with a verified email, one-time code, or password. RavenOS never receives your Google password or stores your provider password, seed phrase, or wallet private key.</p>
+          <h2>Secure sign-in.<br />You stay in control.</h2>
+          <p>Use Google, or continue with a verified email, one-time code, or password. RavenOS never receives your Google password and never asks for a seed phrase or wallet private key.</p>
         </div>
 
         <div class="account-mode-switch" role="tablist" aria-label="Account action">
@@ -50,14 +50,14 @@
             <input type="hidden" name="return_to" value="/account/" />
             <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email, password, or code</span><span aria-hidden="true">→</span></button>
           </form>
-          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Account credentials and RavenOS sessions are separate from every wallet and trading permission.</p>
+          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Signing in does not connect a wallet or approve a trade.</p>
           <p class="account-auth-legal">By continuing, you agree to the <a href="https://ravenos.xyz/terms/">Terms</a> and acknowledge the <a href="https://ravenos.xyz/privacy/">Privacy Policy</a>.</p>
         </div>
 
         <section class="account-activation" id="accountActivation" hidden>
-          <span class="workspace-label">Activation gate</span>
-          <strong>The secure account service is being connected.</strong>
-          <p>Market intelligence remains available without an account. Sign-up controls appear only when managed identity and server-side session storage are both active.</p>
+          <span class="workspace-label">Account setup</span>
+          <strong>Account sign-up is temporarily unavailable.</strong>
+          <p>You can still use public market intelligence while account access is restored.</p>
           <a href="/discover/">Continue to Discover →</a>
         </section>
       </div>
@@ -67,10 +67,10 @@
         <div class="account-capability-list">
           <article><span>01</span><div><strong>Persistent identity</strong><p>Your RavenOS identity is independent of any browser, wallet address, venue, or broker account.</p></div></article>
           <article><span>02</span><div><strong>Revocable sessions</strong><p>Review active devices, sign out this browser, or revoke another recent session from one security desk.</p></div></article>
-          <article><span>03</span><div><strong>Permission separation</strong><p>Saved data, wallets, plans, and future transaction authority remain unavailable until each capability is independently activated.</p></div></article>
+          <article><span>03</span><div><strong>Separate controls</strong><p>Saved markets work after sign-in. Wallet connections and trade approval remain separate actions.</p></div></article>
         </div>
         <div class="account-separation-note">
-          <span>Identity boundary</span>
+          <span>Good to know</span>
           <strong>Signing in is not trading.</strong>
           <p>Account identity, wallet ownership, paid access, and transaction approval remain four distinct permissions.</p>
         </div>
@@ -101,19 +101,19 @@
 
         <section class="account-security-panel account-pro-panel" id="accountProPanel" data-pro-state="loading">
           <header>
-            <div><span class="workspace-label">Server-enforced preview</span><h3>Pro intelligence foundation</h3></div>
+            <div><span class="workspace-label">Pro preview</span><h3>Pro Intelligence</h3></div>
             <strong id="accountProState">Checking access</strong>
           </header>
           <div class="account-pro-intro">
-            <strong>Capability access is separate from identity.</strong>
-            <p id="accountProStatus" aria-live="polite">Checking the server-owned capability contract. Commercial access is not available and no plan can be selected here.</p>
+            <strong>Your account only opens the features available to you.</strong>
+            <p id="accountProStatus" aria-live="polite">Checking Pro access for this account.</p>
             <a class="account-pro-workspace-link" href="/account/intelligence/">Open Pro Intelligence workspace <span aria-hidden="true">→</span></a>
           </div>
           <div class="account-pro-capabilities" id="accountProCapabilities" role="list" aria-label="Advanced intelligence capability states"></div>
           <footer class="account-pro-boundary">
-            <span>Atlas roadmap</span>
+            <span>Atlas availability</span>
             <strong>Planned · not yet available.</strong>
-            <p>Authentication or entitlement never overrides provider display rights. No private Atlas, options, broker, wallet, alert, or execution data is available here.</p>
+            <p>Signing in never reveals restricted market data or connects a broker or wallet.</p>
           </footer>
         </section>
 

@@ -56,7 +56,7 @@ test("dormant Pro foundation is explicit, non-commercial, and does not request a
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "unavailable");
   await expect(page.locator("#accountProState")).toHaveText("Unavailable");
   await expect(page.locator(".account-pro-capability")).toHaveCount(2);
-  await expect(page.locator("#accountProStatus")).toContainText("Pro beta unavailable");
+  await expect(page.locator("#accountProStatus")).toContainText("Pro access isn’t available");
   await expect(page.getByText("Planned · not yet available.")).toBeVisible();
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
@@ -148,8 +148,8 @@ test("expired and suspended capability states stay denied and usable on mobile",
 
   await page.goto("/account/");
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "unavailable");
-  await expect(page.locator(".account-pro-capability[data-state=expired]")).toContainText("server-side grant is expired");
-  await expect(page.locator(".account-pro-capability[data-state=suspended]")).toContainText("server-side grant is suspended");
+  await expect(page.locator(".account-pro-capability[data-state=expired]")).toContainText("Pro access has expired");
+  await expect(page.locator(".account-pro-capability[data-state=suspended]")).toContainText("Pro access is paused");
   expect(advancedRequests).toBe(0);
   const dimensions = await page.locator("#accountProPanel").evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);

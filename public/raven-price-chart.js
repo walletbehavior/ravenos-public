@@ -723,7 +723,7 @@
 
     function unavailableIndicator(key) {
       indicatorState[key] = {
-        status: indicatorState.sourceState === "structure_proxy" ? "unavailable on fallback chart" : "coverage developing",
+        status: indicatorState.sourceState === "structure_proxy" ? "unavailable on this limited chart" : "coverage developing",
         points: 0,
       };
     }

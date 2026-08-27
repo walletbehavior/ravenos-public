@@ -120,7 +120,7 @@ test("loads a valid current public projection through the protected origin", asy
       return jsonResponse(envelope());
     },
   });
-  assert.equal(observed.url, "https://origin.example/public/ravenos/brief.json");
+  assert.equal(observed.url, "https://origin.example/public/ravenos/brief.json?projection=2");
   assert.equal(observed.init.headers["x-ravenos-public-token"], "test-token");
   assert.equal(observed.init.redirect, "manual");
   assert.equal(result.available, true);

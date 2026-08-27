@@ -224,7 +224,7 @@ test("active owner-resolved capabilities render bounded private Perps and Partic
   });
 
   await page.goto("/account/intelligence/?view=perps&instrument_id=hyperliquid%3Aperp%3ASOL");
-  await expect(page.locator("#proWorkspaceState")).toHaveText("2 capabilities active");
+  await expect(page.locator("#proWorkspaceState")).toHaveText("2 Pro views ready");
   await expect(page.locator("#proPerpsProjection")).toBeVisible();
   await expect(page.locator('#proPerpsContent tr[data-selected-market="true"]')).toContainText("SOL-PERP");
   await expect(page.locator("#proPerpsContent")).toContainText("Funding neutral");
@@ -265,9 +265,9 @@ test("authenticated workspace shows a non-commercial unavailable state while ser
   await page.route("**/api/v1/intelligence/**", (route) => { projectionRequests += 1; return route.fulfill({ status: 500, body: "must not request" }); });
 
   await page.goto("/account/intelligence/");
-  await expect(page.locator("#proWorkspaceState")).toHaveText("Pro beta unavailable");
-  await expect(page.locator("#proPerpsMessage")).toContainText("Pro beta unavailable");
-  await expect(page.locator("#proParticipantsMessage")).toContainText("Pro beta unavailable");
+  await expect(page.locator("#proWorkspaceState")).toHaveText("Pro access unavailable");
+  await expect(page.locator("#proPerpsMessage")).toContainText("Pro access unavailable");
+  await expect(page.locator("#proParticipantsMessage")).toContainText("Pro access unavailable");
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
   expect(projectionRequests).toBe(0);
@@ -287,11 +287,11 @@ test("denied grant lifecycle states stay explicit and never request private data
   }));
   await page.route("**/api/v1/intelligence/**", (route) => { projectionRequests += 1; return route.fulfill({ status: 500, body: "must not request" }); });
 
-  for (const [state, label] of [["expired", "Access expired"], ["suspended", "Access suspended"], ["revoked", "Access revoked"], ["not_granted", "Capability not granted"]]) {
+  for (const [state, label] of [["expired", "Access expired"], ["suspended", "Access suspended"], ["revoked", "Access removed"], ["not_granted", "Pro access not available"]]) {
     grantState = state;
     await page.goto(`/account/intelligence/?view=${state === "suspended" ? "participants" : "perps"}`);
     await expect(page.locator(state === "suspended" ? "#proParticipantsMessage" : "#proPerpsMessage")).toContainText(label);
-    await expect(page.locator("#proWorkspaceState")).toHaveText("No active capabilities");
+    await expect(page.locator("#proWorkspaceState")).toHaveText("Pro access not available");
   }
   expect(projectionRequests).toBe(0);
 });
@@ -315,7 +315,7 @@ test("Pro workspace stays readable and contained at 390px without exposing execu
   const workspaceOverflow = await page.locator("#proWorkspace").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(workspaceOverflow).toBeLessThanOrEqual(2);
   const text = await page.locator("body").innerText();
-  expect(text).toContain("No wallet, broker, signing, submission, order, or position authority is present.");
-  expect(text).toContain("Entitlement never expands Atlas rights");
+  expect(text).toContain("This workspace cannot connect a wallet, place an order, or manage a position.");
+  expect(text).toContain("Atlas availability stays separate");
   expect(text).not.toMatch(/Tradier|Massive|Polygon|FRED|API key|provider payload/i);
 });

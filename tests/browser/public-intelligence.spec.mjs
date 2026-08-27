@@ -307,7 +307,7 @@ test("Free Participant Intelligence receives six aggregate conditions with no ad
   await expect(page.locator(".behavior-matrix article")).toHaveCount(6);
   await expect(page.locator(".behavior-focus")).toContainText(/Sample.*usable.*observed.*Window.*Privacy.*Aggregate/s);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Complete aggregate condition matrix.*Success, win-rate, confidence and outcome bands.*Chain, capitalization and window/s);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText("No advanced rows are sent to this public page");
+  await expect(page.locator("#routeSecondaryPanel")).toContainText("This public page contains only the Free view");
   const publicDom = await page.locator("main").innerText();
   expect(publicDom).not.toMatch(/\bSuccess rate\s+\d|\bWin-rate band\s+(?:high|low|mixed)|Score strength\s+(?:high|low|strong)/i);
   expect(publicDom).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);

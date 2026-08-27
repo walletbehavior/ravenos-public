@@ -101,12 +101,12 @@ function proCapabilityNode(capability, projectionPayload = null) {
   const detail = document.createElement("p");
   if (!capability.available || !projectionPayload?.ok) {
     detail.textContent = capability.state === "expired"
-      ? "The server-side grant is expired. No advanced projection was returned."
+      ? "Your Pro access has expired. Advanced intelligence is unavailable."
       : capability.state === "revoked"
-        ? "The server-side grant is revoked. No advanced projection was returned."
+        ? "Your Pro access has been removed. Advanced intelligence is unavailable."
         : capability.state === "suspended"
-          ? "The server-side grant is suspended. No advanced projection was returned."
-          : "Pro beta unavailable. Public Intelligence remains unchanged.";
+          ? "Your Pro access is paused. Advanced intelligence is unavailable."
+          : "Pro access isn’t available for this account yet. Public Intelligence still works.";
   } else if (capability.capability === "intelligence.perps_advanced") {
     const advanced = projectionPayload.projection?.advanced || {};
     const freshness = projectionPayload.projection?.provenance?.freshness?.state || "unavailable";
@@ -119,8 +119,8 @@ function proCapabilityNode(capability, projectionPayload = null) {
 
   const boundary = document.createElement("small");
   boundary.textContent = capability.available && projectionPayload?.ok
-    ? "Private, no-store response · aggregate public-safe source projection"
-    : "No prices, checkout, upgrade promise, or restricted data";
+    ? "Private to this session · read-only aggregate intelligence"
+    : "No checkout or restricted data";
   row.append(heading, detail, boundary);
   return row;
 }
@@ -136,7 +136,7 @@ async function loadProIntelligenceCapabilities() {
     if (!response.ok || !Array.isArray(payload?.capabilities)) {
       proPanel.dataset.proState = "unavailable";
       setText("accountProState", "Unavailable");
-      setText("accountProStatus", "Pro beta unavailable. Public Intelligence remains unchanged, and no commercial access is offered here.");
+      setText("accountProStatus", "Pro access isn’t available for this account yet. Public Intelligence still works.");
       proCapabilities.replaceChildren(...unavailableProCapabilities(payload?.state || "server_disabled").map((capability) => proCapabilityNode(capability)));
       return;
     }
@@ -156,12 +156,12 @@ async function loadProIntelligenceCapabilities() {
     proPanel.dataset.proState = availableCount ? "available" : "unavailable";
     setText("accountProState", availableCount ? `${availableCount} available` : "Unavailable");
     setText("accountProStatus", availableCount
-      ? "This account can inspect the server-authorized advanced aggregate projections below. Access is read-only and cannot broaden Atlas display rights."
-      : "Pro beta unavailable. Public Intelligence remains unchanged, and no commercial access is offered here.");
+      ? "Advanced aggregate intelligence is ready below. It remains read-only."
+      : "Pro access isn’t available for this account yet. Public Intelligence still works.");
   } catch {
     proPanel.dataset.proState = "unavailable";
     setText("accountProState", "Unavailable");
-    setText("accountProStatus", "The server-owned capability contract could not be verified, so advanced intelligence remains unavailable.");
+    setText("accountProStatus", "We couldn’t verify Pro access. Public Intelligence remains available.");
     proCapabilities.replaceChildren(...unavailableProCapabilities("unavailable").map((capability) => proCapabilityNode(capability)));
   }
 }
@@ -320,12 +320,12 @@ function renderGovernorUnresolved(section = {}) {
 
 function renderGovernorPolicy(policy = {}) {
   const container = document.getElementById("accountGovernorPolicy");
-  setText("accountGovernorPolicyState", readableState(policy.state || "not configured"));
+  setText("accountGovernorPolicyState", policy.state === "not_configured" ? "No policy saved" : readableState(policy.state || "not ready"));
   if (policy.state === "not_configured") {
-    return container.replaceChildren(governorEmpty("No portfolio policy configured. Raven has not inferred targets or a compliant state."));
+    return container.replaceChildren(governorEmpty("No portfolio policy is saved. Raven has not inferred targets or a compliance result."));
   }
   const findings = Array.isArray(policy.findings) ? policy.findings : [];
-  if (!findings.length) return container.replaceChildren(governorEmpty("This user-authored policy contains no evaluable rules."));
+  if (!findings.length) return container.replaceChildren(governorEmpty("This saved policy contains no rules Raven can evaluate."));
   container.replaceChildren(...findings.map((finding) => {
     const range = [
       finding.configured_minimum_bps === null ? null : `minimum ${formatBps(finding.configured_minimum_bps)}`,
@@ -415,7 +415,7 @@ async function analyzePortfolioPreview() {
   } catch {
     governorPanel.dataset.previewState = "unavailable";
     setText("accountGovernorState", "Unavailable");
-    setText("accountGovernorStatus", "The preview response could not be safely rendered. No portfolio result was accepted.");
+    setText("accountGovernorStatus", "We couldn’t load the portfolio preview. No portfolio data was shown.");
   } finally {
     governorAnalyze.disabled = false;
   }
@@ -428,7 +428,7 @@ async function loadPortfolioPreviewCapability() {
       governorPanel.dataset.previewState = payload?.state || "not_configured";
       setText("accountGovernorState", "Not available");
       setText("accountPortfolioAnalysisState", "Not available");
-      setText("accountGovernorStatus", "No read-only beta wallet is authorized for this account yet. Arbitrary wallet lookup is disabled.");
+      setText("accountGovernorStatus", "Portfolio Preview isn’t available for this account yet. Wallet search is turned off.");
       governorControls.hidden = true;
       return;
     }
@@ -437,7 +437,7 @@ async function loadPortfolioPreviewCapability() {
       governorPanel.dataset.previewState = "no_authorized_wallet";
       setText("accountGovernorState", "No authorized wallet");
       setText("accountPortfolioAnalysisState", "Not authorized");
-      setText("accountGovernorStatus", "No read-only beta wallet is authorized for this account. Wallet addresses cannot be entered manually here.");
+      setText("accountGovernorStatus", "No Portfolio Preview wallet is available for this account. Wallet search is turned off.");
       governorControls.hidden = true;
       return;
     }
@@ -451,16 +451,16 @@ async function loadPortfolioPreviewCapability() {
     governorPanel.dataset.previewState = "available";
     setText("accountGovernorState", "Ready");
     setText("accountPortfolioAnalysisState", "Read only");
-    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only beta wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
-    setText("accountWalletConnectionDetail", "This account may select these server-authorized wallets for observation. This beta authorization is not a durable wallet link or transaction permission.");
+    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only preview wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
+    setText("accountWalletConnectionDetail", "Select an approved wallet to inspect. This does not link the wallet or grant transaction access.");
     setText("accountWalletConnectionState", "Observation only");
     setText("accountWalletOwnershipState", "Not proven");
-    setText("accountGovernorStatus", "Select an authorized wallet and request a current observation. No address, policy target, transaction, or portfolio history is created by the browser.");
+    setText("accountGovernorStatus", "Select a wallet to inspect current public account data. RavenOS does not save portfolio history from this preview.");
   } catch {
     governorPanel.dataset.previewState = "unavailable";
     setText("accountGovernorState", "Unavailable");
     setText("accountPortfolioAnalysisState", "Unavailable");
-    setText("accountGovernorStatus", "The read-only preview capability could not be checked.");
+    setText("accountGovernorStatus", "Portfolio Preview access could not be checked. Please try again.");
     governorControls.hidden = true;
   }
 }

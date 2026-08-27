@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RavenOS · Hyperliquid Intelligence Terminal</title>
-  <meta name="description" content="Live Hyperliquid market structure joined to exact, public-safe Raven decision context." />
+  <meta name="description" content="Live Hyperliquid market structure with exact Raven decision context." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-perps-workspace.css" />
@@ -87,7 +87,7 @@
     <section class="perps-intelligence" id="perpsIntelligence" aria-labelledby="perpsIntelligenceTitle">
       <header class="perps-intelligence-head">
         <div><span>Aggregate venue intelligence</span><h2 id="perpsIntelligenceTitle">Perps Intelligence</h2><p>Positioning, pressure, liquidity, and forward outcome context across current Hyperliquid markets.</p></div>
-        <div><strong id="perpsIntelligenceState" data-state="unavailable">Checking current projection</strong><small id="perpsIntelligenceObserved">Timestamp pending</small></div>
+        <div><strong id="perpsIntelligenceState" data-state="unavailable">Checking current data</strong><small id="perpsIntelligenceObserved">Update time pending</small></div>
       </header>
       <div class="perps-intelligence-tabs" role="tablist" aria-label="Perps Intelligence view">
         <button id="perpsIntelTabOverview" type="button" role="tab" aria-selected="true" aria-controls="perpsIntelOverview" tabindex="0" data-perps-intel-tab="overview">Overview</button>
@@ -102,14 +102,14 @@
       <div class="perps-intelligence-panel" id="perpsIntelLiquidity" role="tabpanel" aria-labelledby="perpsIntelTabLiquidity" data-perps-intel-panel="liquidity" hidden></div>
       <div class="perps-intelligence-panel" id="perpsIntelOutcomes" role="tabpanel" aria-labelledby="perpsIntelTabOutcomes" data-perps-intel-panel="outcomes" hidden></div>
       <section class="perps-pro-boundary" id="perpsProBoundary" aria-label="Advanced Perps Intelligence boundary" hidden>
-        <div><span>Authenticated depth</span><strong>Advanced Perps Intelligence</strong><p>Operator-granted Pro beta access can reveal the complete qualified positioning, pressure, liquidity, and outcome projections. No locked rows are sent to this page.</p></div>
+        <div><span>Pro depth</span><strong>Advanced Perps Intelligence</strong><p>Approved Pro accounts can explore the full positioning, pressure, liquidity, and outcome views with market and regime filters.</p></div>
         <ul>
           <li>Full pressure and crowding matrix</li>
           <li>Spread and depth comparisons</li>
           <li>Outcome attribution</li>
           <li>Instrument and regime filters</li>
         </ul>
-        <a id="perpsProWorkspaceLink" href="https://app.ravenos.xyz/account/intelligence/?view=perps">Open authenticated workspace <span aria-hidden="true">→</span></a>
+        <a id="perpsProWorkspaceLink" href="https://app.ravenos.xyz/account/intelligence/?view=perps">Open Pro workspace <span aria-hidden="true">→</span></a>
       </section>
       <footer><strong>Aggregate evidence</strong><span>These views describe current venue structure and early forward-observation results. They are not liquidation data, participant identities, or a trade recommendation.</span><a href="/intelligence/">All Intelligence →</a></footer>
     </section>
@@ -135,18 +135,18 @@
           <div><span>Review horizon</span><strong id="perpsPlanHorizon">--</strong></div>
           <div><span>Evidence sample</span><strong id="perpsPlanSample">0</strong></div>
         </div>
-        <p id="perpsPlanNote">Not personalized. Not production-qualified. No entry, target, stop, signing, or order is available.</p>
+        <p id="perpsPlanNote">Research only. This preview cannot place an entry, target, stop, or order.</p>
       </article>
 
       <article class="perps-proof-panel">
         <header><div><span>Action boundary</span><h2>What is live</h2></div><strong>Read only</strong></header>
         <dl>
-          <div><dt>Candles</dt><dd id="perpsProofCandles">Provider check pending</dd></div>
-          <div><dt>Book + tape</dt><dd id="perpsProofMarket">Provider check pending</dd></div>
+          <div><dt>Candles</dt><dd id="perpsProofCandles">Market-data check pending</dd></div>
+          <div><dt>Book + tape</dt><dd id="perpsProofMarket">Market-data check pending</dd></div>
           <div><dt>Raven read</dt><dd id="perpsProofContext">Live input check pending</dd></div>
           <div><dt>Execution</dt><dd>Signing, submission, and position monitoring off</dd></div>
         </dl>
-        <p>Participant addresses, transaction hashes, provider trade identifiers, private evidence, and proprietary parameters are not exposed.</p>
+        <p>Wallet identities and proprietary Raven parameters are not shown.</p>
         <span data-ravenos-build-id hidden>pending</span>
       </article>
     </section>

@@ -148,7 +148,7 @@ function intelligencePanel(name) {
 
 function renderIntelligenceUnavailable(message = "Current Perps Intelligence is unavailable. Older data was not substituted.") {
   setState("perpsIntelligenceState", "unavailable", "Unavailable");
-  setText("perpsIntelligenceObserved", "No current artifact");
+  setText("perpsIntelligenceObserved", "No current update");
   for (const panel of document.querySelectorAll("[data-perps-intel-panel]")) {
     panel.replaceChildren();
     const empty = document.createElement("div");
@@ -212,9 +212,9 @@ function renderFreePerps(projection) {
   overviewHost.replaceChildren();
   appendMetricGrid(overviewHost, [
     ["Markets observed", Number(overview.markets_observed || 0).toLocaleString("en-US"), `${Number(overview.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
-    ["Free market view", `${rows.length} markets`, "Bounded server projection", "current"],
+    ["Free market view", `${rows.length} markets`, "Current Raven data", "current"],
     ["Participant context", titleCase(participantContext.freshness), participantContext.privacy === "aggregate_status_only" ? "Aggregate state only; identities withheld" : "Unavailable", participantContext.freshness || "unavailable"],
-    ["Liquidation stream", "Unavailable", "No qualified public liquidation source is attached; nothing is synthesized", "unavailable"],
+    ["Liquidation stream", "Unavailable", "RavenOS does not have a reliable liquidation feed, so no estimate is shown", "unavailable"],
   ]);
   const read = document.createElement("div");
   read.className = "perps-intel-boundary";
@@ -244,7 +244,7 @@ function renderFreePerps(projection) {
   appendBucketSet(pressureHost, "Current pressure distribution", overview.pressure_buckets);
   appendDataTable(pressureHost, {
     title: "Basic pressure overview",
-    detail: "A bounded current state is shown without the complete cross-market pressure and crowding matrix.",
+    detail: "A focused current view is shown here. The complete cross-market pressure and crowding matrix is in Pro Intelligence.",
     columns: [
       { label: "Market", value: "symbol" },
       { label: "Pressure state", value: "pressure_state" },
@@ -260,7 +260,7 @@ function renderFreePerps(projection) {
   const liquidityBoundary = document.createElement("div");
   liquidityBoundary.className = "perps-intel-boundary";
   appendText(liquidityBoundary, "strong", "", "Spread and depth comparisons are not in the Free response");
-  appendText(liquidityBoundary, "span", "", "Exact-market book and tape remain available in the Terminal. Cross-market tightest-book and wide/thin-book rows require an authorized private projection.");
+  appendText(liquidityBoundary, "span", "", "Exact-market book and tape remain available in the Terminal. Cross-market book comparisons are available in Pro Intelligence.");
   liquidityHost.append(liquidityBoundary);
 
   const outcomesHost = intelligencePanel("outcomes");
@@ -268,7 +268,7 @@ function renderFreePerps(projection) {
   const outcomesBoundary = document.createElement("div");
   outcomesBoundary.className = "perps-intel-boundary";
   appendText(outcomesBoundary, "strong", "", "Outcome attribution is not in the Free response");
-  appendText(outcomesBoundary, "span", "", "Current Raven Reads and their evidence timestamps remain public. The complete cross-market attribution tables are available only through an authorized private projection.");
+  appendText(outcomesBoundary, "span", "", "Current Raven Reads and their timestamps remain public. Complete cross-market outcome tables are available in Pro Intelligence.");
   outcomesHost.append(outcomesBoundary);
   setProBoundaryVisible(true);
 }
@@ -323,7 +323,7 @@ function renderPerpsOverview(data) {
     ["Markets observed", Number(summary.markets_observed || 0).toLocaleString("en-US"), `${Number(summary.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
     ["Forward observations", Number(summary.forward_observations || 0).toLocaleString("en-US"), `${Number(summary.matured_12h_windows || 0).toLocaleString("en-US")} matured through 12h`, "forming"],
     ["Participant context", titleCase(data.actor_evidence?.actor_evidence_freshness, "Unavailable"), data.actor_evidence?.actor_evidence_freshness === "stale" ? "Stale aggregate evidence is withheld from live leaderboards" : "Aggregate status only; identities withheld", data.actor_evidence?.actor_evidence_freshness || "unavailable"],
-    ["Liquidation stream", "Unavailable", "No qualified public liquidation source is attached; nothing is synthesized", "unavailable"],
+    ["Liquidation stream", "Unavailable", "RavenOS does not have a reliable liquidation feed, so no estimate is shown", "unavailable"],
   ]);
   const participant = document.createElement("div");
   participant.className = "perps-intel-boundary";
@@ -382,7 +382,7 @@ function renderPerpsLiquidity(data) {
     { label: "20-level depth", value: (row) => strictFinite(row.depth_20_usd) === null ? "—" : `$${compact(row.depth_20_usd)}` },
     { label: "24h volume", value: (row) => strictFinite(row.day_volume_usd) === null ? "—" : `$${compact(row.day_volume_usd)}` },
   ];
-  appendDataTable(host, { title: "Tightest books", detail: "Lowest observed spreads among current qualified books.", columns, rows: data.tables.tightest_books.slice(0, 10) });
+  appendDataTable(host, { title: "Tightest books", detail: "Lowest observed spreads among current books.", columns, rows: data.tables.tightest_books.slice(0, 10) });
   appendDataTable(host, { title: "Wide or thin books", detail: "Markets where visible depth or spread warrants explicit friction caution.", columns, rows: data.tables.wide_or_thin_books.slice(0, 10) });
 }
 
@@ -436,7 +436,7 @@ function renderPublicPerps(payload) {
     return;
   }
   const { delivery, generatedAt } = projection;
-  setState("perpsIntelligenceState", delivery.freshness_state, delivery.freshness_state === "delayed" ? "Delayed · current origin" : "Current");
+  setState("perpsIntelligenceState", delivery.freshness_state, delivery.freshness_state === "delayed" ? "Updating" : "Current");
   setText("perpsIntelligenceObserved", timestamp(generatedAt));
   if (projection.accessScope === "free") {
     renderFreePerps(projection.projection);
@@ -639,8 +639,8 @@ function renderPlan(plan = {}) {
   setText("perpsPlanHorizon", available ? plan.review_horizon || "Research window" : "--");
   setText("perpsPlanSample", Math.max(0, Math.trunc(finite(plan.sample_size) || 0)).toLocaleString());
   setText("perpsPlanNote", available
-    ? `${plan.note || "Historical excursions are context only."} Not personalized, production-qualified, or executable.`
-    : "Not personalized. Not production-qualified. No entry, target, stop, signing, or order is available.");
+    ? `${plan.note || "Historical excursions are context only."} Research only; this preview cannot place a trade.`
+    : "Research only. No entry, target, stop, signing, or order is available.");
   syncEvidenceDeckLayout();
 }
 
@@ -751,7 +751,7 @@ function renderContextUnavailable() {
     raven_context: { context_available: false, context_state: "unavailable", outcomes: {}, friction_context: {} },
     raven_read: {
       headline: `${state.row?.asset || "Instrument"} · Raven context unavailable`,
-      summary: "Live chart data can continue independently, but the exact public Raven projection could not be verified.",
+      summary: "Live chart data can continue, but the current Raven read for this exact market could not be verified.",
       why_raven_noticed: "No verified public decision context is available.",
       what_would_strengthen: [],
       what_would_weaken: [],
@@ -849,7 +849,7 @@ async function selectInstrument(asset, { updateContext = true } = {}) {
   if (generation !== state.selectionGeneration) return;
   state.marketState = { ...(chartResult.marketState || {}) };
   setText("perpsVenueState", `Hyperliquid · ${titleCase(chartResult.connectionState || chartResult.state)}`);
-  setText("perpsProofCandles", chartResult.candles?.length ? `${chartResult.candles.length} provider candles · ${titleCase(chartResult.state)}` : "Provider candles unavailable");
+  setText("perpsProofCandles", chartResult.candles?.length ? `${chartResult.candles.length} market candles · ${titleCase(chartResult.state)}` : "Market candles unavailable");
   setState("perpsMarketFreshness", chartResult.state || "unavailable", titleCase(chartResult.state));
   renderMarket();
   await contextPromise;

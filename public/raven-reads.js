@@ -286,7 +286,7 @@
     const sample = Number(metadata.usable_sample ?? metadata.sample_count);
     let title = "Confirmation missing";
     if (/stale/.test(state)) title = "Evidence stale";
-    else if (/degraded|recovering|backfilling|unavailable|unknown/.test(state)) title = "Provider degraded";
+    else if (/degraded|recovering|backfilling|unavailable|unknown/.test(state)) title = "Market data updating";
     else if (Number.isFinite(sample) && sample > 0 && sample < 8) title = "Weak sample";
     else if (hasDepth && (Number(metadata.spread_bps) > 50 || Number(metadata.book_depth) < 1)) title = "Thin book risk";
     else if (hasDrag && Number(metadata.execution_drag ?? metadata.estimated_slippage) > 0) title = "High execution drag";
@@ -299,8 +299,8 @@
       shortLabel: title,
       plain: title === "Evidence stale"
         ? "One or more public evidence sources are stale, so Raven is treating the current read as lower trust."
-        : title === "Provider degraded"
-          ? "A public provider or component is degraded, recovering, or unavailable; Raven needs fresh confirmation before strengthening the read."
+        : title === "Market data updating"
+          ? "A market-data source is updating or unavailable; Raven needs fresh confirmation before strengthening the read."
           : title === "Weak sample"
             ? "The usable public sample is too small to support a stronger interpretation."
             : title === "Thin book risk"
@@ -310,8 +310,8 @@
                 : "The chart has a visible context zone, but the required confirming evidence is not linked yet.",
       setup: metadata.component ? `Public risk context is linked to ${metadata.component}.` : "Risk context is based on public freshness, sample, and confirmation availability.",
       edge: "Risk reads are useful because they prevent Raven from overstating weak or stale evidence.",
-      confirmation: ["Provider state returns fresh", "Usable sample improves", "Missing confirmation evidence becomes linked"],
-      failure: ["Provider state remains degraded", "Sample depth stays weak", "Risk evidence becomes more severe"],
+      confirmation: ["Market data returns current", "Usable sample improves", "Missing confirmation evidence becomes available"],
+      failure: ["Market data remains delayed", "Sample depth stays weak", "Risk evidence becomes more severe"],
       warnings,
       confidence: title === "Confirmation missing" ? "low" : "medium",
       confidenceScore: title === "Confirmation missing" ? 32 : 58,

@@ -279,7 +279,7 @@ function assertPublicRead(read) {
     },
   }), context);
   assert.equal(read.mode, "risk");
-  assert.equal(read.title, "Provider degraded");
+  assert.equal(read.title, "Market data updating");
   assert.equal(read.confidence, "medium");
   assert(!/thin liquidity/i.test(JSON.stringify(read)));
   assertPublicRead(read);

@@ -325,15 +325,15 @@ test("Portfolio Governor account UI accepts only an opaque selection and preserv
   assert(!client.includes("innerHTML"));
   assert(client.includes("boundaries.customer_assets_can_move !== false"));
   assert(client.includes("boundaries.transaction_material_created !== false"));
-  assert(client.includes("No portfolio policy configured"));
+  assert(client.includes("No policy saved"));
 });
 
 test("authenticated Pro workspace keeps authorization server-owned and renders without executable markup", () => {
   const html = readFileSync("account/intelligence/index.html", "utf8");
   const client = readFileSync("ravenos-pro-intelligence.js", "utf8");
-  assert(html.includes("Operator-granted access only"));
-  assert(html.includes("Entitlement never expands Atlas rights"));
-  assert(html.includes("No wallet, broker, signing, submission, order, or position authority is present."));
+  assert(html.includes("Available to approved Pro accounts"));
+  assert(html.includes("Atlas availability stays separate"));
+  assert(html.includes("This workspace cannot connect a wallet, place an order, or manage a position."));
   assert(!/<input[^>]+name=["'](?:owner|user|capability|plan|tier|token)["']/i.test(html));
   assert(!/<(?:a|button|form)[^>]*(?:checkout|subscribe|purchase|upgrade)/i.test(html));
   assert(!client.includes("innerHTML"));

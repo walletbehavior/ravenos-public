@@ -205,7 +205,7 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   await page.goto("/atlas/");
   await expect(page.locator(".atlas-posture")).toContainText("Cross-market risk posture");
   await expect(page.locator(".atlas-posture")).toContainText("Risk posture is forming");
-  await expect(page.locator(".atlas-posture")).toContainText("No proxy score");
+  await expect(page.locator(".atlas-posture")).toContainText("It does not substitute a proxy score");
   await expect(page.locator(".atlas-frame-tape")).toHaveCount(0);
   const breadthFrame = page.locator(".atlas-tv-breadth-frame");
   await expect(breadthFrame).toHaveAttribute("src", /^https:\/\/www\.tradingview-widget\.com\/embed-widget\/stock-heatmap\//);
@@ -292,7 +292,7 @@ test("Options remain lazy and a restricted expiration response never triggers a 
   await page.goto("/atlas/?entity_id=etf%3Aus%3ASPY");
   expect(calls.some((call) => call.includes("options"))).toBe(false);
   await page.getByRole("tab", { name: "Options" }).click();
-  await expect(page.locator(".atlas-decision-note")).toContainText("provider permits RavenOS to resolve this market");
+  await expect(page.locator(".atlas-decision-note")).toContainText("these values cannot be shown publicly");
   expect(calls.filter((call) => call.startsWith("/api/atlas/options/expirations")).length).toBe(1);
   expect(calls.some((call) => call.startsWith("/api/atlas/options/chain"))).toBe(false);
 });

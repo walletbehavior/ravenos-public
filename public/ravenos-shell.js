@@ -203,7 +203,7 @@ function createShellMarkup(slug) {
     <aside class="ros-context-rail" id="rosContextRail" aria-label="Raven and Atlas intelligence">
       <header class="ros-context-header"><div><span>Selected instrument</span><strong id="rosContextSubject">No instrument selected</strong><small id="rosContextMeta">Search any supported market</small></div><button id="rosContextClose" type="button" aria-label="Close intelligence">Close</button></header>
       <section class="ros-context-intro"><span>One decision read</span><h2 id="rosMarketState">Data unavailable</h2><p id="rosThesis">Select an exact instrument to connect current market facts, Raven evidence, and Atlas context.</p></section>
-      <section class="ros-context-section ros-context-grid"><div><span>Path</span><strong id="rosSetupState">Unqualified</strong></div><div><span>Horizon</span><strong id="rosHorizon">Not specified</strong></div><div><span>Confidence</span><strong id="rosConfidence">Unrated</strong></div><div><span>Evidence</span><strong id="rosEvidenceQuality">Unknown</strong></div></section>
+      <section class="ros-context-section ros-context-grid"><div><span>Path</span><strong id="rosSetupState">Not ready</strong></div><div><span>Horizon</span><strong id="rosHorizon">Not specified</strong></div><div><span>Confidence</span><strong id="rosConfidence">Unrated</strong></div><div><span>Evidence</span><strong id="rosEvidenceQuality">Unknown</strong></div></section>
       <section class="ros-context-section"><span>What supports it</span><ul id="rosSupportingEvidence"><li>No confirming evidence is currently available.</li></ul></section>
       <section class="ros-context-section"><span>What would weaken it</span><ul id="rosContradictingEvidence"><li>No explicit invalidation is currently available.</li></ul></section>
       <section class="ros-context-section"><span>Next transition</span><p id="rosNextTransition">No transition is currently declared.</p></section>
@@ -505,11 +505,11 @@ function utilityMarkup(kind, context) {
         const meta = [subject.venue, subject.instrumentType || subject.marketType].filter(Boolean).join(" · ");
         return `<a href="${escapeHtml(terminalHref(subject))}" data-recent-instrument="${escapeHtml(subject.id)}"><strong>${escapeHtml(subject.label || subject.symbol || subject.id)}</strong><span>${escapeHtml(meta || "Exact instrument")}</span></a>`;
       }).join("")}</div>`
-      : `<div class="ros-utility-empty"><strong>No recent instruments</strong><p>Markets you inspect will appear here. Nothing is populated as user data until you select it.</p></div>`;
-    return `<section><span>Recent instruments</span>${recent}</section><section><span>Saved exact markets</span><strong>Available with a RavenOS account</strong><p>Save an exact pool or venue instrument with its bounded chart workspace, then reopen it across signed-in devices.</p><a href="https://app.ravenos.xyz/monitor/">Open Saved Monitor</a></section>`;
+      : `<div class="ros-utility-empty"><strong>No recent markets</strong><p>Markets you open will appear here.</p></div>`;
+    return `<section><span>Recent markets</span>${recent}</section><section><span>Saved markets</span><strong>Pick up where you left off</strong><p>Save an exact pool or instrument with its chart settings, then reopen it on any signed-in device.</p><a href="https://app.ravenos.xyz/monitor/">Open saved markets</a></section>`;
   }
   if (kind === "alerts") {
-    return `<section class="ros-utility-unavailable"><span>Raven Monitor</span><strong>Rules built · evaluation activation staged</strong><p>Exact-market monitor rules and in-app history are account-bound. Evaluation remains fail-closed until the production activation controls are enabled; Telegram, email, and push delivery are not active.</p><a href="https://app.ravenos.xyz/monitor/">Open Monitor</a></section>`;
+    return `<section class="ros-utility-unavailable"><span>Raven alerts</span><strong>Watch meaningful market changes</strong><p>Choose a saved market and the changes Raven should watch. Alerts appear in RavenOS; Telegram, email, and push are not available yet.</p><a href="https://app.ravenos.xyz/monitor/">Open Raven alerts</a></section>`;
   }
   const accountHref = customerAccountState.available && customerAccountState.canonicalOrigin
     ? `${customerAccountState.canonicalOrigin}/account/`

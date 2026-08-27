@@ -108,7 +108,7 @@ function traderText(value, fallback = FORMING_TEXT) {
     .replace(/^Current public brief is forming\.?$/i, "Current market read is forming.")
     .replace(/^Current public research snapshot unavailable$/i, "Current research snapshot unavailable")
     .replace(/^Current public research snapshot is forming while the latest completed cohort remains available\.?$/i, "Current research evidence is forming while the latest completed cohort remains available.")
-    .replace(/^No completed live cohort yet; current observations remain in research sample forming state\.?$/i, "No completed live cohort yet; current observations are still in evidence-forming research state.")
+    .replace(/^No completed live cohort yet; current observations remain in research sample forming state\.?$/i, "No completed live sample yet; current observations are still forming.")
     .replace(/^Research sample forming; latest completed cohort remains visible when available\.?$/i, "Research evidence is still forming; the latest completed cohort remains visible when available.")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
     .replace(
@@ -679,7 +679,7 @@ function renderNarratorPanel() {
         ${summaryMetric("Why", traderText(ctx.why || payload.why_it_matters))}
         ${summaryMetric("Why not", traderText(ctx.why_not || weakens[0] || "Evidence remains incomplete"))}
       </div>
-      <p class="route-caveat" style="margin-top:10px;">${escapeHtml(watching[0] || "Raven is watching for stronger evidence before changing the research state.")}</p>
+      <p class="route-caveat" style="margin-top:10px;">${escapeHtml(watching[0] || "Raven is watching for stronger evidence before updating its read.")}</p>
       ${supports.length ? `<p class="route-caveat">Supports: ${escapeHtml(supports.map(traderText).join("; "))}</p>` : ""}
       ${weakens.length ? `<p class="route-caveat">Weakens: ${escapeHtml(weakens.map(traderText).join("; "))}</p>` : ""}
     </article>
@@ -1053,11 +1053,11 @@ function renderBehaviorUnavailable() {
   document.getElementById("routeHeadline").textContent = "Current Participant Intelligence unavailable.";
   document.getElementById("routeHeroSummary").textContent = "The aggregate behavior feed did not pass its current-data and privacy checks. Older participant data is not substituted as current.";
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Projection", "Unavailable"),
-    routeStateCard("Substitution", "None"),
+    routeStateCard("Current data", "Unavailable"),
+    routeStateCard("Older data shown", "No"),
     routeStateCard("Participant identities", "Withheld"),
   ].join("");
-  document.getElementById("routePrimaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Participant Intelligence</div><h2>Current aggregate evidence unavailable</h2></div><span class="route-pill unavailable">Unavailable</span></div><div class="route-unavailable"><strong>No stale behavior presented as current.</strong><p>RavenOS will restore this matrix only when the feed carries complete aggregate rows, denominators, current timestamps, and privacy boundaries.</p></div>`;
+  document.getElementById("routePrimaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Participant Intelligence</div><h2>Current participant context is unavailable</h2></div><span class="route-pill unavailable">Unavailable</span></div><div class="route-unavailable"><strong>Older behavior is not shown as current.</strong><p>The latest participant data is incomplete or out of date. RavenOS will restore this view when current, usable evidence is available.</p></div>`;
   document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Privacy boundary</div><h2>Nothing private substituted</h2></div></div><div class="route-boundary"><span>Aggregate only</span><strong>No wallet identity, label, relationship graph, coordination claim, or smart-money ranking is exposed.</strong></div>`;
 }
 
@@ -1071,13 +1071,13 @@ function renderBehaviorFree(payload, projection) {
   document.getElementById("routeHeadline").textContent = focus
     ? `${focusLabel}: ${titleCase(focus.participation_trend || "forming")} participation.`
     : "Participant Intelligence is forming.";
-  document.getElementById("routeHeroSummary").textContent = "The Free projection keeps six aggregate conditions, their observed and usable denominators, timing window, and plain-language interpretation. Identities remain withheld.";
+  document.getElementById("routeHeroSummary").textContent = "The Free view shows six aggregate conditions with sample counts, timing windows, and plain-language interpretation. Wallet identities remain private.";
   const stateStrip = document.getElementById("routeStateStrip");
   stateStrip.dataset.columns = "4";
   stateStrip.innerHTML = [
     routeStateCard("Free conditions", fmtNumber(rows.length)),
     routeStateCard("Conditions observed", fmtNumber(projection.headline?.conditions_observed)),
-    routeStateCard("Projection", titleCase(freshness)),
+    routeStateCard("Current data", titleCase(freshness)),
     routeStateCard("Privacy", "Aggregate only"),
   ].join("");
 
@@ -1090,16 +1090,16 @@ function renderBehaviorFree(payload, projection) {
     <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Authenticated depth</div><h2>Advanced Participant Intelligence</h2></div><span class="route-pill forming">Operator-granted beta</span></div>
-    <p class="route-summary">The public page does not receive the complete condition matrix or its advanced fields.</p>
+    <div class="route-panel-head"><div><div class="route-chip-label">Pro depth</div><h2>Advanced Participant Intelligence</h2></div><span class="route-pill forming">Pro access</span></div>
+    <p class="route-summary">Approved Pro accounts can explore the complete condition matrix and advanced evidence fields.</p>
     <div class="route-continuity-list participant-pro-metadata">
       <div><span>Matrix</span><strong>Complete aggregate condition matrix</strong><small>No wallet identities or labels</small></div>
       <div><span>Evidence</span><strong>Success, win-rate, confidence and outcome bands</strong><small>Aggregate denominators remain attached</small></div>
       <div><span>Integrity</span><strong>Excluded-sample and sample-gap detail</strong><small>Unavailable evidence stays unavailable</small></div>
-      <div><span>Filters</span><strong>Chain, capitalization and window</strong><small>Applied to an authorized private response</small></div>
+      <div><span>Filters</span><strong>Chain, capitalization and window</strong><small>Applied inside your signed-in Pro workspace</small></div>
     </div>
-    <div class="route-boundary"><span>Server boundary</span><strong>No advanced rows are sent to this public page or hidden behind a visual lock.</strong></div>
-    <div class="route-next"><a class="primary" href="https://app.ravenos.xyz/account/intelligence/?view=participants">Open authenticated workspace</a><a href="/intelligence/">All Intelligence</a></div>
+    <div class="route-boundary"><span>What’s shown here</span><strong>This public page contains only the Free view.</strong></div>
+    <div class="route-next"><a class="primary" href="https://app.ravenos.xyz/account/intelligence/?view=participants">Open Pro workspace</a><a href="/intelligence/">All Intelligence</a></div>
   `;
 }
 
@@ -1142,7 +1142,7 @@ function renderBehavior(payload) {
     routeStateCard("Aggregate surfaces", fmtNumber(data.count || allRows.length)),
     routeStateCard("Chains", fmtNumber(chains.size)),
     routeStateCard("Capitalization bands", fmtNumber(capBands.size)),
-    routeStateCard("Projection", titleCase(payload.delivery?.freshness_state || "unavailable")),
+    routeStateCard("Current data", titleCase(payload.delivery?.freshness_state || "unavailable")),
     routeStateCard("Participant snapshot", titleCase(participantFreshness)),
     routeStateCard("Privacy", "Aggregate only"),
   ].join("");
@@ -1200,7 +1200,7 @@ function renderResearch(payload) {
       <div class="route-panel-head"><div><div class="route-chip-label">Research availability</div><h2>No stale research presented as live</h2></div><span class="route-pill unavailable">Unavailable</span></div>
       <div class="research-unavailable">
         <span>The available research is too old</span>
-        <h3>Research remains off until a new evidence-bound snapshot is projected.</h3>
+        <h3>Research remains off until a new evidence-backed update is ready.</h3>
         <p>The archived cohort below can explain what Raven measured at that time. It cannot describe today, unlock a plan, rank an opportunity, or substitute for current opportunities and followthrough.</p>
       </div>
       <section class="research-archive" aria-label="Archived research record">
@@ -1222,7 +1222,7 @@ function renderResearch(payload) {
         <div><span>Evidence</span><strong>Current completed cohort</strong><small>Completed inside the declared recency policy</small></div>
         <div><span>Lineage</span><strong>Decision-time inputs retained</strong><small>No present-day evidence substituted backward</small></div>
         <div><span>Followthrough</span><strong>Measured only after the declared window</strong><small>Open observations remain visibly open</small></div>
-        <div><span>Language</span><strong>Structured approved projection</strong><small>No private thresholds, paths, prompts, or raw identities</small></div>
+        <div><span>Summary</span><strong>Structured Raven read</strong><small>Aggregate context only; no wallet identities</small></div>
       </div>
       <div class="route-boundary"><span>Current data required</span><strong>Raven Read and Plan Preview remain hidden when current research is unavailable.</strong></div>
     `;
@@ -1486,7 +1486,7 @@ function renderChain(payload) {
   const data = payload || {};
   const label = data.chain_label || routeConfig.title;
   document.getElementById("routeHeadline").textContent = traderText(data.current_summary, `${label} coverage is developing.`);
-  document.getElementById("routeHeroSummary").textContent = traderText(data.current_read, "Current synthesis uses aggregate behavior, replay, memory, and outcomes context when provider rows are available.");
+  document.getElementById("routeHeroSummary").textContent = traderText(data.current_read, "Raven combines aggregate behavior, similar history, memory, and followthrough when current market data is available.");
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Coverage", titleCase(data.coverage || "developing")),
     routeStateCard("Best surface", traderSurfaceLabel(titleCase(data.best_surface || FORMING_TEXT))),
@@ -1528,7 +1528,7 @@ function renderGeneric(payload) {
   document.getElementById("routeHeadline").textContent = routeConfig.title;
   document.getElementById("routeHeroSummary").textContent = "Current market read is forming.";
   document.getElementById("routeStateStrip").innerHTML = routeStateCard("Status", FORMING_TEXT);
-  document.getElementById("routePrimaryPanel").innerHTML = `<p class="route-caveat">This route is still forming its page-specific renderer.</p>`;
+  document.getElementById("routePrimaryPanel").innerHTML = `<p class="route-caveat">Current coverage is not available for this view.</p>`;
   document.getElementById("routeSecondaryPanel").innerHTML = "";
 }
 
@@ -1543,13 +1543,13 @@ function renderDeliveryState(payload = {}) {
   host.dataset.fallback = String(fallback);
   host.innerHTML = `<span>${escapeHtml(titleCase(state))}</span><strong>${escapeHtml(
     source === "current_public_origin"
-      ? "Current protected projection"
+      ? "Current Raven data"
       : fallback
-        ? "Verified embedded snapshot"
-        : "Projection unavailable",
+        ? "Earlier verified snapshot"
+        : "Current data unavailable",
   )}</strong><small>${escapeHtml(
     fallback
-      ? "Fallback is labeled and never presented as current."
+      ? "Older data is clearly labeled and never shown as current."
       : delivery.source_generated_at
         ? `Source ${fmtWhen(delivery.source_generated_at)}`
         : "Source timestamp unavailable",
@@ -1622,10 +1622,10 @@ function syncShellFromRoute(payload = {}) {
     generatedAt: observedAt,
     nextExpectedTransition: census
       ? "Review current instrument context, then compare only matured future-only outcomes."
-      : "Wait for the next timestamped projection update.",
+      : "Wait for the next timestamped Raven update.",
   });
   ravenShell?.setCapabilities?.({
-    market: fallback ? "Labeled fallback" : delivery.freshness_state ? `${titleCase(delivery.freshness_state)} projection` : "Projection available",
+    market: fallback ? "Earlier snapshot" : delivery.freshness_state ? `${titleCase(delivery.freshness_state)} Raven data` : "Raven data available",
     wallet: "No session",
     mode: "Read only",
     signing: "Sign off",
@@ -1704,7 +1704,7 @@ async function renderInitialRoute() {
     }
   }
   if (initialFallbackPayload) renderRoute(initialFallbackPayload);
-  renderHydrationState(initialFallbackPayload ? "Verified artifact" : "Awaiting verified data");
+  renderHydrationState(initialFallbackPayload ? "Verified snapshot" : "Awaiting verified data");
 }
 
 async function initRoute() {
@@ -1732,9 +1732,9 @@ async function initRoute() {
     renderRoute(payload);
     renderHydrationState(
       payload.delivery?.source === "current_public_origin"
-        ? "Current protected projection"
+        ? "Current Raven data"
         : payload.delivery?.fallback
-          ? "Labeled verified fallback"
+          ? "Earlier verified snapshot"
           : "Public API",
     );
     if (routeConfig.slug === "claims" && new URL(window.location.href).searchParams.get("id")) {
@@ -1742,8 +1742,8 @@ async function initRoute() {
     }
   } else {
     if (initialFallbackPayload) renderRoute(initialFallbackPayload);
-    renderHydrationState("Using last verified public artifact");
-    renderFallbackMessage(routeConfig.fallback_message || "Using the last verified public artifact while live refresh is unavailable.");
+    renderHydrationState("Showing the last verified snapshot");
+    renderFallbackMessage(routeConfig.fallback_message || "Showing the last verified snapshot while current data refreshes.");
     console.warn(`RavenOS route hydration failed for ${routeConfig.slug}:`, liveResult.reason);
   }
 }

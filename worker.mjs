@@ -624,7 +624,7 @@ function routeCacheHeaders(pathname) {
   if (pathname === "/api/perps/instrument") return { "cache-control": "public, max-age=2, stale-while-revalidate=10" };
   if (pathname === "/api/terminal/chart") return { "cache-control": "public, max-age=2, stale-while-revalidate=10" };
   if (pathname === "/api/terminal") return { "cache-control": "public, max-age=15, stale-while-revalidate=60" };
-  if (pathname === "/api/opportunity") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
+  if (pathname === "/api/opportunity") return { "cache-control": "public, max-age=15, stale-while-revalidate=30" };
   if (pathname === "/api/atlas") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
   if (pathname === "/api/atlas/featured") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
   if (pathname === "/api/atlas/search") return { "cache-control": "public, max-age=15, stale-while-revalidate=30" };

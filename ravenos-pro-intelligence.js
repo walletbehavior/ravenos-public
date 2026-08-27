@@ -114,21 +114,21 @@ function setCapabilityState(kind, capability, message = "") {
   const title = node("strong", "", capabilityState === "expired"
     ? "Access expired"
     : capabilityState === "revoked"
-      ? "Access revoked"
+      ? "Access removed"
       : capabilityState === "suspended"
         ? "Access suspended"
         : capabilityState === "not_granted"
-          ? "Capability not granted"
-          : "Pro beta unavailable");
+          ? "Pro access not available"
+          : "Pro access unavailable");
   const detail = node("p", "", message || (capabilityState === "expired"
-    ? "This server-owned grant is no longer current. No advanced projection was returned."
+    ? "Your Pro access has expired. Advanced intelligence is unavailable."
     : capabilityState === "revoked"
-      ? "The server has revoked this capability. No advanced projection was returned."
-      : capabilityState === "suspended"
-        ? "This capability is suspended. Public Intelligence remains available."
+      ? "Your Pro access has been removed. Advanced intelligence is unavailable."
+    : capabilityState === "suspended"
+        ? "Your Pro access is paused. Public Intelligence remains available."
         : capabilityState === "not_granted"
-          ? "This signed-in account does not have this operator-granted capability. Public Intelligence remains available."
-          : "The required server controls or current qualified projection are unavailable."));
+          ? "Pro access isn’t available for this account yet. Public Intelligence remains available."
+          : "Advanced intelligence is unavailable right now. Public Intelligence remains available."));
   host.append(title, detail);
 }
 
@@ -271,7 +271,7 @@ function renderPerpsProjection(projection) {
   const mappings = {};
   if (state.perpsSection === "positioning") {
     const rows = filterRows(advanced.positioning, state.perpsFilters, mappings);
-    host.append(table("Funding and open interest", "Qualified current positioning rows, bounded to 40 by the server.", PERPS_COLUMNS.positioning, rows));
+    host.append(table("Funding and open interest", "Current positioning across the available Pro market set.", PERPS_COLUMNS.positioning, rows));
   } else if (state.perpsSection === "pressure") {
     const rows = filterRows(advanced.pressure_and_crowding, state.perpsFilters, mappings);
     host.append(table("Pressure and crowding", "Raven measurements from current venue structure. These are not liquidation events.", PERPS_COLUMNS.pressure, rows));
@@ -279,7 +279,7 @@ function renderPerpsProjection(projection) {
     const tight = filterRows(advanced.liquidity.tightest_books, state.perpsFilters, mappings);
     const thin = filterRows(advanced.liquidity.wide_or_thin_books, state.perpsFilters, mappings);
     host.append(
-      table("Tightest books", "Lowest qualified observed spreads among current books.", PERPS_COLUMNS.liquidity, tight),
+      table("Tightest books", "Lowest observed spreads among current books.", PERPS_COLUMNS.liquidity, tight),
       table("Wide or thin books", "Markets where visible depth or spread warrants explicit friction caution.", PERPS_COLUMNS.liquidity, thin),
     );
   } else {
@@ -314,7 +314,7 @@ function renderParticipantProjection(projection) {
   renderParticipantFilters(projection);
   const rows = filterRows(projection.advanced.condition_matrix, state.participantFilters, {});
   const host = document.getElementById("proParticipantsContent");
-  host.replaceChildren(table("Complete aggregate condition matrix", "Aggregate behavior only. Denominators and excluded-sample detail remain attached to every qualified row.", [
+  host.replaceChildren(table("Complete aggregate condition matrix", "Aggregate behavior only. Sample counts and excluded-sample detail stay attached to every row.", [
     { label: "Condition", value: (row) => `${readable(row.chain)} · ${readable(row.capitalization_band)}` },
     { label: "Window", value: (row) => text(row.window) },
     { label: "Trend", value: (row) => readable(row.participation_trend) },
@@ -399,7 +399,7 @@ async function loadCapabilityProjection(kind, capability) {
     }
     const projection = validProProjection(kind, payload);
     if (!projection) {
-      setCapabilityState(kind, { ...capability, available: false, state: "unavailable" }, "The private response failed its bounded projection contract and was withheld.");
+      setCapabilityState(kind, { ...capability, available: false, state: "unavailable" }, "Advanced intelligence could not be verified and was not shown.");
       return;
     }
     state.projections.set(kind, projection);
@@ -414,7 +414,7 @@ async function loadCapabilityProjection(kind, capability) {
       renderParticipantProjection(projection);
     }
   } catch {
-    setCapabilityState(kind, { ...capability, available: false, state: "unavailable" }, "The authorized private projection could not be loaded and no fallback was substituted.");
+    setCapabilityState(kind, { ...capability, available: false, state: "unavailable" }, "Advanced intelligence could not be loaded. Public Intelligence remains available.");
   }
 }
 
@@ -425,7 +425,7 @@ async function loadEntitlements() {
       const unavailable = { available: false, state: payload?.state || "unavailable" };
       setCapabilityState("perps", unavailable);
       setCapabilityState("participants", unavailable);
-      setText("proWorkspaceState", "Pro beta unavailable");
+      setText("proWorkspaceState", "Pro access unavailable");
       return;
     }
     for (const kind of Object.keys(CAPABILITIES)) {
@@ -435,11 +435,11 @@ async function loadEntitlements() {
     }
     await Promise.all(Object.keys(CAPABILITIES).map((kind) => loadCapabilityProjection(kind, state.capabilities.get(kind))));
     const active = [...state.projections.keys()].length;
-    setText("proWorkspaceState", active ? `${active} capabilities active` : "No active capabilities");
+    setText("proWorkspaceState", active ? `${active} Pro view${active === 1 ? "" : "s"} ready` : "Pro access not available");
   } catch {
     setCapabilityState("perps", { available: false, state: "unavailable" });
     setCapabilityState("participants", { available: false, state: "unavailable" });
-    setText("proWorkspaceState", "Pro beta unavailable");
+    setText("proWorkspaceState", "Pro access unavailable");
   }
 }
 
