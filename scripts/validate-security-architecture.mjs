@@ -38,6 +38,7 @@ const requiredBlockedCapabilities = new Set([
   "subscription_checkout",
   "subscription_entitlements",
   "broker_account_linking",
+  "operator_canary_submission",
   "customer_signing",
   "transaction_submission",
   "customer_position_monitoring",
@@ -107,6 +108,42 @@ assert.equal(config.entitlement_foundation.billing_available, false);
 assert.equal(config.entitlement_foundation.shared_cache_allowed, false);
 assert.equal(config.entitlement_foundation.atlas_display_rights_override_available, false);
 assert.equal(config.entitlement_foundation.production_activation_completed, false);
+assert.equal(config.operator_solana_canary.implementation_status, "operator_unsigned_mainnet_preflight");
+assert.equal(config.operator_solana_canary.surface, "operator_cli_only");
+assert.equal(config.operator_solana_canary.exact_terminal_identity_required, true);
+assert.equal(config.operator_solana_canary.exact_pool_identity_revalidated_server_side, true);
+assert.equal(config.operator_solana_canary.separate_low_balance_wallet_required, true);
+assert.equal(config.operator_solana_canary.maximum_buy_lamports, 50_000_000);
+assert.equal(config.operator_solana_canary.maximum_canary_wallet_lamports, 100_000_000);
+assert.equal(config.operator_solana_canary.maximum_slippage_bps, 300);
+assert.equal(config.operator_solana_canary.maximum_price_impact_bps, 500);
+assert.equal(config.operator_solana_canary.maximum_priority_fee_lamports, 50_000);
+assert.equal(config.operator_solana_canary.maximum_network_fee_lamports, 70_000);
+assert.equal(config.operator_solana_canary.maximum_rent_fee_lamports, 5_000_000);
+assert.equal(config.operator_solana_canary.maximum_total_fee_lamports, 5_100_000);
+assert.equal(config.operator_solana_canary.maximum_total_native_debit_lamports, 56_000_000);
+assert.equal(config.operator_solana_canary.maximum_route_legs, 8);
+assert.equal(config.operator_solana_canary.maximum_resolved_writable_accounts, 48);
+assert.equal(config.operator_solana_canary.maximum_compute_units, 1_400_000);
+assert.equal(config.operator_solana_canary.mainnet_genesis_hash_required, true);
+assert.equal(config.operator_solana_canary.selected_mint_resolved_by_rpc, true);
+assert.equal(config.operator_solana_canary.versioned_transaction_decoded, true);
+assert.equal(config.operator_solana_canary.lookup_tables_resolved, true);
+assert.equal(config.operator_solana_canary.recent_blockhash_validated, true);
+assert.equal(config.operator_solana_canary.writable_account_prestate_loaded, true);
+assert.equal(config.operator_solana_canary.exact_selected_token_delta_verified, true);
+assert.equal(config.operator_solana_canary.wrapped_sol_economic_reconciliation_required, true);
+assert.equal(config.operator_solana_canary.monotonic_rpc_context_required, true);
+assert.equal(config.operator_solana_canary.unknown_programs_fail_closed, true);
+assert.equal(config.operator_solana_canary.unsigned_mainnet_simulation_required, true);
+assert.equal(config.operator_solana_canary.signature_use, "unavailable_preflight_only");
+assert.equal(config.operator_solana_canary.secret_material_accepted, false);
+assert.equal(config.operator_solana_canary.raw_transaction_returned, false);
+assert.equal(config.operator_solana_canary.secret_material_returned, false);
+assert.equal(config.operator_solana_canary.browser_signing_available, false);
+assert.equal(config.operator_solana_canary.customer_submission_available, false);
+assert.equal(config.operator_solana_canary.operator_submission_available, false);
+assert.equal(config.operator_solana_canary.production_activation_completed, false);
 
 for (const documentPath of config.required_documents || []) {
   const absolute = join(root, documentPath);
@@ -157,6 +194,15 @@ for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ra
 for (const reason of ["legacy_customer_access_quarantined", "legacy_billing_quarantined"]) {
   assert(worker.includes(reason), `Worker is missing legacy quarantine response: ${reason}`);
 }
+const operatorCanary = readFileSync(join(root, "lib/customer_trade/operator_solana_canary.mjs"), "utf8");
+const operatorCanaryCli = readFileSync(join(root, "scripts/run-solana-canary-dry-run.mjs"), "utf8");
+assert.match(operatorCanary, /submission:\s*false/);
+assert.match(operatorCanary, /signing_for_simulation:\s*false/);
+assert.match(operatorCanary, /signing_material_not_accepted_by_preflight/);
+assert.match(operatorCanary, /sigVerify:\s*false/);
+assert.match(operatorCanary, /SOLANA_MAINNET_GENESIS_HASH/);
+assert.doesNotMatch(operatorCanary, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
+assert.doesNotMatch(operatorCanaryCli, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
 assert.match(worker, /function customerAccountsEnabled\(\)\s*{\s*return false;\s*}/);
 assert.match(worker, /function customerBillingEnabled\(\)\s*{\s*return false;\s*}/);
 const identity = readFileSync(join(root, "lib/customer_identity.mjs"), "utf8");

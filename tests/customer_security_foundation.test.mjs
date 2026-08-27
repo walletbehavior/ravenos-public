@@ -81,6 +81,43 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.entitlement_foundation.billing_available, false);
   assert.equal(security.entitlement_foundation.atlas_display_rights_override_available, false);
   assert.equal(security.entitlement_foundation.production_activation_completed, false);
+  assert.equal(security.operator_solana_canary.implementation_status, "operator_unsigned_mainnet_preflight");
+  assert.equal(security.operator_solana_canary.surface, "operator_cli_only");
+  assert.equal(security.operator_solana_canary.exact_terminal_identity_required, true);
+  assert.equal(security.operator_solana_canary.exact_pool_identity_revalidated_server_side, true);
+  assert.equal(security.operator_solana_canary.separate_low_balance_wallet_required, true);
+  assert.equal(security.operator_solana_canary.maximum_buy_lamports, 50_000_000);
+  assert.equal(security.operator_solana_canary.maximum_canary_wallet_lamports, 100_000_000);
+  assert.equal(security.operator_solana_canary.maximum_slippage_bps, 300);
+  assert.equal(security.operator_solana_canary.maximum_price_impact_bps, 500);
+  assert.equal(security.operator_solana_canary.maximum_priority_fee_lamports, 50_000);
+  assert.equal(security.operator_solana_canary.maximum_network_fee_lamports, 70_000);
+  assert.equal(security.operator_solana_canary.maximum_rent_fee_lamports, 5_000_000);
+  assert.equal(security.operator_solana_canary.maximum_total_fee_lamports, 5_100_000);
+  assert.equal(security.operator_solana_canary.maximum_total_native_debit_lamports, 56_000_000);
+  assert.equal(security.operator_solana_canary.maximum_route_legs, 8);
+  assert.equal(security.operator_solana_canary.maximum_resolved_writable_accounts, 48);
+  assert.equal(security.operator_solana_canary.maximum_compute_units, 1_400_000);
+  assert.equal(security.operator_solana_canary.mainnet_genesis_hash_required, true);
+  assert.equal(security.operator_solana_canary.selected_mint_resolved_by_rpc, true);
+  assert.equal(security.operator_solana_canary.versioned_transaction_decoded, true);
+  assert.equal(security.operator_solana_canary.lookup_tables_resolved, true);
+  assert.equal(security.operator_solana_canary.recent_blockhash_validated, true);
+  assert.equal(security.operator_solana_canary.writable_account_prestate_loaded, true);
+  assert.equal(security.operator_solana_canary.exact_selected_token_delta_verified, true);
+  assert.equal(security.operator_solana_canary.wrapped_sol_economic_reconciliation_required, true);
+  assert.equal(security.operator_solana_canary.monotonic_rpc_context_required, true);
+  assert.equal(security.operator_solana_canary.unknown_programs_fail_closed, true);
+  assert.equal(security.operator_solana_canary.unsigned_mainnet_simulation_required, true);
+  assert.equal(security.operator_solana_canary.signature_use, "unavailable_preflight_only");
+  assert.equal(security.operator_solana_canary.secret_material_accepted, false);
+  assert.equal(security.operator_solana_canary.raw_transaction_returned, false);
+  assert.equal(security.operator_solana_canary.secret_material_returned, false);
+  assert.equal(security.operator_solana_canary.browser_signing_available, false);
+  assert.equal(security.operator_solana_canary.customer_submission_available, false);
+  assert.equal(security.operator_solana_canary.operator_submission_available, false);
+  assert.equal(security.operator_solana_canary.production_activation_completed, false);
+  assert(security.blocked_capabilities.includes("operator_canary_submission"));
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -187,6 +224,18 @@ test("signing and submission cannot be activated by environment flags", () => {
   assert.equal(flags.RAVENOS_CUSTOMER_TRADE_SIGN_ENABLE, false);
   assert.equal(flags.RAVENOS_CUSTOMER_TRADE_SUBMIT_ENABLE, false);
   assert.equal(signingEnabled(flags), false);
+});
+
+test("operator Solana canary preflight accepts no signing material and contains no submission path", () => {
+  const operator = readFileSync("lib/customer_trade/operator_solana_canary.mjs", "utf8");
+  const cli = readFileSync("scripts/run-solana-canary-dry-run.mjs", "utf8");
+  assert.match(operator, /submission:\s*false/);
+  assert.match(operator, /signing_for_simulation:\s*false/);
+  assert.match(operator, /signing_material_not_accepted_by_preflight/);
+  assert.match(operator, /sigVerify:\s*false/);
+  assert.doesNotMatch(operator, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
+  assert.doesNotMatch(cli, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
+  assert.match(cli, /never submits/i);
 });
 
 test("Worker APIs receive baseline security headers and authenticated surfaces reject inline script execution", async () => {
@@ -347,6 +396,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 11);
+  assert.equal(security.required_documents.length, 12);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });
