@@ -798,6 +798,9 @@ test("pasted chat text extracts an exact BNB contract without treating surroundi
     assert.equal(body.results.length, 1);
     assert.equal(body.results[0].tokenAddress, tokenAddress);
     assert.equal(body.results[0].pairAddress, pairAddress);
+    assert.equal(body.results[0].liquidityUsd, null);
+    assert.equal(body.results[0].volume24h, null);
+    assert.equal(body.results[0].txns24h, null);
     assert.deepEqual([...new Set(searchedTerms)], [tokenAddress]);
   } finally {
     globalThis.fetch = originalFetch;

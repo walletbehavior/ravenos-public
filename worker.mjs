@@ -806,15 +806,15 @@ function normalizeDexPair(pair = {}, selectedTokenAddress = "") {
     name: base.name || base.symbol || "Unknown token",
     quoteSymbol: quote.symbol || "",
     quoteName: quote.name || quote.symbol || "",
-    priceUsd: selectedIsQuote ? null : num(pair.priceUsd),
-    liquidityUsd: num(pair.liquidity?.usd),
-    volume24h: num(pair.volume?.h24),
-    txns24h: (buys24h || 0) + (sells24h || 0),
+    priceUsd: selectedIsQuote ? null : optionalFiniteNumber(pair.priceUsd),
+    liquidityUsd: optionalFiniteNumber(pair.liquidity?.usd),
+    volume24h: optionalFiniteNumber(pair.volume?.h24),
+    txns24h: buys24h === null && sells24h === null ? null : (buys24h || 0) + (sells24h || 0),
     buys24h,
     sells24h,
-    marketCap: selectedIsQuote ? null : num(pair.marketCap),
-    fdv: selectedIsQuote ? null : num(pair.fdv),
-    priceChange24h: selectedIsQuote ? null : num(pair.priceChange?.h24),
+    marketCap: selectedIsQuote ? null : optionalFiniteNumber(pair.marketCap),
+    fdv: selectedIsQuote ? null : optionalFiniteNumber(pair.fdv),
+    priceChange24h: selectedIsQuote ? null : optionalFiniteNumber(pair.priceChange?.h24),
     pairAgeMs: pair.pairCreatedAt ? Date.now() - Number(pair.pairCreatedAt) : null,
     imageUrl,
     provider: "Dexscreener",
@@ -897,8 +897,8 @@ function normalizeDexPaprikaPool(pool = {}, query = "", token = null) {
     quoteSymbol: quote.symbol || "",
     priceUsd: optionalFiniteNumber(token?.price_usd),
     liquidityUsd: null,
-    volume24h: num(pool.volume_usd),
-    txns24h: num(pool.transactions),
+    volume24h: optionalFiniteNumber(pool.volume_usd),
+    txns24h: optionalFiniteNumber(pool.transactions),
     buys24h: null,
     sells24h: null,
     marketCap: null,
@@ -4199,7 +4199,11 @@ async function terminalChartPayload({
       let spotAttention = null;
       let marketProfile = null;
       if (!before && payload.ok) {
-        const pair = (await pairDex(String(chain || "").toLowerCase(), pairAddress).catch(() => []))[0];
+        const pair = (await pairDex(
+          String(chain || "").toLowerCase(),
+          pairAddress,
+          tokenAddress,
+        ).catch(() => []))[0];
         if (pair) payload.market_state = {
           ...(payload.market_state || {}),
           last: pair.priceUsd,

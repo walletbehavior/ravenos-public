@@ -113,7 +113,7 @@ function spotFixtureRows(query = "") {
       name: "memestock",
       quoteSymbol: "GMEB",
       priceUsd: 0.0042113,
-      liquidityUsd: 0,
+      liquidityUsd: null,
       volume24h: 548_095,
       txns24h: 3_639,
       marketCap: null,

@@ -1902,6 +1902,8 @@ test("a pasted message resolves the exact BNB token and opens its provider-backe
   await expect(page).toHaveURL(new RegExp(`instrument_id=bsc%3Apool%3A${BNB_MEMESTOCK_POOL}`, "i"));
   await expect(page.locator("#terminalInstrument")).toHaveText("MEMESTOCK/GMEB");
   await expect(page.locator("#terminalPickerMeta")).toContainText(`bsc:pool:${BNB_MEMESTOCK_POOL}`);
+  await expect(page.locator("#terminalMetric3Cell")).toBeHidden();
+  await expect(page.locator("#terminalMetric3")).not.toHaveText("$0");
   await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · GMEB quote · \d+ candles · trading adapter not active/);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
 
