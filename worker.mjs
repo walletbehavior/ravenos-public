@@ -4562,6 +4562,36 @@ function manifestEndpointHealth(row) {
   };
 }
 
+function liveHyperliquidHealth(payload, nowMs = Date.now()) {
+  const generatedAt = String(payload?.lastUpdated || "");
+  const generatedMs = Date.parse(generatedAt);
+  const rows = Array.isArray(payload?.results) ? payload.results : [];
+  const exactRows = rows.length > 0 && rows.every((row) => (
+    /^hyperliquid:perp:[A-Z0-9._-]{1,24}$/.test(String(row?.instrument_id || ""))
+    && row?.instrument_scope === "exact_instrument"
+    && row?.market_type === "perpetual"
+    && row?.is_live === true
+    && row?.is_synthetic === false
+    && Number(row?.mark_price) > 0
+  ));
+  if (
+    payload?.ok !== true
+    || payload?.isLive !== true
+    || !Number.isFinite(generatedMs)
+    || generatedMs > nowMs + 300_000
+    || nowMs - generatedMs > 60_000
+    || Number(payload?.count) !== rows.length
+    || !exactRows
+  ) return null;
+  return {
+    state: "fresh",
+    generated_at: new Date(generatedMs).toISOString(),
+    age_seconds: Math.max(0, Math.floor((nowMs - generatedMs) / 1_000)),
+    exact_market_count: rows.length,
+    source: "live_hyperliquid_customer_route",
+  };
+}
+
 function worstFreshness(states = []) {
   const rank = { fresh: 0, delayed: 1, stale: 2, unavailable: 3, unknown: 3 };
   return states.reduce((worst, state) => (
@@ -4933,7 +4963,23 @@ async function handleHealth(request, env = {}) {
   const ravenReadState = ravenReadEndpoints.length === ravenReadKeys.size
     ? worstFreshness(ravenReadEndpoints.map((row) => row.state))
     : "unavailable";
-  const marketState = String(terminalHealth?.market_data_availability || "unavailable");
+  const snapshotMarketState = String(terminalHealth?.market_data_availability || "unavailable");
+  const snapshotComponentStates = Array.isArray(terminalHealth?.components)
+    ? Object.fromEntries(terminalHealth.components.map((row) => [String(row?.component || "unknown"), String(row?.state || "unknown")]))
+    : {};
+  const directMarketRouteEligible = snapshotMarketState !== "fresh"
+    && snapshotComponentStates.solana_rpc === "fresh"
+    && snapshotComponentStates.evidence_persistence === "fresh"
+    && snapshotComponentStates.market_chart_data !== "fresh";
+  const directMarketRoute = directMarketRouteEligible
+    ? liveHyperliquidHealth(await hyperliquidPerps({ forceRefresh: true }).catch(() => null))
+    : null;
+  const marketState = directMarketRoute ? "fresh" : snapshotMarketState;
+  const marketComponentStates = directMarketRoute ? {
+    ...snapshotComponentStates,
+    market_chart_data: "fresh",
+    perp_market_context: "fresh",
+  } : snapshotComponentStates;
   const projectionState = manifestResult.ok
     && statusResult.ok
     && projectionStatus?.private_leak_guard_passed
@@ -4980,11 +5026,16 @@ async function handleHealth(request, env = {}) {
     },
     market_data_health: {
       state: marketState,
-      generated_at: terminalHealth?.generated_at || null,
-      terminal_availability: terminalHealth?.terminal_availability || "unknown",
-      component_states: Array.isArray(terminalHealth?.components)
-        ? Object.fromEntries(terminalHealth.components.map((row) => [String(row?.component || "unknown"), String(row?.state || "unknown")]))
-        : {},
+      generated_at: directMarketRoute?.generated_at || terminalHealth?.generated_at || null,
+      terminal_availability: directMarketRoute ? "fresh" : terminalHealth?.terminal_availability || "unknown",
+      component_states: marketComponentStates,
+      ...(directMarketRoute ? {
+        snapshot_state: snapshotMarketState,
+        snapshot_generated_at: terminalHealth?.generated_at || null,
+        revalidated_by: directMarketRoute.source,
+        revalidated_age_seconds: directMarketRoute.age_seconds,
+        exact_market_count: directMarketRoute.exact_market_count,
+      } : {}),
     },
     intelligence_freshness: {
       state: intelligenceState,

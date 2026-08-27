@@ -683,8 +683,10 @@ test("Worker health measures current product lanes without penalizing archival o
     quote_availability: "unknown",
     review_availability: "unavailable",
     components: [
+      { component: "solana_rpc", state: "fresh" },
       { component: "market_chart_data", state: "fresh", private_path: "/srv/private" },
       { component: "perp_market_context", state: "fresh" },
+      { component: "evidence_persistence", state: "fresh" },
     ],
     public_warnings: [],
     degraded_reasons: [],
@@ -695,7 +697,27 @@ test("Worker health measures current product lanes without penalizing archival o
     "/public/ravenos/terminal_health.json": terminalHealth,
   };
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => jsonResponse(byPath[new URL(url).pathname] || {}, byPath[new URL(url).pathname] ? 200 : 404);
+  let hyperliquidAvailable = true;
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(url);
+    if (parsed.hostname === "api.hyperliquid.xyz") {
+      const body = JSON.parse(String(init.body || "{}"));
+      if (!hyperliquidAvailable || body.type !== "metaAndAssetCtxs") return jsonResponse({}, 503);
+      return jsonResponse([
+        { universe: [{ name: "HEALTH", maxLeverage: 10 }] },
+        [{
+          funding: "0.00001",
+          openInterest: "1000",
+          dayNtlVlm: "2500000",
+          markPx: "100",
+          midPx: "100",
+          oraclePx: "99.98",
+          prevDayPx: "98",
+        }],
+      ]);
+    }
+    return jsonResponse(byPath[parsed.pathname] || {}, byPath[parsed.pathname] ? 200 : 404);
+  };
   try {
     const env = environment();
     const response = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
@@ -774,6 +796,28 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(rejectedOpportunityHealth.state, "stale");
     assert.equal("projection_scope" in rejectedOpportunityHealth, false);
     manifest.endpoints.find((row) => row.key === "opportunities").payload_age_seconds = 10;
+
+    terminalHealth.market_data_availability = "degraded";
+    terminalHealth.terminal_availability = "degraded";
+    terminalHealth.components.find((row) => row.component === "market_chart_data").state = "degraded";
+    const recoveredMarketResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const recoveredMarket = await recoveredMarketResponse.json();
+    assert.equal(recoveredMarket.status, "ok");
+    assert.equal(recoveredMarket.market_data_health.state, "fresh");
+    assert.equal(recoveredMarket.market_data_health.snapshot_state, "degraded");
+    assert.equal(recoveredMarket.market_data_health.revalidated_by, "live_hyperliquid_customer_route");
+    assert.equal(recoveredMarket.market_data_health.component_states.market_chart_data, "fresh");
+    assert.equal(recoveredMarket.market_data_health.exact_market_count, 1);
+
+    hyperliquidAvailable = false;
+    const rejectedMarketResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const rejectedMarket = await rejectedMarketResponse.json();
+    assert.equal(rejectedMarket.status, "degraded");
+    assert.equal(rejectedMarket.market_data_health.state, "degraded");
+    assert.equal("revalidated_by" in rejectedMarket.market_data_health, false);
+    terminalHealth.market_data_availability = "fresh";
+    terminalHealth.terminal_availability = "fresh";
+    terminalHealth.components.find((row) => row.component === "market_chart_data").state = "fresh";
 
     manifest.endpoints.find((row) => row.key === "atlas").payload_age_seconds = 1_900;
     const delayedAtlasResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
