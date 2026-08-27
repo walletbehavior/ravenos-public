@@ -264,6 +264,22 @@ test("cold start with one actual observation withholds acceleration and lifecycl
   assert.equal(discovery.velocity_state.score.availability, "insufficient_history");
 });
 
+test("a retained stale market re-baselines after a classifier change instead of preserving an obsolete state", () => {
+  const row = pool({
+    observed_at: "2026-08-26T23:00:00.000Z",
+    context_state: "stale",
+    registry: {
+      retained_after_trending: true,
+      primary_behavior_state: "ath_breakout",
+      classifier_version: "2026-08-27.1",
+      ath_distance_pct: null,
+    },
+  });
+  const discovery = build([row]).rows[0].discovery;
+  assert.equal(discovery.primary_behavior_state.value, "forming");
+  assert.match(discovery.primary_behavior_state.explanation, /classifier changed/i);
+});
+
 test("activity ranking responds to acceleration rather than equal absolute volume", () => {
   const accelerating = pool({
     pool_address: "0x0000000000000000000000000000000000000017",
