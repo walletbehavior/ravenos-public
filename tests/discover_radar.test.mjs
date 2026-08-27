@@ -165,6 +165,49 @@ test("an extreme provider move is surfaced for exact-chart verification rather t
   assert.doesNotMatch(discovery.decision_support.why_now, /Raven has one real observation/i);
 });
 
+test("the selected-window move outranks a larger historical-window print while preserving exact-chart verification", () => {
+  const selectedPool = pool({
+    pool_address: "0x0000000000000000000000000000000000000084",
+    market: {
+      price_change_5m_pct: 7,
+      price_change_1h_pct: 30,
+      price_change_24h_pct: 900,
+      volume_usd_5m: 18_000,
+      buys_5m: 18,
+      sells_5m: 12,
+      buyers_5m: 9,
+      sellers_5m: 7,
+      volume_usd_24h: 900_000,
+      buys_24h: 850,
+      sells_24h: 640,
+      buyers_24h: 410,
+      sellers_24h: 330,
+    },
+  });
+  const historicalPool = pool({
+    pool_address: "0x0000000000000000000000000000000000000085",
+    market: {
+      price_change_5m_pct: 1,
+      price_change_1h_pct: 30,
+      price_change_24h_pct: 900,
+      volume_usd_24h: 900_000,
+      buys_24h: 850,
+      sells_24h: 640,
+      buyers_24h: 410,
+      sellers_24h: 330,
+    },
+  });
+  const result = build([selectedPool, historicalPool]);
+  const selected = result.rows.find((row) => row.instrument_id === selectedPool.instrument_id).discovery.notability;
+  const historical = result.rows.find((row) => row.instrument_id === historicalPool.instrument_id).discovery.notability;
+  assert.equal(selected.primary_trigger.window, "5m");
+  assert.equal(selected.primary_trigger.value_pct, 7);
+  assert.equal(selected.verification_state, "exact_chart_required");
+  assert.equal(selected.material_move_triggers.some((trigger) => trigger.window === "24h"), true);
+  assert.equal(historical.primary_trigger.window, "24h");
+  assert.ok(selected.priority > historical.priority);
+});
+
 test("zero market-cap falls back to available FDV without fabricating a collapse", () => {
   const result = build([pool({
     market: { market_cap_usd: 0, fdv_usd: 450_000 },

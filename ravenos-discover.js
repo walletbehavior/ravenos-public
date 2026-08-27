@@ -1503,7 +1503,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
-    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence. ${view.summary}`
+    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence. Selected-window moves rank first; qualified longer-window changes remain available below them. ${view.summary}`
     : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
