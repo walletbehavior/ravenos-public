@@ -669,8 +669,13 @@ if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
   const velocityRows = Array.isArray(solanaVelocity?.rows)
     ? solanaVelocity.rows.filter((row) => row?.source_type === "jupiter_velocity")
     : [];
+  const velocityProvenanceQualified = solanaVelocity?.provenance?.role === "token_velocity_plus_exact_pool_market_activity"
+    || (
+      solanaVelocity?.provenance?.role === "current_plus_retained_exact_pool_market_activity"
+      && Number(solanaVelocity?.discovery_lanes?.retained_exact_markets) > 0
+    );
   if (
-    solanaVelocity?.provenance?.role !== "token_velocity_plus_exact_pool_market_activity"
+    !velocityProvenanceQualified
     || solanaVelocity?.discovery_lanes?.jupiter_velocity !== true
     || !velocityRows.length
     || velocityRows.some((row) => (
