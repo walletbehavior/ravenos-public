@@ -588,7 +588,7 @@ if (
   throw new Error(`Isolated preview did not return the exact keyed CoinGecko ${expectedChartPlan || "configured"} one-minute chart contract`);
 }
 
-const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m");
+const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,bsc,ethereum,robinhood&duration=5m");
 const onchainPulse = JSON.parse(onchainPulseCapture.text);
 const onchainPulseFindings = scanJsonValue(onchainPulse, "preview:/api/onchain/trending");
 if (onchainPulseFindings.length) {
@@ -606,14 +606,14 @@ if (
 ) {
   throw new Error("Isolated preview on-chain market pulse contract is incomplete");
 }
-const evmChartRows = ["base", "ethereum", "robinhood"].map((chain) => onchainPulse.rows.find((row) => (
+const evmChartRows = ["base", "bsc", "ethereum", "robinhood"].map((chain) => onchainPulse.rows.find((row) => (
   row?.chain_id === chain
   && row?.identity_scope === "exact_pool"
   && row?.source_type === "market_activity"
   && row?.instrument_id === `${chain}:pool:${row?.pool_address}`
 )));
 if (evmChartRows.some((row) => !row)) {
-  throw new Error("Isolated preview did not return exact-pool Base, Ethereum, and Robinhood Chain activity");
+  throw new Error("Isolated preview did not return exact-pool Base, BNB Chain, Ethereum, and Robinhood Chain activity");
 }
 for (const row of evmChartRows) {
   const params = new URLSearchParams({
