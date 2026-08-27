@@ -43,7 +43,9 @@ The first real observation starts history. It does not backfill a synthetic seri
 
 Primary-state changes require two consecutive qualified observations, except an exact availability failure. Classifier version changes create a separate `classifier_rebaseline` event, suppress market-transition notifications, and preserve the old/new version distinction.
 
-The v1 classifier ships in shadow state and is not Monitor-eligible. Monitor evaluation and external notifications remain disabled until transition volume, provider load, same-symbol isolation, and notification-storm simulations are reviewed.
+The v1 classifier runs internally in shadow evaluation while the public contract reports a forming state. It is not Monitor-eligible. Monitor evaluation and external notifications remain disabled until transition volume, provider load, same-symbol isolation, and notification-storm simulations are reviewed.
+
+The registry distinguishes a high observed since Raven admission from an independently qualified all-time high. A cold-start observed high never creates an ATH label; ATH distance remains unavailable until qualified market history supports it.
 
 ## Scores
 

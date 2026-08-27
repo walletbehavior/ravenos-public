@@ -2760,15 +2760,15 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
     age_seconds: 0,
     context_state: "current",
     movement_state: current.price_change_pct === null
-      ? "Jupiter flow accelerating"
-      : current.price_change_pct >= 0 ? "Jupiter upside velocity" : "Jupiter downside velocity",
+      ? "Flow accelerating"
+      : current.price_change_pct >= 0 ? "Upside velocity" : "Downside velocity",
     what_changed: [
       current.price_change_pct === null ? "" : `Price ${current.price_change_pct >= 0 ? "rose" : "fell"} ${Math.abs(current.price_change_pct).toFixed(2)}% over ${duration}`,
       current.volume_change_pct === null ? "" : `volume ${current.volume_change_pct >= 0 ? "expanded" : "contracted"} ${Math.abs(current.volume_change_pct).toFixed(1)}%`,
       current.buys !== null && current.sells !== null ? `${Math.round(current.buys)} buys · ${Math.round(current.sells)} sells` : "",
       current.traders === null ? "" : `${Math.round(current.traders)} traders`,
-    ].filter(Boolean).join(" · ") || "Current Jupiter token flow cleared the discovery feed.",
-    risk: "Jupiter flow is token-wide; Terminal revalidates the selected exact pool before showing chart or strategy evidence.",
+    ].filter(Boolean).join(" · ") || "Current token flow cleared the discovery feed.",
+    risk: "Token-wide flow is revalidated against the selected exact pool before Terminal shows chart or strategy evidence.",
     provider_rank: rank,
     ranking_duration: duration,
     market: {
@@ -6361,7 +6361,7 @@ async function handleOpportunity(request, env) {
         name: "raven_behavioral_radar",
         version: "unavailable",
         monitor_eligible: false,
-        shadow_evaluation: true,
+        evaluation_state: "forming",
       },
       monitor_safety: {
         enabled: false,
@@ -6372,7 +6372,6 @@ async function handleOpportunity(request, env) {
       public_safety: {
         raw_provider_payloads_exposed: false,
         private_participant_identities_exposed: false,
-        wallet_data_exposed: false,
         execution_data_exposed: false,
         plan_prices_persisted: false,
         customer_state_in_registry: false,

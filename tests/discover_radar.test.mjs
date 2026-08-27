@@ -101,6 +101,30 @@ test("a mature 200K to 450K exact market is admitted as a breakout rather than e
   assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
 });
 
+test("zero market-cap falls back to available FDV without fabricating a collapse", () => {
+  const result = build([pool({
+    market: { market_cap_usd: 0, fdv_usd: 450_000 },
+    registry: { first_seen_market_cap_usd: 200_000 },
+  })]);
+  const discovery = result.rows[0].discovery;
+  assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
+  assert.notEqual(discovery.primary_behavior_state.value, "capitulation");
+});
+
+test("an observed registry high is not presented as the market all-time high", () => {
+  const withoutQualifiedAth = build([pool({
+    registry: { recorded_high_distance_pct: -3, ath_distance_pct: null },
+  })]).rows[0].discovery;
+  assert.equal(withoutQualifiedAth.path.ath_distance_pct, null);
+  assert.equal(withoutQualifiedAth.path.recorded_high_distance_pct, -3);
+  assert.notEqual(withoutQualifiedAth.primary_behavior_state.value, "approaching_ath");
+
+  const withQualifiedAth = build([pool({
+    registry: { recorded_high_distance_pct: -3, ath_distance_pct: -3 },
+  })]).rows[0].discovery;
+  assert.equal(withQualifiedAth.primary_behavior_state.value, "approaching_ath");
+});
+
 test("a mature 1.2M to 1.55M continuation outranks a noisy divergent microcap", () => {
   const continuation = pool({
     pool_address: "0x0000000000000000000000000000000000000012",
@@ -312,4 +336,7 @@ test("the complete radar projection validates and remains monitor-ineligible", (
   assert.equal(validated.classifier.monitor_eligible, false);
   assert.equal(validated.monitor_safety.classifier_version_change_action, "rebaseline_without_notification");
   assert.equal(validated.monitor_safety.external_notifications_enabled, false);
+  assert.equal(validated.state, "forming");
+  assert.equal(validated.classifier.evaluation_state, "forming");
+  assert.equal("shadow_evaluation" in validated.classifier, false);
 });

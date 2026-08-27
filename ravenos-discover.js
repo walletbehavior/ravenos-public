@@ -64,6 +64,14 @@ function finite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+function marketCapValue(market = {}) {
+  const marketCap = finite(market.market_cap_usd);
+  if (marketCap !== null && marketCap > 0) return marketCap;
+  const fdv = finite(market.fdv_usd);
+  if (fdv !== null && fdv > 0) return fdv;
+  return marketCap ?? fdv;
+}
+
 function title(value, fallback = "Unavailable") {
   const result = text(value, fallback);
   return result.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -645,7 +653,7 @@ function survivesCurrentSpotMarket(row = {}) {
   const age = finite(row.age_seconds);
   const price = finite(market.price_usd);
   const liquidity = finite(market.liquidity_usd);
-  const marketCap = finite(market.market_cap_usd);
+  const marketCap = marketCapValue(market);
   const change1h = finite(market.price_change_1h_pct);
   const change24h = finite(market.price_change_24h_pct);
   if (age !== null && age > 3_600) return false;
@@ -858,7 +866,7 @@ function numericBand(value, filter, bands) {
 
 function advancedFiltersMatch(row) {
   const market = row?.market || {};
-  if (!numericBand(market.market_cap_usd ?? market.fdv_usd, state.spotMarketCapFilter, {
+  if (!numericBand(marketCapValue(market), state.spotMarketCapFilter, {
     under_100k: [0, 100_000],
     "100k_500k": [100_000, 500_000],
     "500k_2m": [500_000, 2_000_000],
@@ -1074,7 +1082,8 @@ function renderSpotEvidence(shell, row) {
   appendEvidenceItem(overview, "Activity state", title(discovery.activity_state?.value, "Forming"));
   appendEvidenceItem(overview, "Change since first observed", finite(discovery.path?.change_since_first_observation_pct) === null ? "Unavailable" : percent(discovery.path.change_since_first_observation_pct));
   appendEvidenceItem(overview, "ATH distance", finite(discovery.path?.ath_distance_pct) === null ? "Unavailable" : percent(discovery.path.ath_distance_pct));
-  appendEvidenceItem(overview, "Market-cap / liquidity", finite(row.market?.market_cap_usd) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(row.market.market_cap_usd / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
+  appendEvidenceItem(overview, "Recorded-high distance", finite(discovery.path?.recorded_high_distance_pct) === null ? "Unavailable" : percent(discovery.path.recorded_high_distance_pct));
+  appendEvidenceItem(overview, "Market-cap / liquidity", marketCapValue(row.market) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(marketCapValue(row.market) / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
   appendEvidenceItem(overview, "Routeable size", discovery.routeability?.availability === "available" && finite(discovery.routeability.routeable_size_usd) !== null ? compact(discovery.routeability.routeable_size_usd, { currency: true }) : "Unavailable");
   appendEvidenceItem(overview, "Estimated slippage", discovery.routeability?.availability === "available" && finite(discovery.routeability.estimated_slippage_bps) !== null ? `${Number(discovery.routeability.estimated_slippage_bps).toFixed(1)} bps` : "Unavailable");
   appendEvidenceItem(overview, "Bundle percentage", discovery.control_intelligence?.bundled_pct?.availability === "available" && finite(discovery.control_intelligence.bundled_pct.value) !== null ? `${Number(discovery.control_intelligence.bundled_pct.value).toFixed(1)}%` : "Unavailable");
@@ -1190,9 +1199,10 @@ function updateSpotTokenRow(anchor, row, index) {
   anatomy.textContent = "";
   renderTokenStat(anatomy, "Vol", finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
   renderTokenStat(anatomy, "Liq", finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
-  renderTokenStat(anatomy, "MCap", finite(row.market?.market_cap_usd) === null ? "" : compact(row.market.market_cap_usd, { currency: true }));
-  const marketCapLiquidity = finite(row.market?.market_cap_usd) !== null && finite(row.market?.liquidity_usd) > 0
-    ? row.market.market_cap_usd / row.market.liquidity_usd
+  const marketCap = marketCapValue(row.market);
+  renderTokenStat(anatomy, finite(row.market?.market_cap_usd) > 0 ? "MCap" : "FDV", marketCap === null ? "" : compact(marketCap, { currency: true }));
+  const marketCapLiquidity = marketCap !== null && finite(row.market?.liquidity_usd) > 0
+    ? marketCap / row.market.liquidity_usd
     : null;
   renderTokenStat(anatomy, "MC/Liq", marketCapLiquidity === null ? "" : `${marketCapLiquidity.toFixed(marketCapLiquidity < 10 ? 1 : 0)}×`);
   const traders = spotMetric(row, "traders");
