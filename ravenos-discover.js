@@ -1318,17 +1318,28 @@ function updateSpotTokenRow(anchor, row, index) {
   renderTokenStat(anatomy, "Holders", finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
+  const exactChartRequired = discovery.notability?.verification_state === "exact_chart_required";
   if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
-    append(raven, "span", "", risks.includes("late_chase") ? `Chase risk · ${label}` : label);
+    append(raven, "span", "", [
+      risks.includes("late_chase") ? "Chase risk" : "",
+      exactChartRequired ? "Exact chart required" : "",
+      label,
+    ].filter(Boolean).join(" · "));
     append(raven, "strong", "", [...new Set([title(velocityState), title(primary)])].join(" · "));
   } else if (state.spotSort === "activity") {
-    append(raven, "span", "", scoreLabel(activityScore, "Activity strength"));
+    append(raven, "span", "", [
+      exactChartRequired ? "Exact chart required" : "",
+      scoreLabel(activityScore, "Activity strength"),
+    ].filter(Boolean).join(" · "));
     const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
     append(raven, "strong", "", [title(activityState), buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`, text(discovery.sample_evidence?.label, "")].filter(Boolean).join(" · "));
   } else {
     const ravenEvidence = discovery.raven_evidence_state;
-    append(raven, "span", "", `Raven observation · ${title(ravenEvidence.state)}`);
+    append(raven, "span", "", [
+      `Raven observation · ${title(ravenEvidence.state)}`,
+      exactChartRequired ? "Exact chart required" : "",
+    ].filter(Boolean).join(" · "));
     append(raven, "strong", "", text(ravenEvidence.why_raven_noticed, "Qualified exact-market Raven observation."));
   }
   const compactDetail = [

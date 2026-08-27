@@ -158,6 +158,8 @@ test("an extreme provider move is surfaced for exact-chart verification rather t
   assert.equal(discovery.notability.primary_trigger.window, "5m");
   assert.equal(discovery.notability.verification_state, "exact_chart_required");
   assert.equal(discovery.primary_behavior_state.value, "forming");
+  assert.match(discovery.decision_support.why_now, /exact-market registry has one real observation/i);
+  assert.doesNotMatch(discovery.decision_support.why_now, /Raven has one real observation/i);
 });
 
 test("zero market-cap falls back to available FDV without fabricating a collapse", () => {
