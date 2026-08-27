@@ -1390,7 +1390,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     append(copy, "p", "", state.spotSort === "raven"
       ? "Provider trending and Velocity rankings cannot create Raven evidence. Velocity and Activity remain available."
       : state.spotLane === "opportunities"
-        ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity."
+        ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity. Unavailable measurements were not treated as zero."
         : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
     const actions = append(copy, "div", "discover-token-empty-actions", "");
     if (state.spotLane === "opportunities") {
@@ -1492,7 +1492,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
-    ? "High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence."
+    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a qualified participation or lifecycle transition, or exact Raven evidence. ${view.summary}`
     : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
