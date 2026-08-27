@@ -164,7 +164,8 @@ const adapters = Object.freeze({
     feeModel: "raven_platform_fee_future",
     routeSummary: "Future routed swaps may include a transparent Raven platform fee.",
     feeKind: "raven_platform_fee",
-    feeCopy: "Raven fee: not charged in preview",
+    feeCopy: "Raven fee when trading opens: Free 2.55% · Pro 1.78%; not charged in preview",
+    targetFeeBps: { free: 255, pro: 178, maximum: 255 },
   }),
   base_evm_future: disabledAdapter({
     key: "base_evm_future",
@@ -222,8 +223,8 @@ const adapters = Object.freeze({
     feeModel: "hyperliquid_builder_fee_future",
     routeSummary: "Future Hyperliquid orders may include a transparent builder fee.",
     feeKind: "hyperliquid_builder_fee",
-    feeCopy: "Builder fee: 0.05%-0.1% target where allowed; not charged in preview",
-    targetFeeBps: { min: 5, max: 10 },
+    feeCopy: "Builder fee when trading opens: Free 0.10% · Pro 0.07%; not charged in preview",
+    targetFeeBps: { free: 10, pro: 7, maximum: 10 },
   }),
   imperial_future: disabledAdapter({
     key: "imperial_future",
