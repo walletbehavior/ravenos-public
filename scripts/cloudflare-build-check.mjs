@@ -279,9 +279,9 @@ for (const file of ["monitor/index.html", "public/monitor/index.html", ".deploy-
 const customerCopyGuards = new Map([
   [["intelligence/index.html", "public/intelligence/index.html", ".deploy-public/intelligence/index.html"], ["Aggregate · privacy-safe", "Freshness-gated", "public evidence contract", "Identity and evidence boundary"]],
   [["terminal/index.html", "public/terminal/index.html", ".deploy-public/terminal/index.html"], ["Provider-listed pools can resolve", "independently verified"]],
-  [["ravenos-shell.js", "public/ravenos-shell.js", ".deploy-public/ravenos-shell.js"], ["Account activation status"]],
+  [["ravenos-shell.js", "public/ravenos-shell.js", `.deploy-public/${assetManifest.assets?.["ravenos-shell.js"]?.path || "missing-ravenos-shell.js"}`], ["Account activation status"]],
   [["account/index.html", "public/account/index.html", ".deploy-public/account/index.html"], ["Next security stage", "Read-only beta"]],
-  [["ravenos-account.js", "public/ravenos-account.js", ".deploy-public/ravenos-account.js"], ["Secure activation pending", "Portfolio Preview"]],
+  [["ravenos-account.js", "public/ravenos-account.js", `.deploy-public/${assetManifest.assets?.["ravenos-account.js"]?.path || "missing-ravenos-account.js"}`], ["Secure activation pending", "Portfolio Preview"]],
 ]);
 for (const [files, terms] of customerCopyGuards) {
   for (const file of files) {
