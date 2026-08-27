@@ -231,6 +231,19 @@ test("Atlas detail fails closed if restricted provider values are present", asyn
   assert.equal(result.payload, null);
 });
 
+test("Worker hard-blocks Tradier observations even if the origin marks them allowed", async () => {
+  const mistaken = entityPayload();
+  mistaken.snapshot.state = "available";
+  mistaken.snapshot.display_policy = policy("allowed");
+  mistaken.snapshot.data = { last: 123.45 };
+  const result = await loadPublicAtlasUniverse({ env: env(), endpoint: "entity", entityId: "etf:us:SPY", fetchImpl: async () => jsonResponse(mistaken) });
+  assert.equal(result.available, true);
+  assert.equal(result.payload.snapshot.state, "display_restricted");
+  assert.equal(result.payload.snapshot.display_policy.decision, "restricted");
+  assert.equal(result.payload.snapshot.data, null);
+  assert.ok(result.payload.snapshot.refusal_reasons.includes("tradier_partner_public_display_rights_not_configured"));
+});
+
 test("Atlas detail fails closed if execution or signing becomes available", async () => {
   const malformed = entityPayload({ execution_boundary: boundary({ submission_available: true }) });
   const result = await loadPublicAtlasUniverse({ env: env(), endpoint: "entity", entityId: "etf:us:SPY", fetchImpl: async () => jsonResponse(malformed) });
@@ -276,7 +289,19 @@ test("Featured Atlas snapshots require the same canonical entity and an exact li
     featured_refresh: "bounded_existing_atlas_cycle",
     public_projection_generated_at: nowIso(),
   });
-  const admitted = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(payload) });
+  const blocked = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(payload) });
+  assert.equal(blocked.available, true);
+  assert.equal(blocked.payload.sections[0].entities[0].snapshot, null);
+  assert.equal(blocked.payload.sections[0].entities[0].observation_display_eligibility, "restricted");
+
+  const qualified = structuredClone(payload);
+  qualified.sections[0].entities[0].provider = "Qualified Test Provider";
+  qualified.sections[0].entities[0].snapshot.provider = "Qualified Test Provider";
+  qualified.sections[0].entities[0].snapshot.display_policy = {
+    ...policy("allowed"),
+    raw_redistribution_allowed: true,
+  };
+  const admitted = await loadPublicAtlasUniverse({ env: env(), endpoint: "featured", fetchImpl: async () => jsonResponse(qualified) });
   assert.equal(admitted.available, true);
   assert.equal(admitted.payload.sections[0].entities[0].snapshot.last, 640.25);
 

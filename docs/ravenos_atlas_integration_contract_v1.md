@@ -54,7 +54,7 @@ It does not yet publicly support:
 - broker accounts, orders, settlement, or execution;
 - browser-side Tradier access.
 
-The first Atlas product slice now uses exact SPY/QQQ rows when current market state contains them. IWM retains a verified registry identity and current options summary but is not fabricated as a priced market row when the current market state omits it. Unsupported modules render unavailable—not sample rows.
+The first Atlas product slice retains exact SPY/QQQ/IWM registry identities when present. Prices, returns, and options summaries remain unavailable until the corresponding data product carries an explicit qualified public-display policy. Unsupported modules render unavailable—not sample rows.
 
 ## Public projection boundary
 
@@ -63,13 +63,14 @@ The first Atlas product slice now uses exact SPY/QQQ rows when current market st
 Public fields include:
 
 - generation time and freshness;
-- aggregate Atlas posture, confidence, and rail alignment;
-- risk/equity regime, sector breadth, and participation quality;
-- bounded market rows with an exact `ravenos.instrument.v1` listing identity, symbol, price, 5/21/63-day changes, sample points, provider label, and observation time;
-- aggregate option contexts by underlying;
+- exact `ravenos.instrument.v1` listing identity and catalog metadata;
 - bounded provider health;
 - an explicit capabilities object;
 - explicit unavailable capability reasons.
+
+The legacy projection is now fail-closed for observations. Massive, Tradier, and Yahoo-derived market values are removed before publication, along with option summaries and any aggregate posture, regime, breadth, or participation field that may depend on those observations. Their rows remain identity-only with `state: display_restricted`, null observation fields, and an explicit display decision. A second Worker-side hard block enforces the same rule even if the protected origin mistakenly marks one of those providers allowed. A future provider is admitted only when its observation carries an explicit `allowed` policy with raw redistribution rights and is not on the Worker hard-block list.
+
+`GET /api/atlas/sources` is the public, cacheable source-control inventory. It reports free-first data products, activation state, evidence links, required attribution, and blocked products. It contains no provider credentials and does not activate a feed.
 
 The adapter intentionally removes:
 
@@ -90,16 +91,16 @@ The smallest justified production path is:
 
 ```mermaid
 flowchart LR
-  M[Atlas market state] --> B[Private public-safe Atlas builder]
-  O[Tradier options summary] --> B
-  S[Atlas synthesis] --> B
-  B --> J[atlas.json]
-  T[Tradier exact lookup] --> P
-  Y[Listed-market chart provider] --> P
-  J --> P[Protected public-origin exact allowlist]
+  G[SEC / EIA / Treasury / Fed / BLS / BEA / ECB / CFTC] --> A[Private product adapters]
+  I[IEX HIST or qualified delayed feed] --> A
+  F[OpenFIGI identity mapping] --> A
+  A --> R[Product-level rights ledger]
+  R --> P[Protected public-origin normalized projection]
   P --> W[RavenOS Worker server-side read]
-  W --> C[/api/atlas public projection]
+  W --> C[/api/atlas and product routes]
   C --> UI[Discover / Terminal / Atlas]
+  U[User-connected broker] --> X[Private entitled-user options overlay]
+  X --> UI
 ```
 
 Implemented in source and isolated tests:
@@ -113,11 +114,12 @@ Implemented in source and isolated tests:
 
 Still required before production use:
 
-1. Stage the exact immutable RavenOS release and run the Cloudflare production-equivalent preflight.
-2. Verify AAPL and SPY chart coverage through the real Worker-to-origin path.
-3. Promote only the verified immutable release tuple under the owner authorization already granted for this pass.
+1. Expand the private origin with the selected official-source adapters and record product-level rights evidence.
+2. Build the IEX HIST T+1 ingestion path, or execute the required agreement/connectivity path before using delayed TOPS.
+3. Add the authenticated broker overlay without projecting its option observations into anonymous caches.
+4. Stage the exact immutable RavenOS release and run the production-equivalent contract, no-leak, and route verification.
 
-Tradier and the listed-chart provider are never called directly from browser JavaScript. Exact-instrument lookup and chart normalization run only inside the protected private origin and return strict public-safe projections through the Worker. Lookup enforces query validation, a 256 KiB response bound, a 12-result cap, an admitted US exchange map, stock/ETF-only types, short caching, exact canonical identities, server-only credentials, and hard-false broker/quote/signing/submission capabilities. Charts re-verify that identity, accept only seven bounded timeframes, cap output at 1,000 candles and 512 KiB, remove raw provider structures, and retain hard-false execution state. Unknown exchanges, options, malformed identities, stale payloads, and provider failures fail closed.
+Provider APIs are never called directly from browser JavaScript. Exact-instrument lookup and chart normalization run only inside the protected private origin and return strict public-safe projections through the Worker. Lookup enforces query validation, a 256 KiB response bound, a 12-result cap, admitted instrument types, short caching, exact canonical identities, server-only credentials, and hard-false broker/quote/signing/submission capabilities. Charts re-verify that identity, accept only bounded timeframes, cap output, remove raw provider structures, and retain hard-false execution state. Unknown products, malformed identities, stale payloads, missing display evidence, and provider failures fail closed.
 
 ## Health semantics
 

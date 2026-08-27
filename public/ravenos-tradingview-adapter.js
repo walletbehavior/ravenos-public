@@ -174,6 +174,7 @@ export function mountTradingViewChart(host, entity, { interval = "60", exactInst
     gridColor: "rgba(255, 255, 255, 0.04)",
     hide_top_toolbar: false,
     hide_legend: false,
+    allow_symbol_change: false,
     save_image: false,
     calendar: false,
     support_host: "https://www.tradingview.com",
@@ -187,6 +188,40 @@ export function mountTradingViewChart(host, entity, { interval = "60", exactInst
   frame.setAttribute("allow", "fullscreen");
   host.append(frame);
   return resolved;
+}
+
+export function mountTradingViewBreadth(host) {
+  if (!(host instanceof HTMLElement)) return null;
+  const frame = document.createElement("iframe");
+  const config = {
+    dataSource: "SPX500",
+    blockSize: "market_cap_basic",
+    blockColor: "change",
+    grouping: "sector",
+    locale: "en",
+    colorTheme: "dark",
+    hasTopBar: true,
+    isDataSetEnabled: true,
+    isZoomEnabled: true,
+    hasSymbolTooltip: true,
+    isMonoSize: false,
+    width: "100%",
+    height: "100%",
+  };
+  frame.className = "atlas-tv-frame atlas-tv-breadth-frame";
+  frame.src = `https://www.tradingview-widget.com/embed-widget/stock-heatmap/?locale=en#${encodeURIComponent(JSON.stringify(config))}`;
+  frame.title = "TradingView S&P 500 stock heatmap";
+  frame.loading = "lazy";
+  frame.referrerPolicy = "no-referrer";
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+  frame.setAttribute("allow", "fullscreen");
+  host.append(frame);
+  return Object.freeze({
+    provider: "TradingView",
+    universe: "S&P 500",
+    presentation_only: true,
+    atlas_score: false,
+  });
 }
 
 export const TradingViewExactSymbols = EXACT_SYMBOLS;

@@ -16,6 +16,8 @@ import {
   projectionHeaders,
   sanitizeOriginControlDocument,
 } from "./lib/ravenos_public_origin.mjs";
+import { atlasObservationDecision } from "./lib/atlas_display_rights.mjs";
+import { buildAtlasFreeSourceRegistry } from "./lib/atlas_free_sources.mjs";
 import {
   CHART_INSTRUMENT_TYPES,
   RAVENOS_CHART_CANDLE_SERIES_SCHEMA,
@@ -481,6 +483,7 @@ function routeCacheHeaders(pathname) {
   if (pathname === "/api/atlas") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
   if (pathname === "/api/atlas/featured") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
   if (pathname === "/api/atlas/search") return { "cache-control": "public, max-age=15, stale-while-revalidate=30" };
+  if (pathname === "/api/atlas/sources") return { "cache-control": "public, max-age=3600, stale-while-revalidate=86400" };
   if (pathname.startsWith("/api/atlas/")) return { "cache-control": "private, no-store" };
   if (pathname === "/api/instruments/search") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
   if (pathname === "/api/brief") return { "cache-control": "public, max-age=300, stale-while-revalidate=900" };
@@ -4266,7 +4269,95 @@ function validateCurrentAtlasProjection(result = {}) {
     || publicSafety.provider_payloads_removed !== true
     || atlas?.capabilities?.browser_provider_credentials !== false
   ) return { ok: false, reason: "atlas_current_projection_rejected" };
-  return { ok: true, atlas };
+  return { ok: true, atlas: sanitizeCurrentAtlasProjection(atlas) };
+}
+
+function sanitizeCurrentAtlasProjection(atlas) {
+  const optionsSourceRows = Array.isArray(atlas?.options_context) ? atlas.options_context : [];
+  const allowedOptionIds = new Set();
+  const optionsContext = optionsSourceRows.filter((row) => {
+    const decision = atlasObservationDecision(row?.provider, row?.display_policy, {
+      entityId: row?.atlas_entity_id || row?.entity_id || row?.underlying_instrument_id,
+    });
+    const allowed = decision.decision === "allowed";
+    if (allowed && row?.underlying_instrument_id) allowedOptionIds.add(row.underlying_instrument_id);
+    return allowed;
+  });
+  let restricted = optionsContext.length !== optionsSourceRows.length;
+  let allowedMarketRows = 0;
+  const rows = atlas.market_context.rows.map((row) => {
+    const decision = atlasObservationDecision(row?.provider, row?.display_policy, {
+      entityId: row?.atlas_entity_id || row?.entity_id || row?.instrument_id,
+    });
+    const allowed = decision.decision === "allowed";
+    const capabilities = {
+      ...(row.instrument?.capabilities || {}),
+      live_price: allowed && row.instrument?.capabilities?.live_price === true,
+      options_summary: allowed && allowedOptionIds.has(row.instrument_id),
+      execution: false,
+    };
+    const instrument = { ...row.instrument, capabilities };
+    if (allowed) {
+      allowedMarketRows += 1;
+      return { ...row, instrument, state: row.state || "available" };
+    }
+    restricted = true;
+    return {
+      ...row,
+      instrument,
+      state: "display_restricted",
+      price: null,
+      change_5d: null,
+      change_21d: null,
+      change_63d: null,
+      sample_points: null,
+      observed_at: null,
+      display_policy: {
+        decision: decision.decision,
+        raw_redistribution_allowed: false,
+        cache_allowed: false,
+        attribution_required: false,
+        reason: decision.reason,
+        decision_source: decision.source,
+      },
+    };
+  });
+  const safeMarketContext = restricted ? {
+    ...atlas.market_context,
+    risk_regime: "unknown",
+    equity_regime: "unknown",
+    sector_breadth: "unknown",
+    participation_quality: "unknown",
+    rows,
+  } : { ...atlas.market_context, rows };
+  return {
+    ...atlas,
+    state: restricted ? "degraded" : atlas.state,
+    posture: restricted ? { state: "unavailable", confidence: "unknown", alignment: "unknown" } : atlas.posture,
+    market_context: safeMarketContext,
+    options_context: optionsContext,
+    rail_breadth: restricted ? {} : atlas.rail_breadth,
+    capabilities: {
+      ...(atlas.capabilities || {}),
+      market_map: allowedMarketRows > 0,
+      exact_instrument_context: rows.length > 0,
+      equity_quotes: allowedMarketRows > 0,
+      options_summary: optionsContext.length > 0,
+      browser_provider_credentials: false,
+    },
+    public_safety: {
+      ...(atlas.public_safety || {}),
+      display_entitlements_enforced: true,
+      restricted_observations_removed: true,
+    },
+    unavailable: {
+      ...(atlas.unavailable || {}),
+      ...(restricted ? {
+        listed_market_observations: "public_display_rights_not_configured",
+        options_summary: "public_display_rights_not_configured",
+      } : {}),
+    },
+  };
 }
 
 async function handleAtlas(request, env = {}) {
@@ -6304,6 +6395,9 @@ async function routeApi(request, env) {
   if (url.pathname.startsWith("/api/claims/") && request.method === "GET") return handleClaims(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/opportunity" && request.method === "GET") return handleOpportunity(request, env);
   if (url.pathname === "/api/atlas" && request.method === "GET") return handleAtlas(request, env);
+  if (url.pathname === "/api/atlas/sources" && request.method === "GET") {
+    return json(buildAtlasFreeSourceRegistry(), { headers: routeCacheHeaders(url.pathname) });
+  }
   if (ATLAS_API_ENDPOINTS[url.pathname] && request.method === "GET") return handleAtlasUniverse(request, env, ATLAS_API_ENDPOINTS[url.pathname]);
   if (url.pathname === "/api/instruments/search" && request.method === "GET") return handleInstrumentSearch(request, env);
   if (url.pathname === "/api/terminal" && request.method === "GET") return handleTerminal(request, env);

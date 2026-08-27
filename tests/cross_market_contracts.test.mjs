@@ -313,7 +313,7 @@ test("duplicate custody lots retain the freshest observation once", () => {
   assert.equal(snapshot.deduplication.holdings_removed.length, 1);
 });
 
-test("Atlas projection exposes aggregate context without provider payloads or credentials", () => {
+test("Atlas projection keeps identity but removes unqualified provider observations", () => {
   const projection = buildPublicAtlasProjection({
     nowMs: Date.parse("2026-07-21T20:10:00Z"),
     atlas: {
@@ -337,12 +337,21 @@ test("Atlas projection exposes aggregate context without provider payloads or cr
     instrumentRegistry: ATLAS_INSTRUMENTS,
   });
   const serialized = JSON.stringify(projection);
-  assert.equal(projection.capabilities.options_summary, true);
+  assert.equal(projection.capabilities.options_summary, false);
   assert.equal(projection.capabilities.full_options_chain, false);
   assert.equal(projection.market_context.rows[0].instrument_id, "etf:nyse-arca:spy");
   assert.equal(projection.market_context.rows[0].instrument.settlement_asset.symbol, "USD");
+  assert.equal(projection.market_context.rows[0].instrument.capabilities.live_price, false);
+  assert.equal(projection.market_context.rows[0].state, "display_restricted");
+  assert.equal(projection.market_context.rows[0].price, null);
+  assert.equal(projection.market_context.rows[0].change_5d, null);
+  assert.equal(projection.market_context.rows[0].display_policy.decision, "internal_only");
+  assert.deepEqual(projection.options_context, []);
+  assert.equal(projection.posture.state, "unavailable");
+  assert.equal(projection.market_context.risk_regime, "unknown");
   assert.equal(projection.execution_boundary.signing_available, false);
   assert.equal(projection.public_safety.provider_payloads_removed, true);
+  assert.equal(projection.public_safety.display_entitlements_enforced, true);
   assert.doesNotMatch(serialized, /api\.tradier\.com|must-not-leak/);
 });
 

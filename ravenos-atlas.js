@@ -1,5 +1,6 @@
 import { ravenOSContext } from "/ravenos-context-store.js";
 import {
+  mountTradingViewBreadth,
   mountTradingViewChart,
   resolveTradingViewChart,
   resolveTradingViewReference,
@@ -22,6 +23,8 @@ const state = {
   searchTimer: null,
   chart: null,
   chartObserver: null,
+  filingRailController: null,
+  filingRailCache: new Map(),
   activeRefreshTimer: null,
   selectedSection: "major_etfs",
   activeTab: "overview",
@@ -196,6 +199,11 @@ function clearActiveRefresh() {
   state.activeRefreshTimer = null;
 }
 
+function clearFilingRailRequest() {
+  state.filingRailController?.abort();
+  state.filingRailController = null;
+}
+
 function scheduleActiveRefresh(callback, delayMs) {
   clearActiveRefresh();
   state.activeRefreshTimer = setTimeout(async () => {
@@ -339,17 +347,24 @@ function marketFrameHeading(projection) {
   if (risk.includes("risk_off") || risk === "defensive") return "Risk appetite is defensive.";
   if (risk === "mixed" || alignment === "fragmented") return "Risk appetite is fragmented.";
   if (alignment === "aligned") return "Cross-market signals are aligned.";
-  return "Cross-market signals are mixed.";
+  if ([risk, alignment].some((value) => value && !["unknown", "unavailable", "forming"].includes(value))) return "Cross-market signals are mixed.";
+  return "Risk posture is forming.";
 }
 
 function marketFrameSummary(projection) {
   const context = projection?.market_context || {};
+  const known = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    return normalized && !["unknown", "unavailable", "forming"].includes(normalized) ? normalized : "";
+  };
   const parts = [
-    context.equity_regime ? `Equities are ${title(context.equity_regime).toLowerCase()}` : "",
-    context.sector_breadth ? `breadth is ${title(context.sector_breadth).toLowerCase()}` : "",
-    context.participation_quality ? `participation is ${title(context.participation_quality).toLowerCase()}` : "",
+    known(context.equity_regime) ? `Equities are ${title(context.equity_regime).toLowerCase()}` : "",
+    known(context.sector_breadth) ? `breadth is ${title(context.sector_breadth).toLowerCase()}` : "",
+    known(context.participation_quality) ? `participation is ${title(context.participation_quality).toLowerCase()}` : "",
   ].filter(Boolean);
-  return parts.length ? `${parts.join(", ")}.` : "Broader signals are still taking shape.";
+  return parts.length
+    ? `${parts.join(", ")}.`
+    : "Atlas is waiting for enough public-display-qualified signals to call risk-on or risk-off. No proxy score is being substituted.";
 }
 
 function marketReturn(value) {
@@ -360,13 +375,16 @@ function marketReturn(value) {
 }
 
 function renderPosture(host, projection) {
-  if (!projection) return null;
   const overview = append(host, "section", "atlas-overview");
   const posture = append(overview, "article", "atlas-posture");
   const postureHead = append(posture, "div", "atlas-posture-head");
-  append(postureHead, "span", "workspace-label", "Market backdrop");
-  const freshness = append(postureHead, "span", "atlas-frame-freshness", relativeAge(projection.generated_at));
-  freshness.dataset.state = projection?.freshness?.state || "available";
+  append(postureHead, "span", "workspace-label", "Cross-market risk posture");
+  const postureAvailable = marketFrameHeading(projection) !== "Risk posture is forming.";
+  const freshnessLabel = postureAvailable && projection?.generated_at
+    ? relativeAge(projection.generated_at)
+    : "Awaiting qualified signals";
+  const freshness = append(postureHead, "span", "atlas-frame-freshness", freshnessLabel);
+  freshness.dataset.state = postureAvailable ? projection?.freshness?.state || "available" : "forming";
   append(posture, "h2", "", marketFrameHeading(projection));
   append(posture, "p", "", marketFrameSummary(projection));
   const contextRows = Array.isArray(projection?.market_context?.rows)
@@ -384,17 +402,47 @@ function renderPosture(host, projection) {
     }
   }
   const regimes = append(overview, "div", "atlas-regime-grid");
-  const facts = [
-    ["Risk tone", projection?.market_context?.risk_regime],
-    ["Equities", projection?.market_context?.equity_regime],
-    ["Breadth", projection?.market_context?.sector_breadth],
-    ["Participation", projection?.market_context?.participation_quality],
-  ];
+  const facts = postureAvailable
+    ? [
+      ["Risk tone", projection?.market_context?.risk_regime],
+      ["Equities", projection?.market_context?.equity_regime],
+      ["Breadth", projection?.market_context?.sector_breadth],
+      ["Participation", projection?.market_context?.participation_quality],
+    ]
+    : [
+      ["Risk posture", "Forming"],
+      ["Equity breadth", "Visual view below"],
+      ["Signal standard", "Public-display qualified"],
+      ["Assessment", "No proxy score"],
+    ];
   for (const [label, value] of facts) {
     const cell = append(regimes, "div");
     append(cell, "span", "", label);
     append(cell, "strong", "", title(value));
   }
+}
+
+function renderBreadthPresentation(host) {
+  const section = append(host, "section", "atlas-breadth-presentation");
+  const head = append(section, "header", "workspace-section-head");
+  const copy = append(head, "div");
+  append(copy, "span", "workspace-label", "Equity participation");
+  append(copy, "h2", "", "See where participation is broad or narrow");
+  append(copy, "p", "", "A TradingView S&P 500 heatmap provides visual breadth context while Atlas's own quantified breadth assessment remains in development.");
+  const badge = append(head, "span", "atlas-breadth-badge", "TradingView presentation");
+  const frameHost = append(section, "div", "atlas-breadth-host");
+  const mounted = mountTradingViewBreadth(frameHost);
+  if (!mounted) {
+    frameHost.replaceChildren();
+    stateNode(frameHost, "Breadth view unavailable", "The TradingView presentation could not be mounted. Atlas did not create a replacement score.");
+  }
+  const footer = append(section, "footer", "atlas-breadth-meta");
+  append(footer, "span", "", "Visual context only · not an Atlas-derived breadth score");
+  const link = append(footer, "a", "", "Market data and heatmap by TradingView ↗");
+  link.href = "https://www.tradingview.com/heatmap/stock/";
+  link.target = "_blank";
+  link.rel = "noopener nofollow";
+  append(footer, "small", "", "Displayed inside TradingView's isolated frame; values are not copied into RavenOS.");
 }
 
 function featuredValue(row) {
@@ -453,6 +501,16 @@ function renderFeatured(host, featured) {
   draw(state.selectedSection);
 }
 
+function renderAtlasRoadmap(host) {
+  const section = append(host, "section", "atlas-roadmap");
+  const copy = append(section, "div");
+  append(copy, "span", "workspace-label", "Atlas Pro roadmap");
+  append(copy, "h2", "", "Deeper intelligence when the data rights are ready");
+  append(copy, "p", "", "Planned paid capabilities include Raven-native breadth, true filing marks on Raven charts, richer filing comparisons, and portfolio-aware research.");
+  const state = append(section, "span", "atlas-roadmap-state", "Planned · not yet available");
+  state.dataset.state = "forming";
+}
+
 function renderLanding() {
   destroyChart();
   clearActiveRefresh();
@@ -464,6 +522,7 @@ function renderLanding() {
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
   renderPosture(host, state.projection);
+  renderBreadthPresentation(host);
   renderFeatured(host, state.featured);
   const sec = append(host, "section", "atlas-sec-entry");
   const secCopy = append(sec, "div");
@@ -477,6 +536,7 @@ function renderLanding() {
     input.focus();
     input.scrollIntoView({ behavior: "smooth", block: "center" });
   });
+  renderAtlasRoadmap(host);
   setState("atlasProjectionState", state.featured ? "available" : "unavailable", state.featured ? "Searchable" : "Unavailable");
   setState("atlasMarketState", state.projection?.freshness?.state || (state.featured ? "available" : "unavailable"), state.projection ? title(state.projection.freshness?.state) : state.featured ? "Catalog ready" : "Unavailable");
   setState("atlasOptionsState", "available", "Protected");
@@ -580,6 +640,93 @@ function renderChartResearchNav(host, payload) {
   }
 }
 
+function filingEventKind(formValue) {
+  const form = String(formValue || "").toUpperCase().replace("/A", "").trim();
+  if (form === "8-K" || form === "6-K") return "Material event";
+  if (["10-K", "10-Q", "20-F", "40-F"].includes(form)) return "Financial report";
+  if (["3", "4", "5"].includes(form)) return "Insider ownership";
+  if (form.includes("13D") || form.includes("13G")) return "Beneficial ownership";
+  if (form.includes("13F")) return "Institutional holdings";
+  if (form.includes("NPORT") || form.includes("N-PORT")) return "Fund holdings";
+  if (form.includes("DEF 14A") || form.includes("DEFA14A")) return "Governance & proxy";
+  if (form.startsWith("S-1") || form.startsWith("424B")) return "Offering document";
+  return "SEC filing";
+}
+
+function drawChartFilingEvents(host, rows, payload) {
+  host.replaceChildren();
+  const sorted = [...rows]
+    .filter((row) => row && row.form && row.filed_at)
+    .sort((left, right) => Date.parse(right.accepted_at || right.filed_at || "") - Date.parse(left.accepted_at || left.filed_at || ""))
+    .slice(0, 8);
+  if (!sorted.length) {
+    const empty = append(host, "div", "atlas-filing-event-empty");
+    append(empty, "strong", "", "No recent filing events returned");
+    append(empty, "span", "", "Atlas did not infer an event or substitute another issuer.");
+    return;
+  }
+  const track = append(host, "div", "atlas-filing-event-track");
+  for (const row of sorted) {
+    const article = append(track, "article", "atlas-filing-event-card");
+    const marker = append(article, "span", "atlas-filing-event-marker", text(row.form, "SEC"));
+    marker.setAttribute("aria-hidden", "true");
+    const copy = append(article, "div");
+    append(copy, "time", "", dateOnly(row.filed_at));
+    append(copy, "strong", "", filingEventKind(row.form));
+    append(copy, "small", "", `${text(row.form, "SEC filing")}${row.amendment ? " amendment" : ""}${row.reporting_period ? ` · period ${row.reporting_period}` : ""}`);
+    const filingUrl = safeSecUrl(row.filing_url);
+    if (filingUrl) {
+      const link = append(article, "a", "", "Open filing ↗");
+      link.href = filingUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+  }
+  const more = append(host, "button", "atlas-filing-event-more", "Open complete filing list →");
+  more.type = "button";
+  more.addEventListener("click", () => showTab("filings", payload, { updateHistory: true }));
+}
+
+function renderChartFilingRail(host, payload) {
+  if (!["equity", "etf"].includes(payload.entity?.entity_kind)) return;
+  const section = append(host, "section", "atlas-filing-event-rail");
+  section.setAttribute("aria-label", `SEC filing events for ${payload.entity.symbol}`);
+  const head = append(section, "header", "atlas-filing-event-head");
+  const copy = append(head, "div");
+  append(copy, "span", "workspace-label", "SEC filing events");
+  append(copy, "strong", "", `What was filed around ${payload.entity.symbol}`);
+  append(head, "small", "", "Chronological event rail · not plotted to TradingView's time axis");
+  const body = append(section, "div", "atlas-filing-event-body");
+  const cached = state.filingRailCache.get(payload.entity.entity_id);
+  if (cached) {
+    drawChartFilingEvents(body, cached, payload);
+    return;
+  }
+  const loading = append(body, "div", "atlas-filing-event-empty");
+  append(loading, "strong", "", "Checking recent SEC filings");
+  append(loading, "span", "", "Exact issuer only; no filing content is being summarized.");
+  clearFilingRailRequest();
+  const controller = new AbortController();
+  state.filingRailController = controller;
+  fetchJson(`/api/atlas/sec/filings?entity_id=${encodeURIComponent(payload.entity.entity_id)}&limit=16`, { signal: controller.signal, viewer: true })
+    .then((result) => {
+      if (controller.signal.aborted || state.entity?.entity?.entity_id !== payload.entity.entity_id) return;
+      const rows = result.filings?.state === "available" && Array.isArray(result.filings.data) ? result.filings.data : [];
+      state.filingRailCache.set(payload.entity.entity_id, rows);
+      drawChartFilingEvents(body, rows, payload);
+    })
+    .catch((error) => {
+      if (error.name === "AbortError" || controller.signal.aborted) return;
+      body.replaceChildren();
+      const unavailable = append(body, "div", "atlas-filing-event-empty");
+      append(unavailable, "strong", "", "Filing events unavailable");
+      append(unavailable, "span", "", "Atlas could not establish the exact SEC issuer. No event was inferred.");
+    })
+    .finally(() => {
+      if (state.filingRailController === controller) state.filingRailController = null;
+    });
+}
+
 function renderOverview(host, payload) {
   const row = payload.entity;
   const view = payload.snapshot || {};
@@ -632,6 +779,7 @@ function renderOverview(host, payload) {
     link.target = "_blank";
     link.rel = "noopener nofollow";
     append(footer, "small", "", "Visual context only. It is not Raven evidence, an order price, or a portfolio valuation.");
+    renderChartFilingRail(primary, payload);
   } else if (externalReference) {
     const unavailable = append(primary, "div", "atlas-detail-refusal atlas-external-only");
     append(unavailable, "strong", "", `${row.symbol} remains exact`);
@@ -1142,6 +1290,7 @@ async function showTab(tabId, payload, { updateHistory = false } = {}) {
   if (!detailTabsFor(payload.entity).some((tab) => tab.id === tabId)) return;
   destroyChart();
   clearActiveRefresh();
+  clearFilingRailRequest();
   state.tabController?.abort();
   state.activeTab = tabId;
   if (updateHistory) {

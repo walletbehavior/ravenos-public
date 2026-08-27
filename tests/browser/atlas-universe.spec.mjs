@@ -96,17 +96,18 @@ function legacyAtlas() {
     ok: true,
     schema_version: "ravenos.atlas_projection.v1",
     generated_at: NOW,
-    state: "available",
+    state: "degraded",
     freshness: { state: "fresh", age_seconds: 10, target_seconds: 1800 },
-    posture: { state: "risk selective", confidence: "moderate", alignment: "mixed" },
+    posture: { state: "unavailable", confidence: "unknown", alignment: "unknown" },
     market_context: {
-      risk_regime: "mixed",
-      equity_regime: "constructive",
-      sector_breadth: "broad",
-      participation_quality: "healthy",
-      rows: [{ symbol: "SPY", change_5d: .012, change_21d: .031 }],
+      risk_regime: "unknown",
+      equity_regime: "unknown",
+      sector_breadth: "unknown",
+      participation_quality: "unknown",
+      rows: [{ symbol: "SPY", state: "display_restricted", change_5d: null, change_21d: null }],
     },
-    capabilities: { market_map: true, options_summary: true },
+    capabilities: { market_map: false, options_summary: false },
+    public_safety: { display_entitlements_enforced: true, restricted_observations_removed: true },
     execution_boundary: { research_only: true, broker_connection_available: false, signing_available: false, submission_available: false },
     delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
   };
@@ -202,9 +203,15 @@ async function mockAtlas(page, { restricted = true } = {}) {
 test("Atlas search is the front door and selecting metadata hydrates only one exact entity", async ({ page }) => {
   const calls = await mockAtlas(page);
   await page.goto("/atlas/");
-  await expect(page.locator(".atlas-posture")).toContainText("Risk appetite is fragmented");
-  await expect(page.locator(".atlas-frame-tape")).toContainText("SPY");
-  await expect(page.locator(".atlas-frame-tape")).toContainText("5d +1.20%");
+  await expect(page.locator(".atlas-posture")).toContainText("Cross-market risk posture");
+  await expect(page.locator(".atlas-posture")).toContainText("Risk posture is forming");
+  await expect(page.locator(".atlas-posture")).toContainText("No proxy score");
+  await expect(page.locator(".atlas-frame-tape")).toHaveCount(0);
+  const breadthFrame = page.locator(".atlas-tv-breadth-frame");
+  await expect(breadthFrame).toHaveAttribute("src", /^https:\/\/www\.tradingview-widget\.com\/embed-widget\/stock-heatmap\//);
+  await expect(page.locator(".atlas-breadth-presentation")).toContainText("not an Atlas-derived breadth score");
+  await expect(page.locator(".atlas-roadmap")).toContainText("Planned · not yet available");
+  await expect(page.locator(".atlas-roadmap")).toContainText("true filing marks on Raven charts");
   await expect(page.locator("#atlasContent")).not.toContainText(/bounded market frame|catalog-only|hydrates on selection/i);
   await expect(page.locator(".atlas-pulse-row")).toHaveCount(1);
   await page.locator("#atlasSearchInput").fill("SPY");
@@ -218,6 +225,12 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   const frame = page.locator(".atlas-tv-frame");
   await expect(frame).toHaveAttribute("src", /^https:\/\/www\.tradingview-widget\.com\/embed-widget\/advanced-chart\//);
   await expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+  const chartSource = await frame.getAttribute("src");
+  const chartConfig = JSON.parse(decodeURIComponent(new URL(chartSource).hash.slice(1)));
+  expect(chartConfig.allow_symbol_change).toBe(false);
+  await expect(page.locator(".atlas-filing-event-rail")).toContainText("What was filed around SPY");
+  await expect(page.locator(".atlas-filing-event-card").first()).toContainText("Financial report");
+  await expect(page.locator(".atlas-filing-event-card").first().getByRole("link", { name: /Open filing/ })).toHaveAttribute("href", /^https:\/\/www\.sec\.gov\/Archives\//);
   await expect(page.locator(".atlas-compute-state")).toHaveCount(0);
   await expect(page.locator("#atlasOpenTerminal")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   await expect(page.locator(".atlas-chart-research")).toBeVisible();
@@ -226,18 +239,20 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   await expect(page.locator(".atlas-chart-research")).toContainText("Insider activity");
   await expect(page.locator(".atlas-chart-research")).toContainText("Options research");
   expect(calls.filter((call) => call.startsWith("/api/atlas/entity")).length).toBe(1);
+  expect(calls.filter((call) => call.startsWith("/api/atlas/sec/filings")).length).toBe(1);
   expect(calls.some((call) => call.includes("options"))).toBe(false);
 });
 
 test("Atlas chart research actions deep-link exact filings and insider activity", async ({ page }) => {
   const calls = await mockAtlas(page);
   await page.goto("/atlas/?entity_id=etf%3Aus%3ASPY");
-  expect(calls.some((call) => call.startsWith("/api/atlas/sec/"))).toBe(false);
+  await expect(page.locator(".atlas-filing-event-card")).toHaveCount(1);
+  expect(calls.filter((call) => call.startsWith("/api/atlas/sec/filings")).length).toBe(1);
   await page.getByRole("button", { name: "Open Filings for SPY" }).click();
   await expect(page).toHaveURL(/entity_id=etf%3Aus%3ASPY&view=filings/);
   await expect(page.getByRole("tab", { name: "Filings" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".atlas-options-note")).toContainText("has not generated a filing summary");
-  expect(calls.filter((call) => call.startsWith("/api/atlas/sec/filings")).length).toBe(1);
+  expect(calls.filter((call) => call.startsWith("/api/atlas/sec/filings")).length).toBe(2);
 
   await page.goto("/atlas/?entity_id=etf%3Aus%3ASPY&view=insiders");
   await expect(page.getByRole("tab", { name: "Insiders" })).toHaveAttribute("aria-selected", "true");

@@ -76,6 +76,8 @@ test("an arbitrary U.S. listing resolves only after one exact RavenOS instrument
 test("TradingView code is isolated from the RavenOS application origin", () => {
   const adapter = readFileSync("ravenos-tradingview-adapter.js", "utf8");
   assert.match(adapter, /https:\/\/www\.tradingview-widget\.com\/embed-widget\/advanced-chart\//);
+  assert.match(adapter, /https:\/\/www\.tradingview-widget\.com\/embed-widget\/stock-heatmap\//);
+  assert.match(adapter, /allow_symbol_change:\s*false/);
   assert.match(adapter, /sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"/);
   assert.doesNotMatch(adapter, /innerHTML|document\.write|localStorage|sessionStorage|cookie/i);
 

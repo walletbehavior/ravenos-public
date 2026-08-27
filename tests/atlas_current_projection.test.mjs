@@ -198,10 +198,41 @@ test("current fresh Atlas projection preserves exact ETF identity and safety bou
     assert.equal(body.market_context.rows[0].instrument_id, "etf:nyse-arca:spy");
     assert.equal(body.market_context.rows[0].instrument.settlement_asset.symbol, "USD");
     assert.equal(body.market_context.rows[0].instrument.economic_numeraire, "USDC");
+    assert.equal(body.market_context.rows[0].instrument.capabilities.live_price, false);
+    assert.equal(body.market_context.rows[0].state, "display_restricted");
+    assert.equal(body.market_context.rows[0].price, null);
+    assert.equal(body.market_context.rows[0].display_policy.decision, "internal_only");
+    assert.deepEqual(body.options_context, []);
+    assert.equal(body.posture.state, "unavailable");
+    assert.equal(body.market_context.risk_regime, "unknown");
+    assert.equal(body.capabilities.equity_quotes, false);
+    assert.equal(body.capabilities.options_summary, false);
+    assert.equal(body.public_safety.display_entitlements_enforced, true);
     assert.equal(body.execution_boundary.signing_available, false);
     assert.equal(body.execution_boundary.submission_available, false);
     assert.equal(body.delivery.fallback, false);
     assert.equal(JSON.stringify(body).includes(TOKEN), false);
+  });
+});
+
+test("legacy Atlas observations require an explicit qualified display policy", async () => {
+  const qualified = atlasData();
+  qualified.market_context.rows[0].provider = "Qualified Test Provider";
+  qualified.market_context.rows[0].display_policy = {
+    decision: "allowed",
+    raw_redistribution_allowed: true,
+    cache_allowed: true,
+    decision_source: "test product order form",
+    last_reviewed: "2026-08-26",
+  };
+  qualified.market_context.rows[0].instrument.capabilities.live_price = true;
+  qualified.options_context = [];
+  await withOrigin(async () => response(envelope({ data: qualified })), async () => {
+    const body = await (await requestAtlas()).json();
+    assert.equal(body.market_context.rows[0].state, "available");
+    assert.equal(body.market_context.rows[0].price, 742.09);
+    assert.equal(body.market_context.rows[0].instrument.capabilities.live_price, true);
+    assert.equal(body.capabilities.equity_quotes, true);
   });
 });
 
