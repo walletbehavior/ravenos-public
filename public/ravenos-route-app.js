@@ -1155,10 +1155,10 @@ function renderBehavior(payload) {
     <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Aggregate, recurring, privacy-safe</h2></div><span class="route-pill ${escapeHtml(statusClass(participantFreshness))}">${escapeHtml(titleCase(participantFreshness))}</span></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Recurring market-level patterns</h2></div><span class="route-pill ${escapeHtml(statusClass(participantFreshness))}">${escapeHtml(titleCase(participantFreshness))}</span></div>
     <section class="participant-ledger">
-      <div><span>Aggregate participants</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>${escapeHtml(`${titleCase(participantFreshness)} evidence snapshot`)}</small></div>
-      <div><span>Aggregate cohorts</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>No cohort identities exposed</small></div>
+      <div><span>Participants observed</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>${escapeHtml(`${titleCase(participantFreshness)} market snapshot`)}</small></div>
+      <div><span>Market groups</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Grouped without wallet labels</small></div>
       <div><span>Recurring participants</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
       <div><span>Large-move overlap</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_backed_big_moves ?? data.actor_backed_big_moves))}</strong><small>Descriptive overlap, not causal attribution</small></div>
       <div><span>10% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Post-observation evidence</small></div>
@@ -1166,7 +1166,7 @@ function renderBehavior(payload) {
     </section>
     <div class="participant-read"><span>Participant snapshot status</span><strong>${escapeHtml(participantFreshness === "stale" ? "Participant context is stale; it is not used as a live leaderboard." : traderText(actorEvidence.public_read_label || data.public_read_label, "Participant evidence is forming."))}</strong><p>Observed ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. Outcome status: ${escapeHtml(titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven"))}. Participation can lead price behavior; it does not prove followthrough.</p></div>
     <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    <div class="route-boundary"><span>Privacy boundary</span><strong>No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed.</strong></div>
+    <div class="route-boundary"><span>What this view does not claim</span><strong>It does not reveal wallet identities or labels, map wallet relationships, assign ownership, allege coordination, or rank “smart money.”</strong></div>
   `;
 }
 
@@ -1217,12 +1217,12 @@ function renderResearch(payload) {
       <div class="route-next"><a class="primary" href="/discover/">Open current Discover</a><a href="/outcomes/">Inspect followthrough</a></div>
     `;
     document.getElementById("routeSecondaryPanel").innerHTML = `
-      <div class="route-panel-head"><div><div class="route-chip-label">Activation gate</div><h2>What must become current</h2></div></div>
+      <div class="route-panel-head"><div><div class="route-chip-label">What Raven needs</div><h2>Before the next research read</h2></div></div>
       <div class="route-continuity-list">
-        <div><span>Evidence</span><strong>Current completed cohort</strong><small>Completed inside the declared recency policy</small></div>
-        <div><span>Lineage</span><strong>Decision-time inputs retained</strong><small>No present-day evidence substituted backward</small></div>
-        <div><span>Followthrough</span><strong>Measured only after the declared window</strong><small>Open observations remain visibly open</small></div>
-        <div><span>Summary</span><strong>Structured Raven read</strong><small>Aggregate context only; no wallet identities</small></div>
+        <div><span>Current research</span><strong>A fresh completed study</strong><small>Finished within Raven’s current-data window</small></div>
+        <div><span>Original inputs</span><strong>The evidence at the time is preserved</strong><small>Later data is never rewritten into an earlier read</small></div>
+        <div><span>Later result</span><strong>Measured after the stated window</strong><small>Unfinished observations remain clearly open</small></div>
+        <div><span>Raven read</span><strong>A clear current takeaway</strong><small>Market-level evidence only; no wallet identities</small></div>
       </div>
       <div class="route-boundary"><span>Current data required</span><strong>Raven Read and Plan Preview remain hidden when current research is unavailable.</strong></div>
     `;
@@ -1362,7 +1362,7 @@ function renderOutcomes(payload) {
       <td><strong>${escapeHtml(`${fmtNumber(rowUsableSample(row))} / ${fmtNumber(rowObservedSample(row))}`)}</strong><span>${escapeHtml(traderText(row.sample_detail?.unit || "observations"))}</span></td>
       <td><strong>${escapeHtml(fmtOptionalPct(row.median_move_pct))}</strong><span>${escapeHtml(`${fmtOptionalPct(row.rewarding_pct)} rewarding · ${fmtOptionalPct(row.punishing_pct)} punishing`)}</span></td>
       <td><strong>${escapeHtml(fmtOptionalUsd(row.total_liquidity_usd))}</strong><span>${escapeHtml(titleCase(row.confidence || "forming"))} confidence</span></td>
-      <td>${claimHref ? `<a class="route-open-link" href="${claimHref}">Evidence →</a>` : `<span>Lineage unavailable</span>`}</td>
+      <td>${claimHref ? `<a class="route-open-link" href="${claimHref}">Evidence →</a>` : `<span>Evidence details unavailable</span>`}</td>
     </tr>`;
   };
   const settledMobileCard = (row) => {
@@ -1445,8 +1445,8 @@ function renderClaimDetail(payload) {
   const { claim, observations = [], settlements = [], related_recent_reads = [] } = payload || {};
   if (!claim) {
     renderClaimsList({ data: { current_claims: [] } });
-    document.getElementById("routeHeadline").textContent = "Claim detail unavailable.";
-    document.getElementById("routeHeroSummary").textContent = "The requested claim ID could not be resolved from the current public lineage.";
+    document.getElementById("routeHeadline").textContent = "Raven read unavailable.";
+    document.getElementById("routeHeroSummary").textContent = "That Raven read could not be found in the currently available history.";
     return;
   }
   document.getElementById("routeHeadline").textContent = traderText(claim.headline, "Read detail");

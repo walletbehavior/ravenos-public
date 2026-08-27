@@ -295,7 +295,7 @@ test("Participant Intelligence keeps denominators, evidence strength, and privac
   await expect(first).toContainText("Aggregate · identities withheld");
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Participant context is stale.*not used as a live leaderboard/s);
   await expect(page.locator("body")).not.toContainText(/Jupiter velocity/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/does not reveal wallet identities or labels[\s\S]*assign ownership[\s\S]*allege coordination[\s\S]*rank [“"]smart money\.[”"]/i);
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 });

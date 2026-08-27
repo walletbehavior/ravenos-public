@@ -379,16 +379,16 @@ function renderGovernorPreview(payload) {
   governorPanel.dataset.previewState = payload.state || "partial";
   setText("accountGovernorState", readableState(payload.state || "partial"));
   setText("accountGovernorStatus", payload.state === "complete"
-    ? "Current observation completed. Marked and executable values remain separately labeled."
-    : "Partial observation returned. Unavailable, unresolved, stale, and unrouteable evidence remains explicit below.");
+    ? "The current portfolio view is ready. Estimated or unavailable values are labeled below."
+    : "Some portfolio details could not be resolved. Anything missing, old, or unavailable is labeled below.");
   governorResults.hidden = false;
 }
 
 function previewFailureMessage(response, payload) {
-  if (response.status === 429) return "Preview limit reached. Wait for the displayed retry window before analyzing again.";
-  if (payload?.state === "invariant_failed") return "Raven refused this result because an accounting conservation check failed.";
-  if (payload?.error === "portfolio_preview_timeout") return "The live observation exceeded its bounded time budget. No partial portfolio was presented as complete.";
-  return "The live portfolio observation is unavailable. No portfolio state was inferred from incomplete evidence.";
+  if (response.status === 429) return "Portfolio checks are temporarily limited. Wait for the displayed retry time, then try again.";
+  if (payload?.state === "invariant_failed") return "Raven could not verify the portfolio total, so it did not show the result.";
+  if (payload?.error === "portfolio_preview_timeout") return "The portfolio check took too long. Try again; no incomplete result was shown.";
+  return "The live portfolio view is unavailable. RavenOS did not fill in any missing values.";
 }
 
 async function analyzePortfolioPreview() {
@@ -398,7 +398,7 @@ async function analyzePortfolioPreview() {
   governorResults.hidden = true;
   governorPanel.dataset.previewState = "loading";
   setText("accountGovernorState", "Observing");
-  setText("accountGovernorStatus", "Observing balances, resolving economic exposure, and probing only material executable exits…");
+  setText("accountGovernorStatus", "Checking balances, underlying exposure, and the positions large enough to review…");
   try {
     const { response, payload } = await getJson("/api/v1/portfolio/preview", {
       method: "POST",
@@ -415,7 +415,7 @@ async function analyzePortfolioPreview() {
   } catch {
     governorPanel.dataset.previewState = "unavailable";
     setText("accountGovernorState", "Unavailable");
-    setText("accountGovernorStatus", "We couldn’t load the portfolio preview. No portfolio data was shown.");
+    setText("accountGovernorStatus", "We couldn’t load the portfolio view. No portfolio data was shown.");
   } finally {
     governorAnalyze.disabled = false;
   }
@@ -428,16 +428,16 @@ async function loadPortfolioPreviewCapability() {
       governorPanel.dataset.previewState = payload?.state || "not_configured";
       setText("accountGovernorState", "Not available");
       setText("accountPortfolioAnalysisState", "Not available");
-      setText("accountGovernorStatus", "Portfolio Preview isn’t available for this account yet. Wallet search is turned off.");
+      setText("accountGovernorStatus", "Portfolio Governor isn’t available for this account yet. RavenOS is not searching for wallets.");
       governorControls.hidden = true;
       return;
     }
     state.previewWallets = Array.isArray(payload.wallets) ? payload.wallets : [];
     if (!state.previewWallets.length) {
       governorPanel.dataset.previewState = "no_authorized_wallet";
-      setText("accountGovernorState", "No authorized wallet");
-      setText("accountPortfolioAnalysisState", "Not authorized");
-      setText("accountGovernorStatus", "No Portfolio Preview wallet is available for this account. Wallet search is turned off.");
+      setText("accountGovernorState", "No wallet available");
+      setText("accountPortfolioAnalysisState", "Not available");
+      setText("accountGovernorStatus", "No Solana wallet is available for this account. RavenOS is not searching for wallets.");
       governorControls.hidden = true;
       return;
     }
@@ -451,16 +451,16 @@ async function loadPortfolioPreviewCapability() {
     governorPanel.dataset.previewState = "available";
     setText("accountGovernorState", "Ready");
     setText("accountPortfolioAnalysisState", "Read only");
-    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only preview wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
-    setText("accountWalletConnectionDetail", "Select an approved wallet to inspect. This does not link the wallet or grant transaction access.");
-    setText("accountWalletConnectionState", "Observation only");
+    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
+    setText("accountWalletConnectionDetail", "Select an available wallet to inspect. This does not link the wallet or allow transactions.");
+    setText("accountWalletConnectionState", "View only");
     setText("accountWalletOwnershipState", "Not proven");
-    setText("accountGovernorStatus", "Select a wallet to inspect current public account data. RavenOS does not save portfolio history from this preview.");
+    setText("accountGovernorStatus", "Select a wallet to inspect current public account data. RavenOS does not save portfolio history.");
   } catch {
     governorPanel.dataset.previewState = "unavailable";
     setText("accountGovernorState", "Unavailable");
     setText("accountPortfolioAnalysisState", "Unavailable");
-    setText("accountGovernorStatus", "Portfolio Preview access could not be checked. Please try again.");
+    setText("accountGovernorStatus", "Portfolio Governor access could not be checked. Please try again.");
     governorControls.hidden = true;
   }
 }
@@ -479,7 +479,7 @@ function setIntent(intent) {
 
 function renderActivationPending() {
   page.dataset.accountState = "pending";
-  serviceState.textContent = "Secure activation pending";
+  serviceState.textContent = "Sign-in temporarily unavailable";
   actions.hidden = true;
   activation.hidden = false;
   authWorkspace.hidden = false;

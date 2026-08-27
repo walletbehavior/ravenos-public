@@ -158,6 +158,11 @@ if (release.public_build_id !== build.public_build_id || deployBuild.public_buil
 if (release.public_origin_contract_version !== releaseConfig.public_origin?.contract_version) {
   fail("Public-origin contract version mismatch");
 }
+if (
+  !Number.isInteger(releaseConfig.public_origin?.request_timeout_ms)
+  || releaseConfig.public_origin.request_timeout_ms < 5_000
+  || releaseConfig.public_origin.request_timeout_ms > 10_000
+) fail("Public-origin request timeout must remain between 5 and 10 seconds");
 if (!release.fail_closed || release.signing_enabled || release.submission_enabled) {
   fail("Release safety boundary must remain fail-closed and non-signing");
 }
@@ -256,6 +261,34 @@ for (const route of routes) {
   const html = readFileSync(file, "utf8");
   const leaked = forbiddenPublicTerms.filter((term) => html.includes(term));
   if (leaked.length) fail(`Public route contains private terms (${leaked.join(", ")}): ${file}`);
+}
+
+const forbiddenMonitorCopy = [
+  "Authenticated workspace",
+  "dormant Raven Monitor",
+  "Permission boundary",
+  "Research monitoring only",
+  "on this release",
+];
+for (const file of ["monitor/index.html", "public/monitor/index.html", ".deploy-public/monitor/index.html"]) {
+  const html = readFileSync(file, "utf8");
+  const leaked = forbiddenMonitorCopy.filter((term) => html.toLowerCase().includes(term.toLowerCase()));
+  if (leaked.length) fail(`Saved markets contains internal product copy (${leaked.join(", ")}): ${file}`);
+}
+
+const customerCopyGuards = new Map([
+  [["intelligence/index.html", "public/intelligence/index.html", ".deploy-public/intelligence/index.html"], ["Aggregate · privacy-safe", "Freshness-gated", "public evidence contract", "Identity and evidence boundary"]],
+  [["terminal/index.html", "public/terminal/index.html", ".deploy-public/terminal/index.html"], ["Provider-listed pools can resolve", "independently verified"]],
+  [["ravenos-shell.js", "public/ravenos-shell.js", ".deploy-public/ravenos-shell.js"], ["Account activation status"]],
+  [["account/index.html", "public/account/index.html", ".deploy-public/account/index.html"], ["Next security stage", "Read-only beta"]],
+  [["ravenos-account.js", "public/ravenos-account.js", ".deploy-public/ravenos-account.js"], ["Secure activation pending", "Portfolio Preview"]],
+]);
+for (const [files, terms] of customerCopyGuards) {
+  for (const file of files) {
+    const contents = readFileSync(file, "utf8");
+    const leaked = terms.filter((term) => contents.toLowerCase().includes(term.toLowerCase()));
+    if (leaked.length) fail(`Customer surface contains internal product copy (${leaked.join(", ")}): ${file}`);
+  }
 }
 
 if (!build.ui_build || !build.public_build_id || !build.built_at || !build.source_commit) {

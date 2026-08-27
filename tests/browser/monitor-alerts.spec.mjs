@@ -50,7 +50,7 @@ function notification(readAt = null) {
     after: { field: "pressure_regime", value: "crowded long" },
     explanation: '<script>window.__monitorAlertExecuted=true</script>Pressure changed from balanced to crowded long.',
     evidence_role: "raven_measurement",
-    limitations: ["Research monitoring only; no position or execution claim."],
+    limitations: ["This alert watches market evidence only. It does not track a position or place trades."],
     source_as_of: "2026-08-26T20:00:00.000Z",
     detected_at: "2026-08-26T20:00:10.000Z",
     read_at: readAt,

@@ -35,6 +35,8 @@ const state = {
   spotDisplayOrder: [],
   spotPendingOrder: null,
   spotResolution: new Map(),
+  spotFeedState: "checking",
+  ravenFeedState: "checking",
   scrolling: false,
   scrollTimer: null,
   payoff: null,
@@ -77,6 +79,17 @@ function marketCapValue(market = {}) {
 function title(value, fallback = "Unavailable") {
   const result = text(value, fallback);
   return result.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function sourceScopeLabel(value) {
+  const scope = text(value, "").toLowerCase();
+  if (!scope) return "Source unavailable";
+  if (scope.startsWith("exact_market_raven")) return "Raven exact-market read";
+  if (scope.startsWith("exact_route")) return "Current route check";
+  if (scope.startsWith("server_derived")) return "Raven market analysis";
+  if (scope.startsWith("exact_pool")) return "Exact-pool market data";
+  if (scope.includes("taxonomy") || scope.includes("classification")) return "Market classification";
+  return "Current market data";
 }
 
 function compact(value, { currency = false } = {}) {
@@ -1214,14 +1227,14 @@ function renderSpotEvidence(shell, row) {
     if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => text(value, "")).filter(Boolean).join(" · ")}`);
     append(ravenSection, "small", "", `${title(raven.state)} · ${title(raven.confidence_maturity, "Forming")} maturity · ${title(raven.forward_evidence_status, "Forming")} forward evidence`);
   } else {
-    append(ravenSection, "p", "", text(raven?.why_not_available, "No current exact-market Raven observation qualifies."));
+    append(ravenSection, "p", "", text(raven?.why_not_available, "Raven does not have a current read for this exact market yet."));
   }
   const risks = rowRiskValues(row);
   append(body, "small", "discover-token-evidence-footer", [
     `Exact pool ${text(row.pool_address)}`,
     risks.length ? `Risk flags: ${risks.map((value) => title(value)).join(", ")}` : "No current risk flag",
     `Observed ${row.observed_at ? when(row.observed_at) : "time unavailable"}`,
-    `Source ${text(discovery.facts?.source_scope, "unavailable")}`,
+    `Source: ${sourceScopeLabel(discovery.facts?.source_scope)}`,
   ].join(" · "));
 }
 
@@ -1397,9 +1410,21 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     const empty = append(fragment, "div", "discover-token-empty", "");
     const copy = append(empty, "div", "", "");
     const chain = state.spotChain === "all" ? "Pools" : `${spotChainLabel(state.spotChain)} pools`;
-    append(copy, "h3", "", state.spotSort === "raven" ? `No current ${chain.toLowerCase()} Raven observations qualify` : `${chain} have no matching radar candidates`);
-    append(copy, "p", "", state.spotSort === "raven"
-      ? "Only markets Raven observed directly appear here. Velocity and Activity remain available."
+    const refreshing = state.spotSort === "raven"
+      ? state.ravenFeedState === "refreshing"
+      : state.spotFeedState === "refreshing";
+    const emptyHeading = state.spotSort === "raven"
+      ? state.spotChain === "all" ? "No current Raven token reads" : `No current Raven reads for ${spotChainLabel(state.spotChain)}`
+      : `${chain} have no matching radar candidates`;
+    append(copy, "h3", "", refreshing
+      ? state.spotSort === "raven" ? "Raven is refreshing" : `${state.spotSort === "activity" ? "Activity" : "Velocity"} is refreshing`
+      : emptyHeading);
+    append(copy, "p", "", refreshing
+      ? state.spotSort === "raven"
+        ? "New Raven token reads are temporarily delayed. Velocity and Activity remain available."
+        : "The latest exact-pool update is delayed. RavenOS will retry automatically."
+      : state.spotSort === "raven"
+        ? "Raven hasn’t published a current exact-market read for this view. Velocity and Activity are still available."
       : state.spotLane === "opportunities"
         ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity. Unavailable measurements were not treated as zero."
         : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
@@ -1718,7 +1743,7 @@ function renderSourceNotice(source, detail) {
   const notice = document.createElement("div");
   notice.className = "discover-source-notice";
   notice.dataset.discoverSourceNotice = source;
-  append(notice, "strong", "", source === "raven" ? "Raven opportunities unavailable" : "Atlas context unavailable");
+  append(notice, "strong", "", source === "raven" ? "Raven is refreshing" : "Atlas is refreshing");
   append(notice, "span", "", detail);
   host.prepend(notice);
 }
@@ -1961,12 +1986,17 @@ function currentOnchainPulsePayload(payload) {
     || payload?.safe_public !== true
     || payload?.schema_version !== "ravenos.onchain_market_pulse.v1"
     || !["current", "degraded"].includes(payload?.state)
-    || payload?.freshness?.state !== "current"
+    || !["current", "delayed"].includes(payload?.freshness?.state)
     || !Array.isArray(payload?.rows)
     || execution.research_only !== true
     || execution.signing_available !== false
     || execution.submission_available !== false
-    || !["exact_pool_market_activity", "token_velocity_plus_exact_pool_market_activity"].includes(provenance.role)
+    || ![
+      "exact_pool_market_activity",
+      "token_velocity_plus_exact_pool_market_activity",
+      "current_plus_retained_exact_pool_market_activity",
+      "retained_exact_pool_registry",
+    ].includes(provenance.role)
     || provenance.raven_signal !== false
   ) throw new Error("onchain_market_pulse_contract_rejected");
   const discoveryRadar = currentDiscoverRadar(payload.discovery_radar, state.spotTimeframe);
@@ -2205,7 +2235,7 @@ async function refresh({ manual = false } = {}) {
     renderMarkets(marketRows);
   } else {
     state.markets.clear();
-    setState("discoverMarketState", "unavailable", "Unavailable");
+    setState("discoverMarketState", "delayed", "Refreshing");
     document.getElementById("discoverPulse").replaceChildren();
   }
 
@@ -2230,19 +2260,21 @@ async function refresh({ manual = false } = {}) {
       renderParticipationPayoff(current.participationPayoff);
       renderAttentionBenchmark(current.census);
       ravenGeneratedAt = current.generatedAt;
+      state.ravenFeedState = "current";
       setState("discoverCensusState", current.freshness, title(current.freshness));
     } catch {
       renderParticipationPayoff(null);
       renderAttentionBenchmark(null);
-      setState("discoverCensusState", "unavailable", "Unavailable");
-      ravenFailure = "Current Raven opportunities are temporarily unavailable. Historical reads are not shown as current.";
+      state.ravenFeedState = "refreshing";
+      setState("discoverCensusState", "delayed", "Refreshing");
+      ravenFailure = "New Raven reads are temporarily delayed. Velocity, Activity, and live venue data remain available.";
     }
   } else {
     renderParticipationPayoff(null);
     renderAttentionBenchmark(null);
-    setState("discoverCensusState", "unavailable", "Unavailable");
-    const status = opportunities.status === "fulfilled" ? opportunities.value.response.status : "network";
-    ravenFailure = `Current Raven opportunities could not be reached${status === "network" ? "" : ` (${status})`}. Historical reads are not shown as current.`;
+    state.ravenFeedState = "refreshing";
+    setState("discoverCensusState", "delayed", "Refreshing");
+    ravenFailure = "New Raven reads are temporarily delayed. Velocity, Activity, and live venue data remain available.";
   }
 
   if (onchainPulse.status === "fulfilled" && onchainPulse.value.response.ok) {
@@ -2250,10 +2282,14 @@ async function refresh({ manual = false } = {}) {
       const current = currentOnchainPulsePayload(onchainPulse.value.payload);
       marketPulseRows = current.rows;
       marketPulseGeneratedAt = current.generatedAt;
+      state.spotFeedState = current.state === "degraded" ? "refreshing" : "current";
       state.spotRadarState = current.radarState === "current" && state.spotRadarState === "shadow" ? "shadow" : current.radarState;
     } catch {
       marketPulseRows = [];
+      state.spotFeedState = "refreshing";
     }
+  } else {
+    state.spotFeedState = "refreshing";
   }
   const tokenRows = mergeSpotRadarRows(registryRadarRows, marketPulseRows);
   renderSpotPulse(tokenRows);
@@ -2278,15 +2314,14 @@ async function refresh({ manual = false } = {}) {
     } catch {
       state.atlasRows = [];
       state.atlasContext = null;
-      setState("discoverAtlasState", "unavailable", "Unavailable");
-      atlasFailure = "Current Atlas context did not meet freshness or identity requirements. Older context was not substituted.";
+      setState("discoverAtlasState", "delayed", "Refreshing");
+      atlasFailure = "Broader-market context is temporarily delayed. Crypto market views remain available.";
     }
   } else {
     state.atlasRows = [];
     state.atlasContext = null;
-    setState("discoverAtlasState", "unavailable", "Unavailable");
-    const status = atlas.status === "fulfilled" ? atlas.value.response.status : "network";
-    atlasFailure = `Current Atlas context could not be reached${status === "network" ? "" : ` (${status})`}. Older context was not substituted.`;
+    setState("discoverAtlasState", "delayed", "Refreshing");
+    atlasFailure = "Broader-market context is temporarily delayed. Crypto market views remain available.";
   }
 
   renderDeskBrief({

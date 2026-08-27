@@ -95,13 +95,13 @@
           <div class="account-connection-stage" id="accountWalletConnectionStage">
             <span class="account-provider-mark">W</span>
             <div><strong id="accountWalletConnectionTitle">No wallets linked yet</strong><p id="accountWalletConnectionDetail">Phantom, MetaMask, and compatible wallets will be linked here using a fresh ownership proof. A wallet connection will never silently become a transaction approval.</p></div>
-            <span id="accountWalletConnectionState">Next security stage</span>
+            <span id="accountWalletConnectionState">Coming later</span>
           </div>
         </section>
 
         <section class="account-security-panel account-pro-panel" id="accountProPanel" data-pro-state="loading">
           <header>
-            <div><span class="workspace-label">Pro preview</span><h3>Pro Intelligence</h3></div>
+            <div><span class="workspace-label">Pro Intelligence</span><h3>Deeper market context</h3></div>
             <strong id="accountProState">Checking access</strong>
           </header>
           <div class="account-pro-intro">
@@ -119,18 +119,18 @@
 
         <section class="account-security-panel account-governor-panel" id="accountGovernorPanel" data-preview-state="loading">
           <header>
-            <div><span class="workspace-label">Read-only beta</span><h3>Portfolio Governor preview</h3></div>
+            <div><span class="workspace-label">Read only</span><h3>Portfolio Governor preview</h3></div>
             <strong id="accountGovernorState">Checking access</strong>
           </header>
           <div class="account-governor-gate" id="accountGovernorGate">
             <div>
-              <strong>Economic exposure, without transaction authority.</strong>
-              <p id="accountGovernorStatus" aria-live="polite">Checking whether this account has an authorized Solana preview wallet.</p>
+              <strong>Understand exposure without allowing trades.</strong>
+              <p id="accountGovernorStatus" aria-live="polite">Checking whether this account can open a Solana portfolio view.</p>
             </div>
             <div class="account-governor-controls" id="accountGovernorControls" hidden>
               <label for="accountGovernorWallet">Selected wallet</label>
               <div>
-                <select id="accountGovernorWallet" aria-label="Authorized Solana preview wallet"></select>
+                <select id="accountGovernorWallet" aria-label="Available Solana wallet"></select>
                 <button id="accountGovernorAnalyze" type="button">Analyze now</button>
               </div>
             </div>

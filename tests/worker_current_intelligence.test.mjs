@@ -610,6 +610,107 @@ test("Worker reuses persistent exact-market history before publishing current ac
   }
 });
 
+test("Worker keeps Velocity available from the retained exact-market registry during a provider outage", async () => {
+  const poolAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const tokenAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const quoteAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const generatedAt = new Date().toISOString();
+  const history = buildDiscoverRadarProjection([{
+    instrument_id: `base:pool:${poolAddress}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Base",
+    chain_id: "base",
+    venue: "Aerodrome",
+    identity_scope: "exact_pool",
+    symbol: "KEEP",
+    name: "Retained Candidate",
+    token_address: tokenAddress,
+    quote_token_address: quoteAddress,
+    quote_symbol: "USDC",
+    pool_address: poolAddress,
+    observed_at: generatedAt,
+    age_seconds: 0,
+    context_state: "current",
+    market: {
+      price_usd: 0.42,
+      liquidity_usd: 180_000,
+      market_cap_usd: 1_200_000,
+      price_change_5m_pct: 8.2,
+      price_change_1h_pct: 21.4,
+      price_change_24h_pct: 38.6,
+      volume_usd_5m: 68_000,
+      volume_usd_1h: 390_000,
+      volume_usd_24h: 1_900_000,
+      buys_5m: 84,
+      sells_5m: 39,
+      buyers_5m: 61,
+      sellers_5m: 31,
+      buys_1h: 330,
+      sells_1h: 190,
+      buyers_1h: 228,
+      sellers_1h: 144,
+      buys_24h: 1_920,
+      sells_24h: 1_040,
+      buyers_24h: 1_080,
+      sellers_24h: 730,
+    },
+    registry: {
+      state: "tracking",
+      first_seen_at: isoAgo(3_600),
+      last_seen_at: generatedAt,
+      observation_count: 3,
+      primary_behavior_state: "reacceleration",
+      admission_lanes: ["short_window_anomaly"],
+      admission_reason: "Short-window movement remained notable",
+      retained_after_trending: true,
+      event_evidence_append_only: true,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], { timeframe: "24h", generatedAt, nowMs: Date.parse(generatedAt), sourceState: "current" });
+  const originProjection = projection("opportunities", "ravenos_opportunity_census_public_origin_v1", {
+    schema_version: "ravenos_opportunity_census_public_v1",
+    source_state: "delayed",
+    opportunities: { rows: [] },
+    discovery_radar: history,
+  }, isoAgo(5_000), 3_600);
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse(originProjection);
+    if (url.pathname.includes("/networks/base/")) return jsonResponse({ error: "temporarily unavailable" }, 503);
+    throw new Error(`unexpected_url:${url}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=base&duration=24h"),
+      {
+        ...environment(),
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: "registry-outage-provider-token",
+      },
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.state, "degraded");
+    assert.equal(payload.freshness.state, "delayed");
+    assert.equal(payload.provenance.role, "retained_exact_pool_registry");
+    assert.equal(payload.rows.length, 1);
+    assert.equal(payload.rows[0].instrument_id, `base:pool:${poolAddress}`);
+    assert.equal(payload.rows[0].discovery_source, "retained_exact_pool_registry");
+    assert.equal(payload.rows[0].raven_signal, false);
+    assert.equal(payload.rows[0].discovery.raven_evidence_state.raven_signal, false);
+    assert.deepEqual(payload.unavailable, [{ chain: "base", state: "temporarily_unavailable" }]);
+    assert.equal(JSON.stringify(payload).includes("registry-outage-provider-token"), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Worker does not relabel an older claim as a current opportunity when Census is unavailable", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

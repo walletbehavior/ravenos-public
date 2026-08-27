@@ -517,8 +517,8 @@ function utilityMarkup(kind, context) {
   const accountLabel = customerAccountState.authenticated ? "Account & security" : "Create account or sign in";
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
-    : customerAccountState.available ? "Google, email, password, or code" : "Account activation status";
-  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Local history + account-synced exact markets</span></button><button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Rules, in-app history, and activation state</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>Product boundaries</span></a></nav>`;
+    : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
+  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button><button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>What RavenOS can and cannot do</span></a></nav>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -840,7 +840,7 @@ export function mountRavenOSShell(options = {}) {
     const registryState = searchFailure
       ? "Live market catalog unavailable"
       : searchReady
-        ? `${instrumentIndex.length.toLocaleString()} indexed exact markets · ${instrumentSources.join(" + ")} · live onchain lookup checks provider-listed pools`
+        ? `${instrumentIndex.length.toLocaleString()} indexed exact markets · ${instrumentSources.join(" + ")} · live lookup checks additional exact pools`
         : "Loading supported markets…";
     const spotState = clean.length < 1 || spotSearch.query !== normalized
       ? ""

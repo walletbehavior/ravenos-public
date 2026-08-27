@@ -39,6 +39,7 @@
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
     "contract_version": "ravenos_public_origin_v3",
+    "request_timeout_ms": 8000,
     "required_endpoints": {
       "brief": "ravenos_brief_public_origin_v1",
       "replay": "ravenos_replay_public_origin_v1",

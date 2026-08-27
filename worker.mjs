@@ -562,8 +562,8 @@ async function loadMonitorEvidenceBatch(env, request, instrumentIds = []) {
       maximum_age_seconds: exactUnavailable || !raven ? 300 : Math.max(300, Number(delivery?.freshness_target_seconds || 900) * 2),
       classifications,
       limitations: !exactUnavailable && raven
-        ? ["Research monitoring only; this is not a position or execution alert.", "No qualified liquidation stream is included."]
-        : ["Only exact-market availability is qualified for this observation."],
+        ? ["This alert watches market evidence only. It does not track a position or place trades.", "Liquidation alerts are not available."]
+        : ["This alert only checks whether the exact market remains available."],
     };
   }
   return { source_calls: sourceCalls, evidence };
@@ -3022,19 +3022,65 @@ function attachDiscoverRegistryHistory(rows, history) {
   });
 }
 
+function retainedDiscoverRegistryRows(history, chains, { onlyExplicitlyRetained = false, nowMs = Date.now() } = {}) {
+  if (!(history instanceof Map) || !history.size) return [];
+  const allowedChains = new Set(chains);
+  return [...history.values()].filter((row) => {
+    const chain = String(row?.chain_id || row?.chain || "").trim().toLowerCase();
+    const registry = row?.discovery?.registry || row?.registry || {};
+    return allowedChains.has(chain)
+      && row?.market_type === "spot"
+      && row?.identity_scope === "exact_pool"
+      && row?.instrument_id === `${chain}:pool:${String(row?.pool_address || "")}`
+      && Boolean(row?.token_address)
+      && Boolean(row?.quote_token_address)
+      && row?.research_only === true
+      && row?.actionable === false
+      && row?.execution_available === false
+      && (!onlyExplicitlyRetained || registry.retained_after_trending === true);
+  }).map((row) => {
+    const observedMs = Date.parse(String(row.observed_at || ""));
+    const registry = {
+      ...(row.registry || {}),
+      ...(row.discovery?.registry || {}),
+    };
+    return {
+      ...row,
+      source_type: "market_activity",
+      discovery_source: "retained_exact_pool_registry",
+      context_state: "delayed",
+      age_seconds: Number.isFinite(observedMs) ? Math.max(0, Math.floor((nowMs - observedMs) / 1_000)) : null,
+      raven_signal: false,
+      raven_evidence: undefined,
+      migration_cohort: row?.discovery?.migration_cohort || row?.migration_cohort,
+      routeability: row?.discovery?.routeability?.availability === "available" ? row.discovery.routeability : row.routeability,
+      control_intelligence: legacyDiscoverControlEvidence(row),
+      registry,
+      decision_support: row?.discovery?.decision_support || row?.decision_support,
+      outcome_evidence: row?.discovery?.outcome_evidence || row?.outcome_evidence,
+    };
+  }).slice(0, 80);
+}
+
+function latestObservedAt(rows = [], fallback = new Date().toISOString()) {
+  const latest = rows.map((row) => Date.parse(String(row?.observed_at || "")))
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left)[0];
+  return Number.isFinite(latest) ? new Date(latest).toISOString() : fallback;
+}
+
 async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
   const runtime = onchainProviderRuntime("coingecko_onchain", env);
-  if (!runtime.runtime_allowed || !runtime.credential_present) {
-    throw new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable");
-  }
+  const providerAvailable = runtime.runtime_allowed && runtime.credential_present;
   const jupiterConfigured = chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim());
   const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
+  const registryHistoryPromise = request ? discoverRegistryHistory(env, request) : Promise.resolve(new Map());
   const fetchedAt = new Date().toISOString();
-  const geckoSettledPromise = Promise.allSettled(chains.map(async (chain) => {
+  const geckoSettledPromise = providerAvailable ? Promise.allSettled(chains.map(async (chain) => {
     const network = ONCHAIN_PULSE_NETWORKS[chain];
     const payload = await runProviderOperation({
       component: "onchain_market_pulse",
@@ -3067,7 +3113,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     }
     if (!rows.length) throw new Error("coingecko_trending_rows_unavailable");
     return { chain, rows };
-  }));
+  })) : Promise.resolve(chains.map(() => ({
+    status: "rejected",
+    reason: new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable"),
+  })));
   const jupiterPromise = chains.includes("solana")
     ? jupiterVelocityRows({ env, duration, fetchedAt }).catch(() => [])
     : Promise.resolve([]);
@@ -3081,29 +3130,40 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       state: "temporarily_unavailable",
     });
   });
+  const registryHistory = await registryHistoryPromise;
   const rowsByMarket = new Map();
   for (const row of [...jupiterRows, ...providerRows]) {
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
+  const hasCurrentProviderRows = rowsByMarket.size > 0;
+  const retainedRows = retainedDiscoverRegistryRows(registryHistory, chains, {
+    onlyExplicitlyRetained: hasCurrentProviderRows,
+  });
+  for (const row of retainedRows) {
+    const marketKey = String(row.instrument_id || "");
+    if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
+  }
   const rows = [...rowsByMarket.values()];
   if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
-  const registryHistory = request ? await discoverRegistryHistory(env, request) : new Map();
   const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory);
+  const registryOnly = !hasCurrentProviderRows;
+  const generatedAt = registryOnly ? latestObservedAt(retainedRows, fetchedAt) : fetchedAt;
+  const degraded = failures.length > 0 || retainedRows.length > 0;
   const discoveryRadar = buildDiscoverRadarProjection(classifiedRows, {
     timeframe: duration,
-    generatedAt: fetchedAt,
-    sourceState: failures.length ? "degraded" : registryHistory.size ? "shadow" : "forming",
+    generatedAt,
+    sourceState: degraded ? "degraded" : registryHistory.size ? "shadow" : "forming",
   });
   const result = {
     ok: true,
     safe_public: true,
     schema_version: "ravenos.onchain_market_pulse.v1",
-    generated_at: fetchedAt,
-    state: failures.length ? "degraded" : "current",
+    generated_at: generatedAt,
+    state: degraded ? "degraded" : "current",
     freshness: {
-      state: "current",
-      observed_at: fetchedAt,
+      state: registryOnly ? "delayed" : "current",
+      observed_at: generatedAt,
       expected_update_seconds: 30,
     },
     duration,
@@ -3112,10 +3172,20 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     discovery_radar: discoveryRadar,
     unavailable: failures,
     provenance: {
-      provider: jupiterRows.length ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",
-      role: jupiterRows.length ? "token_velocity_plus_exact_pool_market_activity" : "exact_pool_market_activity",
+      provider: registryOnly
+        ? "retained_exact_pool_registry"
+        : jupiterRows.length
+          ? "jupiter_tokens_v2 + coingecko_onchain"
+          : "coingecko_onchain",
+      role: registryOnly
+        ? "retained_exact_pool_registry"
+        : retainedRows.length
+          ? "current_plus_retained_exact_pool_market_activity"
+          : jupiterRows.length
+            ? "token_velocity_plus_exact_pool_market_activity"
+            : "exact_pool_market_activity",
       raven_signal: false,
-      attribution_required: true,
+      attribution_required: !registryOnly,
       attribution_label: runtime.attribution_label,
       attribution_url: runtime.attribution_url,
     },
@@ -3124,6 +3194,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       jupiter_velocity: jupiterRows.length > 0,
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
       robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
+      retained_exact_markets: retainedRows.length,
     },
     execution_boundary: {
       research_only: true,

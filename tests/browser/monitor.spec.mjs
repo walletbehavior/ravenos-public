@@ -287,3 +287,11 @@ test("monitor HTML uses the authenticated CSP and has no executable-data sinks",
   expect(headers["content-security-policy"]).not.toContain("unsafe-eval");
   expect(headers["x-frame-options"]).toBe("DENY");
 });
+
+test("saved markets uses customer-facing copy", async ({ page }) => {
+  await page.goto("/monitor/");
+  const body = await page.locator("body").innerText();
+  expect(body).toContain("Your exact markets");
+  expect(body).toContain("You stay in control");
+  expect(body).not.toMatch(/Authenticated workspace|dormant Raven Monitor|Permission boundary|Research monitoring only|on this release/i);
+});

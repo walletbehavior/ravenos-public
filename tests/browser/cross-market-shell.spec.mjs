@@ -941,7 +941,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
-  await expect(page.locator(".discover-token-empty")).toContainText("Only markets Raven observed directly appear here");
+  await expect(page.locator(".discover-token-empty")).toContainText("Raven hasn’t published a current exact-market read for this view");
   await page.locator("[data-spot-sort='velocity']").click();
 
   await row.click();
@@ -1218,7 +1218,7 @@ test("Discover keeps live market pulse but refuses stale opportunity substitutio
   await mockWorkspaceApis(page, { opportunityStatus: 503 });
   await page.goto("/discover/");
   await page.locator("[data-discover-filter='signals']").click();
-  await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
+  await expect(page.locator("#discoverCensusState")).toHaveText("Refreshing");
   await expect(page.locator("#discoverStream")).toContainText("No current opportunities can be shown");
   await expect(page.locator("#discoverPulse .pulse-row")).toHaveCount(2);
   await expect(page.locator(".discover-row")).toHaveCount(0);
@@ -1328,11 +1328,12 @@ test("Discover retains current Atlas rows when Raven Census is unavailable", asy
   await mockWorkspaceApis(page, { opportunityStatus: 503 });
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(atlasPayload()) }));
   await page.goto("/discover/");
-  await expect(page.locator("#discoverCensusState")).toHaveText("Unavailable");
+  await expect(page.locator("#discoverCensusState")).toHaveText("Refreshing");
   await expect(page.locator("#discoverAtlasState")).toHaveText("Current");
   await expect(page.locator("#discoverAtlasState")).toHaveAttribute("aria-label", /Atlas Current/);
   await expect(page.locator(".discover-row[data-source-type='atlas']")).toHaveCount(1);
-  await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Historical reads are not shown as current");
+  await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Raven is refreshing");
+  await expect(page.locator(".discover-source-notice[data-discover-source-notice='raven']")).toContainText("Velocity, Activity, and live venue data remain available");
   await expect(page.locator(".discover-row[data-source-type='raven']")).toHaveCount(0);
 });
 
@@ -1350,6 +1351,22 @@ test("Discover explains limited and updating Atlas context without contradictory
   await expect(atlasState).toHaveAttribute("aria-label", /refreshing.*cleared for public display/i);
   await expect(atlasState).not.toContainText(/degraded|fresh/i);
   await expect(page.locator(".discover-row[data-source-type='atlas']")).toHaveCount(1);
+});
+
+test("Discover describes transient Velocity and Raven outages as refreshing without exposing HTTP errors", async ({ page }) => {
+  await mockWorkspaceApis(page, { opportunityStatus: 503 });
+  await page.route("**/api/onchain/trending**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "onchain_market_pulse_unavailable" }),
+  }));
+  await page.goto("/discover/");
+  await expect(page.locator("#discoverCensusState")).toHaveText("Refreshing");
+  await expect(page.locator(".discover-token-empty")).toContainText("Velocity is refreshing");
+  await expect(page.locator(".discover-token-empty")).toContainText("RavenOS will retry automatically");
+  await page.locator("[data-spot-sort='raven']").click();
+  await expect(page.locator(".discover-token-empty")).toContainText("Raven is refreshing");
+  await expect(page.locator("body")).not.toContainText(/\b503\b|opportunity_census_projection_unavailable|onchain_market_pulse_unavailable/i);
 });
 
 test("Terminal rejects mismatched explicit symbol and instrument without provider fallback", async ({ page }) => {

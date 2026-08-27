@@ -77,6 +77,15 @@ const badPrimaryCopy = [
   /Public artifact verified/i,
   /Projection loading/i,
   /Required contract/i,
+  /Activation gate/i,
+  /Lineage unavailable/i,
+  /current public lineage/i,
+  /Aggregate, recurring, privacy-safe/i,
+  /Freshness-gated/i,
+  /public evidence contract/i,
+  /Identity and evidence boundary/i,
+  /Provider-listed pools can resolve/i,
+  /Account activation status/i,
   /\b(?:migration|checkpoint|adapter|internal)\b/i,
 ];
 
@@ -248,8 +257,8 @@ test("/behavior/ exposes aggregate participation with denominators and privacy b
   await page.goto("/behavior/");
   await expect(page.locator(".behavior-focus")).toContainText(/Clearest supported aggregate/i);
   await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable.*observed.*excluded/i);
-  await expect(page.locator(".participant-ledger")).toContainText(/Aggregate participants/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No raw wallet identity, wallet label, relationship graph, ownership claim, coordination claim, or smart-money ranking is exposed/i);
+  await expect(page.locator(".participant-ledger")).toContainText(/Participants observed/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/does not reveal wallet identities or labels[\s\S]*assign ownership[\s\S]*allege coordination[\s\S]*rank [“"]smart money\.[”"]/i);
   const body = await visibleBodyText(page);
   expect(body).toMatch(/Outcome status[\s\S]*Unproven/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
