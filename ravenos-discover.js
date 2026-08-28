@@ -849,15 +849,34 @@ function scoreLabel(score, label) {
 
 function opportunityLaneLabel(value) {
   const labels = {
+    opportunities: "Opportunities",
     emerging_acceleration: "Emerging acceleration",
     breakout_continuation: "Breakout / continuation",
     absorption_accumulation: "Absorption / accumulation",
     resurrection_reclaim: "Resurrection / reclaim",
     distribution_chase_risk: "Distribution / chase risk",
     majors_wrapped: "Majors",
+    all: "Everything",
   };
   const key = text(value, "").toLowerCase();
   return labels[key] || title(key, "");
+}
+
+function updateSpotRefineSummary() {
+  const summary = document.getElementById("discoverRefineSummary");
+  if (!summary) return;
+  const refinements = [
+    state.spotCohort !== "all",
+    state.spotChangedOnly,
+    state.spotMarketCapFilter !== "all",
+    state.spotLiquidityFilter !== "all",
+    state.spotAgeFilter !== "all",
+    state.spotBundleFilter !== "all",
+    state.spotRouteFilter !== "all",
+    state.spotAssetFilter !== "all",
+  ].filter(Boolean).length;
+  const lane = opportunityLaneLabel(state.spotLane) || "Opportunities";
+  summary.textContent = refinements ? `${lane} · ${refinements} more` : lane;
 }
 
 function riskLabel(value) {
@@ -1452,7 +1471,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
       ? state.spotRavenHealth.producer_state !== "operational"
       : state.spotFeedState === "refreshing";
     const emptyHeading = state.spotSort === "raven"
-      ? "Spot Raven is live"
+      ? "No current Raven reads"
       : `${chain} have no matching radar candidates`;
     append(copy, "h3", "", refreshing
       ? state.spotSort === "raven" ? "Raven is refreshing" : `${state.spotSort === "activity" ? "Activity" : "Velocity"} is refreshing`
@@ -1546,6 +1565,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  updateSpotRefineSummary();
   const views = {
     velocity: {
       title: "Velocity radar",

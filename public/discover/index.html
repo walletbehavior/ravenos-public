@@ -29,8 +29,8 @@
     </section>
 
     <div class="workspace-toolbar" aria-label="Discover filters">
-      <button class="workspace-filter active" type="button" data-discover-filter="spot" aria-pressed="true">Velocity tokens</button>
-      <button class="workspace-filter" type="button" data-discover-filter="signals" aria-pressed="false">Raven signals</button>
+      <button class="workspace-filter active" type="button" data-discover-filter="spot" aria-pressed="true">Token markets</button>
+      <button class="workspace-filter" type="button" data-discover-filter="signals" aria-pressed="false">Raven setups</button>
       <button class="workspace-filter" type="button" data-discover-filter="perpetual" aria-pressed="false">Perp markets</button>
       <button class="workspace-filter" type="button" data-discover-filter="equity" aria-pressed="false">Stocks &amp; ETFs</button>
       <span class="workspace-toolbar-spacer"></span>
@@ -51,23 +51,6 @@
         <div class="discover-desk-signals" id="discoverDeskSignals"></div>
       </div>
       <div class="discover-desk-grid" id="discoverDeskGrid"></div>
-    </section>
-
-    <section class="discover-attention" id="discoverAttentionBenchmark" aria-labelledby="discoverAttentionTitle" hidden>
-      <header>
-        <div>
-          <span class="workspace-label">Measured timing</span>
-          <h2 id="discoverAttentionTitle">Raven observation timing benchmark</h2>
-          <p>How Raven observations overlapped with broader market attention in the retained historical benchmark.</p>
-        </div>
-        <strong id="discoverAttentionFreshness">Current benchmark</strong>
-      </header>
-      <div class="discover-attention-grid" id="discoverAttentionMetrics"></div>
-      <footer>
-        <strong>Descriptive evidence only.</strong>
-        <span>This is timing overlap in a retained historical sample—not profitability, a claim about the selected instrument, or a tradeable rule.</span>
-        <a href="/research/">Inspect evidence context →</a>
-      </footer>
     </section>
 
     <section class="discover-payoff" id="discoverPayoff" aria-labelledby="discoverPayoffTitle" hidden>
@@ -101,7 +84,7 @@
           </div>
           <div class="discover-token-sort" role="group" aria-label="Token ranking">
             <button class="active" type="button" data-spot-sort="velocity" aria-pressed="true">Velocity</button>
-            <button type="button" data-spot-sort="raven" aria-pressed="false">Spot Raven</button>
+            <button type="button" data-spot-sort="raven" aria-pressed="false">Raven</button>
             <button type="button" data-spot-sort="activity" aria-pressed="false">Activity</button>
           </div>
           <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
@@ -112,31 +95,35 @@
         </div>
       </header>
       <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
-        <div class="discover-opportunity-lanes" role="group" aria-label="Opportunity lane">
-          <button class="active" type="button" data-spot-lane="opportunities" aria-pressed="true">Opportunities</button>
-          <button type="button" data-spot-lane="emerging_acceleration" aria-pressed="false">Emerging</button>
-          <button type="button" data-spot-lane="breakout_continuation" aria-pressed="false">Expansion</button>
-          <button type="button" data-spot-lane="absorption_accumulation" aria-pressed="false">Accumulation</button>
-          <button type="button" data-spot-lane="resurrection_reclaim" aria-pressed="false">Resurrection</button>
-          <button type="button" data-spot-lane="distribution_chase_risk" aria-pressed="false">Risk</button>
-          <button type="button" data-spot-lane="majors_wrapped" aria-pressed="false">Majors</button>
-          <button type="button" data-spot-lane="all" aria-pressed="false">Everything</button>
-        </div>
-        <label class="discover-changed-filter discover-changed-filter-prominent"><input id="discoverChangedFilter" type="checkbox" /> Changed since last read</label>
-        <div class="discover-lifecycle-filters" role="group" aria-label="Market lifecycle cohort">
-          <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
-          <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
-          <button type="button" data-spot-cohort="migrated" aria-pressed="false">Migrated</button>
-          <button type="button" data-spot-cohort="mature" aria-pressed="false">Mature</button>
-          <button type="button" data-spot-cohort="pullback" aria-pressed="false">Pullback</button>
-          <button type="button" data-spot-cohort="resurrection" aria-pressed="false">Resurrection</button>
-          <button type="button" data-spot-cohort="reclaim" aria-pressed="false">Reclaim</button>
-          <button type="button" data-spot-cohort="ath" aria-pressed="false">ATH</button>
-          <button type="button" data-spot-cohort="distribution" aria-pressed="false">Distribution</button>
-        </div>
-        <details class="discover-advanced-filters">
-          <summary>More filters</summary>
-          <div>
+        <details class="discover-refine-markets" id="discoverRefineMarkets">
+          <summary><span>Refine markets</span><strong id="discoverRefineSummary">Opportunities</strong></summary>
+          <div class="discover-refine-body">
+            <span class="discover-refine-label">Opportunity type</span>
+            <div class="discover-opportunity-lanes" role="group" aria-label="Opportunity type">
+              <button class="active" type="button" data-spot-lane="opportunities" aria-pressed="true">Opportunities</button>
+              <button type="button" data-spot-lane="emerging_acceleration" aria-pressed="false">Emerging</button>
+              <button type="button" data-spot-lane="breakout_continuation" aria-pressed="false">Expansion</button>
+              <button type="button" data-spot-lane="absorption_accumulation" aria-pressed="false">Accumulation</button>
+              <button type="button" data-spot-lane="resurrection_reclaim" aria-pressed="false">Resurrection</button>
+              <button type="button" data-spot-lane="distribution_chase_risk" aria-pressed="false">Risk</button>
+              <button type="button" data-spot-lane="majors_wrapped" aria-pressed="false">Majors</button>
+              <button type="button" data-spot-lane="all" aria-pressed="false">Everything</button>
+            </div>
+            <label class="discover-changed-filter discover-changed-filter-prominent"><input id="discoverChangedFilter" type="checkbox" /> Changed since last read</label>
+            <span class="discover-refine-label">Lifecycle</span>
+            <div class="discover-lifecycle-filters" role="group" aria-label="Market lifecycle">
+              <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
+              <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
+              <button type="button" data-spot-cohort="migrated" aria-pressed="false">Migrated</button>
+              <button type="button" data-spot-cohort="mature" aria-pressed="false">Mature</button>
+              <button type="button" data-spot-cohort="pullback" aria-pressed="false">Pullback</button>
+              <button type="button" data-spot-cohort="resurrection" aria-pressed="false">Resurrection</button>
+              <button type="button" data-spot-cohort="reclaim" aria-pressed="false">Reclaim</button>
+              <button type="button" data-spot-cohort="ath" aria-pressed="false">ATH</button>
+              <button type="button" data-spot-cohort="distribution" aria-pressed="false">Distribution</button>
+            </div>
+            <div class="discover-advanced-filters">
+              <div>
             <label>Market cap
               <select id="discoverMarketCapFilter">
                 <option value="all">All</option>
@@ -191,6 +178,8 @@
                 <option value="tokenized_asset">Tokenized assets</option>
               </select>
             </label>
+              </div>
+            </div>
           </div>
         </details>
       </div>
@@ -233,6 +222,23 @@
         <header class="workspace-section-head"><div><span class="workspace-label">Moving now</span><h2>Perpetual markets</h2><small>Current venue activity, whether or not Raven has a read</small></div></header>
         <div class="pulse-list" id="discoverPulse"><div class="workspace-state"><div><span class="workspace-state-mark">↗</span><p>Connecting live venue markets.</p></div></div></div>
       </aside>
+    </section>
+
+    <section class="discover-attention" id="discoverAttentionBenchmark" aria-labelledby="discoverAttentionTitle" hidden>
+      <header>
+        <div>
+          <span class="workspace-label">Measured timing</span>
+          <h2 id="discoverAttentionTitle">Raven observation timing benchmark</h2>
+          <p>How Raven observations overlapped with broader market attention in the retained historical benchmark.</p>
+        </div>
+        <strong id="discoverAttentionFreshness">Current benchmark</strong>
+      </header>
+      <div class="discover-attention-grid" id="discoverAttentionMetrics"></div>
+      <footer>
+        <strong>Descriptive evidence only.</strong>
+        <span>This is timing overlap in a retained historical sample—not profitability, a claim about the selected instrument, or a tradeable rule.</span>
+        <a href="/research/">Inspect evidence context →</a>
+      </footer>
     </section>
   </main>
   <script type="module" src="/ravenos-shell.js"></script>

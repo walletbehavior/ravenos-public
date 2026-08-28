@@ -386,6 +386,41 @@
   background: rgba(7, 11, 17, .42);
   flex-wrap: wrap;
 }
+.discover-refine-markets { width: 100%; min-width: 0; }
+.discover-refine-markets > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: rgba(10, 15, 23, .82);
+  color: var(--ws-text);
+  cursor: pointer;
+  list-style: none;
+  font: 750 8px var(--ws-mono);
+}
+.discover-refine-markets > summary::-webkit-details-marker { display: none; }
+.discover-refine-markets > summary strong { color: #8fd7b4; font: 750 8px var(--ws-mono); }
+.discover-refine-markets[open] > summary { border-color: rgba(99, 197, 148, .42); border-radius: 8px 8px 0 0; }
+.discover-refine-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--ws-border);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: rgba(7, 11, 17, .7);
+}
+.discover-refine-label { flex: 1 1 100%; color: var(--ws-dim); font: 720 7px var(--ws-mono); letter-spacing: .08em; text-transform: uppercase; }
+.discover-refine-body .discover-opportunity-lanes { order: 0; }
+.discover-refine-body .discover-changed-filter-prominent { order: 0; }
+.discover-refine-body .discover-advanced-filters { position: static; flex: 1 1 100%; }
+.discover-refine-body .discover-advanced-filters > div { position: static; width: 100%; box-shadow: none; }
 .discover-opportunity-lanes {
   order: -2;
   flex: 1 1 100%;
@@ -1480,7 +1515,10 @@
   .discover-token-sort { min-width: 0; }
   .discover-token-sort button { min-width: 0; padding-inline: 9px; }
   .discover-timeframes button { min-width: 30px; min-height: 22px; padding-inline: 5px; }
-  .discover-radar-filters { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: 6px; padding: 7px 8px; }
+  .discover-radar-filters { display: block; padding: 7px 8px; }
+  .discover-refine-markets > summary { min-height: 38px; font-size: 9px; }
+  .discover-refine-body { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: 7px; padding: 8px; }
+  .discover-refine-label { flex-basis: auto; }
   .discover-opportunity-lanes { order: 0; width: 100%; padding-bottom: 1px; }
   .discover-opportunity-lanes button { min-height: 31px; }
   .discover-changed-filter-prominent { order: 0; align-self: flex-start; min-height: 30px; }

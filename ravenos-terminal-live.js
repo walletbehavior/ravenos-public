@@ -1175,19 +1175,39 @@ function decisionSupportValue(value) {
   return customerFacingText(value, "").trim();
 }
 
-function renderDecisionSupport({ changed = "", strengthens = [], weakens = [], checkpoint = "", reference = "" } = {}) {
-  const fields = [
-    ["terminalDecisionChanged", decisionSupportValue(changed)],
+function renderDecisionSupport({
+  changed = "",
+  strengthens = [],
+  weakens = [],
+  checkpoint = "",
+  reference = "",
+  scope = "",
+  observed = "",
+} = {}) {
+  const mainFields = [
     ["terminalDecisionStrengthens", decisionSupportValue(strengthens)],
     ["terminalDecisionWeakens", decisionSupportValue(weakens)],
-    ["terminalDecisionCheckpoint", decisionSupportValue(checkpoint)],
+  ];
+  let mainVisible = 0;
+  for (const [id, value] of mainFields) mainVisible += Number(setOptionalField(id, value));
+  const checkpointVisible = Number(setOptionalField("terminalDecisionCheckpoint", decisionSupportValue(checkpoint)));
+  const host = document.getElementById("terminalDecisionSupport");
+  if (host) host.hidden = mainVisible < 1;
+
+  const evidenceFields = [
+    ["terminalContextIdentity", decisionSupportValue(scope)],
+    ["terminalEvidenceObserved", observed ? timestamp(observed) : ""],
+    ["terminalDecisionChanged", decisionSupportValue(changed)],
     ["terminalDecisionReference", decisionSupportValue(reference)],
   ];
-  let visible = 0;
-  for (const [id, value] of fields) visible += Number(setOptionalField(id, value));
-  const host = document.getElementById("terminalDecisionSupport");
-  if (host) host.hidden = visible === 0;
-  return visible;
+  let evidenceVisible = 0;
+  for (const [id, value] of evidenceFields) evidenceVisible += Number(setOptionalField(id, value));
+  const details = document.getElementById("terminalEvidenceDetails");
+  if (details) {
+    details.hidden = evidenceVisible < 1;
+    if (evidenceVisible < 1) details.open = false;
+  }
+  return mainVisible + checkpointVisible + evidenceVisible;
 }
 
 const ALPHA_EMPTY_LANGUAGE = /\b(?:unknown|unavailable|insufficient|missing|not projected|checking|resolving)\b/i;
@@ -1246,46 +1266,6 @@ function technicalAlphaCard(read = state.chartRead) {
     meta: `${read.timeframe} · current price action`,
     tone: read.direction === "long" ? "positive" : "negative",
   });
-}
-
-function ravenAlphaCard() {
-  if (state.lane === "perps") {
-    const payload = state.context || {};
-    const context = payload.raven_context || {};
-    const read = payload.raven_read || {};
-    const selectedId = state.selected?.instrument_id;
-    if (
-      context.context_available !== true
-      || !selectedId
-      || payload.instrument?.instrument_id !== selectedId
-      || context.instrument_id !== selectedId
-    ) return null;
-    return cleanAlphaCard({
-      id: "raven-current-read",
-      label: "Raven read",
-      headline: read.headline,
-      detail: read.why_raven_noticed || read.summary,
-      meta: `${titleCase(context.outcomes?.evidence_maturity, "Observed")} evidence${context.observed_at ? ` · ${timestamp(context.observed_at)}` : ""}`,
-      tone: context.observed_side === "short" ? "negative" : context.observed_side === "long" ? "positive" : "neutral",
-    });
-  }
-  if (state.lane === "spot") {
-    const context = state.context?.spot_context;
-    if (!state.context?.spot_identity_validated || context?.state !== "current") return null;
-    return cleanAlphaCard({
-      id: "raven-current-read",
-      label: "Raven read",
-      headline: `${state.selected?.symbol || context.symbol} · ${context.movement_state}`,
-      detail: context.what_changed,
-      meta: `${context.scope_label || "Exact evidence"}${context.observed_at ? ` · ${timestamp(context.observed_at)}` : ""}`,
-      tone: /rose|accelerat|expanded|increas/i.test(`${context.movement_state} ${context.what_changed}`)
-        ? "positive"
-        : /fell|decelerat|contract|decreas/i.test(`${context.movement_state} ${context.what_changed}`)
-          ? "negative"
-          : "neutral",
-    });
-  }
-  return cleanAlphaCard(state.context?.alpha_card || {});
 }
 
 function spotFlowEvidence(workspace = state.workspace?.state || {}) {
@@ -1640,7 +1620,6 @@ function renderAlphaStack() {
   const host = document.getElementById("terminalAlphaStack");
   if (!section || !host) return 0;
   const cards = [
-    ravenAlphaCard(),
     planAlphaCard(),
     spotFlowAlphaCard(),
     technicalAlphaCard(),
@@ -2366,6 +2345,8 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
   const chartProvider = readableProvider(workspace?.candleSeries?.provider || workspace?.source);
   renderSpotMarketProfile({});
   if (state.lane === "perps") {
+    setText("terminalAnatomyEyebrow", "Market structure");
+    setText("terminalAnatomyTitle", "Depth, positioning, and venue conditions");
     const market = selectedPerpSnapshot();
     const spread = finite(
       state.context?.market_data?.book?.summary?.spread_bps
@@ -2382,12 +2363,14 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
       { label: "Mark / oracle", value: basis === null ? null : percent(basis) },
       { label: "24h move", value: percent(market.change) },
     ]);
-    setText("terminalFingerprint", state.selected?.instrument_id, "Exact contract unavailable");
-    setText("terminalAnatomyState", `${chartProvider} · exact contract`);
+    setText("terminalFingerprint", state.selected?.instrument_id, "Exact market unavailable");
+    setText("terminalAnatomyState", `${chartProvider} · current market`);
     return;
   }
 
   if (state.lane === "spot") {
+    setText("terminalAnatomyEyebrow", "Holders & safety");
+    setText("terminalAnatomyTitle", "Ownership, liquidity, and token controls");
     const holderDistribution = anatomy.holder_distribution || {};
     const holderCount = holderDistribution.state === "available"
       ? finite(holderDistribution.holder_count)
@@ -2450,6 +2433,8 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     return;
   }
 
+  setText("terminalAnatomyEyebrow", "Listed context");
+  setText("terminalAnatomyTitle", "Session, movement, and market context");
   const subject = atlasSubject(state.selected || {});
   const instrument = state.selected?.instrument?.schema_version === "ravenos.instrument.v1" ? state.selected.instrument : state.selected || {};
   const options = atlasOptionsFor(state.selected);
@@ -2782,6 +2767,18 @@ function atlasSubject(row = {}) {
 
 function setWhyLabel(value = "Why Raven noticed this") {
   setText("terminalWhyLabel", value);
+}
+
+function setReadNarrative(summaryValue = "", whyValue = "") {
+  const summary = customerFacingText(summaryValue, "").trim();
+  const why = customerFacingText(whyValue, "").trim();
+  const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const summaryNode = document.getElementById("terminalReadSummary");
+  const whyNode = document.getElementById("terminalWhy");
+  setText("terminalReadSummary", summary);
+  setText("terminalWhy", why);
+  if (summaryNode) summaryNode.hidden = !summary || normalize(summary) === normalize(why);
+  if (whyNode?.parentElement) whyNode.parentElement.hidden = !why;
 }
 
 function selectedPerpSnapshot(row = state.selected, streamed = state.workspace?.state?.marketState || {}) {
@@ -3327,12 +3324,11 @@ function setContextUnavailable() {
   clearMarkerInspection();
   setContextControlsVisible(false);
   setContextField("terminalContextIdentity", "", "Market");
-  setContextField("terminalBehavior", "", "Behavior");
+  setContextField("terminalBehavior", "", "Setup");
   setContextField("terminalPath", "", "Path");
-  setContextField("terminalEvidenceMaturity", "", "Evidence");
+  setContextField("terminalEvidenceMaturity", "", "Read strength");
   setText("terminalReadHeadline", "");
-  setText("terminalReadSummary", "");
-  setText("terminalWhy", "");
+  setReadNarrative();
   setText("terminalEvidenceState", "");
   renderDecisionSupport();
   resetComparableEvidence();
@@ -3471,8 +3467,11 @@ function opportunityReference(row = {}) {
 function renderPerpOpportunityFallback(row, { updateUrl = true, generatedAt = null } = {}) {
   const selectedId = state.selected?.instrument_id;
   if (!row || !exactInstrumentMatch(row.instrument_id, selectedId)) return false;
-  const maturity = customerFacingText(row.matured_comparables?.evidence_maturity, "")
-    || (finite(row.matured_comparables?.sample_size) > 0 ? "Observed history" : "Forming");
+  const maturity = titleCase(
+    customerFacingText(row.matured_comparables?.evidence_maturity, "")
+      || (finite(row.matured_comparables?.sample_size) > 0 ? "Observed history" : "Forming"),
+    "Forming",
+  );
   const why = customerFacingText(row.why_raven_noticed, "");
   const path = customerFacingText(row.path_review?.state, "");
   const observedAt = row.observed_at || generatedAt || null;
@@ -3505,16 +3504,15 @@ function renderPerpOpportunityFallback(row, { updateUrl = true, generatedAt = nu
   resetPlanPreview();
   setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
   setText("terminalReadHeadline", state.context.raven_read.headline);
-  setText("terminalReadSummary", why);
-  setText("terminalWhy", why);
+  setReadNarrative(why, why);
   setContextField("terminalContextIdentity", selectedId, "Market");
-  setContextField("terminalBehavior", row.pressure_state, "Pressure");
+  setContextField("terminalBehavior", row.pressure_state, "Setup");
   setContextField("terminalPath", path, "Path");
-  setContextField("terminalEvidenceMaturity", maturity, "Evidence");
-  setText("terminalEvidenceState", finite(row.context_age_seconds) !== null ? `Observed ${durationLabel(row.context_age_seconds)} · current feed` : "Exact current opportunity");
+  setContextField("terminalEvidenceMaturity", maturity, "Read strength");
+  setText("terminalEvidenceState", finite(row.context_age_seconds) !== null ? `Updated ${durationLabel(row.context_age_seconds)}` : "Current");
   setState("terminalContextFreshness", "fresh", "Current");
   renderComparables(row.matured_comparables || {});
-  renderDecisionSupport({ changed: why, checkpoint: path, reference });
+  renderDecisionSupport({ changed: why, checkpoint: path, reference, scope: selectedId, observed: observedAt });
   renderMarketAnatomy();
   updateShell({
     subject: perpSubject(state.selected),
@@ -3580,16 +3578,15 @@ function renderPerpContext(payload, { updateUrl = true, opportunityEvidence = nu
     : finite(context.context_age_seconds) !== null
       ? `Observed ${durationLabel(context.context_age_seconds)}`
       : "Timestamped observation";
-  const deliveryLabel = delivery.freshness_state === "fresh" ? "current feed" : `${titleCase(delivery.freshness_state)} feed`;
   setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
   setText("terminalReadHeadline", customerFacingText(read.headline, `${state.selected?.asset || "Instrument"} · current Raven read`));
-  setText("terminalReadSummary", customerFacingText(read.summary, ""));
-  setText("terminalWhy", customerFacingText(read.why_raven_noticed || context.why_raven_noticed, ""));
-  setContextField("terminalContextIdentity", payload?.instrument?.instrument_id || state.selected?.instrument_id, "Market");
-  setContextField("terminalBehavior", titleCase(context.behavior_family, ""), "Behavior");
+  setReadNarrative(read.summary, read.why_raven_noticed || context.why_raven_noticed);
+  setContextField("terminalBehavior", titleCase(context.behavior_family, ""), "Setup");
   setContextField("terminalPath", titleCase(context.current_path || context.pressure_state || context.context_state, ""), "Path");
-  setContextField("terminalEvidenceMaturity", titleCase(context.outcomes?.evidence_maturity, ""), "Evidence");
-  setText("terminalEvidenceState", `${observationLabel} · ${deliveryLabel}`);
+  setContextField("terminalEvidenceMaturity", titleCase(context.outcomes?.evidence_maturity, ""), "Read strength");
+  setText("terminalEvidenceState", context.context_age_seconds !== null && context.context_age_seconds !== undefined
+    ? `Updated ${durationLabel(context.context_age_seconds)}`
+    : observationLabel);
   setState("terminalContextFreshness", delivery.freshness_state || "unavailable", delivery.fallback ? `Earlier data · ${titleCase(delivery.freshness_state)}` : delivery.freshness_state === "fresh" ? "Current" : titleCase(delivery.freshness_state));
   renderDecisionSupport({
     changed: read.summary,
@@ -3597,6 +3594,8 @@ function renderPerpContext(payload, { updateUrl = true, opportunityEvidence = nu
     weakens: read.what_would_weaken,
     checkpoint: opportunityEvidence?.path_review?.state,
     reference: opportunityReference(opportunityEvidence) || context.public_context_id,
+    scope: payload?.instrument?.instrument_id || state.selected?.instrument_id,
+    observed: context.observed_at || payload?.market_data?.generated_at,
   });
   renderComparables(payload?.matured_comparables || {});
   renderPlanPreview(payload?.plan_preview || {});
@@ -3783,21 +3782,15 @@ function renderSpotContext(workspace, row, { updateUrl = true, radarEvidence = n
   };
   state.opportunityEvidence = radarEvidence;
   setContextControlsVisible(true, { kind: "Raven", trigger: "Raven Read" });
-  setWhyLabel("Why Raven noticed this");
+  setWhyLabel("Current read");
   setText("terminalReadHeadline", `${row.symbol || context.symbol || "Token"} · ${movement}`);
-  setText("terminalReadSummary", customerFacingText(context.what_changed, ""));
-  setText("terminalWhy", why);
-  setContextField("terminalContextIdentity", context.scope_label, "Scope");
-  setContextField("terminalBehavior", movement, "Activity");
-  setContextField(
-    "terminalPath",
-    context.decision_support?.next_checkpoint || "",
-    "Checkpoint",
-  );
-  setContextField("terminalEvidenceMaturity", context.confidence_maturity || risk, context.confidence_maturity ? "Evidence" : "Risk");
+  setReadNarrative(context.what_changed, why);
+  setContextField("terminalBehavior", movement, "Setup");
+  setContextField("terminalPath", risk, "Risk");
+  setContextField("terminalEvidenceMaturity", titleCase(context.confidence_maturity, "") || risk, context.confidence_maturity ? "Read strength" : "Risk");
   setText(
     "terminalEvidenceState",
-    observedAge === null ? "Observed · current feed" : `Observed ${durationLabel(observedAge)} · current feed`,
+    observedAge === null ? "Current" : `Updated ${durationLabel(observedAge)}`,
   );
   setState("terminalContextFreshness", "fresh", "Current");
   renderDecisionSupport({
@@ -3806,13 +3799,15 @@ function renderSpotContext(workspace, row, { updateUrl = true, radarEvidence = n
     weakens: context.decision_support?.what_weakens || context.risk,
     checkpoint: context.decision_support?.next_checkpoint,
     reference: context.public_reference,
+    scope: context.scope_label,
+    observed: context.observed_at,
   });
   resetComparableEvidence();
   refreshSpotStructurePlan();
   updateShell({
     subject: spotSubject(row, { ravenIntelligence: true }),
     marketLabel: `${row.symbol}/${row.quoteSymbol} exact pool`,
-    thesis: context.what_changed,
+    thesis: why,
     setup: context.movement_state,
     supporting: [why, ...(context.behavioral_evidence || [])].filter(Boolean),
     contradicting: [
@@ -4733,8 +4728,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     setContextControlsVisible(true, { kind: "Atlas", trigger: "Atlas Context" });
     setWhyLabel("Why it matters");
     setText("terminalReadHeadline", `${subject.symbol} · ${equity || "cross-market"} context`);
-    setText("terminalReadSummary", summary);
-    setText("terminalWhy", optionParts.length
+    setReadNarrative(summary, optionParts.length
       ? `Options are ${optionParts.join(" · ").toLowerCase()}; cross-market alignment is ${alignment.toLowerCase() || "mixed"}.`
       : `Cross-market alignment is ${alignment.toLowerCase() || "mixed"} with ${breadth.toLowerCase() || "current"} breadth.`);
     setContextField("terminalContextIdentity", risk, "Risk regime");

@@ -186,12 +186,12 @@
 
       <aside class="terminal-intelligence" aria-label="Selected market intelligence">
         <section class="terminal-alpha" id="terminalAlphaSection" hidden>
-          <header><div><span>Raven alpha</span><h2>What matters now</h2></div><strong>Evidence gated</strong></header>
+          <header><div><span>Raven actions</span><h2>Chart and plan</h2></div><strong>Review only</strong></header>
           <div class="terminal-alpha-stack" id="terminalAlphaStack"></div>
         </section>
 
         <section class="terminal-anatomy" id="terminalAnatomySection" tabindex="-1">
-          <header><div><span>Holders &amp; safety</span><h2>Ownership, liquidity, and token controls</h2></div><strong id="terminalAnatomyState">Loading</strong></header>
+          <header><div><span id="terminalAnatomyEyebrow">Holders &amp; safety</span><h2 id="terminalAnatomyTitle">Ownership, liquidity, and token controls</h2></div><strong id="terminalAnatomyState">Loading</strong></header>
           <dl class="terminal-anatomy-grid">
             <div hidden><dt id="terminalAnatomy1Label"></dt><dd id="terminalAnatomy1"></dd></div>
             <div hidden><dt id="terminalAnatomy2Label"></dt><dd id="terminalAnatomy2"></dd></div>
@@ -240,22 +240,28 @@
         </section>
 
         <section id="terminalContextSection" tabindex="-1" hidden>
-          <header><div><span>Why now</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
+          <header><div><span>Raven read</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
           <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
-          <div class="terminal-why"><span id="terminalWhyLabel">Why Raven noticed this</span><strong id="terminalWhy">No verified context yet.</strong></div>
+          <div class="terminal-why"><span id="terminalWhyLabel">Current read</span><strong id="terminalWhy">No verified context yet.</strong></div>
           <dl class="terminal-context-grid">
-            <div hidden><dt id="terminalContextIdentityLabel">Market</dt><dd id="terminalContextIdentity"></dd></div>
-            <div hidden><dt id="terminalBehaviorLabel">Behavior</dt><dd id="terminalBehavior"></dd></div>
+            <div hidden><dt id="terminalBehaviorLabel">Setup</dt><dd id="terminalBehavior"></dd></div>
             <div hidden><dt id="terminalPathLabel">Path</dt><dd id="terminalPath"></dd></div>
-            <div hidden><dt id="terminalEvidenceMaturityLabel">Evidence</dt><dd id="terminalEvidenceMaturity"></dd></div>
+            <div hidden><dt id="terminalEvidenceMaturityLabel">Read strength</dt><dd id="terminalEvidenceMaturity"></dd></div>
+            <div hidden><dt>Next check</dt><dd id="terminalDecisionCheckpoint"></dd></div>
           </dl>
           <dl class="terminal-decision-support" id="terminalDecisionSupport" hidden>
-            <div hidden><dt>What changed</dt><dd id="terminalDecisionChanged"></dd></div>
-            <div hidden><dt>What strengthens</dt><dd id="terminalDecisionStrengthens"></dd></div>
-            <div hidden><dt>What weakens / invalidates</dt><dd id="terminalDecisionWeakens"></dd></div>
-            <div hidden><dt>Next checkpoint</dt><dd id="terminalDecisionCheckpoint"></dd></div>
-            <div hidden><dt>Evidence reference</dt><dd id="terminalDecisionReference"></dd></div>
+            <div hidden><dt>Confirms this read</dt><dd id="terminalDecisionStrengthens"></dd></div>
+            <div hidden><dt>Breaks this read</dt><dd id="terminalDecisionWeakens"></dd></div>
           </dl>
+          <details class="terminal-evidence-details" id="terminalEvidenceDetails" hidden>
+            <summary><span>Evidence &amp; provenance</span><strong>Details</strong></summary>
+            <dl>
+              <div hidden><dt id="terminalContextIdentityLabel">Market</dt><dd id="terminalContextIdentity"></dd></div>
+              <div hidden><dt>Observed</dt><dd id="terminalEvidenceObserved"></dd></div>
+              <div hidden><dt>Market change</dt><dd id="terminalDecisionChanged"></dd></div>
+              <div hidden><dt>Evidence reference</dt><dd id="terminalDecisionReference"></dd></div>
+            </dl>
+          </details>
         </section>
 
         <section class="terminal-plan-preview" id="terminalPlanSection" tabindex="-1" hidden>

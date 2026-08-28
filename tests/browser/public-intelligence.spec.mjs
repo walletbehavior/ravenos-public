@@ -192,6 +192,9 @@ test("Discover shows the complete current attention benchmark and hides a stale 
   await page.goto("/discover/");
   const benchmark = page.locator("#discoverAttentionBenchmark");
   await expect(benchmark).toBeVisible();
+  expect(await page.locator("#discoverSpotPulse").evaluate((spot) => Boolean(
+    spot.compareDocumentPosition(document.querySelector("#discoverAttentionBenchmark")) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ))).toBe(true);
   await expect(benchmark).toContainText("3,799");
   await expect(benchmark).toContainText("3,460");
   await expect(benchmark).toContainText("745");

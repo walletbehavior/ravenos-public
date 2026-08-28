@@ -864,7 +864,10 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("[data-spot-chain='bsc']")).toHaveAttribute("aria-label", "BNB Chain");
   await expect(page.locator("[data-spot-chain='ethereum']")).toHaveAttribute("aria-label", "Ethereum");
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
-  await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Spot Raven", "Activity"]);
+  await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
+  await expect(page.locator("#discoverRefineMarkets")).toBeVisible();
+  await expect(page.locator("#discoverRefineMarkets")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#discoverRefineSummary")).toHaveText("Opportunities");
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText("Raven read · Current");
   await page.locator("[data-spot-sort='velocity']").click();
@@ -880,8 +883,8 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await retireShell.locator(".discover-token-evidence > summary").click();
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Ranking score only");
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText(/Grade [A-D]/);
-  await expect(retireShell).toContainText("Current market update");
-  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Material short-window move");
+  await expect(retireShell).toContainText("Check the next 5m update");
+  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Material Price Move");
   await expect(retireShell).not.toContainText(/qualified provider|provider input|exact-market registry|configured short-window|qualified observation|next real observation|cohort forming|Exact chart required/i);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { window.__copiedTokenCa = value; } } });
@@ -957,7 +960,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
-  await expect(page.locator(".discover-token-empty")).toContainText("Spot Raven is live");
+  await expect(page.locator(".discover-token-empty")).toContainText("No current Raven reads");
   await expect(page.locator(".discover-token-empty")).toContainText("Raven keeps watching around the clock and will publish the next meaningful read automatically");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotRavenHealth.producer_state)).toBe("operational");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotRavenHealth.qualified_read_count)).toBe(0);
@@ -1035,6 +1038,7 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(2);
   await page.locator("[data-discover-filter='spot']").click();
+  await page.locator("#discoverRefineMarkets > summary").click();
   await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
 
@@ -1143,6 +1147,7 @@ test("Discover keeps an absent chain compact and actionable instead of showing a
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await empty.getByRole("button", { name: "Scan all chains" }).click();
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await page.locator("#discoverRefineMarkets > summary").click();
   await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(2);
 });
@@ -1173,6 +1178,7 @@ test("Discover omits zero-activity pools and lets available anatomy fill the row
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().evmSpotCount)).toBe(3);
   await page.locator("[data-discover-filter='spot']").click();
+  await page.locator("#discoverRefineMarkets > summary").click();
   await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText("DORMANT");
@@ -1243,7 +1249,7 @@ test("Discover keeps live market pulse but refuses stale opportunity substitutio
   await page.locator("[data-discover-filter='spot']").click();
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-empty")).toContainText("Raven is refreshing");
-  await expect(page.locator(".discover-token-empty")).not.toContainText("Spot Raven is live");
+  await expect(page.locator(".discover-token-empty")).not.toContainText("No current Raven reads");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotRavenHealth.producer_state)).toBe("unavailable");
   await expect(page.locator("#discoverPulse .pulse-row")).toHaveCount(2);
   await expect(page.locator(".discover-row")).toHaveCount(0);

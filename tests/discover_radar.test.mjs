@@ -293,6 +293,8 @@ test("a post-migration collapse with old-bundle selling and new low accumulation
   assert.equal(discovery.primary_behavior_state.value, "post_dump_resurrection");
   assert.equal(discovery.control_intelligence.original_bundle_selling.value, true);
   assert.equal(discovery.control_intelligence.new_bundle_accumulation.value, true);
+  assert.match(discovery.decision_support.why_now, /rebuilding participation and price velocity/i);
+  assert.match(discovery.decision_support.what_strengthens, /recorded low/i);
 });
 
 test("a 25 percent move with distribution and thinning liquidity is capped and labeled as distribution", () => {
@@ -314,6 +316,8 @@ test("a 25 percent move with distribution and thinning liquidity is capped and l
   assert.equal(discovery.velocity_state.score.score_cap, 66);
   assert.match(discovery.velocity_state.score.score_cap_reason, /extended/);
   assert.ok(discovery.velocity_state.score.penalties.some((penalty) => penalty.explanation === "Chase-risk penalty applied"));
+  assert.match(discovery.decision_support.why_now, /distribution|diverging/i);
+  assert.match(discovery.decision_support.what_weakens, /buy-side flow reclaims control/i);
 });
 
 test("falling price with strengthening unique-buy participation is absorption", () => {
@@ -335,6 +339,24 @@ test("falling price with strengthening unique-buy participation is absorption", 
   const discovery = build([row]).rows[0].discovery;
   assert.equal(discovery.primary_behavior_state.value, "sell_pressure_absorption");
   assert.equal(discovery.activity_state.value, "absorption");
+  assert.equal(discovery.decision_support.why_now, "Price remains under pressure while unique buy participation strengthens.");
+  assert.match(discovery.decision_support.what_strengthens, /buyer participation keeps expanding/i);
+  assert.match(discovery.decision_support.next_checkpoint, /price stabilization and sustained buyer growth/i);
+});
+
+test("public decision support is regenerated from current behavior instead of preserving internal narration", () => {
+  const discovery = build([pool({
+    what_changed: "Price and participation accelerated together.",
+    decision_support: {
+      why_now: "Qualified provider projection entered the exact-market registry.",
+      what_strengthens: "Wait for the next registry observation.",
+      what_weakens: "Classifier input becomes unavailable.",
+      next_checkpoint: "Re-evaluate at the next registry observation.",
+    },
+  })]).rows[0].discovery;
+  assert.match(discovery.decision_support.why_now, /market value|flow/i);
+  assert.equal(discovery.decision_support.what_changed, "Price and participation accelerated together.");
+  assert.doesNotMatch(JSON.stringify(discovery.decision_support), /provider projection|registry|classifier/i);
 });
 
 test("failed breakouts and recorded-range reclaims remain distinct lifecycle states", () => {

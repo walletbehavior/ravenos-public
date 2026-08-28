@@ -375,10 +375,19 @@ button, input, select { font: inherit; }
 .terminal-decision-support > div { min-width: 0; padding: 8px; background: #090f17; }
 .terminal-decision-support dt { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
 .terminal-decision-support dd { margin: 5px 0 0; overflow-wrap: anywhere; color: var(--terminal-text); font-size: 10px; line-height: 1.45; }
+.terminal-evidence-details { margin-top: 9px; border: 1px solid var(--terminal-line); background: rgba(7, 12, 19, .72); }
+.terminal-evidence-details > summary { min-height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 9px; cursor: pointer; list-style: none; color: var(--terminal-muted); font-size: 9px; }
+.terminal-evidence-details > summary::-webkit-details-marker { display: none; }
+.terminal-evidence-details > summary strong { color: var(--terminal-soft); font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-evidence-details[open] > summary { border-bottom: 1px solid var(--terminal-line); color: var(--terminal-text); }
+.terminal-evidence-details > dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--terminal-line); }
+.terminal-evidence-details > dl > div { min-width: 0; padding: 8px; background: #090f17; }
+.terminal-evidence-details dt { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.terminal-evidence-details dd { margin: 5px 0 0; overflow-wrap: anywhere; color: var(--terminal-text); font-size: 10px; line-height: 1.45; }
 
 .terminal-intelligence #terminalTradeReviewSection { order: 1; position: sticky; z-index: 3; top: 8px; box-shadow: 0 16px 38px rgba(0, 0, 0, .24); }
-.terminal-intelligence #terminalAlphaSection { order: 2; }
-.terminal-intelligence #terminalContextSection { order: 3; }
+.terminal-intelligence #terminalContextSection { order: 2; }
+.terminal-intelligence #terminalAlphaSection { order: 3; }
 .terminal-intelligence #terminalPlanSection { order: 4; }
 .terminal-intelligence #terminalAnatomySection { order: 5; }
 .terminal-intelligence #terminalMarkerDetail { order: 6; }
@@ -1042,6 +1051,7 @@ button, input, select { font: inherit; }
   .terminal-chain-coverage > summary strong { white-space: normal; }
   .terminal-chain-coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .terminal-context-grid { grid-template-columns: 1fr; }
+  .terminal-evidence-details > dl { grid-template-columns: 1fr; }
   .terminal-anatomy-grid,
   .terminal-marker-grid { grid-template-columns: 1fr 1fr; }
   .terminal-chart-panel > header { display: block; }
