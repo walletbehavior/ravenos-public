@@ -48,7 +48,7 @@ The first real observation starts history. It does not backfill a synthetic seri
 
 Primary-state changes require two consecutive qualified observations, except an exact availability failure. Classifier version changes create a separate `classifier_rebaseline` event, suppress market-transition notifications, and preserve the old/new version distinction.
 
-The v1 classifier runs internally in shadow evaluation while the public contract reports a forming state. It is not Monitor-eligible. Monitor evaluation and external notifications remain disabled until transition volume, provider load, same-symbol isolation, and notification-storm simulations are reviewed.
+The behavioral lifecycle classifier continues to report a forming evaluation state and is not Monitor-eligible. A separate exact-market Raven observer may publish a bounded current read only after the retained server-side registry has at least two real observations, a developing or robust sample, and an independently qualified material move, participation change, or confirmed lifecycle transition. Provider rank and Velocity score are explicitly excluded from that admission decision. Monitor evaluation and external notifications remain disabled until transition volume, provider load, same-symbol isolation, and notification-storm simulations are reviewed.
 
 The registry distinguishes a high observed since Raven admission from an independently qualified all-time high. A cold-start observed high never creates an ATH label; ATH distance remains unavailable until qualified market history supports it.
 
@@ -69,6 +69,14 @@ Known or reference-like majors, wrapped majors, stable assets, staking assets, a
 Admissions are deterministic and versioned. Supported lanes include Raven observations, bounded saved/monitored exact-market admissions, short-window anomalies, qualified migration evidence, breakout/continuation, pullback/absorption, capitulation/resurrection, renewed mature-market activity, and recently removed provider candidates.
 
 Provider trending is an input, not the registry. Pool age is a cohort feature, not an eligibility veto. Broad scans are bounded to five supported chains—Solana, Robinhood Chain, Base, BNB Chain, and Ethereum—and three windows, with a fixed call budget, timeout, circuit breaker, cooldown, candidate ceiling, and retention policy.
+
+## Continuous publication and health
+
+The lightweight exact-market registry is supervised continuously and publishes on a persistent 12-minute cadence. It is deliberately independent of the heavier aggregate opportunity census, so a delayed census cannot discard a current spot radar or spot Raven read. A missed machine restart is caught by the persistent scheduler rather than waiting for a user request.
+
+`ravenos.spot_raven_health.v1` reports the observer timestamp, age, expected cadence, tracked exact-market count, qualified current-read count, and covered chains. Zero qualified reads is a healthy and truthful market outcome. A missing observer or an observation older than 30 minutes degrades product health; the UI then says Raven is refreshing instead of presenting a healthy empty queue.
+
+Each qualified spot read expires after one hour unless a new exact-market observation renews it. Historical reads are never substituted as current, and a provider rank cannot keep a read alive.
 
 ## Future-sealed evidence
 

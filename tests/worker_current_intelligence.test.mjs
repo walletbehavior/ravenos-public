@@ -112,6 +112,58 @@ function geckoTrendingFixture(network, {
   };
 }
 
+function spotRadarFixture({ generatedAt = isoAgo(10) } = {}) {
+  const poolAddress = "health-pool-address";
+  const instrumentId = `solana:pool:${poolAddress}`;
+  return buildDiscoverRadarProjection([{
+    instrument_id: instrumentId,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Solana",
+    chain_id: "solana",
+    venue: "pumpswap",
+    identity_scope: "exact_pool",
+    symbol: "HEALTH",
+    name: "Health Fixture",
+    token_address: "health-token-address",
+    quote_token_address: "health-quote-address",
+    quote_symbol: "SOL",
+    pool_address: poolAddress,
+    observed_at: generatedAt,
+    age_seconds: 10,
+    context_state: "current",
+    market: {
+      price_usd: 0.01,
+      liquidity_usd: 90_000,
+      market_cap_usd: 400_000,
+      price_change_5m_pct: 2,
+      volume_usd_5m: 18_000,
+      buys_5m: 28,
+      sells_5m: 18,
+      buyers_5m: 20,
+      sellers_5m: 14,
+    },
+    registry: {
+      state: "tracking",
+      first_seen_at: isoAgo(900),
+      last_seen_at: generatedAt,
+      observation_count: 2,
+      admission_lanes: ["short_window_anomaly"],
+      admission_reason: "Exact market is under observation",
+      retained_after_trending: false,
+      event_evidence_append_only: true,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], {
+    timeframe: "5m",
+    generatedAt,
+    nowMs: Date.parse(generatedAt),
+    sourceState: "current",
+  });
+}
+
 test("Worker serves current origin intelligence with explicit delivery provenance", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -218,6 +270,7 @@ test("Worker opportunity route is backed by the current Census projection", asyn
             capital_assigned: 0,
           },
         },
+        discovery_radar: spotRadarFixture(),
       },
       isoAgo(10),
       3600,
@@ -303,6 +356,9 @@ test("Worker opportunity route is backed by the current Census projection", asyn
     assert.equal(body.census.spot_attention.selection.broader_attention_affects_ranking, false);
     assert.equal(body.census.spot_attention.execution_boundary.signing_available, false);
     assert.equal(body.census.spot_attention.execution_boundary.submission_available, false);
+    assert.equal(body.census.lane_freshness.spot_raven.producer_state, "operational");
+    assert.equal(body.census.lane_freshness.spot_raven.tracked_exact_markets, 1);
+    assert.equal(body.census.lane_freshness.spot_raven.qualified_read_count, 0);
     assert.equal(body.current_claim_context.headline, "Older claim context");
     assert.equal(body.participation_payoff.schema_version, "ravenos.participation_payoff.v1");
     assert.deepEqual(
@@ -744,6 +800,19 @@ test("Worker does not relabel an older claim as a current opportunity when Censu
 });
 
 test("Worker health measures current product lanes without penalizing archival or retired services", async () => {
+  const currentRadar = spotRadarFixture();
+  const currentOpportunityProjection = projection(
+    "opportunities",
+    "ravenos_opportunity_census_public_origin_v1",
+    {
+      schema_version: "ravenos_opportunity_census_public_v1",
+      source_state: "current",
+      opportunities: { rows: [] },
+      discovery_radar: currentRadar,
+    },
+    isoAgo(10),
+    3_600,
+  );
   const manifest = {
     schema_version: "ravenos_public_origin_manifest_v1",
     generated_at: isoAgo(2),
@@ -802,6 +871,7 @@ test("Worker health measures current product lanes without penalizing archival o
     "/public/ravenos/manifest.json": manifest,
     "/public/ravenos/status.json": status,
     "/public/ravenos/terminal_health.json": terminalHealth,
+    "/public/ravenos/opportunities.json": currentOpportunityProjection,
   };
   const previousFetch = globalThis.fetch;
   let hyperliquidAvailable = true;
@@ -845,6 +915,10 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.atlas_health.operational, true);
     assert.equal(body.raven_read_health.state, "fresh");
     assert.equal(body.raven_read_health.mode, "deterministic_structured_projection");
+    assert.equal(body.raven_read_health.spot_tokens.producer_state, "operational");
+    assert.equal(body.raven_read_health.spot_tokens.tracked_exact_markets, 1);
+    assert.equal(body.raven_read_health.spot_tokens.qualified_read_count, 0);
+    assert.equal(body.raven_read_health.spot_tokens.provider_rank_creates_raven_signal, false);
     assert.equal(body.narrator_freshness.state, "not_required");
     assert.equal(body.narrator_freshness.blocking, false);
     assert.equal(body.projection_health.state, "operational");
@@ -876,6 +950,7 @@ test("Worker health measures current product lanes without penalizing archival o
             execution_available: false,
           }],
         },
+        discovery_radar: currentRadar,
       },
       isoAgo(5_000),
       3_600,
@@ -887,6 +962,8 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(recoveredLane.status, "ok");
     assert.equal(recoveredLane.intelligence_freshness.state, "fresh");
     assert.equal(recoveredLane.raven_read_health.state, "fresh");
+    assert.equal(recoveredLane.raven_read_health.spot_tokens.producer_state, "operational");
+    assert.equal(recoveredLane.raven_read_health.spot_tokens.qualified_read_count, 0);
     assert.equal(recoveredOpportunityHealth.state, "fresh");
     assert.equal(recoveredOpportunityHealth.projection_scope, "current_rows_only");
     assert.equal(recoveredOpportunityHealth.aggregate_freshness_state, "stale");
@@ -900,8 +977,11 @@ test("Worker health measures current product lanes without penalizing archival o
     const rejectedOpportunityHealth = rejectedLane.intelligence_freshness.core_endpoints
       .find((row) => row.key === "opportunities");
     assert.equal(rejectedLane.status, "degraded");
+    assert.equal(rejectedLane.raven_read_health.state, "degraded");
+    assert.equal(rejectedLane.raven_read_health.spot_tokens.producer_state, "unavailable");
     assert.equal(rejectedOpportunityHealth.state, "stale");
     assert.equal("projection_scope" in rejectedOpportunityHealth, false);
+    byPath["/public/ravenos/opportunities.json"] = currentOpportunityProjection;
     manifest.endpoints.find((row) => row.key === "opportunities").payload_age_seconds = 10;
 
     terminalHealth.market_data_availability = "degraded";

@@ -5056,24 +5056,25 @@ async function handleHealth(request, env = {}) {
   const stripeConfigured = billingEnabled && Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
   const tokenConfigured = accountsEnabled && Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
   const dbConfigured = accountsEnabled && Boolean(env.RAVENOS_DB);
-  const [manifestResult, statusResult, terminalHealthResult] = await Promise.all([
+  const [manifestResult, statusResult, terminalHealthResult, opportunityResult] = await Promise.all([
     loadOriginControlDocument({ env, key: "manifest" }),
     loadOriginControlDocument({ env, key: "status" }),
     loadOriginControlDocument({ env, key: "terminal_health" }),
+    readPublicProjection(env, request, "opportunities").catch(() => ({
+      available: false,
+      payload: null,
+      delivery: { reason: "current_opportunity_health_check_failed" },
+    })),
   ]);
   const manifest = manifestResult.ok ? sanitizeOriginControlDocument("manifest", manifestResult.payload) : null;
   const projectionStatus = statusResult.ok ? sanitizeOriginControlDocument("status", statusResult.payload) : null;
   const terminalHealth = terminalHealthResult.ok ? sanitizeOriginControlDocument("terminal_health", terminalHealthResult.payload) : null;
   const aggregateEndpointHealth = (manifest?.endpoints || []).map(manifestEndpointHealth);
-  const aggregateOpportunityHealth = aggregateEndpointHealth.find((row) => row.key === "opportunities");
-  const opportunityResult = aggregateOpportunityHealth && aggregateOpportunityHealth.state !== "fresh"
-    ? await readPublicProjection(env, request, "opportunities").catch(() => ({
-      available: false,
-      payload: null,
-      delivery: { reason: "current_opportunity_health_check_failed" },
-    }))
-    : null;
   const currentOpportunity = validateCurrentOpportunityProjection(opportunityResult);
+  const currentSpotRadar = currentOpportunity.ok
+    ? currentDiscoverRadarProjection(currentOpportunity.census?.discovery_radar)
+    : null;
+  const spotRavenHealth = spotRavenHealthFromCurrentRadar(currentSpotRadar);
   const endpointHealth = aggregateEndpointHealth.map((row) => {
     if (row.key !== "opportunities" || currentOpportunity.ok !== true) return row;
     const delivery = currentOpportunity.delivery || {};
@@ -5158,6 +5159,7 @@ async function handleHealth(request, env = {}) {
   const atlasOperational = atlasEndpoint.state === "fresh" || atlasEndpoint.state === "delayed";
   const productHealthy = intelligenceState === "fresh"
     && ravenReadState === "fresh"
+    && spotRavenHealth.producer_state === "operational"
     && marketState === "fresh"
     && atlasOperational
     && projectionState === "operational"
@@ -5208,10 +5210,11 @@ async function handleHealth(request, env = {}) {
         : "Atlas is measured independently and is required for complete RavenOS site health.",
     },
     raven_read_health: {
-      state: ravenReadState,
+      state: ravenReadState === "fresh" && spotRavenHealth.producer_state === "operational" ? "fresh" : "degraded",
       blocking: true,
       mode: "deterministic_structured_projection",
       endpoints: ravenReadEndpoints,
+      spot_tokens: spotRavenHealth,
       note: "Current Raven Reads are rendered from structured public-safe evidence rather than a generated-prose sidecar.",
     },
     narrator_freshness: {
@@ -6439,6 +6442,44 @@ const CURRENT_OPPORTUNITY_SCHEMA = "ravenos_opportunity_census_public_origin_v1"
 const CURRENT_OPPORTUNITY_DATA_SCHEMA = "ravenos_opportunity_census_public_v1";
 const CURRENT_OPPORTUNITY_SOURCE = "raven_opportunity_projection";
 const CURRENT_OPPORTUNITY_MAX_AGE_SECONDS = 3_600;
+const SPOT_RAVEN_EXPECTED_UPDATE_SECONDS = 720;
+const SPOT_RAVEN_HEALTH_MAX_AGE_SECONDS = 1_800;
+
+function spotRavenHealthFromCurrentRadar(discoveryRadar, nowMs = Date.now()) {
+  const radarRows = Array.isArray(discoveryRadar?.rows) ? discoveryRadar.rows : [];
+  const ravenRows = radarRows.filter((row) => (
+    row?.market_type === "spot"
+    && row?.identity_scope === "exact_pool"
+    && row?.research_only === true
+    && row?.actionable === false
+    && row?.execution_available === false
+    && row?.discovery?.raven_evidence_state?.qualified === true
+    && row?.discovery?.raven_evidence_state?.raven_signal === true
+  ));
+  const generatedMs = Date.parse(String(discoveryRadar?.generated_at || ""));
+  const ageSeconds = Number.isFinite(generatedMs)
+    ? Math.max(0, Math.floor((nowMs - generatedMs) / 1_000))
+    : null;
+  const producerOperational = discoveryRadar
+    && ageSeconds !== null
+    && ageSeconds <= SPOT_RAVEN_HEALTH_MAX_AGE_SECONDS;
+  return {
+    schema_version: "ravenos.spot_raven_health.v1",
+    state: producerOperational ? "current" : discoveryRadar ? "delayed" : "unavailable",
+    producer_state: producerOperational ? "operational" : discoveryRadar ? "delayed" : "unavailable",
+    generated_at: discoveryRadar?.generated_at || null,
+    age_seconds: ageSeconds,
+    expected_update_seconds: SPOT_RAVEN_EXPECTED_UPDATE_SECONDS,
+    maximum_healthy_age_seconds: SPOT_RAVEN_HEALTH_MAX_AGE_SECONDS,
+    tracked_exact_markets: radarRows.length,
+    qualified_read_count: ravenRows.length,
+    tracked_chains: [...new Set(radarRows.map((row) => String(row?.chain_id || "").toLowerCase()).filter(Boolean))].sort(),
+    qualified_chains: [...new Set(ravenRows.map((row) => String(row?.chain_id || "").toLowerCase()).filter(Boolean))].sort(),
+    display_timeframes: ["5m", "1h", "24h"],
+    classifier_timeframe: discoveryRadar?.timeframe || null,
+    provider_rank_creates_raven_signal: false,
+  };
+}
 
 function opportunitySurvivalState(row = {}) {
   if (String(row?.market_type || "").toLowerCase() !== "spot") {
@@ -6590,16 +6631,22 @@ function recoverCurrentOpportunityLanes(census = {}, nowMs = Date.now()) {
     && row?.execution_available === false
     && rowIsCurrent(row)
   ));
-  if (!perpRows.length && !spotRows.length) return null;
+  const discoveryRadar = currentDiscoverRadarProjection(census?.discovery_radar, { nowMs });
+  const radarRows = Array.isArray(discoveryRadar?.rows) ? discoveryRadar.rows : [];
+  const spotRavenHealth = spotRavenHealthFromCurrentRadar(discoveryRadar, nowMs);
+  if (!perpRows.length && !spotRows.length && !radarRows.length) return null;
 
   const rowTimes = [...perpRows, ...spotRows]
     .map(opportunityObservationMs)
     .filter(Number.isFinite);
   if (spotRows.length) rowTimes.push(spotGeneratedMs);
+  const radarGeneratedMs = Date.parse(String(discoveryRadar?.generated_at || ""));
+  if (Number.isFinite(radarGeneratedMs)) rowTimes.push(radarGeneratedMs);
   const generatedMs = Math.max(...rowTimes);
   const rowStates = [
     ...perpRows.map((row) => String(row.context_state || "").toLowerCase()),
     ...(spotRows.length ? [String(spot.state || "").toLowerCase()] : []),
+    ...(radarRows.length ? ["current"] : []),
   ];
   const sourceState = rowStates.every((state) => ["fresh", "current"].includes(state)) ? "current" : "delayed";
   return {
@@ -6619,14 +6666,17 @@ function recoverCurrentOpportunityLanes(census = {}, nowMs = Date.now()) {
         row_count: spotRows.length,
       },
     } : {}),
+    ...(discoveryRadar ? { discovery_radar: discoveryRadar } : {}),
     execution_boundary: census.execution_boundary,
     public_safety: census.public_safety,
     lane_freshness: {
+      ...(census.lane_freshness || {}),
       schema_version: "ravenos.opportunity_lane_freshness.v1",
       state: sourceState,
       current_rows_only: true,
       stale_aggregate_counts_included: false,
       historical_context_substituted: false,
+      spot_raven: spotRavenHealth,
     },
   };
 }
@@ -6798,8 +6848,14 @@ async function handleOpportunity(request, env) {
   const contextDelivery = aggregateDeliveries([claimsResult, outcomesResult, behaviorResult]);
   const survivingCensus = applyOpportunitySurvivalGate(currentProjection.census);
   const discoveryRadar = currentDiscoverRadarProjection(survivingCensus.discovery_radar);
+  const spotRavenHealth = spotRavenHealthFromCurrentRadar(discoveryRadar);
   const publicCensus = {
     ...survivingCensus,
+    lane_freshness: {
+      ...(survivingCensus.lane_freshness || {}),
+      schema_version: "ravenos.opportunity_lane_freshness.v1",
+      spot_raven: spotRavenHealth,
+    },
     discovery_radar: discoveryRadar || {
       ok: false,
       safe_public: true,
