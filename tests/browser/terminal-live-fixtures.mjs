@@ -428,6 +428,7 @@ export async function mockTerminalLiveApis(page, {
   holderRowCount = 2,
   holderRiskLevel = "watch",
   profileIdentityMismatch = false,
+  spotVelocityState = "upside_velocity",
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -644,6 +645,12 @@ export async function mockTerminalLiveApis(page, {
           quote_asset: "USDC",
         },
         primary_behavior_state: { value: "reacceleration" },
+        velocity_state: {
+          value: spotVelocityState,
+          availability: "available",
+          observed_at: observedAt,
+          freshness: "current",
+        },
         raven_evidence_state: {
           availability: "available",
           qualified: true,

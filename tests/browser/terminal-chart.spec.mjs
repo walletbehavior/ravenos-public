@@ -1164,6 +1164,37 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   });
 });
 
+test("Raven and chart direction conflicts are explicit and suppress a directional plan", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, {
+    bullishSpotPlan: true,
+    spotControls: false,
+    velocitySpotContext: true,
+    spotVelocityState: "downside_velocity",
+  });
+  await page.goto("/terminal/?asset=JUP%2FUSDC&instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&timeframe=1m&launch=velocity&raven_overlays=auto&panel=raven");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect(page.locator("#terminalAlphaSection")).toBeVisible();
+  await expect(page.locator("#terminalAlphaEyebrow")).toHaveText("Raven vs chart");
+  await expect(page.locator("#terminalAlphaTitle")).toHaveText("Decision cross-check");
+  await expect(page.locator("#terminalAlphaState")).toHaveText("Mixed evidence");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Evidence conflict");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Raven behavior is ↓; 1m chart structure is ↑");
+  await expect(page.locator("#terminalAlphaStack")).toContainText("not promoting a directional plan until they align");
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    chartReadDirection: "long",
+    planPreviewAvailable: false,
+    planOverlayEnabled: false,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("severe exact-market risk interrupts the chart and removes Raven action prompts", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page, {

@@ -1384,6 +1384,66 @@ function technicalAlphaCard(read = state.chartRead) {
   });
 }
 
+function exactSpotRavenDirection() {
+  if (state.lane !== "spot" || state.context?.spot_identity_validated !== true) return null;
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
+  const discovery = state.opportunityEvidence?.discovery;
+  const identity = discovery?.exact_identity;
+  const evidence = discovery?.raven_evidence_state;
+  const velocity = discovery?.velocity_state;
+  const direction = velocity?.value === "upside_velocity"
+    ? "long"
+    : velocity?.value === "downside_velocity"
+      ? "short"
+      : null;
+  const evidenceObserved = Date.parse(String(evidence?.observed_at || ""));
+  const velocityObserved = Date.parse(String(velocity?.observed_at || ""));
+  if (
+    !direction
+    || !activeInstrumentId
+    || state.opportunityEvidence?.instrument_id !== activeInstrumentId
+    || identity?.instrument_id !== activeInstrumentId
+    || evidence?.qualified !== true
+    || evidence?.raven_signal !== true
+    || !["current", "fresh"].includes(String(evidence?.freshness || "").toLowerCase())
+    || velocity?.availability !== "available"
+    || !["current", "fresh"].includes(String(velocity?.freshness || "").toLowerCase())
+    || !Number.isFinite(evidenceObserved)
+    || !Number.isFinite(velocityObserved)
+    || Math.abs(evidenceObserved - velocityObserved) > 1_000
+  ) return null;
+  return {
+    direction,
+    value: velocity.value,
+    observedAt: velocity.observed_at,
+    scope: state.context.spot_context?.evidence_scope === "exact_token" ? "Exact-token Raven behavior" : "Exact-pool Raven behavior",
+  };
+}
+
+function ravenChartConflictCard(read = state.chartRead) {
+  const raven = exactSpotRavenDirection();
+  const activeInstrumentId = activeChartEvidenceInstrumentId();
+  if (
+    !raven
+    || read?.schema_version !== "ravenos.chart_read.v1"
+    || read.state !== "available"
+    || read.evidence_scope !== "provider_candles_only"
+    || read.instrument_id !== activeInstrumentId
+    || !["long", "short"].includes(read.direction)
+    || read.direction === raven.direction
+  ) return null;
+  const ravenArrow = raven.direction === "long" ? "↑" : "↓";
+  const chartArrow = read.direction === "long" ? "↑" : "↓";
+  return cleanAlphaCard({
+    id: "raven-chart-conflict",
+    label: "Evidence conflict",
+    headline: `Raven behavior is ${ravenArrow}; ${read.timeframe} chart structure is ${chartArrow}`,
+    detail: "The behavioral read and current candle structure disagree. RavenOS is not promoting a directional plan until they align.",
+    meta: `${raven.scope} · provider-backed chart ${read.score}/${read.score_max} · same exact market`,
+    tone: "warning",
+  });
+}
+
 function spotFlowEvidence(workspace = state.workspace?.state || {}) {
   const anatomy = workspace.marketAnatomy || {};
   const activity = anatomy.current_activity || {};
@@ -1447,6 +1507,7 @@ function spotFlowAlphaCard() {
 
 function createSpotStructurePlan(context = {}, workspace = state.workspace?.state || {}) {
   const read = state.chartRead;
+  const ravenDirection = exactSpotRavenDirection();
   const map = read?.structure_map || {};
   const anatomy = workspace.marketAnatomy || {};
   const profile = anatomy.market_profile || {};
@@ -1484,6 +1545,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     || read.evidence_scope !== "provider_candles_only"
     || read.instrument_id !== instrumentId
     || read.direction !== "long"
+    || ravenDirection?.direction === "short"
     || finite(read.score) < 4
     || !["current", "fresh", "live"].includes(String(workspace.providerFreshnessState || "").toLowerCase())
     || !["current", "fresh", "live"].includes(String(workspace.candleFreshnessState || "").toLowerCase())
@@ -1745,12 +1807,18 @@ function renderAlphaStack() {
     section.hidden = true;
     return 0;
   }
+  const planCard = planAlphaCard();
+  const conflictCard = ravenChartConflictCard();
   const cards = [
-    planAlphaCard(),
+    planCard,
+    conflictCard,
     spotFlowAlphaCard(),
     technicalAlphaCard(),
     ...projectedAlphaCards(),
   ].filter(Boolean).filter((card, index, rows) => rows.findIndex((candidate) => candidate.id === card.id) === index).slice(0, 5);
+  setText("terminalAlphaEyebrow", conflictCard ? "Raven vs chart" : "Raven actions");
+  setText("terminalAlphaTitle", conflictCard ? "Decision cross-check" : planCard ? "Chart and plan" : "Chart checks");
+  setText("terminalAlphaState", conflictCard ? "Mixed evidence" : "Review only");
   host.replaceChildren();
   section.hidden = cards.length === 0;
   for (const card of cards) {
