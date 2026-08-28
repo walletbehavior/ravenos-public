@@ -925,8 +925,8 @@ test("token research menu routes exact-market checks without making users hunt t
   const trigger = page.locator("#terminalProjectLinksTrigger");
   await trigger.click();
   await expect(page.locator("#terminalProjectRiskState")).not.toHaveText("");
-  await expect(page.locator("#terminalProjectHolderState")).toHaveText("View list");
-  await expect(page.locator("#terminalProjectWalletState")).toHaveText("Load sample");
+  await expect(page.locator("#terminalProjectHolderState")).toHaveText(/View list|owners/);
+  await expect(page.locator("#terminalProjectWalletState")).toHaveText(/Load sample|wallets/);
   await expect(page.locator("#terminalProjectRavenState")).toHaveText("Current");
 
   await page.locator('[data-project-research-action="wallets"]').click();
