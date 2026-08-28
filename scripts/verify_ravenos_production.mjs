@@ -63,6 +63,41 @@ async function fetchJson(path, { method = "GET", body = undefined } = {}) {
   return { res, json };
 }
 
+async function fetchQualifiedJson(path, predicate, { attempts = 4, delayMs = 10_000 } = {}) {
+  let latest = { res: null, json: null };
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    latest = await fetchJson(path);
+    if (latest.res.ok && predicate(latest.json)) return latest;
+    if (attempt < attempts) await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+  }
+  return latest;
+}
+
+function qualifiedJupiterVelocityProjection(value) {
+  const velocityRows = Array.isArray(value?.rows)
+    ? value.rows.filter((row) => row?.source_type === "jupiter_velocity")
+    : [];
+  const provenanceQualified = value?.provenance?.role === "token_velocity_plus_exact_pool_market_activity"
+    || (
+      value?.provenance?.role === "current_plus_retained_exact_pool_market_activity"
+      && Number(value?.discovery_lanes?.retained_exact_markets) > 0
+    );
+  return provenanceQualified
+    && value?.discovery_lanes?.jupiter_velocity === true
+    && velocityRows.length > 0
+    && velocityRows.every((row) => (
+      row?.chain_id === "solana"
+      && row?.identity_scope === "exact_pool"
+      && row?.instrument_id === `solana:pool:${row?.pool_address}`
+      && row?.evidence_scope === "exact_token_flow_plus_exact_pool_route"
+      && row?.jupiter?.category === "toptrending"
+      && row?.jupiter?.metric_scope === "exact_token"
+      && row?.jupiter?.route_scope === "best_current_exact_pool"
+      && row?.research_only === true
+      && row?.execution_available === false
+    ));
+}
+
 function hasBuildMarker(text) {
   return text.includes("Public artifact verified")
     || text.includes("UI build")
@@ -103,7 +138,11 @@ if (statusJson?.schema_version !== "customer_trade_terminal_health_snapshot.v1")
   throw new Error("/api/status missing current Terminal health contract");
 }
 
-const { json: healthJson } = await fetchJson("/api/health");
+const { json: healthJson } = await fetchQualifiedJson(
+  "/api/health",
+  (value) => value?.status === "ok",
+  { attempts: 4, delayMs: 5_000 },
+);
 if (
   healthJson?.status !== "ok"
   || healthJson?.market_data_health?.state !== "fresh"
@@ -215,28 +254,16 @@ if (
 ) throw new Error("/api/onchain/trending did not return current exact-pool Base, Ethereum, and Robinhood Chain activity");
 
 if (requireJupiterVelocity) {
-  const { res: solanaVelocityRes, json: solanaVelocityJson } = await fetchJson(
+  const { res: solanaVelocityRes, json: solanaVelocityJson } = await fetchQualifiedJson(
     "/api/onchain/trending?chains=solana&duration=5m",
+    qualifiedJupiterVelocityProjection,
   );
   const velocityRows = Array.isArray(solanaVelocityJson?.rows)
     ? solanaVelocityJson.rows.filter((row) => row?.source_type === "jupiter_velocity")
     : [];
   if (
     !solanaVelocityRes.ok
-    || solanaVelocityJson?.provenance?.role !== "token_velocity_plus_exact_pool_market_activity"
-    || solanaVelocityJson?.discovery_lanes?.jupiter_velocity !== true
-    || !velocityRows.length
-    || velocityRows.some((row) => (
-      row?.chain_id !== "solana"
-      || row?.identity_scope !== "exact_pool"
-      || row?.instrument_id !== `solana:pool:${row?.pool_address}`
-      || row?.evidence_scope !== "exact_token_flow_plus_exact_pool_route"
-      || row?.jupiter?.category !== "toptrending"
-      || row?.jupiter?.metric_scope !== "exact_token"
-      || row?.jupiter?.route_scope !== "best_current_exact_pool"
-      || row?.research_only !== true
-      || row?.execution_available !== false
-    ))
+    || !qualifiedJupiterVelocityProjection(solanaVelocityJson)
   ) throw new Error("/api/onchain/trending did not return Jupiter Velocity tokens bound to current exact Solana pools");
   const solanaVelocityFindings = scanJsonValue(solanaVelocityJson, "production:/api/onchain/trending:solana-velocity");
   if (solanaVelocityFindings.length) {

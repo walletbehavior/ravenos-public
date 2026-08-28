@@ -235,6 +235,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(preview, /Server-only chart-provider secret entered the preview response/);
   assert.match(preview, /current_plus_retained_exact_pool_market_activity/);
   assert.match(preview, /discovery_lanes\?\.retained_exact_markets/);
+  assert.match(preview, /captureQualifiedJson/);
+  assert.match(preview, /qualifiedJupiterVelocityProjection/);
 });
 
 test("local provider validation inherits the qualified release contract without changing parent env", () => {

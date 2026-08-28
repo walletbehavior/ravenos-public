@@ -66,6 +66,48 @@ async function captureReady(path, { attempts = 30, delayMs = 1000 } = {}) {
   throw new Error(`${path} did not become ready`);
 }
 
+async function captureQualifiedJson(path, predicate, { attempts = 4, delayMs = 10_000 } = {}) {
+  let latest = { captured: null, payload: null };
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const captured = await capture(path, { expectedStatus: null });
+    let payload = null;
+    try {
+      payload = JSON.parse(captured.text);
+    } catch {
+      payload = null;
+    }
+    latest = { captured, payload };
+    if (captured.response.status === 200 && predicate(payload)) return latest;
+    if (attempt < attempts) await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+  }
+  return latest;
+}
+
+function qualifiedJupiterVelocityProjection(value) {
+  const velocityRows = Array.isArray(value?.rows)
+    ? value.rows.filter((row) => row?.source_type === "jupiter_velocity")
+    : [];
+  const provenanceQualified = value?.provenance?.role === "token_velocity_plus_exact_pool_market_activity"
+    || (
+      value?.provenance?.role === "current_plus_retained_exact_pool_market_activity"
+      && Number(value?.discovery_lanes?.retained_exact_markets) > 0
+    );
+  return provenanceQualified
+    && value?.discovery_lanes?.jupiter_velocity === true
+    && velocityRows.length > 0
+    && velocityRows.every((row) => (
+      row?.chain_id === "solana"
+      && row?.identity_scope === "exact_pool"
+      && row?.instrument_id === `solana:pool:${row?.pool_address}`
+      && row?.evidence_scope === "exact_token_flow_plus_exact_pool_route"
+      && row?.jupiter?.category === "toptrending"
+      && row?.jupiter?.metric_scope === "exact_token"
+      && row?.jupiter?.route_scope === "best_current_exact_pool"
+      && row?.research_only === true
+      && row?.execution_available === false
+    ));
+}
+
 const buildCapture = await captureReady("/api/build");
 const buildIdentity = JSON.parse(buildCapture.text);
 if (!buildIdentity.ok || buildIdentity.cohesion?.state !== "coherent") throw new Error("/api/build did not report a coherent release");
@@ -146,8 +188,11 @@ if (
   throw new Error("Staged account start route did not enforce the authenticated-origin boundary");
 }
 
-const healthCapture = await capture("/api/health");
-const health = JSON.parse(healthCapture.text);
+const { captured: healthCapture, payload: health } = await captureQualifiedJson(
+  "/api/health",
+  (value) => value?.status === "ok",
+  { attempts: 4, delayMs: 5_000 },
+);
 if (!health || typeof health !== "object") throw new Error("/api/health returned invalid JSON");
 if (health.status !== "ok") throw new Error("/api/health does not report a healthy complete product");
 if (health.market_data_health?.state !== "fresh") throw new Error("/api/health does not report fresh market data");
@@ -659,8 +704,10 @@ for (const chain of ["base", "bsc", "ethereum", "robinhood"]) {
 
 let jupiterVelocityTerminal = null;
 if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
-  const solanaVelocityCapture = await capture("/api/onchain/trending?chains=solana&duration=5m");
-  const solanaVelocity = JSON.parse(solanaVelocityCapture.text);
+  const { captured: solanaVelocityCapture, payload: solanaVelocity } = await captureQualifiedJson(
+    "/api/onchain/trending?chains=solana&duration=5m",
+    qualifiedJupiterVelocityProjection,
+  );
   const solanaVelocityFindings = scanJsonValue(solanaVelocity, "preview:/api/onchain/trending:solana-velocity");
   if (solanaVelocityFindings.length) {
     const fields = solanaVelocityFindings.map((finding) => `${finding.path || "<root>"}:${finding.term}`).join(", ");
@@ -669,27 +716,7 @@ if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
   const velocityRows = Array.isArray(solanaVelocity?.rows)
     ? solanaVelocity.rows.filter((row) => row?.source_type === "jupiter_velocity")
     : [];
-  const velocityProvenanceQualified = solanaVelocity?.provenance?.role === "token_velocity_plus_exact_pool_market_activity"
-    || (
-      solanaVelocity?.provenance?.role === "current_plus_retained_exact_pool_market_activity"
-      && Number(solanaVelocity?.discovery_lanes?.retained_exact_markets) > 0
-    );
-  if (
-    !velocityProvenanceQualified
-    || solanaVelocity?.discovery_lanes?.jupiter_velocity !== true
-    || !velocityRows.length
-    || velocityRows.some((row) => (
-      row?.chain_id !== "solana"
-      || row?.identity_scope !== "exact_pool"
-      || row?.instrument_id !== `solana:pool:${row?.pool_address}`
-      || row?.evidence_scope !== "exact_token_flow_plus_exact_pool_route"
-      || row?.jupiter?.category !== "toptrending"
-      || row?.jupiter?.metric_scope !== "exact_token"
-      || row?.jupiter?.route_scope !== "best_current_exact_pool"
-      || row?.research_only !== true
-      || row?.execution_available !== false
-    ))
-  ) {
+  if (!qualifiedJupiterVelocityProjection(solanaVelocity)) {
     throw new Error("Isolated preview did not return Jupiter Velocity tokens bound to current exact Solana pools");
   }
   const terminalRow = velocityRows.find((row) => (
