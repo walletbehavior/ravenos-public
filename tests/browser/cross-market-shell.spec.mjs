@@ -272,7 +272,7 @@ function onchainPulsePayload(rows = [], duration = "5m") {
       raven_signal: false,
       attribution_required: true,
       attribution_label: "Data provided by CoinGecko",
-      attribution_url: "https://www.coingecko.com/",
+      attribution_url: "https://www.coingecko.com/en/api",
     },
     discovery_lanes: {
       raven_tracked: false,

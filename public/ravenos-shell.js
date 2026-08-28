@@ -169,7 +169,7 @@ function providerCreditMarkup() {
   const providers = [
     { mark: "DP", name: "DexPaprika", role: "Exact-pool market history", href: "https://dexpaprika.com/", official: true },
     { mark: "DS", name: "DexScreener", role: "Pool discovery and current market state", href: "https://dexscreener.com/" },
-    { mark: "CG", name: "CoinGecko", role: "Data provided by CoinGecko · exact-pool market history", href: "https://www.coingecko.com/" },
+    { mark: "CG", name: "CoinGecko", role: "Data provided by CoinGecko · exact-pool market history", href: "https://www.coingecko.com/en/api" },
     { mark: "HL", name: "Hyperliquid", role: "Venue-native perpetual markets", href: "https://hyperliquid.xyz/" },
     { mark: "T", name: "Tradier + Atlas", role: "Listed-market data and context", href: "https://tradier.com/" },
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },

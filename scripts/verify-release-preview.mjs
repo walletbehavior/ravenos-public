@@ -579,7 +579,7 @@ if (
   || chart?.lineage?.empty_interval_policy !== "provider_previous_close_zero_volume"
   || chart?.attribution?.required !== true
   || chart?.attribution?.label !== "Data provided by CoinGecko"
-  || chart?.attribution?.url !== "https://www.coingecko.com/"
+  || chart?.attribution?.url !== "https://www.coingecko.com/en/api"
   || !["verified_current", "verified_with_visible_staleness"].includes(chart?.chart_readiness?.state)
   || chart?.chart_readiness?.one_minute_requirement !== "verified"
   || !Array.isArray(chart?.candles)
