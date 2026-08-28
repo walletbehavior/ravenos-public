@@ -793,6 +793,17 @@ button, input, select { font: inherit; }
 .terminal-preview-boundary span { color: var(--terminal-muted); font-size: 9px; line-height: 1.4; }
 
 .terminal-spot-activity[hidden] { display: none !important; }
+.terminal-activity-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 9px; padding: 1px; background: var(--terminal-line); }
+.terminal-activity-views button { min-width: 0; min-height: 46px; border: 0; border-bottom: 2px solid transparent; background: #090f16; color: var(--terminal-muted); padding: 7px 9px; cursor: pointer; text-align: left; }
+.terminal-activity-views button:hover,
+.terminal-activity-views button:focus-visible { background: #0c141e; color: var(--terminal-text); outline: none; }
+.terminal-activity-views button[aria-pressed="true"] { border-bottom-color: var(--terminal-accent); background: rgba(63, 185, 130, .08); color: var(--terminal-text); }
+.terminal-activity-views span,
+.terminal-activity-views small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-activity-views span { font: 800 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-activity-views small { margin-top: 4px; color: var(--terminal-soft); font: 700 7px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+#terminalSpotTradesView[hidden],
+.terminal-active-traders[hidden] { display: none !important; }
 .terminal-spot-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 9px; background: var(--terminal-line); }
 .terminal-spot-flow[hidden] { display: none !important; }
 .terminal-spot-flow > div { min-width: 0; padding: 7px 8px; background: #0b1119; }
@@ -828,24 +839,27 @@ button, input, select { font: inherit; }
 .terminal-spot-trader a:hover,
 .terminal-spot-trader a:focus-visible { color: var(--terminal-accent); outline: none; }
 .terminal-active-traders { margin-top: 8px; border: 1px solid var(--terminal-line); background: #090e15; }
-.terminal-active-traders summary { min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 7px 8px; cursor: pointer; list-style: none; }
-.terminal-active-traders summary::-webkit-details-marker { display: none; }
-.terminal-active-traders summary::after { content: "+"; order: 3; color: var(--terminal-soft); font: 800 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.terminal-active-traders[open] summary::after { content: "−"; }
-.terminal-active-traders summary > span { color: var(--terminal-text); font: 800 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
-.terminal-active-traders summary > strong { margin-left: auto; color: var(--terminal-muted); font: 700 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-active-traders > header { min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 7px 8px; }
+.terminal-active-traders > header > div { min-width: 0; }
+.terminal-active-traders > header span { display: block; color: var(--terminal-soft); font: 750 7px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-active-traders > header h3 { margin: 4px 0 0; color: var(--terminal-text); font-size: 12px; line-height: 1.2; }
+.terminal-active-traders > header > strong { margin-left: auto; color: var(--terminal-muted); font: 700 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-active-traders > p { margin: 0 !important; padding: 7px 8px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 8px !important; line-height: 1.45 !important; }
 .terminal-active-trader-rows { max-height: min(42vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
-.terminal-active-trader-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 7px 8px; border-top: 1px solid var(--terminal-line); }
+.terminal-active-trader-rows > p { margin: 0 !important; padding: 18px 10px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 9px !important; text-align: center; }
+.terminal-active-trader-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; padding: 9px 8px; border-top: 1px solid var(--terminal-line); }
 .terminal-active-trader-row > span { color: var(--terminal-soft); font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-active-trader-row > div { min-width: 0; }
 .terminal-active-trader-row a { display: block; overflow: hidden; color: var(--terminal-text); font: 750 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .terminal-active-trader-row a:hover,
 .terminal-active-trader-row a:focus-visible { color: var(--terminal-accent); outline: none; }
 .terminal-active-trader-row small { display: block; margin-top: 3px; color: var(--terminal-soft); font-size: 7px; line-height: 1.3; }
-.terminal-active-trader-row strong { color: var(--terminal-text); font: 750 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
-.terminal-active-trader-row strong[data-tone="positive"] { color: var(--terminal-positive); }
-.terminal-active-trader-row strong[data-tone="negative"] { color: var(--terminal-negative); }
+.terminal-active-wallet-metrics { grid-column: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; min-width: 0; width: 100%; margin: 0; background: var(--terminal-line); }
+.terminal-active-wallet-metrics > div { min-width: 0; padding: 6px; background: #0b1119; }
+.terminal-active-wallet-metrics dt { overflow: hidden; color: var(--terminal-soft); font: 700 6px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.terminal-active-wallet-metrics dd { margin: 4px 0 0; overflow: hidden; color: var(--terminal-text); font: 750 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-active-wallet-metrics dd[data-tone="positive"] { color: var(--terminal-positive); }
+.terminal-active-wallet-metrics dd[data-tone="negative"] { color: var(--terminal-negative); }
 .terminal-spot-activity > footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--terminal-soft); font: 650 7px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-spot-activity > footer a { color: var(--terminal-muted); text-align: right; text-decoration: none; }
 .terminal-spot-activity > footer a:hover,
@@ -1414,7 +1428,7 @@ button, input, select { font: inherit; }
   .terminal-spot-trade-row > strong { text-align: left; padding-top: 2px; }
   .terminal-spot-trade-row > span:nth-of-type(2) { grid-column: 3; text-align: left; color: var(--terminal-soft); }
   .terminal-spot-trader { grid-column: 3 / -1; justify-content: flex-start; }
-  .terminal-active-trader-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .terminal-active-wallet-metrics { width: 100%; }
 }
 
 @media (orientation: landscape) and (max-height: 560px) and (max-width: 960px) {

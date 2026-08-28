@@ -214,29 +214,42 @@
 
         <section class="terminal-spot-activity" id="terminalSpotActivitySection" tabindex="-1" hidden>
           <header>
-            <div><span>Exact-pool activity</span><h2>Recent swaps</h2></div>
+            <div><span>Exact-pool activity</span><h2>Trades and active wallets</h2></div>
             <strong id="terminalSpotActivityState">Loading</strong>
           </header>
-          <div class="terminal-spot-flow" id="terminalSpotFlow" hidden>
-            <div><span id="terminalSpotFlow1Label">5m sample</span><strong id="terminalSpotFlow1">—</strong></div>
-            <div><span id="terminalSpotFlow2Label">Sample buy share</span><strong id="terminalSpotFlow2">—</strong></div>
-            <div><span id="terminalSpotFlow3Label">Sample net flow</span><strong id="terminalSpotFlow3">—</strong></div>
-            <div><span>Repeat in sample</span><strong id="terminalSpotFlow4">—</strong></div>
+          <nav class="terminal-activity-views" aria-label="Choose exact-pool activity view">
+            <button type="button" data-spot-activity-view="trades" aria-controls="terminalSpotTradesView" aria-pressed="true">
+              <span>Live trades</span><small id="terminalActivityTradeCount">Current sample</small>
+            </button>
+            <button type="button" data-spot-activity-view="wallets" aria-controls="terminalActiveTraders" aria-pressed="false">
+              <span>Active wallets</span><small id="terminalActivityWalletCount">Returned sample</small>
+            </button>
+          </nav>
+          <div id="terminalSpotTradesView">
+            <div class="terminal-spot-flow" id="terminalSpotFlow" hidden>
+              <div><span id="terminalSpotFlow1Label">5m sample</span><strong id="terminalSpotFlow1">—</strong></div>
+              <div><span id="terminalSpotFlow2Label">Sample buy share</span><strong id="terminalSpotFlow2">—</strong></div>
+              <div><span id="terminalSpotFlow3Label">Sample net flow</span><strong id="terminalSpotFlow3">—</strong></div>
+              <div><span>Repeat in sample</span><strong id="terminalSpotFlow4">—</strong></div>
+            </div>
+            <div class="terminal-spot-trade-filters" id="terminalSpotTradeFilters" aria-label="Filter recent swaps">
+              <button type="button" data-spot-trade-filter="all" aria-pressed="true">All</button>
+              <button type="button" data-spot-trade-filter="buy" aria-label="Show incoming swaps" aria-pressed="false">Buys</button>
+              <button type="button" data-spot-trade-filter="sell" aria-label="Show outgoing swaps" aria-pressed="false">Sells</button>
+              <button type="button" data-spot-trade-filter="large" aria-pressed="false">Largest 10%</button>
+              <button type="button" data-spot-trade-filter="repeat" aria-pressed="false">Repeat</button>
+            </div>
+            <div class="terminal-spot-trade-head" aria-hidden="true"><span>Time</span><span>Side</span><span>USD</span><span>Price</span><span>Wallet</span></div>
+            <div class="terminal-spot-trade-rows" id="terminalSpotTradeRows" aria-live="polite"><p>Loading recent exact-pool swaps…</p></div>
           </div>
-          <div class="terminal-spot-trade-filters" id="terminalSpotTradeFilters" aria-label="Filter recent swaps">
-            <button type="button" data-spot-trade-filter="all" aria-pressed="true">All</button>
-            <button type="button" data-spot-trade-filter="buy" aria-label="Show incoming swaps" aria-pressed="false">Buys</button>
-            <button type="button" data-spot-trade-filter="sell" aria-label="Show outgoing swaps" aria-pressed="false">Sells</button>
-            <button type="button" data-spot-trade-filter="large" aria-pressed="false">Largest 10%</button>
-            <button type="button" data-spot-trade-filter="repeat" aria-pressed="false">Repeat</button>
-          </div>
-          <div class="terminal-spot-trade-head" aria-hidden="true"><span>Time</span><span>Side</span><span>USD</span><span>Price</span><span>Trader</span></div>
-          <div class="terminal-spot-trade-rows" id="terminalSpotTradeRows" aria-live="polite"><p>Loading recent exact-pool swaps…</p></div>
-          <details class="terminal-active-traders" id="terminalActiveTraders">
-            <summary><span>Active traders</span><strong id="terminalActiveTraderState">Loading</strong></summary>
-            <p id="terminalActiveTraderNote">Repeat activity is limited to this exact pool’s returned 24-hour sample.</p>
-            <div class="terminal-active-trader-rows" id="terminalActiveTraderRows"></div>
-          </details>
+          <section class="terminal-active-traders" id="terminalActiveTraders" aria-labelledby="terminalActiveWalletTitle" hidden>
+            <header>
+              <div><span>Returned exact-pool sample</span><h3 id="terminalActiveWalletTitle">Active wallets</h3></div>
+              <strong id="terminalActiveTraderState">Loading</strong>
+            </header>
+            <p id="terminalActiveTraderNote">Wallet activity is limited to this exact pool’s returned 24-hour sample.</p>
+            <div class="terminal-active-trader-rows" id="terminalActiveTraderRows" aria-live="polite"><p>Loading active wallets…</p></div>
+          </section>
           <footer>
             <span id="terminalSpotTradeCoverage">Bounded exact-pool activity</span>
             <a id="terminalSpotTradeCredit" href="https://www.coingecko.com/en/api" target="_blank" rel="noopener noreferrer nofollow">Data provided by CoinGecko</a>

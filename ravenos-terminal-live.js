@@ -16,6 +16,7 @@ const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", 
 const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
 const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
 const TERMINAL_PANELS = new Set(["chart", "activity", "holders", "raven", "book", "trade", "account"]);
+const SPOT_ACTIVITY_VIEWS = new Set(["trades", "wallets"]);
 const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const state = {
   lane: "perps",
@@ -69,6 +70,7 @@ const state = {
   spotTradeCache: new Map(),
   spotTradeLoadingKey: "",
   spotTradeFilter: "all",
+  spotActivityView: "trades",
   spotTradeRefreshTimer: null,
   projectProfile: null,
 };
@@ -510,6 +512,8 @@ function syncTerminalPaneUrl(pane) {
   const url = new URL(window.location.href);
   if (pane === "chart") url.searchParams.delete("panel");
   else url.searchParams.set("panel", pane);
+  if (pane === "activity" && state.spotActivityView === "wallets") url.searchParams.set("activity_view", "wallets");
+  else url.searchParams.delete("activity_view");
   const next = `${url.pathname}${url.search}${url.hash}`;
   if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState({}, "", next);
@@ -528,6 +532,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.setAttribute("aria-pressed", String(button.dataset.terminalPaneButton === next));
   }
+  syncSpotActivityView();
   afterTerminalPaneVisible(() => {
     if (next === "chart") state.workspace?.chartHandle?.resize?.();
     if (next === "activity") void loadSpotTrades();
@@ -2904,36 +2909,68 @@ function renderSpotTradeRows(payload) {
   }
 }
 
+function renderActiveWalletMessage(message) {
+  const host = document.getElementById("terminalActiveTraderRows");
+  if (!host) return;
+  host.replaceChildren();
+  const note = document.createElement("p");
+  note.textContent = message;
+  host.append(note);
+}
+
 function renderActiveTraders(payload) {
   const host = document.getElementById("terminalActiveTraderRows");
   if (!host) return;
   host.replaceChildren();
+  if (!payload.active_traders.length) {
+    renderActiveWalletMessage("No wallet addresses were available in this returned exact-pool sample.");
+    setText("terminalActiveTraderState", "No wallet rows");
+    return;
+  }
   for (const row of payload.active_traders) {
     const item = document.createElement("article");
     item.className = "terminal-active-trader-row";
     const rank = document.createElement("span");
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
+    identity.className = "terminal-active-wallet-identity";
     appendSpotTradeLink(identity, { href: row.explorer_url, label: compactHolderAddress(row.trader_address), title: row.trader_address });
     const description = document.createElement("small");
     const direction = row.direction === "buy_dominant" ? "Buy-heavy" : row.direction === "sell_dominant" ? "Sell-heavy" : "Mixed flow";
-    description.textContent = `${row.trade_count} swap${row.trade_count === 1 ? "" : "s"} · ${row.recurrence === "repeat" ? "repeat in sample" : "seen once"} · ${direction}`;
+    const lastSeenAge = Math.max(0, (Date.now() - Date.parse(row.last_seen_at)) / 1_000);
+    description.textContent = `${row.recurrence === "repeat" ? "Repeat wallet" : "Seen once"} · ${direction} · last seen ${durationLabel(lastSeenAge)}`;
     identity.append(description);
-    const flow = document.createElement("strong");
-    flow.textContent = spotFlowLabel(row.net_buy_volume_usd);
-    const amount = finite(row.net_buy_volume_usd);
-    flow.dataset.tone = amount === null || amount === 0 ? "neutral" : amount > 0 ? "positive" : "negative";
-    item.append(rank, identity, flow);
+    const metrics = document.createElement("dl");
+    metrics.className = "terminal-active-wallet-metrics";
+    const metricValues = [
+      ["Swaps", compact(row.trade_count)],
+      ["Buy / sell", `${compact(row.buy_count)} / ${compact(row.sell_count)}`],
+      ["Sample volume", compact(row.total_volume_usd, { currency: true })],
+      ["Sample net", spotFlowLabel(row.net_buy_volume_usd), finite(row.net_buy_volume_usd)],
+    ];
+    for (const [label, value, toneValue] of metricValues) {
+      const metric = document.createElement("div");
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const detail = document.createElement("dd");
+      detail.textContent = value;
+      if (toneValue !== undefined) detail.dataset.tone = toneValue === null || toneValue === 0 ? "neutral" : toneValue > 0 ? "positive" : "negative";
+      metric.append(term, detail);
+      metrics.append(metric);
+    }
+    item.append(rank, identity, metrics);
     host.append(item);
   }
-  setText("terminalActiveTraderState", `${payload.active_traders.length} observed`);
-  setText("terminalActiveTraderNote", "Public transaction senders ranked by volume in this returned exact-pool sample. Repeat does not imply related ownership, skill, or profitability.");
+  setText("terminalActiveTraderState", `${payload.active_traders.length} wallets`);
+  setText("terminalActiveTraderNote", "Public transaction senders ranked by returned volume for this exact pool. Repeat does not imply related ownership, skill, or profitability; this is not complete wallet history.");
 }
 
 function renderSpotTradeProjection(payload) {
   renderSpotTradeSummary(payload);
   renderSpotTradeRows(payload);
   renderActiveTraders(payload);
+  setText("terminalActivityTradeCount", `${payload.trades.length} swaps`);
+  setText("terminalActivityWalletCount", `${payload.active_traders.length} wallet${payload.active_traders.length === 1 ? "" : "s"}`);
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
   setText("terminalSpotActivityState", `${payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
   setTerminalPaneStatus("activity", `${payload.trades.length} swaps`, payload.trades.length ? "positive" : "neutral");
@@ -2963,9 +3000,14 @@ function renderSpotTradeSurface() {
     return;
   }
   document.getElementById("terminalSpotFlow").hidden = true;
+  setText("terminalActivityTradeCount", "Current sample");
+  setText("terminalActivityWalletCount", "Returned sample");
   setText("terminalSpotActivityState", state.spotTradeLoadingKey === identity.key ? "Loading" : "Ready to load");
   setTerminalPaneStatus("activity", state.spotTradeLoadingKey === identity.key ? "Loading" : "Load");
   setText("terminalActiveTraderState", "Waiting");
+  renderActiveWalletMessage(state.spotTradeLoadingKey === identity.key
+    ? "Loading active wallets from the returned exact-pool sample…"
+    : "Open Active wallets to load the current exact-pool sample.");
   renderSpotTradeMessage(state.spotTradeLoadingKey === identity.key
     ? "Loading recent exact-pool swaps…"
     : "Open Trades to load current exact-pool activity.");
@@ -3002,6 +3044,7 @@ async function loadSpotTrades({ force = false } = {}) {
       setTerminalPaneStatus("activity", "Unavailable", "warning");
       document.getElementById("terminalSpotFlow").hidden = true;
       setText("terminalActiveTraderState", "Unavailable");
+      renderActiveWalletMessage("Active wallets aren’t available for this exact pool yet. No token-wide or similarly named market was substituted.");
       renderSpotTradeMessage("Recent exact-pool swaps aren’t available for this market yet. No token-wide or similarly named market was substituted.");
       return;
     }
@@ -3014,6 +3057,7 @@ async function loadSpotTrades({ force = false } = {}) {
     setTerminalPaneStatus("activity", "Unavailable", "warning");
     document.getElementById("terminalSpotFlow").hidden = true;
     setText("terminalActiveTraderState", "Unavailable");
+    renderActiveWalletMessage("Active wallets couldn’t be loaded for this exact pool. No alternate market was used.");
     renderSpotTradeMessage("Recent exact-pool swaps couldn’t be loaded. No alternate market was used.");
   } finally {
     if (state.spotTradeLoadingKey === identity.key) state.spotTradeLoadingKey = "";
@@ -3026,6 +3070,30 @@ function setSpotTradeFilter(filter) {
   state.spotTradeFilter = filter;
   const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
   if (payload) renderSpotTradeProjection(payload);
+}
+
+function syncSpotActivityView({ updateUrl = false } = {}) {
+  const view = SPOT_ACTIVITY_VIEWS.has(state.spotActivityView) ? state.spotActivityView : "trades";
+  state.spotActivityView = view;
+  const trades = document.getElementById("terminalSpotTradesView");
+  const wallets = document.getElementById("terminalActiveTraders");
+  if (trades) trades.hidden = view !== "trades";
+  if (wallets) wallets.hidden = view !== "wallets";
+  for (const button of document.querySelectorAll("[data-spot-activity-view]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.spotActivityView === view));
+  }
+  if (updateUrl && (document.querySelector(".terminal-live")?.dataset.terminalPane || "chart") === "activity") {
+    syncTerminalPaneUrl("activity");
+  }
+}
+
+function setSpotActivityView(view) {
+  if (!SPOT_ACTIVITY_VIEWS.has(view)) return;
+  state.spotActivityView = view;
+  syncSpotActivityView({ updateUrl: true });
+  const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (payload) renderSpotTradeProjection(payload);
+  else void loadSpotTrades();
 }
 
 function setInstrumentImage(value) {
@@ -5908,6 +5976,9 @@ function bindControls() {
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.addEventListener("click", () => setSpotTradeFilter(button.dataset.spotTradeFilter));
   }
+  for (const button of document.querySelectorAll("[data-spot-activity-view]")) {
+    button.addEventListener("click", () => setSpotActivityView(button.dataset.spotActivityView));
+  }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearSpotTradeRefresh();
     else if (spotTradeSurfaceActive()) void loadSpotTrades();
@@ -6035,6 +6106,7 @@ async function boot() {
   state.savedRavenOverlays = [...new Set(String(params.get("raven_overlays") || "").split(",").map((value) => value.trim()).filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
   state.density = SAVED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
   state.requestedPanel = TERMINAL_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
+  state.spotActivityView = state.requestedPanel === "activity" && SPOT_ACTIVITY_VIEWS.has(params.get("activity_view")) ? params.get("activity_view") : "trades";
   document.documentElement.dataset.density = state.density;
   document.body.dataset.density = state.density;
   state.timeframe = TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : TIMEFRAMES.has(ravenOSContext.getState().timeframe) ? ravenOSContext.getState().timeframe : "1h";
@@ -6152,6 +6224,7 @@ async function boot() {
       planTargetCount: state.context?.plan_preview?.take_profits?.length || 0,
       planOverlayEnabled: state.planOverlayEnabled,
       activeTerminalPane: document.querySelector(".terminal-live")?.dataset.terminalPane || "chart",
+      spotActivityView: state.spotActivityView,
       selectedMarkerLabel: state.selectedMarker?.label || null,
       quoteOnly: state.flags?.quote_only === true,
       marketPreviewAvailable: state.flags?.market_preview_available === true,

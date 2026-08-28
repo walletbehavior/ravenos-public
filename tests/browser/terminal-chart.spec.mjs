@@ -995,20 +995,61 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await page.locator('[data-spot-trade-filter="repeat"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
   await expect(page.locator("#terminalSpotTradeRows a").first()).toHaveAttribute("href", /solscan\.io\/account\//);
-  await page.locator("#terminalActiveTraders > summary").click();
+  await page.locator('[data-spot-activity-view="wallets"]').click();
+  await expect(page.locator('[data-spot-activity-view="wallets"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalSpotTradesView")).toBeHidden();
+  await expect(page.locator("#terminalActiveTraders")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("activity_view")).toBe("wallets");
   await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(3);
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Repeat wallet");
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Buy / sell");
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Sample net");
   await expect(page.locator("#terminalActiveTraderNote")).toContainText("does not imply related ownership, skill, or profitability");
   await expect(page.locator("#terminalSpotActivitySection")).not.toContainText(/smart money/i);
   const overflow = await page.locator("#terminalSpotActivitySection").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+  await page.locator('[data-spot-activity-view="trades"]').click();
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
+  expect(new URL(page.url()).searchParams.has("activity_view")).toBe(false);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
     activeTerminalPane: "activity",
+    spotActivityView: "trades",
     spotTradeCount: 36,
     spotRepeatTraderCount: 3,
     signingAvailable: false,
     submissionAvailable: false,
   });
   expect(tradeCalls[0]).toEqual({ chain: "solana", poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
+});
+
+test("active wallets can be opened directly without widening exact-pool identity", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { tradeCalls } = await mockTerminalLiveApis(page);
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=activity&activity_view=wallets");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
+  await expect(page.locator("#terminalActiveTraders")).toBeVisible();
+  await expect(page.locator("#terminalSpotTradesView")).toBeHidden();
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(3);
+  await expect.poll(() => tradeCalls.length).toBe(1);
+  const url = new URL(page.url());
+  expect(url.searchParams.get("instrument_id")).toBe("solana:pool:fixture-pair-address");
+  expect(url.searchParams.get("token_address")).toBe("fixture-token-address");
+  expect(url.searchParams.get("quote_address")).toBe("fixture-quote-address");
+  expect(url.searchParams.get("panel")).toBe("activity");
+  expect(url.searchParams.get("activity_view")).toBe("wallets");
+  const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(documentOverflow).toBeLessThanOrEqual(2);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const walletOverflow = await page.locator("#terminalActiveTraderRows").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(walletOverflow).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    activeTerminalPane: "activity",
+    spotActivityView: "wallets",
+    spotRepeatTraderCount: 3,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {
