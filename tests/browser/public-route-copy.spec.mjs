@@ -127,13 +127,14 @@ test("/terminal/ renders trader-facing primary copy", async ({ page }) => {
   await expect(page.locator("#terminalInstrumentTrigger")).toBeVisible();
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalInstrument")).not.toHaveText("");
+  await expect(page.locator("#terminalPlanDisclaimer")).toContainText("Not financial advice");
   const rendered = await visibleBodyText(page);
   for (const pattern of badPrimaryCopy) {
     expect(rendered).not.toMatch(pattern);
   }
 });
 
-for (const route of ["/faq/", "/research/"]) {
+for (const route of ["/docs/", "/faq/", "/research/"]) {
   test(`${route} renders public-safe primary copy`, async ({ page }) => {
     await page.goto(route);
     await expect(page.locator("h1").first()).toBeVisible();
@@ -143,6 +144,25 @@ for (const route of ["/faq/", "/research/"]) {
     }
   });
 }
+
+test("the quick guide and FAQ explain the customer workflow without release or engineering markers", async ({ page }) => {
+  await page.goto("/docs/");
+  await expect(page.getByRole("heading", { name: "Find a market. Understand why it matters." })).toBeVisible();
+  await expect(page.locator("body")).toContainText("Research only · Not financial advice");
+  const guide = await visibleBodyText(page);
+  expect(guide).toMatch(/Velocity.*Raven.*Activity/s);
+  expect(guide).toMatch(/Chart.*Trades.*Holders.*Raven/s);
+  expect(guide).not.toMatch(/Current intelligence connected|Exact identity enforced|Signing and submission off|Public artifact verified|Tradier, then future brokers|provider path|implementation|projection contract/i);
+
+  await page.goto("/faq/");
+  await expect(page.getByRole("heading", { name: "The basics, without the jargon." })).toBeVisible();
+  await expect(page.locator("details").first()).toContainText(/No.*general market information and research tools/s);
+  await expect(page.locator("body")).toContainText("Research only · Not financial advice");
+
+  await page.goto("/");
+  await expect(page.locator(".landing-footer")).toContainText("Not financial advice");
+  await expect(page.locator('.landing-footer a[href="/docs/"]')).toHaveText("Quick guide");
+});
 
 test("/opportunity/ renders current exact markets without engineering inventory", async ({ page }) => {
   await page.goto("/opportunity/");

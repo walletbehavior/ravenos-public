@@ -282,6 +282,7 @@ body.ros-utility-open .ros-utility-drawer {
 .ros-context-header strong,
 .ros-utility-drawer > header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .ros-context-header small { color: var(--ros-muted); font-size: 10px; text-transform: capitalize; }
+.ros-utility-drawer > header .ros-utility-boundary { color: #d7c294; font: 750 8px/1.3 var(--ros-mono); text-transform: uppercase; }
 .ros-context-header button,
 .ros-utility-drawer > header button,
 .ros-context-footer button {
@@ -327,7 +328,10 @@ a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised)
 .ros-context-footer button:first-child { border-color: rgba(166, 177, 190, 0.32); color: var(--ros-accent); }
 
 .ros-utility-content { display: grid; }
-.ros-utility-content section { padding: 18px 16px; border-bottom: 1px solid var(--ros-line); }
+.ros-utility-content section { display: grid; gap: 8px; padding: 18px 16px; border-bottom: 1px solid var(--ros-line); }
+.ros-utility-content section > strong { font-size: 16px; line-height: 1.2; }
+.ros-utility-content section > p { margin: 0; color: var(--ros-muted); font-size: 11px; line-height: 1.55; }
+.ros-utility-content section > a { width: fit-content; color: var(--ros-accent); font-size: 10px; }
 .ros-utility-empty,
 .ros-utility-unavailable { display: grid; gap: 8px; }
 .ros-utility-empty strong,
@@ -456,6 +460,8 @@ a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised)
 .ros-command-group > header { min-height: 31px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; background: rgba(172, 191, 218, 0.025); }
 .ros-command-group > header strong { color: var(--ros-text); font: 750 9px var(--ros-mono); text-transform: uppercase; letter-spacing: .07em; }
 .ros-command-group > header span { color: var(--ros-soft); font: 8px var(--ros-mono); }
+.ros-command-group.recent > header { background: rgba(63, 166, 117, 0.055); }
+.ros-command-group.recent > header strong { color: #85c6a4; }
 .ros-command-group-grid { display: grid; grid-template-columns: 1fr 1fr; }
 .ros-command-result {
   min-width: 0;

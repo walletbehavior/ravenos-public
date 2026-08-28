@@ -169,21 +169,28 @@ function freeParticipantProjection() {
   };
 }
 
-test("Intelligence hub makes every existing evidence surface discoverable without expanding mobile primary navigation", async ({ page }) => {
+test("Raven Lab gives aggregate behavior a distinct job without preserving the old evidence directory", async ({ page }) => {
   await page.goto("/intelligence/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h");
-  await expect(page.getByRole("heading", { name: "Follow the evidence behind the read." })).toBeVisible();
-  for (const href of ["/behavior/", "/perps/#perpsIntelligence", "/outcomes/", "/replay/", "/claims/", "/memory/", "/research/", "/chains/solana/", "/chains/base/", "/chains/ethereum/"]) {
-    await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Test the behavior behind a setup." })).toBeVisible();
+  await expect(page.locator(".intelligence-hub")).toContainText(/Discover finds the market.*Terminal explains the exact setup.*Raven Lab lets you test/s);
+  for (const [href, count] of [["/behavior/", 2], ["/perps/#perpsIntelligence", 1], ["/discover/", 1], ["/terminal/", 1]]) {
+    await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(count);
+  }
+  for (const href of ["/outcomes/", "/replay/", "/claims/", "/memory/", "/research/", "/chains/solana/", "/chains/base/", "/chains/ethereum/"]) {
+    await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(0);
   }
   await expect(page.locator('.ros-workspace-nav a[data-ros-nav="intelligence"]')).toHaveClass(/active/);
-  const behaviorHref = await page.locator('.intelligence-hub a[data-ros-base-href="/behavior/"]').getAttribute("href");
+  const behaviorHref = await page.locator('.intelligence-hub a[data-ros-base-href="/behavior/"]').first().getAttribute("href");
   expect(behaviorHref).toMatch(/instrument_id=hyperliquid%3Aperp%3ASOL/);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".ros-mobile-nav > *")).toHaveCount(4);
   await expect(page.locator(".ros-mobile-nav a")).toHaveCount(3);
   await page.getByRole("button", { name: "More RavenOS destinations" }).click();
-  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toContainText("Intelligence");
+  await expect(page.locator('#rosUtilityContent a[href="/behavior/"]')).toContainText("Behavior Lab");
+  await expect(page.locator('#rosUtilityContent a[href="/perps/#perpsIntelligence"]')).toContainText("Perps Intelligence");
+  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toHaveCount(0);
+  await expect(page.locator('#rosUtilityDrawer > header a[href="/terms/"]')).toContainText("Not financial advice");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });

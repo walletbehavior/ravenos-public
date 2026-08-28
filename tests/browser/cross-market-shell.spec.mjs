@@ -715,10 +715,10 @@ async function mockWorkspaceApis(page, {
   }));
 }
 
-test("desktop adds an Intelligence index without crowding the four mobile workspaces", async ({ page }) => {
+test("desktop adds Raven Lab without crowding the four mobile workspaces", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
-  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Intel", "Portfolio", "Atlas"]);
+  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Raven Lab", "Portfolio", "Atlas"]);
   await expect(page.locator(".ros-left-nav")).toHaveCount(0);
   await expect(page.locator(".ros-workspace-nav")).not.toContainText(/Solana|Base|Spot|Perps|Robinhood|Tradier/);
   await expect(page.locator("#discoverSearchTrigger")).toContainText("Search any supported instrument");
@@ -734,11 +734,90 @@ test("desktop adds an Intelligence index without crowding the four mobile worksp
   await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "MMore"]);
   await page.getByRole("button", { name: "More RavenOS destinations" }).click();
   await expect(page.locator("#rosUtilityDrawer")).toBeVisible();
-  await expect(page.locator("#rosUtilityContent")).toContainText("Intelligence");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Behavior Lab");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Perps Intelligence");
+  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toHaveCount(0);
   await expect(page.locator("#rosUtilityContent")).toContainText("Atlas");
   await expect(page.locator("#rosUtilityContent")).toContainText("Recent & saved");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("anonymous Search opens with ten valid recent exact markets and keeps mobile utility copy separated", async ({ page }) => {
+  const recentPool = (index) => ({
+    id: `solana:pool:recent-pool-${index}`,
+    type: "market",
+    label: index === 0 ? "BITCAT/SOL" : `RECENT${index}/SOL`,
+    symbol: index === 0 ? "BITCAT" : `RECENT${index}`,
+    assetClass: "crypto",
+    instrumentType: "exact_pool",
+    identityScope: "exact_pool",
+    chain: "solana",
+    venue: index % 2 ? "raydium" : "pumpswap",
+    marketType: "spot",
+    quoteAsset: "SOL",
+    tokenAddress: `recent-token-${index}`,
+    quoteTokenAddress: wrappedSolAddress,
+    poolAddress: `recent-pool-${index}`,
+    capabilities: { chart: true },
+  });
+  const history = [{
+    subject: {
+      id: "spot-pool-unselected",
+      label: "No spot pool selected",
+      instrumentType: "exact_pool",
+      identityScope: "unselected",
+      chain: "all",
+    },
+    timeframe: "1m",
+    workspace: "market-monitor",
+  }, ...Array.from({ length: 11 }, (_, index) => ({
+    subject: recentPool(index + 1),
+    timeframe: index % 2 ? "5m" : "1m",
+    workspace: "market-monitor",
+    leftAt: new Date(Date.UTC(2026, 7, 28, 12, 0, index)).toISOString(),
+  }))];
+
+  await page.addInitScript(({ subject, seededHistory }) => {
+    localStorage.setItem("ravenos:selected-context:v2", JSON.stringify({
+      schemaVersion: "ravenos.context.v2",
+      subject,
+      timeframe: "1m",
+      workspace: "market-monitor",
+      history: seededHistory,
+      updatedAt: "2026-08-28T12:01:00.000Z",
+    }));
+  }, { subject: recentPool(0), seededHistory: history });
+  await mockWorkspaceApis(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/discover/");
+
+  await page.locator("#rosCommandTrigger").click();
+  const recentResults = page.locator(".ros-command-group.recent .ros-command-result");
+  await expect(recentResults).toHaveCount(10);
+  await expect(recentResults.first()).toContainText("BITCAT/SOL");
+  await expect(page.locator("#rosCommandResults")).not.toContainText("No spot pool selected");
+  await expect(page.locator("#rosSearchStatus")).toContainText("stored only on this browser");
+  await page.locator("#rosCommandClose").click();
+
+  await page.getByRole("button", { name: "More RavenOS destinations" }).click();
+  await page.locator('#rosUtilityContent button[data-ros-utility="watchlist"]').click();
+  await expect(page.locator("#rosUtilityTitle")).toHaveText("Watchlists");
+  await expect(page.locator("#rosUtilityContent a[data-recent-instrument]")).toHaveCount(10);
+  await expect(page.locator("#rosUtilityContent")).not.toContainText("No spot pool selected");
+  const savedCopySeparation = await page.locator("#rosUtilityContent section").nth(1).evaluate((section) => {
+    const label = section.querySelector(":scope > span")?.getBoundingClientRect();
+    const heading = section.querySelector(":scope > strong")?.getBoundingClientRect();
+    return label && heading ? heading.top - label.bottom : -1;
+  });
+  expect(savedCopySeparation).toBeGreaterThanOrEqual(0);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  await page.locator("#rosUtilityClose").click();
+
+  await page.locator("#rosCommandTrigger").click();
+  await recentResults.first().click();
+  await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Arecent-pool-0/);
 });
 
 test("each primary destination declares the operator question it must answer", async ({ page }) => {
@@ -2213,7 +2292,7 @@ test("provider attribution stays visible and opens a bounded source ledger", asy
   await credit.click();
   const panel = page.locator(".ros-provider-panel");
   await expect(panel).toBeVisible();
-  for (const provider of ["DexPaprika", "DexScreener", "CoinGecko", "Hyperliquid", "Tradier + Atlas", "Moralis", "Constant-K + Raven", "Cloudflare", "TradingView"]) {
+  for (const provider of ["DexPaprika", "DexScreener", "CoinGecko", "Hyperliquid", "SEC + Atlas", "Moralis", "Constant-K + Raven", "Cloudflare", "TradingView"]) {
     await expect(panel).toContainText(provider);
   }
   await expect(panel).toContainText(/not endorsement or partnership/i);

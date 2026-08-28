@@ -93,10 +93,10 @@
     {
       "route": "/intelligence/",
       "slug": "intelligence",
-      "title": "Intelligence",
-      "question": "What supports, contradicts, or matures this read?",
+      "title": "Raven Lab",
+      "question": "Does broader behavior support or contradict this setup?",
       "funnel_stage": "understand",
-      "evidence_role": "public_intelligence_directory",
+      "evidence_role": "aggregate_behavior_lab",
       "api_endpoint": "/api/status",
       "fallback_artifact": null,
       "template": "existing",

@@ -21,7 +21,7 @@ const NAV_ITEMS = Object.freeze([
   { key: "terminal", label: "Terminal", href: "/terminal/", glyph: "T", match: ["terminal", "perps"] },
   {
     key: "intelligence",
-    label: "Intel",
+    label: "Raven Lab",
     href: "/intelligence/",
     glyph: "I",
     mobile: false,
@@ -109,6 +109,21 @@ function chainDisplayName(value) {
   return chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : "Unknown chain";
 }
 
+function venueDisplayName(value) {
+  const raw = String(value || "").trim();
+  if (!raw || ["all", "unknown"].includes(raw.toLowerCase())) return "";
+  if (/^0x[a-f0-9]{8,}$/i.test(raw) || /^[1-9A-HJ-NP-Za-km-z]{28,}$/.test(raw)) return "";
+  const aliases = {
+    hyperliquid: "Hyperliquid",
+    pumpswap: "PumpSwap",
+    raydium: "Raydium",
+    meteora: "Meteora",
+    uniswap: "Uniswap",
+    pancakeswap: "PancakeSwap",
+  };
+  return aliases[raw.toLowerCase()] || raw.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function extractedMarketAddresses(value = "") {
   const clean = String(value || "").slice(0, 512);
   const evm = clean.match(/0x[a-fA-F0-9]{40}/g) || [];
@@ -154,6 +169,51 @@ function terminalHref(subject = {}) {
   return `/terminal/${params.size ? `?${params.toString()}` : ""}`;
 }
 
+function validRecentSubject(subject = {}) {
+  const id = String(subject.id || "").trim();
+  const label = String(subject.label || subject.symbol || "").trim();
+  const instrumentType = String(subject.instrumentType || subject.marketType || "").trim().toLowerCase();
+  const identityScope = String(subject.identityScope || "").trim().toLowerCase();
+  if (!id || id === "unselected" || !label || /^no\s+.+\s+selected$/i.test(label)) return false;
+  if (["unknown", "unselected"].includes(instrumentType) || identityScope === "unselected") return false;
+  if (instrumentType === "exact_pool") {
+    return Boolean(subject.poolAddress || /:pool:/i.test(id))
+      && !["", "all", "unknown"].includes(String(subject.chain || "").toLowerCase());
+  }
+  if (["perp", "perpetual"].includes(instrumentType)) return /^hyperliquid:perp:[A-Za-z0-9._-]+$/.test(id);
+  return identityScope === "exact_instrument" && id.includes(":");
+}
+
+function recentMarketContexts(context = {}, limit = 10) {
+  const candidates = [
+    { subject: context.subject, timeframe: context.timeframe, workspace: context.workspace, leftAt: context.updatedAt },
+    ...(Array.isArray(context.history) ? context.history : []),
+  ];
+  const seen = new Set();
+  return candidates.filter((item) => {
+    const subject = item?.subject || {};
+    const identity = String(subject.id || "").trim().toLowerCase();
+    if (!validRecentSubject(subject) || seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  }).slice(0, limit);
+}
+
+function recentSubjectMeta(subject = {}) {
+  const type = String(subject.instrumentType || subject.marketType || "Exact instrument")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const seen = new Set();
+  return [chainDisplayName(subject.chain), venueDisplayName(subject.venue), type]
+    .filter((value) => {
+      const key = String(value || "").trim().toLowerCase();
+      if (!key || ["all", "unknown", "unknown chain"].includes(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(" · ");
+}
+
 function navMarkup(slug, { mobile = false } = {}) {
   const items = NAV_ITEMS.filter((item) => !mobile || item.mobile !== false).map((item) => {
     const active = item.match.includes(slug) ? " active" : "";
@@ -171,7 +231,7 @@ function providerCreditMarkup() {
     { mark: "DS", name: "DexScreener", role: "Pool discovery and current market state", href: "https://dexscreener.com/" },
     { mark: "CG", name: "CoinGecko", role: "Data provided by CoinGecko · exact-pool market history", href: "https://www.coingecko.com/en/api" },
     { mark: "HL", name: "Hyperliquid", role: "Venue-native perpetual markets", href: "https://hyperliquid.xyz/" },
-    { mark: "T", name: "Tradier + Atlas", role: "Listed-market data and context", href: "https://tradier.com/" },
+    { mark: "SEC", name: "SEC + Atlas", role: "Filings and public listed-market context", href: "https://www.sec.gov/edgar/search/" },
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },
     { mark: "K", name: "Constant-K + Raven", role: "Evidence and participant interpretation", href: "/docs/" },
     { mark: "CF", name: "Cloudflare", role: "Edge delivery and caching", href: "https://www.cloudflare.com/" },
@@ -211,7 +271,7 @@ function createShellMarkup(slug) {
       <footer class="ros-context-footer"><button type="button" data-ros-context-action="terminal">Open in Terminal</button></footer>
     </aside>
     <aside class="ros-utility-drawer" id="rosUtilityDrawer" aria-label="RavenOS utilities">
-      <header><div><span>Workspace</span><strong id="rosUtilityTitle">More</strong></div><button id="rosUtilityClose" type="button">Close</button></header>
+      <header><div><span>Workspace</span><strong id="rosUtilityTitle">More</strong><a class="ros-utility-boundary" href="/terms/">Research only · Not financial advice</a></div><button id="rosUtilityClose" type="button">Close</button></header>
       <div class="ros-utility-content" id="rosUtilityContent"></div>
     </aside>
     <nav class="ros-mobile-nav" aria-label="Mobile primary navigation">${navMarkup(slug, { mobile: true })}</nav>
@@ -220,7 +280,7 @@ function createShellMarkup(slug) {
       <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, token address, or pool address" /></label>
       <div class="ros-search-status" id="rosSearchStatus">Loading live supported instruments…</div>
       <div class="ros-command-results" id="rosCommandResults"></div>
-      <footer><span>Exact identity</span><span>Source and freshness shown</span><span>No signing</span></footer>
+      <footer><span>Exact identity</span><span>Recent markets stay on this browser</span><span>Research only</span></footer>
     </dialog>`;
 }
 
@@ -500,15 +560,15 @@ function rankSpotSearchRows(rows = [], query = "") {
 
 function utilityMarkup(kind, context) {
   if (kind === "watchlist") {
-    const history = (context.history || []).filter((item) => item?.subject?.id && item.subject.id !== "unselected").slice(0, 6);
+    const history = recentMarketContexts(context, 10);
     const recent = history.length
       ? `<div class="ros-utility-list">${history.map((item) => {
         const subject = item.subject || {};
-        const meta = [subject.venue, subject.instrumentType || subject.marketType].filter(Boolean).join(" · ");
+        const meta = recentSubjectMeta(subject);
         return `<a href="${escapeHtml(terminalHref(subject))}" data-recent-instrument="${escapeHtml(subject.id)}"><strong>${escapeHtml(subject.label || subject.symbol || subject.id)}</strong><span>${escapeHtml(meta || "Exact instrument")}</span></a>`;
       }).join("")}</div>`
       : `<div class="ros-utility-empty"><strong>No recent markets</strong><p>Markets you open will appear here.</p></div>`;
-    return `<section><span>Recent markets</span>${recent}</section><section><span>Saved markets</span><strong>Pick up where you left off</strong><p>Save an exact pool or instrument with its chart settings, then reopen it on any signed-in device.</p><a href="https://app.ravenos.xyz/monitor/">Open saved markets</a></section>`;
+    return `<section><span>Recent markets on this browser</span>${recent}</section><section><span>Saved markets</span><strong>Pick up where you left off</strong><p>Save an exact pool or instrument with its chart settings, then reopen it on any signed-in device.</p><a href="https://app.ravenos.xyz/monitor/">Open saved markets</a></section>`;
   }
   if (kind === "alerts") {
     return `<section class="ros-utility-unavailable"><span>Raven alerts</span><strong>Watch meaningful market changes</strong><p>Choose a saved market and the changes Raven should watch. Alerts appear in RavenOS; Telegram, email, and push are not available yet.</p><a href="https://app.ravenos.xyz/monitor/">Open Raven alerts</a></section>`;
@@ -520,7 +580,17 @@ function utilityMarkup(kind, context) {
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
     : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
-  return `<nav class="ros-more-links" aria-label="Account and utility links"><a href="/intelligence/"><strong>Intelligence</strong><span>Behavior, evidence, history, perps, and chains</span></a><a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a><a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a><button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button><button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button><a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a><a href="/docs/"><strong>How Raven reads markets</strong><span>Freshness, history, and uncertainty</span></a><a href="/faq/"><strong>FAQ</strong><span>What RavenOS can and cannot do</span></a></nav>`;
+  return `<nav class="ros-more-links" aria-label="Account and utility links">
+    <a href="/behavior/"><strong>Behavior Lab</strong><span>Participant patterns and cohort research</span></a>
+    <a href="/perps/#perpsIntelligence"><strong>Perps Intelligence</strong><span>Funding, positioning, pressure, and depth</span></a>
+    <a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a>
+    <a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a>
+    <button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button>
+    <button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button>
+    <a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a>
+    <a href="/docs/"><strong>Quick guide</strong><span>Find, inspect, and evaluate a market</span></a>
+    <a href="/faq/"><strong>FAQ</strong><span>What RavenOS can and cannot do</span></a>
+  </nav>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -710,6 +780,38 @@ export function mountRavenOSShell(options = {}) {
     host.append(button);
   }
 
+  function appendCommandGroup(labelText, rows, countText = "") {
+    if (!rows.length) return;
+    const section = document.createElement("section");
+    section.className = "ros-command-group";
+    if (labelText === "Recently viewed") section.classList.add("recent");
+    const heading = document.createElement("header");
+    const label = document.createElement("strong");
+    label.textContent = labelText;
+    const count = document.createElement("span");
+    count.textContent = countText || `${rows.length} exact ${rows.length === 1 ? "choice" : "choices"}`;
+    heading.append(label, count);
+    const grid = document.createElement("div");
+    grid.className = "ros-command-group-grid";
+    for (const item of rows) appendCommandResult(item, grid);
+    section.append(heading, grid);
+    commandResults.append(section);
+  }
+
+  function recentCommandResults() {
+    return recentMarketContexts(ravenOSContext.getState(), 10).map((item) => {
+      const subject = item.subject || {};
+      return {
+        instrument_id: subject.id,
+        subject,
+        label: subject.label || subject.symbol || subject.id,
+        detail: recentSubjectMeta(subject) || "Exact instrument",
+        group: "Recent market",
+        state: "Reopen",
+      };
+    });
+  }
+
   function commandMatchRank(item, normalized) {
     if (!normalized) return 0;
     const values = [
@@ -795,9 +897,13 @@ export function mountRavenOSShell(options = {}) {
     const clean = query.trim();
     const normalized = clean.toLowerCase();
     commandResults.replaceChildren();
+    const recent = clean ? [] : recentCommandResults();
+    const recentIds = new Set(recent.map((item) => String(item.instrument_id || "").toLowerCase()));
+    if (recent.length) appendCommandGroup("Recently viewed", recent, `${recent.length} on this browser`);
     const indexedInstruments = instrumentIndex
       .filter((item) => !normalized || [item.asset, item.label, item.symbol, item.name, item.instrument_id, item.detail, item.instrument?.display_name, item.instrument?.market_identity?.listing].filter(Boolean).join(" ").toLowerCase().includes(normalized))
-      .slice(0, clean ? 16 : 6);
+      .filter((item) => !recentIds.has(String(item.instrument_id || item.subject?.id || "").toLowerCase()))
+      .slice(0, clean ? 16 : recent.length ? 0 : 6);
     const resolvedResults = spotSearch.query === normalized ? spotSearch.rows : [];
     const candidates = uniqueCommandResults([...indexedInstruments, ...resolvedResults]);
     const instruments = candidates
@@ -816,21 +922,9 @@ export function mountRavenOSShell(options = {}) {
       grouped.get(family).push(item);
     }
     for (const [family, rows] of grouped) {
-      const section = document.createElement("section");
-      section.className = "ros-command-group";
-      const heading = document.createElement("header");
-      const label = document.createElement("strong");
-      label.textContent = family;
-      const count = document.createElement("span");
-      count.textContent = `${rows.length} exact ${rows.length === 1 ? "choice" : "choices"}`;
-      heading.append(label, count);
-      const grid = document.createElement("div");
-      grid.className = "ros-command-group-grid";
-      for (const item of rows) appendCommandResult(item, grid);
-      section.append(heading, grid);
-      commandResults.append(section);
+      appendCommandGroup(family, rows);
     }
-    if (!instruments.length) {
+    if (!instruments.length && !recent.length) {
       const empty = document.createElement("div");
       empty.className = "ros-command-empty";
       const searchPending = clean.length >= 1 && spotSearch.query === normalized && spotSearch.state === "searching";
@@ -839,7 +933,9 @@ export function mountRavenOSShell(options = {}) {
         : "<strong>No supported instrument matched.</strong><p>RavenOS will not silently choose a chain, pool, venue, expiry, or contract.</p>";
       commandResults.append(empty);
     }
-    const registryState = searchFailure
+    const registryState = !clean && recent.length
+      ? `${recent.length} recently viewed exact market${recent.length === 1 ? "" : "s"} · stored only on this browser · type to search all markets`
+      : searchFailure
       ? "Live market catalog unavailable"
       : searchReady
         ? `${instrumentIndex.length.toLocaleString()} indexed exact markets · ${instrumentSources.join(" + ")} · live lookup checks additional exact pools`

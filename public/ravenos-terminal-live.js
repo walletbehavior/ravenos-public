@@ -4394,7 +4394,7 @@ function setPlanOverlayActive(requested, { source = "plan", switchToChart = requ
     syncPlanActionSurfaces(qualifiedPlanData());
   });
   announceRavenAction(requested
-    ? `Raven plan shown on the exact chart. ${planSummaryLabel(qualified)}. Research only.`
+    ? `Raven plan shown on the exact chart. ${planSummaryLabel(qualified)}. Research only; not financial advice.`
     : "Raven plan hidden. Other Raven chart layers were preserved.");
   return true;
 }
@@ -4464,7 +4464,8 @@ function renderPlanPreview(plan = {}) {
     : [];
   if (why) why.hidden = !spotPlan || !reasons.length;
   setText("terminalPlanWhy", spotPlan ? reasons.join(" · ") : "");
-  setText("terminalPlanDisclaimer", plan.disclaimer || "Based on completed paths for this market. Research only—not personalized targets, stops, or orders.");
+  const planDisclaimer = String(plan.disclaimer || "Based on completed paths for this market. Research only—not personalized targets, stops, or orders.").trim();
+  setText("terminalPlanDisclaimer", /financial advice/i.test(planDisclaimer) ? planDisclaimer : `${planDisclaimer} Not financial advice.`);
   syncPlanActionSurfaces(validated);
   return true;
 }
