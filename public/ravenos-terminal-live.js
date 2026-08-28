@@ -1833,17 +1833,21 @@ function holderBalanceLabel(value) {
 }
 
 function verifiedHolderProjection(payload, identity) {
+  const complete = payload?.coverage?.complete_holder_census;
+  const totalOwners = Number(payload?.coverage?.total_owner_rows);
   if (
     payload?.ok !== true
     || payload?.safe_public !== true
-    || payload?.schema_version !== "ravenos.onchain_holder_list.v1"
+    || payload?.schema_version !== "ravenos.onchain_holder_list.v2"
     || payload?.state !== "available"
     || payload?.identity?.chain !== "solana"
     || payload.identity.pool_address !== identity.pool_address
     || payload.identity.token_address !== identity.token_address
     || !Array.isArray(payload.holders)
-    || payload.holders.length > 20
-    || payload?.coverage?.complete_holder_census !== false
+    || payload.holders.length > 100
+    || ![true, false].includes(complete)
+    || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
+    || (!complete && payload.holders.length > 20)
   ) return null;
   const holders = payload.holders.filter((row) => (
     Number.isInteger(row?.rank)
@@ -1915,9 +1919,15 @@ function renderHolderListProjection(payload) {
     item.append(rank, identity, balance, share);
     host.append(item);
   }
-  setText("terminalHolderListState", `${payload.holders.length} owners`);
+  const complete = payload.coverage.complete_holder_census === true;
+  const totalOwners = complete ? Number(payload.coverage.total_owner_rows) : null;
+  setText("terminalHolderListState", complete
+    ? `${payload.holders.length} of ${compact(totalOwners)} owners`
+    : `${payload.holders.length} owners`);
   const observed = timestamp(payload.observed_at);
-  setText("terminalHolderListNote", `Largest 20 token accounts, grouped by owner when available · not a complete holder census · ${observed}.`);
+  setText("terminalHolderListNote", complete
+    ? `Complete current census · ${compact(payload.coverage.scanned_source_accounts)} token accounts grouped into ${compact(totalOwners)} owners · showing the top ${payload.holders.length} · ${observed}.`
+    : `Largest 20 token accounts, grouped by owner when available · full census unavailable · ${observed}.`);
 }
 
 function renderHolderListSurface() {
@@ -1935,7 +1945,7 @@ function renderHolderListSurface() {
   if (cached) renderHolderListProjection(cached);
   else if (state.holderListLoadingKey === identity.key) {
     setText("terminalHolderListState", "Loading");
-    setText("terminalHolderListNote", "Reading the largest on-chain token accounts for this exact token.");
+    setText("terminalHolderListNote", "Reading current on-chain holder accounts for this exact token.");
     renderHolderListMessage("Loading top holders…");
   } else {
     setText("terminalHolderListState", "View list");

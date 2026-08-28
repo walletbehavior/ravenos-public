@@ -1,4 +1,4 @@
-# RavenOS holder lists and Behavior Lab v1
+# RavenOS holder lists v2 and Behavior Lab v1
 
 ## Product boundary
 
@@ -21,11 +21,15 @@ Required query fields:
 
 The Worker first re-resolves the exact pool and token orientation. It fails closed when the pool, selected mint, or quote identity differs. Symbols never select a holder list.
 
-The response is `ravenos.onchain_holder_list.v1` and contains at most 20 owner rows derived from Solana's largest token accounts. Multiple top token accounts with the same parsed owner are aggregated. An account is identified as the exact pool account only when the exact address matches; program, exchange, custody, and insider labels are not guessed.
+The response is `ravenos.onchain_holder_list.v2`. The preferred path resolves the mint's Token or Token-2022 program, scans its token accounts using an exact mint filter and provider pagination, decodes balances without floating-point conversion, and aggregates every nonzero token account into its on-chain owner. The public response contains the top 100 owners plus the total owner and token-account counts and top-10/20/50/100 concentration summaries.
+
+The scan is bounded to 25 provider pages and 25,000 source token accounts. `complete_holder_census` is true only when provider pagination ends inside those bounds. If a complete scan cannot be proven, RavenOS discards the partial ranking and returns the independently verified largest-20 view instead. It never presents a partial account scan as a complete or globally ranked census.
+
+An account is identified as the exact pool account only when the exact address matches. Program, exchange, custody, bundle, developer, and insider labels are not guessed.
 
 The list includes rank, address, exact token balance, supply share, token-account count, classification, pool-account exclusion, observation time, slot, and an allowlisted Solscan link. Raw JSON-RPC payloads and provider URLs are never returned.
 
-This is not described as a complete holder census. Full pagination, historical balance changes, named exchange/program labels, and cross-chain holder lists require a separately qualified indexed source.
+The census describes current ownership only. Historical balance changes, named exchange/program labels, bundle or coordination claims, and cross-chain holder lists require separately qualified evidence.
 
 ## Activation
 
@@ -36,7 +40,9 @@ The Free UI and route are implemented, but Solana holder delivery requires both:
 
 The route does not reuse `RAVENOS_SOLANA_RPC_URL`. This prevents accidental public-product load on Raven's private trading or research RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
 
-Provider operations are coalesced per exact market, bounded to four concurrent operations, cached for 60 seconds, and limited to three JSON-RPC methods: `getTokenLargestAccounts`, `getTokenSupply`, and `getMultipleAccounts`.
+The dedicated endpoint may be an Alchemy Solana endpoint owned by the existing Raven account. It remains a separate environment binding so public holder traffic can be metered, rotated, and disabled without changing Raven's private trading or research access.
+
+Provider operations are coalesced per exact market, bounded to four concurrent operations, cached for three minutes, and limited to current-state JSON-RPC methods. The preferred path uses `getAccountInfo`, `getTokenSupply`, and paginated `getProgramAccounts`. `getTokenLargestAccounts` and `getMultipleAccounts` are allowed only as the truthful fallback. Raw provider errors, endpoints, keys, page keys, and payloads are never returned.
 
 ## Behavior Lab
 

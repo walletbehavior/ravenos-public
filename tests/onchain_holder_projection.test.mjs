@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import bs58 from "bs58";
 
 import {
   ONCHAIN_HOLDER_SCHEMA,
@@ -16,6 +17,8 @@ const ACCOUNT_A = "SysvarRent111111111111111111111111111111111";
 const ACCOUNT_B = "SysvarC1ock11111111111111111111111111111111";
 const ACCOUNT_C = "Vote111111111111111111111111111111111111111";
 const OWNER_A = "Stake11111111111111111111111111111111111111";
+const FULL_POOL = "11111111111111111111111111111111";
+const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 function response(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
@@ -52,6 +55,14 @@ function holderEnv() {
   };
 }
 
+function programAccount(pubkey, owner, amount) {
+  const bytes = Buffer.alloc(72);
+  Buffer.from(bs58.decode(TOKEN)).copy(bytes, 0);
+  Buffer.from(bs58.decode(owner)).copy(bytes, 32);
+  bytes.writeBigUInt64LE(BigInt(amount), 64);
+  return { pubkey, account: { owner: TOKEN_PROGRAM, data: [bytes.toString("base64"), "base64"] } };
+}
+
 test("public holder runtime is separately activated and never falls back to a private RPC", () => {
   assert.deepEqual(resolvePublicSolanaHolderRuntime({}), {
     enabled: false,
@@ -69,9 +80,69 @@ test("public holder runtime is separately activated and never falls back to a pr
   }).enabled, false);
   assert.equal(OnchainHolderProjectionContract.public_by_default, true);
   assert.equal(OnchainHolderProjectionContract.private_rpc_fallback_allowed, false);
+  assert.equal(OnchainHolderProjectionContract.maximum_holder_rows, 100);
+  assert.equal(OnchainHolderProjectionContract.maximum_census_source_accounts, 25_000);
+  assert.equal(OnchainHolderProjectionContract.complete_holder_census_available, true);
 });
 
-test("free holder projection returns actual owner rows with exact supply shares and pool exclusions", async () => {
+test("indexed holder projection completes provider pagination and aggregates every nonzero account by owner", async () => {
+  const calls = [];
+  const fetchImpl = async (input, init = {}) => {
+    assert.equal(String(input), "https://solana-display.invalid/rpc");
+    const request = JSON.parse(init.body);
+    calls.push(request);
+    if (request.method === "getAccountInfo") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 80 }, value: { owner: TOKEN_PROGRAM, data: ["", "base64"] } } });
+    }
+    if (request.method === "getTokenSupply") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 81 }, value: { amount: "1000", decimals: 0, uiAmountString: "1000" } } });
+    }
+    if (request.method === "getProgramAccounts") {
+      assert.equal(request.params[0], TOKEN_PROGRAM);
+      assert.deepEqual(request.params[1].filters, [{ memcmp: { offset: 0, bytes: TOKEN } }]);
+      assert.deepEqual(request.params[1].dataSlice, { offset: 0, length: 72 });
+      if (!request.params[1].pageKey) {
+        return response({ jsonrpc: "2.0", id: 1, result: {
+          context: { slot: 82 },
+          value: [programAccount(ACCOUNT_A, OWNER_A, 400), programAccount(ACCOUNT_B, OWNER_A, 300)],
+          pageKey: "page-two",
+        } });
+      }
+      assert.equal(request.params[1].pageKey, "page-two");
+      return response({ jsonrpc: "2.0", id: 1, result: {
+        context: { slot: 83 },
+        value: [programAccount(ACCOUNT_C, FULL_POOL, 200)],
+      } });
+    }
+    throw new Error(`unexpected rpc method ${request.method}`);
+  };
+
+  const projection = await buildPublicSolanaHolderProjection({
+    env: holderEnv(),
+    identity: { chain: "solana", pool_address: FULL_POOL, token_address: TOKEN, quote_token_address: QUOTE },
+    fetch_impl: fetchImpl,
+    now: () => new Date("2026-08-27T16:00:00.000Z"),
+  });
+  assert.equal(projection.schema_version, ONCHAIN_HOLDER_SCHEMA);
+  assert.equal(projection.coverage.complete_holder_census, true);
+  assert.equal(projection.coverage.scope, "all_nonzero_token_accounts");
+  assert.equal(projection.coverage.scanned_source_accounts, 3);
+  assert.equal(projection.coverage.total_owner_rows, 2);
+  assert.equal(projection.coverage.page_count, 2);
+  assert.equal(projection.summary.holder_count, 2);
+  assert.equal(projection.summary.token_account_count, 3);
+  assert.equal(projection.summary.top_10_supply_pct, 90);
+  assert.equal(projection.holders.length, 2);
+  assert.equal(projection.holders[0].holder_address, OWNER_A);
+  assert.equal(projection.holders[0].balance, "700");
+  assert.equal(projection.holders[0].token_account_count, 2);
+  assert.equal(projection.holders[1].classification, "exact_pool_account");
+  assert.equal(calls.some((call) => call.method === "getTokenLargestAccounts"), false);
+  assert.equal(JSON.stringify(projection).includes("page-two"), false);
+  assert.equal(JSON.stringify(projection).includes("solana-display.invalid"), false);
+});
+
+test("free holder projection truthfully falls back to the largest accounts when an indexed scan is unavailable", async () => {
   const projection = await buildPublicSolanaHolderProjection({
     env: holderEnv(),
     identity: { chain: "solana", pool_address: POOL, token_address: TOKEN, quote_token_address: QUOTE },
@@ -82,6 +153,7 @@ test("free holder projection returns actual owner rows with exact supply shares 
   assert.equal(projection.safe_public, true);
   assert.equal(projection.coverage.complete_holder_census, false);
   assert.equal(projection.coverage.maximum_source_accounts, 20);
+  assert.equal(projection.coverage.scan_state, "unavailable");
   assert.equal(projection.holders.length, 2);
   assert.deepEqual(projection.holders[0], {
     rank: 1,
@@ -140,7 +212,7 @@ test("a Solana pool address Raven emits resolves back to the same BITCAT exact m
     assert.equal(holderPayload.schema_version, ONCHAIN_HOLDER_SCHEMA);
     assert.equal(holderPayload.identity.pool_address, POOL);
     assert.equal(holderPayload.holders.length, 2);
-    assert.match(holders.headers.get("cache-control"), /s-maxage=60/);
+    assert.match(holders.headers.get("cache-control"), /s-maxage=180/);
   } finally {
     globalThis.fetch = previousFetch;
   }

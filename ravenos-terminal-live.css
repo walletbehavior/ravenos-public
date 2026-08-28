@@ -652,6 +652,7 @@ button, input, select { font: inherit; }
 .terminal-holder-row { min-width: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(58px, auto) minmax(45px, auto); gap: 7px; align-items: center; }
 .terminal-holder-list-columns { padding: 6px 8px; border-top: 1px solid var(--terminal-line); border-bottom: 1px solid var(--terminal-line); color: var(--terminal-soft); font: 750 7px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-holder-list-columns span:nth-child(n + 3) { text-align: right; }
+.terminal-holder-list-rows { max-height: min(52vh, 620px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .terminal-holder-row { padding: 7px 8px; border-bottom: 1px solid var(--terminal-line); }
 .terminal-holder-row:last-child { border-bottom: 0; }
 .terminal-holder-row[data-classification="exact_pool_account"] { background: rgba(82, 156, 202, .045); }

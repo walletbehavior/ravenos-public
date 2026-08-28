@@ -425,6 +425,7 @@ export async function mockTerminalLiveApis(page, {
   perpPlanIdentityMismatch = false,
   stalePerpPlan = false,
   includeContextPressureOverlay = false,
+  holderRowCount = 2,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -475,24 +476,34 @@ export async function mockTerminalLiveApis(page, {
     const tokenAddress = url.searchParams.get("token_address");
     const quoteAddress = url.searchParams.get("quote_address");
     holderCalls.push({ poolAddress, tokenAddress, quoteAddress });
+    const baseHolderRows = [
+      { rank: 1, holder_address: "Stake11111111111111111111111111111111111111", token_account_address: "SysvarRent111111111111111111111111111111111", token_account_count: 2, balance: "123456789.25", supply_share_pct: 12.345, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: "https://solscan.io/account/Stake11111111111111111111111111111111111111" },
+      { rank: 2, holder_address: "Vote111111111111111111111111111111111111111", token_account_address: "SysvarC1ock11111111111111111111111111111111", token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "exact_pool_account", excluded_from_wallet_concentration: true, explorer_url: "https://solscan.io/account/Vote111111111111111111111111111111111111111" },
+    ];
+    const holderRows = Array.from({ length: Math.max(1, Math.min(100, holderRowCount)) }, (_, index) => ({
+      ...baseHolderRows[index % baseHolderRows.length],
+      rank: index + 1,
+      balance: String(Math.round(123_456_789.25 / (index + 1))),
+      supply_share_pct: Number(Math.max(0.001, 12.345 / (index + 1)).toFixed(6)),
+      classification: index === 1 ? "exact_pool_account" : "owner",
+      excluded_from_wallet_concentration: index === 1,
+    }));
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
         safe_public: true,
-        schema_version: "ravenos.onchain_holder_list.v1",
+        schema_version: "ravenos.onchain_holder_list.v2",
         state: "available",
         identity: { chain: "solana", pool_address: poolAddress, token_address: tokenAddress, quote_token_address: quoteAddress },
         observed_at: new Date().toISOString(),
         slot: 42,
-        coverage: { scope: "largest_20_token_accounts", maximum_source_accounts: 20, returned_owner_rows: 2, complete_holder_census: false, owners_aggregated_across_top_accounts: true },
-        holders: [
-          { rank: 1, holder_address: "Stake11111111111111111111111111111111111111", token_account_address: "SysvarRent111111111111111111111111111111111", token_account_count: 2, balance: "123456789.25", supply_share_pct: 12.345, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: "https://solscan.io/account/Stake11111111111111111111111111111111111111" },
-          { rank: 2, holder_address: "Vote111111111111111111111111111111111111111", token_account_address: "SysvarC1ock11111111111111111111111111111111", token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "exact_pool_account", excluded_from_wallet_concentration: true, explorer_url: "https://solscan.io/account/Vote111111111111111111111111111111111111111" },
-        ],
-        source: { label: "Solana on-chain accounts", network: "mainnet-beta", raw_rpc_included: false },
-        limitations: ["This is the largest-account view, not a complete paginated holder census."],
+        coverage: { scope: "all_nonzero_token_accounts", scan_state: "complete", maximum_source_accounts: 25_000, scanned_source_accounts: 4_856, returned_owner_rows: holderRows.length, total_owner_rows: 4_850, complete_holder_census: true, owners_aggregated_across_all_accounts: true, page_count: 5, slot_min: 40, slot_max: 42 },
+        summary: { holder_count: 4_850, token_account_count: 4_856, top_10_supply_pct: 29.9, top_20_supply_pct: 42.4, top_50_supply_pct: 56.1, top_100_supply_pct: 64.8, top_10_wallet_supply_pct: 26.2 },
+        holders: holderRows,
+        source: { label: "Solana on-chain accounts", network: "mainnet-beta", method: "indexed_program_account_scan", raw_rpc_included: false },
+        limitations: ["Current nonzero token accounts are aggregated by on-chain owner."],
       }),
     });
   });

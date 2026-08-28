@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import bs58 from "bs58";
 
 import worker from "../worker.mjs";
 import { scanJsonValue, scanPublicTextFile } from "./validate-public-no-leak.mjs";
@@ -106,6 +107,14 @@ globalThis.fetch = async (input, init = {}) => {
   const url = String(input?.url || input);
   if (url === "https://validation-solana-rpc.example/rpc") {
     const rpc = JSON.parse(init.body || "{}");
+    if (rpc.method === "getAccountInfo") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 42 }, value: { owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", data: ["", "base64"] } } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (rpc.method === "getProgramAccounts") {
+      const bytes = Buffer.alloc(72);
+      Buffer.from(bs58.decode("EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump")).copy(bytes, 0);
+      Buffer.from(bs58.decode("Stake11111111111111111111111111111111111111")).copy(bytes, 32);
+      bytes.writeBigUInt64LE(125000000n, 64);
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 43 }, value: [{ pubkey: "SysvarRent111111111111111111111111111111111", account: { owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", data: [bytes.toString("base64"), "base64"] } }] } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (rpc.method === "getTokenLargestAccounts") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 42 }, value: [{ address: "SysvarRent111111111111111111111111111111111", amount: "125000000", decimals: 6, uiAmountString: "125" }] } }), { status: 200, headers: { "content-type": "application/json" } });
     if (rpc.method === "getTokenSupply") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 42 }, value: { amount: "1000000000", decimals: 6, uiAmountString: "1000" } } }), { status: 200, headers: { "content-type": "application/json" } });
     if (rpc.method === "getMultipleAccounts") return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { context: { slot: 43 }, value: [{ data: { program: "spl-token", parsed: { info: { mint: "EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump", owner: "Stake11111111111111111111111111111111111111", tokenAmount: { amount: "125000000", decimals: 6, uiAmountString: "125" } }, type: "account" }, space: 165 } }] } }), { status: 200, headers: { "content-type": "application/json" } });

@@ -89,6 +89,7 @@ import {
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import {
+  ONCHAIN_HOLDER_SCHEMA,
   PUBLIC_SOLANA_HOLDER_ROUTE,
   buildPublicSolanaHolderProjection,
   publicHolderUnavailable,
@@ -7162,7 +7163,7 @@ async function routeApi(request, env) {
       return json({
         ok: false,
         safe_public: true,
-        schema_version: "ravenos.onchain_holder_list.v1",
+        schema_version: ONCHAIN_HOLDER_SCHEMA,
         state: "unavailable",
         error: "holder_request_invalid",
         holders: [],
@@ -7202,7 +7203,7 @@ async function routeApi(request, env) {
       });
       return json(projection, {
         headers: {
-          "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=120",
+          "cache-control": "public, max-age=60, s-maxage=180, stale-while-revalidate=300",
           "x-content-type-options": "nosniff",
         },
       });
