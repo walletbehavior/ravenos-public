@@ -263,6 +263,16 @@ test("release environment keeps Cloudflare aliases and the protected-origin toke
   assert.equal(env.RAVENOS_PUBLIC_ORIGIN_TOKEN, "test-origin-token");
 });
 
+test("staging can attach a newly required secret to an undeployed version without mutating production first", () => {
+  const source = readFileSync("scripts/stage-release.mjs", "utf8");
+  assert.match(source, /RAVENOS_RELEASE_SECRETS_FILE/);
+  assert.match(source, /"versions", "upload"/);
+  assert.match(source, /uploadArguments\.push\("--secrets-file", releaseSecretsFile\)/);
+  assert.match(source, /!configuredSecrets\.has\(name\) && !suppliedSecrets\.has\(name\)/);
+  assert.match(source, /bindings not declared by the package/);
+  assert.doesNotMatch(source, /\bsecret\s+put\b/);
+});
+
 test("generated build manifest advertises the browser context contract actually shipped", () => {
   const build = JSON.parse(readFileSync("public/ravenos_build.json", "utf8"));
   assert.equal(build.api_schema_versions?.selected_context, RAVENOS_CONTEXT_SCHEMA);

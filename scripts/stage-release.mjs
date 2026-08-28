@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { cloudflareReleaseEnv } from "./lib/cloudflare-release-env.mjs";
 
@@ -11,6 +11,46 @@ if (!bundleRoot || !existsSync(join(bundleRoot, "release-package.json"))) {
 const packageManifest = JSON.parse(readFileSync(join(bundleRoot, "release-package.json"), "utf8"));
 if (packageManifest.source_tree_state !== "clean") throw new Error("Only a clean release package may be uploaded to staging");
 const previewAlias = "ravenos-stage";
+const requiredSecrets = new Set(packageManifest.required_server_secret_bindings || []);
+const releaseSecretsFile = process.env.RAVENOS_RELEASE_SECRETS_FILE
+  ? resolve(process.env.RAVENOS_RELEASE_SECRETS_FILE)
+  : null;
+const suppliedSecrets = new Set();
+
+if (releaseSecretsFile) {
+  if (!existsSync(releaseSecretsFile)) throw new Error("Release secrets file does not exist");
+  const secretFileStat = statSync(releaseSecretsFile);
+  if (!secretFileStat.isFile()) throw new Error("Release secrets path must be a regular file");
+  if (secretFileStat.size > 32 * 1024) throw new Error("Release secrets file exceeds the 32 KiB limit");
+  if ((secretFileStat.mode & 0o077) !== 0) throw new Error("Release secrets file must not be readable or writable by group or other users");
+
+  const secretSource = readFileSync(releaseSecretsFile, "utf8");
+  try {
+    const parsed = JSON.parse(secretSource);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error("not an object");
+    for (const [name, value] of Object.entries(parsed)) {
+      if (typeof value !== "string" || !value.trim()) throw new Error(`Release secret ${name} must be a non-empty string`);
+      suppliedSecrets.add(name);
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      for (const sourceLine of secretSource.split(/\r?\n/)) {
+        const line = sourceLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+        if (!match || !match[2].trim()) throw new Error("Release secrets file contains a malformed or empty dotenv entry");
+        suppliedSecrets.add(match[1]);
+      }
+    } else {
+      throw error;
+    }
+  }
+  if (!suppliedSecrets.size) throw new Error("Release secrets file contains no secrets");
+  const undeclaredSecrets = [...suppliedSecrets].filter((name) => !requiredSecrets.has(name));
+  if (undeclaredSecrets.length) {
+    throw new Error(`Release secrets file contains bindings not declared by the package: ${undeclaredSecrets.join(", ")}`);
+  }
+}
 
 const checksumLines = readFileSync(join(bundleRoot, "SHA256SUMS"), "utf8").trim().split(/\r?\n/);
 const crypto = await import("node:crypto");
@@ -58,7 +98,7 @@ const secretList = JSON.parse(wrangler([
   "--format", "json",
 ], { echo: false }));
 const configuredSecrets = new Set((Array.isArray(secretList) ? secretList : []).map((entry) => entry?.name).filter(Boolean));
-const missingSecrets = (packageManifest.required_server_secret_bindings || []).filter((name) => !configuredSecrets.has(name));
+const missingSecrets = [...requiredSecrets].filter((name) => !configuredSecrets.has(name) && !suppliedSecrets.has(name));
 if (missingSecrets.length) {
   throw new Error(`Required server-only bindings are absent: ${missingSecrets.join(", ")}`);
 }
@@ -80,14 +120,16 @@ function taggedVersion(versions) {
 let version = taggedVersion(versionList());
 let versionReused = Boolean(version?.id && version.annotations?.["workers/alias"] === previewAlias);
 if (!versionReused) {
-  wrangler([
+  const uploadArguments = [
     "versions", "upload",
     "--config", configPath,
     "--tag", packageManifest.release_id,
     "--message", `RavenOS immutable staged release ${packageManifest.release_id}`,
     "--preview-alias", previewAlias,
     "--keep-vars",
-  ]);
+  ];
+  if (releaseSecretsFile) uploadArguments.push("--secrets-file", releaseSecretsFile);
+  wrangler(uploadArguments);
   version = taggedVersion(versionList());
 }
 if (!version?.id) throw new Error("Uploaded Worker version could not be reconciled by release tag");
