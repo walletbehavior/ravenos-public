@@ -803,8 +803,23 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalProfileChips")).toContainText("Freeze locked");
   await expect(page.locator("#terminalProfileChips")).not.toContainText("Developer holds");
   await expect(page.locator("#terminalProfileCredit")).toHaveText("Data provided by CoinGecko");
+  await expect(page.locator(".terminal-pane-nav")).toBeVisible();
+  await expect(page.locator("#terminalMarketTools")).toBeVisible();
+  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
+  await expect(page.locator("#terminalQuickAddress")).toHaveAttribute("title", "fixture-token-address");
+  await expect(page.locator("#terminalQuickLinks a")).toHaveCount(3);
+  await expect(page.locator("#terminalQuickLinks")).toContainText("X ↗");
+  await expect(page.locator("#terminalQuickLinks")).toContainText("TG ↗");
+  await expect(page.locator("#terminalQuickLinks")).toContainText("Web ↗");
+  await expect(page.locator('[data-terminal-pane-button="activity"]')).toHaveAttribute("data-status", "36 swaps");
+  await expect(page.locator('[data-terminal-pane-button="holders"]')).toHaveAttribute("data-status", "Watch");
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toHaveAttribute("data-status", "Current");
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeEnabled();
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect(page.locator("#terminalAnatomySection")).toBeFocused();
   const projectTrigger = page.locator("#terminalProjectLinksTrigger");
   await expect(projectTrigger).toBeVisible();
+  await expect(projectTrigger).toHaveText("Links & CA");
   await expect(projectTrigger).toHaveAttribute("aria-expanded", "false");
   await projectTrigger.click();
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
@@ -822,6 +837,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await page.locator("#terminalProjectCopy").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_COPIED_CA__)).toBe("fixture-token-address");
   await expect(page.locator("#terminalProjectCopy")).toHaveText("Copied");
+  await expect(page.locator("#terminalQuickCopy")).toHaveText("Copied");
   await page.locator("#terminalProjectLinksClose").click();
   await expect(page.locator("#terminalProjectLinksPopover")).toBeHidden();
   await expect(projectTrigger).toBeFocused();
@@ -866,6 +882,16 @@ test("spot search loads one exact pool and joins only its admitted current Raven
 });
 
 test("project links fail closed on a mismatched profile while exact-CA actions remain bound to the selected token", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(value) {
+          window.__RAVENOS_TEST_COPIED_CA__ = value;
+        },
+      },
+    });
+  });
   await mockTerminalLiveApis(page, { profileIdentityMismatch: true });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -877,6 +903,11 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await expect(page.locator("#terminalProjectAddress")).toHaveText("fixture-token-address");
   await expect(page.locator("#terminalProjectSearchX")).toHaveAttribute("href", /q=fixture-token-address/);
   await expect(page.locator("#terminalProjectCredit")).toBeHidden();
+  await expect(page.locator("#terminalMarketTools")).toBeVisible();
+  await expect(page.locator("#terminalQuickLinks a")).toHaveCount(0);
+  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
+  await page.locator("#terminalQuickCopy").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_COPIED_CA__)).toBe("fixture-token-address");
 });
 
 test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
@@ -1071,6 +1102,9 @@ test("spot markets without matching Raven evidence keep useful anatomy and omit 
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalReadTrigger")).toBeHidden();
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeDisabled();
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toHaveAttribute("data-status", "No current read");
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomy5")).toContainText("4.85K");

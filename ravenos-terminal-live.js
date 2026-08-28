@@ -485,6 +485,16 @@ function renderTerminalMarketFlow(marketData = {}) {
   if (Array.isArray(marketData?.tape?.trades)) renderTerminalTape(marketData.tape.trades);
 }
 
+function setTerminalPaneStatus(pane, label, tone = "neutral") {
+  const button = document.querySelector(`[data-terminal-pane-button="${pane}"]`);
+  if (!button) return;
+  const clean = customerFacingText(label, "").trim().slice(0, 24);
+  button.dataset.status = clean;
+  button.dataset.statusTone = ["neutral", "positive", "warning", "negative"].includes(tone) ? tone : "neutral";
+  const name = button.textContent.trim();
+  button.setAttribute("aria-label", clean ? `${name} · ${clean}` : name);
+}
+
 function terminalUsesPaneNavigation() {
   return window.matchMedia?.("(max-width: 820px)")?.matches === true;
 }
@@ -520,6 +530,32 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   });
   updateMonitorHandoff();
   syncPlanActionSurfaces();
+  return next;
+}
+
+function terminalPaneSurface(pane) {
+  const targets = {
+    chart: ".terminal-chart-panel",
+    activity: "#terminalSpotActivitySection",
+    holders: "#terminalAnatomySection",
+    trade: "#terminalTradeReviewSection",
+    book: "#terminalMarketRail",
+    raven: "#terminalContextSection",
+    account: "#terminalAccountDock",
+  };
+  return document.querySelector(targets[pane] || targets.chart);
+}
+
+function inspectTerminalPane(pane) {
+  const mobile = terminalUsesPaneNavigation();
+  const next = setTerminalPane(pane, { restoreScroll: mobile });
+  if (mobile) return next;
+  afterTerminalPaneVisible(() => {
+    const target = terminalPaneSurface(next);
+    if (!target || target.hidden) return;
+    target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    if (target.matches?.("[tabindex]")) target.focus?.({ preventScroll: true });
+  });
   return next;
 }
 
@@ -592,6 +628,9 @@ function updateTerminalPaneAvailability() {
   const accountVisible = perps && state.flags?.public_account_view_available === true;
   if (accountDock) accountDock.hidden = !accountVisible;
   if (accountButton) accountButton.hidden = !accountVisible;
+  const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
+  const ravenAvailable = document.getElementById("terminalContextSection")?.hidden === false;
+  if (ravenButton) ravenButton.disabled = !ravenAvailable;
   syncWalletControls();
   const current = root?.dataset.terminalPane || "chart";
   if (
@@ -600,6 +639,7 @@ function updateTerminalPaneAvailability() {
     || (current === "activity" && !spotActivityAvailable)
     || (current === "trade" && !tradeVisible)
     || (current === "account" && !accountVisible)
+    || (current === "raven" && !ravenAvailable)
   ) setTerminalPane("chart");
 }
 
@@ -1182,6 +1222,10 @@ function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven R
   }
   if (shellTrigger) shellTrigger.hidden = !visible;
   setText("terminalContextKindLabel", kind, "");
+  const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
+  if (ravenButton) ravenButton.disabled = !visible;
+  setTerminalPaneStatus("raven", visible ? "Current" : "No current read", visible ? "positive" : "neutral");
+  if (!visible && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven") setTerminalPane("chart");
   if (!visible) document.body.classList.remove("ros-context-open");
 }
 
@@ -1937,6 +1981,49 @@ function projectLinkLabel(kind, href) {
   }
 }
 
+function quickProjectLinkLabel(kind) {
+  return ({ x: "X", telegram: "TG", website: "Web", discord: "Discord", farcaster: "FC", zora: "Zora" })[kind] || "Link";
+}
+
+function renderQuickMarketTools(identity, profile) {
+  const root = document.getElementById("terminalMarketTools");
+  const address = document.getElementById("terminalQuickAddress");
+  const links = document.getElementById("terminalQuickLinks");
+  if (!root || !address || !links) return;
+  root.hidden = !identity;
+  links.replaceChildren();
+  links.hidden = true;
+  if (!identity) {
+    address.textContent = "";
+    address.removeAttribute("title");
+    return;
+  }
+  address.textContent = compactHolderAddress(identity.tokenAddress);
+  address.title = identity.tokenAddress;
+  const priority = { x: 0, telegram: 1, website: 2, discord: 3, farcaster: 4, zora: 5 };
+  const quickLinks = [...(profile?.links || [])]
+    .sort((left, right) => (priority[left.kind] ?? 9) - (priority[right.kind] ?? 9))
+    .slice(0, 3);
+  for (const link of quickLinks) {
+    const anchor = document.createElement("a");
+    anchor.href = link.href;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer nofollow";
+    anchor.dataset.kind = link.kind;
+    anchor.textContent = `${quickProjectLinkLabel(link.kind)} ↗`;
+    anchor.setAttribute("aria-label", `Open listed ${projectLinkLabel(link.kind, link.href)} link for ${identity.label}`);
+    links.append(anchor);
+  }
+  links.hidden = links.childElementCount === 0;
+}
+
+function setProjectCopyLabels({ copied = false, failed = false } = {}) {
+  const project = document.getElementById("terminalProjectCopy");
+  const quick = document.getElementById("terminalQuickCopy");
+  if (project) project.textContent = copied ? "Copied" : failed ? "Copy failed" : "Copy CA";
+  if (quick) quick.textContent = copied ? "Copied" : failed ? "Failed" : "Copy";
+}
+
 function projectExplorerUrl(identity) {
   const bases = {
     solana: "https://solscan.io/token/",
@@ -1992,6 +2079,7 @@ function renderProjectLinks(profile) {
     popover.dataset.identityKey = "";
     closeProjectLinks();
     links.replaceChildren();
+    renderQuickMarketTools(null, null);
     return null;
   }
   if (previousIdentityKey && previousIdentityKey !== identity.key) closeProjectLinks();
@@ -2000,6 +2088,7 @@ function renderProjectLinks(profile) {
   trigger.setAttribute("aria-label", `Open project links for ${identity.label}`);
   const verified = verifiedProjectProfile(profile, identity);
   state.projectProfile = verified;
+  renderQuickMarketTools(identity, verified);
   setText("terminalProjectLinksTitle", `${identity.label} · ${chainDisplayName(identity.chain)}`);
   setText("terminalProjectDescription", verified?.token?.description || "No project description is listed for this exact token.");
   setText("terminalProjectAddress", identity.tokenAddress);
@@ -2030,8 +2119,7 @@ function renderProjectLinks(profile) {
     if (explorerUrl) explorer.href = explorerUrl;
     else explorer.removeAttribute("href");
   }
-  const copy = document.getElementById("terminalProjectCopy");
-  if (copy) copy.textContent = "Copy CA";
+  setProjectCopyLabels();
   setText("terminalProjectLinkStatus", "", "");
   const credit = document.getElementById("terminalProjectCredit");
   const attributionUrl = safeProfileLink(verified?.attribution?.url);
@@ -2047,17 +2135,16 @@ function renderProjectLinks(profile) {
 
 async function copyProjectContract() {
   const identity = currentProjectIdentity();
-  const button = document.getElementById("terminalProjectCopy");
-  if (!identity || !button) return;
+  if (!identity) return;
   try {
     await navigator.clipboard.writeText(identity.tokenAddress);
-    button.textContent = "Copied";
+    setProjectCopyLabels({ copied: true });
     setText("terminalProjectLinkStatus", "Exact token contract copied.", "");
     setTimeout(() => {
-      if (currentProjectIdentity()?.key === identity.key) button.textContent = "Copy CA";
+      if (currentProjectIdentity()?.key === identity.key) setProjectCopyLabels();
     }, 1_200);
   } catch {
-    button.textContent = "Copy failed";
+    setProjectCopyLabels({ failed: true });
     setText("terminalProjectLinkStatus", "The exact token contract could not be copied.", "");
   }
 }
@@ -2223,6 +2310,8 @@ function setActiveMarketControlRisk(risk) {
   const contextGuard = document.getElementById("terminalContextRiskGuard");
   if (context) context.dataset.riskBlocked = String(blocked);
   if (contextGuard) contextGuard.hidden = !blocked;
+  if (blocked && context?.hidden === false) setTerminalPaneStatus("raven", "Paused", "negative");
+  else if (context?.hidden === false) setTerminalPaneStatus("raven", "Current", "positive");
   if (blocked) {
     state.planOverlayEnabled = false;
     clearPlanMarkerInspection();
@@ -2259,6 +2348,7 @@ function renderMarketControlRisk(payload, { loading = false, unavailable = false
   if (!risk) {
     setText("terminalRiskTitle", loading ? "Checking this exact market" : "Risk checks need a refresh");
     setText("terminalRiskLevel", loading ? "Checking" : "Not loaded");
+    setTerminalPaneStatus("holders", loading ? "Checking" : unavailable ? "Unavailable" : "Not loaded", unavailable ? "warning" : "neutral");
     setText("terminalRiskSummary", loading
       ? "Reading pool-excluded holder concentration and exact token controls."
       : "Raven could not verify the current holder and control evidence. No risk factor was inferred.");
@@ -2272,14 +2362,16 @@ function renderMarketControlRisk(payload, { loading = false, unavailable = false
     return;
   }
   root.dataset.level = risk.level;
-  setText("terminalRiskTitle", risk.title);
-  setText("terminalRiskLevel", {
+  const riskLabel = {
     measured_low: "Measured low",
     watch: "Watch",
     elevated: "Elevated",
-    high: "High",
-    severe: "Severe",
-  }[risk.level] || "Forming");
+    high: "High risk",
+    severe: "Severe risk",
+  }[risk.level] || "Forming";
+  setTerminalPaneStatus("holders", riskLabel, ["high", "severe"].includes(risk.level) ? "negative" : ["watch", "elevated"].includes(risk.level) ? "warning" : "positive");
+  setText("terminalRiskTitle", risk.title);
+  setText("terminalRiskLevel", riskLabel.replace(/ risk$/i, ""));
   setText("terminalRiskSummary", risk.summary);
   const riskSection = document.getElementById("terminalRiskFactorsSection");
   const checkSection = document.getElementById("terminalRiskChecksSection");
@@ -2688,6 +2780,7 @@ function renderSpotTradeProjection(payload) {
   renderActiveTraders(payload);
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
   setText("terminalSpotActivityState", `${payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
+  setTerminalPaneStatus("activity", `${payload.trades.length} swaps`, payload.trades.length ? "positive" : "neutral");
   setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · exact pool · bounded 24h sample`);
   const credit = document.getElementById("terminalSpotTradeCredit");
   const creditUrl = String(payload?.source?.attribution_url || "");
@@ -2713,6 +2806,7 @@ function renderSpotTradeSurface() {
   }
   document.getElementById("terminalSpotFlow").hidden = true;
   setText("terminalSpotActivityState", state.spotTradeLoadingKey === identity.key ? "Loading" : "Ready to load");
+  setTerminalPaneStatus("activity", state.spotTradeLoadingKey === identity.key ? "Loading" : "Load");
   setText("terminalActiveTraderState", "Waiting");
   renderSpotTradeMessage(state.spotTradeLoadingKey === identity.key
     ? "Loading recent exact-pool swaps…"
@@ -2731,7 +2825,10 @@ async function loadSpotTrades({ force = false } = {}) {
   const generation = ++state.spotTradeGeneration;
   state.spotTradeLoadingKey = identity.key;
   if (!cached?.payload) renderSpotTradeSurface();
-  else setText("terminalSpotActivityState", "Refreshing");
+  else {
+    setText("terminalSpotActivityState", "Refreshing");
+    setTerminalPaneStatus("activity", "Refreshing");
+  }
   const params = new URLSearchParams({
     chain: identity.chain,
     pair_address: identity.poolAddress,
@@ -2744,6 +2841,7 @@ async function loadSpotTrades({ force = false } = {}) {
     const verified = response.ok ? verifiedSpotTradeProjection(payload, identity) : null;
     if (!verified) {
       setText("terminalSpotActivityState", "Unavailable");
+      setTerminalPaneStatus("activity", "Unavailable", "warning");
       document.getElementById("terminalSpotFlow").hidden = true;
       setText("terminalActiveTraderState", "Unavailable");
       renderSpotTradeMessage("Recent exact-pool swaps aren’t available for this market yet. No token-wide or similarly named market was substituted.");
@@ -2755,6 +2853,7 @@ async function loadSpotTrades({ force = false } = {}) {
   } catch {
     if (generation !== state.spotTradeGeneration || currentProjectIdentity()?.key !== identity.key) return;
     setText("terminalSpotActivityState", "Unavailable");
+    setTerminalPaneStatus("activity", "Unavailable", "warning");
     document.getElementById("terminalSpotFlow").hidden = true;
     setText("terminalActiveTraderState", "Unavailable");
     renderSpotTradeMessage("Recent exact-pool swaps couldn’t be loaded. No alternate market was used.");
@@ -3897,6 +3996,7 @@ function setContextChecking({ identity } = {}) {
   clearMarkerInspection();
   resetPlanPreview();
   setContextControlsVisible(false);
+  setTerminalPaneStatus("raven", "Checking");
   setContextField("terminalContextIdentity", identity || "");
   renderDecisionSupport();
   resetComparableEvidence();
@@ -5605,6 +5705,7 @@ function bindControls() {
   });
   document.getElementById("terminalProjectLinksClose")?.addEventListener("click", () => closeProjectLinks({ restoreFocus: true }));
   document.getElementById("terminalProjectCopy")?.addEventListener("click", () => void copyProjectContract());
+  document.getElementById("terminalQuickCopy")?.addEventListener("click", () => void copyProjectContract());
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
@@ -5696,7 +5797,7 @@ function bindControls() {
     button.addEventListener("click", () => applyAccountSizePreset(button.dataset.accountSizePct));
   }
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
-    button.addEventListener("click", () => setTerminalPane(button.dataset.terminalPaneButton));
+    button.addEventListener("click", () => inspectTerminalPane(button.dataset.terminalPaneButton));
   }
 }
 
@@ -5704,6 +5805,17 @@ function renderWorkspaceState(workspace = {}) {
   const workspaceState = workspace?.state || "unavailable";
   const operatorState = workspace?.operatorStateLabel || titleCase(workspaceState);
   setState("terminalMarketFreshness", workspaceState, operatorState);
+  const chartStateLabel = `${workspaceState} ${operatorState}`.toLowerCase();
+  const chartStatus = /current|fresh|live|connected/.test(chartStateLabel)
+    ? "Current"
+    : /delayed|stale|lag/.test(chartStateLabel)
+      ? "Delayed"
+      : /loading|checking|request|connect/.test(chartStateLabel)
+        ? "Loading"
+        : Array.isArray(workspace?.candles) && workspace.candles.length
+          ? "Available"
+          : "Unavailable";
+  setTerminalPaneStatus("chart", chartStatus, chartStatus === "Current" ? "positive" : chartStatus === "Unavailable" ? "warning" : "neutral");
   setText("terminalChartStatus", workspace?.candles?.length
     ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : marketUpdateLabel(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState));
