@@ -2203,11 +2203,44 @@ function renderQuickMarketTools(identity, profile) {
   links.hidden = links.childElementCount === 0;
 }
 
+function ensureCopyGlyph(button) {
+  if (!button || button.querySelector(".terminal-copy-glyph")) return;
+  const glyph = document.createElement("span");
+  glyph.className = "terminal-copy-glyph";
+  glyph.setAttribute("aria-hidden", "true");
+  button.replaceChildren(glyph);
+}
+
+function setCopyButtonState(button, state = "ready", {
+  readyLabel = "Copy value",
+  copiedLabel = "Value copied",
+  failedLabel = "Value could not be copied",
+} = {}) {
+  if (!button) return;
+  ensureCopyGlyph(button);
+  const labels = {
+    ready: { accessible: readyLabel, title: readyLabel, feedback: "" },
+    copied: { accessible: copiedLabel, title: "Copied", feedback: "Copied" },
+    failed: { accessible: failedLabel, title: "Copy failed", feedback: "Copy failed" },
+  };
+  const next = labels[state] || labels.ready;
+  button.dataset.copyState = labels[state] ? state : "ready";
+  button.dataset.copyFeedback = next.feedback;
+  button.setAttribute("aria-label", next.accessible);
+  button.title = next.title;
+}
+
 function setProjectCopyLabels({ copied = false, failed = false } = {}) {
   const project = document.getElementById("terminalProjectCopy");
   const quick = document.getElementById("terminalQuickCopy");
-  if (project) project.textContent = copied ? "Copied" : failed ? "Copy failed" : "Copy CA";
-  if (quick) quick.textContent = copied ? "Copied" : failed ? "Failed" : "Copy";
+  const copyState = copied ? "copied" : failed ? "failed" : "ready";
+  const labels = {
+    readyLabel: "Copy exact token contract",
+    copiedLabel: "Exact token contract copied",
+    failedLabel: "Exact token contract could not be copied",
+  };
+  setCopyButtonState(project, copyState, labels);
+  setCopyButtonState(quick, copyState, labels);
 }
 
 function projectExplorerUrl(identity) {
@@ -2776,18 +2809,38 @@ function renderHolderListProjection(payload) {
       : classificationLabel;
     const copy = document.createElement("button");
     copy.type = "button";
-    copy.textContent = "Copy";
-    copy.setAttribute("aria-label", `Copy holder ${row.rank} address`);
+    copy.className = "terminal-copy-icon terminal-holder-copy";
+    setCopyButtonState(copy, "ready", {
+      readyLabel: `Copy holder ${row.rank} address`,
+      copiedLabel: `Holder ${row.rank} address copied`,
+      failedLabel: `Holder ${row.rank} address could not be copied`,
+    });
     copy.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(row.holder_address);
-        copy.textContent = "Copied";
-        setTimeout(() => { copy.textContent = "Copy"; }, 1_200);
+        setCopyButtonState(copy, "copied", {
+          readyLabel: `Copy holder ${row.rank} address`,
+          copiedLabel: `Holder ${row.rank} address copied`,
+          failedLabel: `Holder ${row.rank} address could not be copied`,
+        });
+        setTimeout(() => setCopyButtonState(copy, "ready", {
+          readyLabel: `Copy holder ${row.rank} address`,
+          copiedLabel: `Holder ${row.rank} address copied`,
+          failedLabel: `Holder ${row.rank} address could not be copied`,
+        }), 1_200);
       } catch {
-        copy.textContent = "Copy failed";
+        setCopyButtonState(copy, "failed", {
+          readyLabel: `Copy holder ${row.rank} address`,
+          copiedLabel: `Holder ${row.rank} address copied`,
+          failedLabel: `Holder ${row.rank} address could not be copied`,
+        });
       }
     });
-    identity.append(address, classification, copy);
+    const addressLine = document.createElement("div");
+    addressLine.className = "terminal-holder-address-line";
+    addressLine.append(address, copy);
+    identity.className = "terminal-holder-identity";
+    identity.append(addressLine, classification);
     const balance = document.createElement("strong");
     balance.textContent = holderBalanceLabel(row.balance);
     balance.title = row.balance;

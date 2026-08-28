@@ -88,10 +88,15 @@
       <div class="terminal-project-actions" aria-label="Exact token actions">
         <a id="terminalProjectSearchX" target="_blank" rel="noopener noreferrer nofollow">Search CA on X</a>
         <a id="terminalProjectExplorer" target="_blank" rel="noopener noreferrer nofollow" hidden>Open explorer</a>
-        <button type="button" id="terminalProjectCopy">Copy CA</button>
       </div>
       <p class="sr-only" id="terminalProjectLinkStatus" role="status" aria-live="polite" aria-atomic="true"></p>
-      <div class="terminal-project-address"><span>Token contract</span><code id="terminalProjectAddress"></code></div>
+      <div class="terminal-project-address">
+        <span>Token contract</span>
+        <div class="terminal-project-address-value">
+          <code id="terminalProjectAddress"></code>
+          <button class="terminal-copy-icon" type="button" id="terminalProjectCopy" data-copy-state="ready" aria-label="Copy exact token contract" title="Copy exact token contract"><span class="terminal-copy-glyph" aria-hidden="true"></span></button>
+        </div>
+      </div>
       <a class="terminal-profile-credit" id="terminalProjectCredit" target="_blank" rel="noopener noreferrer nofollow" hidden></a>
     </aside>
 
@@ -134,7 +139,7 @@
       <div class="terminal-market-tools" id="terminalMarketTools" hidden>
         <span>CA</span>
         <code id="terminalQuickAddress"></code>
-        <button type="button" id="terminalQuickCopy" aria-label="Copy exact token contract">Copy</button>
+        <button class="terminal-copy-icon" type="button" id="terminalQuickCopy" data-copy-state="ready" aria-label="Copy exact token contract" title="Copy exact token contract"><span class="terminal-copy-glyph" aria-hidden="true"></span></button>
         <div id="terminalQuickLinks" aria-label="Listed project links"></div>
       </div>
       <button type="button" data-terminal-pane-button="chart" data-status="Current" aria-pressed="true">Chart</button>
