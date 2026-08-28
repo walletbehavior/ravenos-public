@@ -193,6 +193,8 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   await expect(page.locator("#perpsPathSide")).toHaveText("Upside");
   await expect(page.locator("#perpsRavenRead")).not.toContainText(/lower.confidence|decayed|unavailable/i);
   await expect(page.locator("#perpsComparableN")).toHaveText("12");
+  await expect(page.locator("#perpsPositiveRate")).toHaveText("58.3%");
+  await expect(page.locator("#perpsComparableNote")).toHaveText("In 12 completed Raven observations for SOL-PERP, 58.3% ended with a positive price return over 24h. Historical frequency—not a forecast.");
   await expect(page.locator("#perpsPlanState")).toHaveText("Research only");
   await expect(page.getByText("Signing, submission, and position monitoring off", { exact: true })).toBeVisible();
   await expect(page.locator("[data-ravenos-build-id]")).not.toHaveText("pending");

@@ -4092,25 +4092,33 @@ function resetComparableEvidence() {
   setComparableVisible(false);
   setText("terminalComparableState", "");
   setText("terminalComparableN", "");
+  setText("terminalComparablePositive", "");
   setText("terminalComparableChange", "");
   setText("terminalComparableFavorable", "");
   setText("terminalComparableAdverse", "");
   setText("terminalComparableNote", "");
 }
 
-function renderComparables(comparables = {}) {
+function renderComparables(comparables = {}, { horizon = null, instrument = null } = {}) {
   const sample = Math.max(0, Math.trunc(finite(comparables.sample_size) || 0));
   if (!sample) {
     resetComparableEvidence();
     return false;
   }
+  const positive = finite(comparables.positive_followthrough_rate);
+  const positiveLabel = positive === null ? "--" : `${(positive * 100).toFixed(1)}%`;
+  const cleanHorizon = customerFacingText(horizon, "").replace(/\s*research window\s*$/i, "").trim();
+  const marketLabel = customerFacingText(instrument, "this exact market");
   setComparableVisible(true);
   setText("terminalComparableState", titleCase(comparables.evidence_maturity, sample ? "Observed" : "Forming"));
   setText("terminalComparableN", sample.toLocaleString());
+  setText("terminalComparablePositive", positiveLabel);
   setText("terminalComparableChange", percent(comparables.median_observed_change_pct));
   setText("terminalComparableFavorable", percent(comparables.median_favorable_excursion_pct));
   setText("terminalComparableAdverse", percent(comparables.median_adverse_excursion_pct));
-  setText("terminalComparableNote", `${sample} completed future-only path${sample === 1 ? "" : "s"}${comparables.matured_through ? `; matured through ${timestamp(comparables.matured_through)}` : ""}.`);
+  setText("terminalComparableNote", positive === null
+    ? `${sample} completed Raven observation${sample === 1 ? "" : "s"} for ${marketLabel}${comparables.matured_through ? `, measured through ${timestamp(comparables.matured_through)}` : ""}. Historical context—not a forecast.`
+    : `In ${sample} completed Raven observation${sample === 1 ? "" : "s"} for ${marketLabel}, ${positiveLabel} ended with a positive price return${cleanHorizon ? ` over ${cleanHorizon}` : ""}. Historical frequency—not a forecast.`);
   return true;
 }
 
@@ -4689,7 +4697,10 @@ function renderPerpOpportunityFallback(row, { updateUrl = true, generatedAt = nu
   setContextField("terminalEvidenceMaturity", maturity, "Read strength");
   setText("terminalEvidenceState", finite(row.context_age_seconds) !== null ? `Updated ${durationLabel(row.context_age_seconds)}` : "Current");
   setState("terminalContextFreshness", "fresh", "Current");
-  renderComparables(row.matured_comparables || {});
+  renderComparables(row.matured_comparables || {}, {
+    horizon: row.plan_preview?.review_horizon,
+    instrument: row.instrument || state.selected?.asset,
+  });
   renderDecisionSupport({ changed: why, checkpoint: path, reference, scope: selectedId, observed: observedAt });
   renderMarketAnatomy();
   updateShell({
@@ -4775,7 +4786,10 @@ function renderPerpContext(payload, { updateUrl = true, opportunityEvidence = nu
     scope: payload?.instrument?.instrument_id || state.selected?.instrument_id,
     observed: context.observed_at || payload?.market_data?.generated_at,
   });
-  renderComparables(payload?.matured_comparables || {});
+  renderComparables(payload?.matured_comparables || {}, {
+    horizon: payload?.plan_preview?.review_horizon,
+    instrument: payload?.instrument?.instrument || state.selected?.asset,
+  });
   renderPlanPreview(payload?.plan_preview || {});
   applyContextChartEvent(payload);
   syncPlanActionSurfaces();

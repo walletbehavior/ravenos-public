@@ -58,6 +58,8 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalReadHeadline")).toContainText("SOL-PERP · Behavioral setup");
   await expect(page.locator("#terminalWhy")).toContainText("Behavior changed");
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
+  await expect(page.locator("#terminalComparablePositive")).toHaveText("53.1%");
+  await expect(page.locator("#terminalComparableNote")).toHaveText("In 128 completed Raven observations for SOL-PERP, 53.1% ended with a positive price return over 24h. Historical frequency—not a forecast.");
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanEntry")).toContainText("$148");
   await expect(page.locator("#terminalPlanTarget")).toContainText("+3.10%");

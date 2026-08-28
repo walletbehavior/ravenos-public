@@ -538,6 +538,8 @@ button, input, select { font: inherit; }
 .terminal-boundary-list > div { min-width: 0; padding: 8px; background: #0a1019; }
 .terminal-context-grid dd,
 .terminal-boundary-list dd { margin: 5px 0 0; overflow-wrap: anywhere; color: var(--terminal-text); font-size: 10px; line-height: 1.35; }
+.terminal-context-grid > .terminal-comparable-positive { grid-column: 1 / -1; }
+.terminal-context-grid > .terminal-comparable-positive dd { color: var(--terminal-accent); font-size: 12px; font-weight: 800; }
 .terminal-boundary-list { grid-template-columns: 1fr; }
 .terminal-decision-support { display: grid; gap: 1px; margin: 10px 0 0; background: var(--terminal-line); }
 .terminal-decision-support > div { min-width: 0; padding: 8px; background: #090f17; }

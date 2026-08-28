@@ -249,6 +249,7 @@ function contextPayload(asset) {
       median_observed_change_pct: 1.4,
       median_favorable_excursion_pct: 3.1,
       median_adverse_excursion_pct: -1.2,
+      positive_followthrough_rate: 0.531,
       matured_through: "2026-07-20T12:00:00Z",
     },
     plan_preview: {
@@ -263,6 +264,7 @@ function contextPayload(asset) {
       frozen_context_id: `context:${coin}:fixture`,
       sample_size: asset === "BTC-PERP" ? 84 : 128,
       evidence_maturity: "matured",
+      review_horizon: "24h research window",
       levels: {
         entry_reference: { price: 148, observed_at: "2026-07-21T12:18:00Z", source: "decision-time mark" },
         target_reference: { price: 152.588, excursion_pct: 3.1, source: "median favorable excursion" },

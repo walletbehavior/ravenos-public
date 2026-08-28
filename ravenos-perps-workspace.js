@@ -612,7 +612,7 @@ function renderTape(rows = state.tapeRows) {
   setText("perpsTapeState", `${safeRows.length} public trades`);
 }
 
-function renderComparables(comparables = {}) {
+function renderComparables(comparables = {}, plan = {}) {
   const sample = Math.max(0, Math.trunc(finite(comparables.sample_size) || 0));
   const panel = document.getElementById("perpsComparablePanel");
   if (panel) panel.hidden = sample <= 0;
@@ -622,10 +622,15 @@ function renderComparables(comparables = {}) {
   setText("perpsMedianFavorable", percentagePoint(comparables.median_favorable_excursion_pct));
   setText("perpsMedianAdverse", percentagePoint(comparables.median_adverse_excursion_pct));
   const positive = finite(comparables.positive_followthrough_rate);
-  setText("perpsPositiveRate", positive === null ? "--" : `${(positive * 100).toFixed(1)}%`);
+  const positiveLabel = positive === null ? "--" : `${(positive * 100).toFixed(1)}%`;
+  const horizon = String(plan.review_horizon || "").replace(/\s*research window\s*$/i, "").trim();
+  const instrument = state.row?.asset || "this exact market";
+  setText("perpsPositiveRate", positiveLabel);
   setText("perpsComparableNote", sample
-    ? `${sample} completed future-only ${state.row?.asset || "instrument"} path${sample === 1 ? "" : "s"}; matured through ${timestamp(comparables.matured_through)}.`
-    : "No matured same-instrument public sample is available yet.");
+    ? positive === null
+      ? `${sample} completed Raven observation${sample === 1 ? "" : "s"} for ${instrument}. Historical context—not a forecast.`
+      : `In ${sample} completed Raven observation${sample === 1 ? "" : "s"} for ${instrument}, ${positiveLabel} ended with a positive price return${horizon ? ` over ${horizon}` : ""}. Historical frequency—not a forecast.`
+    : "No completed exact-market Raven observations are available yet.");
   syncEvidenceDeckLayout();
 }
 
@@ -727,7 +732,7 @@ function renderContext(payload) {
     ? `${titleCase(liveRead.state)} · ${liveRead.input_count}/${liveRead.input_total} live inputs · ${liveRead.evidence_grade}${liveRead.evidence_score}`
     : "Waiting for live inputs");
 
-  renderComparables(payload?.matured_comparables || {});
+  renderComparables(payload?.matured_comparables || {}, payload?.plan_preview || {});
   renderPlan(payload?.plan_preview || {});
   renderBook(state.orderBook);
   renderTape(state.tapeRows);
