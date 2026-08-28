@@ -825,6 +825,12 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   await expect(projectTrigger).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#terminalProjectLinksTitle")).toHaveText("JUP/USDC · Solana");
+  await expect(page.locator(".terminal-project-research-grid button")).toHaveCount(4);
+  await expect(page.locator(".terminal-project-research-grid")).toContainText("Safety check");
+  await expect(page.locator(".terminal-project-research-grid")).toContainText("Top holders");
+  await expect(page.locator(".terminal-project-research-grid")).toContainText("Active wallets");
+  await expect(page.locator(".terminal-project-research-grid")).toContainText("Raven read");
+  await expect(page.locator('[data-project-research-action="raven"]')).toBeEnabled();
   await expect(page.locator("#terminalProjectDescription")).toHaveText("Jupiter is a Solana liquidity platform and routing project.");
   await expect(page.locator("#terminalProfileLinks a")).toHaveCount(3);
   await expect(page.locator("#terminalProfileLinks")).toContainText("jup.ag");
@@ -910,6 +916,46 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_COPIED_CA__)).toBe("fixture-token-address");
 });
 
+test("token research menu routes exact-market checks without making users hunt through panes", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  const popover = page.locator("#terminalProjectLinksPopover");
+  const trigger = page.locator("#terminalProjectLinksTrigger");
+  await trigger.click();
+  await expect(page.locator("#terminalProjectRiskState")).not.toHaveText("");
+  await expect(page.locator("#terminalProjectHolderState")).toHaveText("View list");
+  await expect(page.locator("#terminalProjectWalletState")).toHaveText("Load sample");
+  await expect(page.locator("#terminalProjectRavenState")).toHaveText("Current");
+
+  await page.locator('[data-project-research-action="wallets"]').click();
+  await expect(popover).toBeHidden();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
+  await expect(page.locator("#terminalActiveTraders")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("activity_view")).toBe("wallets");
+
+  await trigger.click();
+  await expect(page.locator("#terminalProjectWalletState")).toHaveText("3 wallets");
+  await page.locator('[data-project-research-action="holders"]').click();
+  await expect(popover).toBeHidden();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
+  await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
+
+  await trigger.click();
+  await expect(page.locator("#terminalProjectHolderState")).toContainText("owners");
+  await page.locator('[data-project-research-action="risk"]').click();
+  await expect(popover).toBeHidden();
+  await expect(page.locator("#terminalRiskScreen")).toBeVisible();
+
+  await trigger.click();
+  await page.locator('[data-project-research-action="raven"]').click();
+  await expect(popover).toBeHidden();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+});
+
 test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
@@ -954,10 +1000,13 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   const holderOverflow = await page.locator("#terminalHolderList").evaluate((element) => element.scrollWidth - element.clientWidth);
   const projectOverflow = await page.locator("#terminalProjectLinksPopover").evaluate((element) => element.scrollWidth - element.clientWidth);
+  const researchButtonBoxes = await page.locator(".terminal-project-research-grid button").evaluateAll((buttons) => buttons.map((button) => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })));
   const holderScroll = await page.locator("#terminalHolderListRows").evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(documentOverflow).toBeLessThanOrEqual(2);
   expect(holderOverflow).toBeLessThanOrEqual(2);
   expect(projectOverflow).toBeLessThanOrEqual(2);
+  expect(researchButtonBoxes).toHaveLength(4);
+  expect(researchButtonBoxes.every((box) => box.width >= 150 && box.height >= 46)).toBe(true);
   expect(holderScroll.scrollHeight).toBeGreaterThan(holderScroll.clientHeight);
   await page.locator("#terminalProjectLinksClose").click();
   await page.locator("#terminalHolderTradesAction").click();

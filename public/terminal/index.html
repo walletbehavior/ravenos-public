@@ -63,9 +63,21 @@
 
     <aside class="terminal-project-popover" id="terminalProjectLinksPopover" role="dialog" aria-labelledby="terminalProjectLinksTitle" tabindex="-1" hidden>
       <header>
-        <div><span>Token links</span><h2 id="terminalProjectLinksTitle">Project &amp; contract</h2></div>
+        <div><span>Research this token</span><h2 id="terminalProjectLinksTitle">Project &amp; contract</h2></div>
         <button type="button" id="terminalProjectLinksClose" aria-label="Close project links">Close</button>
       </header>
+      <nav class="terminal-project-research" aria-label="Quick checks for this exact token">
+        <div class="terminal-project-research-head">
+          <span>Quick checks</span>
+          <small>Every view stays bound to this exact pool.</small>
+        </div>
+        <div class="terminal-project-research-grid">
+          <button type="button" data-project-research-action="risk"><span>Safety check</span><small id="terminalProjectRiskState">Review</small></button>
+          <button type="button" data-project-research-action="holders"><span>Top holders</span><small id="terminalProjectHolderState">View list</small></button>
+          <button type="button" data-project-research-action="wallets"><span>Active wallets</span><small id="terminalProjectWalletState">Load sample</small></button>
+          <button type="button" data-project-research-action="raven"><span>Raven read</span><small id="terminalProjectRavenState">Checking</small></button>
+        </div>
+      </nav>
       <section class="terminal-project-description">
         <span>About</span>
         <p id="terminalProjectDescription">No project description is listed for this exact token.</p>
@@ -288,7 +300,7 @@
             </div>
             <p>Current on-chain owners are grouped across token accounts. Wallet labels, related wallets, bundle membership, and wallet-by-wallet balance changes are not inferred.</p>
           </section>
-          <div class="terminal-risk-screen" id="terminalRiskScreen" hidden>
+          <div class="terminal-risk-screen" id="terminalRiskScreen" tabindex="-1" hidden>
             <div class="terminal-risk-head">
               <div><span>Raven risk screen</span><h3 id="terminalRiskTitle">Checking this exact market</h3></div>
               <strong id="terminalRiskLevel">Checking</strong>

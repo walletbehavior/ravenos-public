@@ -498,6 +498,7 @@ function setTerminalPaneStatus(pane, label, tone = "neutral") {
   button.dataset.statusTone = ["neutral", "positive", "warning", "negative"].includes(tone) ? tone : "neutral";
   const name = button.textContent.trim();
   button.setAttribute("aria-label", clean ? `${name} · ${clean}` : name);
+  syncProjectResearchMenu();
 }
 
 function terminalUsesPaneNavigation() {
@@ -588,6 +589,20 @@ function inspectActiveWallets() {
   if (state.lane !== "spot" || !currentProjectIdentity()) return;
   state.spotActivityView = "wallets";
   inspectTerminalPane("activity");
+}
+
+function inspectSpotRisk() {
+  if (state.lane !== "spot" || !currentProjectIdentity()) return;
+  setTerminalPane("holders", { restoreScroll: false });
+  const focusRisk = () => afterTerminalPaneVisible(() => {
+    const risk = document.getElementById("terminalRiskScreen");
+    const anatomy = document.getElementById("terminalAnatomySection");
+    const target = risk && !risk.hidden ? risk : anatomy;
+    target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    target?.focus?.({ preventScroll: true });
+  });
+  focusRisk();
+  void loadHolderList().finally(focusRisk);
 }
 
 function revealSpotHolders(event) {
@@ -2017,6 +2032,67 @@ function quickProjectLinkLabel(kind) {
   return ({ x: "X", telegram: "TG", website: "Web", discord: "Discord", farcaster: "FC", zora: "Zora" })[kind] || "Link";
 }
 
+function projectResearchLabel(value, fallback) {
+  const clean = customerFacingText(value, "").replace(/\s+/g, " ").trim();
+  return (clean || fallback).slice(0, 34);
+}
+
+function syncProjectResearchMenu() {
+  const identity = currentProjectIdentity();
+  const holderPane = document.querySelector('[data-terminal-pane-button="holders"]');
+  const activityPane = document.querySelector('[data-terminal-pane-button="activity"]');
+  const ravenPane = document.querySelector('[data-terminal-pane-button="raven"]');
+  const holderState = document.getElementById("terminalHolderListState")?.textContent;
+  const walletState = document.getElementById("terminalActivityWalletCount")?.textContent;
+  const rows = [
+    {
+      action: "risk",
+      label: projectResearchLabel(holderPane?.dataset.status, "Review safety"),
+      tone: holderPane?.dataset.statusTone || "neutral",
+    },
+    {
+      action: "holders",
+      label: projectResearchLabel(holderState, "View list"),
+      tone: /unavailable/i.test(holderState || "") ? "warning" : /\d/.test(holderState || "") ? "positive" : "neutral",
+    },
+    {
+      action: "wallets",
+      label: projectResearchLabel(walletState === "Returned sample" ? "Load sample" : walletState, "Load sample"),
+      tone: activityPane?.dataset.statusTone || "neutral",
+    },
+    {
+      action: "raven",
+      label: projectResearchLabel(ravenPane?.dataset.status, "Checking"),
+      tone: ravenPane?.dataset.statusTone || "neutral",
+      disabled: ravenPane?.disabled === true,
+    },
+  ];
+  const stateIds = {
+    risk: "terminalProjectRiskState",
+    holders: "terminalProjectHolderState",
+    wallets: "terminalProjectWalletState",
+    raven: "terminalProjectRavenState",
+  };
+  for (const row of rows) {
+    const button = document.querySelector(`[data-project-research-action="${row.action}"]`);
+    if (!button) continue;
+    const title = button.querySelector("span")?.textContent?.trim() || "Token check";
+    setText(stateIds[row.action], row.label);
+    button.dataset.tone = ["positive", "warning", "negative"].includes(row.tone) ? row.tone : "neutral";
+    button.disabled = !identity || row.disabled === true;
+    button.setAttribute("aria-label", `${title} · ${row.label}`);
+  }
+}
+
+function runProjectResearchAction(action) {
+  if (!currentProjectIdentity()) return;
+  closeProjectLinks();
+  if (action === "risk") inspectSpotRisk();
+  else if (action === "holders") setHolderListFilter("all", { reveal: true });
+  else if (action === "wallets") inspectActiveWallets();
+  else if (action === "raven") focusTerminalRaven();
+}
+
 function renderQuickMarketTools(identity, profile) {
   const root = document.getElementById("terminalMarketTools");
   const address = document.getElementById("terminalQuickAddress");
@@ -2090,6 +2166,7 @@ function setProjectLinksOpen(open) {
     return;
   }
   const shouldOpen = open === true;
+  if (shouldOpen) syncProjectResearchMenu();
   popover.hidden = !shouldOpen;
   trigger.setAttribute("aria-expanded", String(shouldOpen));
   document.body.classList.toggle("terminal-project-links-open", shouldOpen);
@@ -2117,7 +2194,7 @@ function renderProjectLinks(profile) {
   if (previousIdentityKey && previousIdentityKey !== identity.key) closeProjectLinks();
   popover.dataset.identityKey = identity.key;
   trigger.hidden = false;
-  trigger.setAttribute("aria-label", `Open project links for ${identity.label}`);
+  trigger.setAttribute("aria-label", `Open token research and project links for ${identity.label}`);
   const verified = verifiedProjectProfile(profile, identity);
   state.projectProfile = verified;
   renderQuickMarketTools(identity, verified);
@@ -2162,6 +2239,7 @@ function renderProjectLinks(profile) {
     if (creditVisible) credit.href = attributionUrl;
     else credit.removeAttribute("href");
   }
+  syncProjectResearchMenu();
   return verified;
 }
 
@@ -6018,6 +6096,9 @@ function bindControls() {
   document.getElementById("terminalProjectLinksClose")?.addEventListener("click", () => closeProjectLinks({ restoreFocus: true }));
   document.getElementById("terminalProjectCopy")?.addEventListener("click", () => void copyProjectContract());
   document.getElementById("terminalQuickCopy")?.addEventListener("click", () => void copyProjectContract());
+  for (const button of document.querySelectorAll("[data-project-research-action]")) {
+    button.addEventListener("click", () => runProjectResearchAction(button.dataset.projectResearchAction));
+  }
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
