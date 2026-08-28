@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   DISCOVER_CLASSIFIER_VERSION,
+  DISCOVER_MARKET_FACT_TARGET_SECONDS,
   buildDiscoverRadarProjection,
   mergeExactRadarRows,
   validateDiscoverRadarProjection,
@@ -470,6 +471,45 @@ test("retained candidates and same-symbol pools preserve exact identities", () =
   assert.equal(result.rows.length, 2);
   assert.equal(new Set(result.rows.map((row) => row.instrument_id)).size, 2);
   assert.equal(mergeExactRadarRows(result.rows).length, 2);
+});
+
+test("retained market history cannot promote an old quote, move, risk, or rank as current", () => {
+  const observedMs = NOW_MS - (DISCOVER_MARKET_FACT_TARGET_SECONDS + 1) * 1_000;
+  const observedAt = new Date(observedMs).toISOString();
+  const retained = pool({
+    observed_at: observedAt,
+    market: {
+      price_usd: 0.00003,
+      market_cap_usd: 30_000,
+      liquidity_usd: 14_000,
+      price_change_5m_pct: 329,
+      volume_usd_5m: 68_000,
+      buys_5m: 526,
+      sells_5m: 429,
+    },
+    registry: {
+      first_seen_at: new Date(observedMs - 60_000).toISOString(),
+      last_seen_at: observedAt,
+      retained_after_trending: true,
+    },
+  });
+  const result = buildDiscoverRadarProjection([retained], {
+    timeframe: "5m",
+    generatedAt: OBSERVED_AT,
+    nowMs: NOW_MS,
+    sourceState: "shadow",
+  });
+  assert.equal(result.rows.length, 1);
+  const row = result.rows[0];
+  assert.equal(row.discovery.facts.freshness.state, "stale");
+  assert.equal(row.discovery.facts.freshness.target_seconds, DISCOVER_MARKET_FACT_TARGET_SECONDS);
+  assert.equal(row.discovery.notability.default_opportunity_eligible, false);
+  assert.equal(row.discovery.notability.qualified, false);
+  assert.equal(row.discovery.notability.freshness, "stale");
+  assert.equal(row.discovery.velocity_state.availability, "stale");
+  assert.equal(row.discovery.velocity_state.score.score, null);
+  assert.equal(row.discovery.activity_state.score.score, null);
+  assert.ok(validateDiscoverRadarProjection(result, { nowMs: NOW_MS }));
 });
 
 test("Solana, Robinhood Chain, Base, BNB and Ethereum use the same classifier semantics", () => {

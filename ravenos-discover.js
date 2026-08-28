@@ -683,7 +683,33 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
   return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
 }
 
+const DISCOVER_MARKET_FACT_TARGET_SECONDS = 120;
+const DISCOVER_CLASSIFIER_VERSION = "2026-08-28.2";
+
+function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
+  const contract = row?.discovery?.facts?.freshness || {};
+  const observedAt = row?.discovery?.facts?.observed_at || row?.observed_at;
+  const observedMs = Date.parse(String(observedAt || ""));
+  const ageSeconds = Number.isFinite(observedMs)
+    ? Math.max(0, Math.floor((nowMs - observedMs) / 1_000))
+    : null;
+  const current = contract.state === "current"
+    && finite(contract.target_seconds) === DISCOVER_MARKET_FACT_TARGET_SECONDS
+    && ageSeconds !== null
+    && ageSeconds <= DISCOVER_MARKET_FACT_TARGET_SECONDS;
+  return { current, age_seconds: ageSeconds, observed_at: observedAt };
+}
+
+function spotMarketFactAgeLabel(row = {}) {
+  const facts = spotMarketFactFreshness(row);
+  if (facts.age_seconds === null) return "Quote time unavailable";
+  if (facts.age_seconds < 60) return `${Math.max(1, facts.age_seconds)}s ago`;
+  if (facts.age_seconds < 3_600) return `${Math.max(1, Math.round(facts.age_seconds / 60))}m ago`;
+  return `${Math.max(1, Math.round(facts.age_seconds / 3_600))}h ago`;
+}
+
 function hasDecisionUsefulSpotActivity(row) {
+  if (!spotMarketFactFreshness(row).current) return false;
   const priceChange = spotMetric(row, "price_change");
   const volume = spotMetric(row, "volume_usd");
   const buys = spotMetric(row, "buys");
@@ -697,6 +723,7 @@ function hasDecisionUsefulSpotActivity(row) {
 }
 
 function survivesCurrentSpotMarket(row = {}) {
+  if (!spotMarketFactFreshness(row).current) return false;
   const market = row.market || {};
   const age = finite(row.age_seconds);
   const price = finite(market.price_usd);
@@ -797,6 +824,7 @@ function validDiscoverRow(row) {
   const discovery = row?.discovery;
   const identity = discovery?.exact_identity;
   const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
+  const facts = spotMarketFactFreshness(row);
   if (
     discovery?.schema_version !== "ravenos.discover_market.v1"
     || row?.identity_scope !== "exact_pool"
@@ -819,7 +847,13 @@ function validDiscoverRow(row) {
     || !["robust", "developing", "fragile", "insufficient"].includes(discovery?.sample_evidence?.state)
     || discovery?.ranking?.velocity?.absolute_volume_tiebreaker_used !== false
     || discovery?.ranking?.activity?.absolute_volume_tiebreaker_used !== false
-    || !discovery?.primary_behavior_state?.classifier?.version
+    || discovery?.primary_behavior_state?.classifier?.version !== DISCOVER_CLASSIFIER_VERSION
+    || finite(discovery?.facts?.freshness?.target_seconds) !== DISCOVER_MARKET_FACT_TARGET_SECONDS
+    || !["current", "stale"].includes(discovery?.facts?.freshness?.state)
+    || (facts.current && discovery?.facts?.freshness?.state !== "current")
+    || (!facts.current && discovery?.facts?.freshness?.state === "current")
+    || (!facts.current && discovery?.registry?.retained_after_trending !== true)
+    || (!facts.current && discovery?.notability?.default_opportunity_eligible !== false)
     || discovery?.primary_behavior_state?.hysteresis?.contradictory_directional_state_published !== false
     || !validRadarScore(discovery?.velocity_state?.score, "velocity_ranking")
     || !validRadarScore(discovery?.activity_state?.score, "activity_ranking")
@@ -838,7 +872,7 @@ function currentDiscoverRadar(value, expectedTimeframe = null) {
     || !["5m", "1h", "24h"].includes(value?.timeframe)
     || (expectedTimeframe && value.timeframe !== expectedTimeframe)
     || value?.classifier?.name !== "raven_behavioral_radar"
-    || !value?.classifier?.version
+    || value?.classifier?.version !== DISCOVER_CLASSIFIER_VERSION
     || value?.classifier?.monitor_eligible !== false
     || value?.monitor_safety?.enabled !== false
     || value?.public_safety?.raw_provider_payloads_exposed !== false
@@ -923,6 +957,7 @@ function usableRadarScore(score) {
 
 function rowRiskValues(row) {
   return (Array.isArray(row?.discovery?.risk_flags) ? row.discovery.risk_flags : [])
+    .filter((risk) => risk?.availability === "available" && risk?.freshness === "current")
     .map((risk) => text(risk?.value, ""))
     .filter(Boolean);
 }
@@ -1043,12 +1078,15 @@ function spotRankedRows() {
   const current = state.spotRows.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
     const retained = row?.discovery?.registry?.retained_after_trending === true;
+    const currentFacts = spotMarketFactFreshness(row).current;
     return ["solana", "robinhood", "base", "bsc", "ethereum"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
       && validDiscoverRow(row)
       && opportunityLaneMatches(row)
       && cohortMatches(row)
       && advancedFiltersMatch(row)
+      && (state.spotLane !== "opportunities" || currentFacts)
+      && (state.spotSort !== "raven" || currentFacts)
       && (retained || (survivesCurrentSpotMarket(row) && hasDecisionUsefulSpotActivity(row)));
   });
   if (state.spotSort === "raven") {
@@ -1235,15 +1273,23 @@ function renderSpotEvidence(shell, row) {
   details.replaceChildren(summary);
   details.open = wasOpen;
   const discovery = row.discovery;
+  const factFreshness = spotMarketFactFreshness(row);
   const body = append(details, "div", "discover-token-evidence-body", "");
   body.textContent = "";
+  if (!factFreshness.current) {
+    const notice = append(body, "section", "discover-token-evidence-narrative", "");
+    append(notice, "h4", "", "Live quote refreshing");
+    append(notice, "p", "", `This exact pool remains in RavenOS history, but its old quote, move, risk, and rank are not being presented as current. Last exact update ${spotMarketFactAgeLabel(row)}.`);
+  }
   const inspect = append(body, "section", "discover-token-inspect", "");
   const inspectCopy = append(inspect, "div", "discover-token-inspect-copy", "");
   append(inspectCopy, "h4", "", `Open ${text(row.symbol)} in Terminal`);
-  append(inspectCopy, "p", "", customerFacingText(
-    discovery.decision_support?.why_now,
-    "Inspect the exact chart, recent trades, holder concentration, and any current Raven read.",
-  ));
+  append(inspectCopy, "p", "", factFreshness.current
+    ? customerFacingText(
+      discovery.decision_support?.why_now,
+      "Inspect the exact chart, recent trades, holder concentration, and any current Raven read.",
+    )
+    : "Open the exact market for the latest chart while Discover retries its current market snapshot.");
   const inspectActions = append(inspect, "div", "discover-token-inspect-actions", "");
   const rowAnchor = shell.querySelector(".discover-token-row");
   for (const [panel, label] of [["chart", "Chart"], ["activity", "Trades"], ["holders", "Holders"]]) {
@@ -1251,7 +1297,7 @@ function renderSpotEvidence(shell, row) {
     action.dataset.discoverTerminalPanel = panel;
     action.setAttribute("aria-label", `Open ${text(row.symbol)} ${label.toLowerCase()} in Terminal`);
   }
-  if (discovery.raven_evidence_state?.qualified === true) {
+  if (factFreshness.current && discovery.raven_evidence_state?.qualified === true) {
     const action = append(inspectActions, "a", "discover-token-inspect-action is-raven", "Raven read");
     action.dataset.discoverTerminalPanel = "raven";
     action.setAttribute("aria-label", `Open ${text(row.symbol)} Raven read in Terminal`);
@@ -1262,14 +1308,14 @@ function renderSpotEvidence(shell, row) {
   syncSpotInspectActions(rowAnchor);
   const overview = append(body, "dl", "discover-token-evidence-grid", "");
   overview.textContent = "";
-  appendEvidenceItem(overview, "Behavior", title(discovery.primary_behavior_state?.value, "Forming"));
+  appendEvidenceItem(overview, factFreshness.current ? "Behavior" : "Last observed behavior", title(discovery.primary_behavior_state?.value, "Forming"));
   appendEvidenceItem(overview, "Migration cohort", title(discovery.migration_cohort?.value, "Forming"));
   appendEvidenceItem(overview, "Velocity state", title(discovery.velocity_state?.value, "Forming"));
   appendEvidenceItem(overview, "Activity state", title(discovery.activity_state?.value, "Forming"));
   appendEvidenceItem(overview, "Change since first observed", finite(discovery.path?.change_since_first_observation_pct) === null ? "Unavailable" : percent(discovery.path.change_since_first_observation_pct));
   appendEvidenceItem(overview, "ATH distance", finite(discovery.path?.ath_distance_pct) === null ? "Unavailable" : percent(discovery.path.ath_distance_pct));
   appendEvidenceItem(overview, "Recorded-high distance", finite(discovery.path?.recorded_high_distance_pct) === null ? "Unavailable" : percent(discovery.path.recorded_high_distance_pct));
-  appendEvidenceItem(overview, "Market-cap / liquidity", marketCapValue(row.market) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(marketCapValue(row.market) / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
+  appendEvidenceItem(overview, "Market-cap / liquidity", factFreshness.current && marketCapValue(row.market) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(marketCapValue(row.market) / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
   appendEvidenceItem(overview, "Routeable size", discovery.routeability?.availability === "available" && finite(discovery.routeability.routeable_size_usd) !== null ? compact(discovery.routeability.routeable_size_usd, { currency: true }) : "Unavailable");
   appendEvidenceItem(overview, "Estimated slippage", discovery.routeability?.availability === "available" && finite(discovery.routeability.estimated_slippage_bps) !== null ? `${Number(discovery.routeability.estimated_slippage_bps).toFixed(1)} bps` : "Unavailable");
   appendEvidenceItem(overview, "Bundle percentage", discovery.control_intelligence?.bundled_pct?.availability === "available" && finite(discovery.control_intelligence.bundled_pct.value) !== null ? `${Number(discovery.control_intelligence.bundled_pct.value).toFixed(1)}%` : "Unavailable");
@@ -1284,8 +1330,8 @@ function renderSpotEvidence(shell, row) {
   appendEvidenceItem(overview, "Trigger verification", title(discovery.notability?.verification_state, "Unavailable"));
   appendEvidenceItem(overview, "Asset classification", title(discovery.asset_taxonomy?.value, "Unclassified"));
   appendEvidenceItem(overview, "Sample maturity", text(discovery.sample_evidence?.label, "Unavailable"));
-  appendEvidenceItem(overview, "Current transactions", finite(discovery.sample_evidence?.transactions) === null ? "Unavailable" : compact(discovery.sample_evidence.transactions));
-  appendEvidenceItem(overview, "Current participants", finite(discovery.sample_evidence?.participants) === null ? "Unavailable" : compact(discovery.sample_evidence.participants));
+  appendEvidenceItem(overview, factFreshness.current ? "Current transactions" : "Last observed transactions", finite(discovery.sample_evidence?.transactions) === null ? "Unavailable" : compact(discovery.sample_evidence.transactions));
+  appendEvidenceItem(overview, factFreshness.current ? "Current participants" : "Last observed participants", finite(discovery.sample_evidence?.participants) === null ? "Unavailable" : compact(discovery.sample_evidence.participants));
   appendEvidenceItem(overview, "Evidence coverage", finite(discovery.sample_evidence?.evidence_coverage_pct) === null ? "Unavailable" : `${Math.round(discovery.sample_evidence.evidence_coverage_pct)}%`);
   appendEvidenceItem(overview, "Selected timeframe", state.spotTimeframe);
 
@@ -1305,7 +1351,7 @@ function renderSpotEvidence(shell, row) {
   appendEvidenceItem(measurements, "Net buy flow", evidenceMetric(discovery.measurements?.net_buy_flow));
 
   const narrative = append(body, "section", "discover-token-evidence-narrative", "");
-  append(narrative, "h4", "", "Decision context");
+  append(narrative, "h4", "", factFreshness.current ? "Decision context" : "Last observed context");
   for (const [label, value] of [
     ["What changed", discovery.decision_support?.what_changed],
     ["Why now", discovery.decision_support?.why_now],
@@ -1320,18 +1366,22 @@ function renderSpotEvidence(shell, row) {
   const raven = discovery.raven_evidence_state;
   const ravenSection = append(body, "section", "discover-token-evidence-narrative", "");
   append(ravenSection, "h4", "", "Raven evidence");
-  if (raven?.qualified === true) {
+  if (factFreshness.current && raven?.qualified === true) {
     append(ravenSection, "p", "", customerFacingText(discovery.decision_support?.why_now || raven.why_raven_noticed, "Raven has a current read for this exact market."));
     if (raven.what_changed) append(ravenSection, "p", "", customerFacingText(raven.what_changed));
     if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => customerFacingText(value, "")).filter(Boolean).join(" · ")}`);
     append(ravenSection, "small", "", `${title(raven.state)} · ${title(raven.confidence_maturity, "Forming")} maturity · ${title(raven.forward_evidence_status, "Forming")} forward evidence`);
   } else {
-    append(ravenSection, "p", "", text(raven?.why_not_available, "Raven does not have a current read for this exact market yet."));
+    append(ravenSection, "p", "", factFreshness.current
+      ? text(raven?.why_not_available, "Raven does not have a current read for this exact market yet.")
+      : "RavenOS is waiting for a current exact-pool quote before presenting this read as actionable.");
   }
   const risks = rowRiskValues(row);
   append(body, "small", "discover-token-evidence-footer", [
     `Exact pool ${text(row.pool_address)}`,
-    risks.length ? `Risk flags: ${risks.map((value) => riskLabel(value)).join(", ")}` : "No current risk flag",
+    factFreshness.current
+      ? risks.length ? `Risk flags: ${risks.map((value) => riskLabel(value)).join(", ")}` : "No current risk flag"
+      : "Current risk screen pending",
     `Observed ${row.observed_at ? when(row.observed_at) : "time unavailable"}`,
     `Source: ${sourceScopeLabel(discovery.facts?.source_scope)}`,
   ].join(" · "));
@@ -1339,21 +1389,24 @@ function renderSpotEvidence(shell, row) {
 
 function updateSpotTokenRow(anchor, row, index) {
   const discovery = row.discovery;
+  const factFreshness = spotMarketFactFreshness(row);
   const velocityScore = radarScore(row, "velocity");
   const activityScore = radarScore(row, "activity");
   const risks = rowRiskValues(row);
   const primary = text(discovery.primary_behavior_state?.value, "forming");
   const velocityState = text(discovery.velocity_state?.value, "forming");
   const activityState = text(discovery.activity_state?.value, "forming");
-  const tone = ["distribution", "capitulation", "failed_breakout", "invalidated_dead"].includes(primary)
-    ? "negative"
-    : risks.includes("late_chase") || risks.includes("flow_divergence") || risks.includes("liquidity_thinning") || risks.includes("high_turnover") || risks.includes("very_new_pool") ? "warning"
-      : ["breakout", "continuation", "sell_pressure_absorption", "reacceleration", "post_dump_resurrection", "reclaiming_range", "ath_breakout"].includes(primary) ? "positive" : "neutral";
+  const tone = !factFreshness.current
+    ? "neutral"
+    : ["distribution", "capitulation", "failed_breakout", "invalidated_dead"].includes(primary)
+      ? "negative"
+      : risks.includes("late_chase") || risks.includes("flow_divergence") || risks.includes("liquidity_thinning") || risks.includes("high_turnover") || risks.includes("very_new_pool") ? "warning"
+        : ["breakout", "continuation", "sell_pressure_absorption", "reacceleration", "post_dump_resurrection", "reclaiming_range", "ath_breakout"].includes(primary) ? "positive" : "neutral";
   anchor.className = "discover-token-row";
   anchor.dataset.tokenRowId = spotRowId(row);
   anchor.dataset.tokenAddress = text(row.token_address, "");
   anchor.dataset.identityScope = text(row.identity_scope, "");
-  anchor.dataset.freshness = text(row.context_state, "current").toLowerCase();
+  anchor.dataset.freshness = factFreshness.current ? "current" : "stale";
   anchor.dataset.flowState = activityState;
   anchor.dataset.flowTone = tone;
   anchor.dataset.signalScore = String(usableRadarScore(state.spotSort === "activity" ? activityScore : velocityScore) ?? "");
@@ -1366,7 +1419,9 @@ function updateSpotTokenRow(anchor, row, index) {
   anchor.dataset.notabilityPriority = String(notabilityPriority(row) ?? "");
   const announcedScore = state.spotSort === "activity" ? activityScore : velocityScore;
   const announcedLabel = state.spotSort === "activity" ? "Activity strength" : state.spotSort === "raven" ? "Raven evidence" : "Velocity strength";
-  anchor.setAttribute("aria-label", `${text(row.symbol)} exact market in Terminal. ${state.spotSort === "raven" ? "Current Raven read." : scoreLabel(announcedScore, announcedLabel).replace("/99", " out of 99")}. ${text(discovery.sample_evidence?.label, "Sample unavailable")}.`);
+  anchor.setAttribute("aria-label", factFreshness.current
+    ? `${text(row.symbol)} exact market in Terminal. ${state.spotSort === "raven" ? "Current Raven read." : scoreLabel(announcedScore, announcedLabel).replace("/99", " out of 99")}. ${text(discovery.sample_evidence?.label, "Sample unavailable")}.`
+    : `${text(row.symbol)} retained exact market. Current quote and ranking are refreshing. Last exact update ${spotMarketFactAgeLabel(row)}.`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
 
@@ -1387,51 +1442,58 @@ function updateSpotTokenRow(anchor, row, index) {
     row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
     `CA ${spotTokenFingerprint(row.token_address)}`,
     spotMarketAge(row.market?.market_age_seconds),
+    factFreshness.current ? `Quote ${spotMarketFactAgeLabel(row)}` : "Quote refreshing",
   ].filter(Boolean).join(" · "));
 
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
-  const selectedMovement = spotMetric(row, "price_change");
+  const selectedMovement = factFreshness.current ? spotMetric(row, "price_change") : null;
   const primaryTrigger = discovery.notability?.primary_trigger;
   const triggerMovement = primaryTrigger?.kind === "material_price_move" ? finite(primaryTrigger.value_pct) : null;
-  const showPrimaryTrigger = state.spotLane === "opportunities"
+  const showPrimaryTrigger = factFreshness.current
+    && state.spotLane === "opportunities"
     && discovery.notability?.qualified === true
     && triggerMovement !== null;
   const movement = showPrimaryTrigger ? triggerMovement : selectedMovement;
-  const movementValue = append(move, "strong", "", percent(movement));
+  const movementValue = append(move, "strong", "", factFreshness.current ? percent(movement) : "Refreshing quote");
   if (movement !== null) movementValue.classList.add(movement >= 0 ? "positive" : "negative");
-  const currentPrice = tokenPrice(row.market?.price_usd);
+  const currentPrice = factFreshness.current ? tokenPrice(row.market?.price_usd) : "";
   if (currentPrice) append(move, "span", "", currentPrice);
-  const glyph = momentumGlyph(row);
+  const glyph = factFreshness.current ? momentumGlyph(row) : null;
   if (glyph) move.append(glyph);
-  append(move, "small", "", showPrimaryTrigger
-    ? primaryTrigger.window === state.spotTimeframe
-      ? `${primaryTrigger.window} material move`
-      : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)}`
-    : `${state.spotTimeframe} move`);
+  append(move, "small", "", factFreshness.current
+    ? showPrimaryTrigger
+      ? primaryTrigger.window === state.spotTimeframe
+        ? `${primaryTrigger.window} material move · ${spotMarketFactAgeLabel(row)}`
+        : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)} · ${spotMarketFactAgeLabel(row)}`
+      : `${state.spotTimeframe} move · ${spotMarketFactAgeLabel(row)}`
+    : `Last exact update ${spotMarketFactAgeLabel(row)}`);
 
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
-  renderTokenStat(anatomy, "Vol", finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
-  renderTokenStat(anatomy, "Liq", finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
-  const marketCap = marketCapValue(row.market);
+  renderTokenStat(anatomy, "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
+  renderTokenStat(anatomy, "Liq", !factFreshness.current || finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
+  const marketCap = factFreshness.current ? marketCapValue(row.market) : null;
   renderTokenStat(anatomy, finite(row.market?.market_cap_usd) > 0 ? "MCap" : "FDV", marketCap === null ? "" : compact(marketCap, { currency: true }));
   const marketCapLiquidity = marketCap !== null && finite(row.market?.liquidity_usd) > 0
     ? marketCap / row.market.liquidity_usd
     : null;
   renderTokenStat(anatomy, "MC/Liq", marketCapLiquidity === null ? "" : `${marketCapLiquidity.toFixed(marketCapLiquidity < 10 ? 1 : 0)}×`);
-  const traders = spotMetric(row, "traders");
-  const transactions = (spotMetric(row, "buys") || 0) + (spotMetric(row, "sells") || 0);
+  const traders = factFreshness.current ? spotMetric(row, "traders") : null;
+  const transactions = factFreshness.current ? (spotMetric(row, "buys") || 0) + (spotMetric(row, "sells") || 0) : 0;
   renderTokenStat(
     anatomy,
     traders === null ? "Tx" : "Traders",
     traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
   );
-  renderTokenStat(anatomy, "Holders", finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
+  renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
   const exactChartRequired = discovery.notability?.verification_state === "exact_chart_required";
-  if (state.spotSort === "velocity") {
+  if (!factFreshness.current) {
+    append(raven, "span", "", "Retained exact market · live check pending");
+    append(raven, "strong", "", "Price, move, risk, and rank are withheld until this exact pool refreshes.");
+  } else if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
     append(raven, "span", "", [
       risks.includes("late_chase") ? "Chase risk" : "",
@@ -1461,11 +1523,11 @@ function updateSpotTokenRow(anchor, row, index) {
     ].filter(Boolean).join(" · "));
     append(raven, "strong", "", customerFacingText(discovery.decision_support?.why_now || ravenEvidence.why_raven_noticed, "Raven has a current read for this exact market."));
   }
-  const compactDetail = [
+  const compactDetail = factFreshness.current ? [
     opportunityLaneLabel(discovery.opportunity_lane?.value),
     customerFacingText(discovery.decision_support?.why_now, ""),
     risks.length ? risks.slice(0, 2).map((value) => riskLabel(value)).join(" · ") : "",
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(" · ") : `Still tracked after leaving a trending feed · last exact update ${spotMarketFactAgeLabel(row)}`;
   if (compactDetail) append(raven, "small", "", compactDetail);
 
   const open = append(anchor, "span", "discover-token-open", "Terminal");

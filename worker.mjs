@@ -3026,7 +3026,14 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
     || value?.safe_public !== true
     || value?.schema_version !== DISCOVER_RADAR_SCHEMA
     || value?.classifier?.name !== "raven_behavioral_radar"
-    || !new Set(["2026-08-27.3", "2026-08-27.4", "2026-08-27.5", "2026-08-27.6"]).has(value?.classifier?.version)
+    || !new Set([
+      "2026-08-27.3",
+      "2026-08-27.4",
+      "2026-08-27.5",
+      "2026-08-27.6",
+      "2026-08-28.1",
+      DISCOVER_CLASSIFIER_VERSION,
+    ]).has(value?.classifier?.version)
     || value?.classifier?.monitor_eligible !== false
     || value?.monitor_safety?.enabled !== false
     || value?.public_safety?.raw_provider_payloads_exposed !== false
@@ -3149,6 +3156,90 @@ function retainedDiscoverRegistryRows(history, chains, { onlyExplicitlyRetained 
   }).slice(0, 80);
 }
 
+const DISCOVER_HOT_WATCH_LIMIT = 12;
+const DISCOVER_HOT_WATCH_MIN_AGE_SECONDS = 20;
+
+function retainedDiscoverHotWatchRows(rows = [], { nowMs = Date.now() } = {}) {
+  return [...rows].filter((row) => {
+    const observedMs = Date.parse(String(row?.observed_at || ""));
+    return !Number.isFinite(observedMs)
+      || nowMs - observedMs >= DISCOVER_HOT_WATCH_MIN_AGE_SECONDS * 1_000;
+  }).sort((left, right) => {
+    const rightNotability = optionalFiniteNumber(right?.discovery?.notability?.priority) || 0;
+    const leftNotability = optionalFiniteNumber(left?.discovery?.notability?.priority) || 0;
+    if (rightNotability !== leftNotability) return rightNotability - leftNotability;
+    const rightScore = Math.max(
+      optionalFiniteNumber(right?.discovery?.velocity_state?.score?.score) || 0,
+      optionalFiniteNumber(right?.discovery?.activity_state?.score?.score) || 0,
+    );
+    const leftScore = Math.max(
+      optionalFiniteNumber(left?.discovery?.velocity_state?.score?.score) || 0,
+      optionalFiniteNumber(left?.discovery?.activity_state?.score?.score) || 0,
+    );
+    if (rightScore !== leftScore) return rightScore - leftScore;
+    return Date.parse(String(right?.observed_at || "")) - Date.parse(String(left?.observed_at || ""));
+  }).slice(0, DISCOVER_HOT_WATCH_LIMIT);
+}
+
+async function refreshRetainedDiscoverHotWatch({
+  env = {},
+  rows = [],
+  duration = "5m",
+  fetchedAt = new Date().toISOString(),
+} = {}) {
+  const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
+  const runtime = onchainProviderRuntime("coingecko_onchain", env);
+  if (!providerWindow || !runtime.runtime_allowed || !runtime.credential_present) {
+    return { rows: [], attempted: 0, refreshed: 0 };
+  }
+  const selected = retainedDiscoverHotWatchRows(rows);
+  if (!selected.length) return { rows: [], attempted: 0, refreshed: 0 };
+  const settled = await Promise.allSettled(selected.map(async (retained) => {
+    const chain = String(retained?.chain_id || retained?.chain || "").trim().toLowerCase();
+    const network = ONCHAIN_PULSE_NETWORKS[chain];
+    const poolAddress = normalizeMarketPulseAddress(chain, retained?.pool_address);
+    if (!network || !poolAddress) throw new Error("discover_hot_watch_identity_invalid");
+    const payload = await runProviderOperation({
+      component: "onchain_market_pulse_hot_watch",
+      operation_key: `pool:${runtime.provider_tier}:${network.provider_network}:${poolAddress}:${duration}`,
+      fn: () => boundedProviderJson(
+        `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/pools/${encodeURIComponent(poolAddress)}?include=base_token%2Cquote_token%2Cdex`,
+        {
+          headers: runtime.request_headers,
+          maxBytes: 256 * 1024,
+          timeoutMs: 4_000,
+          errorPrefix: "coingecko_hot_watch",
+        },
+      ),
+    });
+    const current = normalizeGeckoTrendingPool(payload, payload?.data, {
+      chain,
+      chainLabel: network.label,
+      duration,
+      providerWindow,
+      providerRank: null,
+      fetchedAt,
+    });
+    if (
+      !current
+      || current.instrument_id !== retained.instrument_id
+      || !sameOnchainAddress(chain, current.token_address, retained.token_address)
+      || !sameOnchainAddress(chain, current.quote_token_address, retained.quote_token_address)
+    ) throw new Error("discover_hot_watch_exact_identity_mismatch");
+    return {
+      ...current,
+      discovery_source: "retained_exact_pool_hot_watch",
+      context_state: "current",
+    };
+  }));
+  const refreshed = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  return {
+    rows: refreshed,
+    attempted: selected.length,
+    refreshed: refreshed.length,
+  };
+}
+
 function latestObservedAt(rows = [], fallback = new Date().toISOString()) {
   const latest = rows.map((row) => Date.parse(String(row?.observed_at || "")))
     .filter(Number.isFinite)
@@ -3223,10 +3314,19 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
-  const hasCurrentProviderRows = rowsByMarket.size > 0;
+  let hasCurrentProviderRows = rowsByMarket.size > 0;
   const retainedRows = retainedDiscoverRegistryRows(registryHistory, chains, {
     onlyExplicitlyRetained: hasCurrentProviderRows,
   });
+  const retainedWithoutCurrentFacts = retainedRows.filter((row) => !rowsByMarket.has(String(row.instrument_id || "")));
+  const hotWatch = await refreshRetainedDiscoverHotWatch({
+    env,
+    rows: retainedWithoutCurrentFacts,
+    duration,
+    fetchedAt,
+  });
+  for (const row of hotWatch.rows) rowsByMarket.set(String(row.instrument_id || ""), row);
+  if (hotWatch.refreshed > 0) hasCurrentProviderRows = true;
   for (const row of retainedRows) {
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
@@ -3282,6 +3382,8 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
       robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
       retained_exact_markets: retainedRows.length,
+      hot_watch_attempted: hotWatch.attempted,
+      hot_watch_refreshed: hotWatch.refreshed,
     },
     execution_boundary: {
       research_only: true,

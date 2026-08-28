@@ -672,6 +672,144 @@ test("Worker reuses persistent exact-market history before publishing current ac
   }
 });
 
+test("Worker hot-refreshes a retained exact pool before Discover can rank its old move", async () => {
+  const poolAddress = "maCx5kp4Bp5UfATJ4oAS5AzezGbSFcZbEQTtwirB4ZL";
+  const tokenAddress = "7sfXVCXdgAwGpef9phswScmLYZX9zKMftZumnu39xVfZ";
+  const quoteAddress = "So11111111111111111111111111111111111111112";
+  const oldObservedAt = isoAgo(15 * 60);
+  const history = buildDiscoverRadarProjection([{
+    instrument_id: `solana:pool:${poolAddress}`,
+    source_type: "market_activity",
+    market_type: "spot",
+    chain: "Solana",
+    chain_id: "solana",
+    venue: "pumpswap",
+    identity_scope: "exact_pool",
+    symbol: "Poteto",
+    name: "Poteto",
+    token_address: tokenAddress,
+    quote_token_address: quoteAddress,
+    quote_symbol: "SOL",
+    pool_address: poolAddress,
+    observed_at: oldObservedAt,
+    context_state: "current",
+    market: {
+      price_usd: 0.000030218,
+      liquidity_usd: 14_087,
+      market_cap_usd: 28_908,
+      price_change_5m_pct: 329.45,
+      price_change_1h_pct: 478.96,
+      price_change_24h_pct: 478.96,
+      volume_usd_5m: 68_071,
+      volume_usd_1h: 557_818,
+      volume_usd_24h: 557_818,
+      buys_5m: 526,
+      sells_5m: 429,
+      buyers_5m: 180,
+      sellers_5m: 177,
+      buys_1h: 4_431,
+      sells_1h: 3_947,
+      buyers_1h: 950,
+      sellers_1h: 922,
+    },
+    registry: {
+      state: "retained",
+      first_seen_at: isoAgo(16 * 60),
+      last_seen_at: oldObservedAt,
+      observation_count: 2,
+      primary_behavior_state: "post_dump_resurrection",
+      admission_lanes: ["short_window_anomaly", "recently_removed_from_trending"],
+      admission_reason: "Material short-window move",
+      retained_after_trending: true,
+      event_evidence_append_only: true,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], {
+    timeframe: "5m",
+    generatedAt: oldObservedAt,
+    nowMs: Date.parse(oldObservedAt),
+    sourceState: "shadow",
+  });
+  const originProjection = projection("opportunities", "ravenos_opportunity_census_public_origin_v1", {
+    schema_version: "ravenos_opportunity_census_public_v1",
+    source_state: "delayed",
+    opportunities: { rows: [] },
+    discovery_radar: history,
+  });
+  const currentPoteto = geckoTrendingFixture("solana", {
+    pool: poolAddress,
+    token: tokenAddress,
+    quote: quoteAddress,
+    symbol: "Poteto",
+    name: "Poteto",
+  });
+  currentPoteto.data = currentPoteto.data[0];
+  Object.assign(currentPoteto.data.attributes, {
+    base_token_price_usd: "0.000009483",
+    fdv_usd: "9264.79",
+    market_cap_usd: null,
+    reserve_in_usd: "6693.79",
+    price_change_percentage: { m5: "-4.224", h1: "-77.993", h24: "-77.993" },
+    volume_usd: { m5: "184.74", h1: "528738.45", h24: "528738.45" },
+    transactions: {
+      m5: { buys: 3, sells: 10, buyers: 3, sellers: 10 },
+      h1: { buys: 4_869, sells: 4_423, buyers: 2_209, sellers: 2_041 },
+      h24: { buys: 4_869, sells: 4_423, buyers: 2_209, sellers: 2_041 },
+    },
+  });
+  const otherPool = "5HueCGU8rMjxEXxiPuD5BDuRaCcLMb9a5Xagux7pD2Vn";
+  const otherToken = "9xQeWvG816bUx9EPfEZnYv5Hh7gXnc9w1dBLk4pKxg4V";
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse(originProjection);
+    if (url.pathname.includes(`/pools/${poolAddress}`)) return jsonResponse(currentPoteto);
+    if (url.pathname.includes("/networks/solana/trending_pools")) {
+      return jsonResponse(geckoTrendingFixture("solana", {
+        pool: otherPool,
+        token: otherToken,
+        quote: quoteAddress,
+        symbol: "OTHER",
+        name: "Other Current Pool",
+      }));
+    }
+    throw new Error(`unexpected_url:${url}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana&duration=5m"),
+      {
+        ...environment(),
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: "hot-watch-provider-token",
+      },
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    const poteto = payload.rows.find((row) => row.instrument_id === `solana:pool:${poolAddress}`);
+    assert.ok(poteto);
+    assert.equal(poteto.discovery_source, "retained_exact_pool_hot_watch");
+    assert.equal(poteto.market.price_usd, 0.000009483);
+    assert.equal(poteto.market.fdv_usd, 9264.79);
+    assert.equal(poteto.market.liquidity_usd, 6693.79);
+    assert.equal(poteto.market.price_change_5m_pct, -4.224);
+    assert.equal(poteto.market.price_change_1h_pct, -77.993);
+    assert.notEqual(poteto.market.price_change_5m_pct, 329.45);
+    assert.equal(poteto.discovery.facts.freshness.state, "current");
+    assert.equal(poteto.discovery.facts.freshness.target_seconds, 120);
+    assert.equal(poteto.discovery.notability.primary_trigger.direction, "down");
+    assert.equal(payload.discovery_lanes.hot_watch_attempted, 1);
+    assert.equal(payload.discovery_lanes.hot_watch_refreshed, 1);
+    assert.equal(JSON.stringify(payload).includes("hot-watch-provider-token"), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Worker keeps Velocity available from the retained exact-market registry during a provider outage", async () => {
   const poolAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const tokenAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
