@@ -426,6 +426,7 @@ export async function mockTerminalLiveApis(page, {
   stalePerpPlan = false,
   includeContextPressureOverlay = false,
   holderRowCount = 2,
+  holderRiskLevel = "watch",
   profileIdentityMismatch = false,
 } = {}) {
   const calls = [];
@@ -490,6 +491,14 @@ export async function mockTerminalLiveApis(page, {
       classification: index === 1 ? "exact_pool_account" : "owner",
       excluded_from_wallet_concentration: index === 1,
     }));
+    const actionBlockingRisk = ["high", "severe"].includes(holderRiskLevel);
+    const holderRiskFactors = actionBlockingRisk ? [
+      { id: "exact_pool_liquidity_effectively_gone", label: "Exact-pool liquidity effectively gone", detail: "The latest exact-pool observation reports no usable USD liquidity.", severity: "critical", dimension: "market_integrity", source: "Exact pool market observation", observed_at: new Date().toISOString() },
+      { id: "developer_supply_critical", label: "Developer controls most supply", detail: "The provider-listed developer address holds 96.6% of supply after an independent on-chain balance check.", severity: "critical", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() },
+      { id: "top_10_wallet_concentration_critical", label: "Top wallets dominate supply", detail: "The top 10 non-pool wallets hold 98.6% of supply.", severity: "critical", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() },
+    ] : [
+      { id: "top_10_wallet_concentration_watch", label: "Holder concentration watch", detail: "The top 10 non-pool wallets hold 26.2% of supply.", severity: "elevated", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() },
+    ];
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -512,19 +521,21 @@ export async function mockTerminalLiveApis(page, {
           state: "available",
           identity: { chain: "solana", pool_address: poolAddress, token_address: tokenAddress, quote_token_address: quoteAddress, instrument_id: `solana:pool:${poolAddress}` },
           observed_at: new Date().toISOString(),
-          level: "watch",
-          title: "Risk watch",
-          summary: "Holder concentration warrants review. Measured top-10 wallet concentration is 26.2% after excluding the exact pool.",
-          risk_factors: [{ id: "top_10_wallet_concentration_watch", label: "Holder concentration watch", detail: "The top 10 non-pool wallets hold 26.2% of supply.", severity: "elevated", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() }],
+          level: holderRiskLevel,
+          title: actionBlockingRisk ? `${holderRiskLevel === "severe" ? "Severe" : "High"} control risk` : "Risk watch",
+          summary: actionBlockingRisk
+            ? "Usable liquidity has disappeared while developer and top-wallet supply control remain extreme. Review the exact evidence before using any setup."
+            : "Holder concentration warrants review. Measured top-10 wallet concentration is 26.2% after excluding the exact pool.",
+          risk_factors: holderRiskFactors,
           mitigating_checks: [
             { id: "mint_authority_disabled", label: "Mint authority disabled", detail: "Mint authority is disabled on the exact token mint.", severity: "positive", dimension: "control", source: "Solana mint account", observed_at: new Date().toISOString() },
             { id: "freeze_authority_disabled", label: "Freeze authority disabled", detail: "Freeze authority is disabled on the exact token mint.", severity: "positive", dimension: "control", source: "Solana mint account", observed_at: new Date().toISOString() },
-            { id: "developer_holding_bounded", label: "Low listed-developer balance", detail: "The provider-listed developer address holds 1.7% of supply after an independent on-chain balance check.", severity: "positive", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() },
+            ...(!actionBlockingRisk ? [{ id: "developer_holding_bounded", label: "Low listed-developer balance", detail: "The provider-listed developer address holds 1.7% of supply after an independent on-chain balance check.", severity: "positive", dimension: "control", source: "Solana on-chain accounts", observed_at: new Date().toISOString() }] : []),
           ],
           measured_facts: [],
           unmeasured: ["Bundled-launch concentration", "Insider and sniper classification", "Liquidity ownership, lock, and burn provenance"],
-          metrics: { top_10_wallet_supply_pct: 26.2, largest_non_pool_wallet_supply_pct: 12.345, developer_supply_pct: 1.74, volume_to_valuation_multiple: 5.3, pool_age_ms: 15_552_000_000 },
-          coverage: { measured_check_count: 4, risk_factor_count: 1, mitigating_check_count: 3, unmeasured_count: 3, complete: false },
+          metrics: { top_10_wallet_supply_pct: actionBlockingRisk ? 98.6 : 26.2, largest_non_pool_wallet_supply_pct: actionBlockingRisk ? 96.6 : 12.345, developer_supply_pct: actionBlockingRisk ? 96.6 : 1.74, volume_to_valuation_multiple: 5.3, pool_age_ms: 15_552_000_000 },
+          coverage: { measured_check_count: actionBlockingRisk ? 5 : 4, risk_factor_count: holderRiskFactors.length, mitigating_check_count: actionBlockingRisk ? 2 : 3, unmeasured_count: 3, complete: false },
           interpretation: { technical_control_screen: true, scam_or_rug_determination: false, numeric_probability: false, safe_controls_mean_safe_token: false },
         },
         source: { label: "Solana on-chain accounts", network: "mainnet-beta", method: "indexed_program_account_scan", raw_rpc_included: false },

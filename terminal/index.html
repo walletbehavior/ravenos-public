@@ -104,6 +104,20 @@
       <div id="terminalMetric6Cell" hidden><span id="terminalMetric6Label">24h change</span><strong id="terminalMetric6">--</strong></div>
     </section>
 
+    <section class="terminal-risk-interrupt" id="terminalRiskInterrupt" data-level="forming" aria-labelledby="terminalRiskInterruptTitle" aria-live="polite" hidden>
+      <div class="terminal-risk-interrupt-mark" aria-hidden="true">!</div>
+      <div class="terminal-risk-interrupt-copy">
+        <span id="terminalRiskInterruptEyebrow">Pre-trade risk · exact pool</span>
+        <h2 id="terminalRiskInterruptTitle">Review this market before trading</h2>
+        <p id="terminalRiskInterruptSummary"></p>
+        <ul id="terminalRiskInterruptFacts" aria-label="Verified risk factors"></ul>
+      </div>
+      <div class="terminal-risk-interrupt-actions">
+        <strong id="terminalRiskInterruptLevel">Review</strong>
+        <button type="button" id="terminalRiskInterruptReview">Review risk</button>
+      </div>
+    </section>
+
     <nav class="terminal-pane-nav" aria-label="Terminal workspace pane">
       <button type="button" data-terminal-pane-button="chart" aria-pressed="true">Chart</button>
       <button type="button" data-terminal-pane-button="activity" data-spot-only aria-pressed="false" hidden>Trades</button>
@@ -290,6 +304,12 @@
 
         <section id="terminalContextSection" tabindex="-1" hidden>
           <header><div><span>Raven read</span><h2 id="terminalReadHeadline">Raven is checking this market</h2></div><strong id="terminalEvidenceState">Checking</strong></header>
+          <div class="terminal-context-risk-guard" id="terminalContextRiskGuard" hidden>
+            <span>Risk overrides setup</span>
+            <strong>Behavior observed; Raven plan paused</strong>
+            <p>Verified ownership or market-integrity risk is more important than this directional read.</p>
+            <button type="button" id="terminalContextRiskReview">Review exact risk</button>
+          </div>
           <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
           <div class="terminal-why"><span id="terminalWhyLabel">Current read</span><strong id="terminalWhy">No verified context yet.</strong></div>
           <dl class="terminal-context-grid">

@@ -999,6 +999,68 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   });
 });
 
+test("severe exact-market risk interrupts the chart and removes Raven action prompts", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, {
+    bullishSpotPlan: true,
+    spotControls: false,
+    velocitySpotContext: true,
+    holderRiskLevel: "severe",
+  });
+  await page.goto("/terminal/?asset=JUP%2FUSDC&instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&timeframe=1m&launch=velocity&raven_overlays=auto");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  const interrupt = page.locator("#terminalRiskInterrupt");
+  await expect(interrupt).toBeVisible();
+  await expect(interrupt).toHaveAttribute("data-level", "severe");
+  await expect(page.locator("#terminalRiskInterruptTitle")).toHaveText("Severe control risk");
+  await expect(page.locator("#terminalRiskInterruptSummary")).toContainText("Usable liquidity has disappeared");
+  await expect(page.locator("#terminalRiskInterruptFacts")).toContainText("Exact-pool liquidity effectively gone");
+  await expect(page.locator("#terminalRiskInterruptFacts")).toContainText("Developer controls most supply");
+  await expect(page.locator("#terminalRiskInterruptFacts")).toContainText("Top wallets dominate supply");
+  await expect(page.locator("#terminalAlphaSection")).toBeHidden();
+  await expect(page.locator("#terminalPlanSection")).toBeHidden();
+  await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
+  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+
+  const positions = await page.evaluate(() => ({
+    interrupt: document.getElementById("terminalRiskInterrupt")?.getBoundingClientRect().top,
+    panes: document.querySelector(".terminal-pane-nav")?.getBoundingClientRect().top,
+    overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  expect(positions.interrupt).toBeLessThan(positions.panes);
+  expect(positions.overflow).toBeLessThanOrEqual(2);
+
+  await page.locator("#terminalRiskInterruptReview").click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
+  await expect(page.locator("#terminalAnatomySection")).toBeVisible();
+  await expect(page.locator("#terminalRiskScreen")).toContainText("not a scam verdict or rug probability");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator("#terminalContextRiskGuard")).toBeVisible();
+  await expect(page.locator("#terminalContextRiskGuard")).toContainText("Behavior observed; Raven plan paused");
+  await page.locator("#terminalContextRiskReview").click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
+});
+
+test("severe risk survives an early holder response and clears only for the next exact instrument", async ({ page }) => {
+  await mockTerminalLiveApis(page, { spotRavenContext: false, holderRiskLevel: "severe" });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator("#terminalRiskInterrupt")).toBeVisible();
+  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("#terminalChart .rpw")).toHaveClass(/rpw-read-suppressed/);
+  await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeHidden();
+
+  await selectUniversalInstrument(page, "SOL-PERP");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
+  await expect(page.locator("#terminalRiskInterrupt")).toBeHidden();
+  await expect(page.locator("#terminalChart .rpw")).not.toHaveClass(/rpw-read-suppressed/);
+  await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeVisible();
+});
+
 test("spot markets without matching Raven evidence keep useful anatomy and omit empty intelligence", async ({ page }) => {
   await mockTerminalLiveApis(page, { spotRavenContext: false });
   await page.goto("/terminal/");

@@ -767,9 +767,11 @@ export class PriceWorkspace {
       instrumentId: this.state.instrument?.canonical_id || null,
       timeframe: this.state.timeframe,
     });
+    const showRead = this.renderInput?.showChartRead !== false;
     this.state.chartRead = read;
-    cell.hidden = !read;
-    this.root.classList.toggle("rpw-has-read", Boolean(read));
+    cell.hidden = !read || !showRead;
+    this.root.classList.toggle("rpw-has-read", Boolean(read && showRead));
+    this.root.classList.toggle("rpw-read-suppressed", !showRead);
     if (read) {
       const direction = read.direction === "long" ? "↑" : "↓";
       value.textContent = `${read.setup === "breakout_confirmed" ? "Breakout" : "Trend"} ${direction} · ${read.score}/${read.score_max}`;
@@ -981,7 +983,7 @@ export class PriceWorkspace {
     this.backfillArmed = false;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
-    this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
+    this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [], showChartRead: true, showRavenAnnotations: true };
     const timeframe = request.timeframe || this.state.timeframe || "1h";
     this.historyBatchLimit = historyLimit(request, timeframe);
     this.historyExhausted = false;
@@ -1102,8 +1104,8 @@ export class PriceWorkspace {
       });
       this.renderInput = {
         ...this.renderInput,
-        events: Array.isArray(ravenAnnotations?.events) ? ravenAnnotations.events : [],
-        overlays: Array.isArray(ravenAnnotations?.overlays) ? ravenAnnotations.overlays : [],
+        events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations?.events) ? ravenAnnotations.events : [],
+        overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations?.overlays) ? ravenAnnotations.overlays : [],
       };
       for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);
       this.paintState();
@@ -1167,6 +1169,10 @@ export class PriceWorkspace {
 
   render(input = {}) {
     this.renderInput = { ...this.renderInput, ...input };
+    if (this.renderInput.showRavenAnnotations === false) {
+      this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
+    }
+    this.paintChartRead();
     const currentInstrumentId = this.state.instrument?.canonical_id || null;
     const initialVisibleTimeRange = this.chartHandle && this.chartInstrumentId === currentInstrumentId
       ? this.chartHandle.visibleTimeRange?.() || null

@@ -62,6 +62,7 @@ const state = {
   holderListGeneration: 0,
   holderListCache: new Map(),
   holderListLoadingKey: "",
+  marketControlRisk: null,
   spotTradeGeneration: 0,
   spotTradeCache: new Map(),
   spotTradeLoadingKey: "",
@@ -1647,6 +1648,12 @@ function renderAlphaStack() {
   const section = document.getElementById("terminalAlphaSection");
   const host = document.getElementById("terminalAlphaStack");
   if (!section || !host) return 0;
+  if (marketRiskBlocksAction()) {
+    state.planOverlayEnabled = false;
+    host.replaceChildren();
+    section.hidden = true;
+    return 0;
+  }
   const cards = [
     planAlphaCard(),
     spotFlowAlphaCard(),
@@ -2163,6 +2170,68 @@ function verifiedMarketControlRisk(payload, identity) {
   };
 }
 
+function marketRiskBlocksAction(risk = state.marketControlRisk) {
+  const identity = currentHolderIdentity();
+  const exact = risk?.identity || {};
+  return Boolean(
+    identity
+    && ["high", "severe"].includes(risk?.level)
+    && String(exact.chain || "").toLowerCase() === identity.chain
+    && exact.pool_address === identity.pool_address
+    && exact.token_address === identity.token_address
+  );
+}
+
+function renderMarketRiskInterrupt(risk = state.marketControlRisk) {
+  const root = document.getElementById("terminalRiskInterrupt");
+  if (!root) return;
+  const blocked = marketRiskBlocksAction(risk);
+  root.hidden = !blocked;
+  root.dataset.level = blocked ? risk.level : "forming";
+  if (!blocked) {
+    setText("terminalRiskInterruptTitle", "Review this market before trading");
+    setText("terminalRiskInterruptSummary", "");
+    setText("terminalRiskInterruptLevel", "Review");
+    document.getElementById("terminalRiskInterruptFacts")?.replaceChildren();
+    return;
+  }
+  const level = risk.level === "severe" ? "Severe" : "High";
+  setText("terminalRiskInterruptEyebrow", "Pre-trade risk · exact pool");
+  setText("terminalRiskInterruptTitle", risk.title || `${level} market-control risk`);
+  setText("terminalRiskInterruptSummary", risk.summary || "Verified ownership or market-integrity evidence needs review before using this setup.");
+  setText("terminalRiskInterruptLevel", level);
+  const host = document.getElementById("terminalRiskInterruptFacts");
+  if (host) {
+    host.replaceChildren();
+    const severityRank = { critical: 0, high: 1, elevated: 2, info: 3, positive: 4 };
+    const factors = [...risk.risk_factors]
+      .sort((left, right) => (severityRank[left.severity] ?? 9) - (severityRank[right.severity] ?? 9))
+      .slice(0, 3);
+    for (const factor of factors) {
+      const item = document.createElement("li");
+      item.textContent = factor.label;
+      host.append(item);
+    }
+  }
+}
+
+function setActiveMarketControlRisk(risk) {
+  state.marketControlRisk = risk || null;
+  renderMarketRiskInterrupt(state.marketControlRisk);
+  const blocked = marketRiskBlocksAction();
+  const context = document.getElementById("terminalContextSection");
+  const contextGuard = document.getElementById("terminalContextRiskGuard");
+  if (context) context.dataset.riskBlocked = String(blocked);
+  if (contextGuard) contextGuard.hidden = !blocked;
+  if (blocked) {
+    state.planOverlayEnabled = false;
+    clearPlanMarkerInspection();
+    syncPlanActionSurfaces(null);
+    if (state.lane === "spot" && state.workspace) applySpotContextChart();
+  }
+  renderAlphaStack();
+}
+
 function renderRiskEvidenceList(host, rows) {
   if (!host) return;
   host.replaceChildren();
@@ -2183,6 +2252,7 @@ function renderMarketControlRisk(payload, { loading = false, unavailable = false
   if (!root) return;
   const identity = currentHolderIdentity();
   const risk = verifiedMarketControlRisk(payload, identity);
+  setActiveMarketControlRisk(risk);
   root.hidden = !identity;
   root.dataset.level = risk?.level || "forming";
   if (!identity) return;
@@ -3564,6 +3634,7 @@ function qualifiedPlanData(plan = state.context?.plan_preview || {}) {
     state.planQualificationIssue = reason;
     return null;
   };
+  if (marketRiskBlocksAction()) return fail("market_control_risk");
   if (activeInstrumentId && plan?.instrument_id && plan.instrument_id !== activeInstrumentId) return fail("exact_instrument_mismatch");
   if (!validated) return fail("invalid_plan_contract");
   if (!activeInstrumentId || plan.instrument_id !== activeInstrumentId) return fail("exact_instrument_mismatch");
@@ -3897,6 +3968,7 @@ function applyContextChartEvent(payload) {
 
 function applySpotContextChart(payload = state.context || {}) {
   const workspace = state.workspace?.state || {};
+  const riskBlocked = marketRiskBlocksAction();
   const annotations = workspace.ravenAnnotations;
   const exactAnnotations = annotations?.role === "annotation_only"
     && annotations?.identity_scope === "exact_pool"
@@ -3912,8 +3984,8 @@ function applySpotContextChart(payload = state.context || {}) {
     ? planContract.overlays
     : [];
   const overlays = [
-    ...(Array.isArray(exactAnnotations?.overlays) ? exactAnnotations.overlays : []),
-    ...(state.planOverlayEnabled ? planOverlays : []),
+    ...(riskBlocked ? [] : Array.isArray(exactAnnotations?.overlays) ? exactAnnotations.overlays : []),
+    ...(riskBlocked ? [] : state.planOverlayEnabled ? planOverlays : []),
   ];
   state.workspace?.render?.({
     asset: state.selected ? `${state.selected.symbol}/${state.selected.quoteSymbol}` : "Exact pool",
@@ -3921,12 +3993,14 @@ function applySpotContextChart(payload = state.context || {}) {
     venue: state.selected?.dexId || "exact_pool",
     chain: state.selected?.chainId || "",
     timeframe: state.timeframe,
-    events: Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : [],
+    events: riskBlocked ? [] : Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : [],
     overlays,
-    visibleOverlayTypes: [
+    visibleOverlayTypes: riskBlocked ? [] : [
       ...currentRavenOverlayTypes(),
       ...(state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : []),
     ],
+    showChartRead: !riskBlocked,
+    showRavenAnnotations: !riskBlocked,
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
@@ -4811,6 +4885,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   state.lane = "perps";
   renderLaunchBadge();
   state.selected = row;
+  setActiveMarketControlRisk(null);
   state.context = null;
   state.opportunityEvidence = null;
   resetTerminalMarketFlow();
@@ -4876,6 +4951,7 @@ function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   closeProjectLinks();
   state.lane = lane;
+  setActiveMarketControlRisk(null);
   if (lane !== "spot") clearSpotTradeRefresh();
   renderLaunchBadge();
   updateTerminalPaneAvailability();
@@ -5014,6 +5090,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.lane = "spot";
   renderLaunchBadge();
   state.selected = row;
+  setActiveMarketControlRisk(null);
   state.context = null;
   state.opportunityEvidence = null;
   state.spotTradeFilter = "all";
@@ -5197,6 +5274,7 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   state.lane = "equity";
   renderLaunchBadge();
   state.selected = selectedRow;
+  setActiveMarketControlRisk(null);
   updateTerminalPaneAvailability();
   clearExternalChart();
   const options = atlasRow ? atlasOptionsFor(selectedRow) : null;
@@ -5438,6 +5516,7 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
   state.lane = lane;
   state.selected = null;
   state.context = null;
+  setActiveMarketControlRisk(null);
   clearExternalChart();
   document.getElementById("terminalModeSelect").value = lane;
   document.getElementById("terminalSpotControl").hidden = true;
@@ -5518,6 +5597,8 @@ function bindControls() {
   document.getElementById("terminalInstrumentTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   document.getElementById("terminalReadTrigger").addEventListener("click", focusTerminalRaven);
   document.getElementById("terminalDeepLink")?.addEventListener("click", revealSpotHolders);
+  document.getElementById("terminalRiskInterruptReview")?.addEventListener("click", revealSpotHolders);
+  document.getElementById("terminalContextRiskReview")?.addEventListener("click", revealSpotHolders);
   document.getElementById("terminalProjectLinksTrigger")?.addEventListener("click", () => {
     const popover = document.getElementById("terminalProjectLinksPopover");
     setProjectLinksOpen(popover?.hidden === true);
