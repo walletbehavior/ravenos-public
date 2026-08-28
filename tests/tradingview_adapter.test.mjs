@@ -109,7 +109,7 @@ test("listed tape is a bounded presentation-only stock and ETF set", () => {
   assert.deepEqual(config.symbols.slice(0, 2).map((row) => row.title), ["SPY", "QQQ"]);
   assert.equal(config.symbols.filter((row) => !["SPY", "QQQ"].includes(row.title)).length, 10);
   assert.equal(config.colorTheme, "dark");
-  assert.equal(config.isTransparent, true);
+  assert.equal(config.isTransparent, false);
   assert.equal(config.displayMode, "adaptive");
   assert(config.symbols.every((row) => /^(?:NASDAQ|NYSE|AMEX):[A-Z.]+$/.test(row.proName)));
 });

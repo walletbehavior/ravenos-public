@@ -243,7 +243,7 @@ export function tradingViewListedTapeConfig() {
   return Object.freeze({
     symbols: LISTED_TAPE_SYMBOLS,
     showSymbolLogo: false,
-    isTransparent: true,
+    isTransparent: false,
     displayMode: "adaptive",
     colorTheme: "dark",
     locale: "en",
