@@ -103,6 +103,26 @@ test("active mint controls and independently measured developer exposure produce
   assert.equal(projection.risk_factors.some((row) => row.id === "top_10_wallet_concentration_high"), true);
 });
 
+test("effectively empty exact-pool liquidity is a critical market-integrity flag", () => {
+  const projection = buildMarketControlRiskProjection({
+    identity: IDENTITY,
+    holder_projection: holders({ top10: 98.6, largest: 96.6 }),
+    market_profile: profile(),
+    developer_holding: developerHolding(96.6),
+    market_snapshot: {
+      pairAgeMs: 2 * 60 * 60_000,
+      volume24h: 7_580_000,
+      marketCap: 35_569,
+      liquidityUsd: 0,
+    },
+  });
+  assert.equal(projection.level, "severe");
+  assert.equal(projection.metrics.exact_pool_liquidity_usd, 0);
+  assert.equal(projection.risk_factors.some((row) => row.id === "exact_pool_liquidity_effectively_gone"), true);
+  assert.match(projection.risk_factors.find((row) => row.id === "exact_pool_liquidity_effectively_gone").detail, /practical route may not exist/i);
+  assert.equal(MarketControlRiskContract.exact_pool_liquidity_is_a_separate_risk_dimension, true);
+});
+
 test("missing control dimensions remain explicit and exact identities fail closed", () => {
   const forming = buildMarketControlRiskProjection({ identity: IDENTITY });
   assert.equal(forming.state, "forming");
