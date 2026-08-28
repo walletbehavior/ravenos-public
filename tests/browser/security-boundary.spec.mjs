@@ -33,7 +33,7 @@ test("stored instrument metadata renders as text and cannot become utility marku
       },
       history: [{
         subject: {
-          id: "malicious\" onmouseover=\"window.__RAVENOS_XSS__=true",
+          id: "hyperliquid:perp:XSS",
           label: "<img src=x onerror=window.__RAVENOS_XSS__=true>",
           assetClass: "crypto",
           instrumentType: "perpetual",
