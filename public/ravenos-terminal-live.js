@@ -15,6 +15,7 @@ const SAVED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "ma
 const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
 const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
 const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
+const TERMINAL_PANELS = new Set(["chart", "activity", "holders", "raven", "book", "trade", "account"]);
 const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const state = {
   lane: "perps",
@@ -504,8 +505,19 @@ function afterTerminalPaneVisible(callback) {
   requestAnimationFrame(() => requestAnimationFrame(() => callback?.()));
 }
 
+function syncTerminalPaneUrl(pane) {
+  if (!TERMINAL_PANELS.has(pane)) return;
+  const url = new URL(window.location.href);
+  if (pane === "chart") url.searchParams.delete("panel");
+  else url.searchParams.set("panel", pane);
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState({}, "", next);
+  }
+}
+
 function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } = {}) {
-  const requested = new Set(["chart", "activity", "holders", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
+  const requested = TERMINAL_PANELS.has(pane) ? pane : "chart";
   const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
   const next = requestedButton?.hidden ? "chart" : requested;
   const root = document.querySelector(".terminal-live");
@@ -521,6 +533,8 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
     if (next === "activity") void loadSpotTrades();
     else clearSpotTradeRefresh();
     if (next === "holders") {
+      const holderList = document.getElementById("terminalHolderList");
+      if (holderList) holderList.open = true;
       void loadHolderList();
       void loadSpotTrades();
     }
@@ -532,6 +546,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
     }
     if (focusId) document.getElementById(focusId)?.focus?.({ preventScroll: true });
   });
+  syncTerminalPaneUrl(next);
   updateMonitorHandoff();
   syncPlanActionSurfaces();
   return next;
@@ -595,13 +610,14 @@ function updateMonitorHandoff() {
   const link = document.getElementById("terminalMonitorLink");
   if (!link) return;
   const subject = ravenOSContext.getState().subject;
+  const currentPanel = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
   const href = savedMonitorHandoffHref(subject, {
     action: "monitor",
     timeframe: state.timeframe,
     indicators: Array.from(state.workspace?.activeIndicators || []).filter((value) => SAVED_INDICATORS.has(value)),
     ravenOverlays: currentRavenOverlayTypes(),
     density: state.density,
-    selectedPanel: document.querySelector(".terminal-live")?.dataset.terminalPane || "chart",
+    selectedPanel: SAVED_PANELS.has(currentPanel) ? currentPanel : "chart",
   });
   link.hidden = !href;
   if (href) link.href = href;
@@ -6018,7 +6034,7 @@ async function boot() {
   state.autoRavenOverlays = Boolean(state.launchSource && params.get("raven_overlays") === "auto");
   state.savedRavenOverlays = [...new Set(String(params.get("raven_overlays") || "").split(",").map((value) => value.trim()).filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
   state.density = SAVED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
-  state.requestedPanel = SAVED_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
+  state.requestedPanel = TERMINAL_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
   document.documentElement.dataset.density = state.density;
   document.body.dataset.density = state.density;
   state.timeframe = TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : TIMEFRAMES.has(ravenOSContext.getState().timeframe) ? ravenOSContext.getState().timeframe : "1h";
@@ -6102,7 +6118,8 @@ async function boot() {
     if (request.error) await renderExplicitSelectionUnavailable({ instrumentId: request.instrumentId, asset: request.asset, lane: "perps", reason: request.error });
     else await selectPerp(request.row?.asset || defaultPerp(), { updateUrl: !request.row });
   }
-  setTerminalPane(state.requestedPanel);
+  if (state.requestedPanel === "chart") setTerminalPane("chart");
+  else inspectTerminalPane(state.requestedPanel);
   updateMonitorHandoff();
   window.__RAVENOS_TERMINAL__ = {
     getState: () => ({

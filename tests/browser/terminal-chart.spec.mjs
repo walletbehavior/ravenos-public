@@ -913,12 +913,12 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
 test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
-  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=holders");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
-  await page.locator("#terminalDeepLink").click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
+  expect(new URL(page.url()).searchParams.get("panel")).toBe("holders");
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
@@ -961,6 +961,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   expect(holderScroll.scrollHeight).toBeGreaterThan(holderScroll.clientHeight);
   await page.locator("#terminalProjectLinksClose").click();
   await page.locator('[data-terminal-pane-button="raven"]').click();
+  expect(new URL(page.url()).searchParams.get("panel")).toBe("raven");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
 });
@@ -974,6 +975,10 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   expect(tradeCalls).toHaveLength(0);
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
+  const activityUrl = new URL(page.url());
+  expect(activityUrl.searchParams.get("panel")).toBe("activity");
+  expect(activityUrl.searchParams.get("instrument_id")).toBe("solana:pool:fixture-pair-address");
+  expect(activityUrl.searchParams.get("token_address")).toBe("fixture-token-address");
   await expect(page.locator("#terminalSpotActivitySection")).toBeVisible();
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
   await expect(page.locator("#terminalContextSection")).toBeHidden();

@@ -205,7 +205,7 @@ function exactListedTerminalHref(row, instrument) {
   });
 }
 
-function spotPoolHref(row, timeframe = "1m", { launch = state.spotSort } = {}) {
+function spotPoolHref(row, timeframe = "1m", { launch = state.spotSort, panel = "" } = {}) {
   const chain = text(row.chainId || row.chain_id || row.chain, "solana").toLowerCase();
   const pairAddress = text(row.pairAddress || row.pool_address, "");
   const symbol = text(row.symbol, "");
@@ -231,6 +231,7 @@ function spotPoolHref(row, timeframe = "1m", { launch = state.spotSort } = {}) {
     quote_address: text(row.quoteTokenAddress || row.quote_token_address, ""),
     pair_address: pairAddress,
   });
+  if (["chart", "activity", "holders", "raven"].includes(panel)) params.set("panel", panel);
   return `/terminal/?${params.toString()}`;
 }
 
@@ -329,6 +330,7 @@ async function primeSpotLink(anchor) {
   anchor.__ravenResolvedPool = exactPool;
   anchor.href = spotPoolHref(exactPool, "1m");
   syncSavedMonitorControl(anchor);
+  syncSpotInspectActions(anchor);
 }
 
 function configureSpotLink(anchor, row) {
@@ -342,6 +344,7 @@ function configureSpotLink(anchor, row) {
   if (anchor.getAttribute("href") === "#" && anchor.__ravenResolvedPool) {
     anchor.href = spotPoolHref(anchor.__ravenResolvedPool, "1m");
   }
+  syncSpotInspectActions(anchor);
   if (anchor.dataset.spotLinkConfigured === "true") return;
   anchor.dataset.spotLinkConfigured = "true";
   const prime = () => { void primeSpotLink(anchor); };
@@ -362,6 +365,27 @@ function configureSpotLink(anchor, row) {
     setSpotLinkPending(anchor, false);
     window.RavenOSShell?.openCommandPalette?.(current.token_address);
   });
+}
+
+function terminalPanelHref(anchor, panel) {
+  if (!["chart", "activity", "holders", "raven"].includes(panel)) return "";
+  const href = anchor?.getAttribute("href") || "";
+  if (!href || href === "#") return "";
+  const url = new URL(href, window.location.origin);
+  if (url.origin !== window.location.origin || url.pathname !== "/terminal/") return "";
+  url.searchParams.set("panel", panel);
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
+
+function syncSpotInspectActions(anchor) {
+  const shell = anchor?.closest(".discover-token-row-shell");
+  if (!shell) return;
+  for (const action of shell.querySelectorAll("[data-discover-terminal-panel]")) {
+    const href = terminalPanelHref(anchor, action.dataset.discoverTerminalPanel);
+    action.toggleAttribute("aria-disabled", !href);
+    if (href) action.href = href;
+    else action.removeAttribute("href");
+  }
 }
 
 function append(node, tag, className, value) {
@@ -1202,7 +1226,7 @@ function renderSpotEvidence(shell, row) {
     details = document.createElement("details");
     details.className = "discover-token-evidence";
     const summary = document.createElement("summary");
-    summary.textContent = "Evidence";
+    summary.textContent = "Inspect";
     details.append(summary);
     shell.append(details);
   }
@@ -1213,6 +1237,29 @@ function renderSpotEvidence(shell, row) {
   const discovery = row.discovery;
   const body = append(details, "div", "discover-token-evidence-body", "");
   body.textContent = "";
+  const inspect = append(body, "section", "discover-token-inspect", "");
+  const inspectCopy = append(inspect, "div", "discover-token-inspect-copy", "");
+  append(inspectCopy, "h4", "", `Open ${text(row.symbol)} in Terminal`);
+  append(inspectCopy, "p", "", customerFacingText(
+    discovery.decision_support?.why_now,
+    "Inspect the exact chart, recent trades, holder concentration, and any current Raven read.",
+  ));
+  const inspectActions = append(inspect, "div", "discover-token-inspect-actions", "");
+  const rowAnchor = shell.querySelector(".discover-token-row");
+  for (const [panel, label] of [["chart", "Chart"], ["activity", "Trades"], ["holders", "Holders"]]) {
+    const action = append(inspectActions, "a", "discover-token-inspect-action", label);
+    action.dataset.discoverTerminalPanel = panel;
+    action.setAttribute("aria-label", `Open ${text(row.symbol)} ${label.toLowerCase()} in Terminal`);
+  }
+  if (discovery.raven_evidence_state?.qualified === true) {
+    const action = append(inspectActions, "a", "discover-token-inspect-action is-raven", "Raven read");
+    action.dataset.discoverTerminalPanel = "raven";
+    action.setAttribute("aria-label", `Open ${text(row.symbol)} Raven read in Terminal`);
+  } else {
+    const unavailable = append(inspectActions, "span", "discover-token-inspect-action is-disabled", "No current Raven read");
+    unavailable.setAttribute("aria-disabled", "true");
+  }
+  syncSpotInspectActions(rowAnchor);
   const overview = append(body, "dl", "discover-token-evidence-grid", "");
   overview.textContent = "";
   appendEvidenceItem(overview, "Behavior", title(discovery.primary_behavior_state?.value, "Forming"));

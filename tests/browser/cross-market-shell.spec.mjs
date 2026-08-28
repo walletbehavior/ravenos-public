@@ -885,6 +885,16 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText(/\b[CDQ]\d{2}\b/);
   const retireShell = page.locator(".discover-token-row-shell").filter({ hasText: "RETIRE" });
   await retireShell.locator(".discover-token-evidence > summary").click();
+  await expect(retireShell.locator(".discover-token-evidence > summary")).toContainText("Inspect");
+  for (const [name, panel] of [["chart", "chart"], ["trades", "activity"], ["holders", "holders"], ["Raven read", "raven"]]) {
+    const action = retireShell.getByRole("link", { name: new RegExp(`Open RETIRE ${name}`, "i") });
+    const href = await action.getAttribute("href");
+    const url = new URL(href, "https://ravenos.xyz");
+    expect(url.pathname).toBe("/terminal/");
+    expect(url.searchParams.get("instrument_id")).toBe(`solana:pool:${spotPoolAddress}`);
+    expect(url.searchParams.get("token_address")).toBe(spotTokenAddress);
+    expect(url.searchParams.get("panel")).toBe(panel);
+  }
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Ranking score only");
   await expect(retireShell.locator(".discover-token-evidence-body")).toContainText(/Grade [A-D]/);
   await expect(retireShell).toContainText("Check the next 5m update");
@@ -962,6 +972,11 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toHaveAttribute("href", /instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(row).toHaveAttribute("href", /launch=velocity/);
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
+  const inspect = row.locator("xpath=ancestor::div[contains(@class, 'discover-token-row-shell')]").locator(".discover-token-evidence");
+  await inspect.locator("summary").click();
+  await expect(inspect.locator(".discover-token-inspect-actions a")).toHaveCount(3);
+  await expect(inspect.locator(".discover-token-inspect-actions")).toContainText("No current Raven read");
+  await expect(inspect.locator("[data-discover-terminal-panel='raven']")).toHaveCount(0);
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
   await expect(page.locator(".discover-token-empty")).toContainText("No current Raven reads");
