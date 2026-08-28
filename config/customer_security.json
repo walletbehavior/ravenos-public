@@ -176,6 +176,10 @@
     "largest_account_fallback_rows": 20,
     "raw_rpc_payload_returned": false,
     "wallet_labels_inferred": false,
+    "pool_accounts_excluded_from_wallet_concentration": true,
+    "provider_reported_developer_percentage_trusted_without_onchain_recheck": false,
+    "numeric_rug_probability_returned": false,
+    "unmeasured_bundle_insider_sniper_or_liquidity_controls_become_zero": false,
     "private_rpc_fallback_allowed": false,
     "activation_controls": [
       "RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED",
@@ -187,9 +191,31 @@
       "getTokenSupply",
       "getProgramAccounts",
       "getTokenLargestAccounts",
-      "getMultipleAccounts"
+      "getMultipleAccounts",
+      "getTokenAccountsByOwner"
     ],
     "production_activation_completed": true
+  },
+  "public_exact_pool_activity": {
+    "implementation_status": "local_candidate_not_deployed",
+    "surface": "https://ravenos.xyz/terminal/",
+    "route": "GET /api/onchain/trades",
+    "authenticated_origin_only": false,
+    "free_tier_capability": true,
+    "exact_pool_token_and_quote_identity_required": true,
+    "supported_chains": ["solana", "base", "bsc", "ethereum", "robinhood"],
+    "maximum_provider_trade_rows": 300,
+    "maximum_public_trade_rows": 120,
+    "maximum_public_trader_rows": 24,
+    "complete_lifetime_history_claimed": false,
+    "beneficial_ownership_inferred": false,
+    "wallet_relationships_inferred": false,
+    "skill_or_profitability_inferred": false,
+    "customer_accounts_joined": false,
+    "raw_provider_payload_returned": false,
+    "signing_available": false,
+    "submission_available": false,
+    "production_activation_completed": false
   },
   "operator_solana_canary": {
     "implementation_status": "operator_unsigned_mainnet_preflight",

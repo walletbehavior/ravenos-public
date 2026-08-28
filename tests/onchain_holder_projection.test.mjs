@@ -6,6 +6,7 @@ import {
   ONCHAIN_HOLDER_SCHEMA,
   OnchainHolderProjectionContract,
   buildPublicSolanaHolderProjection,
+  measurePublicSolanaOwnerHolding,
   resolvePublicSolanaHolderRuntime,
 } from "../lib/onchain_holder_projection.mjs";
 import worker from "../worker.mjs";
@@ -63,6 +64,13 @@ function programAccount(pubkey, owner, amount) {
   return { pubkey, account: { owner: TOKEN_PROGRAM, data: [bytes.toString("base64"), "base64"] } };
 }
 
+function mintAccountData({ mintAuthority = false, freezeAuthority = false } = {}) {
+  const bytes = Buffer.alloc(82);
+  bytes.writeUInt32LE(mintAuthority ? 1 : 0, 0);
+  bytes.writeUInt32LE(freezeAuthority ? 1 : 0, 46);
+  return [bytes.toString("base64"), "base64"];
+}
+
 test("public holder runtime is separately activated and never falls back to a private RPC", () => {
   assert.deepEqual(resolvePublicSolanaHolderRuntime({}), {
     enabled: false,
@@ -92,7 +100,7 @@ test("indexed holder projection completes provider pagination and aggregates eve
     const request = JSON.parse(init.body);
     calls.push(request);
     if (request.method === "getAccountInfo") {
-      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 80 }, value: { owner: TOKEN_PROGRAM, data: ["", "base64"] } } });
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 80 }, value: { owner: TOKEN_PROGRAM, data: mintAccountData() } } });
     }
     if (request.method === "getTokenSupply") {
       return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 81 }, value: { amount: "1000", decimals: 0, uiAmountString: "1000" } } });
@@ -132,6 +140,8 @@ test("indexed holder projection completes provider pagination and aggregates eve
   assert.equal(projection.summary.holder_count, 2);
   assert.equal(projection.summary.token_account_count, 3);
   assert.equal(projection.summary.top_10_supply_pct, 90);
+  assert.equal(projection.token_controls.mint_authority, "disabled");
+  assert.equal(projection.token_controls.freeze_authority, "disabled");
   assert.equal(projection.holders.length, 2);
   assert.equal(projection.holders[0].holder_address, OWNER_A);
   assert.equal(projection.holders[0].balance, "700");
@@ -140,6 +150,38 @@ test("indexed holder projection completes provider pagination and aggregates eve
   assert.equal(calls.some((call) => call.method === "getTokenLargestAccounts"), false);
   assert.equal(JSON.stringify(projection).includes("page-two"), false);
   assert.equal(JSON.stringify(projection).includes("solana-display.invalid"), false);
+});
+
+test("developer holdings are independently measured from the exact owner and mint", async () => {
+  const fetchImpl = async (input, init = {}) => {
+    assert.equal(String(input), "https://solana-display.invalid/rpc");
+    const request = JSON.parse(init.body);
+    if (request.method === "getTokenSupply") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 91 }, value: { amount: "1000", decimals: 0, uiAmountString: "1000" } } });
+    }
+    if (request.method === "getTokenAccountsByOwner") {
+      assert.equal(request.params[0], OWNER_A);
+      assert.deepEqual(request.params[1], { mint: TOKEN });
+      const parsed = (amount) => ({
+        pubkey: ACCOUNT_A,
+        account: { data: { program: "spl-token", parsed: { info: { mint: TOKEN, owner: OWNER_A, tokenAmount: { amount, decimals: 0 } } } } },
+      });
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 92 }, value: [parsed("70")] } });
+    }
+    throw new Error(`unexpected rpc method ${request.method}`);
+  };
+  const result = await measurePublicSolanaOwnerHolding({
+    env: holderEnv(),
+    identity: { chain: "solana", pool_address: POOL, token_address: TOKEN, quote_token_address: QUOTE },
+    owner_address: OWNER_A,
+    fetch_impl: fetchImpl,
+    now: () => new Date("2026-08-27T16:00:00.000Z"),
+  });
+  assert.equal(result.schema_version, "ravenos.solana_owner_holding.v1");
+  assert.equal(result.supply_share_pct, 7);
+  assert.equal(result.balance, "70");
+  assert.equal(result.owner_address, OWNER_A);
+  assert.equal(JSON.stringify(result).includes("solana-display.invalid"), false);
 });
 
 test("free holder projection truthfully falls back to the largest accounts when an indexed scan is unavailable", async () => {
@@ -212,6 +254,11 @@ test("a Solana pool address Raven emits resolves back to the same BITCAT exact m
     assert.equal(holderPayload.schema_version, ONCHAIN_HOLDER_SCHEMA);
     assert.equal(holderPayload.identity.pool_address, POOL);
     assert.equal(holderPayload.holders.length, 2);
+    assert.equal(holderPayload.risk_screen.schema_version, "ravenos.market_control_risk.v1");
+    assert.equal(holderPayload.risk_screen.identity.pool_address, POOL);
+    assert.equal(holderPayload.risk_screen.metrics.top_10_wallet_supply_pct, 70);
+    assert.equal(holderPayload.risk_screen.interpretation.scam_or_rug_determination, false);
+    assert.equal(holderPayload.risk_screen.interpretation.numeric_probability, false);
     assert.match(holders.headers.get("cache-control"), /s-maxage=180/);
   } finally {
     globalThis.fetch = previousFetch;

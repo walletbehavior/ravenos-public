@@ -31,6 +31,30 @@ The list includes rank, address, exact token balance, supply share, token-accoun
 
 The census describes current ownership only. Historical balance changes, named exchange/program labels, bundle or coordination claims, and cross-chain holder lists require separately qualified evidence.
 
+## Exact-market risk screen
+
+The Free Terminal derives `ravenos.market_control_risk.v1` beside the holder list. It is a screening contract, not a scam verdict or a numeric rug probability.
+
+The screen keeps three questions separate:
+
+- Token control: pool-excluded wallet concentration, largest observed non-pool wallet, exact mint and freeze authorities, a provider honeypot flag when available, and the current balance of a provider-listed developer address only after an independent on-chain balance check.
+- Market integrity: pool age and reported 24-hour turnover relative to the current market-cap or FDV reference.
+- Authenticity: whether provider-listed name, image, description, and social metadata is verified by that provider.
+
+CoinGecko's beta holder-distribution percentages include multiple account types. RavenOS does not use that pool-inclusive top-10 percentage as wallet concentration. The holder projection instead classifies and excludes the exact pool account before calculating `top_10_wallet_supply_pct`.
+
+A provider-reported developer percentage is never treated as verified ownership. RavenOS retains the provider-listed address only when it is a valid exact-chain address, then measures that address against the exact mint with `getTokenAccountsByOwner`. The wording remains “provider-listed developer address” because the provider label itself is not independently proven.
+
+Bundle concentration, insider and sniper classification, and liquidity ownership/lock/burn provenance remain explicitly unmeasured until a reviewed source can provide exact-market evidence with public-display rights. Missing values never become zero or a passed check.
+
+## Exact-pool activity
+
+`GET /api/onchain/trades` supplies the Free Terminal's recent-swaps pane. It requires exact chain, pool, token, and quote addresses, re-resolves the pool orientation on the server, and returns at most 120 of the provider's latest 300 trades from the past 24 hours.
+
+The server derives bounded 5-minute, 1-hour, and 24-hour buy/sell counts, USD flow, buy-volume share, and repeat transaction senders within the returned sample. Active traders are descriptive public-chain addresses only. RavenOS does not infer beneficial ownership, relationships, bundles, skill, profitability, or “smart money” status from recurrence.
+
+This tape is useful for reviewing an extreme-turnover warning, but it is not complete lifetime history and does not by itself prove wash trading or manipulation.
+
 ## Activation
 
 The Free UI and route require both:

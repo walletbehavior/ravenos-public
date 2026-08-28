@@ -768,16 +768,24 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalAnatomy4")).toContainText("64 buy · 26 sell · 72 traders");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomy5")).toContainText("4.85K · 1h +6.40%");
-  await expect(page.locator("#terminalHolderMap")).toBeVisible();
-  await expect(page.locator("#terminalHolderMapState")).toContainText("4.85K holders");
-  await expect(page.locator("#terminalHolderTop10")).toHaveText("29.9%");
-  await expect(page.locator("#terminalHolderNext10")).toHaveText("12.5%");
-  await expect(page.locator("#terminalHolderNext20")).toHaveText("15.2%");
-  await expect(page.locator("#terminalHolderRest")).toHaveText("42.4%");
-  await expect(page.locator("#terminalHolderBar > span")).toHaveCount(4);
-  expect(holderCalls).toHaveLength(0);
-  await page.locator("#terminalHolderList > summary").click();
   await expect.poll(() => holderCalls.length).toBe(1);
+  await expect(page.locator("#terminalHolderMap")).toBeVisible();
+  await expect(page.locator("#terminalHolderMapLabel")).toHaveText("Wallet concentration · pool excluded");
+  await expect(page.locator("#terminalHolderMapState")).toContainText("Complete owner census");
+  await expect(page.locator("#terminalHolderTop10")).toHaveText("26.2%");
+  await expect(page.locator("#terminalHolderNext10Cell")).toBeHidden();
+  await expect(page.locator("#terminalHolderNext20Cell")).toBeHidden();
+  await expect(page.locator("#terminalHolderRest")).toHaveText("73.8%");
+  await expect(page.locator("#terminalHolderBar > span")).toHaveCount(2);
+  await expect(page.locator("#terminalRiskScreen")).toBeVisible();
+  await expect(page.locator("#terminalRiskTitle")).toHaveText("Risk watch");
+  await expect(page.locator("#terminalRiskSummary")).toContainText("excluding the exact pool");
+  await expect(page.locator("#terminalRiskFactors")).toContainText("Holder concentration watch");
+  await expect(page.locator("#terminalRiskChecks")).toContainText("Low listed-developer balance");
+  await expect(page.locator("#terminalRiskChecks")).toContainText("independent on-chain balance check");
+  await expect(page.locator("#terminalRiskScreen")).toContainText("not a scam verdict or rug probability");
+  await page.locator("#terminalHolderList > summary").click();
+  expect(holderCalls).toHaveLength(1);
   await expect(page.locator("#terminalHolderListState")).toContainText("2 of 4.85K owners");
   await expect(page.locator("#terminalHolderListNote")).toContainText("Complete current census");
   await expect(page.locator("#terminalHolderListNote")).toContainText("4.86K token accounts grouped into 4.85K owners");
@@ -793,7 +801,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalProfileChips")).toContainText("Mint locked");
   await expect(page.locator("#terminalProfileChips")).toContainText("Freeze locked");
-  await expect(page.locator("#terminalProfileChips")).toContainText("Developer holds 1.7%");
+  await expect(page.locator("#terminalProfileChips")).not.toContainText("Developer holds");
   await expect(page.locator("#terminalProfileCredit")).toHaveText("Data provided by CoinGecko");
   const projectTrigger = page.locator("#terminalProjectLinksTrigger");
   await expect(projectTrigger).toBeVisible();
@@ -876,7 +884,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Holders", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
   await page.locator("#terminalDeepLink").click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
@@ -900,6 +908,47 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
+});
+
+test("recent exact-pool swaps and repeat activity have a dedicated honest mobile pane", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { tradeCalls } = await mockTerminalLiveApis(page);
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
+  expect(tradeCalls).toHaveLength(0);
+  await page.locator('[data-terminal-pane-button="activity"]').click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
+  await expect(page.locator("#terminalSpotActivitySection")).toBeVisible();
+  await expect(page.locator("#terminalAnatomySection")).toBeHidden();
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
+  await expect.poll(() => tradeCalls.length).toBe(1);
+  await expect(page.locator("#terminalSpotFlow1")).toHaveText("16");
+  await expect(page.locator("#terminalSpotFlow2")).toHaveText("73.6%");
+  await expect(page.locator("#terminalSpotFlow3")).toHaveText("+$20K");
+  await expect(page.locator("#terminalSpotFlow4")).toHaveText("3 · 100.0% flow");
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
+  await page.locator('[data-spot-trade-filter="buy"]').click();
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(24);
+  await page.locator('[data-spot-trade-filter="large"]').click();
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(4);
+  await page.locator('[data-spot-trade-filter="repeat"]').click();
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
+  await expect(page.locator("#terminalSpotTradeRows a").first()).toHaveAttribute("href", /solscan\.io\/account\//);
+  await page.locator("#terminalActiveTraders > summary").click();
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(3);
+  await expect(page.locator("#terminalActiveTraderNote")).toContainText("does not imply related ownership, skill, or profitability");
+  await expect(page.locator("#terminalSpotActivitySection")).not.toContainText(/smart money/i);
+  const overflow = await page.locator("#terminalSpotActivitySection").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    activeTerminalPane: "activity",
+    spotTradeCount: 36,
+    spotRepeatTraderCount: 3,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+  expect(tradeCalls[0]).toEqual({ chain: "solana", poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {

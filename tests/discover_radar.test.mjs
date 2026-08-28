@@ -101,6 +101,28 @@ test("a mature 200K to 450K exact market is admitted as a breakout rather than e
   assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
 });
 
+test("a very new high-turnover pool stays visible with explicit integrity warnings and a ranking penalty", () => {
+  const row = pool({
+    pool_address: "0x0000000000000000000000000000000000000091",
+    market: {
+      market_cap_usd: 125_000,
+      liquidity_usd: 190_000,
+      market_age_seconds: 75 * 60,
+      volume_usd_24h: 4_400_000,
+      price_change_5m_pct: 9,
+      price_change_1h_pct: 54,
+      price_change_24h_pct: 76,
+    },
+  });
+  const discovery = build([row]).rows[0].discovery;
+  assert.ok(discovery.risk_flags.some((flag) => flag.value === "high_turnover"));
+  assert.ok(discovery.risk_flags.some((flag) => flag.value === "very_new_pool"));
+  assert.ok(discovery.velocity_state.score.penalties.some((penalty) => penalty.explanation === "High-turnover penalty applied"));
+  assert.ok(discovery.velocity_state.score.penalties.some((penalty) => penalty.explanation === "Very-new-pool penalty applied"));
+  assert.match(discovery.decision_support.why_now, /turnover is unusually high/i);
+  assert.equal(discovery.notability.default_opportunity_eligible, true);
+});
+
 test("default opportunities require material server-qualified notability instead of relative rank alone", () => {
   const quiet = pool({
     pool_address: "0x0000000000000000000000000000000000000081",

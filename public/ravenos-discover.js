@@ -886,6 +886,8 @@ function riskLabel(value) {
     liquidity_thinning: "Liquidity thinning",
     concentration_risk: "Concentration risk",
     manipulation_risk: "Manipulation risk",
+    high_turnover: "High turnover",
+    very_new_pool: "Very new pool",
   };
   const key = text(value, "").toLowerCase();
   return labels[key] || title(key, "");
@@ -1298,7 +1300,7 @@ function updateSpotTokenRow(anchor, row, index) {
   const activityState = text(discovery.activity_state?.value, "forming");
   const tone = ["distribution", "capitulation", "failed_breakout", "invalidated_dead"].includes(primary)
     ? "negative"
-    : risks.includes("late_chase") || risks.includes("flow_divergence") || risks.includes("liquidity_thinning") ? "warning"
+    : risks.includes("late_chase") || risks.includes("flow_divergence") || risks.includes("liquidity_thinning") || risks.includes("high_turnover") || risks.includes("very_new_pool") ? "warning"
       : ["breakout", "continuation", "sell_pressure_absorption", "reacceleration", "post_dump_resurrection", "reclaiming_range", "ath_breakout"].includes(primary) ? "positive" : "neutral";
   anchor.className = "discover-token-row";
   anchor.dataset.tokenRowId = spotRowId(row);

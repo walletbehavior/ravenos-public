@@ -92,8 +92,16 @@ import {
   ONCHAIN_HOLDER_SCHEMA,
   PUBLIC_SOLANA_HOLDER_ROUTE,
   buildPublicSolanaHolderProjection,
+  measurePublicSolanaOwnerHolding,
   publicHolderUnavailable,
 } from "./lib/onchain_holder_projection.mjs";
+import {
+  ONCHAIN_TRADE_SCHEMA,
+  PUBLIC_ONCHAIN_TRADE_ROUTE,
+  buildPublicOnchainTradeProjection,
+  publicOnchainTradeUnavailable,
+} from "./lib/onchain_trade_projection.mjs";
+import { buildMarketControlRiskProjection } from "./lib/market_control_risk.mjs";
 import {
   DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_RADAR_SCHEMA,
@@ -255,6 +263,7 @@ const dexCache = new Map();
 const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
 const geckoMarketProfileCache = new Map();
+const geckoTradeCache = new Map();
 const onchainPulseCache = new Map();
 const jupiterVelocityCache = new Map();
 const hyperliquidCache = new Map();
@@ -2411,6 +2420,9 @@ function normalizeGeckoHolderDistribution(value = {}) {
     next_10_pct: next10,
     next_20_pct: next20,
     rest_pct: rest,
+    account_types_included: "all_provider_classified_accounts",
+    exact_pool_accounts_excluded: false,
+    quality_state: "provider_beta",
   };
 }
 
@@ -2547,6 +2559,11 @@ async function fetchGeckoPoolMarketProfile({
   ) throw new Error("coingecko_market_profile_quote_identity_mismatch");
   const attributes = selected.attributes || {};
   const developerHolding = publicPercentage(attributes.developer_holding_percentage);
+  const gtVerified = attributes.gt_verified === true ? true : attributes.gt_verified === false ? false : null;
+  const rawDeveloperAddress = normalizeProviderPoolAddress(chain, attributes.developer_address);
+  const developerAddress = (String(chain || "").toLowerCase() === "solana" ? SOLANA_ADDRESS_RE : EVM_ADDRESS_RE).test(rawDeveloperAddress)
+    ? rawDeveloperAddress
+    : null;
   const launchCompletedAt = publicIsoTimestamp(attributes.launchpad_details?.completed_at);
   const projectDescription = boundedProjectDescription(attributes.description);
   const result = {
@@ -2567,13 +2584,17 @@ async function fetchGeckoPoolMarketProfile({
       image_url: safeGeckoImageUrl(attributes.image_url || attributes.image),
       description: projectDescription,
       description_role: projectDescription ? "project_description" : "unavailable",
+      gt_verified: gtVerified,
+      metadata_verification_state: gtVerified === true ? "provider_verified" : gtVerified === false ? "provider_listed_unverified" : "unavailable",
     },
     holder_distribution: normalizeGeckoHolderDistribution(attributes.holders),
     token_controls: {
       mint_authority: normalizeTokenControl(attributes.mint_authority),
       freeze_authority: normalizeTokenControl(attributes.freeze_authority),
       honeypot: normalizeHoneypotState(attributes.is_honeypot),
+      developer_address: developerAddress,
       developer_holding_pct: developerHolding,
+      developer_holding_role: developerHolding === null ? "unavailable" : "provider_reported_requires_onchain_recheck",
     },
     launch: attributes.launchpad_details && typeof attributes.launchpad_details === "object"
       ? {
@@ -3005,7 +3026,7 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
     || value?.safe_public !== true
     || value?.schema_version !== DISCOVER_RADAR_SCHEMA
     || value?.classifier?.name !== "raven_behavioral_radar"
-    || !new Set(["2026-08-27.3", "2026-08-27.4"]).has(value?.classifier?.version)
+    || !new Set(["2026-08-27.3", "2026-08-27.4", "2026-08-27.5", "2026-08-27.6"]).has(value?.classifier?.version)
     || value?.classifier?.monitor_eligible !== false
     || value?.monitor_safety?.enabled !== false
     || value?.public_safety?.raw_provider_payloads_exposed !== false
@@ -3317,6 +3338,54 @@ async function fetchGeckoPoolIdentity({ env = {}, chain = "", pairAddress = "", 
     quote_token_decimals: selectedIsBase ? identity.quote_decimals : identity.base_decimals,
     orientation: "selected_token_usd",
   };
+}
+
+async function fetchGeckoPoolTrades({ env = {}, chain = "", pairAddress = "", tokenAddress = "", quoteAddress = "" } = {}) {
+  const providerId = "coingecko_onchain";
+  const runtime = onchainProviderRuntime(providerId, env);
+  const network = onchainProviderNetwork(providerId, chain);
+  const pool = normalizeProviderPoolAddress(chain, pairAddress);
+  if (!network || !pool || !String(tokenAddress || "").trim() || !String(quoteAddress || "").trim()) {
+    const error = new Error("onchain_trade_identity_invalid");
+    error.code = "onchain_trade_identity_invalid";
+    throw error;
+  }
+  if (!runtime.runtime_allowed) throw new Error(runtime.runtime_block_reason || "onchain_trade_provider_unavailable");
+  const identity = await fetchGeckoPoolIdentity({ env, chain, pairAddress: pool, tokenAddress, quoteAddress });
+  const cacheKey = `${runtime.provider_tier}:${network}:${pool}:${identity.selected_token_address}:${identity.quote_token_address}`;
+  const cached = cacheGet(geckoTradeCache, cacheKey);
+  if (cached) return cached;
+  const fetchedAt = new Date().toISOString();
+  const providerPayload = await runProviderOperation({
+    component: "onchain_pool_trades",
+    operation_key: `trades:${cacheKey}`,
+    fn: () => boundedProviderJson(
+      `${runtime.base_url}/networks/${encodeURIComponent(network)}/pools/${encodeURIComponent(pool)}/trades?token=${encodeURIComponent(identity.token_parameter)}`,
+      {
+        headers: {
+          "user-agent": "RavenOS/1.0 exact-pool-trades",
+          ...runtime.request_headers,
+        },
+        maxBytes: 640 * 1024,
+        timeoutMs: 5_000,
+        errorPrefix: "coingecko_pool_trades",
+      },
+    ),
+  });
+  const projection = buildPublicOnchainTradeProjection({
+    identity: {
+      chain,
+      pool_address: pool,
+      token_address: identity.selected_token_address,
+      quote_token_address: identity.quote_token_address,
+    },
+    provider_payload: providerPayload,
+    observed_at: fetchedAt,
+    source_label: runtime.attribution_label,
+    attribution_url: runtime.attribution_url,
+  });
+  cacheSet(geckoTradeCache, cacheKey, projection, Math.max(5, Number(runtime.refresh_seconds) || 10) * 1_000);
+  return projection;
 }
 
 async function fetchGeckoPoolCandles({ env = {}, chain = "", pairAddress = "", tokenAddress = "", quoteAddress = "", asset = "", timeframe = "1h", before = null, limit = null } = {}) {
@@ -7289,16 +7358,49 @@ async function routeApi(request, env) {
         mismatch.status = 404;
         throw mismatch;
       }
-      const projection = await buildPublicSolanaHolderProjection({
-        env,
-        identity: {
+      const exactIdentity = {
+        chain,
+        pool_address: pairAddress,
+        token_address: tokenAddress,
+        quote_token_address: quoteAddress || exact.quoteTokenAddress,
+      };
+      const [projection, marketProfile] = await Promise.all([
+        buildPublicSolanaHolderProjection({ env, identity: exactIdentity }),
+        fetchGeckoPoolMarketProfile({
+          env,
           chain,
-          pool_address: pairAddress,
-          token_address: tokenAddress,
-          quote_token_address: quoteAddress || exact.quoteTokenAddress,
+          pairAddress,
+          tokenAddress,
+          quoteAddress: exactIdentity.quote_token_address,
+        }).catch(() => null),
+      ]);
+      const developerAddress = String(marketProfile?.token_controls?.developer_address || "");
+      const developerHolding = SOLANA_ADDRESS_RE.test(developerAddress)
+        && !sameOnchainAddress(chain, developerAddress, pairAddress)
+        && !sameOnchainAddress(chain, developerAddress, tokenAddress)
+        && !sameOnchainAddress(chain, developerAddress, exactIdentity.quote_token_address)
+        ? await measurePublicSolanaOwnerHolding({
+          env,
+          identity: exactIdentity,
+          owner_address: developerAddress,
+        }).catch(() => null)
+        : null;
+      const riskScreen = buildMarketControlRiskProjection({
+        identity: exactIdentity,
+        holder_projection: projection,
+        market_profile: marketProfile,
+        developer_holding: developerHolding,
+        market_snapshot: {
+          pairAgeMs: exact.pairAgeMs,
+          volume24h: exact.volume24h,
+          marketCap: exact.marketCap,
+          fdv: exact.fdv,
+          liquidityUsd: exact.liquidityUsd,
+          txns24h: exact.txns24h,
         },
+        observed_at: projection.observed_at,
       });
-      return json(projection, {
+      return json({ ...projection, risk_screen: riskScreen }, {
         headers: {
           "cache-control": "public, max-age=60, s-maxage=180, stale-while-revalidate=300",
           "x-content-type-options": "nosniff",
@@ -7306,6 +7408,39 @@ async function routeApi(request, env) {
       });
     } catch (error) {
       const unavailable = publicHolderUnavailable(error);
+      return json(unavailable.payload, { status: unavailable.status });
+    }
+  }
+  if (url.pathname === PUBLIC_ONCHAIN_TRADE_ROUTE && request.method === "GET") {
+    const allowedParameters = new Set(["chain", "pair_address", "token_address", "quote_address"]);
+    const chain = String(url.searchParams.get("chain") || "").trim().toLowerCase();
+    const pairAddress = String(url.searchParams.get("pair_address") || "").trim();
+    const tokenAddress = String(url.searchParams.get("token_address") || "").trim();
+    const quoteAddress = String(url.searchParams.get("quote_address") || "").trim();
+    const identity = { chain, pool_address: pairAddress, token_address: tokenAddress, quote_token_address: quoteAddress };
+    const addressPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_ADDRESS_RE;
+    if (
+      [...url.searchParams.keys()].some((key) => !allowedParameters.has(key))
+      || !ONCHAIN_PULSE_NETWORKS[chain]
+      || !addressPattern.test(pairAddress)
+      || !addressPattern.test(tokenAddress)
+      || !addressPattern.test(quoteAddress)
+    ) {
+      const invalid = new Error("onchain_trade_request_invalid");
+      invalid.code = "onchain_trade_request_invalid";
+      const unavailable = publicOnchainTradeUnavailable(invalid, identity);
+      return json(unavailable.payload, { status: unavailable.status });
+    }
+    try {
+      const projection = await fetchGeckoPoolTrades({ env, chain, pairAddress, tokenAddress, quoteAddress });
+      return json(projection, {
+        headers: {
+          "cache-control": "public, max-age=3, s-maxage=10, stale-while-revalidate=30",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch (error) {
+      const unavailable = publicOnchainTradeUnavailable(error, identity);
       return json(unavailable.payload, { status: unavailable.status });
     }
   }

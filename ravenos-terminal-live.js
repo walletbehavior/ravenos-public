@@ -62,6 +62,11 @@ const state = {
   holderListGeneration: 0,
   holderListCache: new Map(),
   holderListLoadingKey: "",
+  spotTradeGeneration: 0,
+  spotTradeCache: new Map(),
+  spotTradeLoadingKey: "",
+  spotTradeFilter: "all",
+  spotTradeRefreshTimer: null,
   projectProfile: null,
 };
 
@@ -488,7 +493,7 @@ function afterTerminalPaneVisible(callback) {
 }
 
 function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } = {}) {
-  const requested = new Set(["chart", "holders", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
+  const requested = new Set(["chart", "activity", "holders", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
   const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
   const next = requestedButton?.hidden ? "chart" : requested;
   const root = document.querySelector(".terminal-live");
@@ -501,6 +506,9 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   }
   afterTerminalPaneVisible(() => {
     if (next === "chart") state.workspace?.chartHandle?.resize?.();
+    if (next === "activity") void loadSpotTrades();
+    else clearSpotTradeRefresh();
+    if (next === "holders") void loadHolderList();
     if (mobile && restoreScroll) {
       const fallback = document.querySelector(`[data-terminal-pane-button="${next}"]`)?.getBoundingClientRect?.().top + (window.scrollY || 0);
       const saved = state.paneScrollPositions[next];
@@ -567,6 +575,11 @@ function updateTerminalPaneAvailability() {
   if (marketRail) marketRail.hidden = !perps;
   const holdersButton = document.querySelector('[data-terminal-pane-button="holders"]');
   if (holdersButton) holdersButton.hidden = !spot;
+  const activityButton = document.querySelector('[data-terminal-pane-button="activity"]');
+  const spotActivityAvailable = spot && Boolean(currentProjectIdentity());
+  if (activityButton) activityButton.hidden = !spotActivityAvailable;
+  const activitySection = document.getElementById("terminalSpotActivitySection");
+  if (activitySection) activitySection.hidden = !spotActivityAvailable;
   const bookButton = document.querySelector('[data-terminal-pane-button="book"]');
   if (bookButton) bookButton.hidden = !perps;
   const tradeSection = document.getElementById("terminalTradeReviewSection");
@@ -580,7 +593,13 @@ function updateTerminalPaneAvailability() {
   if (accountButton) accountButton.hidden = !accountVisible;
   syncWalletControls();
   const current = root?.dataset.terminalPane || "chart";
-  if ((!perps && ["trade", "book", "account"].includes(current)) || (!spot && current === "holders") || (current === "trade" && !tradeVisible) || (current === "account" && !accountVisible)) setTerminalPane("chart");
+  if (
+    (!perps && ["trade", "book", "account"].includes(current))
+    || (!spot && ["activity", "holders"].includes(current))
+    || (current === "activity" && !spotActivityAvailable)
+    || (current === "trade" && !tradeVisible)
+    || (current === "account" && !accountVisible)
+  ) setTerminalPane("chart");
 }
 
 function accountMoney(value) {
@@ -1340,14 +1359,15 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
   const anatomy = workspace.marketAnatomy || {};
   const profile = anatomy.market_profile || {};
   const controls = profile.token_controls || {};
-  const holderProfile = profile.holder_distribution || anatomy.holder_distribution || {};
+  const holderProjection = state.holderListCache.get(currentHolderIdentity()?.key);
+  const controlRisk = verifiedMarketControlRisk(holderProjection?.risk_screen, currentHolderIdentity());
   const instrumentId = workspace.instrument?.canonical_id;
   const flow = spotFlowEvidence(workspace);
   const liquidity = finite(anatomy.liquidity_usd);
   const marketCap = finite(anatomy.market_cap_usd);
   const poolAgeMs = finite(anatomy.pool_age_ms);
-  const top10Pct = finite(holderProfile.top_10_pct);
-  const developerHoldingPct = finite(controls.developer_holding_pct);
+  const top10Pct = finite(controlRisk?.metrics?.top_10_wallet_supply_pct);
+  const developerHoldingPct = finite(controlRisk?.metrics?.developer_supply_pct);
   const rsi = finite(read?.facts?.rsi);
   const volumeRatio = finite(read?.facts?.volume_ratio);
   const entry = finite(map.entry_reference);
@@ -1376,6 +1396,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     || !["current", "fresh", "live"].includes(String(workspace.providerFreshnessState || "").toLowerCase())
     || !["current", "fresh", "live"].includes(String(workspace.candleFreshnessState || "").toLowerCase())
     || workspace.marketActivityState !== "active"
+    || !controlRisk
     || !flow
     || flow.buyShare < 0.58
     || (flow.traders !== null && flow.traders < 10)
@@ -1388,6 +1409,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     || !(primaryTarget > entry)
     || !(risk < entry)
     || unsafeControls
+    || ["high", "severe"].includes(controlRisk?.level)
   ) return null;
   const riskDistance = entry - risk;
   const riskPct = (riskDistance / entry) * 100;
@@ -1403,6 +1425,7 @@ function createSpotStructurePlan(context = {}, workspace = state.workspace?.stat
     rsi !== null && rsi >= 76 ? `RSI ${rsi.toFixed(0)} is extended` : "",
     flow.holderChange !== null && flow.holderChange < 0 ? `holders ${percent(flow.holderChange)}` : "",
     depthToMarketCap !== null && depthToMarketCap < 0.025 ? `${(depthToMarketCap * 100).toFixed(1)}% depth / market cap` : "",
+    ...(controlRisk?.risk_factors || []).slice(0, 2).map((row) => row.label.toLowerCase()),
   ].filter(Boolean);
   const breakoutQualified = read.setup === "breakout_confirmed"
     && finite(read.score) >= 4
@@ -2033,6 +2056,9 @@ async function copyProjectContract() {
 }
 
 const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const MARKET_CONTROL_RISK_SCHEMA = "ravenos.market_control_risk.v1";
+const MARKET_CONTROL_RISK_LEVELS = new Set(["forming", "measured_low", "watch", "elevated", "high", "severe"]);
+const MARKET_CONTROL_RISK_SEVERITIES = new Set(["info", "positive", "elevated", "high", "critical"]);
 
 function currentHolderIdentity() {
   if (state.lane !== "spot" || String(state.selected?.chainId || "").toLowerCase() !== "solana") return null;
@@ -2092,6 +2118,151 @@ function verifiedHolderProjection(payload, identity) {
   ));
   if (holders.length !== payload.holders.length) return null;
   return { ...payload, holders };
+}
+
+function verifiedMarketControlRisk(payload, identity) {
+  const exact = payload?.identity || {};
+  const cleanEvidence = (rows) => (Array.isArray(rows) ? rows : []).slice(0, 12).map((row) => {
+    if (
+      !row
+      || !String(row.id || "").match(/^[a-z0-9_:-]{1,80}$/i)
+      || !MARKET_CONTROL_RISK_SEVERITIES.has(row.severity)
+      || !["control", "market_integrity", "authenticity"].includes(row.dimension)
+    ) return null;
+    const label = customerFacingText(row.label, "").slice(0, 80);
+    const detail = customerFacingText(row.detail, "").slice(0, 240);
+    return label && detail ? { ...row, label, detail } : null;
+  }).filter(Boolean);
+  if (
+    !identity
+    || payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== MARKET_CONTROL_RISK_SCHEMA
+    || payload?.state !== "available"
+    || !MARKET_CONTROL_RISK_LEVELS.has(payload.level)
+    || String(exact.chain || "").toLowerCase() !== identity.chain
+    || exact.pool_address !== identity.pool_address
+    || exact.token_address !== identity.token_address
+  ) return null;
+  const riskFactors = cleanEvidence(payload.risk_factors);
+  const mitigatingChecks = cleanEvidence(payload.mitigating_checks);
+  const measuredFacts = cleanEvidence(payload.measured_facts);
+  const unmeasured = (Array.isArray(payload.unmeasured) ? payload.unmeasured : [])
+    .slice(0, 8)
+    .map((value) => customerFacingText(value, "").slice(0, 100))
+    .filter(Boolean);
+  if (riskFactors.length !== (payload.risk_factors || []).length || mitigatingChecks.length !== (payload.mitigating_checks || []).length) return null;
+  return {
+    ...payload,
+    title: customerFacingText(payload.title, "Risk screen").slice(0, 100),
+    summary: customerFacingText(payload.summary, "").slice(0, 440),
+    risk_factors: riskFactors,
+    mitigating_checks: mitigatingChecks,
+    measured_facts: measuredFacts,
+    unmeasured,
+  };
+}
+
+function renderRiskEvidenceList(host, rows) {
+  if (!host) return;
+  host.replaceChildren();
+  for (const row of rows) {
+    const item = document.createElement("li");
+    item.dataset.severity = row.severity;
+    const label = document.createElement("strong");
+    label.textContent = row.label;
+    const detail = document.createElement("span");
+    detail.textContent = row.detail;
+    item.append(label, detail);
+    host.append(item);
+  }
+}
+
+function renderMarketControlRisk(payload, { loading = false, unavailable = false } = {}) {
+  const root = document.getElementById("terminalRiskScreen");
+  if (!root) return;
+  const identity = currentHolderIdentity();
+  const risk = verifiedMarketControlRisk(payload, identity);
+  root.hidden = !identity;
+  root.dataset.level = risk?.level || "forming";
+  if (!identity) return;
+  if (!risk) {
+    setText("terminalRiskTitle", loading ? "Checking this exact market" : "Risk checks need a refresh");
+    setText("terminalRiskLevel", loading ? "Checking" : "Not loaded");
+    setText("terminalRiskSummary", loading
+      ? "Reading pool-excluded holder concentration and exact token controls."
+      : "Raven could not verify the current holder and control evidence. No risk factor was inferred.");
+    for (const [sectionId, listId] of [["terminalRiskFactorsSection", "terminalRiskFactors"], ["terminalRiskChecksSection", "terminalRiskChecks"]]) {
+      const section = document.getElementById(sectionId);
+      if (section) section.hidden = true;
+      document.getElementById(listId)?.replaceChildren();
+    }
+    const details = document.getElementById("terminalRiskUnknownsDetails");
+    if (details) details.hidden = true;
+    return;
+  }
+  root.dataset.level = risk.level;
+  setText("terminalRiskTitle", risk.title);
+  setText("terminalRiskLevel", {
+    measured_low: "Measured low",
+    watch: "Watch",
+    elevated: "Elevated",
+    high: "High",
+    severe: "Severe",
+  }[risk.level] || "Forming");
+  setText("terminalRiskSummary", risk.summary);
+  const riskSection = document.getElementById("terminalRiskFactorsSection");
+  const checkSection = document.getElementById("terminalRiskChecksSection");
+  if (riskSection) riskSection.hidden = risk.risk_factors.length === 0;
+  if (checkSection) checkSection.hidden = risk.mitigating_checks.length === 0;
+  renderRiskEvidenceList(document.getElementById("terminalRiskFactors"), risk.risk_factors);
+  renderRiskEvidenceList(document.getElementById("terminalRiskChecks"), risk.mitigating_checks);
+  const unknownDetails = document.getElementById("terminalRiskUnknownsDetails");
+  const unknownList = document.getElementById("terminalRiskUnknowns");
+  if (unknownDetails) unknownDetails.hidden = risk.unmeasured.length === 0;
+  setText("terminalRiskUnknownCount", risk.unmeasured.length ? String(risk.unmeasured.length) : "");
+  if (unknownList) {
+    unknownList.replaceChildren();
+    for (const value of risk.unmeasured) {
+      const item = document.createElement("li");
+      item.textContent = value;
+      unknownList.append(item);
+    }
+  }
+}
+
+function renderVerifiedHolderConcentration(payload) {
+  const root = document.getElementById("terminalHolderMap");
+  const bar = document.getElementById("terminalHolderBar");
+  const top10 = finite(payload?.summary?.top_10_wallet_supply_pct);
+  if (!root || !bar || top10 === null || top10 < 0 || top10 > 100) return false;
+  const rest = Math.max(0, 100 - top10);
+  root.hidden = false;
+  setText("terminalHolderMapLabel", "Wallet concentration · pool excluded");
+  setText("terminalHolderTop10Label", "Top 10 wallets");
+  setText("terminalHolderRestLabel", "All others");
+  document.getElementById("terminalHolderNext10Cell").hidden = true;
+  document.getElementById("terminalHolderNext20Cell").hidden = true;
+  document.getElementById("terminalHolderTop10Cell").hidden = false;
+  document.getElementById("terminalHolderRestCell").hidden = false;
+  setText("terminalHolderTop10", profilePercent(top10));
+  setText("terminalHolderRest", profilePercent(rest));
+  setText("terminalHolderNext10", "");
+  setText("terminalHolderNext20", "");
+  bar.replaceChildren();
+  for (const value of [top10, rest]) {
+    const segment = document.createElement("span");
+    segment.style.flex = `${value} 1 0`;
+    bar.append(segment);
+  }
+  bar.setAttribute("aria-label", `Top 10 non-pool wallets hold ${profilePercent(top10)} of supply; all other accounts hold ${profilePercent(rest)}.`);
+  const complete = payload.coverage?.complete_holder_census === true;
+  const observedMs = Date.parse(String(payload.observed_at || ""));
+  const freshness = Number.isFinite(observedMs)
+    ? ` · updated ${durationLabel(Math.max(0, Math.round((Date.now() - observedMs) / 1_000)))}`
+    : "";
+  setText("terminalHolderMapState", `${complete ? "Complete owner census" : "Largest-account scan"}${freshness}`);
+  return true;
 }
 
 function renderHolderListMessage(message) {
@@ -2159,6 +2330,9 @@ function renderHolderListProjection(payload) {
   setText("terminalHolderListNote", complete
     ? `Complete current census · ${compact(payload.coverage.scanned_source_accounts)} token accounts grouped into ${compact(totalOwners)} owners · showing the top ${payload.holders.length} · ${observed}.`
     : `Largest 20 token accounts, grouped by owner when available · full census unavailable · ${observed}.`);
+  renderVerifiedHolderConcentration(payload);
+  renderMarketControlRisk(payload.risk_screen);
+  if (state.lane === "spot" && (state.context?.spot_identity_validated || state.context?.spot_plan_identity_validated)) refreshSpotStructurePlan();
 }
 
 function renderHolderListSurface() {
@@ -2168,6 +2342,7 @@ function renderHolderListSurface() {
   details.hidden = !identity;
   if (!identity) {
     details.dataset.identityKey = "";
+    renderMarketControlRisk(null);
     return;
   }
   const changed = details.dataset.identityKey !== identity.key;
@@ -2178,10 +2353,12 @@ function renderHolderListSurface() {
     setText("terminalHolderListState", "Loading");
     setText("terminalHolderListNote", "Reading current on-chain holder accounts for this exact token.");
     renderHolderListMessage("Loading top holders…");
+    renderMarketControlRisk(null, { loading: true });
   } else {
     setText("terminalHolderListState", "View list");
     setText("terminalHolderListNote", "Ranked on-chain owners for this exact token.");
     renderHolderListMessage("Open this section to load the current holder list.");
+    renderMarketControlRisk(null, { loading: false });
   }
   if (changed && details.open && !cached) void loadHolderList();
 }
@@ -2211,6 +2388,7 @@ async function loadHolderList() {
       setText("terminalHolderListState", "Unavailable");
       setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
       renderHolderListMessage("The exact holder list could not be verified, so RavenOS did not show partial or substituted accounts.");
+      renderMarketControlRisk(null, { unavailable: true });
       return;
     }
     state.holderListCache.set(identity.key, verified);
@@ -2221,9 +2399,306 @@ async function loadHolderList() {
     setText("terminalHolderListState", "Unavailable");
     setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
     renderHolderListMessage("The exact holder list could not be loaded. No substitute market was used.");
+    renderMarketControlRisk(null, { unavailable: true });
   } finally {
     if (state.holderListLoadingKey === identity.key) state.holderListLoadingKey = "";
   }
+}
+
+const SPOT_TRADE_SCHEMA = "ravenos.onchain_pool_trades.v1";
+const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io"]);
+
+function clearSpotTradeRefresh() {
+  clearTimeout(state.spotTradeRefreshTimer);
+  state.spotTradeRefreshTimer = null;
+}
+
+function spotTradeSurfaceActive() {
+  if (document.hidden || state.lane !== "spot" || !currentProjectIdentity()) return false;
+  if (!terminalUsesPaneNavigation()) return true;
+  return document.querySelector(".terminal-live")?.dataset.terminalPane === "activity";
+}
+
+function scheduleSpotTradeRefresh() {
+  clearSpotTradeRefresh();
+  if (!spotTradeSurfaceActive()) return;
+  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), 12_000);
+}
+
+function safeSpotTradeLink(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && SPOT_TRADE_LINK_HOSTS.has(url.hostname) && !url.username && !url.password
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function spotTradeAddressValid(chain, value) {
+  const address = String(value || "");
+  return chain === "solana"
+    ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
+    : /^0x[a-f0-9]{40}$/.test(address);
+}
+
+function verifiedSpotTradeProjection(payload, identity = currentProjectIdentity()) {
+  if (
+    !identity
+    || payload?.ok !== true
+    || payload?.safe_public !== true
+    || payload?.schema_version !== SPOT_TRADE_SCHEMA
+    || payload?.state !== "available"
+    || String(payload?.identity?.chain || "").toLowerCase() !== identity.chain
+    || !sameSelectedAddress(identity.chain, payload?.identity?.pool_address, identity.poolAddress)
+    || !sameSelectedAddress(identity.chain, payload?.identity?.token_address, identity.tokenAddress)
+    || !sameSelectedAddress(identity.chain, payload?.identity?.quote_token_address, identity.quoteAddress)
+    || !Array.isArray(payload?.trades)
+    || payload.trades.length > 120
+    || !Array.isArray(payload?.active_traders)
+    || payload.active_traders.length > 24
+    || payload?.execution_boundary?.signing_available !== false
+    || payload?.execution_boundary?.submission_available !== false
+  ) return null;
+  const trades = payload.trades.filter((row) => (
+    typeof row?.event_id === "string"
+    && row.event_id.length > 0
+    && row.event_id.length <= 180
+    && ["buy", "sell"].includes(row?.side)
+    && Number.isFinite(Date.parse(String(row?.observed_at || "")))
+    && finite(row?.volume_usd) !== null
+    && finite(row.volume_usd) > 0
+    && ["standard", "largest_10_pct"].includes(row?.sample_size_tier)
+    && (!row.trader_address || spotTradeAddressValid(identity.chain, row.trader_address))
+    && (!row.trader_explorer_url || Boolean(safeSpotTradeLink(row.trader_explorer_url)))
+    && (!row.transaction_explorer_url || Boolean(safeSpotTradeLink(row.transaction_explorer_url)))
+  ));
+  const traders = payload.active_traders.filter((row) => (
+    Number.isInteger(row?.rank)
+    && row.rank >= 1
+    && spotTradeAddressValid(identity.chain, row?.trader_address)
+    && Number.isInteger(row?.trade_count)
+    && row.trade_count >= 1
+    && ["repeat", "single_observation"].includes(row?.recurrence)
+    && ["buy_dominant", "sell_dominant", "mixed"].includes(row?.direction)
+    && (!row.explorer_url || Boolean(safeSpotTradeLink(row.explorer_url)))
+  ));
+  if (trades.length !== payload.trades.length || traders.length !== payload.active_traders.length) return null;
+  return { ...payload, trades, active_traders: traders };
+}
+
+function renderSpotTradeMessage(message) {
+  const host = document.getElementById("terminalSpotTradeRows");
+  if (!host) return;
+  host.replaceChildren();
+  const paragraph = document.createElement("p");
+  paragraph.textContent = message;
+  host.append(paragraph);
+}
+
+function spotFlowLabel(value) {
+  const amount = finite(value);
+  if (amount === null) return "—";
+  return `${amount > 0 ? "+" : amount < 0 ? "−" : ""}${compact(Math.abs(amount), { currency: true })}`;
+}
+
+function renderSpotTradeSummary(payload) {
+  const fiveMinute = payload?.summary?.windows?.m5 || {};
+  const oneHour = payload?.summary?.windows?.h1 || {};
+  const current = Number(fiveMinute.trade_count || 0) > 0 ? fiveMinute : oneHour;
+  const windowLabel = current === fiveMinute ? "5m" : "1h";
+  setText("terminalSpotFlow1Label", `${windowLabel} sample`);
+  setText("terminalSpotFlow2Label", "Sample buy share");
+  setText("terminalSpotFlow3Label", "Sample net flow");
+  setText("terminalSpotFlow1", compact(current.trade_count));
+  setText("terminalSpotFlow2", profilePercent(current.buy_volume_share_pct) || "—");
+  setText("terminalSpotFlow3", spotFlowLabel(current.net_buy_volume_usd));
+  const repeatShare = profilePercent(payload?.summary?.repeat_trader_volume_share_pct);
+  setText("terminalSpotFlow4", `${compact(payload?.summary?.repeat_trader_count)}${repeatShare ? ` · ${repeatShare} flow` : ""}`);
+  const netFlow = finite(current.net_buy_volume_usd);
+  const flowNode = document.getElementById("terminalSpotFlow3");
+  if (flowNode) flowNode.dataset.tone = netFlow === null || netFlow === 0 ? "neutral" : netFlow > 0 ? "positive" : "negative";
+  document.getElementById("terminalSpotFlow").hidden = false;
+}
+
+function filteredSpotTrades(payload) {
+  const repeatAddresses = new Set(payload.active_traders.filter((row) => row.recurrence === "repeat").map((row) => row.trader_address));
+  return payload.trades.filter((row) => (
+    state.spotTradeFilter === "all"
+    || row.side === state.spotTradeFilter
+    || (state.spotTradeFilter === "large" && row.sample_size_tier === "largest_10_pct")
+    || (state.spotTradeFilter === "repeat" && repeatAddresses.has(row.trader_address))
+  ));
+}
+
+function appendSpotTradeLink(host, { href, label, title = "" } = {}) {
+  const safeHref = safeSpotTradeLink(href);
+  if (!safeHref) return null;
+  const anchor = document.createElement("a");
+  anchor.href = safeHref;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer nofollow";
+  anchor.textContent = label;
+  if (title) anchor.title = title;
+  host.append(anchor);
+  return anchor;
+}
+
+function renderSpotTradeRows(payload) {
+  const host = document.getElementById("terminalSpotTradeRows");
+  if (!host) return;
+  host.replaceChildren();
+  const rows = filteredSpotTrades(payload);
+  if (!rows.length) {
+    renderSpotTradeMessage("No swaps match this filter in the current exact-pool sample.");
+    return;
+  }
+  for (const row of rows) {
+    const item = document.createElement("article");
+    item.className = "terminal-spot-trade-row";
+    item.dataset.sizeTier = row.sample_size_tier;
+    const observed = document.createElement("time");
+    observed.dateTime = row.observed_at;
+    observed.textContent = durationLabel((Date.now() - Date.parse(row.observed_at)) / 1_000);
+    observed.title = timestamp(row.observed_at);
+    const side = document.createElement("span");
+    side.className = "terminal-spot-side";
+    side.dataset.side = row.side;
+    side.textContent = row.side;
+    const volume = document.createElement("strong");
+    volume.textContent = compact(row.volume_usd, { currency: true });
+    volume.title = `$${Number(row.volume_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+    const price = document.createElement("span");
+    price.textContent = formatPrice(row.price_usd);
+    const trader = document.createElement("div");
+    trader.className = "terminal-spot-trader";
+    if (row.trader_address) {
+      appendSpotTradeLink(trader, { href: row.trader_explorer_url, label: compactHolderAddress(row.trader_address), title: row.trader_address });
+    } else {
+      const unavailable = document.createElement("span");
+      unavailable.textContent = "Not listed";
+      trader.append(unavailable);
+    }
+    appendSpotTradeLink(trader, { href: row.transaction_explorer_url, label: "Tx", title: "Open public transaction" });
+    item.append(observed, side, volume, price, trader);
+    host.append(item);
+  }
+}
+
+function renderActiveTraders(payload) {
+  const host = document.getElementById("terminalActiveTraderRows");
+  if (!host) return;
+  host.replaceChildren();
+  for (const row of payload.active_traders) {
+    const item = document.createElement("article");
+    item.className = "terminal-active-trader-row";
+    const rank = document.createElement("span");
+    rank.textContent = `#${row.rank}`;
+    const identity = document.createElement("div");
+    appendSpotTradeLink(identity, { href: row.explorer_url, label: compactHolderAddress(row.trader_address), title: row.trader_address });
+    const description = document.createElement("small");
+    const direction = row.direction === "buy_dominant" ? "Buy-heavy" : row.direction === "sell_dominant" ? "Sell-heavy" : "Mixed flow";
+    description.textContent = `${row.trade_count} swap${row.trade_count === 1 ? "" : "s"} · ${row.recurrence === "repeat" ? "repeat in sample" : "seen once"} · ${direction}`;
+    identity.append(description);
+    const flow = document.createElement("strong");
+    flow.textContent = spotFlowLabel(row.net_buy_volume_usd);
+    const amount = finite(row.net_buy_volume_usd);
+    flow.dataset.tone = amount === null || amount === 0 ? "neutral" : amount > 0 ? "positive" : "negative";
+    item.append(rank, identity, flow);
+    host.append(item);
+  }
+  setText("terminalActiveTraderState", `${payload.active_traders.length} observed`);
+  setText("terminalActiveTraderNote", "Public transaction senders ranked by volume in this returned exact-pool sample. Repeat does not imply related ownership, skill, or profitability.");
+}
+
+function renderSpotTradeProjection(payload) {
+  renderSpotTradeSummary(payload);
+  renderSpotTradeRows(payload);
+  renderActiveTraders(payload);
+  const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
+  setText("terminalSpotActivityState", `${payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
+  setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · exact pool · bounded 24h sample`);
+  const credit = document.getElementById("terminalSpotTradeCredit");
+  const creditUrl = String(payload?.source?.attribution_url || "");
+  if (credit && creditUrl === "https://www.coingecko.com/en/api") {
+    credit.href = creditUrl;
+    credit.textContent = payload?.source?.label || "Data provided by CoinGecko";
+  }
+  for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
+  }
+}
+
+function renderSpotTradeSurface() {
+  const section = document.getElementById("terminalSpotActivitySection");
+  if (!section) return;
+  const identity = currentProjectIdentity();
+  section.hidden = !identity;
+  if (!identity) return;
+  const entry = state.spotTradeCache.get(identity.key);
+  if (entry?.payload) {
+    renderSpotTradeProjection(entry.payload);
+    return;
+  }
+  document.getElementById("terminalSpotFlow").hidden = true;
+  setText("terminalSpotActivityState", state.spotTradeLoadingKey === identity.key ? "Loading" : "Ready to load");
+  setText("terminalActiveTraderState", "Waiting");
+  renderSpotTradeMessage(state.spotTradeLoadingKey === identity.key
+    ? "Loading recent exact-pool swaps…"
+    : "Open Trades to load current exact-pool activity.");
+}
+
+async function loadSpotTrades({ force = false } = {}) {
+  const identity = currentProjectIdentity();
+  if (!identity || (state.spotTradeLoadingKey === identity.key && !force)) return;
+  const cached = state.spotTradeCache.get(identity.key);
+  if (!force && cached?.payload && Date.now() - cached.loadedAt < 10_000) {
+    renderSpotTradeProjection(cached.payload);
+    scheduleSpotTradeRefresh();
+    return;
+  }
+  const generation = ++state.spotTradeGeneration;
+  state.spotTradeLoadingKey = identity.key;
+  if (!cached?.payload) renderSpotTradeSurface();
+  else setText("terminalSpotActivityState", "Refreshing");
+  const params = new URLSearchParams({
+    chain: identity.chain,
+    pair_address: identity.poolAddress,
+    token_address: identity.tokenAddress,
+    quote_address: identity.quoteAddress,
+  });
+  try {
+    const { response, payload } = await fetchJson(`/api/onchain/trades?${params.toString()}`);
+    if (generation !== state.spotTradeGeneration || currentProjectIdentity()?.key !== identity.key) return;
+    const verified = response.ok ? verifiedSpotTradeProjection(payload, identity) : null;
+    if (!verified) {
+      setText("terminalSpotActivityState", "Unavailable");
+      document.getElementById("terminalSpotFlow").hidden = true;
+      setText("terminalActiveTraderState", "Unavailable");
+      renderSpotTradeMessage("Recent exact-pool swaps aren’t available for this market yet. No token-wide or similarly named market was substituted.");
+      return;
+    }
+    state.spotTradeCache.set(identity.key, { payload: verified, loadedAt: Date.now() });
+    if (state.spotTradeCache.size > 24) state.spotTradeCache.delete(state.spotTradeCache.keys().next().value);
+    renderSpotTradeProjection(verified);
+  } catch {
+    if (generation !== state.spotTradeGeneration || currentProjectIdentity()?.key !== identity.key) return;
+    setText("terminalSpotActivityState", "Unavailable");
+    document.getElementById("terminalSpotFlow").hidden = true;
+    setText("terminalActiveTraderState", "Unavailable");
+    renderSpotTradeMessage("Recent exact-pool swaps couldn’t be loaded. No alternate market was used.");
+  } finally {
+    if (state.spotTradeLoadingKey === identity.key) state.spotTradeLoadingKey = "";
+    scheduleSpotTradeRefresh();
+  }
+}
+
+function setSpotTradeFilter(filter) {
+  if (!new Set(["all", "buy", "sell", "large", "repeat"]).has(filter)) return;
+  state.spotTradeFilter = filter;
+  const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (payload) renderSpotTradeProjection(payload);
 }
 
 function setInstrumentImage(value) {
@@ -2268,11 +2743,17 @@ function renderSpotMarketProfile(anatomy = {}) {
     ? parts.reduce((sum, value) => sum + value, 0)
     : null;
   const distributionVisible = distribution.state === "available"
+    && distribution.exact_pool_accounts_excluded === true
     && distributionTotal !== null
     && distributionTotal >= 99
     && distributionTotal <= 101;
 
   if (distributionRoot) distributionRoot.hidden = !distributionVisible;
+  setText("terminalHolderMapLabel", "Wallet concentration · pool excluded");
+  setText("terminalHolderTop10Label", "Top 10 wallets");
+  setText("terminalHolderRestLabel", "All others");
+  document.getElementById("terminalHolderNext10Cell").hidden = false;
+  document.getElementById("terminalHolderNext20Cell").hidden = false;
   if (bar) {
     bar.replaceChildren();
     if (distributionVisible) {
@@ -2317,10 +2798,6 @@ function renderSpotMarketProfile(anatomy = {}) {
   else if (controls.freeze_authority === "enabled") chipRows.push(["Freeze authority active", "warning"]);
   if (controls.honeypot === "flagged") chipRows.push(["Honeypot flag", "danger"]);
   else if (controls.honeypot === "not_flagged") chipRows.push(["No honeypot flag", "positive"]);
-  const developerHolding = finite(controls.developer_holding_pct);
-  if (developerHolding !== null && developerHolding >= 0 && developerHolding <= 100) {
-    chipRows.push([`Developer holds ${developerHolding.toFixed(developerHolding < 1 ? 2 : 1)}%`, developerHolding >= 5 ? "warning" : "neutral"]);
-  }
   if (anatomy?.market_profile?.launch?.completed === true) chipRows.push(["Launch complete", "neutral"]);
   for (const [label, tone] of chipRows) {
     const chip = document.createElement("span");
@@ -2343,6 +2820,8 @@ function renderSpotMarketProfile(anatomy = {}) {
   if (facts) facts.hidden = !factsVisible;
   const section = document.getElementById("terminalAnatomySection");
   if (section && (distributionVisible || factsVisible)) section.hidden = false;
+  const cachedHolders = state.holderListCache.get(currentHolderIdentity()?.key);
+  if (cachedHolders) renderVerifiedHolderConcentration(cachedHolders);
 }
 
 function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
@@ -4325,6 +4804,7 @@ async function loadTradeFlags() {
 
 async function selectPerp(asset, { updateUrl = true } = {}) {
   closeProjectLinks();
+  clearSpotTradeRefresh();
   const row = state.markets.find((item) => item.asset === asset);
   if (!row) return;
   const generation = ++state.selectionGeneration;
@@ -4396,6 +4876,7 @@ function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   closeProjectLinks();
   state.lane = lane;
+  if (lane !== "spot") clearSpotTradeRefresh();
   renderLaunchBadge();
   updateTerminalPaneAvailability();
   document.getElementById("terminalModeSelect").value = lane;
@@ -4526,6 +5007,7 @@ async function searchSpot(query) {
 
 async function selectSpot(row, { updateUrl = true } = {}) {
   closeProjectLinks();
+  clearSpotTradeRefresh();
   const chainCoverage = document.getElementById("terminalChainCoverage");
   if (chainCoverage) chainCoverage.open = false;
   const generation = ++state.selectionGeneration;
@@ -4534,6 +5016,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.selected = row;
   state.context = null;
   state.opportunityEvidence = null;
+  state.spotTradeFilter = "all";
   updateTerminalPaneAvailability();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
@@ -4542,6 +5025,9 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   document.getElementById("terminalSpotSearch").value = `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
   document.getElementById("venueSelect").replaceChildren(new Option(`${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
   renderSpotFacts(row);
+  renderSpotTradeSurface();
+  if (!terminalUsesPaneNavigation()) void loadSpotTrades();
+  if (String(row.chainId || "").toLowerCase() === "solana") void loadHolderList();
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Loading this pool’s price history.");
   const chartCapability = spotChartCapability(row, state.timeframe);
@@ -4696,6 +5182,7 @@ async function resolveListedSelection({ instrumentId = "", asset = "" } = {}) {
 
 async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   closeProjectLinks();
+  clearSpotTradeRefresh();
   const requestedSubject = atlasSubject(row);
   const atlasRow = state.atlas?.market_context?.rows?.find(
     (candidate) => candidate?.instrument_id === requestedSubject.instrumentId,
@@ -5071,6 +5558,13 @@ function bindControls() {
   document.getElementById("terminalHolderList")?.addEventListener("toggle", (event) => {
     if (event.currentTarget.open) void loadHolderList();
   });
+  for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
+    button.addEventListener("click", () => setSpotTradeFilter(button.dataset.spotTradeFilter));
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) clearSpotTradeRefresh();
+    else if (spotTradeSurfaceActive()) void loadSpotTrades();
+  });
   document.getElementById("terminalChartMarkerClose")?.addEventListener("click", clearMarkerInspection);
   document.getElementById("terminalChartMarkerEvidence")?.addEventListener("click", showFullMarkerEvidence);
   document.getElementById("terminalPreviewLong")?.addEventListener("click", () => setMarketPreviewSide("long", { refresh: true }));
@@ -5324,6 +5818,8 @@ async function boot() {
       walletLinked: false,
       bookLevels: terminalBookSides(state.orderBook || {}).bids.length,
       tapeCount: state.tapeRows.length,
+      spotTradeCount: state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload?.trades?.length || 0,
+      spotRepeatTraderCount: state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload?.summary?.repeat_trader_count || 0,
       signingAvailable: false,
       submissionAvailable: false,
       diagnostics: state.workspace?.diagnostics?.() || null,

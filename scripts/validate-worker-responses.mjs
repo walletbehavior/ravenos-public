@@ -55,6 +55,7 @@ const checks = [
   ["GET", "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m"],
   ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
   ["GET", "/api/onchain/holders?chain=solana&pair_address=3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj&token_address=EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump&quote_address=So11111111111111111111111111111111111111112"],
+  ["GET", "/api/onchain/trades?chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222&quote_address=0x3333333333333333333333333333333333333333"],
   ["GET", "/api/terminal/chart?market=equities&asset=AAPL&timeframe=1h&instrument_id=equity%3Anasdaq%3Aaapl"],
   ["GET", "/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222"],
   ["GET", "/api/terminal"],
@@ -230,6 +231,28 @@ globalThis.fetch = async (input, init = {}) => {
           type: "dex",
           attributes: { name: "Validation DEX" },
         }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/trades")) {
+      return new Response(JSON.stringify({
+        data: [{
+          id: "base_123_0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_1_1787904000",
+          type: "trade",
+          attributes: {
+            block_number: 123,
+            tx_hash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            tx_from_address: "0x4444444444444444444444444444444444444444",
+            from_token_amount: "25",
+            to_token_amount: "20",
+            price_from_in_usd: "1",
+            price_to_in_usd: "1.25",
+            block_timestamp: new Date(Date.now() - 30_000).toISOString(),
+            kind: "buy",
+            volume_in_usd: "25",
+            from_token_address: "0x3333333333333333333333333333333333333333",
+            to_token_address: "0x2222222222222222222222222222222222222222"
+          }
+        }]
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (!url.includes("/ohlcv/")) {
