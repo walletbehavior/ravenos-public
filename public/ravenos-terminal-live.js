@@ -1387,6 +1387,8 @@ function technicalAlphaCard(read = state.chartRead) {
 function exactSpotRavenDirection() {
   if (state.lane !== "spot" || state.context?.spot_identity_validated !== true) return null;
   const activeInstrumentId = activeChartEvidenceInstrumentId();
+  const selected = currentProjectIdentity();
+  const publicInstrumentId = selected ? `${selected.chain}:pool:${selected.poolAddress}` : "";
   const discovery = state.opportunityEvidence?.discovery;
   const identity = discovery?.exact_identity;
   const evidence = discovery?.raven_evidence_state;
@@ -1401,8 +1403,13 @@ function exactSpotRavenDirection() {
   if (
     !direction
     || !activeInstrumentId
-    || state.opportunityEvidence?.instrument_id !== activeInstrumentId
-    || identity?.instrument_id !== activeInstrumentId
+    || !selected
+    || state.opportunityEvidence?.instrument_id !== publicInstrumentId
+    || identity?.instrument_id !== publicInstrumentId
+    || String(identity?.chain || "").toLowerCase() !== selected.chain
+    || !sameSelectedAddress(selected.chain, identity?.pool_address, selected.poolAddress)
+    || !sameSelectedAddress(selected.chain, identity?.token_address, selected.tokenAddress)
+    || (selected.quoteAddress && !sameSelectedAddress(selected.chain, identity?.quote_token_address, selected.quoteAddress))
     || evidence?.qualified !== true
     || evidence?.raven_signal !== true
     || !["current", "fresh"].includes(String(evidence?.freshness || "").toLowerCase())
