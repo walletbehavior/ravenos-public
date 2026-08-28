@@ -5,8 +5,12 @@ import {
   opportunityLifecycle,
   validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
+import { mountTradingViewListedTape } from "/ravenos-tradingview-adapter.js";
 
 const REFRESH_MS = 45 * 1_000;
+const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
+const DISCOVER_IDLE_MS = 2_400;
+const CHANGE_FLASH_MS = 1_600;
 const state = {
   rows: new Map(),
   order: [],
@@ -29,6 +33,8 @@ const state = {
   spotChangedOnly: false,
   spotSessionSnapshots: new Map(),
   spotSessionChanged: new Set(),
+  spotVisualSnapshots: new Map(),
+  spotFlashTimers: new Map(),
   spotRadarState: "forming",
   spotMetadata: new Map(),
   spotMetadataPending: null,
@@ -45,6 +51,13 @@ const state = {
   },
   scrolling: false,
   scrollTimer: null,
+  reorderTimer: null,
+  lastInteractionAt: Date.now(),
+  marketTapeRows: [],
+  marketTapeObservedAt: null,
+  marketTapeLoading: false,
+  marketTapeTimer: null,
+  clockTimer: null,
   payoff: null,
   brief: null,
   atlasContext: null,
@@ -700,8 +713,8 @@ function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   return { current, age_seconds: ageSeconds, observed_at: observedAt };
 }
 
-function spotMarketFactAgeLabel(row = {}) {
-  const facts = spotMarketFactFreshness(row);
+function spotMarketFactAgeLabel(row = {}, nowMs = Date.now()) {
+  const facts = spotMarketFactFreshness(row, nowMs);
   if (facts.age_seconds === null) return "Quote time unavailable";
   if (facts.age_seconds < 60) return `${Math.max(1, facts.age_seconds)}s ago`;
   if (facts.age_seconds < 3_600) return `${Math.max(1, Math.round(facts.age_seconds / 60))}m ago`;
@@ -790,6 +803,113 @@ function tokenPrice(value) {
   if (result >= 1) return `$${result.toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
   if (result >= 0.01) return `$${result.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 5 })}`;
   return `$${result.toLocaleString("en-US", { minimumSignificantDigits: 2, maximumSignificantDigits: 5 })}`;
+}
+
+function marketTapeRows(rows = []) {
+  const majorOrder = new Map(["BTC", "ETH", "SOL"].map((symbol, index) => [symbol, index]));
+  const qualified = rows.filter((row) => (
+    /^hyperliquid:perp:[A-Z0-9_.-]+$/.test(text(row?.instrument_id, ""))
+    && text(row?.asset, "").endsWith("-PERP")
+    && finite(row?.last_price ?? row?.mark_price) > 0
+    && finite(row?.day_change_pct) !== null
+    && row?.is_synthetic !== true
+  ));
+  return qualified.sort((left, right) => {
+    const leftMajor = majorOrder.has(text(left.symbol, "")) ? majorOrder.get(text(left.symbol, "")) : 99;
+    const rightMajor = majorOrder.has(text(right.symbol, "")) ? majorOrder.get(text(right.symbol, "")) : 99;
+    if (leftMajor !== rightMajor) return leftMajor - rightMajor;
+    return (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0);
+  }).slice(0, 10);
+}
+
+function createMarketTapeGroup(rows, { duplicate = false, changes = new Map() } = {}) {
+  const group = document.createElement("div");
+  group.className = "discover-market-ribbon-group";
+  group.toggleAttribute("aria-hidden", duplicate);
+  for (const row of rows) {
+    const price = finite(row.last_price ?? row.mark_price);
+    const change = finite(row.day_change_pct);
+    const anchor = document.createElement("a");
+    anchor.className = "discover-market-ribbon-item";
+    anchor.href = terminalHref({ instrument: row.asset, instrument_id: row.instrument_id });
+    anchor.dataset.direction = change > 0 ? "up" : change < 0 ? "down" : "flat";
+    const updateTone = changes.get(row.instrument_id);
+    if (updateTone) anchor.dataset.updateTone = updateTone;
+    if (duplicate) anchor.tabIndex = -1;
+    anchor.setAttribute("aria-label", `${text(row.asset)} ${tokenPrice(price)}, ${change >= 0 ? "up" : "down"} ${Math.abs(change).toFixed(2)}% over 24 hours`);
+    append(anchor, "strong", "", text(row.asset));
+    append(anchor, "span", "", tokenPrice(price));
+    append(anchor, "em", "", `${change > 0 ? "↑" : change < 0 ? "↓" : ""}${percent(change)}`);
+    group.append(anchor);
+  }
+  return group;
+}
+
+function renderMarketTape(rows = [], observedAt = null) {
+  const host = document.getElementById("discoverPerpTapeTrack");
+  if (!host) return;
+  const nextRows = marketTapeRows(rows);
+  const priorById = new Map(state.marketTapeRows.map((row) => [row.instrument_id, finite(row.last_price ?? row.mark_price)]));
+  const changes = new Map();
+  for (const row of nextRows) {
+    const prior = priorById.get(row.instrument_id);
+    const next = finite(row.last_price ?? row.mark_price);
+    if (prior !== undefined && prior !== next) changes.set(row.instrument_id, next > prior ? "up" : "down");
+  }
+  state.marketTapeRows = nextRows;
+  state.marketTapeObservedAt = nextRows.length ? observedAt || nextRows[0]?.observed_at || new Date().toISOString() : null;
+  host.replaceChildren();
+  host.dataset.ready = String(nextRows.length > 0);
+  host.dataset.animated = String(nextRows.length >= 4);
+  if (!nextRows.length) {
+    append(host, "span", "discover-market-ribbon-wait", "Perp prices are refreshing…");
+    updateMarketTapeFreshness();
+    return;
+  }
+  host.style.setProperty("--discover-tape-duration", `${Math.max(28, nextRows.length * 4.2)}s`);
+  host.append(
+    createMarketTapeGroup(nextRows, { changes }),
+    createMarketTapeGroup(nextRows, { duplicate: true, changes }),
+  );
+  updateMarketTapeFreshness();
+}
+
+function updateMarketTapeFreshness(nowMs = Date.now()) {
+  const node = document.getElementById("discoverMarketRibbonFreshness");
+  const ribbon = document.getElementById("discoverMarketRibbon");
+  if (!node || !ribbon) return;
+  const observedMs = Date.parse(String(state.marketTapeObservedAt || ""));
+  const ageSeconds = Number.isFinite(observedMs) ? Math.max(0, Math.floor((nowMs - observedMs) / 1_000)) : null;
+  const current = ageSeconds !== null && ageSeconds <= 75;
+  ribbon.dataset.marketState = current ? "live" : "refreshing";
+  node.dateTime = state.marketTapeObservedAt || "";
+  node.textContent = current
+    ? `Perps ${ageSeconds < 2 ? "now" : `${ageSeconds}s ago`} · listed tape live`
+    : "Live prices refreshing";
+  if (!current && state.marketTapeRows.length) renderMarketTape([], null);
+}
+
+function mountListedMarketTape() {
+  const host = document.getElementById("discoverListedTapeHost");
+  if (!host) return;
+  const mounted = mountTradingViewListedTape(host);
+  host.dataset.state = mounted ? "mounted" : "unavailable";
+}
+
+async function refreshMarketTape() {
+  if (state.paused || state.loading || state.marketTapeLoading || document.hidden) return;
+  state.marketTapeLoading = true;
+  try {
+    const { response, payload } = await json("/api/hyperliquid/perps");
+    if (!response.ok || !Array.isArray(payload?.results)) throw new Error("market_tape_refresh_failed");
+    state.markets.clear();
+    payload.results.forEach((row) => state.markets.set(row.instrument_id, row));
+    renderMarkets(payload.results, { observedAt: payload.lastUpdated });
+  } catch {
+    updateMarketTapeFreshness();
+  } finally {
+    state.marketTapeLoading = false;
+  }
 }
 
 function safeTokenImage(value) {
@@ -976,6 +1096,75 @@ function radarSnapshotKey(row) {
     discovery.notability?.reason_code,
     discovery.notability?.priority,
   ]);
+}
+
+function spotVisualSnapshot(row) {
+  return {
+    price: finite(row?.market?.price_usd),
+    movement: spotMetric(row, "price_change"),
+    velocity: usableRadarScore(radarScore(row, "velocity")),
+    activity: usableRadarScore(radarScore(row, "activity")),
+    behavior: text(row?.discovery?.primary_behavior_state?.value, "forming"),
+    risk: rowRiskValues(row).join("|"),
+    current: spotMarketFactFreshness(row).current,
+  };
+}
+
+function spotVisualChangeTone(prior, next) {
+  if (!prior || !next.current) return "";
+  if (prior.price !== next.price && prior.price !== null && next.price !== null) return next.price > prior.price ? "up" : "down";
+  if (prior.movement !== next.movement && prior.movement !== null && next.movement !== null) return next.movement > prior.movement ? "up" : "down";
+  if (prior.behavior !== next.behavior || prior.risk !== next.risk || prior.velocity !== next.velocity || prior.activity !== next.activity) return "evidence";
+  return "";
+}
+
+function markSpotRowChange(anchor, row) {
+  const id = spotRowId(row);
+  const next = spotVisualSnapshot(row);
+  const tone = spotVisualChangeTone(state.spotVisualSnapshots.get(id), next);
+  state.spotVisualSnapshots.set(id, next);
+  window.clearTimeout(state.spotFlashTimers.get(id));
+  delete anchor.dataset.updateTone;
+  if (!tone || state.paused) return;
+  anchor.dataset.updateTone = tone;
+  const timer = window.setTimeout(() => {
+    const current = document.querySelector(`.discover-token-row[data-token-row-id="${CSS.escape(id)}"]`);
+    if (current) delete current.dataset.updateTone;
+    state.spotFlashTimers.delete(id);
+  }, CHANGE_FLASH_MS);
+  state.spotFlashTimers.set(id, timer);
+}
+
+function setSpotAgeNode(node, row, prefix = "", separator = " · ") {
+  if (!node) return;
+  node.dataset.discoverQuoteAge = spotRowId(row);
+  node.dataset.agePrefix = prefix;
+  node.dataset.ageSeparator = separator;
+  const age = spotMarketFactAgeLabel(row);
+  node.textContent = `${prefix}${prefix ? separator : ""}${age}`;
+}
+
+function updateSpotAgeLabels(nowMs = Date.now()) {
+  const byId = new Map(state.spotRows.map((row) => [spotRowId(row), row]));
+  let freshnessTransition = false;
+  for (const anchor of document.querySelectorAll(".discover-token-row[data-token-row-id]")) {
+    const row = byId.get(anchor.dataset.tokenRowId);
+    if (!row) continue;
+    const nextFreshness = spotMarketFactFreshness(row, nowMs).current ? "current" : "stale";
+    if (anchor.dataset.freshness !== nextFreshness) freshnessTransition = true;
+  }
+  if (freshnessTransition) {
+    renderSpotPulse(state.spotRows);
+    return;
+  }
+  for (const node of document.querySelectorAll("[data-discover-quote-age]")) {
+    const row = byId.get(node.dataset.discoverQuoteAge);
+    if (!row) continue;
+    const prefix = node.dataset.agePrefix || "";
+    const separator = node.dataset.ageSeparator || " · ";
+    const age = spotMarketFactAgeLabel(row, nowMs);
+    node.textContent = `${prefix}${prefix ? separator : ""}${age}`;
+  }
 }
 
 function recordSpotSessionChanges(rows) {
@@ -1417,6 +1606,7 @@ function updateSpotTokenRow(anchor, row, index) {
   anchor.dataset.velocityGrade = usableRadarScore(velocityScore) === null ? "" : text(velocityScore?.grade, "");
   anchor.dataset.notability = text(discovery.notability?.state, "watch_only");
   anchor.dataset.notabilityPriority = String(notabilityPriority(row) ?? "");
+  markSpotRowChange(anchor, row);
   const announcedScore = state.spotSort === "activity" ? activityScore : velocityScore;
   const announcedLabel = state.spotSort === "activity" ? "Activity strength" : state.spotSort === "raven" ? "Raven evidence" : "Velocity strength";
   anchor.setAttribute("aria-label", factFreshness.current
@@ -1435,15 +1625,18 @@ function updateSpotTokenRow(anchor, row, index) {
   name.textContent = "";
   append(name, "strong", "", text(row.symbol));
   append(name, "small", "", text(row.name, ""));
-  append(copy, "span", "discover-token-market-id", [
+  const marketId = append(copy, "span", "discover-token-market-id", "");
+  const marketIdentity = [
     spotChainLabel(row.chain_id || row.chain),
     text(row.venue, ""),
     text(row.quote_symbol, ""),
     row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
     `CA ${spotTokenFingerprint(row.token_address)}`,
     spotMarketAge(row.market?.market_age_seconds),
-    factFreshness.current ? `Quote ${spotMarketFactAgeLabel(row)}` : "Quote refreshing",
-  ].filter(Boolean).join(" · "));
+  ].filter(Boolean).join(" · ");
+  if (marketIdentity) marketId.append(document.createTextNode(`${marketIdentity} · `));
+  const marketAge = append(marketId, "time", "discover-token-quote-age", "");
+  setSpotAgeNode(marketAge, row, factFreshness.current ? "Quote" : "Last exact update", " ");
 
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
@@ -1461,13 +1654,15 @@ function updateSpotTokenRow(anchor, row, index) {
   if (currentPrice) append(move, "span", "", currentPrice);
   const glyph = factFreshness.current ? momentumGlyph(row) : null;
   if (glyph) move.append(glyph);
-  append(move, "small", "", factFreshness.current
+  const moveContext = append(move, "small", "discover-token-move-context", "");
+  const movePrefix = factFreshness.current
     ? showPrimaryTrigger
       ? primaryTrigger.window === state.spotTimeframe
-        ? `${primaryTrigger.window} material move · ${spotMarketFactAgeLabel(row)}`
-        : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)} · ${spotMarketFactAgeLabel(row)}`
-      : `${state.spotTimeframe} move · ${spotMarketFactAgeLabel(row)}`
-    : `Last exact update ${spotMarketFactAgeLabel(row)}`);
+        ? `${primaryTrigger.window} material move`
+        : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)}`
+      : `${state.spotTimeframe} move`
+    : "Last exact update";
+  setSpotAgeNode(moveContext, row, movePrefix, factFreshness.current ? " · " : " ");
 
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
@@ -1540,12 +1735,75 @@ function sameOrder(left = [], right = []) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+function animateSpotOrder(host, before = new Map()) {
+  if (!before.size || prefersReducedMotion() || typeof Element.prototype.animate !== "function") return;
+  for (const shell of host.querySelectorAll(".discover-token-row-shell")) {
+    const id = shell.querySelector(".discover-token-row")?.dataset.tokenRowId;
+    if (!id) continue;
+    const priorTop = before.get(id);
+    if (priorTop === undefined) {
+      shell.animate(
+        [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }],
+        { duration: 300, easing: "cubic-bezier(.2,.78,.25,1)" },
+      );
+      continue;
+    }
+    const delta = priorTop - shell.getBoundingClientRect().top;
+    if (Math.abs(delta) < 1) continue;
+    shell.animate(
+      [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
+      { duration: 420, easing: "cubic-bezier(.2,.78,.25,1)" },
+    );
+  }
+}
+
+function discoverInteractionActive() {
+  if (state.paused || state.scrolling || document.hidden) return true;
+  if (Date.now() - state.lastInteractionAt < DISCOVER_IDLE_MS) return true;
+  const pulse = document.getElementById("discoverSpotPulse");
+  if (!pulse || pulse.hidden) return true;
+  try {
+    if (pulse.matches(":hover")) return true;
+  } catch {
+    // Older WebViews can omit :hover matching; the time-based guard still applies.
+  }
+  const active = document.activeElement;
+  return Boolean(
+    active
+    && active !== document.body
+    && pulse.contains(active)
+    && (
+      active.closest("#discoverTokenTapeList")
+      || active.matches("input, select")
+      || active.closest("details[open]")
+    )
+  );
+}
+
+function schedulePendingSpotOrder(delay = DISCOVER_IDLE_MS) {
+  window.clearTimeout(state.reorderTimer);
+  if (!state.spotPendingOrder || state.paused) return;
+  state.reorderTimer = window.setTimeout(() => {
+    state.reorderTimer = null;
+    if (!state.spotPendingOrder || state.paused) return;
+    if (discoverInteractionActive()) {
+      schedulePendingSpotOrder(1_000);
+      return;
+    }
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }, delay);
+}
+
 function renderSpotTokenTape({ forceOrder = false } = {}) {
   const host = document.getElementById("discoverTokenTapeList");
   const updates = document.getElementById("discoverTokenUpdates");
   const ranked = spotRankedRows();
   const rankedIds = ranked.map(spotRowId);
-  if (state.scrolling && !forceOrder && host.childElementCount) {
+  if (discoverInteractionActive() && !forceOrder && host.childElementCount) {
     const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
     [...host.querySelectorAll(".discover-token-row")].forEach((node, index) => {
       const row = byId.get(node.dataset.tokenRowId);
@@ -1558,11 +1816,18 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     if (!sameOrder(rankedIds, state.spotDisplayOrder)) {
       state.spotPendingOrder = rankedIds;
       updates.hidden = false;
+      schedulePendingSpotOrder();
     }
     return;
   }
+  const before = new Map([...host.querySelectorAll(".discover-token-row-shell")].map((shell) => [
+    shell.querySelector(".discover-token-row")?.dataset.tokenRowId,
+    shell.getBoundingClientRect().top,
+  ]).filter(([id]) => id));
   state.spotDisplayOrder = rankedIds;
   state.spotPendingOrder = null;
+  window.clearTimeout(state.reorderTimer);
+  state.reorderTimer = null;
   updates.hidden = true;
   const existing = new Map([...host.querySelectorAll(".discover-token-row")].map((node) => [node.dataset.tokenRowId, node]));
   const fragment = document.createDocumentFragment();
@@ -1618,6 +1883,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     search.addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   }
   host.replaceChildren(fragment);
+  animateSpotOrder(host, before);
 }
 
 async function hydrateSpotMetadata(rows = state.spotRows) {
@@ -2070,10 +2336,11 @@ function createPulseRow(row) {
   return anchor;
 }
 
-function renderMarkets(rows) {
+function renderMarkets(rows, { observedAt = null } = {}) {
   const host = document.getElementById("discoverPulse");
   host.replaceChildren();
   const ranked = [...rows].sort((left, right) => (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0)).slice(0, 10);
+  renderMarketTape(rows, observedAt);
   if (!ranked.length) {
     const container = append(host, "div", "workspace-state", "");
     container.textContent = "Current venue markets unavailable.";
@@ -2427,11 +2694,12 @@ async function refresh({ manual = false } = {}) {
     state.markets.clear();
     marketRows = markets.value.payload.results;
     marketRows.forEach((row) => state.markets.set(row.instrument_id, row));
-    renderMarkets(marketRows);
+    renderMarkets(marketRows, { observedAt: markets.value.payload?.lastUpdated });
   } else {
     state.markets.clear();
     setState("discoverMarketState", "delayed", "Refreshing");
     document.getElementById("discoverPulse").replaceChildren();
+    renderMarketTape([], null);
   }
 
   let ravenRows = [];
@@ -2609,7 +2877,21 @@ async function refresh({ manual = false } = {}) {
   }
 }
 
+function tickDiscoverMotion() {
+  if (document.hidden) return;
+  updateMarketTapeFreshness();
+  updateSpotAgeLabels();
+  if (state.spotPendingOrder && !state.paused && !state.reorderTimer) schedulePendingSpotOrder(500);
+}
+
 function bind() {
+  const noteInteraction = () => {
+    state.lastInteractionAt = Date.now();
+  };
+  document.addEventListener("pointerdown", noteInteraction, { passive: true });
+  document.addEventListener("touchstart", noteInteraction, { passive: true });
+  document.addEventListener("wheel", noteInteraction, { passive: true });
+  document.addEventListener("keydown", noteInteraction);
   document.getElementById("discoverSearchTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   document.querySelectorAll("[data-discover-filter]").forEach((button) => button.addEventListener("click", () => {
     if (button.disabled) return;
@@ -2668,22 +2950,36 @@ function bind() {
   document.getElementById("discoverPause").addEventListener("click", (event) => {
     state.paused = !state.paused;
     event.currentTarget.textContent = state.paused ? "Resume updates" : "Pause updates";
+    document.getElementById("discoverMarketRibbon").dataset.paused = String(state.paused);
+    if (state.paused) {
+      window.clearTimeout(state.reorderTimer);
+      state.reorderTimer = null;
+    }
+    else {
+      void refreshMarketTape();
+      if (state.spotPendingOrder) schedulePendingSpotOrder();
+    }
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !state.paused && state.lastRefresh && Date.now() - Date.parse(state.lastRefresh) > REFRESH_MS) refresh();
   });
   window.addEventListener("scroll", () => {
+    noteInteraction();
     state.scrolling = true;
     window.clearTimeout(state.scrollTimer);
     state.scrollTimer = window.setTimeout(() => {
       state.scrolling = false;
+      if (state.spotPendingOrder) schedulePendingSpotOrder();
     }, 650);
   }, { passive: true });
 }
 
+mountListedMarketTape();
 bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+state.marketTapeTimer = setInterval(() => { void refreshMarketTape(); }, MARKET_TAPE_REFRESH_MS);
+state.clockTimer = setInterval(tickDiscoverMotion, 1_000);
 window.__RAVENOS_DISCOVER__ = Object.freeze({
   getState: () => ({
     rowCount: state.rows.size,
@@ -2704,6 +3000,9 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotAssetFilter: state.spotAssetFilter,
     spotRadarState: state.spotRadarState,
     spotRavenHealth: { ...state.spotRavenHealth },
+    pendingSpotOrder: state.spotPendingOrder ? [...state.spotPendingOrder] : null,
+    marketTapeCount: state.marketTapeRows.length,
+    marketTapeObservedAt: state.marketTapeObservedAt,
     paused: state.paused,
     expanded: state.expanded,
     loading: state.loading,

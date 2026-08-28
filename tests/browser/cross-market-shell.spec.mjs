@@ -26,11 +26,37 @@ const markets = [
     asset: "BTC-PERP",
     symbol: "BTC",
     instrument_id: "hyperliquid:perp:BTC",
+    last_price: 63_100,
     day_change_pct: -0.8,
     day_notional_volume_usd: 1_400_000_000,
     open_interest_usd: 820_000_000,
   },
 ];
+
+test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.goto("/discover/");
+  const primaryTape = page.locator("#discoverPerpTapeTrack .discover-market-ribbon-group:not([aria-hidden])");
+  await expect(primaryTape.locator(".discover-market-ribbon-item")).toHaveCount(2);
+  await expect(primaryTape).toContainText("SOL-PERP");
+  await expect(primaryTape).toContainText("$102.40");
+  await expect(primaryTape).toContainText("+2.40%");
+  await expect(primaryTape).toContainText("BTC-PERP");
+  await expect(primaryTape).toContainText("-0.80%");
+  await expect(primaryTape.locator('[data-direction="up"]')).toHaveCount(1);
+  await expect(primaryTape.locator('[data-direction="down"]')).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().marketTapeCount)).toBe(2);
+  const listedFrame = page.locator("#discoverListedTapeHost .discover-listed-tape-frame");
+  await expect(listedFrame).toHaveCount(1);
+  await expect(listedFrame).toHaveAttribute("title", /major stocks and ETFs by TradingView/i);
+  const listedFrameSource = await listedFrame.getAttribute("src");
+  expect(listedFrameSource).toContain("https://www.tradingview-widget.com/embed-widget/ticker-tape/");
+  expect(decodeURIComponent(listedFrameSource)).toContain("NASDAQ:NVDA");
+  expect(decodeURIComponent(listedFrameSource)).toContain("AMEX:SPY");
+  await page.locator("#discoverPause").click();
+  await expect(page.locator("#discoverMarketRibbon")).toHaveAttribute("data-paused", "true");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().paused)).toBe(true);
+});
 
 const opportunityRows = [
   {
@@ -1319,7 +1345,7 @@ test("Discover omits zero-activity pools and lets available anatomy fill the row
   expect(fill).toBeLessThanOrEqual(1);
 });
 
-test("Discover updates token facts without reordering the tape under an active scroll", async ({ page }) => {
+test("Discover holds ranking during active scroll then applies it automatically when idle", async ({ page }) => {
   await mockWorkspaceApis(page, { withSpot: true });
   await page.goto("/discover/");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(2);
@@ -1360,9 +1386,10 @@ test("Discover updates token facts without reordering the tape under an active s
   });
   await expect(rows.first()).toContainText("RETIRE");
   await expect(rows.first()).toContainText("+9.25%");
+  await expect(rows.first()).toHaveAttribute("data-update-tone", "up");
   await expect(page.locator("#discoverTokenUpdates")).toBeVisible();
-  await page.locator("#discoverTokenUpdates").click();
-  await expect(rows.first()).toContainText("BIRD");
+  await page.mouse.move(0, 0);
+  await expect.poll(async () => rows.first().textContent(), { timeout: 7_000 }).toContain("BIRD");
   await expect(page.locator("#discoverTokenUpdates")).toBeHidden();
 });
 

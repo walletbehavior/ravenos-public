@@ -224,6 +224,50 @@ export function mountTradingViewBreadth(host) {
   });
 }
 
+const LISTED_TAPE_SYMBOLS = Object.freeze([
+  Object.freeze({ proName: "AMEX:SPY", title: "SPY" }),
+  Object.freeze({ proName: "NASDAQ:QQQ", title: "QQQ" }),
+  Object.freeze({ proName: "NASDAQ:NVDA", title: "NVDA" }),
+  Object.freeze({ proName: "NASDAQ:MSFT", title: "MSFT" }),
+  Object.freeze({ proName: "NASDAQ:AAPL", title: "AAPL" }),
+  Object.freeze({ proName: "NASDAQ:AMZN", title: "AMZN" }),
+  Object.freeze({ proName: "NASDAQ:GOOGL", title: "GOOGL" }),
+  Object.freeze({ proName: "NASDAQ:META", title: "META" }),
+  Object.freeze({ proName: "NASDAQ:AVGO", title: "AVGO" }),
+  Object.freeze({ proName: "NYSE:BRK.B", title: "BRK.B" }),
+  Object.freeze({ proName: "NASDAQ:TSLA", title: "TSLA" }),
+  Object.freeze({ proName: "NYSE:JPM", title: "JPM" }),
+]);
+
+export function tradingViewListedTapeConfig() {
+  return Object.freeze({
+    symbols: LISTED_TAPE_SYMBOLS,
+    showSymbolLogo: false,
+    isTransparent: true,
+    displayMode: "adaptive",
+    colorTheme: "dark",
+    locale: "en",
+  });
+}
+
+export function mountTradingViewListedTape(host) {
+  if (!(host instanceof HTMLElement)) return null;
+  const frame = document.createElement("iframe");
+  const config = tradingViewListedTapeConfig();
+  frame.className = "discover-listed-tape-frame";
+  frame.src = `https://www.tradingview-widget.com/embed-widget/ticker-tape/?locale=en#${encodeURIComponent(JSON.stringify(config))}`;
+  frame.title = "Live prices and daily changes for major stocks and ETFs by TradingView";
+  frame.loading = "eager";
+  frame.referrerPolicy = "no-referrer";
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+  host.replaceChildren(frame);
+  return Object.freeze({
+    provider: "TradingView",
+    presentation_only: true,
+    symbols: Object.freeze(LISTED_TAPE_SYMBOLS.map((row) => row.title)),
+  });
+}
+
 export const TradingViewExactSymbols = EXACT_SYMBOLS;
 export const TradingViewExactListingVenues = EXACT_LISTING_VENUES;
 export const TradingViewWidgetRestrictedSymbols = Object.freeze([...WIDGET_RESTRICTED_SYMBOLS]);

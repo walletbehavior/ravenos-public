@@ -5,6 +5,7 @@ import test from "node:test";
 import { applyAssetSecurityHeaders } from "../lib/customer_trade/terminal_runtime.mjs";
 import {
   TradingViewAdapterVersion,
+  tradingViewListedTapeConfig,
   resolveTradingViewChart,
   resolveTradingViewReference,
   resolveTradingViewSymbol,
@@ -77,6 +78,7 @@ test("TradingView code is isolated from the RavenOS application origin", () => {
   const adapter = readFileSync("ravenos-tradingview-adapter.js", "utf8");
   assert.match(adapter, /https:\/\/www\.tradingview-widget\.com\/embed-widget\/advanced-chart\//);
   assert.match(adapter, /https:\/\/www\.tradingview-widget\.com\/embed-widget\/stock-heatmap\//);
+  assert.match(adapter, /https:\/\/www\.tradingview-widget\.com\/embed-widget\/ticker-tape\//);
   assert.match(adapter, /allow_symbol_change:\s*false/);
   assert.match(adapter, /sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"/);
   assert.doesNotMatch(adapter, /innerHTML|document\.write|localStorage|sessionStorage|cookie/i);
@@ -91,6 +93,23 @@ test("TradingView code is isolated from the RavenOS application origin", () => {
   assert.match(terminalCsp, /script-src 'self'/);
   assert.match(terminalCsp, /frame-src https:\/\/www\.tradingview-widget\.com https:\/\/s\.tradingview\.com/);
   assert(!terminalCsp.includes("s3.tradingview.com"));
+  const discover = applyAssetSecurityHeaders(new Response("discover"), "/discover/");
+  const discoverCsp = discover.headers.get("content-security-policy") || "";
+  assert.match(discoverCsp, /script-src 'self'/);
+  assert.match(discoverCsp, /frame-src https:\/\/www\.tradingview-widget\.com https:\/\/s\.tradingview\.com/);
+  assert(!discoverCsp.includes("s3.tradingview.com"));
   assert.equal(atlas.headers.get("x-frame-options"), "DENY");
   assert.equal(terminal.headers.get("x-frame-options"), "DENY");
+  assert.equal(discover.headers.get("x-frame-options"), "DENY");
+});
+
+test("listed tape is a bounded presentation-only stock and ETF set", () => {
+  const config = tradingViewListedTapeConfig();
+  assert.equal(config.symbols.length, 12);
+  assert.deepEqual(config.symbols.slice(0, 2).map((row) => row.title), ["SPY", "QQQ"]);
+  assert.equal(config.symbols.filter((row) => !["SPY", "QQQ"].includes(row.title)).length, 10);
+  assert.equal(config.colorTheme, "dark");
+  assert.equal(config.isTransparent, true);
+  assert.equal(config.displayMode, "adaptive");
+  assert(config.symbols.every((row) => /^(?:NASDAQ|NYSE|AMEX):[A-Z.]+$/.test(row.proName)));
 });

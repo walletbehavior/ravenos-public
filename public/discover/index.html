@@ -21,6 +21,30 @@
       </div>
     </header>
 
+    <section class="discover-market-ribbon" id="discoverMarketRibbon" aria-labelledby="discoverMarketRibbonTitle" data-paused="false">
+      <header>
+        <div>
+          <span class="discover-market-ribbon-pulse" aria-hidden="true"></span>
+          <strong id="discoverMarketRibbonTitle">Markets moving now</strong>
+        </div>
+        <time id="discoverMarketRibbonFreshness">Connecting live prices</time>
+      </header>
+      <div class="discover-market-ribbon-lane">
+        <span class="discover-market-ribbon-label">Majors &amp; perps</span>
+        <div class="discover-market-ribbon-viewport" aria-label="Live Hyperliquid perpetual prices and 24-hour changes">
+          <div class="discover-market-ribbon-track" id="discoverPerpTapeTrack" aria-live="off">
+            <span class="discover-market-ribbon-wait">Connecting Hyperliquid markets…</span>
+          </div>
+        </div>
+      </div>
+      <div class="discover-market-ribbon-lane is-listed">
+        <span class="discover-market-ribbon-label">Stocks &amp; ETFs</span>
+        <div class="discover-listed-tape-host" id="discoverListedTapeHost" aria-label="Major stock and ETF prices presented by TradingView">
+          <span class="discover-market-ribbon-wait">Connecting listed markets…</span>
+        </div>
+      </div>
+    </section>
+
     <section class="workspace-statusline" aria-label="Current Discover coverage">
       <div><span>Raven</span><strong id="discoverCensusState" data-state="unavailable">Checking</strong></div>
       <div><span>Venue data</span><strong id="discoverMarketState" data-state="unavailable">Checking</strong></div>
