@@ -81,6 +81,14 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.entitlement_foundation.billing_available, false);
   assert.equal(security.entitlement_foundation.atlas_display_rights_override_available, false);
   assert.equal(security.entitlement_foundation.production_activation_completed, false);
+  assert.equal(security.public_holder_lists.implementation_status, "production_provider_validated");
+  assert.equal(security.public_holder_lists.free_tier_capability, true);
+  assert.equal(security.public_holder_lists.maximum_public_owner_rows, 100);
+  assert.equal(security.public_holder_lists.maximum_census_source_token_accounts, 25_000);
+  assert.equal(security.public_holder_lists.partial_scan_rankings_returned, false);
+  assert.equal(security.public_holder_lists.private_rpc_fallback_allowed, false);
+  assert.equal(security.public_holder_lists.paid_provider_endpoint_validated, true);
+  assert.equal(security.public_holder_lists.production_activation_completed, true);
   assert.equal(security.operator_solana_canary.implementation_status, "operator_unsigned_mainnet_preflight");
   assert.equal(security.operator_solana_canary.surface, "operator_cli_only");
   assert.equal(security.operator_solana_canary.exact_terminal_identity_required, true);

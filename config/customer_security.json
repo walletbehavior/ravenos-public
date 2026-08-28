@@ -161,7 +161,7 @@
     "production_activation_completed": false
   },
   "public_holder_lists": {
-    "implementation_status": "local_provider_gated_indexed_candidate",
+    "implementation_status": "production_provider_validated",
     "surface": "https://ravenos.xyz/terminal/",
     "route": "GET /api/onchain/holders",
     "authenticated_origin_only": false,
@@ -181,7 +181,15 @@
       "RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED",
       "RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"
     ],
-    "production_activation_completed": false
+    "paid_provider_endpoint_validated": true,
+    "validated_methods": [
+      "getAccountInfo",
+      "getTokenSupply",
+      "getProgramAccounts",
+      "getTokenLargestAccounts",
+      "getMultipleAccounts"
+    ],
+    "production_activation_completed": true
   },
   "operator_solana_canary": {
     "implementation_status": "operator_unsigned_mainnet_preflight",

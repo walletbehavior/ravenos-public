@@ -33,12 +33,14 @@ The census describes current ownership only. Historical balance changes, named e
 
 ## Activation
 
-The Free UI and route are implemented, but Solana holder delivery requires both:
+The Free UI and route require both:
 
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED=1`
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL=<dedicated HTTPS endpoint>`
 
-The route does not reuse `RAVENOS_SOLANA_RPC_URL`. This prevents accidental public-product load on Raven's private trading or research RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
+The production release enables the first control and requires the second as a server-only Cloudflare secret. Raven's existing paid Solana Alchemy endpoint was structurally validated against the exact BITCAT mint using `getAccountInfo`, `getTokenSupply`, and the exact-mint `getProgramAccounts` scan. No endpoint or key entered a public response or release artifact.
+
+The route does not implicitly fall back to `RAVENOS_SOLANA_RPC_URL`. This prevents an environment mistake from silently placing public-product load on an unrelated private RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
 
 The dedicated endpoint may be an Alchemy Solana endpoint owned by the existing Raven account. It remains a separate environment binding so public holder traffic can be metered, rotated, and disabled without changing Raven's private trading or research access.
 
