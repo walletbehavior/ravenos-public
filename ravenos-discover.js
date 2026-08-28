@@ -805,6 +805,14 @@ function tokenPrice(value) {
   return `$${result.toLocaleString("en-US", { minimumSignificantDigits: 2, maximumSignificantDigits: 5 })}`;
 }
 
+function marketTapePrice(value) {
+  const result = finite(value);
+  if (result === null) return "";
+  if (result >= 1_000) return `$${result.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  if (result >= 1) return `$${result.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+  return tokenPrice(result);
+}
+
 function marketTapeRows(rows = []) {
   const majorOrder = new Map(["BTC", "ETH", "SOL"].map((symbol, index) => [symbol, index]));
   const qualified = rows.filter((row) => (
@@ -836,9 +844,9 @@ function createMarketTapeGroup(rows, { duplicate = false, changes = new Map() } 
     const updateTone = changes.get(row.instrument_id);
     if (updateTone) anchor.dataset.updateTone = updateTone;
     if (duplicate) anchor.tabIndex = -1;
-    anchor.setAttribute("aria-label", `${text(row.asset)} ${tokenPrice(price)}, ${change >= 0 ? "up" : "down"} ${Math.abs(change).toFixed(2)}% over 24 hours`);
+    anchor.setAttribute("aria-label", `${text(row.asset)} ${marketTapePrice(price)}, ${change >= 0 ? "up" : "down"} ${Math.abs(change).toFixed(2)}% over 24 hours`);
     append(anchor, "strong", "", text(row.asset));
-    append(anchor, "span", "", tokenPrice(price));
+    append(anchor, "span", "", marketTapePrice(price));
     append(anchor, "em", "", `${change > 0 ? "↑" : change < 0 ? "↓" : ""}${percent(change)}`);
     group.append(anchor);
   }
