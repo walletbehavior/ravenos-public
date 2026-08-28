@@ -4370,6 +4370,7 @@ async function terminalChartPayload({
   instrumentScope = "exact_pool",
   before = null,
   limit = null,
+  includeEnrichment = false,
 } = {}) {
   const cleanAsset = String(asset || "").trim();
   const cleanMarket = String(market || "").trim().toLowerCase();
@@ -4463,25 +4464,26 @@ async function terminalChartPayload({
   }
   if (cleanMarket === "crypto_spot") {
     const requestedScope = instrumentScope === "token_aggregate" ? "token_aggregate" : "exact_pool";
-    const spotAttentionPromise = requestedScope === "exact_pool" && !before && pairAddress && tokenAddress
+    const enrichmentRequested = includeEnrichment === true && requestedScope === "exact_pool" && !before;
+    const spotAttentionPromise = enrichmentRequested && pairAddress && tokenAddress
       ? loadCurrentSpotAttentionContext({ env, chain, pairAddress, tokenAddress }).catch(() => null)
       : Promise.resolve(null);
-    const marketProfilePromise = requestedScope === "exact_pool" && !before && pairAddress && tokenAddress
+    const marketProfilePromise = enrichmentRequested && pairAddress && tokenAddress
       ? fetchGeckoPoolMarketProfile({ env, chain, pairAddress, tokenAddress, quoteAddress }).catch(() => null)
       : Promise.resolve(null);
-    const ravenPayload = await fetchRavenSpotProjection({
-      env,
-      chain,
-      pairAddress,
-      tokenAddress,
-      quoteAddress,
-      instrumentScope: requestedScope,
-      asset: cleanAsset,
-      timeframe,
-      before,
-      limit,
-    }).catch(() => null);
     if (requestedScope === "token_aggregate") {
+      const ravenPayload = await fetchRavenSpotProjection({
+        env,
+        chain,
+        pairAddress,
+        tokenAddress,
+        quoteAddress,
+        instrumentScope: requestedScope,
+        asset: cleanAsset,
+        timeframe,
+        before,
+        limit,
+      }).catch(() => null);
       if (ravenPayload?.ok) return ravenPayload;
       return unresolvedChart(cleanAsset, `${cleanAsset} does not have enough exact-market trading history for this token and quote orientation.`, {
         source: "Raven exact observations",
@@ -4490,6 +4492,48 @@ async function terminalChartPayload({
       });
     }
     if (pairAddress) {
+      const ravenPromise = enrichmentRequested
+        ? fetchRavenSpotProjection({
+            env,
+            chain,
+            pairAddress,
+            tokenAddress,
+            quoteAddress,
+            instrumentScope: requestedScope,
+            asset: cleanAsset,
+            timeframe,
+            before,
+            limit,
+          }).catch(() => null)
+        : Promise.resolve(null);
+      let payload;
+      try {
+        payload = await fetchOnchainPoolCandles({ env, chain, pairAddress, tokenAddress, quoteAddress, asset: cleanAsset, timeframe, before, limit });
+      } catch (providerError) {
+        const providerReason = publicProviderFailure(providerError);
+        payload = unresolvedChart(cleanAsset, providerReason === "identity_rejected"
+          ? "The selected token or quote does not match the exact provider pool. No alternate market was substituted."
+          : "Exact-pool candle history is temporarily unavailable. Raven observations were not substituted for market candles.", {
+          source: "Onchain market provider",
+          sourceType: providerReason === "identity_rejected" ? "identity_mismatch" : "provider_unavailable",
+          timeframe,
+        });
+        payload.failed_layer = "historical_ohlcv";
+        payload.provider_state = providerError?.providerState || providerReason;
+        payload.provider_attempts = Array.isArray(providerError?.providerAttempts) ? providerError.providerAttempts : [];
+      }
+      payload.available_scopes = {
+        exact_pool: true,
+        token_aggregate: false,
+      };
+      payload.instrument_scope = "exact_pool";
+      if (!enrichmentRequested) {
+        payload.enrichment_state = "deferred";
+        return payload;
+      }
+      const ravenPayload = await ravenPromise;
+      payload = attachRavenChartAnnotations(payload, ravenPayload);
+      if (!payload.ok) payload.raven_annotations_available = Boolean(ravenPayload?.ok);
       let aggregateProbe = null;
       if (!before && tokenAddress && String(chain || "").toLowerCase() === "solana" && !ravenPayload?.available_scopes?.token_aggregate) {
         aggregateProbe = await fetchRavenSpotProjection({
@@ -4503,24 +4547,6 @@ async function terminalChartPayload({
           timeframe,
           limit: 2,
         }).catch(() => null);
-      }
-      let payload;
-      try {
-        const providerPayload = await fetchOnchainPoolCandles({ env, chain, pairAddress, tokenAddress, quoteAddress, asset: cleanAsset, timeframe, before, limit });
-        payload = attachRavenChartAnnotations(providerPayload, ravenPayload);
-      } catch (providerError) {
-        const providerReason = publicProviderFailure(providerError);
-        payload = unresolvedChart(cleanAsset, providerReason === "identity_rejected"
-          ? "The selected token or quote does not match the exact provider pool. No alternate market was substituted."
-          : "Exact-pool candle history is temporarily unavailable. Raven observations were not substituted for market candles.", {
-          source: "Onchain market provider",
-          sourceType: providerReason === "identity_rejected" ? "identity_mismatch" : "provider_unavailable",
-          timeframe,
-        });
-        payload.failed_layer = "historical_ohlcv";
-        payload.provider_state = providerError?.providerState || providerReason;
-        payload.provider_attempts = Array.isArray(providerError?.providerAttempts) ? providerError.providerAttempts : [];
-        payload.raven_annotations_available = Boolean(ravenPayload?.ok);
       }
       payload.available_scopes = {
         exact_pool: true,
@@ -4646,6 +4672,7 @@ async function terminalChartPayload({
         last_candle_age_seconds: payload.last_candle_age_seconds ?? null,
         continuity_state: payload.continuity?.state || "unavailable",
       };
+      payload.enrichment_state = "complete";
       return payload;
     }
     return unresolvedChart(cleanAsset, `${cleanAsset} requires an exact pool identity before Terminal can request spot candles.`, {
@@ -7178,6 +7205,7 @@ async function handleTerminalChart(request, env = {}) {
         instrumentId: url.searchParams.get("instrument_id") || "",
         before: url.searchParams.get("before"),
         limit: url.searchParams.get("limit"),
+        includeEnrichment: url.searchParams.get("include_enrichment") === "1",
       });
       const usage = payload.provider_usage || {
         schema_version: "ravenos.provider_usage.v1",

@@ -1106,6 +1106,29 @@ test("bounded polling emits newly observed spot trades once", async () => {
   assert.equal(events.find((event) => event.type === "trade.append").source_event_id, "new");
 });
 
+test("spot polling starts immediately and never overlaps an in-flight request", async () => {
+  let polls = 0;
+  let resolvePoll;
+  const pending = new Promise((resolve) => { resolvePoll = resolve; });
+  const feed = new PollingChartFeed({
+    intervalMs: 5_000,
+    poll: async () => {
+      polls += 1;
+      return pending;
+    },
+  });
+  feed.start(() => {}, () => {});
+  assert.equal(polls, 1);
+  const first = feed.tick();
+  const second = feed.tick();
+  assert.equal(first, second);
+  assert.equal(polls, 1);
+  resolvePoll({ candles: [] });
+  await first;
+  feed.stop();
+  assert.equal(polls, 1);
+});
+
 test("on-chain active-view polling fails degraded and returns to live without changing exact identity", async () => {
   const events = [];
   const statuses = [];
@@ -1370,7 +1393,82 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     assert.equal(payload.candles.length, 3);
     assert.deepEqual(payload.candles.map((candle) => candle.time), [now - 120, now - 60, now]);
     assert.equal(payload.candles.some((candle) => candle.close === 99), false);
-    assert.equal(payload.market_anatomy.market_profile, null);
+    assert.equal(payload.market_anatomy, undefined);
+    assert.equal(payload.enrichment_state, "deferred");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("exact-pool candle responses do not wait for Raven, profile, attention, or pair enrichment", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const pairAddress = "0x1212121212121212121212121212121212121212";
+  const tokenAddress = "0x3434343434343434343434343434343434343434";
+  const quoteAddress = "0x5656565656565656565656565656565656565656";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  let ravenCalls = 0;
+  let profileCalls = 0;
+  let pairCalls = 0;
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "ravenos-public-origin.ravenos.xyz") {
+        ravenCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return new Response(JSON.stringify({ ok: false }), { status: 503 });
+      }
+      if (url.hostname === "api.dexscreener.com") {
+        pairCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
+      }
+      if (url.hostname === "pro-api.coingecko.com" && url.pathname.endsWith("/info")) {
+        profileCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return new Response(JSON.stringify({ data: null }), { status: 200 });
+      }
+      if (url.hostname === "pro-api.coingecko.com" && url.pathname.includes("/ohlcv/")) {
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: Array.from({ length: 80 }, (_, index) => [
+          now - index * 60,
+          1 + index / 1_000,
+          1.02 + index / 1_000,
+          0.98 + index / 1_000,
+          1.01 + index / 1_000,
+          100 + index,
+        ]) } } }), { status: 200 });
+      }
+      if (url.hostname === "pro-api.coingecko.com") {
+        return new Response(JSON.stringify(geckoPoolIdentity({
+          network: "base",
+          pairAddress,
+          baseAddress: tokenAddress,
+          quoteAddress,
+        })), { status: 200 });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=FAST%2FUSDC&timeframe=1m&limit=80&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: "server-only-fast-chart-secret",
+      RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "server-only-origin-secret",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.candles.length, 80);
+    assert.equal(payload.enrichment_state, "deferred");
+    assert.equal(payload.market_anatomy, undefined);
+    assert.equal(payload.raven_annotations, undefined);
+    assert.equal(ravenCalls, 0);
+    assert.equal(profileCalls, 0);
+    assert.equal(pairCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;
@@ -1507,7 +1605,7 @@ test("exact spot charts join current public token anatomy without changing candl
       }
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}&include_enrichment=1`), {
       ONCHAIN_CHART_PROVIDER: "coingecko",
       ONCHAIN_CHART_PROVIDER_PLAN: "basic",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
@@ -1563,7 +1661,7 @@ test("exact spot charts join current public token anatomy without changing candl
     assert.equal(payload.market_anatomy.raven_context.evidence_pool_address, null);
     assert.equal(payload.market_anatomy.raven_context.signing_available, false);
     assert.equal(payload.market_anatomy.raven_context.submission_available, false);
-    const cachedResponse = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+    const cachedResponse = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=ATTN%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}&include_enrichment=1`), {
       ONCHAIN_CHART_PROVIDER: "coingecko",
       ONCHAIN_CHART_PROVIDER_PLAN: "basic",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
@@ -1674,7 +1772,7 @@ test("a Jupiter Velocity row hands current token flow into its revalidated exact
       }
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=JVEL%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=JVEL%2FUSDC&timeframe=1m&limit=180&chain=solana&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}&include_enrichment=1`), {
       ONCHAIN_CHART_PROVIDER: "coingecko",
       ONCHAIN_CHART_PROVIDER_PLAN: "basic",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
@@ -1753,7 +1851,7 @@ test("current exact-pool delivery labels an unchanged quiet market separately fr
       }
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=QUIET%2FUSDC&timeframe=1m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=QUIET%2FUSDC&timeframe=1m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}&include_enrichment=1`), {
       ONCHAIN_CHART_PROVIDER: "coingecko",
       ONCHAIN_CHART_PROVIDER_PLAN: "basic",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
@@ -1919,7 +2017,7 @@ test("dense provider OHLCV remains the base series while Raven observations atta
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FUSDC&timeframe=15m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}`), {
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FUSDC&timeframe=15m&limit=240&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&include_enrichment=1`), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
       RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",
@@ -2040,7 +2138,7 @@ test("provider-history failure rejects Raven observations as substitute candles"
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify({ pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FWETH&timeframe=5m&limit=240&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222&quote_address=0x3333333333333333333333333333333333333333"), {
+    const response = await ravenosWorker.fetch(new Request("https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=BASE%2FWETH&timeframe=5m&limit=240&chain=base&pair_address=0x1111111111111111111111111111111111111111&token_address=0x2222222222222222222222222222222222222222&quote_address=0x3333333333333333333333333333333333333333&include_enrichment=1"), {
       RAVENOS_SPOT_CHART_ORIGIN_TOKEN: "secret",
       RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain",
       RAVENOS_ALLOW_KEYLESS_GECKOTERMINAL_DIAGNOSTIC: "1",

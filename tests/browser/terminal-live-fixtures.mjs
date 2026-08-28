@@ -429,6 +429,12 @@ export async function mockTerminalLiveApis(page, {
   holderRiskLevel = "watch",
   profileIdentityMismatch = false,
   spotVelocityState = "upside_velocity",
+  chartDelayTimeframe = null,
+  chartDelayMs = 0,
+  chartFailureTimeframe = null,
+  splitChartEnrichment = false,
+  chartEnrichmentDelayTimeframe = null,
+  chartEnrichmentDelayMs = 0,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -690,7 +696,7 @@ export async function mockTerminalLiveApis(page, {
       }),
     });
   });
-  await page.route("**/api/terminal/chart**", (route) => {
+  await page.route("**/api/terminal/chart**", async (route) => {
     const url = new URL(route.request().url());
     const asset = url.searchParams.get("asset") || "SOL-PERP";
     const timeframe = url.searchParams.get("timeframe") || "1h";
@@ -702,8 +708,15 @@ export async function mockTerminalLiveApis(page, {
     const chain = url.searchParams.get("chain");
     const limit = Number(url.searchParams.get("limit"));
     const before = url.searchParams.get("before");
-    calls.push({ asset, timeframe, market, pairAddress, instrumentId, limit, before });
-    if (chartFailure) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "provider_unavailable", freshness_state: "data_unavailable", candles: [] }) });
+    const includeEnrichment = url.searchParams.get("include_enrichment") === "1";
+    calls.push({ asset, timeframe, market, pairAddress, instrumentId, limit, before, includeEnrichment });
+    if (chartDelayMs > 0 && timeframe === chartDelayTimeframe && !includeEnrichment) {
+      await new Promise((resolve) => setTimeout(resolve, chartDelayMs));
+    }
+    if (chartEnrichmentDelayMs > 0 && timeframe === chartEnrichmentDelayTimeframe && includeEnrichment) {
+      await new Promise((resolve) => setTimeout(resolve, chartEnrichmentDelayMs));
+    }
+    if (chartFailure || (chartFailureTimeframe === timeframe && !includeEnrichment)) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "provider_unavailable", freshness_state: "data_unavailable", candles: [] }) });
     const perp = asset.endsWith("-PERP");
     const traditional = market === "equities";
     const spotChain = chain || "solana";
@@ -768,7 +781,7 @@ export async function mockTerminalLiveApis(page, {
         } : null,
         derivation: { state: "direct", source_interval: timeframe, target_interval: timeframe, interpolation_used: false, missing_buckets_filled: 0 },
         provider_usage: { provider: perp ? "hyperliquid_native" : traditional ? "atlas_listed_market" : "dexpaprika", interval: timeframe, source_interval: timeframe, cache_hit: false, candle_mode: "direct", fallback_event: false },
-        market_anatomy: pairAddress ? {
+        market_anatomy: pairAddress && (!splitChartEnrichment || includeEnrichment) ? {
           schema_version: "ravenos.market_anatomy.v1",
           exact_identity: true,
           pool_fingerprint: `${spotChain}:${pairAddress}:${tokenAddress}:${quoteAddress || "fixture-quote"}`,
@@ -898,7 +911,7 @@ export async function mockTerminalLiveApis(page, {
           last_candle_at: "2026-07-21T11:58:00Z",
           last_candle_age_seconds: quietExactPool ? 1_320 : 0,
         } : null,
-        raven_annotations: pairAddress && spotChain === "solana" ? {
+        raven_annotations: pairAddress && spotChain === "solana" && (!splitChartEnrichment || includeEnrichment) ? {
           schema_version: "ravenos.chart_annotations.v1",
           role: "annotation_only",
           identity_scope: "exact_pool",

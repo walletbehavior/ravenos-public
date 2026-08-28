@@ -65,6 +65,25 @@ function historyLimit(request = {}, timeframe = "1h") {
   return request.market === "perpetuals" ? PERP_HISTORY_LIMITS[timeframe] || 720 : 240;
 }
 
+function chartRequestIdentity(request = {}) {
+  const explicit = String(request.marketIdentity || request.instrumentId || "").trim().toLowerCase();
+  if (explicit) return explicit;
+  return [
+    request.market,
+    request.chain,
+    request.pairAddress,
+    request.tokenAddress,
+    request.quoteAddress,
+    request.asset,
+  ].map((value) => String(value || "").trim().toLowerCase()).join(":");
+}
+
+function sameChartRequestIdentity(left = {}, right = {}) {
+  const leftIdentity = chartRequestIdentity(left);
+  const rightIdentity = chartRequestIdentity(right);
+  return Boolean(leftIdentity && rightIdentity && leftIdentity === rightIdentity);
+}
+
 function timeSeconds(value) {
   if (typeof value === "number") return value > 10_000_000_000 ? value / 1000 : value;
   if (value && typeof value === "object" && Number.isInteger(value.year)) {
@@ -134,6 +153,7 @@ function primaryMarketScopeLabel(instrument = {}, fallback = "") {
 function primaryConnectionLabel(value) {
   const labels = {
     polling: "Updating",
+    refreshing: "Loading timeframe",
     connecting: "Connecting",
     connected: "Live updates",
     live: "Live updates",
@@ -738,7 +758,8 @@ export class PriceWorkspace {
       button.disabled = this.state.availableScopes?.[button.dataset.rpwScope] !== true;
     });
     const panel = this.container.querySelector("[data-rpw-state-panel]");
-    const showPanel = ["loading", "empty", "error", "data_unavailable"].includes(this.state.state);
+    const showPanel = ["empty", "error", "data_unavailable"].includes(this.state.state)
+      || (this.state.state === "loading" && this.state.candles.length === 0);
     panel.hidden = !showPanel;
     panel.querySelector("strong").textContent = label === "Loading" ? "Loading market data" : label;
     panel.querySelector("span").textContent = this.state.message || "Current candles are not available for this market.";
@@ -964,6 +985,7 @@ export class PriceWorkspace {
     if (request.instrumentScope) params.set("instrument_scope", request.instrumentScope);
     if (request.instrumentId) params.set("instrument_id", request.instrumentId);
     if (extra.before) params.set("before", String(extra.before));
+    if (extra.includeEnrichment === true) params.set("include_enrichment", "1");
     return params;
   }
 
@@ -975,51 +997,92 @@ export class PriceWorkspace {
 
   async load(request = {}) {
     const sequence = ++this.requestSequence;
-    this.stopLive();
-    this.lastLiveRequest = null;
-    this.lastLivePayload = null;
-    this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
-    this.lastRequest = { ...request };
+    const timeframe = request.timeframe || this.state.timeframe || "1h";
+    const priorState = { ...this.state, candles: [...this.state.candles] };
+    const priorRequest = this.lastRequest ? { ...this.lastRequest } : null;
+    const priorLiveRequest = this.lastLiveRequest ? { ...this.lastLiveRequest } : null;
+    const priorLivePayload = this.lastLivePayload;
+    const priorTradeBuffer = this.tradeBuffer;
+    const priorRenderInput = { ...this.renderInput };
+    const preserveChart = request.preserveChart === true
+      && Boolean(this.chartHandle)
+      && priorState.candles.length > 0
+      && sameChartRequestIdentity(request, priorRequest || {});
+    this.stopLive(preserveChart ? "refreshing" : "disconnected");
+    if (!preserveChart) {
+      this.lastLiveRequest = null;
+      this.lastLivePayload = null;
+      this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
+    }
+    this.lastRequest = { ...request, preserveChart: undefined };
     this.backfillArmed = false;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
-    this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [], showChartRead: true, showRavenAnnotations: true };
-    const timeframe = request.timeframe || this.state.timeframe || "1h";
+    if (!preserveChart) this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [], showChartRead: true, showRavenAnnotations: true };
     this.historyBatchLimit = historyLimit(request, timeframe);
     this.historyExhausted = false;
-    this.visibleRange = null;
-    this.setState({
-      state: PRICE_WORKSPACE_STATES.LOADING,
-      timeframe,
-      source: request.source || "Market provider",
-      marketIdentity: request.marketIdentity || request.asset || "",
-      observedAt: null,
-      candles: [],
-      returnedBars: 0,
-      message: "Loading current candles.",
-      instrument: null,
-      capabilities: {},
-      marketState: {},
-      orderBook: null,
-      connectionState: "disconnected",
-      instrumentScope: request.instrumentScope || "exact_pool",
-      availableScopes: {},
-      ravenAnnotations: null,
-      candleSeries: null,
-      continuity: null,
-      derivation: null,
-      providerSelection: null,
-      providerUsage: null,
-      marketAnatomy: null,
-      alphaLayers: null,
-      marketHealth: null,
-      operatorStateLabel: null,
-      providerFreshnessState: null,
-      candleFreshnessState: null,
-      marketActivityState: null,
-      lastCandleAt: null,
-      lastCandleAgeSeconds: null,
-    });
+    if (!preserveChart) this.visibleRange = null;
+    if (preserveChart) {
+      this.setState({
+        ...priorState,
+        state: PRICE_WORKSPACE_STATES.LOADING,
+        message: `Loading ${timeframe} candles. The last verified ${priorState.timeframe} chart remains visible.`,
+        connectionState: "refreshing",
+        pendingTimeframe: timeframe,
+      });
+    } else {
+      this.setState({
+        state: PRICE_WORKSPACE_STATES.LOADING,
+        timeframe,
+        source: request.source || "Market provider",
+        marketIdentity: request.marketIdentity || request.asset || "",
+        observedAt: null,
+        candles: [],
+        returnedBars: 0,
+        message: "Loading current candles.",
+        instrument: null,
+        capabilities: {},
+        marketState: {},
+        orderBook: null,
+        connectionState: "disconnected",
+        instrumentScope: request.instrumentScope || "exact_pool",
+        availableScopes: {},
+        ravenAnnotations: null,
+        candleSeries: null,
+        continuity: null,
+        derivation: null,
+        providerSelection: null,
+        providerUsage: null,
+        marketAnatomy: null,
+        alphaLayers: null,
+        marketHealth: null,
+        operatorStateLabel: null,
+        providerFreshnessState: null,
+        candleFreshnessState: null,
+        marketActivityState: null,
+        lastCandleAt: null,
+        lastCandleAgeSeconds: null,
+        pendingTimeframe: null,
+        enrichmentState: null,
+        refreshError: null,
+      });
+    }
+    const restorePreservedChart = (message) => {
+      if (!preserveChart) return null;
+      this.lastRequest = priorRequest;
+      this.lastLiveRequest = priorLiveRequest;
+      this.lastLivePayload = priorLivePayload;
+      this.tradeBuffer = priorTradeBuffer;
+      this.renderInput = priorRenderInput;
+      const restored = this.setState({
+        ...priorState,
+        message: `Could not load ${timeframe}. Showing the last verified ${priorState.timeframe} chart. ${message || ""}`.trim(),
+        pendingTimeframe: null,
+        refreshError: `Could not load ${timeframe}. Showing the last verified ${priorState.timeframe} chart.`,
+      });
+      if (priorLiveRequest && priorLivePayload) this.startLive(priorLiveRequest, priorLivePayload);
+      return restored;
+    };
     if (request.demo === true) {
       const candles = normalizeCandles(request.demoCandles);
         const state = this.setState({
@@ -1040,6 +1103,8 @@ export class PriceWorkspace {
       if (sequence !== this.requestSequence) return this.state;
       const candles = normalizeCandles(payload.candles);
       if (!response.ok || !payload.ok || !candles.length) {
+        const restored = restorePreservedChart(payload.message || payload.error || `Market provider returned ${response.status}.`);
+        if (restored) return restored;
         this.destroyChart();
         return this.setState({
           state: response.ok ? PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE : PRICE_WORKSPACE_STATES.ERROR,
@@ -1069,8 +1134,10 @@ export class PriceWorkspace {
         throw new Error("The chart provider returned a different exact market than the one selected.");
       }
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
+      const effectiveRavenAnnotations = ravenAnnotations;
       const state = this.setState({
         state: cleanState(payload.freshness_state, payload.stale ? PRICE_WORKSPACE_STATES.DELAYED : PRICE_WORKSPACE_STATES.LIVE),
+        timeframe,
         source: payload.source_label || payload.source || "Market provider",
         observedAt: payload.observed_at || payload.updated_at || null,
         marketIdentity: payload.market_identity || request.marketIdentity || payload.asset || request.asset || "",
@@ -1086,34 +1153,42 @@ export class PriceWorkspace {
         connectionState: payload.capabilities?.live_bars ? "connecting" : "snapshot_only",
         instrumentScope: payload.instrument_scope || payload.instrument?.identity_scope || request.instrumentScope || "exact_pool",
         availableScopes: payload.available_scopes || {},
-        ravenAnnotations,
+        ravenAnnotations: effectiveRavenAnnotations,
         candleSeries: payload.candle_series || null,
         continuity: payload.continuity || null,
         derivation: payload.derivation || payload.candle_series?.derivation || null,
         providerSelection: payload.provider_selection || null,
         providerUsage: payload.provider_usage || null,
-        marketAnatomy: payload.market_anatomy || null,
+        marketAnatomy: payload.market_anatomy || (preserveChart ? priorState.marketAnatomy : null),
         alphaLayers: payload.alpha_layers || null,
-        marketHealth: payload.market_health || null,
-        operatorStateLabel: payload.market_health?.operator_label || null,
-        providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || null,
-        candleFreshnessState: payload.candle_freshness_state || payload.market_health?.candle_recency_state || null,
-        marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || null,
+        marketHealth: payload.market_health || (preserveChart ? priorState.marketHealth : null),
+        operatorStateLabel: payload.market_health?.operator_label || (preserveChart ? priorState.operatorStateLabel : null),
+        providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || (preserveChart ? priorState.providerFreshnessState : null),
+        candleFreshnessState: payload.candle_freshness_state || payload.market_health?.candle_recency_state || (preserveChart ? priorState.candleFreshnessState : null),
+        marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || (preserveChart ? priorState.marketActivityState : null),
         lastCandleAt: payload.last_candle_at || null,
         lastCandleAgeSeconds: finite(payload.last_candle_age_seconds),
+        pendingTimeframe: null,
+        enrichmentState: payload.enrichment_state || (request.market === "crypto_spot" && request.pairAddress ? "loading" : null),
+        refreshError: null,
       });
       this.renderInput = {
         ...this.renderInput,
-        events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations?.events) ? ravenAnnotations.events : [],
-        overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations?.overlays) ? ravenAnnotations.overlays : [],
+        events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(effectiveRavenAnnotations?.events) ? effectiveRavenAnnotations.events : [],
+        overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(effectiveRavenAnnotations?.overlays) ? effectiveRavenAnnotations.overlays : [],
       };
       for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);
       this.paintState();
       this.render(this.renderInput);
       this.startLive({ ...request, timeframe }, payload);
+      if (request.market === "crypto_spot" && request.pairAddress && request.instrumentScope !== "token_aggregate") {
+        void this.loadEnrichment({ ...request, timeframe }, sequence);
+      }
       return state;
     } catch (error) {
       if (sequence !== this.requestSequence) return this.state;
+      const restored = restorePreservedChart(error instanceof Error ? error.message : "Market provider request failed.");
+      if (restored) return restored;
       this.destroyChart();
       return this.setState({
         state: PRICE_WORKSPACE_STATES.ERROR,
@@ -1122,6 +1197,49 @@ export class PriceWorkspace {
         candles: [],
         message: error instanceof Error ? error.message : "Market provider request failed.",
       });
+    }
+  }
+
+  async loadEnrichment(request = {}, sequence = this.requestSequence) {
+    try {
+      const { response, payload } = await this.fetchPayload(request, {
+        limit: this.historyBatchLimit,
+        includeEnrichment: true,
+      });
+      if (sequence !== this.requestSequence || !response.ok || !payload?.ok) return false;
+      const instrument = normalizeChartInstrument(payload.instrument || {});
+      if (payload.timeframe && String(payload.timeframe) !== String(request.timeframe || this.state.timeframe)) return false;
+      if (request.expectedCanonicalId && instrument.canonical_id !== request.expectedCanonicalId) return false;
+      if (!validateExpectedInstrument(instrument, request.expectedIdentity)) return false;
+      this.acceptProviderTransition(payload);
+      const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
+      const hasAnnotations = Boolean(ravenAnnotations);
+      this.setState({
+        marketState: { ...this.state.marketState, ...(payload.market_state || {}) },
+        availableScopes: payload.available_scopes || this.state.availableScopes,
+        ravenAnnotations: ravenAnnotations || this.state.ravenAnnotations,
+        marketAnatomy: payload.market_anatomy || this.state.marketAnatomy,
+        alphaLayers: payload.alpha_layers || this.state.alphaLayers,
+        marketHealth: payload.market_health || this.state.marketHealth,
+        operatorStateLabel: payload.market_health?.operator_label || this.state.operatorStateLabel,
+        providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || this.state.providerFreshnessState,
+        candleFreshnessState: payload.candle_freshness_state || payload.market_health?.candle_recency_state || this.state.candleFreshnessState,
+        marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || this.state.marketActivityState,
+        enrichmentState: payload.enrichment_state || "complete",
+      });
+      if (hasAnnotations) {
+        this.renderInput = {
+          ...this.renderInput,
+          events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations.events) ? ravenAnnotations.events : [],
+          overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations.overlays) ? ravenAnnotations.overlays : [],
+        };
+        this.render(this.renderInput);
+      }
+      document.dispatchEvent(new CustomEvent("ravenos:chartenrichment", { detail: { ...this.state } }));
+      return true;
+    } catch {
+      if (sequence === this.requestSequence) this.setState({ enrichmentState: "unavailable" });
+      return false;
     }
   }
 
@@ -1173,6 +1291,11 @@ export class PriceWorkspace {
       this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
     }
     this.paintChartRead();
+    if (this.state.state === PRICE_WORKSPACE_STATES.LOADING && this.state.candles.length && this.chartHandle) {
+      this.paintMarkerIndex();
+      this.paintState();
+      return this.chartHandle;
+    }
     const currentInstrumentId = this.state.instrument?.canonical_id || null;
     const initialVisibleTimeRange = this.chartHandle && this.chartInstrumentId === currentInstrumentId
       ? this.chartHandle.visibleTimeRange?.() || null

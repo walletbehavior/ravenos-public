@@ -5496,6 +5496,47 @@ async function loadTradeFlags() {
   updateQuoteBoundary();
 }
 
+function perpChartRequest(row, timeframe = state.timeframe) {
+  return {
+    market: "perpetuals",
+    asset: row.asset,
+    timeframe,
+    chain: "hyperliquid",
+    marketIdentity: row.instrument_id,
+    instrumentScope: "exact_instrument",
+    expectedIdentity: {
+      instrumentType: "perpetual",
+      identityScope: "venue_market",
+      chain: "hyperliquid",
+      venue: "hyperliquid",
+      baseAsset: String(row.asset || "").replace(/-PERP$/i, ""),
+      quoteAsset: "USD",
+    },
+  };
+}
+
+function spotChartRequest(row, timeframe = state.timeframe) {
+  const instrumentId = `${String(row.chainId || "").toLowerCase()}:pool:${row.pairAddress}`;
+  return {
+    market: "crypto_spot",
+    asset: `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`,
+    timeframe,
+    chain: row.chainId,
+    pairAddress: row.pairAddress,
+    tokenAddress: row.tokenAddress,
+    quoteAddress: row.quoteTokenAddress,
+    instrumentScope: "exact_pool",
+    marketIdentity: instrumentId,
+    expectedIdentity: {
+      instrumentType: "spot_pool",
+      identityScope: "exact_pool",
+      chain: row.chainId,
+      poolAddress: row.pairAddress,
+      tokenAddress: row.tokenAddress,
+    },
+  };
+}
+
 async function selectPerp(asset, { updateUrl = true } = {}) {
   closeProjectLinks();
   clearSpotTradeRefresh();
@@ -5524,22 +5565,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: perpSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
 
-  const chartPromise = state.workspace.load({
-    market: "perpetuals",
-    asset: row.asset,
-    timeframe: state.timeframe,
-    chain: "hyperliquid",
-    marketIdentity: row.instrument_id,
-    instrumentScope: "exact_instrument",
-    expectedIdentity: {
-      instrumentType: "perpetual",
-      identityScope: "venue_market",
-      chain: "hyperliquid",
-      venue: "hyperliquid",
-      baseAsset: String(row.asset || "").replace(/-PERP$/i, ""),
-      quoteAsset: "USD",
-    },
-  });
+  const chartPromise = state.workspace.load(perpChartRequest(row));
   const contextPromise = fetchJson(`/api/perps/instrument?symbol=${encodeURIComponent(row.asset)}`).catch(() => null);
   const opportunityPromise = fetchExactOpportunityEvidence(row.instrument_id, row.asset);
   const [chartState, contextResult, opportunityResult] = await Promise.all([chartPromise, contextPromise, opportunityPromise]);
@@ -5737,24 +5763,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   updateQuoteBoundary();
   ravenOSContext.setSelection({ subject: spotSubject(row), timeframe: state.timeframe, workspace: "market-monitor" }, { updateUrl });
   const instrumentId = `${String(row.chainId || "").toLowerCase()}:pool:${row.pairAddress}`;
-  const chartPromise = state.workspace.load({
-    market: "crypto_spot",
-    asset: `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`,
-    timeframe: state.timeframe,
-    chain: row.chainId,
-    pairAddress: row.pairAddress,
-    tokenAddress: row.tokenAddress,
-    quoteAddress: row.quoteTokenAddress,
-    instrumentScope: "exact_pool",
-    marketIdentity: instrumentId,
-    expectedIdentity: {
-      instrumentType: "spot_pool",
-      identityScope: "exact_pool",
-      chain: row.chainId,
-      poolAddress: row.pairAddress,
-      tokenAddress: row.tokenAddress,
-    },
-  });
+  const chartPromise = state.workspace.load(spotChartRequest(row));
   const opportunityPromise = fetchExactOpportunityEvidence(instrumentId);
   const [chartState, opportunityResult] = await Promise.all([chartPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
@@ -5767,6 +5776,51 @@ async function selectSpot(row, { updateUrl = true } = {}) {
     tradeCapabilityLabel(chartCapability.trading_state),
   ].join(" · "));
   renderSpotContext(chartState, row, { updateUrl, radarEvidence: opportunityResult.spot });
+}
+
+async function reloadSelectedTimeframe(timeframe) {
+  if (!TIMEFRAMES.has(timeframe) || timeframe === state.timeframe || !state.selected) return;
+  if (!new Set(["perps", "spot"]).has(state.lane)) {
+    state.timeframe = timeframe;
+    if (state.lane === "equity") await selectAtlasInstrument(state.selected);
+    return;
+  }
+  closeProjectLinks();
+  const priorTimeframe = state.timeframe;
+  const generation = ++state.selectionGeneration;
+  const row = state.selected;
+  const request = state.lane === "perps"
+    ? perpChartRequest(row, timeframe)
+    : spotChartRequest(row, timeframe);
+  const label = state.lane === "perps"
+    ? row.asset
+    : `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}`;
+  setText("terminalChartStatus", `Loading ${timeframe} candles. The ${priorTimeframe} chart remains visible.`);
+  const chartState = await state.workspace.load({ ...request, preserveChart: true });
+  if (generation !== state.selectionGeneration) return;
+  const loaded = chartState?.timeframe === timeframe
+    && chartState?.pendingTimeframe == null
+    && Array.isArray(chartState?.candles)
+    && chartState.candles.length > 0;
+  if (!loaded) {
+    state.timeframe = chartState?.timeframe || priorTimeframe;
+    document.getElementById("timeframeSelect").value = state.timeframe;
+    state.workspace?.setTimeframe?.(state.timeframe);
+    setText("terminalChartTitle", `${label} · ${state.timeframe}`);
+    renderWorkspaceState(chartState);
+    updateMonitorHandoff();
+    return;
+  }
+  state.timeframe = timeframe;
+  document.getElementById("timeframeSelect").value = timeframe;
+  setText("terminalChartTitle", `${label} · ${timeframe}`);
+  renderWorkspaceState(chartState);
+  updateMonitorHandoff();
+  ravenOSContext.setSelection({
+    subject: state.lane === "perps" ? perpSubject(row) : spotSubject(row, { ravenIntelligence: Boolean(state.context?.spot_identity_validated) }),
+    timeframe,
+    workspace: "market-monitor",
+  }, { updateUrl: true });
 }
 
 async function loadMarkets() {
@@ -6234,11 +6288,7 @@ function bindControls() {
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
-    state.timeframe = timeframe;
-    updateMonitorHandoff();
-    if (state.lane === "perps" && state.selected) selectPerp(state.selected.asset);
-    else if (state.lane === "spot" && state.selected) selectSpot(state.selected);
-    else if (state.lane === "equity" && state.selected) selectAtlasInstrument(state.selected);
+    void reloadSelectedTimeframe(timeframe);
   });
   const spotSearch = document.getElementById("terminalSpotSearch");
   spotSearch.addEventListener("input", (event) => {
@@ -6353,9 +6403,9 @@ function renderWorkspaceState(workspace = {}) {
           ? "Available"
           : "Unavailable";
   setTerminalPaneStatus("chart", chartStatus, chartStatus === "Current" ? "positive" : chartStatus === "Unavailable" ? "warning" : "neutral");
-  setText("terminalChartStatus", workspace?.candles?.length
+  setText("terminalChartStatus", workspace?.refreshError || (workspace?.candles?.length
     ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : marketUpdateLabel(workspace.connectionState)}`
-    : workspace?.message || titleCase(workspaceState));
+    : workspace?.message || titleCase(workspaceState)));
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);
   renderTradeConsequences();
@@ -6371,6 +6421,12 @@ function bindWorkspaceEvents() {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id && event.detail?.state !== "loading") return;
     renderWorkspaceState(event.detail);
     if (state.lane === "perps" && event.detail?.orderBook) renderTerminalBook(event.detail.orderBook);
+  });
+  document.addEventListener("ravenos:chartenrichment", (event) => {
+    if (state.lane !== "spot" || !state.selected) return;
+    if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id) return;
+    renderWorkspaceState(event.detail);
+    renderSpotContext(event.detail, state.selected, { updateUrl: false, radarEvidence: state.opportunityEvidence });
   });
   document.addEventListener("ravenos:chartmarket", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id) return;

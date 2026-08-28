@@ -869,6 +869,7 @@ export class PollingChartFeed {
     this.failures = 0;
     this.requests = 0;
     this.stopped = true;
+    this.inFlightPromise = null;
     this.seenTrades = new Map((Array.isArray(seenTradeIds) ? seenTradeIds : []).filter(Boolean).map((id) => [String(id), true]));
   }
 
@@ -882,45 +883,64 @@ export class PollingChartFeed {
     this.stopped = false;
     this.state = "polling";
     this.statusListener?.(this.status());
-    this.timer = setInterval(() => this.tick(), this.intervalMs);
+    void this.tick();
   }
 
-  async tick() {
-    if (this.stopped || typeof this.poll !== "function") return;
-    this.requests += 1;
-    try {
-      const payload = await this.poll();
-      if (this.stopped) return;
-      const candles = Array.isArray(payload?.candles) ? payload.candles : [];
-      const candle = normalizeChartCandle(candles[candles.length - 1]);
-      if (candle) this.dispatch?.(chartEvent("bar.upsert", { instrumentId: payload?.instrument?.canonical_id, source: payload?.source_label || this.source, payload: { candle } }));
-      for (const trade of Array.isArray(payload?.recent_trades) ? payload.recent_trades : []) {
-        const id = text(trade?.id || trade?.source_event_id || trade?.hash || `${trade?.time || ""}:${trade?.price || ""}:${trade?.size || ""}`);
-        if (!id || this.seenTrades.has(id)) continue;
-        this.seenTrades.set(id, true);
-        if (this.seenTrades.size > 2048) this.seenTrades.delete(this.seenTrades.keys().next().value);
-        this.dispatch?.(chartEvent("trade.append", {
-          instrumentId: payload?.instrument?.canonical_id,
-          source: payload?.source_label || this.source,
-          sourceEventId: id,
-          observedAt: trade?.observed_at || payload?.observed_at,
-          payload: trade,
-        }));
+  scheduleNext() {
+    if (this.stopped) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.tick();
+    }, this.intervalMs);
+  }
+
+  tick() {
+    if (this.stopped || typeof this.poll !== "function") return Promise.resolve();
+    if (this.inFlightPromise) return this.inFlightPromise;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.inFlightPromise = (async () => {
+      this.requests += 1;
+      try {
+        const payload = await this.poll();
+        if (this.stopped) return;
+        const candles = Array.isArray(payload?.candles) ? payload.candles : [];
+        const candle = normalizeChartCandle(candles[candles.length - 1]);
+        if (candle) this.dispatch?.(chartEvent("bar.upsert", { instrumentId: payload?.instrument?.canonical_id, source: payload?.source_label || this.source, payload: { candle } }));
+        for (const trade of Array.isArray(payload?.recent_trades) ? payload.recent_trades : []) {
+          const id = text(trade?.id || trade?.source_event_id || trade?.hash || `${trade?.time || ""}:${trade?.price || ""}:${trade?.size || ""}`);
+          if (!id || this.seenTrades.has(id)) continue;
+          this.seenTrades.set(id, true);
+          if (this.seenTrades.size > 2048) this.seenTrades.delete(this.seenTrades.keys().next().value);
+          this.dispatch?.(chartEvent("trade.append", {
+            instrumentId: payload?.instrument?.canonical_id,
+            source: payload?.source_label || this.source,
+            sourceEventId: id,
+            observedAt: trade?.observed_at || payload?.observed_at,
+            payload: trade,
+          }));
+        }
+        if (payload?.market_state) this.dispatch?.(chartEvent("price.update", { instrumentId: payload?.instrument?.canonical_id, source: payload?.source_label || this.source, payload: payload.market_state }));
+        this.failures = 0;
+        this.state = payload?.freshness_state === "delayed" ? "delayed" : "live";
+        this.statusListener?.(this.status());
+      } catch (error) {
+        this.failures += 1;
+        this.state = "degraded";
+        this.statusListener?.({ ...this.status(), reason: error instanceof Error ? error.message : "poll_failed" });
+        if (this.failures === 1) this.dispatch?.(chartEvent("gap.detected", { source: this.source, payload: { reason: "poll_failed" } }));
+      } finally {
+        this.inFlightPromise = null;
+        this.scheduleNext();
       }
-      if (payload?.market_state) this.dispatch?.(chartEvent("price.update", { instrumentId: payload?.instrument?.canonical_id, source: payload?.source_label || this.source, payload: payload.market_state }));
-      this.state = payload?.freshness_state === "delayed" ? "delayed" : "live";
-      this.statusListener?.(this.status());
-    } catch (error) {
-      this.failures += 1;
-      this.state = "degraded";
-      this.statusListener?.({ ...this.status(), reason: error instanceof Error ? error.message : "poll_failed" });
-      if (this.failures === 1) this.dispatch?.(chartEvent("gap.detected", { source: this.source, payload: { reason: "poll_failed" } }));
-    }
+    })();
+    return this.inFlightPromise;
   }
 
   stop() {
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.state = "closed";
     this.statusListener?.(this.status());

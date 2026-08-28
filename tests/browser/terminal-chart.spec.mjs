@@ -693,6 +693,79 @@ test("instrument and timeframe changes repaint the chart and exact context", asy
   await expect(page).toHaveURL(/asset=BTC-PERP.*timeframe=4h/);
 });
 
+test("same-market timeframe reload keeps the verified chart and research context visible", async ({ page }) => {
+  const { calls, holderCalls, tradeCalls } = await mockTerminalLiveApis(page, {
+    chartDelayTimeframe: "4h",
+    chartDelayMs: 1_200,
+  });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
+  await openExactSpotSearch(page, "JUP");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await expect.poll(() => calls.some((call) => call.market === "crypto_spot" && call.includeEnrichment)).toBe(true);
+  await expect.poll(() => holderCalls.length).toBe(1);
+  const headline = await page.locator("#terminalReadHeadline").textContent();
+  const holderCallCount = holderCalls.length;
+  const tradeCallCount = tradeCalls.length;
+  await page.evaluate(() => { window.__RAVENOS_TEST_PRIOR_CANVAS__ = document.querySelector("#terminalChart canvas"); });
+
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
+  await expect(page.locator("#terminalChart .rpw")).toHaveAttribute("data-price-workspace-state", "loading");
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  expect(await page.evaluate(() => window.__RAVENOS_TEST_PRIOR_CANVAS__?.isConnected === true)).toBe(true);
+  await expect(page.locator("#terminalReadHeadline")).toHaveText(headline);
+  expect(holderCalls).toHaveLength(holderCallCount);
+  expect(tradeCalls).toHaveLength(tradeCallCount);
+
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
+  await expect(page.locator("#terminalReadHeadline")).toHaveText(headline);
+  expect(holderCalls).toHaveLength(holderCallCount);
+  expect(tradeCalls).toHaveLength(tradeCallCount);
+  expect(await page.evaluate(() => window.__RAVENOS_TEST_PRIOR_CANVAS__?.isConnected === true)).toBe(false);
+});
+
+test("new-timeframe candles never inherit Raven markers from the prior timeframe", async ({ page }) => {
+  const { calls } = await mockTerminalLiveApis(page, {
+    splitChartEnrichment: true,
+    chartEnrichmentDelayTimeframe: "4h",
+    chartEnrichmentDelayMs: 1_200,
+  });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
+  await openExactSpotSearch(page, "JUP");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  const markerIndex = page.locator("#terminalChart [data-rpw-marker-index] button");
+  await expect(markerIndex).toHaveCount(1);
+
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
+
+  expect(calls.some((call) => call.market === "crypto_spot" && call.timeframe === "4h" && !call.includeEnrichment)).toBe(true);
+  expect(await markerIndex.count()).toBe(0);
+  expect(await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count ?? 0)).toBe(0);
+
+  await expect(markerIndex).toHaveCount(1);
+  expect(calls.some((call) => call.market === "crypto_spot" && call.timeframe === "4h" && call.includeEnrichment)).toBe(true);
+});
+
+test("failed same-market timeframe reload restores the last verified chart", async ({ page }) => {
+  await mockTerminalLiveApis(page, { chartFailureTimeframe: "4h" });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
+  const headline = await page.locator("#terminalReadHeadline").textContent();
+  await page.evaluate(() => { window.__RAVENOS_TEST_PRIOR_CANVAS__ = document.querySelector("#terminalChart canvas"); });
+
+  await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
+  await expect(page.locator("#terminalChart [data-rpw-timeframe-select]")).toHaveValue("1h");
+  await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
+  expect(await page.evaluate(() => window.__RAVENOS_TEST_PRIOR_CANVAS__?.isConnected === true)).toBe(true);
+  await expect(page.locator("#terminalReadHeadline")).toHaveText(headline);
+  await expect(page.locator("#terminalChartStatus")).toContainText("last verified 1h chart");
+  const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(terminal.timeframe).toBe("1h");
+  expect(terminal.candleCount).toBeGreaterThan(20);
+});
+
 for (const timeframe of ["1m", "1w", "1M"]) {
   test(`${timeframe} Hyperliquid history remains provider-backed and exact`, async ({ page }) => {
     const { calls } = await mockTerminalLiveApis(page);
