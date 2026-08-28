@@ -2090,7 +2090,10 @@ function runProjectResearchAction(action) {
   if (action === "risk") inspectSpotRisk();
   else if (action === "holders") setHolderListFilter("all", { reveal: true });
   else if (action === "wallets") inspectActiveWallets();
-  else if (action === "raven") focusTerminalRaven();
+  else if (action === "raven") {
+    setTerminalPane("raven", { restoreScroll: false });
+    focusTerminalRaven();
+  }
 }
 
 function renderQuickMarketTools(identity, profile) {
