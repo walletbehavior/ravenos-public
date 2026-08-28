@@ -871,14 +871,17 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await expect(page.locator("#terminalProjectCredit")).toBeHidden();
 });
 
-test("free top-holder rows remain readable and contained in the 390px Terminal Raven pane", async ({ page }) => {
+test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Holders", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
   await page.locator("#terminalDeepLink").click();
-  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
+  await expect(page.locator("#terminalAnatomySection")).toBeVisible();
+  await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
@@ -894,6 +897,9 @@ test("free top-holder rows remain readable and contained in the 390px Terminal R
   expect(projectOverflow).toBeLessThanOrEqual(2);
   expect(holderScroll.scrollHeight).toBeGreaterThan(holderScroll.clientHeight);
   await page.locator("#terminalProjectLinksClose").click();
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await expect(page.locator("#terminalAnatomySection")).toBeHidden();
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {

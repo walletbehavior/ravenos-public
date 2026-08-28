@@ -488,7 +488,7 @@ function afterTerminalPaneVisible(callback) {
 }
 
 function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } = {}) {
-  const requested = new Set(["chart", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
+  const requested = new Set(["chart", "holders", "trade", "book", "raven", "account"]).has(pane) ? pane : "chart";
   const requestedButton = document.querySelector(`[data-terminal-pane-button="${requested}"]`);
   const next = requestedButton?.hidden ? "chart" : requested;
   const root = document.querySelector(".terminal-live");
@@ -517,7 +517,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
 function revealSpotHolders(event) {
   if (state.lane !== "spot" || !currentProjectIdentity()) return;
   event?.preventDefault?.();
-  setTerminalPane("raven", { restoreScroll: false });
+  setTerminalPane("holders", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     const holderList = document.getElementById("terminalHolderList");
     const anatomy = document.getElementById("terminalAnatomySection");
@@ -560,8 +560,13 @@ function updateMonitorHandoff() {
 
 function updateTerminalPaneAvailability() {
   const perps = state.lane === "perps";
+  const spot = state.lane === "spot";
+  const root = document.querySelector(".terminal-live");
+  if (root) root.dataset.terminalLane = state.lane;
   const marketRail = document.getElementById("terminalMarketRail");
   if (marketRail) marketRail.hidden = !perps;
+  const holdersButton = document.querySelector('[data-terminal-pane-button="holders"]');
+  if (holdersButton) holdersButton.hidden = !spot;
   const bookButton = document.querySelector('[data-terminal-pane-button="book"]');
   if (bookButton) bookButton.hidden = !perps;
   const tradeSection = document.getElementById("terminalTradeReviewSection");
@@ -574,8 +579,8 @@ function updateTerminalPaneAvailability() {
   if (accountDock) accountDock.hidden = !accountVisible;
   if (accountButton) accountButton.hidden = !accountVisible;
   syncWalletControls();
-  const current = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
-  if ((!perps && ["trade", "book", "account"].includes(current)) || (current === "trade" && !tradeVisible) || (current === "account" && !accountVisible)) setTerminalPane("chart");
+  const current = root?.dataset.terminalPane || "chart";
+  if ((!perps && ["trade", "book", "account"].includes(current)) || (!spot && current === "holders") || (current === "trade" && !tradeVisible) || (current === "account" && !accountVisible)) setTerminalPane("chart");
 }
 
 function accountMoney(value) {
