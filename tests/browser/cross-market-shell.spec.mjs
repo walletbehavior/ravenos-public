@@ -1019,6 +1019,113 @@ test("Discover keeps ordinary provider activity out of the default shortlist but
   await expect(row).toContainText("+0.80%");
 });
 
+test("Discover never presents a retained exact-market snapshot as a live opportunity", async ({ page }) => {
+  const nowMs = Date.now();
+  const generatedAt = new Date(nowMs).toISOString();
+  const observedAt = new Date(nowMs - 5 * 60_000).toISOString();
+  const poolAddress = "maCx5kp4Bp5UfATJ4oAS5AzezGbSFcZbEQTtwirB4ZL";
+  const tokenAddress = "7sfXVCXdgAwGpef9phswScmLYZX9zKMftZumnu39xVfZ";
+  const staleRadar = buildDiscoverRadarProjection([{
+    instrument_id: `solana:pool:${poolAddress}`,
+    public_attention_id: `market:solana:${poolAddress}`,
+    source_type: "market_activity",
+    discovery_source: "retained_exact_market",
+    market_type: "spot",
+    chain: "Solana",
+    chain_id: "solana",
+    venue: "pumpswap",
+    identity_scope: "exact_pool",
+    symbol: "POTETO",
+    name: "Poteto",
+    token_address: tokenAddress,
+    quote_token_address: wrappedSolAddress,
+    quote_symbol: "SOL",
+    pool_address: poolAddress,
+    observed_at: observedAt,
+    context_state: "delayed",
+    market: {
+      price_usd: 0.000030219,
+      market_cap_usd: 28_910,
+      liquidity_usd: 14_090,
+      price_change_5m_pct: 329.45,
+      price_change_1h_pct: 478.96,
+      price_change_24h_pct: 478.96,
+      volume_usd_5m: 68_070,
+      buys_5m: 526,
+      sells_5m: 429,
+      traders_5m: 357,
+      holder_count: 471,
+    },
+    registry: {
+      state: "retained",
+      first_seen_at: new Date(nowMs - 6 * 60_000).toISOString(),
+      last_seen_at: observedAt,
+      observation_count: 2,
+      primary_behavior_state: "post_dump_resurrection",
+      admission_lanes: ["short_window_anomaly", "recently_removed_from_trending"],
+      admission_reason: "Material short-window move",
+      retained_after_trending: true,
+      event_evidence_append_only: true,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  }], {
+    timeframe: "5m",
+    generatedAt,
+    nowMs,
+    sourceState: "shadow",
+  });
+  const pulse = onchainPulsePayload([], "5m");
+  const opportunities = opportunityPayload();
+  opportunities.census.discovery_radar = staleRadar;
+  opportunities.census.generated_at = generatedAt;
+
+  await mockWorkspaceApis(page);
+  await page.unroute("**/api/opportunity**");
+  await page.route("**/api/opportunity**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(opportunities),
+  }));
+  await page.unroute("**/api/onchain/trending**");
+  await page.route("**/api/onchain/trending**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(pulse),
+  }));
+  await page.goto("/discover/");
+
+  await expect(page.locator(".discover-token-row")).toHaveCount(0);
+  await expect(page.locator(".discover-token-empty")).toContainText("No exact market clears the current high-signal gate");
+  await page.getByRole("button", { name: "Open everything" }).click();
+
+  const row = page.locator(".discover-token-row");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("POTETO");
+  await expect(row).toContainText("Refreshing quote");
+  await expect(row).toContainText("Last exact update 5m ago");
+  await expect(row).toContainText("Retained exact market · live check pending");
+  await expect(row).toContainText("Price, move, risk, and rank are withheld until this exact pool refreshes.");
+  await expect(row).not.toContainText("+329.45%");
+  await expect(row).not.toContainText("$0.000030219");
+  await expect(row).not.toContainText("$28.91K");
+  await expect(row).not.toContainText("$14.09K");
+  await expect(row).not.toContainText(/chase risk|velocity \d+\/99/i);
+  await expect(row).toHaveAttribute("data-freshness", "stale");
+  await expect(row).toHaveAttribute("data-signal-score", "");
+
+  const shell = row.locator("xpath=ancestor::div[contains(@class, 'discover-token-row-shell')]");
+  await shell.locator(".discover-token-evidence > summary").click();
+  await expect(shell.locator(".discover-token-evidence-body")).toContainText("Live quote refreshing");
+  await expect(shell.locator(".discover-token-evidence-body")).toContainText("its old quote, move, risk, and rank are not being presented as current");
+  await expect(shell.locator("[data-discover-terminal-panel='raven']")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+});
+
 test("Discover adds live Base and Ethereum exact pools without presenting them as Raven signals", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await mockWorkspaceApis(page, { withSpot: true, withEvmPulse: true });
