@@ -248,6 +248,13 @@
               <strong id="terminalActiveTraderState">Loading</strong>
             </header>
             <p id="terminalActiveTraderNote">Wallet activity is limited to this exact pool’s returned 24-hour sample.</p>
+            <div class="terminal-active-wallet-filters" role="group" aria-label="Filter active wallets">
+              <button type="button" data-active-wallet-filter="all" aria-pressed="true">All <span id="terminalActiveWalletAllCount">0</span></button>
+              <button type="button" data-active-wallet-filter="repeat" aria-pressed="false">Repeat <span id="terminalActiveWalletRepeatCount">0</span></button>
+              <button type="button" data-active-wallet-filter="buy" aria-pressed="false">Buy-heavy <span id="terminalActiveWalletBuyCount">0</span></button>
+              <button type="button" data-active-wallet-filter="sell" aria-pressed="false">Sell-heavy <span id="terminalActiveWalletSellCount">0</span></button>
+              <button type="button" data-active-wallet-filter="holders" aria-pressed="false" hidden>Listed holders <span id="terminalActiveWalletHolderCount">0</span></button>
+            </div>
             <div class="terminal-active-trader-rows" id="terminalActiveTraderRows" aria-live="polite"><p>Loading active wallets…</p></div>
           </section>
           <footer>
@@ -276,7 +283,7 @@
             </div>
             <div class="terminal-holder-check-actions" aria-label="Continue market due diligence">
               <button type="button" id="terminalHolderLargeAction">1%+ wallets</button>
-              <button type="button" id="terminalHolderTradesAction">Recent swaps</button>
+              <button type="button" id="terminalHolderTradesAction">Active wallets</button>
               <button type="button" id="terminalHolderLinksAction">Links &amp; CA</button>
             </div>
             <p>Current on-chain owners are grouped across token accounts. Wallet labels, related wallets, bundle membership, and wallet-by-wallet balance changes are not inferred.</p>

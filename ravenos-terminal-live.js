@@ -71,6 +71,7 @@ const state = {
   spotTradeLoadingKey: "",
   spotTradeFilter: "all",
   spotActivityView: "trades",
+  spotWalletFilter: "all",
   spotTradeRefreshTimer: null,
   projectProfile: null,
 };
@@ -581,6 +582,12 @@ function inspectTerminalPane(pane) {
     if (target.matches?.("[tabindex]")) target.focus?.({ preventScroll: true });
   });
   return next;
+}
+
+function inspectActiveWallets() {
+  if (state.lane !== "spot" || !currentProjectIdentity()) return;
+  state.spotActivityView = "wallets";
+  inspectTerminalPane("activity");
 }
 
 function revealSpotHolders(event) {
@@ -2651,6 +2658,8 @@ function renderHolderListProjection(payload) {
   renderHolderCheck(payload);
   renderHolderTradeActivity(payload);
   renderMarketControlRisk(payload.risk_screen);
+  const trades = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (trades) renderActiveTraders(trades);
   if (state.lane === "spot" && (state.context?.spot_identity_validated || state.context?.spot_plan_identity_validated)) refreshSpotStructurePlan();
 }
 
@@ -2918,16 +2927,78 @@ function renderActiveWalletMessage(message) {
   host.append(note);
 }
 
+function activeWalletHolderMap() {
+  const identity = currentProjectIdentity();
+  const payload = state.holderListCache.get(currentHolderIdentity()?.key);
+  if (!identity || !payload || !Array.isArray(payload.holders)) return null;
+  const normalize = (value) => identity.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
+  return new Map(payload.holders
+    .filter((row) => row?.excluded_from_wallet_concentration !== true && row?.holder_address)
+    .map((row) => [normalize(row.holder_address), row]));
+}
+
+function filteredActiveWallets(payload, holderMap = activeWalletHolderMap()) {
+  const rows = Array.isArray(payload?.active_traders) ? payload.active_traders : [];
+  const identity = currentProjectIdentity();
+  const normalize = (value) => identity?.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
+  if (state.spotWalletFilter === "repeat") return rows.filter((row) => row.recurrence === "repeat");
+  if (state.spotWalletFilter === "buy") return rows.filter((row) => row.direction === "buy_dominant");
+  if (state.spotWalletFilter === "sell") return rows.filter((row) => row.direction === "sell_dominant");
+  if (state.spotWalletFilter === "holders") return holderMap ? rows.filter((row) => holderMap.has(normalize(row.trader_address))) : [];
+  return rows;
+}
+
+function renderActiveWalletFilters(payload, holderMap = activeWalletHolderMap()) {
+  const rows = Array.isArray(payload?.active_traders) ? payload.active_traders : [];
+  const identity = currentProjectIdentity();
+  const normalize = (value) => identity?.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
+  const counts = {
+    all: rows.length,
+    repeat: rows.filter((row) => row.recurrence === "repeat").length,
+    buy: rows.filter((row) => row.direction === "buy_dominant").length,
+    sell: rows.filter((row) => row.direction === "sell_dominant").length,
+    holders: holderMap ? rows.filter((row) => holderMap.has(normalize(row.trader_address))).length : 0,
+  };
+  const holderButton = document.querySelector('[data-active-wallet-filter="holders"]');
+  if (holderButton) holderButton.hidden = !holderMap;
+  if (!holderMap && state.spotWalletFilter === "holders") state.spotWalletFilter = "all";
+  setText("terminalActiveWalletAllCount", counts.all);
+  setText("terminalActiveWalletRepeatCount", counts.repeat);
+  setText("terminalActiveWalletBuyCount", counts.buy);
+  setText("terminalActiveWalletSellCount", counts.sell);
+  setText("terminalActiveWalletHolderCount", counts.holders);
+  for (const button of document.querySelectorAll("[data-active-wallet-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.activeWalletFilter === state.spotWalletFilter));
+  }
+  return counts;
+}
+
 function renderActiveTraders(payload) {
   const host = document.getElementById("terminalActiveTraderRows");
   if (!host) return;
   host.replaceChildren();
+  const holderMap = activeWalletHolderMap();
+  renderActiveWalletFilters(payload, holderMap);
+  const rows = filteredActiveWallets(payload, holderMap);
   if (!payload.active_traders.length) {
     renderActiveWalletMessage("No wallet addresses were available in this returned exact-pool sample.");
     setText("terminalActiveTraderState", "No wallet rows");
     return;
   }
-  for (const row of payload.active_traders) {
+  if (!rows.length) {
+    const emptyMessages = {
+      repeat: "No repeat wallet appears in this returned exact-pool sample.",
+      buy: "No buy-heavy wallet appears in this returned exact-pool sample.",
+      sell: "No sell-heavy wallet appears in this returned exact-pool sample.",
+      holders: "No active wallet in this returned sample also appears in the current listed-holder rows.",
+    };
+    renderActiveWalletMessage(emptyMessages[state.spotWalletFilter] || "No wallet matches this filter in the returned exact-pool sample.");
+    setText("terminalActiveTraderState", "No matches");
+    return;
+  }
+  const identity = currentProjectIdentity();
+  const normalize = (value) => identity?.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
+  for (const row of rows) {
     const item = document.createElement("article");
     item.className = "terminal-active-trader-row";
     const rank = document.createElement("span");
@@ -2938,7 +3009,11 @@ function renderActiveTraders(payload) {
     const description = document.createElement("small");
     const direction = row.direction === "buy_dominant" ? "Buy-heavy" : row.direction === "sell_dominant" ? "Sell-heavy" : "Mixed flow";
     const lastSeenAge = Math.max(0, (Date.now() - Date.parse(row.last_seen_at)) / 1_000);
-    description.textContent = `${row.recurrence === "repeat" ? "Repeat wallet" : "Seen once"} · ${direction} · last seen ${durationLabel(lastSeenAge)}`;
+    const listedHolder = holderMap?.get(normalize(row.trader_address));
+    const listedLabel = listedHolder
+      ? `Listed holder #${listedHolder.rank}${profilePercent(listedHolder.supply_share_pct) ? ` · ${profilePercent(listedHolder.supply_share_pct)} supply` : ""} · `
+      : "";
+    description.textContent = `${listedLabel}${row.recurrence === "repeat" ? "Repeat wallet" : "Seen once"} · ${direction} · last seen ${durationLabel(lastSeenAge)}`;
     identity.append(description);
     const metrics = document.createElement("dl");
     metrics.className = "terminal-active-wallet-metrics";
@@ -2961,7 +3036,8 @@ function renderActiveTraders(payload) {
     item.append(rank, identity, metrics);
     host.append(item);
   }
-  setText("terminalActiveTraderState", `${payload.active_traders.length} wallets`);
+  const filterLabels = { repeat: "repeat", buy: "buy-heavy", sell: "sell-heavy", holders: "listed holders" };
+  setText("terminalActiveTraderState", state.spotWalletFilter === "all" ? `${rows.length} wallets` : `${rows.length} ${filterLabels[state.spotWalletFilter]}`);
   setText("terminalActiveTraderNote", "Public transaction senders ranked by returned volume for this exact pool. Repeat does not imply related ownership, skill, or profitability; this is not complete wallet history.");
 }
 
@@ -3094,6 +3170,14 @@ function setSpotActivityView(view) {
   const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
   if (payload) renderSpotTradeProjection(payload);
   else void loadSpotTrades();
+}
+
+function setSpotWalletFilter(filter) {
+  if (!new Set(["all", "repeat", "buy", "sell", "holders"]).has(filter)) return;
+  if (filter === "holders" && !activeWalletHolderMap()) return;
+  state.spotWalletFilter = filter;
+  const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (payload) renderActiveTraders(payload);
 }
 
 function setInstrumentImage(value) {
@@ -5420,6 +5504,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.context = null;
   state.opportunityEvidence = null;
   state.spotTradeFilter = "all";
+  state.spotWalletFilter = "all";
   state.holderListFilter = "all";
   updateTerminalPaneAvailability();
   clearExternalChart();
@@ -5971,13 +6056,16 @@ function bindControls() {
     button.addEventListener("click", () => setHolderListFilter(button.dataset.holderFilter));
   }
   document.getElementById("terminalHolderLargeAction")?.addEventListener("click", () => setHolderListFilter("large", { reveal: true }));
-  document.getElementById("terminalHolderTradesAction")?.addEventListener("click", () => inspectTerminalPane("activity"));
+  document.getElementById("terminalHolderTradesAction")?.addEventListener("click", inspectActiveWallets);
   document.getElementById("terminalHolderLinksAction")?.addEventListener("click", () => setProjectLinksOpen(true));
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.addEventListener("click", () => setSpotTradeFilter(button.dataset.spotTradeFilter));
   }
   for (const button of document.querySelectorAll("[data-spot-activity-view]")) {
     button.addEventListener("click", () => setSpotActivityView(button.dataset.spotActivityView));
+  }
+  for (const button of document.querySelectorAll("[data-active-wallet-filter]")) {
+    button.addEventListener("click", () => setSpotWalletFilter(button.dataset.activeWalletFilter));
   }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearSpotTradeRefresh();
@@ -6225,6 +6313,7 @@ async function boot() {
       planOverlayEnabled: state.planOverlayEnabled,
       activeTerminalPane: document.querySelector(".terminal-live")?.dataset.terminalPane || "chart",
       spotActivityView: state.spotActivityView,
+      spotWalletFilter: state.spotWalletFilter,
       selectedMarkerLabel: state.selectedMarker?.label || null,
       quoteOnly: state.flags?.quote_only === true,
       marketPreviewAvailable: state.flags?.market_preview_available === true,

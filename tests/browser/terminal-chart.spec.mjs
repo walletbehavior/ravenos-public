@@ -960,6 +960,10 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   expect(projectOverflow).toBeLessThanOrEqual(2);
   expect(holderScroll.scrollHeight).toBeGreaterThan(holderScroll.clientHeight);
   await page.locator("#terminalProjectLinksClose").click();
+  await page.locator("#terminalHolderTradesAction").click();
+  await expect(page.locator("#terminalActiveTraders")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("panel")).toBe("activity");
+  expect(new URL(page.url()).searchParams.get("activity_view")).toBe("wallets");
   await page.locator('[data-terminal-pane-button="raven"]').click();
   expect(new URL(page.url()).searchParams.get("panel")).toBe("raven");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
@@ -1002,8 +1006,18 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   expect(new URL(page.url()).searchParams.get("activity_view")).toBe("wallets");
   await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(3);
   await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Repeat wallet");
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Listed holder #1 · 12.3% supply");
   await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Buy / sell");
   await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Sample net");
+  await expect(page.locator('[data-active-wallet-filter="holders"]')).toBeVisible();
+  await expect(page.locator("#terminalActiveWalletHolderCount")).toHaveText("1");
+  await page.locator('[data-active-wallet-filter="holders"]').click();
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(1);
+  await page.locator('[data-active-wallet-filter="sell"]').click();
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(1);
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row").first()).toContainText("Sell-heavy");
+  await page.locator('[data-active-wallet-filter="all"]').click();
+  await expect(page.locator("#terminalActiveTraderRows .terminal-active-trader-row")).toHaveCount(3);
   await expect(page.locator("#terminalActiveTraderNote")).toContainText("does not imply related ownership, skill, or profitability");
   await expect(page.locator("#terminalSpotActivitySection")).not.toContainText(/smart money/i);
   const overflow = await page.locator("#terminalSpotActivitySection").evaluate((element) => element.scrollWidth - element.clientWidth);
@@ -1014,6 +1028,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
     activeTerminalPane: "activity",
     spotActivityView: "trades",
+    spotWalletFilter: "all",
     spotTradeCount: 36,
     spotRepeatTraderCount: 3,
     signingAvailable: false,

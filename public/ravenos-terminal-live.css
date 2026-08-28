@@ -845,6 +845,14 @@ button, input, select { font: inherit; }
 .terminal-active-traders > header h3 { margin: 4px 0 0; color: var(--terminal-text); font-size: 12px; line-height: 1.2; }
 .terminal-active-traders > header > strong { margin-left: auto; color: var(--terminal-muted); font: 700 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-active-traders > p { margin: 0 !important; padding: 7px 8px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 8px !important; line-height: 1.45 !important; }
+.terminal-active-wallet-filters { display: flex; gap: 4px; padding: 7px 8px; overflow-x: auto; border-top: 1px solid var(--terminal-line); scrollbar-width: none; }
+.terminal-active-wallet-filters::-webkit-scrollbar { display: none; }
+.terminal-active-wallet-filters button { flex: 0 0 auto; min-height: 27px; border: 1px solid var(--terminal-line); background: #090f16; color: var(--terminal-muted); padding: 0 7px; cursor: pointer; font: 750 7px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-active-wallet-filters button[hidden] { display: none !important; }
+.terminal-active-wallet-filters button:hover,
+.terminal-active-wallet-filters button:focus-visible { border-color: var(--terminal-line-strong); color: var(--terminal-text); outline: none; }
+.terminal-active-wallet-filters button[aria-pressed="true"] { border-color: rgba(63, 185, 130, .42); background: rgba(63, 185, 130, .09); color: #75d9aa; }
+.terminal-active-wallet-filters button span { margin-left: 3px; color: var(--terminal-soft); }
 .terminal-active-trader-rows { max-height: min(42vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
 .terminal-active-trader-rows > p { margin: 0 !important; padding: 18px 10px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 9px !important; text-align: center; }
 .terminal-active-trader-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; padding: 9px 8px; border-top: 1px solid var(--terminal-line); }
