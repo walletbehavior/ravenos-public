@@ -912,7 +912,7 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
 
 test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
@@ -923,8 +923,32 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
   await expect.poll(() => holderCalls.length).toBe(1);
+  await expect.poll(() => tradeCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
   await expect(page.locator("#terminalHolderListState")).toContainText("100 of 4.85K owners");
+  await expect(page.locator("#terminalHolderCheck")).toBeVisible();
+  await expect(page.locator("#terminalHolderCheck")).toContainText("Raven holder check");
+  await expect(page.locator("#terminalHolderLargest")).toHaveText("12.3%");
+  await expect(page.locator("#terminalHolderTop3")).toHaveText("18.5%");
+  await expect(page.locator("#terminalHolderCheckTop10")).toHaveText("26.2%");
+  await expect(page.locator("#terminalHolderOwnerCount")).toHaveText("4.85K");
+  await expect(page.locator("#terminalHolderTrend")).toHaveText("+6.40%");
+  await expect(page.locator("#terminalHolderTrendScope")).toContainText("holder count");
+  await expect(page.locator("#terminalHolderActivity")).toBeVisible();
+  await expect(page.locator("#terminalHolderActivityState")).toHaveText("2 seen");
+  await expect(page.locator("#terminalHolderActivitySummary")).toContainText("2 listed non-pool holders appeared in 24 of 36 returned exact-pool swaps");
+  await page.locator('[data-holder-filter="active"]').click();
+  await expect(page.locator("#terminalHolderListState")).toContainText("active holders");
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row").first()).toContainText("12 returned swaps");
+  await page.locator('[data-holder-filter="large"]').click();
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(11);
+  await expect(page.locator("#terminalHolderListState")).toHaveText("11 1%+ wallets");
+  await page.locator('[data-holder-filter="pool"]').click();
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(1);
+  await page.locator('[data-holder-filter="all"]').click();
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
+  await expect(page.locator("#terminalHolderCheck")).not.toContainText(/smart money|whale/i);
+  await expect(page.locator("#terminalHolderCheck")).toContainText("bundle membership, and wallet-by-wallet balance changes are not inferred");
   await page.locator("#terminalProjectLinksTrigger").click();
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

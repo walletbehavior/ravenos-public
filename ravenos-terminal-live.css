@@ -900,6 +900,37 @@ button, input, select { font: inherit; }
 .terminal-fingerprint span { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
 .terminal-anatomy-grid dd,
 .terminal-marker-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--terminal-text); font-size: 10px; line-height: 1.35; }
+.terminal-holder-check { margin-top: 8px; border: 1px solid rgba(63, 185, 130, .3); background: linear-gradient(145deg, rgba(12, 24, 26, .98), rgba(9, 15, 21, .98)); box-shadow: inset 2px 0 rgba(63, 185, 130, .7); }
+.terminal-holder-check > header { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--terminal-line); }
+.terminal-holder-check > header span,
+.terminal-holder-check-grid dt { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.terminal-holder-check > header h3 { margin: 3px 0 0; color: var(--terminal-text); font-size: 13px; line-height: 1.2; }
+.terminal-holder-check > header > strong { flex: 0 0 auto; color: #75d9aa; font: 750 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-holder-check-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 0; }
+.terminal-holder-check-grid > div { min-width: 0; grid-column: span 2; padding: 8px; border-right: 1px solid var(--terminal-line); }
+.terminal-holder-check-grid > div:nth-child(3),
+.terminal-holder-check-grid > div:last-child { border-right: 0; }
+.terminal-holder-check-grid > div:nth-child(n + 4) { grid-column: span 3; border-top: 1px solid var(--terminal-line); }
+.terminal-holder-check-grid dd { margin: 5px 0 0; color: var(--terminal-text); font: 800 12px/1.15 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-holder-check-grid small { display: block; margin-top: 4px; color: var(--terminal-soft); font-size: 7px; line-height: 1.3; }
+.terminal-holder-activity { padding: 8px 10px; border-top: 1px solid var(--terminal-line); background: rgba(82, 156, 202, .035); }
+.terminal-holder-activity > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.terminal-holder-activity span { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.terminal-holder-activity strong { color: var(--terminal-muted); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-holder-activity[data-tone="positive"] strong { color: var(--terminal-positive); }
+.terminal-holder-activity[data-tone="negative"] strong { color: var(--terminal-negative); }
+.terminal-holder-activity p { margin: 5px 0 0; color: var(--terminal-muted); font-size: 8px; line-height: 1.4; }
+.terminal-holder-check-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--terminal-line); }
+.terminal-holder-check-actions button,
+.terminal-holder-filters button { min-height: 31px; border: 0; border-right: 1px solid var(--terminal-line); background: rgba(255, 255, 255, .01); color: var(--terminal-muted); cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-holder-check-actions button:last-child,
+.terminal-holder-filters button:last-child { border-right: 0; }
+.terminal-holder-check-actions button:hover,
+.terminal-holder-check-actions button:focus-visible,
+.terminal-holder-filters button:hover,
+.terminal-holder-filters button:focus-visible,
+.terminal-holder-filters button[aria-pressed="true"] { background: rgba(63, 185, 130, .08); color: var(--terminal-accent); outline: none; }
+.terminal-holder-check > p { margin: 0; padding: 7px 10px; border-top: 1px solid var(--terminal-line); color: var(--terminal-soft); font-size: 7px; line-height: 1.4; }
 .terminal-holder-map { margin-top: 8px; padding: 8px; border: 1px solid var(--terminal-line); background: #0a0f16; }
 .terminal-holder-map-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .terminal-holder-map-head span { color: var(--terminal-soft); font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
@@ -923,6 +954,7 @@ button, input, select { font: inherit; }
 .terminal-holder-list summary > span { color: var(--terminal-text); font: 800 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-holder-list summary > strong { margin-left: auto; color: var(--terminal-muted); font: 700 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-holder-list > p { margin: 0; padding: 7px 8px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 8px; line-height: 1.45; }
+.terminal-holder-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--terminal-line); }
 .terminal-holder-list-columns,
 .terminal-holder-row { min-width: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(58px, auto) minmax(45px, auto); gap: 7px; align-items: center; }
 .terminal-holder-list-columns { padding: 6px 8px; border-top: 1px solid var(--terminal-line); border-bottom: 1px solid var(--terminal-line); color: var(--terminal-soft); font: 750 7px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
@@ -1225,6 +1257,14 @@ button, input, select { font: inherit; }
   .terminal-risk-screen details li { font-size: 9px; }
   .terminal-holder-legend { gap: 4px; }
   .terminal-holder-map { padding: 7px; }
+  .terminal-holder-check-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .terminal-holder-check-grid > div { grid-column: auto; border-right: 1px solid var(--terminal-line); border-bottom: 1px solid var(--terminal-line); }
+  .terminal-holder-check-grid > div:nth-child(n + 4) { grid-column: auto; border-top: 0; }
+  .terminal-holder-check-grid > div:nth-child(2n) { border-right: 0; }
+  .terminal-holder-check-grid > div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+  .terminal-holder-check-grid dd { font-size: 14px; }
+  .terminal-holder-check-actions button,
+  .terminal-holder-filters button { min-height: 38px; font-size: 9px; }
   .terminal-profile-chip,
   .terminal-profile-links a { min-height: 26px; padding-inline: 7px; }
   body.ros-shell-terminal.ros-terminal-live-shell { padding-right: 0; padding-bottom: var(--ros-mobile-nav-height); }

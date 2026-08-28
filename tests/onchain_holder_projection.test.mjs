@@ -140,6 +140,9 @@ test("indexed holder projection completes provider pagination and aggregates eve
   assert.equal(projection.summary.holder_count, 2);
   assert.equal(projection.summary.token_account_count, 3);
   assert.equal(projection.summary.top_10_supply_pct, 90);
+  assert.equal(projection.summary.largest_non_pool_wallet_supply_pct, 70);
+  assert.equal(projection.summary.top_3_wallet_supply_pct, 70);
+  assert.equal(projection.summary.top_10_wallet_supply_pct, 70);
   assert.equal(projection.token_controls.mint_authority, "disabled");
   assert.equal(projection.token_controls.freeze_authority, "disabled");
   assert.equal(projection.holders.length, 2);
@@ -210,6 +213,9 @@ test("free holder projection truthfully falls back to the largest accounts when 
   });
   assert.equal(projection.holders[1].classification, "exact_pool_account");
   assert.equal(projection.holders[1].excluded_from_wallet_concentration, true);
+  assert.equal(projection.summary.largest_non_pool_wallet_supply_pct, 70);
+  assert.equal(projection.summary.top_3_wallet_supply_pct, 70);
+  assert.equal(projection.summary.top_10_wallet_supply_pct, 70);
   assert.equal(JSON.stringify(projection).includes("solana-display.invalid"), false);
   assert.equal(JSON.stringify(projection).includes("getTokenLargestAccounts"), false);
 });

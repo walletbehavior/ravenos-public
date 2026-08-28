@@ -62,6 +62,7 @@ const state = {
   holderListGeneration: 0,
   holderListCache: new Map(),
   holderListLoadingKey: "",
+  holderListFilter: "all",
   marketControlRisk: null,
   spotTradeGeneration: 0,
   spotTradeCache: new Map(),
@@ -519,7 +520,10 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
     if (next === "chart") state.workspace?.chartHandle?.resize?.();
     if (next === "activity") void loadSpotTrades();
     else clearSpotTradeRefresh();
-    if (next === "holders") void loadHolderList();
+    if (next === "holders") {
+      void loadHolderList();
+      void loadSpotTrades();
+    }
     if (mobile && restoreScroll) {
       const fallback = document.querySelector(`[data-terminal-pane-button="${next}"]`)?.getBoundingClientRect?.().top + (window.scrollY || 0);
       const saved = state.paneScrollPositions[next];
@@ -2186,6 +2190,9 @@ function holderBalanceLabel(value) {
 function verifiedHolderProjection(payload, identity) {
   const complete = payload?.coverage?.complete_holder_census;
   const totalOwners = Number(payload?.coverage?.total_owner_rows);
+  const largestWalletPct = finite(payload?.summary?.largest_non_pool_wallet_supply_pct);
+  const top3WalletPct = finite(payload?.summary?.top_3_wallet_supply_pct);
+  const top10WalletPct = finite(payload?.summary?.top_10_wallet_supply_pct);
   if (
     payload?.ok !== true
     || payload?.safe_public !== true
@@ -2199,6 +2206,9 @@ function verifiedHolderProjection(payload, identity) {
     || ![true, false].includes(complete)
     || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
     || (!complete && payload.holders.length > 20)
+    || [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
+    || largestWalletPct > top3WalletPct
+    || top3WalletPct > top10WalletPct
   ) return null;
   const holders = payload.holders.filter((row) => (
     Number.isInteger(row?.rank)
@@ -2437,11 +2447,126 @@ function renderHolderListMessage(message) {
   host.append(paragraph);
 }
 
+function currentHolderCountTrend() {
+  const distribution = state.workspace?.state?.marketAnatomy?.holder_distribution || {};
+  if (distribution.state !== "available" || distribution.scope !== "exact_token") return null;
+  for (const [window, value] of [["1h", distribution.change_1h_pct], ["5m", distribution.change_5m_pct], ["24h", distribution.change_24h_pct]]) {
+    const change = finite(value);
+    if (change !== null) return { window, change };
+  }
+  return null;
+}
+
+function renderHolderCheck(payload) {
+  const root = document.getElementById("terminalHolderCheck");
+  if (!root) return;
+  const largest = finite(payload?.summary?.largest_non_pool_wallet_supply_pct);
+  const top3 = finite(payload?.summary?.top_3_wallet_supply_pct);
+  const top10 = finite(payload?.summary?.top_10_wallet_supply_pct);
+  const holderCount = finite(payload?.summary?.holder_count);
+  const trend = currentHolderCountTrend();
+  if ([largest, top3, top10].some((value) => value === null)) {
+    root.hidden = true;
+    return;
+  }
+  root.hidden = false;
+  setText("terminalHolderLargest", profilePercent(largest));
+  setText("terminalHolderTop3", profilePercent(top3));
+  setText("terminalHolderCheckTop10", profilePercent(top10));
+  setText("terminalHolderOwnerCount", holderCount === null ? "Partial scan" : compact(holderCount));
+  setText("terminalHolderOwnerScope", payload.coverage?.complete_holder_census === true ? "Owner-aggregated census" : "Largest-account scan");
+  setText("terminalHolderTrend", trend ? percent(trend.change) : "Not measured");
+  setText("terminalHolderTrendScope", trend ? `${trend.window} · exact token holder count` : "Wallet balance history not inferred");
+  const observedMs = Date.parse(String(payload.observed_at || ""));
+  setText("terminalHolderCheckState", Number.isFinite(observedMs)
+    ? `Updated ${durationLabel(Math.max(0, Math.round((Date.now() - observedMs) / 1_000)))}`
+    : "Current snapshot");
+  for (const button of root.querySelectorAll("button")) button.disabled = false;
+}
+
+function holderTradeEvidence(payload) {
+  const projectIdentity = currentProjectIdentity();
+  const holderIdentity = currentHolderIdentity();
+  const trades = state.spotTradeCache.get(projectIdentity?.key)?.payload;
+  if (!projectIdentity || !holderIdentity || !trades) return null;
+  const holders = new Map((Array.isArray(payload?.holders) ? payload.holders : [])
+    .filter((row) => row.excluded_from_wallet_concentration !== true)
+    .map((row) => [row.holder_address, row]));
+  const byHolder = new Map();
+  for (const trade of trades.trades) {
+    if (!trade.trader_address || !holders.has(trade.trader_address)) continue;
+    const current = byHolder.get(trade.trader_address) || { tradeCount: 0, buyUsd: 0, sellUsd: 0 };
+    current.tradeCount += 1;
+    if (trade.side === "buy") current.buyUsd += Number(trade.volume_usd) || 0;
+    else current.sellUsd += Number(trade.volume_usd) || 0;
+    byHolder.set(trade.trader_address, current);
+  }
+  const totals = [...byHolder.values()].reduce((result, row) => ({
+    tradeCount: result.tradeCount + row.tradeCount,
+    buyUsd: result.buyUsd + row.buyUsd,
+    sellUsd: result.sellUsd + row.sellUsd,
+  }), { tradeCount: 0, buyUsd: 0, sellUsd: 0 });
+  return {
+    byHolder,
+    holderCount: byHolder.size,
+    returnedTradeCount: trades.trades.length,
+    ...totals,
+    netBuyUsd: totals.buyUsd - totals.sellUsd,
+  };
+}
+
+function renderHolderTradeActivity(payload) {
+  const root = document.getElementById("terminalHolderActivity");
+  if (!root) return;
+  const evidence = holderTradeEvidence(payload);
+  root.hidden = !evidence;
+  if (!evidence) return;
+  const matched = evidence.holderCount;
+  setText("terminalHolderActivityState", matched ? `${matched} seen` : "No overlap");
+  setText("terminalHolderActivitySummary", matched
+    ? `${matched} listed non-pool holder${matched === 1 ? "" : "s"} appeared in ${evidence.tradeCount} of ${evidence.returnedTradeCount} returned exact-pool swaps · sample net ${spotFlowLabel(evidence.netBuyUsd)}.`
+    : `No listed non-pool holder appeared in the ${evidence.returnedTradeCount} returned exact-pool swaps. This bounded sample does not prove inactivity.`);
+  root.dataset.tone = evidence.netBuyUsd > 0 ? "positive" : evidence.netBuyUsd < 0 ? "negative" : "neutral";
+}
+
+function holderRowsForFilter(payload, filter = state.holderListFilter) {
+  const rows = Array.isArray(payload?.holders) ? payload.holders : [];
+  const activeAddresses = holderTradeEvidence(payload)?.byHolder || new Map();
+  if (filter === "wallets") return rows.filter((row) => row.excluded_from_wallet_concentration !== true);
+  if (filter === "large") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && finite(row.supply_share_pct) >= 1);
+  if (filter === "active") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && activeAddresses.has(row.holder_address));
+  if (filter === "pool") return rows.filter((row) => row.classification === "exact_pool_account");
+  return rows;
+}
+
+function setHolderListFilter(filter, { reveal = false } = {}) {
+  if (!["all", "wallets", "large", "active", "pool"].includes(filter)) return;
+  state.holderListFilter = filter;
+  for (const button of document.querySelectorAll("[data-holder-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.holderFilter === filter));
+  }
+  const cached = state.holderListCache.get(currentHolderIdentity()?.key);
+  if (cached) renderHolderListProjection(cached);
+  if (filter === "active" && !state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload) void loadSpotTrades();
+  if (!reveal) return;
+  inspectTerminalPane("holders");
+  const details = document.getElementById("terminalHolderList");
+  if (details) details.open = true;
+  afterTerminalPaneVisible(() => details?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+  void loadHolderList();
+}
+
 function renderHolderListProjection(payload) {
   const host = document.getElementById("terminalHolderListRows");
   if (!host) return;
+  const previousScrollTop = host.scrollTop;
+  const holderActivityByAddress = holderTradeEvidence(payload)?.byHolder || new Map();
+  for (const button of document.querySelectorAll("[data-holder-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.holderFilter === state.holderListFilter));
+  }
   host.replaceChildren();
-  for (const row of payload.holders) {
+  const visibleRows = holderRowsForFilter(payload);
+  for (const row of visibleRows) {
     const item = document.createElement("article");
     item.className = "terminal-holder-row";
     item.dataset.classification = row.classification;
@@ -2456,11 +2581,15 @@ function renderHolderListProjection(payload) {
     address.textContent = compactHolderAddress(row.holder_address);
     address.title = row.holder_address;
     const classification = document.createElement("small");
-    classification.textContent = row.classification === "exact_pool_account"
+    const holderActivity = holderActivityByAddress.get(row.holder_address);
+    const classificationLabel = row.classification === "exact_pool_account"
       ? "Exact pool account · excluded from wallet concentration"
       : row.classification === "owner"
         ? row.token_account_count > 1 ? `${row.token_account_count} top token accounts · same owner` : "On-chain owner"
         : "Token account · owner unresolved";
+    classification.textContent = holderActivity
+      ? `${classificationLabel} · ${holderActivity.tradeCount} returned swaps · net ${spotFlowLabel(holderActivity.buyUsd - holderActivity.sellUsd)}`
+      : classificationLabel;
     const copy = document.createElement("button");
     copy.type = "button";
     copy.textContent = "Copy";
@@ -2483,16 +2612,23 @@ function renderHolderListProjection(payload) {
     item.append(rank, identity, balance, share);
     host.append(item);
   }
+  if (!visibleRows.length) renderHolderListMessage(state.holderListFilter === "pool"
+    ? "The exact pool account is not present in the returned top-holder rows."
+    : "No returned holder matches this filter.");
+  host.scrollTop = Math.min(previousScrollTop, Math.max(0, host.scrollHeight - host.clientHeight));
   const complete = payload.coverage.complete_holder_census === true;
   const totalOwners = complete ? Number(payload.coverage.total_owner_rows) : null;
-  setText("terminalHolderListState", complete
-    ? `${payload.holders.length} of ${compact(totalOwners)} owners`
-    : `${payload.holders.length} owners`);
+  const filterLabel = { wallets: "wallets", large: "1%+ wallets", active: "active holders", pool: "pool accounts" }[state.holderListFilter];
+  setText("terminalHolderListState", filterLabel
+    ? `${visibleRows.length} ${filterLabel}`
+    : complete ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
   const observed = timestamp(payload.observed_at);
   setText("terminalHolderListNote", complete
     ? `Complete current census · ${compact(payload.coverage.scanned_source_accounts)} token accounts grouped into ${compact(totalOwners)} owners · showing the top ${payload.holders.length} · ${observed}.`
     : `Largest 20 token accounts, grouped by owner when available · full census unavailable · ${observed}.`);
   renderVerifiedHolderConcentration(payload);
+  renderHolderCheck(payload);
+  renderHolderTradeActivity(payload);
   renderMarketControlRisk(payload.risk_screen);
   if (state.lane === "spot" && (state.context?.spot_identity_validated || state.context?.spot_plan_identity_validated)) refreshSpotStructurePlan();
 }
@@ -2504,6 +2640,8 @@ function renderHolderListSurface() {
   details.hidden = !identity;
   if (!identity) {
     details.dataset.identityKey = "";
+    const holderCheck = document.getElementById("terminalHolderCheck");
+    if (holderCheck) holderCheck.hidden = true;
     renderMarketControlRisk(null);
     return;
   }
@@ -2512,11 +2650,13 @@ function renderHolderListSurface() {
   const cached = state.holderListCache.get(identity.key);
   if (cached) renderHolderListProjection(cached);
   else if (state.holderListLoadingKey === identity.key) {
+    document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "Loading");
     setText("terminalHolderListNote", "Reading current on-chain holder accounts for this exact token.");
     renderHolderListMessage("Loading top holders…");
     renderMarketControlRisk(null, { loading: true });
   } else {
+    document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "View list");
     setText("terminalHolderListNote", "Ranked on-chain owners for this exact token.");
     renderHolderListMessage("Open this section to load the current holder list.");
@@ -2791,6 +2931,8 @@ function renderSpotTradeProjection(payload) {
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
   }
+  const holders = state.holderListCache.get(currentHolderIdentity()?.key);
+  if (holders) renderHolderListProjection(holders);
 }
 
 function renderSpotTradeSurface() {
@@ -3023,7 +3165,7 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
 
   if (state.lane === "spot") {
     setText("terminalAnatomyEyebrow", "Holders & safety");
-    setText("terminalAnatomyTitle", "Ownership, liquidity, and token controls");
+    setText("terminalAnatomyTitle", "Holder map and token checks");
     const holderDistribution = anatomy.holder_distribution || {};
     const holderCount = holderDistribution.state === "available"
       ? finite(holderDistribution.holder_count)
@@ -5194,6 +5336,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.context = null;
   state.opportunityEvidence = null;
   state.spotTradeFilter = "all";
+  state.holderListFilter = "all";
   updateTerminalPaneAvailability();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
@@ -5740,6 +5883,12 @@ function bindControls() {
   document.getElementById("terminalHolderList")?.addEventListener("toggle", (event) => {
     if (event.currentTarget.open) void loadHolderList();
   });
+  for (const button of document.querySelectorAll("[data-holder-filter]")) {
+    button.addEventListener("click", () => setHolderListFilter(button.dataset.holderFilter));
+  }
+  document.getElementById("terminalHolderLargeAction")?.addEventListener("click", () => setHolderListFilter("large", { reveal: true }));
+  document.getElementById("terminalHolderTradesAction")?.addEventListener("click", () => inspectTerminalPane("activity"));
+  document.getElementById("terminalHolderLinksAction")?.addEventListener("click", () => setProjectLinksOpen(true));
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.addEventListener("click", () => setSpotTradeFilter(button.dataset.spotTradeFilter));
   }

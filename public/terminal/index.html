@@ -244,13 +244,36 @@
         </section>
 
         <section class="terminal-anatomy" id="terminalAnatomySection" tabindex="-1">
-          <header><div><span id="terminalAnatomyEyebrow">Holders &amp; safety</span><h2 id="terminalAnatomyTitle">Ownership, liquidity, and token controls</h2></div><strong id="terminalAnatomyState">Loading</strong></header>
+          <header><div><span id="terminalAnatomyEyebrow">Holders &amp; safety</span><h2 id="terminalAnatomyTitle">Holder map and token checks</h2></div><strong id="terminalAnatomyState">Loading</strong></header>
+          <section class="terminal-holder-check" id="terminalHolderCheck" aria-labelledby="terminalHolderCheckTitle" hidden>
+            <header>
+              <div><span>Fast due diligence</span><h3 id="terminalHolderCheckTitle">Raven holder check</h3></div>
+              <strong id="terminalHolderCheckState">Current snapshot</strong>
+            </header>
+            <dl class="terminal-holder-check-grid">
+              <div><dt>Largest wallet</dt><dd id="terminalHolderLargest">—</dd><small>Exact pool excluded</small></div>
+              <div><dt>Top 3 wallets</dt><dd id="terminalHolderTop3">—</dd><small>Exact pool excluded</small></div>
+              <div><dt>Top 10 wallets</dt><dd id="terminalHolderCheckTop10">—</dd><small>Exact pool excluded</small></div>
+              <div><dt>Current owners</dt><dd id="terminalHolderOwnerCount">—</dd><small id="terminalHolderOwnerScope">Owner-aggregated census</small></div>
+              <div><dt>Holder-count trend</dt><dd id="terminalHolderTrend">—</dd><small id="terminalHolderTrendScope">Change not measured</small></div>
+            </dl>
+            <div class="terminal-holder-activity" id="terminalHolderActivity" hidden>
+              <div><span>Listed holders in returned swaps</span><strong id="terminalHolderActivityState">Checking</strong></div>
+              <p id="terminalHolderActivitySummary"></p>
+            </div>
+            <div class="terminal-holder-check-actions" aria-label="Continue market due diligence">
+              <button type="button" id="terminalHolderLargeAction">1%+ wallets</button>
+              <button type="button" id="terminalHolderTradesAction">Recent swaps</button>
+              <button type="button" id="terminalHolderLinksAction">Links &amp; CA</button>
+            </div>
+            <p>Current on-chain owners are grouped across token accounts. Wallet labels, related wallets, bundle membership, and wallet-by-wallet balance changes are not inferred.</p>
+          </section>
           <div class="terminal-risk-screen" id="terminalRiskScreen" hidden>
             <div class="terminal-risk-head">
               <div><span>Raven risk screen</span><h3 id="terminalRiskTitle">Checking this exact market</h3></div>
               <strong id="terminalRiskLevel">Checking</strong>
             </div>
-            <p id="terminalRiskSummary">Raven is separating holder controls, market integrity, and unmeasured risk.</p>
+            <p id="terminalRiskSummary">Checking ownership, token controls, and route risk for this exact market.</p>
             <div class="terminal-risk-columns">
               <section id="terminalRiskFactorsSection" hidden><h4>Risk factors</h4><ul id="terminalRiskFactors"></ul></section>
               <section id="terminalRiskChecksSection" hidden><h4>Checks passed</h4><ul id="terminalRiskChecks"></ul></section>
@@ -259,7 +282,7 @@
               <summary><span>Not measured yet</span><strong id="terminalRiskUnknownCount"></strong></summary>
               <ul id="terminalRiskUnknowns"></ul>
             </details>
-            <small>Control and market-integrity screen—not a scam verdict or rug probability. Safe controls do not mean a safe token.</small>
+            <small>This is a pre-trade evidence check, not a scam verdict or rug probability. Unmeasured risks can still matter.</small>
           </div>
           <dl class="terminal-anatomy-grid">
             <div hidden><dt id="terminalAnatomy1Label"></dt><dd id="terminalAnatomy1"></dd></div>
@@ -286,6 +309,13 @@
           <details class="terminal-holder-list" id="terminalHolderList" hidden>
             <summary><span>Top holders</span><strong id="terminalHolderListState">View list</strong></summary>
             <p id="terminalHolderListNote">Ranked on-chain owners for this exact token.</p>
+            <div class="terminal-holder-filters" id="terminalHolderFilters" role="group" aria-label="Filter top holders">
+              <button type="button" data-holder-filter="all" aria-pressed="true">All</button>
+              <button type="button" data-holder-filter="wallets" aria-pressed="false">Wallets</button>
+              <button type="button" data-holder-filter="large" aria-pressed="false">1%+</button>
+              <button type="button" data-holder-filter="active" aria-pressed="false">Active</button>
+              <button type="button" data-holder-filter="pool" aria-pressed="false">Pool</button>
+            </div>
             <div class="terminal-holder-list-columns" aria-hidden="true"><span>Rank</span><span>Address</span><span>Balance</span><span>Supply</span></div>
             <div class="terminal-holder-list-rows" id="terminalHolderListRows" aria-live="polite"></div>
           </details>

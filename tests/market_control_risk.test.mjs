@@ -14,7 +14,7 @@ const IDENTITY = Object.freeze({
   quote_token_address: "So11111111111111111111111111111111111111112",
 });
 
-function holders({ top10 = 13.14, largest = 1.72, mint = "disabled", freeze = "disabled" } = {}) {
+function holders({ top3 = 4.8, top10 = 13.14, largest = 1.72, mint = "disabled", freeze = "disabled" } = {}) {
   return {
     ok: true,
     safe_public: true,
@@ -22,7 +22,7 @@ function holders({ top10 = 13.14, largest = 1.72, mint = "disabled", freeze = "d
     state: "available",
     identity: IDENTITY,
     observed_at: "2026-08-28T08:53:45.895Z",
-    summary: { top_10_supply_pct: 92, top_10_wallet_supply_pct: top10 },
+    summary: { top_10_supply_pct: 92, largest_non_pool_wallet_supply_pct: largest, top_3_wallet_supply_pct: top3, top_10_wallet_supply_pct: top10 },
     token_controls: { source: "solana_mint_account", state: "available", mint_authority: mint, freeze_authority: freeze },
     holders: [
       { supply_share_pct: 76.85, excluded_from_wallet_concentration: true },
@@ -73,7 +73,7 @@ test("pool-inclusive and unverified provider percentages never become false rug 
   assert.equal(projection.level, "high");
   assert.equal(projection.title, "High market-integrity risk");
   assert.match(projection.summary, /24h volume is 35\.1×/);
-  assert.match(projection.summary, /top-10 wallet concentration is 13\.1% after excluding the exact pool/i);
+  assert.match(projection.summary, /pool-excluded wallet concentration: top-3 is 4\.8%; top-10 is 13\.1%/i);
   assert.equal(projection.risk_factors.some((row) => row.id.includes("concentration")), false);
   assert.equal(projection.risk_factors.some((row) => row.id.includes("developer_holding")), false);
   assert.equal(projection.risk_factors.some((row) => row.id === "extreme_turnover"), true);
@@ -89,7 +89,7 @@ test("pool-inclusive and unverified provider percentages never become false rug 
 test("active mint controls and independently measured developer exposure produce severe control risk", () => {
   const projection = buildMarketControlRiskProjection({
     identity: IDENTITY,
-    holder_projection: holders({ top10: 62, largest: 24, mint: "enabled", freeze: "enabled" }),
+    holder_projection: holders({ top3: 45, top10: 62, largest: 24, mint: "enabled", freeze: "enabled" }),
     market_profile: profile({ verified: true, honeypot: "flagged", providerDeveloperPct: 0 }),
     developer_holding: developerHolding(31),
     market_snapshot: { pairAgeMs: 4 * 86_400_000, volume24h: 90_000, marketCap: 500_000 },
@@ -103,10 +103,25 @@ test("active mint controls and independently measured developer exposure produce
   assert.equal(projection.risk_factors.some((row) => row.id === "top_10_wallet_concentration_high"), true);
 });
 
+test("top-three concentration is independently surfaced before top-ten concentration crosses its high threshold", () => {
+  const projection = buildMarketControlRiskProjection({
+    identity: IDENTITY,
+    holder_projection: holders({ top3: 41, top10: 47, largest: 14 }),
+    market_profile: profile({ verified: true, honeypot: "not_flagged" }),
+    developer_holding: developerHolding(1),
+    market_snapshot: { pairAgeMs: 5 * 86_400_000, volume24h: 80_000, marketCap: 750_000, liquidityUsd: 125_000 },
+  });
+  assert.equal(projection.level, "high");
+  assert.equal(projection.risk_factors.some((row) => row.id === "top_3_wallet_concentration_high"), true);
+  assert.equal(projection.risk_factors.some((row) => row.id === "top_10_wallet_concentration_high"), false);
+  assert.equal(projection.metrics.top_3_wallet_supply_pct, 41);
+  assert.equal(projection.interpretation.holder_distribution_state, "highly_concentrated");
+});
+
 test("effectively empty exact-pool liquidity is a critical market-integrity flag", () => {
   const projection = buildMarketControlRiskProjection({
     identity: IDENTITY,
-    holder_projection: holders({ top10: 98.6, largest: 96.6 }),
+    holder_projection: holders({ top3: 97.5, top10: 98.6, largest: 96.6 }),
     market_profile: profile(),
     developer_holding: developerHolding(96.6),
     market_snapshot: {
