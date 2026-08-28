@@ -94,6 +94,7 @@ const spotAttentionRows = [
     observed_at: "2026-07-21T12:20:00Z",
     age_seconds: 20,
     movement_state: "Activity accelerating",
+    raven_why: "Raven spotted a 5m upside move backed by active trading.",
     what_changed: "Price rose 8.50% in 5m. Volume expanded 42.0% · buys led 64 to 26 · 72 active traders.",
     risk: "Short-window movement can reverse before broader follow-through develops.",
     market: {
@@ -232,7 +233,7 @@ function radarSourceRows(rows, { raven = false, generatedAt = new Date().toISOSt
         state: "qualified",
         classifier: { name: "raven_velocity_attention", version: "fixture.v1" },
         lineage: { public_artifact_id: source.public_attention_id },
-        why_raven_noticed: source.movement_state,
+        why_raven_noticed: source.raven_why || source.movement_state,
         what_changed: source.what_changed,
         behavioral_evidence: [source.what_changed],
         timing_lead_seconds: source.broader_attention?.lead_seconds ?? null,
@@ -869,7 +870,10 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("#discoverRefineMarkets")).not.toHaveAttribute("open", "");
   await expect(page.locator("#discoverRefineSummary")).toHaveText("Opportunities");
   await page.locator("[data-spot-sort='raven']").click();
-  await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText("Raven read · Current");
+  const ravenRead = page.locator(".discover-token-row").first().locator(".discover-token-raven");
+  await expect(ravenRead).toContainText("Raven read · Current");
+  await expect(ravenRead).not.toContainText("Raven spotted a 5m upside move backed by active trading.");
+  await expect(ravenRead).toContainText(/price|participation|flow|activity/i);
   await page.locator("[data-spot-sort='velocity']").click();
   await expect(page.locator(".discover-token-row").first()).toContainText("RETIRE");
   await expect(page.locator(".discover-token-row").first()).toContainText("+8.50%");

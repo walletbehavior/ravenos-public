@@ -1272,7 +1272,7 @@ function renderSpotEvidence(shell, row) {
   const ravenSection = append(body, "section", "discover-token-evidence-narrative", "");
   append(ravenSection, "h4", "", "Raven evidence");
   if (raven?.qualified === true) {
-    append(ravenSection, "p", "", customerFacingText(raven.why_raven_noticed, "Raven has a current read for this exact market."));
+    append(ravenSection, "p", "", customerFacingText(discovery.decision_support?.why_now || raven.why_raven_noticed, "Raven has a current read for this exact market."));
     if (raven.what_changed) append(ravenSection, "p", "", customerFacingText(raven.what_changed));
     if (Array.isArray(raven.contradictions) && raven.contradictions.length) append(ravenSection, "p", "", `Contradictions: ${raven.contradictions.map((value) => customerFacingText(value, "")).filter(Boolean).join(" · ")}`);
     append(ravenSection, "small", "", `${title(raven.state)} · ${title(raven.confidence_maturity, "Forming")} maturity · ${title(raven.forward_evidence_status, "Forming")} forward evidence`);
@@ -1410,7 +1410,7 @@ function updateSpotTokenRow(anchor, row, index) {
       `Raven read · ${ravenState}`,
       exactChartRequired ? "Open chart to confirm" : "",
     ].filter(Boolean).join(" · "));
-    append(raven, "strong", "", customerFacingText(ravenEvidence.why_raven_noticed, "Raven has a current read for this exact market."));
+    append(raven, "strong", "", customerFacingText(discovery.decision_support?.why_now || ravenEvidence.why_raven_noticed, "Raven has a current read for this exact market."));
   }
   const compactDetail = [
     opportunityLaneLabel(discovery.opportunity_lane?.value),

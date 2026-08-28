@@ -3656,7 +3656,10 @@ function spotContextFromRadar(radarRow, row) {
     movement_state: titleCase(behavior.value, "Raven observation"),
     what_changed: customerFacingText(evidence.what_changed || decision.what_changed, ""),
     risk: operatorList(contradictions, ""),
-    raven_why: customerFacingText(evidence.why_raven_noticed || decision.why_now, ""),
+    raven_why: customerFacingText(decision.why_now || evidence.why_raven_noticed, ""),
+    timing_lead_seconds: Number.isFinite(Number(evidence.timing_lead_seconds))
+      ? Math.max(0, Math.floor(Number(evidence.timing_lead_seconds)))
+      : null,
     behavioral_evidence: Array.isArray(evidence.behavioral_evidence) ? evidence.behavioral_evidence : [],
     confidence_maturity: evidence.confidence_maturity,
     decision_support: decision,
@@ -3711,6 +3714,10 @@ function renderSpotContext(workspace, row, { updateUrl = true, radarEvidence = n
         raven_why: radarContext.raven_why,
         behavioral_evidence: radarContext.behavioral_evidence,
         confidence_maturity: radarContext.confidence_maturity,
+        timing_lead_seconds: radarContext.timing_lead_seconds
+          ?? (Number.isFinite(Number(workspaceContext.broader_attention?.lead_seconds))
+            ? Math.max(0, Math.floor(Number(workspaceContext.broader_attention.lead_seconds)))
+            : null),
         decision_support: radarContext.decision_support,
         public_reference: radarContext.public_reference,
       }
@@ -3763,10 +3770,16 @@ function renderSpotContext(workspace, row, { updateUrl = true, radarEvidence = n
     ? Math.max(0, Math.floor((Date.now() - observedMs) / 1_000))
     : null;
   const movement = customerFacingText(context.movement_state, "Activity changed");
-  const why = customerFacingText(
+  const behaviorWhy = customerFacingText(
     context.raven_why || context.what_changed,
     context.what_changed,
   );
+  const timingLead = Number.isFinite(Number(context.timing_lead_seconds)) && Number(context.timing_lead_seconds) >= 60
+    ? `Raven observed this ${durationLabel(Number(context.timing_lead_seconds)).replace(/\s+ago$/i, "")} before broader attention.`
+    : "";
+  const why = [behaviorWhy, timingLead]
+    .filter((value, index, values) => value && !values.slice(0, index).some((prior) => prior.includes(value)))
+    .join(" ");
   const risk = customerFacingText(context.risk, "");
   resetPlanPreview();
   state.context = {
