@@ -21,9 +21,9 @@
         <div id="terminalContextStateCell" hidden><span id="terminalContextKindLabel">Raven</span><strong id="terminalContextFreshness">Checking</strong></div>
       </div>
       <div class="terminal-boundary" id="terminalBoundary" data-state="loading">
-        <span>Read only</span>
-        <strong>Market connecting</strong>
-        <small>No order can be signed or sent</small>
+        <span>Trading</span>
+        <strong>Preview only</strong>
+        <small>Trading is not enabled. No order can be signed or sent.</small>
       </div>
     </header>
 
@@ -53,6 +53,7 @@
       <div class="terminal-actions">
         <button type="button" id="terminalWalletConnect" hidden>Connect wallet</button>
         <button type="button" id="terminalReadTrigger" hidden>Raven Read</button>
+        <button type="button" id="terminalProjectLinksTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="terminalProjectLinksPopover" hidden>Project links</button>
         <a id="terminalMonitorLink" href="https://app.ravenos.xyz/monitor/" hidden>Monitor with Raven</a>
         <a id="terminalDeepLink" href="/perps/">Market depth</a>
       </div>
@@ -60,16 +61,38 @@
 
     <div class="terminal-search-results" id="terminalSpotResults" hidden aria-live="polite"></div>
 
+    <aside class="terminal-project-popover" id="terminalProjectLinksPopover" role="dialog" aria-labelledby="terminalProjectLinksTitle" tabindex="-1" hidden>
+      <header>
+        <div><span>Exact-market project</span><h2 id="terminalProjectLinksTitle">Project links</h2></div>
+        <button type="button" id="terminalProjectLinksClose" aria-label="Close project links">Close</button>
+      </header>
+      <section class="terminal-project-description">
+        <span>Project description</span>
+        <p id="terminalProjectDescription">No project description is listed for this exact token.</p>
+        <small>Not a Raven assessment. Verify the contract and every destination independently.</small>
+      </section>
+      <nav class="terminal-profile-links terminal-project-link-grid" id="terminalProfileLinks" aria-label="Listed project links"></nav>
+      <p class="terminal-project-empty" id="terminalProjectLinksEmpty">No project social or website links are listed for this exact token.</p>
+      <div class="terminal-project-actions" aria-label="Exact token actions">
+        <a id="terminalProjectSearchX" target="_blank" rel="noopener noreferrer nofollow">Search CA on X</a>
+        <a id="terminalProjectExplorer" target="_blank" rel="noopener noreferrer nofollow" hidden>Open explorer</a>
+        <button type="button" id="terminalProjectCopy">Copy CA</button>
+      </div>
+      <p class="sr-only" id="terminalProjectLinkStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+      <div class="terminal-project-address"><span>Exact token contract</span><code id="terminalProjectAddress"></code></div>
+      <a class="terminal-profile-credit" id="terminalProjectCredit" target="_blank" rel="noopener noreferrer nofollow" hidden></a>
+    </aside>
+
     <details class="terminal-chain-coverage" id="terminalChainCoverage">
-      <summary><span>Multi-chain Terminal</span><strong id="terminalChainCoverageSummary">Exact lookup across chains · reviewed capabilities shown separately</strong></summary>
+      <summary><span>Markets by chain</span><strong id="terminalChainCoverageSummary">See where charts and trade previews are available</strong></summary>
       <div class="terminal-chain-coverage-grid" id="terminalChainCoverageGrid"></div>
-      <p>Charts appear only for the exact pool RavenOS can verify. Trading tools stay hidden until that market and route are supported.</p>
+      <p>RavenOS keeps each pool separate. A chart may be available before trading is enabled on that chain.</p>
     </details>
 
     <section class="terminal-market-head" aria-label="Selected market facts">
       <div class="terminal-instrument">
         <img id="terminalInstrumentImage" alt="" width="30" height="30" hidden />
-        <div class="terminal-instrument-kicker"><span id="terminalInstrumentScope">Exact instrument</span><em id="terminalLaunchBadge" hidden>Velocity launch</em></div>
+        <div class="terminal-instrument-kicker"><span id="terminalInstrumentScope">Exact instrument</span><em id="terminalLaunchBadge" hidden>Found in Discover</em></div>
         <strong id="terminalInstrument">SOL-PERP</strong>
         <small id="terminalInstrumentMeta">Hyperliquid perpetual · connecting</small>
       </div>
@@ -100,8 +123,8 @@
               <summary id="terminalSourceSummary">Source details</summary>
               <dl>
                 <div><dt>Source</dt><dd id="terminalSourceProvider">Checking</dd></div>
-                <div><dt>Bars</dt><dd id="terminalSourceInterval">Checking</dd></div>
-                <div><dt>Continuity</dt><dd id="terminalSourceContinuity">Checking</dd></div>
+                <div><dt>Candles</dt><dd id="terminalSourceInterval">Checking</dd></div>
+                <div><dt>Coverage</dt><dd id="terminalSourceContinuity">Checking</dd></div>
                 <div><dt>Freshness</dt><dd id="terminalSourceFreshness">Checking</dd></div>
                 <div><dt>Chart</dt><dd><a id="terminalChartCredit" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">Lightweight Charts™ by TradingView</a></dd></div>
               </dl>
@@ -167,8 +190,8 @@
           <div class="terminal-alpha-stack" id="terminalAlphaStack"></div>
         </section>
 
-        <section class="terminal-anatomy" id="terminalAnatomySection">
-          <header><div><span>Market anatomy</span><h2>What this market is made of</h2></div><strong id="terminalAnatomyState">Resolving</strong></header>
+        <section class="terminal-anatomy" id="terminalAnatomySection" tabindex="-1">
+          <header><div><span>Holders &amp; safety</span><h2>Ownership, liquidity, and token controls</h2></div><strong id="terminalAnatomyState">Loading</strong></header>
           <dl class="terminal-anatomy-grid">
             <div hidden><dt id="terminalAnatomy1Label"></dt><dd id="terminalAnatomy1"></dd></div>
             <div hidden><dt id="terminalAnatomy2Label"></dt><dd id="terminalAnatomy2"></dd></div>
@@ -199,8 +222,7 @@
           </details>
           <div class="terminal-profile-facts" id="terminalProfileFacts" hidden>
             <div class="terminal-profile-chips" id="terminalProfileChips"></div>
-            <nav class="terminal-profile-links" id="terminalProfileLinks" aria-label="Token links"></nav>
-            <a class="terminal-profile-credit" id="terminalProfileCredit" target="_blank" rel="noopener nofollow" hidden></a>
+            <a class="terminal-profile-credit" id="terminalProfileCredit" target="_blank" rel="noopener noreferrer nofollow" hidden></a>
           </div>
           <div class="terminal-fingerprint"><span>Exact market</span><code id="terminalFingerprint">Resolving</code></div>
         </section>
@@ -396,7 +418,7 @@
           <p class="terminal-preview-message" id="terminalPreviewMessage">Review exact entry semantics and optional risk levels against the current book.</p>
           <div class="terminal-preview-boundary">
             <strong>Plan only</strong>
-            <span id="terminalQuoteNote">No order payload is created. Nothing is signed or sent.</span>
+            <span id="terminalQuoteNote">Preview only. Nothing can be signed or sent.</span>
           </div>
           <span id="terminalQuoteContract" hidden>Exact-market order plan</span>
           <span id="terminalSettlementConsequence" hidden>USDC margin remains at Hyperliquid</span>

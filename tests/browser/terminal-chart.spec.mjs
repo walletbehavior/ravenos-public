@@ -49,7 +49,8 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   await expect(page.locator("#terminalInstrument")).toHaveText("SOL-PERP");
-  await expect(page.locator("#terminalInstrumentMeta")).toContainText("hyperliquid:perp:SOL");
+  await expect(page.locator("#terminalInstrumentMeta")).toContainText("Hyperliquid perpetual");
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", "hyperliquid:perp:SOL");
   await expect(page.locator("#terminalLast")).not.toHaveText("--");
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Funding");
   await expect(page.locator("#terminalMetric4Label")).toHaveText("Open interest");
@@ -473,7 +474,7 @@ test("live chart connection status reaches the visible Terminal instead of remai
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
   await expect(page.locator("#terminalChartStatus")).toContainText(/Live/i);
-  await expect(page.locator("#terminalBoundary strong")).toHaveText("Live market feed");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Trade preview available");
 });
 
 test("hidden Terminal pauses its shared live feed and resumes the exact market without replacing the chart", async ({ page }) => {
@@ -571,7 +572,7 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
   await expect(chart.locator("[data-rpw-read-cell]")).toBeHidden();
   await expect(chart.locator("[data-rpw-read-cell]")).not.toContainText(/unknown|unavailable|missing/i);
-  await expect(chart.locator("[data-rpw-window]")).toContainText(/1h Change.*1h Volume.*1h Range.*bars/is);
+  await expect(chart.locator("[data-rpw-window]")).toContainText(/1h Change.*1h Volume.*1h Range.*candles/is);
   await expect(chart.locator("[data-rpw-ranges], [data-rpw-timeframes], [data-rpw-range]")).toHaveCount(0);
   expect(calls.some((call) => call.market === "perpetuals" && call.timeframe === "1h" && call.limit === 720 && !call.before)).toBe(true);
   const initialGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
@@ -687,7 +688,7 @@ for (const timeframe of ["1m", "1w", "1M"]) {
     const { calls } = await mockTerminalLiveApis(page);
     await page.goto(`/terminal/?asset=SOL-PERP&timeframe=${timeframe}`);
     await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe });
-    await expect(page.locator("#terminalInstrumentMeta")).toContainText("hyperliquid:perp:SOL");
+    await expect(page.locator("#terminalInstrumentMeta")).toContainText("Hyperliquid perpetual");
     await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
     await expect(page.locator("#terminalMarketFreshness")).toContainText(/Live|Fresh/i);
     expect(calls.some((call) => call.asset === "SOL-PERP" && call.timeframe === timeframe)).toBe(true);
@@ -705,6 +706,16 @@ test("provider failure remains explicit and never creates substitute candles", a
 });
 
 test("spot search loads one exact pool and joins only its admitted current Raven context", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(value) {
+          window.__RAVENOS_TEST_COPIED_CA__ = value;
+        },
+      },
+    });
+  });
   const { calls, holderCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
@@ -766,9 +777,33 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalProfileChips")).toContainText("Mint locked");
   await expect(page.locator("#terminalProfileChips")).toContainText("Freeze locked");
   await expect(page.locator("#terminalProfileChips")).toContainText("Developer holds 1.7%");
-  await expect(page.locator("#terminalProfileLinks a")).toHaveCount(2);
-  await expect(page.locator("#terminalProfileLinks")).toContainText("jup.ag");
   await expect(page.locator("#terminalProfileCredit")).toHaveText("Data provided by CoinGecko");
+  const projectTrigger = page.locator("#terminalProjectLinksTrigger");
+  await expect(projectTrigger).toBeVisible();
+  await expect(projectTrigger).toHaveAttribute("aria-expanded", "false");
+  await projectTrigger.click();
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
+  await expect(projectTrigger).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#terminalProjectLinksTitle")).toHaveText("JUP/USDC · Solana");
+  await expect(page.locator("#terminalProjectDescription")).toHaveText("Jupiter is a Solana liquidity platform and routing project.");
+  await expect(page.locator("#terminalProfileLinks a")).toHaveCount(3);
+  await expect(page.locator("#terminalProfileLinks")).toContainText("jup.ag");
+  await expect(page.locator("#terminalProfileLinks")).toContainText("X ↗");
+  await expect(page.locator("#terminalProfileLinks")).toContainText("Telegram ↗");
+  await expect(page.locator("#terminalProjectSearchX")).toHaveAttribute("href", /x\.com\/search\?q=fixture-token-address.*f=live/);
+  await expect(page.locator("#terminalProjectExplorer")).toHaveAttribute("href", "https://solscan.io/token/fixture-token-address");
+  await expect(page.locator("#terminalProjectAddress")).toHaveText("fixture-token-address");
+  await expect(page.locator("#terminalProjectCredit")).toHaveAttribute("href", "https://www.coingecko.com/en/api");
+  await page.locator("#terminalProjectCopy").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_COPIED_CA__)).toBe("fixture-token-address");
+  await expect(page.locator("#terminalProjectCopy")).toHaveText("Copied");
+  await page.locator("#terminalProjectLinksClose").click();
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeHidden();
+  await expect(projectTrigger).toBeFocused();
+  await projectTrigger.click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeHidden();
+  await expect(projectTrigger).toBeFocused();
   const anatomyFacts = await Promise.all(
     [1, 2, 3, 4, 5].map((index) => page.locator(`#terminalAnatomy${index}`).textContent()),
   );
@@ -796,10 +831,27 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address")).toBe(true);
 
   const initialHash = await chartHash(page);
+  await projectTrigger.click();
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeHidden();
   expect(await chartHash(page)).not.toBe(initialHash);
   expect(calls.some((call) => call.market === "crypto_spot" && call.pairAddress === "fixture-pair-address" && call.timeframe === "4h")).toBe(true);
+});
+
+test("project links fail closed on a mismatched profile while exact-CA actions remain bound to the selected token", async ({ page }) => {
+  await mockTerminalLiveApis(page, { profileIdentityMismatch: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalProjectLinksTrigger").click();
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
+  await expect(page.locator("#terminalProfileLinks a")).toHaveCount(0);
+  await expect(page.locator("#terminalProjectLinksEmpty")).toBeVisible();
+  await expect(page.locator("#terminalProjectDescription")).toHaveText("No project description is listed for this exact token.");
+  await expect(page.locator("#terminalProjectAddress")).toHaveText("fixture-token-address");
+  await expect(page.locator("#terminalProjectSearchX")).toHaveAttribute("href", /q=fixture-token-address/);
+  await expect(page.locator("#terminalProjectCredit")).toBeHidden();
 });
 
 test("free top-holder rows remain readable and contained in the 390px Terminal Raven pane", async ({ page }) => {
@@ -807,17 +859,24 @@ test("free top-holder rows remain readable and contained in the 390px Terminal R
   const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await page.locator('[data-terminal-pane-button="raven"]').click();
-  await page.locator("#terminalHolderList > summary").click();
+  await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
+  await page.locator("#terminalDeepLink").click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
   await expect(page.locator("#terminalHolderListState")).toContainText("100 of 4.85K owners");
+  await page.locator("#terminalProjectLinksTrigger").click();
+  await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   const holderOverflow = await page.locator("#terminalHolderList").evaluate((element) => element.scrollWidth - element.clientWidth);
+  const projectOverflow = await page.locator("#terminalProjectLinksPopover").evaluate((element) => element.scrollWidth - element.clientWidth);
   const holderScroll = await page.locator("#terminalHolderListRows").evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(documentOverflow).toBeLessThanOrEqual(2);
   expect(holderOverflow).toBeLessThanOrEqual(2);
+  expect(projectOverflow).toBeLessThanOrEqual(2);
   expect(holderScroll.scrollHeight).toBeGreaterThan(holderScroll.clientHeight);
+  await page.locator("#terminalProjectLinksClose").click();
 });
 
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {
@@ -826,7 +885,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
 
   await expect(page.locator("#terminalLaunchBadge")).toBeVisible();
-  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanLabel")).toHaveText("Raven custom TP strategy");
   await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
@@ -897,7 +956,7 @@ test("a quiet exact pool stays current without presenting an old candle as a sit
   await expect(page.locator("#terminalSourceFreshness")).toContainText("Delayed candles");
   await expect(page.locator("#terminalSourceFreshness")).toContainText("no recent trades");
   await expect(page.locator("#rosFreshness strong")).toHaveText("No recent trades");
-  await expect(page.locator("#terminalBoundary strong")).toHaveText("Market current · no recent trades");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Trading coming later");
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().planPreviewAvailable)).toBe(false);
 });
@@ -946,8 +1005,8 @@ test("exact-market order plan stays non-signing even when dormant route-review f
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect(page.locator("#terminalQuoteState")).toHaveText("Current book");
-  await expect(page.locator("#terminalQuoteContract")).toHaveText("Exact-market order plan");
-  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order payload is created.*Nothing is signed or sent/i);
+  await expect(page.locator("#terminalQuoteContract")).toHaveText("Exact-market trade plan");
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/Preview only.*Nothing can be signed or sent/i);
   await expect(page.locator("#terminalPreviewFill")).toContainText("SOL");
   await expect(page.getByRole("button", { name: /sign|submit|execute|buy|sell/i })).toHaveCount(0);
   await expect(page.locator('script[src*="ravenos-terminal-trade"], script[src*="ravenos-access"]')).toHaveCount(0);
@@ -1015,7 +1074,7 @@ test("Raven research levels load into the ticket only after an explicit user act
   await expect(page.locator("#terminalPreviewStopLoss")).toHaveValue("146.224");
   await expect(page.locator("#terminalBracket")).toHaveAttribute("open", "");
   await expect(page.locator("#terminalPreviewResult")).toBeVisible();
-  await expect(page.locator("#terminalQuoteNote")).toContainText(/No order payload is created/i);
+  await expect(page.locator("#terminalQuoteNote")).toContainText(/Preview only/i);
 });
 
 test("Terminal ships no seeded market model or synthetic replay client", async ({ page }) => {
@@ -1073,8 +1132,8 @@ test("sparse 15m coverage explains the gap without filling missing history", asy
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().candleCount)).toBe(12);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("[data-rpw-coverage-note]")).toBeVisible();
-  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("15m history currently contains 12 real candles");
-  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("No missing bars were invented");
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("Only 12 15m candles are available right now");
+  await expect(page.locator("[data-rpw-coverage-note]")).toContainText("More will appear here as price history becomes available");
 });
 
 test("mobile Raven overlay sheet closes after an available overlay is selected", async ({ page }) => {

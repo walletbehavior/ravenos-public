@@ -426,6 +426,7 @@ export async function mockTerminalLiveApis(page, {
   stalePerpPlan = false,
   includeContextPressureOverlay = false,
   holderRowCount = 2,
+  profileIdentityMismatch = false,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -674,7 +675,7 @@ export async function mockTerminalLiveApis(page, {
               state: "exact",
               chain: spotChain,
               pool_address: pairAddress,
-              token_address: tokenAddress,
+              token_address: profileIdentityMismatch ? "different-profile-token-address" : tokenAddress,
               quote_token_address: quoteAddress,
             },
             token: {
@@ -682,6 +683,8 @@ export async function mockTerminalLiveApis(page, {
               symbol: asset.split("/")[0],
               decimals: 9,
               image_url: "https://assets.geckoterminal.com/token-fixture.png",
+              description: "Jupiter is a Solana liquidity platform and routing project.",
+              description_role: "project_description",
             },
             holder_distribution: {
               state: "available",
@@ -702,11 +705,12 @@ export async function mockTerminalLiveApis(page, {
             links: [
               { kind: "website", label: "jup.ag", url: "https://jup.ag/" },
               { kind: "x", label: "X", url: "https://x.com/JupiterExchange" },
+              { kind: "telegram", label: "Telegram", url: "https://t.me/jupiterexchange" },
             ],
             attribution: {
               required: true,
               label: "Data provided by CoinGecko",
-              url: "https://www.coingecko.com/",
+              url: "https://www.coingecko.com/en/api",
             },
           },
           current_activity: spotRavenContext && spotChain === "solana" ? {

@@ -20,7 +20,7 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.doesNotMatch(workspace, /Math\.sin|Math\.cos|local_fallback|structure_proxy/);
   assert.match(workspace, /Current candles are not available for this market/);
   assert.match(workspace, /data-rpw-focus/);
-  assert.match(workspace, /Limited history/);
+  assert.match(workspace, /Short history/);
   assert.match(workspace, /payload\.instrument\?\.identity_scope/);
   assert.match(workspace, /exactRavenAnnotations\(payload\.raven_annotations, instrument\)/);
   assert.match(workspace, /value\.instrument_id !== instrument\.canonical_id/);

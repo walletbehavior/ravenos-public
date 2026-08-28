@@ -2261,6 +2261,44 @@ function boundedPublicLabel(value, fallback = "", limit = 80) {
   return (clean || fallback).slice(0, limit);
 }
 
+function decodePublicTextEntities(value) {
+  const named = new Map([
+    ["amp", "&"],
+    ["apos", "'"],
+    ["gt", ">"],
+    ["lt", "<"],
+    ["nbsp", " "],
+    ["quot", '"'],
+  ]);
+  return String(value || "").replace(/&(?:#(x[0-9a-f]+|\d+)|([a-z]+));/gi, (match, numeric, name) => {
+    if (name) return named.get(String(name).toLowerCase()) ?? match;
+    const codePoint = String(numeric).toLowerCase().startsWith("x")
+      ? Number.parseInt(String(numeric).slice(1), 16)
+      : Number.parseInt(String(numeric), 10);
+    if (!Number.isInteger(codePoint) || codePoint < 32 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return " ";
+    return String.fromCodePoint(codePoint);
+  });
+}
+
+function boundedProjectDescription(value, limit = 320) {
+  const decoded = decodePublicTextEntities(String(value || "").slice(0, 8_000));
+  const clean = decoded
+    .replace(/<\s*(script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, " ")
+    .replace(/<\s*(?:script|style|iframe|object|embed)\b[^>]*>[\s\S]*$/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\b(?:https?:\/\/|www\.)[^\s<]+/gi, " ")
+    .replace(/\b(?:javascript|vbscript|data)\s*:[^\s<]*/gi, " ")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+([,.;!?])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return null;
+  if (clean.length <= limit) return clean;
+  const bounded = clean.slice(0, limit + 1);
+  const breakAt = bounded.lastIndexOf(" ");
+  return `${bounded.slice(0, breakAt >= Math.floor(limit * 0.72) ? breakAt : limit).trim()}…`;
+}
+
 function safeGeckoImageUrl(value) {
   try {
     const url = new URL(String(value || ""));
@@ -2510,6 +2548,7 @@ async function fetchGeckoPoolMarketProfile({
   const attributes = selected.attributes || {};
   const developerHolding = publicPercentage(attributes.developer_holding_percentage);
   const launchCompletedAt = publicIsoTimestamp(attributes.launchpad_details?.completed_at);
+  const projectDescription = boundedProjectDescription(attributes.description);
   const result = {
     schema_version: "ravenos.onchain_market_profile.v1",
     identity: {
@@ -2526,6 +2565,8 @@ async function fetchGeckoPoolMarketProfile({
         ? Number(attributes.decimals)
         : null,
       image_url: safeGeckoImageUrl(attributes.image_url || attributes.image),
+      description: projectDescription,
+      description_role: projectDescription ? "project_description" : "unavailable",
     },
     holder_distribution: normalizeGeckoHolderDistribution(attributes.holders),
     token_controls: {

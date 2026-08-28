@@ -959,7 +959,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
 
   await row.click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
-  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
@@ -1084,8 +1084,9 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
 
   await row.click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1m" });
-  await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
-  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Velocity → Terminal");
+  await expect(page.locator("#terminalPickerMeta")).toContainText("Robinhood Chain · uniswap");
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `robinhood:pool:${robinhoodPulsePool}`);
+  await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
   expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(terminal.candleCount).toBeGreaterThanOrEqual(80);
@@ -1399,7 +1400,8 @@ test("Terminal resolves an exact pool identity directly without a lane selector"
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&instrument_type=exact_pool&market=spot");
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
-  await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
+  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixtur…ddress");
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", "solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
@@ -1703,7 +1705,7 @@ test("universal search resolves an arbitrary exact equity even when Atlas contex
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalReadTrigger")).toBeHidden();
   await expect(page.locator("#terminalDeepLink")).toHaveText("Open in Atlas");
-  await expect(page.locator("#terminalBoundary")).toContainText("Market snapshot current");
+  await expect(page.locator("#terminalBoundary")).toContainText("Trading coming later");
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
   expect(terminal.instrumentId).toBe("equity:nasdaq:aapl");
@@ -1823,7 +1825,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(result).toContainText("pool fixture…dress");
   await result.click();
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Afixture-pair-address/);
-  await expect(page.locator("#terminalPickerMeta")).toHaveText("solana:pool:fixture-pair-address");
+  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixtur…ddress");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
@@ -1868,7 +1870,8 @@ test("a copied BITCAT pool address round-trips through universal search to the s
   await expect(result).toContainText("Pool address resolved");
   await result.click();
   await expect(page).toHaveURL(new RegExp(`instrument_id=solana%3Apool%3A${bitcatPoolAddress}`));
-  await expect(page.locator("#terminalPickerMeta")).toHaveText(`solana:pool:${bitcatPoolAddress}`);
+  await expect(page.locator("#terminalPickerMeta")).toHaveText(`Solana · pumpswap · ${bitcatPoolAddress.slice(0, 6)}…${bitcatPoolAddress.slice(-6)}`);
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `solana:pool:${bitcatPoolAddress}`);
   await expect(page.locator("#terminalInstrument")).toHaveText("BITCAT/SOL");
 });
 
@@ -1985,9 +1988,9 @@ test("contract-address search resolves a provider-backed Robinhood Chain chart w
 
   await expect(page).toHaveURL(/instrument_id=robinhood%3Apool%3A0x602633/i);
   await expect(page.locator("#terminalInstrument")).toHaveText("RUNNER/WETH");
-  await expect(page.locator("#terminalPickerMeta")).toContainText("robinhood:pool:0x602633");
+  await expect(page.locator("#terminalPickerMeta")).toContainText("Robinhood Chain · uniswap");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · WETH quote · \d+ candles/);
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · WETH pair · \d+ chart candles/);
   await expect(page.locator("#terminalChartStatus")).not.toContainText(/unavailable/i);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState());
@@ -2010,17 +2013,18 @@ test("a pasted message resolves the exact BNB token and opens its provider-backe
 
   await expect(page).toHaveURL(new RegExp(`instrument_id=bsc%3Apool%3A${BNB_MEMESTOCK_POOL}`, "i"));
   await expect(page.locator("#terminalInstrument")).toHaveText("MEMESTOCK/GMEB");
-  await expect(page.locator("#terminalPickerMeta")).toContainText(`bsc:pool:${BNB_MEMESTOCK_POOL}`);
+  await expect(page.locator("#terminalPickerMeta")).toContainText("BNB Chain · pancakeswap");
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `bsc:pool:${BNB_MEMESTOCK_POOL}`);
   await expect(page.locator("#terminalMetric3Cell")).toBeHidden();
   await expect(page.locator("#terminalMetric3")).not.toHaveText("$0");
-  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · GMEB quote · \d+ candles · trading adapter not active/);
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · GMEB pair · \d+ chart candles · trading coming later/);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
 
   await page.locator("#terminalChainCoverage > summary").click();
   const coverage = page.locator("#terminalChainCoverageGrid");
   await expect(coverage.locator("article")).toHaveCount(6);
   await expect(coverage.locator("[data-chain='bsc']")).toContainText("BNB Chain");
-  await expect(coverage.locator("[data-chain='bsc']")).toContainText("exact chart · adapter queued · signing off");
+  await expect(coverage.locator("[data-chain='bsc']")).toContainText("Charts available · trading coming later");
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });

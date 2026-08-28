@@ -690,6 +690,129 @@ button, input, select { font: inherit; }
 .terminal-profile-credit { width: fit-content; color: var(--terminal-soft); font: 650 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-decoration: none; }
 .terminal-profile-credit:hover,
 .terminal-profile-credit:focus-visible { color: var(--terminal-muted); outline: none; }
+.terminal-project-popover[hidden],
+.terminal-project-link-grid[hidden],
+.terminal-project-empty[hidden],
+.terminal-project-actions [hidden],
+.terminal-project-popover > .terminal-profile-credit[hidden] { display: none !important; }
+.terminal-project-popover {
+  position: fixed;
+  z-index: 1060;
+  top: calc(var(--ros-topbar-height, 58px) + 8px);
+  right: 10px;
+  width: min(400px, calc(100vw - 20px));
+  max-height: calc(100dvh - var(--ros-topbar-height, 58px) - 20px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--terminal-line-strong);
+  background: rgba(9, 14, 21, .985);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, .58), inset 2px 0 var(--terminal-accent);
+  outline: none;
+}
+.terminal-project-popover:focus-visible { border-color: rgba(154, 171, 194, .58); }
+.terminal-project-popover > header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--terminal-line);
+  background: rgba(12, 18, 26, .98);
+}
+.terminal-project-popover > header > div { min-width: 0; }
+.terminal-project-popover > header span,
+.terminal-project-description > span,
+.terminal-project-address > span {
+  display: block;
+  color: var(--terminal-soft);
+  font: 800 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.terminal-project-popover > header h2 {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--terminal-text);
+  font-size: 13px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-project-popover > header button {
+  min-height: 30px;
+  border: 1px solid var(--terminal-line-strong);
+  background: transparent;
+  color: var(--terminal-muted);
+  padding: 0 9px;
+  font: 800 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+}
+.terminal-project-popover > header button:hover,
+.terminal-project-popover > header button:focus-visible { border-color: var(--terminal-accent); color: var(--terminal-text); outline: none; }
+.terminal-project-description { padding: 11px 10px 10px; border-bottom: 1px solid var(--terminal-line); }
+.terminal-project-description p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--terminal-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.terminal-project-description small { display: block; margin-top: 7px; color: var(--terminal-soft); font-size: 8px; line-height: 1.4; }
+.terminal-project-link-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 10px;
+  border-bottom: 1px solid var(--terminal-line);
+}
+.terminal-project-link-grid a {
+  min-width: 0;
+  min-height: 36px;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--terminal-text);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-project-link-grid a[data-kind="x"],
+.terminal-project-link-grid a[data-kind="telegram"] { border-color: rgba(143, 164, 186, .34); color: var(--terminal-accent); }
+.terminal-project-empty { margin: 0; padding: 12px 10px; border-bottom: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 10px; line-height: 1.45; }
+.terminal-project-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 1px;
+  padding: 1px 0;
+  border-bottom: 1px solid var(--terminal-line);
+  background: var(--terminal-line);
+}
+.terminal-project-actions a,
+.terminal-project-actions button {
+  min-width: 0;
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: #0c121a;
+  color: var(--terminal-text);
+  padding: 6px 8px;
+  font: 800 8px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.terminal-project-actions button { color: var(--terminal-accent); }
+.terminal-project-actions a:hover,
+.terminal-project-actions a:focus-visible,
+.terminal-project-actions button:hover,
+.terminal-project-actions button:focus-visible { background: var(--terminal-raised); color: var(--terminal-accent); outline: none; }
+.terminal-project-address { display: grid; gap: 5px; padding: 9px 10px; }
+.terminal-project-address code { overflow-wrap: anywhere; color: var(--terminal-muted); font-size: 9px; line-height: 1.35; }
+.terminal-project-popover > .terminal-profile-credit { display: block; margin: 0 10px 10px; }
 .terminal-fingerprint { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 8px; }
 .terminal-fingerprint code { min-width: 0; overflow: hidden; color: var(--terminal-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .terminal-marker-detail { border-color: rgba(154, 171, 194, .34) !important; }
@@ -841,6 +964,16 @@ button, input, select { font: inherit; }
   .terminal-controls.external-chart-active .terminal-picker-control { grid-column: 1; }
   .terminal-resolved-control { grid-column: 1 / -1; min-height: 34px; }
   .terminal-actions { grid-column: 1 / -1; }
+  .terminal-actions a,
+  .terminal-actions button { min-width: 0; padding-inline: 5px; font-size: 9px; overflow-wrap: anywhere; }
+  .terminal-project-popover {
+    inset: auto 6px calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom) + 6px) 6px;
+    width: auto;
+    max-height: min(72dvh, 620px);
+  }
+  .terminal-project-popover > header { min-height: 50px; }
+  .terminal-project-description p { font-size: 12px; }
+  .terminal-project-link-grid a { min-height: 40px; }
   .terminal-search-results { order: 3; }
   .terminal-chain-coverage { order: 4; }
   .terminal-chain-coverage-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

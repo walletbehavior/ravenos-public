@@ -116,6 +116,35 @@ function timestampLabel(value) {
   }).format(parsed) + " UTC";
 }
 
+function primaryChartSourceLabel(value) {
+  const clean = String(value || "").trim();
+  if (/exact[- ](?:public[- ]?)?pool(?:\s+ohlcv)?/i.test(clean)) return "Exact pool prices";
+  if (/^live perps market price$/i.test(clean)) return "Live perp prices";
+  return clean || "Market prices";
+}
+
+function primaryMarketScopeLabel(instrument = {}, fallback = "") {
+  const type = String(instrument?.instrument_type || "").toLowerCase();
+  if (type === CHART_INSTRUMENT_TYPES.SPOT_POOL) return "This exact pool";
+  if (type === CHART_INSTRUMENT_TYPES.PERPETUAL || type === "perpetual") return "This perp market";
+  if ([CHART_INSTRUMENT_TYPES.EQUITY, CHART_INSTRUMENT_TYPES.ETF, "equity", "etf"].includes(type)) return "This listing";
+  return String(fallback || "").trim() || "Selected market";
+}
+
+function primaryConnectionLabel(value) {
+  const labels = {
+    polling: "Updating",
+    connecting: "Connecting",
+    connected: "Live updates",
+    live: "Live updates",
+    snapshot_only: "Latest snapshot",
+    degraded: "Updates delayed",
+    disconnected: "Not connected",
+  };
+  const clean = String(value || "").trim().toLowerCase();
+  return labels[clean] || clean.replaceAll("_", " ") || "Latest prices";
+}
+
 function priceLabel(value) {
   const parsed = finite(value);
   if (parsed === null) return "--";
@@ -685,19 +714,19 @@ export class PriceWorkspace {
     const label = this.state.operatorStateLabel || STATE_LABELS[this.state.state] || "Data unavailable";
     this.root.dataset.priceWorkspaceState = this.state.state;
     this.container.querySelector("[data-rpw-state]").textContent = label;
-    this.container.querySelector("[data-rpw-source]").textContent = this.state.source || "No market source selected";
-    this.container.querySelector("[data-rpw-market]").textContent = this.state.marketIdentity || "Market identity unavailable";
+    this.container.querySelector("[data-rpw-source]").textContent = primaryChartSourceLabel(this.state.source);
+    this.container.querySelector("[data-rpw-market]").textContent = primaryMarketScopeLabel(this.state.instrument, this.state.marketIdentity);
     const coverage = this.container.querySelector("[data-rpw-coverage]");
     const returnedBars = Number(this.state.returnedBars ?? this.state.candles.length);
     const sparse = returnedBars > 0 && returnedBars < 40;
     coverage.hidden = !sparse;
-    coverage.textContent = sparse ? `Limited history · ${returnedBars} bars` : "";
+    coverage.textContent = sparse ? `Short history · ${returnedBars} candles` : "";
     const coverageNote = this.container.querySelector("[data-rpw-coverage-note]");
     coverageNote.hidden = !sparse;
     coverageNote.textContent = sparse
-      ? `${this.state.timeframe} history currently contains ${returnedBars} real candles. No missing bars were invented.`
+      ? `Only ${returnedBars} ${this.state.timeframe} candles are available right now. More will appear here as price history becomes available.`
       : "";
-    this.container.querySelector("[data-rpw-connection]").textContent = String(this.state.connectionState || "disconnected").replaceAll("_", " ");
+    this.container.querySelector("[data-rpw-connection]").textContent = primaryConnectionLabel(this.state.connectionState);
     this.container.querySelector("[data-rpw-time]").textContent = timestampLabel(this.state.observedAt);
     this.container.querySelector("[data-rpw-watermark]").textContent = label;
     const scopeHost = this.container.querySelector("[data-rpw-scopes]");
@@ -802,7 +831,7 @@ export class PriceWorkspace {
     volume.closest("span").hidden = currentVolume === null;
     volume.textContent = currentVolume === null ? "" : volumeLabel(currentVolume);
 
-    historyLabel.textContent = `${this.state.candles.length.toLocaleString()} bars`;
+    historyLabel.textContent = `${this.state.candles.length.toLocaleString()} candles`;
     const canBackfill = Boolean(
       this.lastRequest
       && this.state.capabilities?.older_bar_backfill === true
@@ -818,7 +847,7 @@ export class PriceWorkspace {
           ? "Oldest available"
           : canBackfill
             ? "Load older"
-            : "Current source";
+            : "All available";
     }
   }
 

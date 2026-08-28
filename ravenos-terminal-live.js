@@ -62,21 +62,22 @@ const state = {
   holderListGeneration: 0,
   holderListCache: new Map(),
   holderListLoadingKey: "",
+  projectProfile: null,
 };
 
 function renderLaunchBadge() {
   const badge = document.getElementById("terminalLaunchBadge");
   if (!badge) return;
   const labels = {
-    velocity: "Velocity → Terminal",
-    raven: "Raven → Terminal",
-    activity: "Activity → Terminal",
+    velocity: "Found in Velocity",
+    raven: "Found by Raven",
+    activity: "Found in Activity",
   };
   const label = state.lane === "spot" ? labels[state.launchSource] : "";
   badge.hidden = !label;
   badge.textContent = label || "";
   badge.title = label
-    ? "Opened from Discover with exact-market Raven overlays requested. Qualified strategy levels remain research only."
+    ? "Opened from Discover. Raven chart levels appear only when this exact market has current evidence."
     : "";
 }
 
@@ -191,14 +192,27 @@ function chainDisplayName(value) {
 
 function tradeCapabilityLabel(value) {
   const labels = {
-    review_only: "route review · signing off",
-    route_review_only: "route review · signing off",
-    route_review_separate: "route review separate · signing off",
-    adapter_not_activated: "trading adapter not active",
-    market_data_only: "market data only",
-    lookup_only: "exact lookup only",
+    review_only: "trade preview available",
+    route_review_only: "trade preview available",
+    route_review_separate: "trade preview available",
+    adapter_not_activated: "trading coming later",
+    market_data_only: "charts only",
+    lookup_only: "lookup only",
   };
-  return labels[String(value || "").toLowerCase()] || "trading capability unavailable";
+  return labels[String(value || "").toLowerCase()] || "trading not available";
+}
+
+function marketUpdateLabel(value) {
+  const labels = {
+    polling: "Updating",
+    connecting: "Connecting",
+    connected: "Live updates",
+    live: "Live updates",
+    snapshot_only: "Latest snapshot",
+    degraded: "Updates delayed",
+    disconnected: "Not connected",
+  };
+  return labels[String(value || "").trim().toLowerCase()] || titleCase(value, "Latest prices");
 }
 
 function renderChainCoverage() {
@@ -211,9 +225,8 @@ function renderChainCoverage() {
     const detail = document.createElement("span");
     label.textContent = row.label;
     detail.textContent = [
-      row.chart ? "exact chart" : row.lookup ? "exact lookup" : "planned",
-      row.route_review ? "route review" : "adapter queued",
-      "signing off",
+      row.chart ? "Charts available" : row.lookup ? "Lookup available" : "Planned",
+      row.route_review ? "trade preview available" : "trading coming later",
     ].join(" · ");
     card.dataset.chain = row.chain;
     card.dataset.state = row.state;
@@ -499,6 +512,21 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   updateMonitorHandoff();
   syncPlanActionSurfaces();
   return next;
+}
+
+function revealSpotHolders(event) {
+  if (state.lane !== "spot" || !currentProjectIdentity()) return;
+  event?.preventDefault?.();
+  setTerminalPane("raven", { restoreScroll: false });
+  afterTerminalPaneVisible(() => {
+    const holderList = document.getElementById("terminalHolderList");
+    const anatomy = document.getElementById("terminalAnatomySection");
+    const target = holderList && !holderList.hidden ? holderList : anatomy;
+    if (holderList && !holderList.hidden) holderList.open = true;
+    target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    const focusTarget = holderList && !holderList.hidden ? holderList.querySelector("summary") : anatomy;
+    focusTarget?.focus?.({ preventScroll: true });
+  });
 }
 
 function currentRavenOverlayTypes() {
@@ -1784,20 +1812,239 @@ function profilePercent(value) {
   return `${result.toFixed(result < 1 ? 2 : 1)}%`;
 }
 
-function safeProfileLink(value) {
+const PROJECT_LINK_KINDS = new Set(["website", "x", "telegram", "discord", "farcaster", "zora"]);
+const PROJECT_LINK_HOSTS = Object.freeze({
+  x: new Set(["x.com", "www.x.com", "twitter.com", "www.twitter.com"]),
+  telegram: new Set(["t.me", "www.t.me", "telegram.me", "www.telegram.me"]),
+  discord: new Set(["discord.gg", "www.discord.gg", "discord.com", "www.discord.com"]),
+  farcaster: new Set(["warpcast.com", "www.warpcast.com", "farcaster.xyz", "www.farcaster.xyz"]),
+  zora: new Set(["zora.co", "www.zora.co"]),
+});
+
+function safeProfileLink(value, kind = "") {
   try {
     const url = new URL(String(value || ""));
+    const host = url.hostname.toLowerCase();
     if (
       url.protocol !== "https:"
       || url.username
       || url.password
-      || !url.hostname
-      || url.hostname === "localhost"
-      || url.hostname.endsWith(".local")
+      || !host
+      || host === "localhost"
+      || host.endsWith(".local")
+      || host === "0.0.0.0"
+      || host === "127.0.0.1"
+      || host === "::1"
+      || host === "[::1]"
+      || /^10\./.test(host)
+      || /^192\.168\./.test(host)
+      || /^169\.254\./.test(host)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+      || (PROJECT_LINK_HOSTS[kind] && !PROJECT_LINK_HOSTS[kind].has(host))
     ) return null;
+    url.hash = "";
     return url.toString();
   } catch {
     return null;
+  }
+}
+
+function currentProjectIdentity() {
+  if (state.lane !== "spot") return null;
+  const chain = String(state.selected?.chainId || "").trim().toLowerCase();
+  const poolAddress = String(state.selected?.pairAddress || "").trim();
+  const tokenAddress = String(state.selected?.tokenAddress || "").trim();
+  const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
+  if (!chain || !poolAddress || !tokenAddress) return null;
+  const normalizeAddress = (value) => chain === "solana" ? value : value.toLowerCase();
+  return {
+    key: `${chain}:${normalizeAddress(poolAddress)}:${normalizeAddress(tokenAddress)}:${normalizeAddress(quoteAddress)}`,
+    chain,
+    poolAddress,
+    tokenAddress,
+    quoteAddress,
+    label: `${state.selected?.symbol || "Token"}/${state.selected?.quoteSymbol || "quote"}`,
+  };
+}
+
+function clientProjectDescription(token = {}) {
+  if (token?.description_role !== "project_description") return null;
+  const clean = String(token?.description || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return clean && clean.length <= 321 ? clean : null;
+}
+
+function verifiedProjectProfile(profile, identity = currentProjectIdentity()) {
+  const exact = profile?.identity || {};
+  if (
+    !identity
+    || profile?.schema_version !== "ravenos.onchain_market_profile.v1"
+    || exact.state !== "exact"
+    || String(exact.chain || "").toLowerCase() !== identity.chain
+    || !sameSelectedAddress(identity.chain, exact.pool_address, identity.poolAddress)
+    || !sameSelectedAddress(identity.chain, exact.token_address, identity.tokenAddress)
+    || (identity.quoteAddress && !sameSelectedAddress(identity.chain, exact.quote_token_address, identity.quoteAddress))
+  ) return null;
+  const links = [];
+  const seenKinds = new Set();
+  for (const row of (Array.isArray(profile.links) ? profile.links : []).slice(0, 6)) {
+    const kind = String(row?.kind || "").toLowerCase();
+    const href = PROJECT_LINK_KINDS.has(kind) ? safeProfileLink(row?.url, kind) : null;
+    if (!href || seenKinds.has(kind)) continue;
+    seenKinds.add(kind);
+    links.push({ kind, href });
+  }
+  return {
+    ...profile,
+    token: {
+      ...(profile.token || {}),
+      description: clientProjectDescription(profile.token),
+    },
+    links,
+  };
+}
+
+function projectLinkLabel(kind, href) {
+  const labels = {
+    x: "X",
+    telegram: "Telegram",
+    discord: "Discord",
+    farcaster: "Farcaster",
+    zora: "Zora",
+  };
+  if (labels[kind]) return labels[kind];
+  try {
+    return new URL(href).hostname.replace(/^www\./, "").slice(0, 48) || "Website";
+  } catch {
+    return "Website";
+  }
+}
+
+function projectExplorerUrl(identity) {
+  const bases = {
+    solana: "https://solscan.io/token/",
+    ethereum: "https://etherscan.io/token/",
+    eth: "https://etherscan.io/token/",
+    base: "https://basescan.org/token/",
+    bsc: "https://bscscan.com/token/",
+    bnb: "https://bscscan.com/token/",
+  };
+  return bases[identity?.chain] && identity?.tokenAddress
+    ? `${bases[identity.chain]}${encodeURIComponent(identity.tokenAddress)}`
+    : null;
+}
+
+function closeProjectLinks({ restoreFocus = false } = {}) {
+  const trigger = document.getElementById("terminalProjectLinksTrigger");
+  const popover = document.getElementById("terminalProjectLinksPopover");
+  if (!trigger || !popover) return;
+  const wasOpen = !popover.hidden;
+  popover.hidden = true;
+  trigger.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("terminal-project-links-open");
+  if (restoreFocus && wasOpen && !trigger.hidden) trigger.focus();
+}
+
+function setProjectLinksOpen(open) {
+  const trigger = document.getElementById("terminalProjectLinksTrigger");
+  const popover = document.getElementById("terminalProjectLinksPopover");
+  const identity = currentProjectIdentity();
+  if (!trigger || !popover || !identity || trigger.hidden) {
+    closeProjectLinks();
+    return;
+  }
+  const shouldOpen = open === true;
+  popover.hidden = !shouldOpen;
+  trigger.setAttribute("aria-expanded", String(shouldOpen));
+  document.body.classList.toggle("terminal-project-links-open", shouldOpen);
+  if (shouldOpen) requestAnimationFrame(() => popover.focus());
+}
+
+function renderProjectLinks(profile) {
+  const identity = currentProjectIdentity();
+  const trigger = document.getElementById("terminalProjectLinksTrigger");
+  const popover = document.getElementById("terminalProjectLinksPopover");
+  const links = document.getElementById("terminalProfileLinks");
+  const empty = document.getElementById("terminalProjectLinksEmpty");
+  if (!trigger || !popover || !links || !empty) return null;
+  const previousIdentityKey = popover.dataset.identityKey || "";
+  if (!identity) {
+    state.projectProfile = null;
+    trigger.hidden = true;
+    trigger.removeAttribute("aria-label");
+    popover.dataset.identityKey = "";
+    closeProjectLinks();
+    links.replaceChildren();
+    return null;
+  }
+  if (previousIdentityKey && previousIdentityKey !== identity.key) closeProjectLinks();
+  popover.dataset.identityKey = identity.key;
+  trigger.hidden = false;
+  trigger.setAttribute("aria-label", `Open project links for ${identity.label}`);
+  const verified = verifiedProjectProfile(profile, identity);
+  state.projectProfile = verified;
+  setText("terminalProjectLinksTitle", `${identity.label} · ${chainDisplayName(identity.chain)}`);
+  setText("terminalProjectDescription", verified?.token?.description || "No project description is listed for this exact token.");
+  setText("terminalProjectAddress", identity.tokenAddress);
+  links.replaceChildren();
+  for (const link of (verified?.links || [])) {
+    const anchor = document.createElement("a");
+    anchor.href = link.href;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer nofollow";
+    anchor.dataset.kind = link.kind;
+    anchor.textContent = `${projectLinkLabel(link.kind, link.href)} ↗`;
+    links.append(anchor);
+  }
+  links.hidden = links.childElementCount === 0;
+  empty.hidden = links.childElementCount > 0;
+
+  const search = document.getElementById("terminalProjectSearchX");
+  const searchUrl = new URL("https://x.com/search");
+  searchUrl.searchParams.set("q", identity.tokenAddress);
+  searchUrl.searchParams.set("src", "typed_query");
+  searchUrl.searchParams.set("f", "live");
+  if (search) search.href = searchUrl.toString();
+  const explorer = document.getElementById("terminalProjectExplorer");
+  const explorerUrl = projectExplorerUrl(identity);
+  if (explorer) {
+    explorer.hidden = !explorerUrl;
+    explorer.textContent = explorerUrl ? `Open ${chainDisplayName(identity.chain)} explorer` : "";
+    if (explorerUrl) explorer.href = explorerUrl;
+    else explorer.removeAttribute("href");
+  }
+  const copy = document.getElementById("terminalProjectCopy");
+  if (copy) copy.textContent = "Copy CA";
+  setText("terminalProjectLinkStatus", "", "");
+  const credit = document.getElementById("terminalProjectCredit");
+  const attributionUrl = safeProfileLink(verified?.attribution?.url);
+  const creditVisible = verified?.attribution?.required === true && Boolean(attributionUrl);
+  if (credit) {
+    credit.hidden = !creditVisible;
+    credit.textContent = creditVisible ? customerFacingText(verified.attribution.label, "Token profile source") : "";
+    if (creditVisible) credit.href = attributionUrl;
+    else credit.removeAttribute("href");
+  }
+  return verified;
+}
+
+async function copyProjectContract() {
+  const identity = currentProjectIdentity();
+  const button = document.getElementById("terminalProjectCopy");
+  if (!identity || !button) return;
+  try {
+    await navigator.clipboard.writeText(identity.tokenAddress);
+    button.textContent = "Copied";
+    setText("terminalProjectLinkStatus", "Exact token contract copied.", "");
+    setTimeout(() => {
+      if (currentProjectIdentity()?.key === identity.key) button.textContent = "Copy CA";
+    }, 1_200);
+  } catch {
+    button.textContent = "Copy failed";
+    setText("terminalProjectLinkStatus", "The exact token contract could not be copied.", "");
   }
 }
 
@@ -2024,8 +2271,8 @@ function renderSpotMarketProfile(anatomy = {}) {
   const bar = document.getElementById("terminalHolderBar");
   const facts = document.getElementById("terminalProfileFacts");
   const chips = document.getElementById("terminalProfileChips");
-  const links = document.getElementById("terminalProfileLinks");
   const credit = document.getElementById("terminalProfileCredit");
+  const projectProfile = renderProjectLinks(anatomy?.market_profile);
   const distribution = anatomy?.holder_distribution || {};
   const parts = [
     finite(distribution.top_10_pct),
@@ -2076,8 +2323,8 @@ function renderSpotMarketProfile(anatomy = {}) {
   if (holderState) holderState.title = distributionVisible ? timestamp(distribution.observed_at) : "";
 
   if (chips) chips.replaceChildren();
-  const controls = anatomy?.market_profile?.token_controls || {};
-  const profileImage = anatomy?.market_profile?.token?.image_url;
+  const controls = projectProfile?.token_controls || {};
+  const profileImage = projectProfile?.token?.image_url;
   if (profileImage) setInstrumentImage(profileImage);
   const chipRows = [];
   if (controls.mint_authority === "disabled") chipRows.push(["Mint locked", "positive"]);
@@ -2099,22 +2346,7 @@ function renderSpotMarketProfile(anatomy = {}) {
     chips?.append(chip);
   }
 
-  if (links) links.replaceChildren();
-  let linkCount = 0;
-  for (const link of (Array.isArray(anatomy?.market_profile?.links) ? anatomy.market_profile.links : []).slice(0, 6)) {
-    const href = safeProfileLink(link?.url);
-    const label = customerFacingText(link?.label, "");
-    if (!href || !label) continue;
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.target = "_blank";
-    anchor.rel = "noopener noreferrer nofollow";
-    anchor.textContent = label;
-    links?.append(anchor);
-    linkCount += 1;
-  }
-
-  const attribution = anatomy?.market_profile?.attribution || {};
+  const attribution = projectProfile?.attribution || {};
   const attributionUrl = safeProfileLink(attribution.url);
   const creditVisible = attribution.required === true && Boolean(attributionUrl);
   if (credit) {
@@ -2123,7 +2355,7 @@ function renderSpotMarketProfile(anatomy = {}) {
     if (creditVisible) credit.href = attributionUrl;
     else credit.removeAttribute("href");
   }
-  const factsVisible = chipRows.length > 0 || linkCount > 0 || creditVisible;
+  const factsVisible = chipRows.length > 0 || creditVisible;
   if (facts) facts.hidden = !factsVisible;
   const section = document.getElementById("terminalAnatomySection");
   if (section && (distributionVisible || factsVisible)) section.hidden = false;
@@ -2574,9 +2806,11 @@ function renderPerpFacts() {
   setInstrumentImage(null);
   setText("terminalInstrumentScope", "Exact instrument");
   setText("terminalInstrument", row?.asset);
-  setText("terminalInstrumentMeta", row ? `${row.instrument_id} · ${timestamp(row.observed_at)}` : "Hyperliquid perpetual · unavailable");
+  setText("terminalInstrumentMeta", row ? `Hyperliquid perpetual · ${timestamp(row.observed_at)}` : "Hyperliquid perpetual · unavailable");
   setText("terminalPickerSymbol", row?.asset, "No instrument");
-  setText("terminalPickerMeta", row?.instrument_id, "Search any supported market");
+  setText("terminalPickerMeta", row ? "Hyperliquid · perpetual" : "Search any supported market");
+  const pickerMeta = document.getElementById("terminalPickerMeta");
+  if (pickerMeta) pickerMeta.title = row?.instrument_id || "";
   setText("terminalVenueLabel", "Hyperliquid");
   setText("terminalCapabilityLabel", "Perpetual · USDC margin");
   setLastMetric(market.last);
@@ -2598,9 +2832,11 @@ function renderSpotFacts(row = state.selected) {
   setInstrumentImage(row?.imageUrl);
   setText("terminalInstrumentScope", "Exact pool");
   setText("terminalInstrument", row ? `${row.symbol}/${row.quoteSymbol || "QUOTE"}` : "No pool selected");
-  setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"} · market snapshot` : "Search for a symbol, token, or contract");
+  setText("terminalInstrumentMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "venue unavailable"}` : "Search for a symbol, token, or contract");
   setText("terminalPickerSymbol", row ? `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"}` : "Exact spot market required");
-  setText("terminalPickerMeta", row ? `${row.chainId}:pool:${row.pairAddress}` : "Search symbol, token, pool, or contract");
+  setText("terminalPickerMeta", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"} · ${compactHolderAddress(row.pairAddress)}` : "Search symbol, token, pool, or contract");
+  const pickerMeta = document.getElementById("terminalPickerMeta");
+  if (pickerMeta) pickerMeta.title = row ? `${String(row.chainId || "").toLowerCase()}:pool:${row.pairAddress}` : "";
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
   setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} quote · ${chartRequestSupported ? "exact pool" : "chart unavailable"}` : "Search any supported market");
   setLastMetric(row?.priceUsd);
@@ -3664,12 +3900,23 @@ function updateQuoteBoundary() {
     state.orderPlanExpiryTimer = null;
   }
   setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : customerQuoteEnabled ? "Review only" : "Read only");
-  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market order plan" : customerQuoteEnabled ? "Read-only route review" : "Quote preview not enabled");
+  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : customerQuoteEnabled ? "Read-only trade preview" : "Trade preview not enabled");
   setText("terminalQuoteNote", orderPlanEnabled
-    ? "No order payload is created. Nothing is signed or sent."
+    ? "Preview only. Nothing can be signed or sent."
     : customerQuoteEnabled
       ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
+  const boundary = document.getElementById("terminalBoundary");
+  if (boundary) {
+    boundary.querySelector("strong").textContent = orderPlanEnabled
+      ? "Trade preview available"
+      : customerQuoteEnabled
+        ? "Route preview available"
+        : "Trading coming later";
+    boundary.querySelector("small").textContent = orderPlanEnabled || customerQuoteEnabled
+      ? "Preview only. No order can be signed or sent."
+      : "Trading is not enabled. No order can be signed or sent.";
+  }
   if (orderPlanEnabled) syncMarketPreviewControls();
   updateTerminalPaneAvailability();
   renderTradeConsequences();
@@ -4064,6 +4311,7 @@ async function loadTradeFlags() {
 }
 
 async function selectPerp(asset, { updateUrl = true } = {}) {
+  closeProjectLinks();
   const row = state.markets.find((item) => item.asset === asset);
   if (!row) return;
   const generation = ++state.selectionGeneration;
@@ -4133,6 +4381,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
 
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
+  closeProjectLinks();
   state.lane = lane;
   renderLaunchBadge();
   updateTerminalPaneAvailability();
@@ -4263,6 +4512,9 @@ async function searchSpot(query) {
 }
 
 async function selectSpot(row, { updateUrl = true } = {}) {
+  closeProjectLinks();
+  const chainCoverage = document.getElementById("terminalChainCoverage");
+  if (chainCoverage) chainCoverage.open = false;
   const generation = ++state.selectionGeneration;
   state.lane = "spot";
   renderLaunchBadge();
@@ -4278,10 +4530,10 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   document.getElementById("venueSelect").replaceChildren(new Option(`${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
   renderSpotFacts(row);
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
-  setText("terminalChartStatus", "Loading exact-pool candles.");
+  setText("terminalChartStatus", "Loading this pool’s price history.");
   const chartCapability = spotChartCapability(row, state.timeframe);
   const hasChartCoverage = chartCapability.chart_request_supported;
-  setText("terminalDeepLink", hasChartCoverage ? "Market anatomy" : "Coverage unavailable");
+  setText("terminalDeepLink", hasChartCoverage ? "Holders & safety" : "Chart unavailable");
   document.getElementById("terminalDeepLink").href = hasChartCoverage ? "#terminalAnatomySection" : "/docs/#availability";
   setContextUnavailable();
   updateQuoteBoundary();
@@ -4309,11 +4561,11 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   const [chartState, opportunityResult] = await Promise.all([chartPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
   setText("terminalChartStatus", chartState?.candles?.length
-    ? `${chartState.candles.length.toLocaleString()} candles · exact pool`
+    ? `${chartState.candles.length.toLocaleString()} candles loaded`
     : chartState?.message || "Exact-pool candles unavailable.");
   setText("terminalCapabilityLabel", [
-    `Spot · ${row.quoteSymbol || "quote"} quote`,
-    chartState?.candles?.length ? `${chartState.candles.length.toLocaleString()} candles` : "chart unavailable",
+    `Spot · ${row.quoteSymbol || "quote"} pair`,
+    chartState?.candles?.length ? `${chartState.candles.length.toLocaleString()} chart candles` : "chart unavailable",
     tradeCapabilityLabel(chartCapability.trading_state),
   ].join(" · "));
   renderSpotContext(chartState, row, { updateUrl, radarEvidence: opportunityResult.spot });
@@ -4430,6 +4682,7 @@ async function resolveListedSelection({ instrumentId = "", asset = "" } = {}) {
 }
 
 async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
+  closeProjectLinks();
   const requestedSubject = atlasSubject(row);
   const atlasRow = state.atlas?.market_context?.rows?.find(
     (candidate) => candidate?.instrument_id === requestedSubject.instrumentId,
@@ -4681,6 +4934,7 @@ function explicitUnavailableSubject({ instrumentId = "", asset = "", lane = "per
 }
 
 async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "", lane = "perps", reason } = {}) {
+  closeProjectLinks();
   ++state.selectionGeneration;
   state.lane = lane;
   state.selected = null;
@@ -4764,6 +5018,13 @@ function bindControls() {
   document.getElementById("assetSelect").addEventListener("change", (event) => selectPerp(event.target.value));
   document.getElementById("terminalInstrumentTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
   document.getElementById("terminalReadTrigger").addEventListener("click", focusTerminalRaven);
+  document.getElementById("terminalDeepLink")?.addEventListener("click", revealSpotHolders);
+  document.getElementById("terminalProjectLinksTrigger")?.addEventListener("click", () => {
+    const popover = document.getElementById("terminalProjectLinksPopover");
+    setProjectLinksOpen(popover?.hidden === true);
+  });
+  document.getElementById("terminalProjectLinksClose")?.addEventListener("click", () => closeProjectLinks({ restoreFocus: true }));
+  document.getElementById("terminalProjectCopy")?.addEventListener("click", () => void copyProjectContract());
   document.getElementById("timeframeSelect").addEventListener("change", (event) => {
     const timeframe = TIMEFRAMES.has(event.target.value) ? event.target.value : "1h";
     if (timeframe === state.timeframe) return;
@@ -4785,6 +5046,14 @@ function bindControls() {
   });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#terminalSpotControl, #terminalSpotResults")) document.getElementById("terminalSpotResults").hidden = true;
+    const popover = document.getElementById("terminalProjectLinksPopover");
+    if (!popover?.hidden && !event.target.closest("#terminalProjectLinksPopover, #terminalProjectLinksTrigger")) closeProjectLinks();
+  });
+  document.addEventListener("keydown", (event) => {
+    const popover = document.getElementById("terminalProjectLinksPopover");
+    if (event.key !== "Escape" || popover?.hidden) return;
+    event.preventDefault();
+    closeProjectLinks({ restoreFocus: true });
   });
   document.getElementById("terminalMarkerClose")?.addEventListener("click", clearMarkerInspection);
   document.getElementById("terminalHolderList")?.addEventListener("toggle", (event) => {
@@ -4849,7 +5118,7 @@ function renderWorkspaceState(workspace = {}) {
   const operatorState = workspace?.operatorStateLabel || titleCase(workspaceState);
   setState("terminalMarketFreshness", workspaceState, operatorState);
   setText("terminalChartStatus", workspace?.candles?.length
-    ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : titleCase(workspace.connectionState)}`
+    ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : marketUpdateLabel(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState));
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);
@@ -4858,22 +5127,7 @@ function renderWorkspaceState(workspace = {}) {
   syncPlanActionSurfaces();
   const boundary = document.getElementById("terminalBoundary");
   if (!boundary) return;
-  const connection = String(workspace?.connectionState || "").toLowerCase();
-  const liveLabel = connection === "snapshot_only"
-    ? "Market snapshot current"
-    : ["live", "connected"].includes(connection)
-      ? "Live market feed"
-      : connection === "connecting"
-        ? "Market feed connecting"
-        : "Market data available";
   boundary.dataset.state = workspaceState;
-  boundary.querySelector("strong").textContent = workspace?.marketActivityState === "no_recent_trades"
-    ? "Market current · no recent trades"
-    : workspaceState === "live"
-      ? liveLabel
-      : workspaceState === "delayed"
-        ? "Chart delayed"
-        : titleCase(workspaceState);
 }
 
 function bindWorkspaceEvents() {

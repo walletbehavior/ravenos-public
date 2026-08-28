@@ -83,9 +83,9 @@ function geckoPoolInfo({
           "https://127.0.0.1/private",
         ],
         twitter_handle: "attention_token",
-        telegram_handle: null,
+        telegram_handle: "attention_token_chat",
         discord_url: "https://malicious.example/not-discord",
-        description: "raw provider prose must not propagate",
+        description: "<p>Attention is a community-built market utility token.</p><script>raw provider prose must not propagate</script> Built for exact-market monitoring. https://malicious.example/private",
         gt_score: 99,
         launchpad_details: {
           completed: true,
@@ -324,7 +324,7 @@ test("release-enforced on-chain chart capacity forbids the keyless GeckoTerminal
   assert.equal(demo.request_headers["x-cg-demo-api-key"], "server-only-demo-test-value");
   assert.equal(demo.commercial_state, "noncommercial_evaluation");
   assert.equal(demo.attribution_label, "Data provided by CoinGecko");
-  assert.equal(demo.attribution_url, "https://www.coingecko.com/");
+  assert.equal(demo.attribution_url, "https://www.coingecko.com/en/api");
   const qualified = onchainProviderRuntime("coingecko_onchain", {
     RAVENOS_RELEASE_ENFORCE: "1",
     ONCHAIN_CHART_PROVIDER: "coingecko",
@@ -1363,7 +1363,7 @@ test("server-only CoinGecko credential selects the paid exact-pool path without 
     assert.deepEqual(payload.attribution, {
       required: true,
       label: "Data provided by CoinGecko",
-      url: "https://www.coingecko.com/",
+      url: "https://www.coingecko.com/en/api",
     });
     assert.equal(payload.chart_readiness.state, "verified_current");
     assert.equal(payload.chart_readiness.one_minute_requirement, "insufficient_depth");
@@ -1542,13 +1542,16 @@ test("exact spot charts join current public token anatomy without changing candl
     assert.equal(payload.market_anatomy.market_profile.identity.pool_address, pairAddress);
     assert.equal(payload.market_anatomy.market_profile.identity.token_address, tokenAddress);
     assert.equal(payload.market_anatomy.market_profile.identity.quote_token_address, quoteAddress);
+    assert.equal(payload.market_anatomy.market_profile.token.description, "Attention is a community-built market utility token. Built for exact-market monitoring.");
+    assert.equal(payload.market_anatomy.market_profile.token.description_role, "project_description");
     assert.equal(payload.market_anatomy.market_profile.token_controls.mint_authority, "disabled");
     assert.equal(payload.market_anatomy.market_profile.token_controls.freeze_authority, "disabled");
     assert.equal(payload.market_anatomy.market_profile.token_controls.honeypot, "not_flagged");
     assert.equal(payload.market_anatomy.market_profile.token_controls.developer_holding_pct, 1.74);
     assert.equal(payload.market_anatomy.market_profile.launch.completed, true);
-    assert.deepEqual(payload.market_anatomy.market_profile.links.map((link) => link.label), ["attention.example", "X"]);
+    assert.deepEqual(payload.market_anatomy.market_profile.links.map((link) => link.label), ["attention.example", "X", "Telegram"]);
     assert.equal(payload.market_anatomy.market_profile.attribution.label, "Data provided by CoinGecko");
+    assert.equal(payload.market_anatomy.market_profile.attribution.url, "https://www.coingecko.com/en/api");
     assert.equal(payload.provider_usage.provider_request_count, 3);
     assert.equal(payload.provider_usage.market_profile_cache_hit, false);
     assert.equal(payload.provider_usage.market_profile_request_count, 1);
