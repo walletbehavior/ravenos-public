@@ -5328,7 +5328,7 @@ function clearSpotQuoteResult(message = "Select a size and review a current rout
     result.hidden = true;
     delete result.dataset.state;
   }
-  setText("terminalSpotQuoteState", spotTicketQualified() ? "Ready to quote" : spotTicketIdentityAvailable() ? "Adapter pending" : "Unavailable");
+  setText("terminalSpotQuoteState", spotTicketQualified() ? "Ready to review" : spotTicketIdentityAvailable() ? "Adapter pending" : "Unavailable");
   setText("terminalSpotQuoteMessage", message);
   setSpotTicketExitSummary();
   updateSpotExecutionRail();
@@ -5623,6 +5623,7 @@ function syncSpotTicketControls() {
   if (walletButton) walletButton.disabled = !qualified;
   const feePreview = state.flags?.spot_fee_preview || {};
   if (qualified) {
+    if (state.spotQuoteStatus === "idle" && !state.spotQuote) setText("terminalSpotQuoteState", "Ready to review");
     const freeFeeBps = finite(feePreview.free_fee_bps);
     const proFeeBps = finite(feePreview.pro_fee_bps);
     const proDiscount = finite(feePreview.pro_discount_pct);
@@ -5898,6 +5899,7 @@ function updateQuoteBoundary() {
   const customerQuoteEnabled = state.flags?.quote_only === true
     && flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE === true
     && flags.RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE === true;
+  const spotRouteReviewEnabled = spotTicketQualified();
   const orderPlanEnabled = state.flags?.order_plan_available === true
     && Array.isArray(state.flags?.order_plan_markets)
     && state.flags.order_plan_markets.includes("hyperliquid_perpetual")
@@ -5912,21 +5914,22 @@ function updateQuoteBoundary() {
     state.marketPreviewExpiryTimer = null;
     state.orderPlanExpiryTimer = null;
   }
-  setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : customerQuoteEnabled ? "Review only" : "Read only");
-  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : customerQuoteEnabled ? "Read-only trade preview" : "Trade preview not enabled");
+  const routeReviewEnabled = customerQuoteEnabled || spotRouteReviewEnabled;
+  setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : routeReviewEnabled ? "Review only" : "Read only");
+  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : routeReviewEnabled ? "Read-only route review" : "Trade preview not enabled");
   setText("terminalQuoteNote", orderPlanEnabled
     ? "Preview only. Nothing can be signed or sent."
-    : customerQuoteEnabled
+    : routeReviewEnabled
       ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
   const boundary = document.getElementById("terminalBoundary");
   if (boundary) {
     boundary.querySelector("strong").textContent = orderPlanEnabled
       ? "Trade preview available"
-      : customerQuoteEnabled
-        ? "Route preview available"
+      : routeReviewEnabled
+        ? "Route review available"
         : "Trading coming later";
-    boundary.querySelector("small").textContent = orderPlanEnabled || customerQuoteEnabled
+    boundary.querySelector("small").textContent = orderPlanEnabled || routeReviewEnabled
       ? "Preview only. No order can be signed or sent."
       : "Trading is not enabled. No order can be signed or sent.";
   }

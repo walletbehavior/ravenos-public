@@ -53,6 +53,7 @@ import {
 } from "./lib/customer_trade/hyperliquid_account_history.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
 import { feePolicyFor } from "./lib/customer_trade/fee_policy.mjs";
+import { buildShadowFeeScenarioMatrix } from "./lib/customer_trade/fee_architecture.mjs";
 import {
   SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
   SOLANA_CANONICAL_USDC_MINT,
@@ -71,6 +72,7 @@ import {
 import {
   SHADOW_ROUTE_READINESS_SCHEMA,
   createD1ShadowExecutionLedgerStore,
+  createShadowFeeEvidenceRows,
   createShadowRouteObservation,
   loadShadowRouteReadiness,
   runShadowRouteCheckpointEvaluator,
@@ -5747,6 +5749,14 @@ async function recordShadowRouteObservation(env, executionContext, input) {
       const store = createD1ShadowExecutionLedgerStore(env.RAVENOS_CUSTOMER_DB);
       const record = createShadowRouteObservation(input);
       await store.recordObservation(record);
+      if (input.shadow_execution?.round_trip?.exit_verified === true) {
+        const matrix = buildShadowFeeScenarioMatrix({
+          route_observation_id: record.observation_id,
+          candidate_id: input.shadow_execution.entry_route?.candidate_id || "entry_route",
+          round_trip_proof: input.shadow_execution.round_trip,
+        });
+        await store.recordFeeEvidence(createShadowFeeEvidenceRows({ observation: record, matrix }));
+      }
       recordProviderComponentEvent({ component: "shadow_route_ledger", category: "success" });
     } catch (error) {
       recordProviderComponentEvent({

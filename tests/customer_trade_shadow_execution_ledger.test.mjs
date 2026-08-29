@@ -5,9 +5,11 @@ import {
   ShadowRouteLedgerLimits,
   buildShadowRouteReadinessProjection,
   createD1ShadowExecutionLedgerStore,
+  createShadowFeeEvidenceRows,
   createShadowRouteObservation,
   runShadowRouteCheckpointEvaluator,
 } from "../lib/customer_trade/shadow_execution_ledger.mjs";
+import { buildShadowFeeScenarioMatrix } from "../lib/customer_trade/fee_architecture.mjs";
 
 const OBSERVED_AT = "2026-08-29T02:04:05.000Z";
 const TOKEN = "Token111111111111111111111111111111111111";
@@ -121,6 +123,35 @@ test("readiness derives quote-only loss from persisted spend and exit values", (
   assert.ok(Math.abs(projection.slices[0].median_quote_only_round_trip_loss_pct - 2.478) < 1e-9);
 });
 
+test("fee evidence appends one bounded row per empirical scenario without multiplying route samples", () => {
+  const observation = createShadowRouteObservation(shadowFixture());
+  const matrix = buildShadowFeeScenarioMatrix({
+    route_observation_id: observation.observation_id,
+    candidate_id: "entry_jupiter",
+    round_trip_proof: {
+      ...shadowFixture().shadow_execution.round_trip,
+      state: "friction_incomplete",
+      spend_usdc: 500,
+    },
+  });
+  const feeRows = createShadowFeeEvidenceRows({ observation, matrix });
+  assert.deepEqual(feeRows.map((row) => row.scenario_bps), [0, 5, 10, 20]);
+  assert.equal(feeRows[2].entry_fee_usdc_micros, "500000");
+  assert.equal(feeRows[2].actual_collected_usdc_micros, null);
+  assert.equal(feeRows[2].actual_collection_authorized, 0);
+  assert.equal(feeRows[2].round_trip_friction_including_raven_pct, null);
+  const projection = buildShadowRouteReadinessProjection([observation], [], {
+    generated_at: Date.parse(OBSERVED_AT),
+    window_seconds: 86_400,
+    fee_evidence: feeRows,
+  });
+  assert.equal(projection.observations, 1);
+  assert.equal(projection.fee_sensitivity.rows[2].route_samples, 1);
+  assert.equal(projection.fee_sensitivity.rows[2].median_entry_fee_usdc, 0.5);
+  assert.equal(projection.fee_sensitivity.rows[2].actual_collected_usdc, null);
+  assert.equal(projection.fee_sensitivity.actual_collection_authorized, false);
+});
+
 test("checkpoint evaluator appends the first due horizon once under a bounded lease", async () => {
   const observation = createShadowRouteObservation(shadowFixture());
   const inserted = [];
@@ -181,4 +212,15 @@ test("migration is append-only, retention-bounded, and excludes prohibited ident
   assert.match(sql, /retention_expires_at/i);
   const statements = sql.replace(/--.*$/gm, "");
   assert.doesNotMatch(statements, /^\s*(?:customer_id|user_id|wallet_address|ip_address|serialized_transaction|calldata|signature)\s+/im);
+});
+
+test("fee evidence migration is append-only, scenario-bounded, and contains no treasury authority", () => {
+  const sql = readFileSync("customer-migrations/0006_shadow_fee_evidence.sql", "utf8");
+  assert.match(sql, /ravenos_shadow_fee_evidence/i);
+  assert.match(sql, /scenario_bps IN \(0, 5, 10, 20\)/i);
+  assert.match(sql, /actual_collection_authorized = 0/i);
+  assert.match(sql, /actual_collected_usdc_micros IS NULL/i);
+  assert.match(sql, /BEFORE UPDATE ON ravenos_shadow_fee_evidence/i);
+  const statements = sql.replace(/--.*$/gm, "");
+  assert.doesNotMatch(statements, /^\s*(?:customer_id|user_id|wallet_address|collector_address|fee_recipient|transaction_hash|calldata|signature)\s+/im);
 });

@@ -1328,6 +1328,9 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
 
   await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
   await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "active");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Route review available");
+  await expect(page.locator("#terminalBoundary small")).toContainText("Preview only");
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Ready to review");
   await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
   await expect(page.locator("#terminalSpotSellPresets")).toBeHidden();
   await expect(page.locator("#terminalSpotCustomInputs")).toBeHidden();
@@ -1465,6 +1468,7 @@ test("all-chain spot ticket fails closed with an honest adapter state instead of
   await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("BNB Chain trade adapter");
   await expect(page.locator("#terminalSpotAdapterTitle")).toHaveText("BNB Chain trading is next");
   await expect(page.locator("#terminalSpotAdapterCopy")).toContainText("without substitution");
+  await expect(page.locator("#terminalBoundary strong")).toHaveText("Trading coming later");
   await expect(page.locator("#terminalSpotQuoteAction")).toBeHidden();
   await expect(page.locator("#terminalSpotWallet")).toBeHidden();
   await expect(page.locator("#terminalSpotTicketSection")).not.toContainText("Review exact buy route");

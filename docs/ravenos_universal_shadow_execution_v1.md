@@ -43,6 +43,18 @@ For a buy producing quantity `Q`, RavenOS immediately requests approximately `Q`
 
 Marked value never substitutes for executable liquidation value. Missing reverse liquidity remains unavailable, never zero.
 
+The review expires at the earlier of the entry and reverse quote. A fresh entry quote cannot keep an expired liquidation proof current, and the browser refresh timer follows that same effective expiry.
+
+## Provider-independent fee sensitivity
+
+Every exit-verified observation can now be evaluated at 0, 5, 10, and 20 basis points using canonical-USDC microunits. These are empirical scenarios, not the active Free/Pro commercial schedule and not a selected production fee.
+
+For a buy, the hypothetical fee basis is requested USDC trade notional. For a sell, the basis is gross executable USDC proceeds before Raven's fee. Entry and exit fees remain separate from DEX, solver, bridge, gas, tax, spread, slippage, and price-impact evidence. Total friction including Raven remains unavailable whenever non-Raven cost decomposition is incomplete.
+
+Fee-aware route comparison occurs only after an exact reverse USDC proof, so USDC costs are never subtracted from token-denominated route output. It selects by minimum net terminal USDC only when collection mechanics and friction are both evidenced. Unsupported, non-canonical, provider-capped, fee-unbound, or economically irrational separate-transfer methods remain unavailable or rejected rather than silently clamped.
+
+The source-level authorization boundary fixes live collection, signing, submission, and transaction construction to false. Shadow fee evidence is append-only and stores no customer, wallet, collector address, recipient, provider payload, transaction, calldata, signature, or transaction hash. `actual_collected_usdc` remains unavailable, never reported as hypothetical revenue.
+
 ## Future execution lifecycle
 
 Cross-chain execution is sealed behind explicit states: quoted, authorized, source submitted, source confirmed, destination pending, destination filled, and settled. Failure states include quote expired, source failed, destination failed, refund pending, refunded, failed, and indeterminate. Source confirmation alone can never mean filled.
@@ -53,4 +65,4 @@ Qualified same-chain Solana buy reviews now admit a privacy-safe append-only rou
 
 The ledger stores no customer ID, wallet address, network address, provider response, plan price, approval, signature, calldata, or transaction. Five-minute sampling deduplication prevents repeated clicks on the same route band from multiplying observations. A lease, eight-checkpoint invocation cap, 30-day retention, and provider operation circuit preserve bounded load.
 
-This evidence gate cannot activate signing, submission, fee charging, custody, or a new chain adapter. Passing samples inform a later security and execution review; they do not authorize it.
+This evidence gate cannot activate signing, submission, fee charging or collection, custody, or a new chain adapter. Passing samples inform a later security and execution review; they do not authorize it.
