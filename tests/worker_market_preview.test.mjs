@@ -496,3 +496,18 @@ test("Worker exposes no shadow readiness when the empirical ledger is inactive",
   assert.equal(body.execution.signing_available, false);
   assert.equal(body.execution.submission_available, false);
 });
+
+test("Worker reports a bounded readiness storage diagnostic without leaking D1 details", async () => {
+  const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/shadow-readiness"), {
+    RAVENOS_SHADOW_LEDGER_ENABLED: "1",
+    RAVENOS_CUSTOMER_DB: {
+      prepare() { throw new Error("D1_ERROR: no such table: sensitive_internal_name"); },
+    },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.diagnostic_code, "storage_schema_not_ready");
+  assert.doesNotMatch(JSON.stringify(body), /sensitive_internal_name|d1_error/i);
+  assert.equal(body.execution.signing_available, false);
+  assert.equal(body.execution.submission_available, false);
+});

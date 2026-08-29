@@ -5776,6 +5776,14 @@ async function handleTradeShadowReadiness(env = {}) {
       headers: { "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60" },
     });
   } catch (error) {
+    const storageReason = String(error?.code || error?.message || "").toLowerCase();
+    const diagnosticCode = storageReason.includes("no such table")
+      ? "storage_schema_not_ready"
+      : storageReason.includes("session") || storageReason.includes("bookmark")
+        ? "storage_session_unavailable"
+        : storageReason.includes("query_failed")
+          ? "storage_query_failed"
+          : "storage_unavailable";
     recordProviderComponentEvent({
       component: "shadow_route_ledger",
       category: "failure",
@@ -5786,6 +5794,7 @@ async function handleTradeShadowReadiness(env = {}) {
       schema_version: SHADOW_ROUTE_READINESS_SCHEMA,
       state: "unavailable",
       error: "shadow_route_sampling_unavailable",
+      diagnostic_code: diagnosticCode,
       execution: { signing_available: false, submission_available: false },
     }, { status: 503, headers: { "cache-control": "public, max-age=5, s-maxage=15" } });
   }
