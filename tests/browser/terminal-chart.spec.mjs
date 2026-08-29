@@ -808,6 +808,44 @@ test("provider failure remains explicit and never creates substitute candles", a
   await expect(page.locator("#terminalMarketFreshness")).not.toHaveText("Live");
 });
 
+test("verified exact-pool swaps advance the forming candle and headline price between OHLC polls", async ({ page }) => {
+  const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.55, spotChartCurrent: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.last_trade_at || null)).not.toBeNull();
+  await expect(page.locator("#terminalLast")).toContainText("1.55");
+  const current = await page.evaluate(() => {
+    const terminal = window.__RAVENOS_TERMINAL__?.getState?.();
+    return {
+      tape: terminal?.diagnostics?.exact_pool_tape,
+      lastCandleClose: terminal?.lastCandleClose,
+      livePriceSource: terminal?.livePriceSource,
+      geometry: window.__RAVENOS_CHART_GEOMETRY__,
+    };
+  });
+  expect(current.tape?.timeframe).toBe("1m");
+  expect(current.tape?.tracked_buckets).toBeGreaterThan(0);
+  expect(current.lastCandleClose).toBe(1.55);
+  expect(current.livePriceSource).toBe("exact_pool_trade_tape");
+  expect(current.geometry?.loaded_bars).toBeGreaterThan(0);
+});
+
+test("mobile Chart keeps the exact-pool tape active without opening Trades", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.55, spotChartCurrent: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0)).toBeGreaterThan(0);
+  await expect(page.locator("#terminalLast")).toContainText("1.55");
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("spot search loads one exact pool and joins only its admitted current Raven context", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -1127,7 +1165,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
-  expect(tradeCalls).toHaveLength(0);
+  await expect.poll(() => tradeCalls.length).toBe(1);
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
   const activityUrl = new URL(page.url());

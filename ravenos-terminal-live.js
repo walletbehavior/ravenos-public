@@ -536,9 +536,12 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   }
   syncSpotActivityView();
   afterTerminalPaneVisible(() => {
-    if (next === "chart") state.workspace?.chartHandle?.resize?.();
+    if (next === "chart") {
+      state.workspace?.chartHandle?.resize?.();
+      if (state.lane === "spot") void loadSpotTrades();
+    }
     if (next === "activity") void loadSpotTrades();
-    else clearSpotTradeRefresh();
+    if (!["chart", "activity"].includes(next)) clearSpotTradeRefresh();
     if (next === "holders") {
       const holderList = document.getElementById("terminalHolderList");
       if (holderList) holderList.open = true;
@@ -2957,7 +2960,7 @@ function clearSpotTradeRefresh() {
 function spotTradeSurfaceActive() {
   if (document.hidden || state.lane !== "spot" || !currentProjectIdentity()) return false;
   if (!terminalUsesPaneNavigation()) return true;
-  return document.querySelector(".terminal-live")?.dataset.terminalPane === "activity";
+  return ["chart", "activity"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
 }
 
 function scheduleSpotTradeRefresh() {
@@ -3008,6 +3011,9 @@ function verifiedSpotTradeProjection(payload, identity = currentProjectIdentity(
     && row.event_id.length <= 180
     && ["buy", "sell"].includes(row?.side)
     && Number.isFinite(Date.parse(String(row?.observed_at || "")))
+    && finite(row?.price_usd) !== null
+    && finite(row.price_usd) > 0
+    && finite(row.price_usd) <= 1_000_000_000_000
     && finite(row?.volume_usd) !== null
     && finite(row.volume_usd) > 0
     && ["standard", "largest_10_pct"].includes(row?.sample_size_tier)
@@ -3251,6 +3257,23 @@ function renderActiveTraders(payload) {
 }
 
 function renderSpotTradeProjection(payload) {
+  const tapeUpdate = state.workspace?.ingestExactPoolTrades?.(payload);
+  const now = Date.now();
+  const latestTrade = payload?.freshness?.state === "live"
+    ? [...(Array.isArray(payload?.trades) ? payload.trades : [])]
+      .filter((row) => {
+        const price = finite(row?.price_usd);
+        const age = now - Date.parse(String(row?.observed_at || ""));
+        return price !== null && price > 0 && price <= 1_000_000_000_000 && age >= -30_000 && age <= 120_000;
+      })
+      .sort((left, right) => Date.parse(String(right.observed_at)) - Date.parse(String(left.observed_at)))[0]
+    : null;
+  const livePrice = finite(tapeUpdate?.lastPrice ?? latestTrade?.price_usd);
+  if (livePrice !== null) {
+    const observedAt = tapeUpdate?.observedAt || latestTrade?.observed_at || payload.observed_at;
+    state.selected = { ...state.selected, priceUsd: livePrice, lastUpdated: observedAt };
+    setLastMetric(livePrice);
+  }
   renderSpotTradeSummary(payload);
   renderSpotTradeRows(payload);
   renderActiveTraders(payload);
@@ -5765,7 +5788,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   document.getElementById("venueSelect").replaceChildren(new Option(`${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}`, String(row.chainId || "spot")));
   renderSpotFacts(row);
   renderSpotTradeSurface();
-  if (!terminalUsesPaneNavigation()) void loadSpotTrades();
+  if (spotTradeSurfaceActive()) void loadSpotTrades();
   if (String(row.chainId || "").toLowerCase() === "solana") void loadHolderList();
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Loading this pool’s price history.");
@@ -5781,6 +5804,8 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   const opportunityPromise = fetchExactOpportunityEvidence(instrumentId);
   const [chartState, opportunityResult] = await Promise.all([chartPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
+  const cachedTape = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (cachedTape) renderSpotTradeProjection(cachedTape);
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} candles loaded`
     : chartState?.message || "Exact-pool candles unavailable.");
@@ -5829,6 +5854,10 @@ async function reloadSelectedTimeframe(timeframe) {
   document.getElementById("timeframeSelect").value = timeframe;
   setText("terminalChartTitle", `${label} · ${timeframe}`);
   renderWorkspaceState(chartState);
+  if (state.lane === "spot") {
+    const cachedTape = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+    if (cachedTape) renderSpotTradeProjection(cachedTape);
+  }
   updateMonitorHandoff();
   ravenOSContext.setSelection({
     subject: state.lane === "perps" ? perpSubject(row) : spotSubject(row, { ravenIntelligence: Boolean(state.context?.spot_identity_validated) }),
@@ -6575,6 +6604,8 @@ async function boot() {
       instrumentId: state.workspace?.state?.instrument?.canonical_id || null,
       timeframe: state.timeframe,
       candleCount: state.workspace?.state?.candles?.length || 0,
+      lastCandleClose: finite(state.workspace?.state?.candles?.at(-1)?.close),
+      livePriceSource: state.workspace?.state?.marketState?.live_price_source || null,
       chartState: state.workspace?.state?.state || "unavailable",
       connectionState: state.workspace?.state?.connectionState || "disconnected",
       candleSource: state.workspace?.state?.candleSeries?.provider || null,

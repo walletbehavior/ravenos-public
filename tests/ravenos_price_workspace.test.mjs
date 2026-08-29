@@ -46,6 +46,13 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /ravenos:chartread/);
   assert.match(workspace, /longScore >= 4/);
   assert.match(workspace, /shortScore >= 4/);
+  assert.match(workspace, /ingestExactPoolTrades/);
+  assert.match(workspace, /ravenos\.onchain_pool_trades\.v1/);
+  assert.match(workspace, /exact_pool_tape_identity_or_freshness_mismatch/);
+  assert.match(workspace, /timeframeSeconds\(timeframe\)/);
+  assert.match(workspace, /exact_pool_trade_tape/);
+  assert.match(workspace, /ageSeconds >= -30[\s\S]*?ageSeconds <= 120/);
+  assert.doesNotMatch(workspace, /synthetic_tape|fallback_trade_price/);
 });
 
 test("Terminal uses PriceWorkspace by default and exposes no unresolved build token", () => {
@@ -80,6 +87,9 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.doesNotMatch(terminal, /Synthetic fallback/);
   assert.match(terminal, /Lightweight Charts™ by TradingView/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
+  assert.match(terminalRuntime, /ingestExactPoolTrades/);
+  assert.match(terminalRuntime, /\["chart", "activity"\]\.includes/);
+  assert.match(terminalRuntime, /setLastMetric\(livePrice\)/);
 });
 
 test("all native RavenOS chart surfaces use the shared price or series renderer", () => {

@@ -437,6 +437,8 @@ export async function mockTerminalLiveApis(page, {
   splitChartEnrichment = false,
   chartEnrichmentDelayTimeframe = null,
   chartEnrichmentDelayMs = 0,
+  spotTradePrice = 1.12,
+  spotChartCurrent = false,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -574,8 +576,8 @@ export async function mockTerminalLiveApis(page, {
         event_id: `fixture-swap-${index + 1}`,
         observed_at: new Date(observedAt.getTime() - index * 20_000).toISOString(),
         side,
-        price_usd: 1.12 + index / 100_000,
-        token_amount: volume / 1.12,
+        price_usd: spotTradePrice + index / 100_000,
+        token_amount: volume / spotTradePrice,
         quote_amount: volume,
         volume_usd: volume,
         trader_address: trader,
@@ -723,9 +725,14 @@ export async function mockTerminalLiveApis(page, {
     const traditional = market === "equities";
     const spotChain = chain || "solana";
     const quietExactPool = Boolean(pairAddress && quietSpot);
-    const candleRows = pairAddress && bullishSpotPlan
+    let candleRows = pairAddress && bullishSpotPlan
       ? bullishSpotCandles(asset, timeframe)
       : providerCandles(asset, timeframe);
+    if (pairAddress && spotChartCurrent) {
+      const step = ({ "1m": 60, "5m": 300, "15m": 900, "1h": 3_600, "4h": 14_400, "1d": 86_400 })[timeframe] || 3_600;
+      const end = Math.floor(Date.now() / 1_000 / step) * step;
+      candleRows = candleRows.map((row, index) => ({ ...row, time: end - (candleRows.length - 1 - index) * step }));
+    }
     return route.fulfill({
       status: 200,
       contentType: "application/json",

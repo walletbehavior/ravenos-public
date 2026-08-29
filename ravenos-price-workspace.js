@@ -7,6 +7,7 @@ import {
   normalizeChartCandle,
   normalizeChartInstrument,
   sharedChartSubscriptions,
+  timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
 
 export const RAVENOS_PRICE_WORKSPACE_SCHEMA = "ravenos.price_workspace.v1";
@@ -472,6 +473,8 @@ export class PriceWorkspace {
     this.inspectingCandle = false;
     this.selectedMarkerKey = null;
     this.tradeBuffer = new BoundedEventBuffer(options.tradeLimit || 60);
+    this.exactPoolTape = null;
+    this.resetExactPoolTape();
     this.renderInput = {};
     this.state = {
       schemaVersion: RAVENOS_PRICE_WORKSPACE_SCHEMA,
@@ -1135,6 +1138,7 @@ export class PriceWorkspace {
       }
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
       const effectiveRavenAnnotations = ravenAnnotations;
+      this.resetExactPoolTape(instrument.canonical_id, timeframe);
       const state = this.setState({
         state: cleanState(payload.freshness_state, payload.stale ? PRICE_WORKSPACE_STATES.DELAYED : PRICE_WORKSPACE_STATES.LIVE),
         timeframe,
@@ -1255,6 +1259,7 @@ export class PriceWorkspace {
     this.lastLiveRequest = null;
     this.lastLivePayload = null;
     this.tradeBuffer = new BoundedEventBuffer(this.options.tradeLimit || 60);
+    this.resetExactPoolTape();
     this.lastRequest = null;
     this.destroyChart();
     return this.setState({
@@ -1546,8 +1551,187 @@ export class PriceWorkspace {
     return true;
   }
 
-  applyCandle(value) {
+  resetExactPoolTape(instrumentId = "", timeframe = this.state?.timeframe || "1h") {
+    this.exactPoolTape = {
+      instrumentId: String(instrumentId || ""),
+      timeframe: String(timeframe || "1h"),
+      seen: new Map(),
+      buckets: new Map(),
+      lastTradeAt: null,
+      applied: 0,
+      rejected: 0,
+    };
+    return this.exactPoolTape;
+  }
+
+  exactPoolTapeIdentityMatches(projection = {}) {
+    const instrument = this.state.instrument || {};
+    const identity = projection.identity || {};
+    const chain = String(instrument.chain || "").toLowerCase();
+    if (
+      instrument.instrument_type !== CHART_INSTRUMENT_TYPES.SPOT_POOL
+      || instrument.identity_scope !== "exact_pool"
+      || this.state.instrumentScope !== "exact_pool"
+      || this.state.continuity?.state !== "verified"
+      || projection.safe_public !== true
+      || projection.schema_version !== "ravenos.onchain_pool_trades.v1"
+      || projection.state !== "available"
+      || projection.freshness?.state !== "live"
+      || String(identity.chain || "").toLowerCase() !== chain
+      || !sameExpectedIdentity(chain, identity.pool_address, instrument.pool_address)
+      || !sameExpectedIdentity(chain, identity.token_address, instrument.token_address)
+      || !identity.quote_token_address
+    ) return false;
+    const fingerprint = `${chain}:${identity.pool_address}:${identity.token_address}:${identity.quote_token_address}`;
+    return sameExpectedIdentity(chain, this.state.continuity.exact_pool_fingerprint, fingerprint);
+  }
+
+  reconcileExactPoolTapeCandle(value) {
     const candle = normalizeChartCandle(value);
+    if (!candle) return null;
+    const overlay = this.exactPoolTape?.buckets?.get(Number(candle.time));
+    if (!overlay) return candle;
+    if (Date.now() - overlay.lastTime > 120_000) {
+      this.exactPoolTape.buckets.delete(Number(candle.time));
+      return candle;
+    }
+    return {
+      ...candle,
+      high: Math.max(candle.high, overlay.high),
+      low: Math.min(candle.low, overlay.low),
+      close: overlay.lastPrice,
+      source: [candle.source, "exact_pool_trade_tape"].filter(Boolean).join("+") || "exact_pool_trade_tape",
+    };
+  }
+
+  ingestExactPoolTrades(projection = {}) {
+    if (!this.exactPoolTapeIdentityMatches(projection)) {
+      if (this.exactPoolTape) this.exactPoolTape.rejected += 1;
+      return { accepted: false, applied: 0, reason: "exact_pool_tape_identity_or_freshness_mismatch" };
+    }
+    const instrumentId = this.state.instrument?.canonical_id || "";
+    const timeframe = this.state.timeframe || "1h";
+    if (this.exactPoolTape.instrumentId !== instrumentId || this.exactPoolTape.timeframe !== timeframe) {
+      this.resetExactPoolTape(instrumentId, timeframe);
+    }
+    const nowMs = Date.now();
+    const bucketSeconds = timeframeSeconds(timeframe);
+    const latestCandleTime = Number(this.state.candles.at(-1)?.time);
+    const candidates = (Array.isArray(projection.trades) ? projection.trades : [])
+      .map((trade) => ({
+        id: String(trade?.event_id || ""),
+        observedAt: String(trade?.observed_at || ""),
+        observedMs: Date.parse(String(trade?.observed_at || "")),
+        price: finite(trade?.price_usd),
+      }))
+      .filter((trade) => {
+        const ageSeconds = (nowMs - trade.observedMs) / 1_000;
+        return trade.id
+          && Number.isFinite(trade.observedMs)
+          && trade.price !== null
+          && trade.price > 0
+          && trade.price <= 1_000_000_000_000
+          && ageSeconds >= -30
+          && ageSeconds <= 120;
+      })
+      .sort((left, right) => left.observedMs - right.observedMs);
+    const affectedBuckets = new Set();
+    let latestAccepted = null;
+    let applied = 0;
+    for (const trade of candidates) {
+      if (this.exactPoolTape.seen.has(trade.id)) continue;
+      const eventSeconds = Math.trunc(trade.observedMs / 1_000);
+      const bucket = Math.floor(eventSeconds / bucketSeconds) * bucketSeconds;
+      if (
+        !Number.isFinite(latestCandleTime)
+        || bucket < latestCandleTime
+        || bucket > latestCandleTime + bucketSeconds * 2
+      ) continue;
+      this.exactPoolTape.seen.set(trade.id, true);
+      if (this.exactPoolTape.seen.size > 2_048) this.exactPoolTape.seen.delete(this.exactPoolTape.seen.keys().next().value);
+      const current = this.exactPoolTape.buckets.get(bucket) || {
+        time: bucket,
+        firstTime: trade.observedMs,
+        firstPrice: trade.price,
+        lastTime: trade.observedMs,
+        lastPrice: trade.price,
+        high: trade.price,
+        low: trade.price,
+      };
+      if (trade.observedMs < current.firstTime) {
+        current.firstTime = trade.observedMs;
+        current.firstPrice = trade.price;
+      }
+      if (trade.observedMs >= current.lastTime) {
+        current.lastTime = trade.observedMs;
+        current.lastPrice = trade.price;
+      }
+      current.high = Math.max(current.high, trade.price);
+      current.low = Math.min(current.low, trade.price);
+      this.exactPoolTape.buckets.set(bucket, current);
+      affectedBuckets.add(bucket);
+      latestAccepted = !latestAccepted || trade.observedMs >= latestAccepted.observedMs ? trade : latestAccepted;
+      applied += 1;
+    }
+    while (this.exactPoolTape.buckets.size > 4) this.exactPoolTape.buckets.delete(this.exactPoolTape.buckets.keys().next().value);
+    for (const bucket of [...affectedBuckets].sort((left, right) => left - right)) {
+      const overlay = this.exactPoolTape.buckets.get(bucket);
+      const existing = this.state.candles.find((row) => Number(row.time) === bucket);
+      this.applyCandle(existing || {
+        time: bucket,
+        open: overlay.firstPrice,
+        high: overlay.high,
+        low: overlay.low,
+        close: overlay.lastPrice,
+        volume: null,
+        quote_volume: null,
+        source: "exact_pool_trade_tape",
+      });
+    }
+    if (!applied || !latestAccepted) {
+      const latestKnown = [...this.exactPoolTape.buckets.values()]
+        .sort((left, right) => right.lastTime - left.lastTime)[0] || null;
+      return {
+        accepted: true,
+        applied: 0,
+        duplicate_only: true,
+        lastPrice: latestKnown?.lastPrice ?? null,
+        observedAt: latestKnown ? new Date(latestKnown.lastTime).toISOString() : null,
+      };
+    }
+    this.exactPoolTape.applied += applied;
+    this.exactPoolTape.lastTradeAt = latestAccepted.observedAt;
+    this.state.marketState = {
+      ...this.state.marketState,
+      last: latestAccepted.price,
+      observed_at: latestAccepted.observedAt,
+      live_price_source: "exact_pool_trade_tape",
+    };
+    this.state.observedAt = latestAccepted.observedAt;
+    this.state.lastCandleAt = latestAccepted.observedAt;
+    this.state.lastCandleAgeSeconds = Math.max(0, Math.round((nowMs - latestAccepted.observedMs) / 1_000));
+    this.state.marketActivityState = "active";
+    this.schedulePaint();
+    document.dispatchEvent(new CustomEvent("ravenos:charttape", {
+      detail: {
+        instrument_id: instrumentId,
+        timeframe,
+        applied,
+        last_price: latestAccepted.price,
+        observed_at: latestAccepted.observedAt,
+        source: "exact_pool_trade_tape",
+      },
+    }));
+    return {
+      accepted: true,
+      applied,
+      lastPrice: latestAccepted.price,
+      observedAt: latestAccepted.observedAt,
+    };
+  }
+
+  applyCandle(value) {
+    const candle = this.reconcileExactPoolTapeCandle(value);
     if (!candle) return;
     const index = this.state.candles.findIndex((row) => Number(row.time) === Number(candle.time));
     if (index >= 0) this.state.candles[index] = candle;
@@ -1612,6 +1796,14 @@ export class PriceWorkspace {
       returned_bars: this.state.candles.length,
       backfill_count: this.state.backfillCount,
       dropped_chart_updates: this.tradeBuffer.dropped,
+      exact_pool_tape: {
+        instrument_id: this.exactPoolTape?.instrumentId || null,
+        timeframe: this.exactPoolTape?.timeframe || null,
+        applied_trades: this.exactPoolTape?.applied || 0,
+        rejected_projections: this.exactPoolTape?.rejected || 0,
+        tracked_buckets: this.exactPoolTape?.buckets?.size || 0,
+        last_trade_at: this.exactPoolTape?.lastTradeAt || null,
+      },
       chart: this.chartHandle?.measure?.() || null,
     };
   }
@@ -1621,6 +1813,7 @@ export class PriceWorkspace {
     this.stopLive();
     this.lastLiveRequest = null;
     this.lastLivePayload = null;
+    this.resetExactPoolTape();
     if (this.paintFrame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.paintFrame);
     this.paintFrame = null;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
