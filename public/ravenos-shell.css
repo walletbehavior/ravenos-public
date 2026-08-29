@@ -328,6 +328,7 @@ a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised)
 .ros-context-footer button:first-child { border-color: rgba(166, 177, 190, 0.32); color: var(--ros-accent); }
 
 .ros-utility-content { display: grid; }
+.ros-more-menu { display: grid; }
 .ros-utility-content section { display: grid; gap: 8px; padding: 18px 16px; border-bottom: 1px solid var(--ros-line); }
 .ros-utility-content section > strong { font-size: 16px; line-height: 1.2; }
 .ros-utility-content section > p { margin: 0; color: var(--ros-muted); font-size: 11px; line-height: 1.55; }
@@ -341,6 +342,7 @@ a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised)
 .ros-utility-unavailable a { width: fit-content; margin-top: 4px; color: var(--ros-accent); font-size: 10px; }
 .ros-utility-list,
 .ros-more-links { display: grid; margin-top: 10px; border: 1px solid var(--ros-line); border-radius: 9px; overflow: hidden; }
+.ros-more-menu .ros-more-links { margin-top: 0; }
 .ros-utility-list a,
 .ros-more-links a,
 .ros-more-links button { min-height: 58px; display: grid; align-content: center; gap: 3px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--ros-line); background: var(--ros-surface); color: var(--ros-text); text-align: left; }
@@ -481,7 +483,8 @@ a.ros-evidence-destination:focus-visible { background: var(--ros-surface-raised)
 }
 .ros-command-result:nth-child(even) { border-right: 0; }
 .ros-command-result:hover,
-.ros-command-result:focus-visible { background: var(--ros-surface-raised); outline: none; }
+.ros-command-result:focus-visible,
+.ros-command-result[data-active="true"] { background: var(--ros-surface-raised); outline: none; box-shadow: inset 3px 0 var(--ros-accent); }
 .ros-command-result-group { grid-area: group; color: var(--ros-soft); font: 700 8px var(--ros-mono); text-transform: uppercase; letter-spacing: 0.08em; }
 .ros-command-result strong { grid-area: title; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .ros-command-result-detail { grid-area: detail; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ros-muted); font-size: 9px; }

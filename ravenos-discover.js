@@ -11,6 +11,7 @@ const REFRESH_MS = 45 * 1_000;
 const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
 const DISCOVER_IDLE_MS = 2_400;
 const CHANGE_FLASH_MS = 1_600;
+const DISCOVER_VISIT_STORAGE_KEY = "ravenos:discover-visited:v1";
 const state = {
   rows: new Map(),
   order: [],
@@ -68,6 +69,8 @@ const state = {
   refreshQueued: false,
   lastRefresh: null,
   timer: null,
+  workspaceCompact: false,
+  tapeExpanded: true,
 };
 
 function text(value, fallback = "Unavailable") {
@@ -98,6 +101,41 @@ function marketCapValue(market = {}) {
 function title(value, fallback = "Unavailable") {
   const result = text(value, fallback);
   return result.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function syncWorkspacePresentation() {
+  const page = document.querySelector(".discover-page");
+  if (!page) return;
+  page.dataset.workspaceMode = state.workspaceCompact ? "returning" : "first-visit";
+  page.dataset.tapeExpanded = String(state.tapeExpanded);
+  const introToggle = document.getElementById("discoverIntroToggle");
+  if (introToggle) {
+    introToggle.setAttribute("aria-expanded", String(!state.workspaceCompact));
+    introToggle.textContent = state.workspaceCompact ? "How Discover works" : "Use compact workspace";
+  }
+  const tapeToggle = document.getElementById("discoverTapeToggle");
+  if (tapeToggle) {
+    tapeToggle.setAttribute("aria-expanded", String(state.tapeExpanded));
+    tapeToggle.textContent = state.tapeExpanded ? "Hide stock tape" : "Stocks & ETFs";
+  }
+  const tokenTape = document.getElementById("discoverSpotPulse");
+  const toolbar = document.querySelector(".discover-page .workspace-toolbar");
+  const payoff = document.getElementById("discoverPayoff");
+  if (tokenTape && toolbar && payoff) {
+    if (state.workspaceCompact && toolbar.nextElementSibling !== tokenTape) toolbar.after(tokenTape);
+    if (!state.workspaceCompact && payoff.nextElementSibling !== tokenTape) payoff.after(tokenTape);
+  }
+}
+
+function initializeWorkspacePresentation() {
+  let seen = false;
+  try {
+    seen = window.localStorage.getItem(DISCOVER_VISIT_STORAGE_KEY) === "1";
+    window.localStorage.setItem(DISCOVER_VISIT_STORAGE_KEY, "1");
+  } catch { /* local storage can be unavailable */ }
+  state.workspaceCompact = seen;
+  state.tapeExpanded = !seen;
+  syncWorkspacePresentation();
 }
 
 function sourceScopeLabel(value) {
@@ -833,7 +871,7 @@ function marketTapeRows(rows = []) {
 function createMarketTapeGroup(rows, { duplicate = false, changes = new Map() } = {}) {
   const group = document.createElement("div");
   group.className = "discover-market-ribbon-group";
-  group.toggleAttribute("aria-hidden", duplicate);
+  if (duplicate) group.setAttribute("aria-hidden", "true");
   for (const row of rows) {
     const price = finite(row.last_price ?? row.mark_price);
     const change = finite(row.day_change_pct);
@@ -1407,6 +1445,60 @@ function renderTokenStat(host, label, value) {
   append(node, "strong", "", value);
 }
 
+function spotDecisionHeadline(row, { current = true, velocityState = "forming", activityState = "forming", primary = "forming" } = {}) {
+  if (!current) return "Price, move, risk, and rank are withheld until this exact pool refreshes.";
+  const discovery = row?.discovery || {};
+  const raven = discovery.raven_evidence_state || {};
+  const candidates = state.spotSort === "raven"
+    ? [discovery.decision_support?.why_now, raven.why_raven_noticed, discovery.decision_support?.what_changed, raven.what_changed]
+    : [discovery.decision_support?.why_now, discovery.decision_support?.what_changed, row.what_changed];
+  for (const value of candidates) {
+    const candidate = customerFacingText(value, "").trim();
+    if (!candidate || /^(?:Current market update|Material short-window move)$/i.test(candidate)) continue;
+    return candidate;
+  }
+  if (state.spotSort === "activity") return `${title(activityState)} participation is the clearest current change.`;
+  if (state.spotSort === "raven") return "Raven has a current exact-market read; open it to inspect the evidence.";
+  return [...new Set([title(velocityState), title(primary)])].join(" · ");
+}
+
+function spotRiskDecision(risks = [], current = true) {
+  if (!current) return { label: "Risk refreshing", tone: "pending" };
+  if (!risks.length) return { label: "Risk · no current flag", tone: "quiet" };
+  return {
+    label: `Risk · ${riskLabel(risks[0])}${risks.length > 1 ? ` +${risks.length - 1}` : ""}`,
+    tone: "warning",
+  };
+}
+
+function spotRouteDecision(row, current = true) {
+  const route = row?.discovery?.routeability || {};
+  const freshness = text(route.freshness, "").toLowerCase();
+  if (!current || route.availability !== "available" || !["current", "fresh", "live"].includes(freshness)) return null;
+  const size = finite(route.routeable_size_usd);
+  const slippage = finite(route.estimated_slippage_bps);
+  const parts = [];
+  if (size !== null) parts.push(`Capacity ${compact(size, { currency: true })}`);
+  if (slippage !== null) parts.push(`${slippage.toFixed(slippage < 10 ? 1 : 0)} bps slip`);
+  if (route.exit_verified === true) parts.push("Exit checked");
+  return parts.length ? { label: parts.join(" · "), tone: "route" } : null;
+}
+
+function renderSpotDecisionStrip(host, row, risks, current) {
+  const strip = append(host, "div", "discover-token-decision-strip", "");
+  const risk = spotRiskDecision(risks, current);
+  const riskChip = append(strip, "span", "discover-token-decision-chip", risk.label);
+  riskChip.dataset.tone = risk.tone;
+  const route = spotRouteDecision(row, current);
+  if (route) {
+    const routeChip = append(strip, "span", "discover-token-decision-chip", route.label);
+    routeChip.dataset.tone = route.tone;
+  }
+  const freshness = append(strip, "time", "discover-token-decision-chip discover-token-decision-freshness", "");
+  freshness.dataset.tone = current ? "current" : "pending";
+  setSpotAgeNode(freshness, row, current ? "Quote" : "Last update", " ");
+}
+
 function evidenceMetric(value, { percentValue = false, ratio = false } = {}) {
   if (value?.availability !== "available" || finite(value?.value) === null) return "Unavailable";
   const amount = finite(value.value);
@@ -1693,24 +1785,33 @@ function updateSpotTokenRow(anchor, row, index) {
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
   const exactChartRequired = discovery.notability?.verification_state === "exact_chart_required";
+  const decisionHeadline = spotDecisionHeadline(row, {
+    current: factFreshness.current,
+    velocityState,
+    activityState,
+    primary,
+  });
   if (!factFreshness.current) {
     append(raven, "span", "", "Retained exact market · live check pending");
-    append(raven, "strong", "", "Price, move, risk, and rank are withheld until this exact pool refreshes.");
+    append(raven, "strong", "", decisionHeadline);
   } else if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
     append(raven, "span", "", [
       risks.includes("late_chase") ? "Chase risk" : "",
       exactChartRequired ? "Open chart to confirm" : "",
       label,
+      title(velocityState),
     ].filter(Boolean).join(" · "));
-    append(raven, "strong", "", [...new Set([title(velocityState), title(primary)])].join(" · "));
+    append(raven, "strong", "", decisionHeadline);
   } else if (state.spotSort === "activity") {
+    const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
     append(raven, "span", "", [
       exactChartRequired ? "Open chart to confirm" : "",
       scoreLabel(activityScore, "Activity strength"),
+      title(activityState),
+      buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`,
     ].filter(Boolean).join(" · "));
-    const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
-    append(raven, "strong", "", [title(activityState), buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`, text(discovery.sample_evidence?.label, "")].filter(Boolean).join(" · "));
+    append(raven, "strong", "", decisionHeadline);
   } else {
     const ravenEvidence = discovery.raven_evidence_state;
     const ravenState = {
@@ -1724,12 +1825,13 @@ function updateSpotTokenRow(anchor, row, index) {
       `Raven read · ${ravenState}`,
       exactChartRequired ? "Open chart to confirm" : "",
     ].filter(Boolean).join(" · "));
-    append(raven, "strong", "", customerFacingText(discovery.decision_support?.why_now || ravenEvidence.why_raven_noticed, "Raven has a current read for this exact market."));
+    append(raven, "strong", "", decisionHeadline);
   }
+  renderSpotDecisionStrip(raven, row, risks, factFreshness.current);
   const compactDetail = factFreshness.current ? [
     opportunityLaneLabel(discovery.opportunity_lane?.value),
-    customerFacingText(discovery.decision_support?.why_now, ""),
-    risks.length ? risks.slice(0, 2).map((value) => riskLabel(value)).join(" · ") : "",
+    title(primary),
+    text(discovery.sample_evidence?.label, ""),
   ].filter(Boolean).join(" · ") : `Still tracked after leaving a trending feed · last exact update ${spotMarketFactAgeLabel(row)}`;
   if (compactDetail) append(raven, "small", "", compactDetail);
 
@@ -2924,6 +3026,14 @@ function bind() {
   document.addEventListener("wheel", noteInteraction, { passive: true });
   document.addEventListener("keydown", noteInteraction);
   document.getElementById("discoverSearchTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
+  document.getElementById("discoverIntroToggle")?.addEventListener("click", () => {
+    state.workspaceCompact = !state.workspaceCompact;
+    syncWorkspacePresentation();
+  });
+  document.getElementById("discoverTapeToggle")?.addEventListener("click", () => {
+    state.tapeExpanded = !state.tapeExpanded;
+    syncWorkspacePresentation();
+  });
   document.querySelectorAll("[data-discover-filter]").forEach((button) => button.addEventListener("click", () => {
     if (button.disabled) return;
     document.querySelectorAll("[data-discover-filter]").forEach((item) => {
@@ -3005,6 +3115,7 @@ function bind() {
   }, { passive: true });
 }
 
+initializeWorkspacePresentation();
 mountListedMarketTape();
 bind();
 refresh();
@@ -3035,6 +3146,8 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     marketTapeCount: state.marketTapeRows.length,
     marketTapeObservedAt: state.marketTapeObservedAt,
     paused: state.paused,
+    workspaceCompact: state.workspaceCompact,
+    tapeExpanded: state.tapeExpanded,
     expanded: state.expanded,
     loading: state.loading,
     lastRefresh: state.lastRefresh,

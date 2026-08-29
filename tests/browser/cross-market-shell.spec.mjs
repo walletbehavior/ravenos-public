@@ -45,6 +45,8 @@ test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", 
   await expect(primaryTape).toContainText("-0.80%");
   await expect(primaryTape.locator('[data-direction="up"]')).toHaveCount(1);
   await expect(primaryTape.locator('[data-direction="down"]')).toHaveCount(1);
+  await expect(page.locator('#discoverPerpTapeTrack .discover-market-ribbon-group[aria-hidden="true"]')).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /SOL-PERP.*up 2\.40% over 24 hours/i })).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().marketTapeCount)).toBe(2);
   const listedFrame = page.locator("#discoverListedTapeHost .discover-listed-tape-frame");
   await expect(listedFrame).toHaveCount(1);
@@ -56,6 +58,69 @@ test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", 
   await page.locator("#discoverPause").click();
   await expect(page.locator("#discoverMarketRibbon")).toHaveAttribute("data-paused", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().paused)).toBe(true);
+});
+
+test("Discover explains the board once, then returns to a compact actionable workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.goto("/discover/");
+
+  const discover = page.locator(".discover-page");
+  await expect(discover).toHaveAttribute("data-workspace-mode", "first-visit");
+  await expect(page.locator("#discoverFirstVisitGuide")).toBeVisible();
+  await expect(page.locator("#discoverFirstVisitGuide")).toContainText("Start with why now");
+  await expect(page.locator("#discoverFirstVisitGuide")).toContainText("Open the exact pool");
+
+  await page.locator("#discoverIntroToggle").click();
+  await expect(discover).toHaveAttribute("data-workspace-mode", "returning");
+  await expect(page.locator("#discoverFirstVisitGuide")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().workspaceCompact)).toBe(true);
+
+  await page.reload();
+  await expect(discover).toHaveAttribute("data-workspace-mode", "returning");
+  await expect(discover).toHaveAttribute("data-tape-expanded", "false");
+  await expect(page.locator("#discoverListedTapeLane")).toBeHidden();
+  await expect(page.locator(".discover-token-row").first()).toBeVisible();
+  const boardOffset = await page.evaluate(() => {
+    const toolbar = document.querySelector(".discover-page .workspace-toolbar")?.getBoundingClientRect();
+    const row = document.querySelector(".discover-token-row")?.getBoundingClientRect();
+    return toolbar && row ? row.top - toolbar.bottom : Number.POSITIVE_INFINITY;
+  });
+  expect(boardOffset).toBeLessThanOrEqual(190);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+
+  await page.locator("#discoverTapeToggle").click();
+  await expect(page.locator("#discoverListedTapeLane")).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const compactIntroHeight = await page.locator("#discoverWorkspaceIntro").evaluate((node) => node.getBoundingClientRect().height);
+  expect(compactIntroHeight).toBeLessThanOrEqual(70);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
+test("Discover rows lead with why-now and attach only available route, risk, and freshness evidence", async ({ page }) => {
+  const routed = structuredClone(jupiterVelocityRow);
+  routed.routeability = {
+    availability: "available",
+    observed_at: new Date().toISOString(),
+    freshness: "current",
+    routeable_size_usd: 2_500,
+    estimated_slippage_bps: 42,
+  };
+  await mockWorkspaceApis(page, { pulseRowsOverride: [routed] });
+  await page.goto("/discover/");
+
+  const row = page.locator(".discover-token-row").first();
+  await expect(row).toBeVisible();
+  await expect(row.locator(".discover-token-raven > strong")).not.toHaveText("");
+  await expect(row.locator(".discover-token-raven > strong")).not.toContainText(/qualified provider|configured short-window|next qualified observation/i);
+  await expect(row.locator(".discover-token-decision-strip")).toContainText("Risk");
+  await expect(row.locator(".discover-token-decision-strip")).toContainText("Capacity $2.5K");
+  await expect(row.locator(".discover-token-decision-strip")).toContainText("42 bps slip");
+  await expect(row.locator(".discover-token-decision-strip")).toContainText("Quote");
+  await expect(row.locator(".discover-token-decision-strip")).not.toContainText("Exit checked");
+  await expect(page.locator(".discover-copy-ca").first()).toBeVisible();
+  await expect(page.locator(".discover-monitor-save").first()).toHaveCount(1);
+  await expect(page.locator(".discover-token-evidence summary").first()).toHaveText("Inspect");
 });
 
 const opportunityRows = [
@@ -740,13 +805,32 @@ test("desktop adds Raven Lab without crowding the four mobile workspaces", async
   await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "MMore"]);
   await page.getByRole("button", { name: "More RavenOS destinations" }).click();
   await expect(page.locator("#rosUtilityDrawer")).toBeVisible();
-  await expect(page.locator("#rosUtilityContent")).toContainText("Behavior Lab");
-  await expect(page.locator("#rosUtilityContent")).toContainText("Perps Intelligence");
-  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toHaveCount(0);
+  await expect(page.locator("#rosUtilityContent")).toContainText("Research workspaces");
+  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toContainText("Raven Lab");
+  await expect(page.locator('#rosUtilityContent a[href="/behavior/"]')).toHaveCount(0);
+  await expect(page.locator('#rosUtilityContent a[href="/perps/#perpsIntelligence"]')).toHaveCount(0);
   await expect(page.locator("#rosUtilityContent")).toContainText("Atlas");
   await expect(page.locator("#rosUtilityContent")).toContainText("Recent & saved");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Free, Pro, Desk, and Enterprise");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("universal search supports arrow-and-Enter market selection", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("BTC-PERP");
+  await expect(page.locator(".ros-command-result-detail").first()).toContainText("Hyperliquid perpetual");
+  await expect(page.locator(".ros-command-result-detail").first()).not.toContainText("hyperliquid:perp:");
+  await page.locator("#rosCommandInput").fill("SOL-PERP");
+  await expect(page.locator(".ros-command-result").first()).toBeVisible();
+  await expect(page.locator(".ros-command-result-detail").first()).not.toContainText("hyperliquid:perp:");
+  await page.locator("#rosCommandInput").press("ArrowDown");
+  await expect(page.locator('.ros-command-result[data-active="true"]')).toHaveCount(1);
+  await page.locator("#rosCommandInput").press("Enter");
+  await expect(page).toHaveURL(/\/terminal\//);
+  await expect(page.locator("#terminalInstrument")).toContainText("SOL-PERP");
 });
 
 test("anonymous Search opens with ten valid recent exact markets and keeps mobile utility copy separated", async ({ page }) => {

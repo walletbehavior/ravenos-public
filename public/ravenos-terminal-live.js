@@ -567,6 +567,29 @@ function setTerminalPaneStatus(pane, label, tone = "neutral") {
   syncProjectResearchMenu();
 }
 
+function syncMobileTradeDock() {
+  const dock = document.getElementById("terminalMobileTradeDock");
+  const tradeButton = document.querySelector('[data-terminal-pane-button="trade"]');
+  if (!dock) return;
+  const available = tradeButton?.hidden === false
+    && (state.lane === "perps" || (state.lane === "spot" && spotTicketQualified()));
+  dock.hidden = !available;
+  const primary = dock.querySelector('[data-terminal-mobile-side="primary"]');
+  const secondary = dock.querySelector('[data-terminal-mobile-side="secondary"]');
+  if (primary) {
+    primary.textContent = state.lane === "perps" ? "Review long" : "Review buy";
+    primary.setAttribute("aria-label", state.lane === "perps"
+      ? "Open the read-only long plan"
+      : "Open the read-only buy and exit review");
+  }
+  if (secondary) {
+    secondary.textContent = state.lane === "perps" ? "Review short" : "Review sell";
+    secondary.setAttribute("aria-label", state.lane === "perps"
+      ? "Open the read-only short plan"
+      : "Open the read-only sell route review");
+  }
+}
+
 function terminalUsesPaneNavigation() {
   return window.matchMedia?.("(max-width: 820px)")?.matches === true;
 }
@@ -607,7 +630,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
       if (state.lane === "spot") void loadSpotTrades();
     }
     if (next === "activity") void loadSpotTrades();
-    if (!["chart", "activity"].includes(next)) clearSpotTradeRefresh();
+    if (!["chart", "activity", "trade"].includes(next)) clearSpotTradeRefresh();
     if (next === "holders") {
       const holderList = document.getElementById("terminalHolderList");
       if (holderList) holderList.open = true;
@@ -749,6 +772,8 @@ function updateTerminalPaneAvailability() {
   const tradeButton = document.querySelector('[data-terminal-pane-button="trade"]');
   const tradeVisible = (perps && tradeSection?.hidden === false) || (spot && spotTradeSection?.hidden === false);
   if (tradeButton) tradeButton.hidden = !tradeVisible;
+  if (tradeVisible) setTerminalPaneStatus("trade", perps ? "Preview" : spotTicketQualified() ? "Route review" : "Coming later", perps || spotTicketQualified() ? "positive" : "neutral");
+  syncMobileTradeDock();
   const accountDock = document.getElementById("terminalAccountDock");
   const accountButton = document.querySelector('[data-terminal-pane-button="account"]');
   const accountVisible = perps && state.flags?.public_account_view_available === true;
@@ -5586,6 +5611,7 @@ function syncSpotTicketControls() {
   }
   const side = state.spotTicketSide === "sell" ? "sell" : "buy";
   const symbol = String(state.selected?.symbol || "TOKEN").toUpperCase();
+  setText("terminalSpotTicketEyebrow", `${chainDisplayName(identity?.chain)} · ${qualified ? "route review" : "trading status"}`);
   if (section) section.dataset.adapterState = qualified ? "active" : "pending";
   const adapterNotice = document.getElementById("terminalSpotAdapterNotice");
   if (adapterNotice) adapterNotice.hidden = qualified;
@@ -7151,9 +7177,16 @@ function bindControls() {
   });
   document.addEventListener("keydown", (event) => {
     const popover = document.getElementById("terminalProjectLinksPopover");
-    if (event.key !== "Escape" || popover?.hidden) return;
-    event.preventDefault();
-    closeProjectLinks({ restoreFocus: true });
+    if (event.key !== "Escape") return;
+    if (popover?.hidden === false) {
+      event.preventDefault();
+      closeProjectLinks({ restoreFocus: true });
+      return;
+    }
+    if (terminalUsesPaneNavigation() && document.querySelector(".terminal-live")?.dataset.terminalPane === "trade") {
+      event.preventDefault();
+      setTerminalPane("chart", { restoreScroll: false, focusId: "terminalChart" });
+    }
   });
   document.getElementById("terminalMarkerClose")?.addEventListener("click", clearMarkerInspection);
   document.getElementById("terminalHolderList")?.addEventListener("toggle", (event) => {
@@ -7334,6 +7367,26 @@ function bindControls() {
   }
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.addEventListener("click", () => inspectTerminalPane(button.dataset.terminalPaneButton));
+  }
+  document.getElementById("terminalTradeSheetDismiss")?.addEventListener("click", () => {
+    setTerminalPane("chart", { restoreScroll: false, focusId: "terminalChart" });
+  });
+  document.getElementById("terminalTradeTicketClose")?.addEventListener("click", () => {
+    setTerminalPane("chart", { restoreScroll: false, focusId: "terminalChart" });
+  });
+  document.getElementById("terminalSpotTicketClose")?.addEventListener("click", () => {
+    setTerminalPane("chart", { restoreScroll: false, focusId: "terminalChart" });
+  });
+  for (const button of document.querySelectorAll("[data-terminal-mobile-side]")) {
+    button.addEventListener("click", () => {
+      const secondary = button.dataset.terminalMobileSide === "secondary";
+      if (state.lane === "spot") setSpotTicketSide(secondary ? "sell" : "buy");
+      else setMarketPreviewSide(secondary ? "short" : "long", { refresh: false });
+      setTerminalPane("trade", {
+        restoreScroll: false,
+        focusId: state.lane === "spot" ? "terminalSpotAmount" : "terminalPreviewNotional",
+      });
+    });
   }
 }
 

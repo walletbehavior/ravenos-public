@@ -189,17 +189,18 @@ test("/replay/ refuses to fabricate similarity without as-of comparable lineage"
   await expect(page.locator("#routeHeadline")).toContainText(/Similar history is unavailable/i);
   await expect(page.locator("#routePrimaryPanel")).toContainText(/No invented analogues/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
-  expect(primary).toMatch(/Synthetic similarity[\s\S]*None/i);
-  expect(primary).toMatch(/Current outcomes substituted[\s\S]*No/i);
-  expect(primary).toMatch(/Same market and decision boundary/i);
-  expect(primary).toMatch(/As-of evidence reconstruction/i);
+  expect(primary).toMatch(/Invented matches[\s\S]*Never/i);
+  expect(primary).toMatch(/Newer results reused[\s\S]*Never/i);
+  expect(primary).toMatch(/The same market conditions/i);
+  expect(primary).toMatch(/Only what was known then/i);
+  expect(primary).not.toMatch(/historical comparable lineage|synthetic similarity|current outcomes substituted|as-of evidence reconstruction|future-only matured path/i);
   expect(primary).not.toMatch(/\b\d{1,3}% similarity\b|Closest analogue/i);
 });
 
 test("/replay/ explicit unavailable state stays contained on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/replay/");
-  await expect(page.locator("#routePrimaryPanel")).toContainText(/cannot reconstruct a comparable case/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/No trustworthy match yet/i);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/What Raven needs before showing similar history/i);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
@@ -229,14 +230,31 @@ test("account status exposes the real activation gate without synthetic identity
   expect(text).not.toMatch(/\$149|\$999|upgrade to pro|connect wallet to unlock|founder token balance/i);
 });
 
-test("plans page publishes no price, checkout, or invented tier", async ({ page }) => {
+test("plans page presents the published tiers without activating checkout", async ({ page }) => {
   await page.goto("/pricing/");
-  await expect(page.getByRole("heading", { name: "Commercial access is not open yet." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Start free. Go deeper when Raven becomes part of your edge." })).toBeVisible();
+  await expect(page.locator('[data-plan="free"]')).toContainText("$0");
+  await expect(page.locator('[data-plan="pro"]')).toContainText("$149");
+  await expect(page.locator('[data-plan="desk"]')).toContainText("$499");
+  await expect(page.locator('[data-plan="enterprise"]')).toContainText("Custom");
+  await expect(page.getByRole("link", { name: "Open Free" })).toHaveAttribute("href", "/discover/");
+  await expect(page.getByRole("link", { name: "View Pro preview" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/intelligence/");
   await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/Public preview · saved markets · no checkout · no live trading/i);
-  expect(text).not.toMatch(/\$149|\$999|buy pro|start monthly|start annual|token threshold/i);
+  expect(text).toMatch(/Paid checkout and self-serve enrollment are not open yet/i);
+  expect(text).toMatch(/Research only · Not financial advice/i);
+  expect(text).not.toMatch(/buy pro|start monthly|start annual|token threshold|activation gate|projection contract|operator grant/i);
+});
+
+test("plans remain legible and honest on a narrow mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/pricing/");
+  await expect(page.locator(".pricing-plan-card")).toHaveCount(4);
+  await expect(page.getByText("Desk enrollment opens later", { exact: true })).toBeVisible();
+  await expect(page.getByText("Enterprise inquiries open later", { exact: true })).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
 });
 
 test("Terminal keeps wallet context separate from customer access", async ({ page }) => {
@@ -278,8 +296,8 @@ test("/behavior/ exposes aggregate participation with denominators and privacy b
   await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice/i);
   await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable of .*observed.*(?:Developing|Broader sample)/i);
   await expect(page.locator(".behavior-matrix article").first()).toContainText(/No directional edge measured/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Recurring-wallet context/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet identities.*ownership claims.*coordination allegations.*smart money/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Wallet-pattern history/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet names.*ownership claims.*coordination claims.*smart money/s);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/\bParticipant success rate\b|\bSuccess rate\s+50(?:\.00)?%|\bWin-rate band\b/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);

@@ -150,6 +150,11 @@
       <button type="button" data-terminal-pane-button="raven" data-status="Checking" aria-pressed="false">Raven</button>
       <button type="button" data-terminal-pane-button="account" data-status="Address" data-perp-only aria-pressed="false">Account</button>
     </nav>
+    <button class="terminal-trade-sheet-scrim" id="terminalTradeSheetDismiss" type="button" aria-label="Close trade ticket and return to chart"></button>
+    <div class="terminal-mobile-trade-dock" id="terminalMobileTradeDock" aria-label="Open trade review" hidden>
+      <button type="button" data-terminal-mobile-side="primary">Buy</button>
+      <button type="button" data-terminal-mobile-side="secondary">Sell</button>
+    </div>
     <p class="sr-only" id="terminalRavenActionStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 
     <section class="terminal-workspace">
@@ -442,7 +447,10 @@
         <section class="terminal-order-preview" id="terminalTradeReviewSection" hidden>
           <header>
             <div><span>Order plan</span><h2 id="terminalPreviewTitle">Build a Hyperliquid plan</h2></div>
-            <strong id="terminalQuoteState">Exact market</strong>
+            <div class="terminal-ticket-header-actions">
+              <strong id="terminalQuoteState">Exact market</strong>
+              <button class="terminal-ticket-close" id="terminalTradeTicketClose" type="button">View chart</button>
+            </div>
           </header>
           <div class="terminal-order-type-toggle" role="group" aria-label="Order type">
             <button type="button" class="active" data-order-type="market" aria-pressed="true">Market</button>
@@ -576,8 +584,11 @@
 
         <section class="terminal-order-preview terminal-spot-ticket" id="terminalSpotTicketSection" tabindex="-1" hidden>
           <header>
-            <div><span>Solana route review</span><h2 id="terminalSpotTicketTitle">Review buying or selling this token</h2></div>
-            <strong id="terminalSpotQuoteState" role="status" aria-live="polite">Ready to quote</strong>
+            <div><span id="terminalSpotTicketEyebrow">Exact-market route review</span><h2 id="terminalSpotTicketTitle">Review buying or selling this token</h2></div>
+            <div class="terminal-ticket-header-actions">
+              <strong id="terminalSpotQuoteState" role="status" aria-live="polite">Ready to quote</strong>
+              <button class="terminal-ticket-close" id="terminalSpotTicketClose" type="button">View chart</button>
+            </div>
           </header>
 
           <div class="terminal-adapter-notice" id="terminalSpotAdapterNotice" hidden>

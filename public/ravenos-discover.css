@@ -1,0 +1,221 @@
+.discover-intro-copy { min-width: 0; }
+
+.discover-first-visit-guide {
+  max-width: 860px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 12px 0 0;
+  padding: 1px;
+  border: 1px solid var(--ws-border);
+  border-radius: 9px;
+  background: var(--ws-border);
+  list-style: none;
+}
+
+.discover-first-visit-guide li {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  background: rgba(8, 13, 20, .96);
+}
+
+.discover-first-visit-guide strong {
+  color: var(--ws-text);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.discover-first-visit-guide span {
+  color: var(--ws-muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.discover-intro-toggle,
+.discover-market-ribbon-actions button {
+  min-height: 26px;
+  border: 1px solid rgba(166, 177, 190, .22);
+  border-radius: 7px;
+  background: rgba(9, 14, 22, .86);
+  color: var(--ws-muted);
+  font: 720 7px var(--ws-mono);
+}
+
+.discover-intro-toggle {
+  margin-top: 9px;
+  padding: 0 9px;
+}
+
+.discover-intro-toggle:hover,
+.discover-intro-toggle:focus-visible,
+.discover-market-ribbon-actions button:hover,
+.discover-market-ribbon-actions button:focus-visible {
+  border-color: rgba(99, 197, 148, .42);
+  color: #8bd8b2;
+  outline: 0;
+}
+
+.discover-market-ribbon-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.discover-market-ribbon-actions button {
+  min-height: 20px;
+  padding: 0 7px;
+}
+
+.discover-page[data-tape-expanded="false"] .discover-market-ribbon-lane.is-listed { display: none; }
+
+.discover-token-decision-strip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.discover-token-decision-chip {
+  min-width: 0;
+  min-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(166, 177, 190, .16);
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: rgba(7, 11, 17, .72);
+  color: var(--ws-muted);
+  font: 690 7px/1.15 var(--ws-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-token-decision-chip[data-tone="warning"] {
+  border-color: rgba(229, 184, 92, .3);
+  color: #d9b56f;
+}
+
+.discover-token-decision-chip[data-tone="route"],
+.discover-token-decision-chip[data-tone="current"] {
+  border-color: rgba(63, 166, 117, .26);
+  color: #78c99b;
+}
+
+.discover-token-decision-chip[data-tone="pending"] { color: var(--ws-dim); }
+
+.discover-page[data-workspace-mode="returning"] .workspace-operator-head {
+  min-height: 58px;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 360px);
+  gap: 14px;
+  padding: 7px 14px;
+}
+
+.discover-page[data-workspace-mode="returning"] .workspace-question,
+.discover-page[data-workspace-mode="returning"] .workspace-operator-head p,
+.discover-page[data-workspace-mode="returning"] .discover-first-visit-guide { display: none; }
+
+.discover-page[data-workspace-mode="returning"] .discover-intro-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.discover-page[data-workspace-mode="returning"] .workspace-operator-head h1 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -.025em;
+  white-space: nowrap;
+}
+
+.discover-page[data-workspace-mode="returning"] .discover-intro-toggle { margin: 0; }
+.discover-page[data-workspace-mode="returning"] .workspace-primary-action { min-height: 34px; }
+
+.discover-page[data-workspace-mode="returning"] .discover-market-ribbon > header { min-height: 24px; padding-block: 3px; }
+.discover-page[data-workspace-mode="returning"] .discover-market-ribbon-lane { min-height: 34px; }
+.discover-page[data-workspace-mode="returning"] .discover-market-ribbon-track,
+.discover-page[data-workspace-mode="returning"] .discover-market-ribbon-wait { min-height: 34px; }
+.discover-page[data-workspace-mode="returning"] .discover-listed-tape-host,
+.discover-page[data-workspace-mode="returning"] .discover-listed-tape-frame { height: 34px; }
+.discover-page[data-workspace-mode="returning"] .workspace-statusline { min-height: 32px; }
+.discover-page[data-workspace-mode="returning"] .workspace-toolbar { min-height: 42px; padding-block: 5px; }
+.discover-page[data-workspace-mode="returning"] .discover-token-tape-head { min-height: 58px; padding-block: 8px; }
+.discover-page[data-workspace-mode="returning"] .discover-radar-filters { padding-block: 5px; }
+
+.discover-page .discover-token-row { min-height: 108px; }
+
+@media (max-width: 760px) {
+  .discover-first-visit-guide { grid-template-columns: 1fr; margin-top: 9px; }
+  .discover-first-visit-guide li { padding: 7px 8px; }
+  .discover-page[data-workspace-mode="first-visit"] .workspace-operator-head { padding-bottom: 9px; }
+  .discover-page[data-workspace-mode="first-visit"] .workspace-operator-head p { display: block; margin-top: 5px; }
+  .discover-page[data-workspace-mode="first-visit"] .discover-intro-toggle { min-height: 30px; }
+
+  .discover-market-ribbon-actions { gap: 5px; }
+  .discover-market-ribbon-actions time { max-width: 122px !important; }
+  .discover-market-ribbon-actions button { min-height: 20px; padding-inline: 6px; font-size: 6px; }
+
+  .discover-page[data-workspace-mode="returning"] .workspace-operator-head {
+    min-height: 38px;
+    display: block;
+    padding: 5px 9px;
+  }
+
+  .discover-page[data-workspace-mode="returning"] .discover-intro-copy {
+    min-height: 28px;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .discover-page[data-workspace-mode="returning"] .workspace-operator-head h1 { font-size: 14px; }
+  .discover-page[data-workspace-mode="returning"] .discover-intro-toggle { min-height: 26px; flex: 0 0 auto; font-size: 6.5px; }
+  .discover-page[data-workspace-mode="returning"] .workspace-mast-actions { display: none; }
+
+  .discover-page[data-workspace-mode="returning"] .discover-market-ribbon > header { min-height: 22px; padding-inline: 8px; }
+  .discover-page[data-workspace-mode="returning"] .discover-market-ribbon-lane { min-height: 32px; grid-template-columns: 70px minmax(0, 1fr); }
+  .discover-page[data-workspace-mode="returning"] .discover-market-ribbon-track,
+  .discover-page[data-workspace-mode="returning"] .discover-market-ribbon-wait { min-height: 32px; }
+  .discover-page[data-workspace-mode="returning"] .workspace-statusline { min-height: 28px; }
+  .discover-page[data-workspace-mode="returning"] .workspace-statusline > div { min-height: 28px; padding-block: 3px; }
+  .discover-page[data-workspace-mode="returning"] .workspace-toolbar { min-height: 40px; }
+
+  .discover-page[data-workspace-mode="returning"] .discover-token-tape-head { min-height: 0; gap: 5px; padding: 7px 8px; }
+  .discover-page[data-workspace-mode="returning"] .discover-token-tape-head > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+  .discover-page[data-workspace-mode="returning"] .discover-token-tape-head .workspace-label { display: none; }
+  .discover-page[data-workspace-mode="returning"] .discover-token-tape-head h2 { font-size: 14px; }
+  .discover-page[data-workspace-mode="returning"] .discover-token-tape-controls { gap: 4px; }
+  .discover-page[data-workspace-mode="returning"] .discover-token-chains,
+  .discover-page[data-workspace-mode="returning"] .discover-token-sort,
+  .discover-page[data-workspace-mode="returning"] .discover-timeframes { padding: 1px; }
+  .discover-page[data-workspace-mode="returning"] .discover-token-chains button,
+  .discover-page[data-workspace-mode="returning"] .discover-token-sort button,
+  .discover-page[data-workspace-mode="returning"] .discover-timeframes button { min-height: 22px; font-size: 7px; }
+  .discover-page[data-workspace-mode="returning"] .discover-radar-filters { padding: 5px 7px; }
+  .discover-page[data-workspace-mode="returning"] .discover-refine-markets > summary { min-height: 32px; }
+
+  .discover-page .discover-token-row {
+    min-height: 146px;
+    gap: 6px 8px;
+  }
+  .discover-token-raven { gap: 5px; }
+  .discover-token-raven > strong { line-height: 1.34; }
+  .discover-token-decision-strip { flex-wrap: nowrap; overflow: hidden; }
+  .discover-token-decision-chip { min-height: 17px; flex: 0 1 auto; padding-inline: 5px; font-size: 6.25px; }
+  .discover-token-decision-freshness { flex: 0 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discover-intro-toggle,
+  .discover-market-ribbon-actions button,
+  .discover-token-decision-chip { transition: none !important; }
+}

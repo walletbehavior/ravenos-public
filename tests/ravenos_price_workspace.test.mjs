@@ -88,7 +88,7 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminal, /Lightweight Charts™ by TradingView/);
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
   assert.match(terminalRuntime, /ingestExactPoolTrades/);
-  assert.match(terminalRuntime, /\["chart", "activity"\]\.includes/);
+  assert.match(terminalRuntime, /\["chart", "activity", "trade"\]\.includes/);
   assert.match(terminalRuntime, /setLastMetric\(livePrice\)/);
 });
 

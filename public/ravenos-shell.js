@@ -580,17 +580,31 @@ function utilityMarkup(kind, context) {
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
     : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
-  return `<nav class="ros-more-links" aria-label="Account and utility links">
-    <a href="/behavior/"><strong>Behavior Lab</strong><span>Participant patterns and cohort research</span></a>
-    <a href="/perps/#perpsIntelligence"><strong>Perps Intelligence</strong><span>Funding, positioning, pressure, and depth</span></a>
-    <a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a>
-    <a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a>
-    <button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button>
-    <button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button>
-    <a href="/pricing/"><strong>Access</strong><span>Plans and availability</span></a>
-    <a href="/docs/"><strong>Quick guide</strong><span>Find, inspect, and evaluate a market</span></a>
-    <a href="/faq/"><strong>FAQ</strong><span>What RavenOS can and cannot do</span></a>
-  </nav>`;
+  return `<div class="ros-more-menu">
+    <section>
+      <span>Research workspaces</span>
+      <nav class="ros-more-links" aria-label="Research workspaces">
+        <a href="/intelligence/"><strong>Raven Lab</strong><span>Behavior cohorts, perps, replay, and measured outcomes</span></a>
+        <a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a>
+      </nav>
+    </section>
+    <section>
+      <span>Your workspace</span>
+      <nav class="ros-more-links" aria-label="Account and saved research">
+        <a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a>
+        <button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button>
+        <button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button>
+      </nav>
+    </section>
+    <section>
+      <span>Plans & help</span>
+      <nav class="ros-more-links" aria-label="Plans and help">
+        <a href="/pricing/"><strong>Plans</strong><span>Free, Pro, Desk, and Enterprise</span></a>
+        <a href="/docs/"><strong>Quick guide</strong><span>Find, inspect, and evaluate a market</span></a>
+        <a href="/faq/"><strong>FAQ</strong><span>What RavenOS can and cannot do</span></a>
+      </nav>
+    </section>
+  </div>`;
 }
 
 export function mountRavenOSShell(options = {}) {
@@ -610,6 +624,7 @@ export function mountRavenOSShell(options = {}) {
   let spotSearchController = null;
   let spotSearchGeneration = 0;
   let spotSearch = { query: "", rows: [], state: "idle" };
+  let commandActiveIndex = -1;
   const palette = document.getElementById("rosCommandPalette");
   const commandInput = document.getElementById("rosCommandInput");
   const commandResults = document.getElementById("rosCommandResults");
@@ -767,6 +782,11 @@ export function mountRavenOSShell(options = {}) {
     const state = document.createElement("small");
     state.textContent = item.state || "Inspect";
     button.append(eyebrow, title, detail, state);
+    button.addEventListener("pointerenter", () => {
+      const buttons = [...commandResults.querySelectorAll(".ros-command-result")];
+      commandActiveIndex = buttons.indexOf(button);
+      for (const candidate of buttons) candidate.dataset.active = String(candidate === button);
+    });
     button.addEventListener("click", () => {
       palette.close();
       if (item.href) {
@@ -897,6 +917,7 @@ export function mountRavenOSShell(options = {}) {
     const clean = query.trim();
     const normalized = clean.toLowerCase();
     commandResults.replaceChildren();
+    commandActiveIndex = -1;
     const recent = clean ? [] : recentCommandResults();
     const recentIds = new Set(recent.map((item) => String(item.instrument_id || "").toLowerCase()));
     if (recent.length) appendCommandGroup("Recently viewed", recent, `${recent.length} on this browser`);
@@ -952,6 +973,16 @@ export function mountRavenOSShell(options = {}) {
               ? " · live market lookup unavailable"
               : "";
     searchStatus.textContent = registryState + spotState;
+  }
+
+  function moveCommandSelection(direction) {
+    const buttons = [...commandResults.querySelectorAll(".ros-command-result")];
+    if (!buttons.length) return;
+    commandActiveIndex = commandActiveIndex < 0
+      ? direction > 0 ? 0 : buttons.length - 1
+      : (commandActiveIndex + direction + buttons.length) % buttons.length;
+    for (const [index, button] of buttons.entries()) button.dataset.active = String(index === commandActiveIndex);
+    buttons[commandActiveIndex].scrollIntoView({ block: "nearest" });
   }
 
   function scheduleSpotSearch(query = "") {
@@ -1067,7 +1098,7 @@ export function mountRavenOSShell(options = {}) {
         return {
           ...row,
           label: row.asset,
-          detail: customerFacingText(raven?.why_raven_noticed, `${row.instrument_id} · live Hyperliquid market`),
+          detail: customerFacingText(raven?.why_raven_noticed, "Hyperliquid perpetual · USD/USDC settled"),
           state: raven ? `Raven ${raven.context_state || "observed"}` : "Live market",
           group: raven ? "Raven now" : "Hyperliquid",
           raven_context: Boolean(raven),
@@ -1121,6 +1152,21 @@ export function mountRavenOSShell(options = {}) {
   commandInput.addEventListener("input", () => {
     scheduleSpotSearch(commandInput.value);
     renderCommands(commandInput.value);
+  });
+  commandInput.addEventListener("keydown", (event) => {
+    if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+      event.preventDefault();
+      moveCommandSelection(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Enter") {
+      const buttons = commandResults.querySelectorAll(".ros-command-result");
+      const selected = buttons[commandActiveIndex >= 0 ? commandActiveIndex : 0];
+      if (selected) {
+        event.preventDefault();
+        selected.click();
+      }
+    }
   });
   document.getElementById("rosContextTrigger").addEventListener("click", () => document.body.classList.contains("ros-context-open") ? closeDrawers() : openContext());
   document.getElementById("rosContextClose").addEventListener("click", closeDrawers);

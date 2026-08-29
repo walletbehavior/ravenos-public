@@ -41,6 +41,21 @@
       <div class="route-state-strip" id="routeStateStrip">Behavior Lab</div>
     </section>
 
+    <section class="behavior-explorer" id="behaviorExplorer" aria-labelledby="behaviorExplorerTitle" hidden>
+      <header>
+        <div><span>Explore the evidence</span><h2 id="behaviorExplorerTitle">Compare participation by market slice</h2></div>
+        <p>Filters narrow current market evidence only. Every result keeps its own sample size, coverage, and measured result.</p>
+      </header>
+      <form class="behavior-explorer-controls" id="behaviorExplorerControls">
+        <label><span>Chain</span><select id="behaviorChainFilter" name="chain" aria-label="Filter Behavior Lab by chain"></select></label>
+        <label><span>Market cohort</span><select id="behaviorCohortFilter" name="cap_band" aria-label="Filter Behavior Lab by market cohort"></select></label>
+        <label id="behaviorAgeFilterField" hidden><span>Age cohort</span><select id="behaviorAgeFilter" name="age_cohort" aria-label="Filter Behavior Lab by age cohort"></select></label>
+        <label><span>Window</span><select id="behaviorWindowFilter" name="window" aria-label="Filter Behavior Lab by observation window"></select></label>
+        <button type="reset" id="behaviorExplorerReset">Reset</button>
+      </form>
+      <p class="behavior-explorer-summary" id="behaviorExplorerSummary" role="status" aria-live="polite">Preparing current market slices.</p>
+    </section>
+
     <section class="route-grid">
       <article class="route-panel" id="routePrimaryPanel"></article>
       <article class="route-panel" id="routeSecondaryPanel"></article>

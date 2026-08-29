@@ -1306,6 +1306,53 @@ test("desktop spot Terminal keeps the chart beside a focused trade dock without 
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test("mobile spot Terminal keeps the live chart in context while trade review opens as a contained sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, bullishSpotPlan: true, velocitySpotContext: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&launch=velocity");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  const chart = page.locator("#terminalChart");
+  const dock = page.locator("#terminalMobileTradeDock");
+  await expect(chart).toBeVisible();
+  await expect(dock).toBeVisible();
+  await expect(dock.locator('[data-terminal-mobile-side="primary"]')).toHaveText("Review buy");
+  await expect(dock.locator('[data-terminal-mobile-side="secondary"]')).toHaveText("Review sell");
+
+  await dock.locator('[data-terminal-mobile-side="primary"]').click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "trade");
+  await expect(chart).toBeVisible();
+  await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
+  await expect(page.locator("#terminalTradeSheetDismiss")).toBeVisible();
+  await expect(page.locator("#terminalSpotAmount")).toBeFocused();
+  await expect(dock).toBeHidden();
+
+  const geometry = await page.evaluate(() => {
+    const ticket = document.querySelector(".terminal-intelligence")?.getBoundingClientRect();
+    const mobileNav = document.querySelector(".ros-mobile-nav")?.getBoundingClientRect();
+    return {
+      ticketTop: ticket?.top,
+      ticketBottom: ticket?.bottom,
+      navTop: mobileNav?.top,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  expect(geometry.ticketTop).toBeGreaterThan(0);
+  expect(geometry.ticketBottom).toBeLessThanOrEqual((geometry.navTop || 844) - 4);
+  expect(geometry.overflow).toBeLessThanOrEqual(2);
+
+  await page.locator("#terminalSpotTicketClose").click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await expect(chart).toBeVisible();
+  await expect(dock).toBeVisible();
+  await expect(page.locator("#terminalSpotTicketSection")).toBeHidden();
+
+  await dock.locator('[data-terminal-mobile-side="secondary"]').click();
+  await expect(page.locator("#terminalSpotSell")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+});
+
 test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sells explicit without signing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {

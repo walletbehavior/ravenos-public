@@ -35,6 +35,7 @@ const sourceAssets = [
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
   "ravenos-workspace.css",
+  "ravenos-discover.css",
   "ravenos-discover-intelligence.js",
   "ravenos-discover.js",
   "ravenos-portfolio.js",

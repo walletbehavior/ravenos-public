@@ -14,6 +14,8 @@ const SOURCE_ORIGINAL_CLAIM_TEXT = ["original", "public", "claim"].join(" ");
 const SOURCE_PUBLIC_READ_TEXT = ["public", "read", "is", "mixed"].join(" ");
 const SOURCE_CLEAREST_SURFACE_TEXT = ["clearest", "current", "surface"].join(" ");
 let routeNarratorPayload = null;
+let behaviorExplorerModel = null;
+let behaviorExplorerBound = false;
 
 function sourceRegex(pattern, flags = "i") {
   return new RegExp(pattern, flags);
@@ -46,8 +48,25 @@ function publicMarketLabel(value) {
   if (/^(bnb|bsc)$/i.test(raw)) return "BNB";
   if (/^(rh|robinhood)$/i.test(raw)) return "RH";
   if (/^hyperliquid$/i.test(raw)) return "Hyperliquid";
+  if (/^hyperevm$/i.test(raw)) return "HyperEVM";
   if (/^eth$/i.test(raw) || /^ethereum$/i.test(raw)) return "Ethereum";
-  return raw;
+  const labels = {
+    arbitrum: "Arbitrum",
+    blast: "Blast",
+    cronos: "Cronos",
+    fantom: "Fantom",
+    near: "NEAR",
+    optimism: "Optimism",
+    polkadot: "Polkadot",
+    polygon: "Polygon",
+    pulsechain: "PulseChain",
+    sonic: "Sonic",
+    stepnetwork: "Step Network",
+    ton: "TON",
+    tron: "TRON",
+    xrpl: "XRPL",
+  };
+  return labels[raw.toLowerCase()] || titleCase(raw);
 }
 
 function traderSurfaceLabel(value, fallback = "market context") {
@@ -489,9 +508,345 @@ function behaviorPayoffPanel(payoff) {
         <strong>${escapeHtml(row.subject)}</strong>
         <p>${escapeHtml(row.plain_read || "Measured followthrough is available for this slice.")}</p>
         <dl><div><dt>What followed</dt><dd>${escapeHtml(row.operator_detail || "Measured outcome available")}</dd></div><div><dt>Settled sample</dt><dd>${escapeHtml(`${fmtNumber(row.usable_sample)} observations`)}</dd></div></dl>
+        ${behaviorPayoffInsightActions(row)}
       </article>`).join("")}
     </div>
   </section>`;
+}
+
+const BEHAVIOR_SCOPE_VALUE = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+const BEHAVIOR_AGE_COHORTS = new Set(["fresh_pairs", "new_pairs", "new", "migrated", "mature", "post_migration"]);
+
+function cleanBehaviorScopeValue(value) {
+  const clean = String(value || "").trim().toLowerCase();
+  return BEHAVIOR_SCOPE_VALUE.test(clean) ? clean : "";
+}
+
+function normalizeBehaviorWindow(value) {
+  const clean = cleanBehaviorScopeValue(value);
+  return clean === "live" ? "current" : clean;
+}
+
+function behaviorRowChain(row = {}) {
+  return cleanBehaviorScopeValue(row.chain || row.market_scope?.chain);
+}
+
+function behaviorRowCohort(row = {}) {
+  return cleanBehaviorScopeValue(row.cap_band || row.capitalization_band || row.market_scope?.cap_band);
+}
+
+function behaviorRowAgeCohort(row = {}) {
+  return cleanBehaviorScopeValue(row.age_cohort || row.age_band || row.market_age_band || row.lifecycle_cohort);
+}
+
+function behaviorRowWindow(row = {}) {
+  return normalizeBehaviorWindow(
+    row.window
+    || row.timeframe
+    || row.observation_window?.label
+    || row.evidence_contract?.observation_window?.label,
+  );
+}
+
+function behaviorScopeFromUrl() {
+  const params = new URL(window.location.href).searchParams;
+  return {
+    chain: cleanBehaviorScopeValue(params.get("chain")) || "all",
+    cohort: cleanBehaviorScopeValue(params.get("cap_band")) || "all",
+    age: cleanBehaviorScopeValue(params.get("age_cohort")) || "all",
+    window: normalizeBehaviorWindow(params.get("window")) || "all",
+  };
+}
+
+function behaviorScopeActive(scope = {}) {
+  return [scope.chain, scope.cohort, scope.age, scope.window].some((value) => value && value !== "all");
+}
+
+function behaviorCohortLabel(value) {
+  const clean = cleanBehaviorScopeValue(value);
+  if (!clean || clean === "all") return "All market cohorts";
+  if (BEHAVIOR_AGE_COHORTS.has(clean)) return `Age · ${capBandLabel(clean)}`;
+  if (["micro", "small", "mid", "large", "mega"].includes(clean)) return `Market cap · ${capBandLabel(clean)}`;
+  return capBandLabel(clean);
+}
+
+function behaviorScopeLabel(scope = {}) {
+  const parts = [];
+  if (scope.chain && scope.chain !== "all") parts.push(publicMarketLabel(scope.chain));
+  if (scope.cohort && scope.cohort !== "all") parts.push(behaviorCohortLabel(scope.cohort).replace(/^(?:Market cap|Age) · /, ""));
+  if (scope.age && scope.age !== "all") parts.push(`Age ${titleCase(scope.age)}`);
+  if (scope.window && scope.window !== "all") parts.push(scope.window === "current" ? "Current" : scope.window);
+  return parts.length ? parts.join(" · ") : "All supported slices";
+}
+
+function behaviorSliceScope(row = {}) {
+  return {
+    chain: behaviorRowChain(row) || "all",
+    cohort: behaviorRowCohort(row) || "all",
+    age: behaviorRowAgeCohort(row) || "all",
+    window: behaviorRowWindow(row) || "all",
+  };
+}
+
+function behaviorScopedHref(path, scope = {}) {
+  const url = new URL(path, window.location.origin);
+  if (scope.chain && scope.chain !== "all") url.searchParams.set("chain", scope.chain);
+  if (scope.cohort && scope.cohort !== "all") url.searchParams.set("cap_band", scope.cohort);
+  if (scope.age && scope.age !== "all") url.searchParams.set("age_cohort", scope.age);
+  if (scope.window && scope.window !== "all") url.searchParams.set("window", scope.window);
+  url.searchParams.set("source", "behavior");
+  return `${url.pathname}${url.search}`;
+}
+
+function behaviorScopeMatches(row = {}, scope = {}) {
+  if (scope.chain && scope.chain !== "all" && behaviorRowChain(row) !== scope.chain) return false;
+  if (scope.cohort && scope.cohort !== "all" && behaviorRowCohort(row) !== scope.cohort) return false;
+  if (scope.age && scope.age !== "all" && behaviorRowAgeCohort(row) !== scope.age) return false;
+  if (scope.window && scope.window !== "all" && behaviorRowWindow(row) !== normalizeBehaviorWindow(scope.window)) return false;
+  return true;
+}
+
+function behaviorPayoffInsightScope(insight = {}) {
+  const parts = String(insight.insight_id || "").toLowerCase().split(":");
+  if (parts.length < 4 || parts[0] !== "participation") return null;
+  const chain = cleanBehaviorScopeValue(parts[1]);
+  const cohort = cleanBehaviorScopeValue(parts[2]);
+  if (!chain || !cohort) return null;
+  return {
+    chain,
+    cohort,
+    age: "all",
+    window: normalizeBehaviorWindow(insight.observation_window) || "all",
+  };
+}
+
+function behaviorPayoffInsightForRow(row = {}, payoff = null) {
+  const rowScope = behaviorSliceScope(row);
+  return (payoff?.insights || []).find((insight) => {
+    const scope = behaviorPayoffInsightScope(insight);
+    if (!scope || scope.chain !== rowScope.chain || scope.cohort !== rowScope.cohort) return false;
+    return scope.window === "all" || rowScope.window === "all" || scope.window === rowScope.window;
+  }) || null;
+}
+
+function behaviorSettledEvidence(row = {}, payoff = null) {
+  const counts = behaviorOutcomeCounts(row);
+  if (counts) {
+    const positiveShare = counts.positive / counts.measured;
+    return {
+      score: positiveShare,
+      label: `${fmtNumber(counts.positive)} of ${fmtNumber(counts.measured)} (${(positiveShare * 100).toFixed(1)}%) ended positive`,
+      detail: "Completed outcomes in this market group and time window",
+      sample: counts.measured,
+      state: "measured",
+    };
+  }
+  const insight = behaviorPayoffInsightForRow(row, payoff);
+  if (!insight) return null;
+  const order = { punishing: 0, fragile: 1, rewarding: 2 };
+  return {
+    score: order[String(insight.state || "").toLowerCase()] ?? 1,
+    label: traderText(insight.plain_read, "Measured results are available."),
+    detail: traderText(insight.operator_detail, "Measured outcome available"),
+    sample: finiteCount(insight.usable_sample),
+    state: String(insight.state || "measured").toLowerCase(),
+  };
+}
+
+function behaviorSliceQualified(row = {}) {
+  return rowUsableSample(row) >= 20
+    && Boolean(behaviorRowChain(row) && behaviorRowCohort(row) && behaviorRowWindow(row));
+}
+
+function behaviorSliceActions(row = {}) {
+  if (!behaviorSliceQualified(row)) return "";
+  const scope = behaviorSliceScope(row);
+  const label = behaviorSliceLabel(row);
+  return `<nav class="behavior-slice-actions" aria-label="Historical evidence for ${escapeHtml(label)}"><a aria-label="Open similar history for ${escapeHtml(label)}" href="${escapeHtml(behaviorScopedHref("/replay/", scope))}">Similar history</a><a aria-label="Open measured results for ${escapeHtml(label)}" href="${escapeHtml(behaviorScopedHref("/outcomes/", scope))}">Measured results</a></nav>`;
+}
+
+function behaviorPayoffInsightActions(insight = {}) {
+  const scope = behaviorPayoffInsightScope(insight);
+  if (!scope || Number(insight.usable_sample) < 20) return "";
+  const label = insight.subject || "this market slice";
+  return `<nav class="behavior-slice-actions" aria-label="Historical evidence for ${escapeHtml(label)}"><a aria-label="Open similar history for ${escapeHtml(label)}" href="${escapeHtml(behaviorScopedHref("/replay/", scope))}">Similar history</a><a aria-label="Open measured results for ${escapeHtml(label)}" href="${escapeHtml(behaviorScopedHref("/outcomes/", scope))}">Measured results</a></nav>`;
+}
+
+function behaviorExplorerFollowthrough(row = {}, payoff = null) {
+  return behaviorSettledEvidence(row, payoff)?.label || "No directional edge measured";
+}
+
+function behaviorExplorerNarrative(row = {}, payoff = null) {
+  const evidence = behaviorSettledEvidence(row, payoff);
+  const current = traderText(row.plain_language_summary || row.interpretation, `${titleCase(row.trend || row.participation_trend || "forming")} participation is forming.`);
+  if (!evidence) {
+    if (/reward|punish|success|win[- ]?rate|followthrough|positive outcome|negative outcome|stronger .*outcome/i.test(current)) {
+      return `${titleCase(row.trend || row.participation_trend || "forming")} participation in this slice. No completed outcome comparison is attached.`;
+    }
+    return `${current} No completed outcome comparison is attached.`;
+  }
+  return `${current} ${evidence.label}.`;
+}
+
+function behaviorExplorerHighlightRail(rows = [], payoff = null) {
+  const supported = rows.filter((row) => rowUsableSample(row) >= 20);
+  if (!supported.length) return `<section class="behavior-focus behavior-insight-rail"><article class="behavior-insight-card"><span>Evidence forming</span><h3>No supported comparison in this view</h3><p>Widen the filters or wait for more usable observations. Thin slices are not ranked.</p></article></section>`;
+  const measured = supported
+    .map((row) => ({ row, evidence: behaviorSettledEvidence(row, payoff) }))
+    .filter((item) => item.evidence)
+    .sort((a, b) => b.evidence.score - a.evidence.score || rowUsableSample(b.row) - rowUsableSample(a.row));
+  let cards;
+  if (measured.length) {
+    const strongest = measured[0];
+    const weakest = [...measured].reverse().find((item) => item.row !== strongest.row) || null;
+    cards = [["Best measured result", strongest], ["Weakest measured result", weakest]].filter(([, item]) => item);
+  } else {
+    const insights = chooseBehaviorInsights(supported);
+    cards = [
+      ["Strongest supported slice", insights.strongest ? { row: insights.strongest, evidence: null } : null],
+      ["Weakest supported slice", insights.weakest ? { row: insights.weakest, evidence: null } : null],
+    ].filter(([, item]) => item);
+  }
+  return `<section class="behavior-focus behavior-insight-rail" aria-label="Filtered behavior summary">
+    ${cards.map(([role, item]) => `<article class="behavior-insight-card" data-insight-role="${escapeHtml(statusClass(role))}">
+      <span>${escapeHtml(role)}</span>
+      <h3>${escapeHtml(behaviorSliceLabel(item.row))}</h3>
+      <p>${escapeHtml(behaviorExplorerNarrative(item.row, payoff))}</p>
+      <dl>
+        <div><dt>Participation</dt><dd>${escapeHtml(titleCase(item.row.trend || item.row.participation_trend || "forming"))}</dd></div>
+        <div><dt>Directional edge</dt><dd>${escapeHtml(item.evidence?.label || "No directional edge measured")}</dd></div>
+        <div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(item.row))}</dd></div>
+      </dl>
+      ${behaviorSliceActions(item.row)}
+    </article>`).join("")}
+  </section>`;
+}
+
+function behaviorMatrixCard(row = {}, payoff = null, { detailed = false } = {}) {
+  const qualityMetric = detailed
+    ? `<div><dt>Evidence quality</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div>`
+    : `<div><dt>Window</dt><dd>${escapeHtml(row.window || row.timeframe || "current")}</dd></div>`;
+  return `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || row.participation_trend || "building"))}" data-behavior-chain="${escapeHtml(behaviorRowChain(row))}" data-behavior-cohort="${escapeHtml(behaviorRowCohort(row))}" data-behavior-window="${escapeHtml(behaviorRowWindow(row))}">
+    <header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header>
+    <p>${escapeHtml(behaviorExplorerNarrative(row, payoff))}</p>
+    <dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.trend || row.participation_trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorExplorerFollowthrough(row, payoff))}</dd></div>${qualityMetric}<div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div></dl>
+    <div class="behavior-card-foot"><span>Aggregate market behavior</span>${behaviorSliceActions(row)}</div>
+  </article>`;
+}
+
+function behaviorPayoffSubset(payoff, rows, scope) {
+  if (!payoff || !behaviorScopeActive(scope)) return payoff;
+  const insights = payoff.insights.filter((insight) => rows.some((row) => behaviorPayoffInsightForRow(row, { ...payoff, insights: [insight] })));
+  return insights.length ? { ...payoff, insights } : null;
+}
+
+function setBehaviorFilterOptions(select, values, selected, labeler, allLabel) {
+  if (!select) return;
+  const options = [new Option(allLabel, "all")];
+  for (const value of values) options.push(new Option(labeler(value), value));
+  if (selected !== "all" && !values.includes(selected)) options.push(new Option(`${labeler(selected)} · unavailable`, selected));
+  select.replaceChildren(...options);
+  select.value = selected;
+}
+
+function syncBehaviorExplorerUrl(filters) {
+  const url = new URL(window.location.href);
+  for (const [key, value] of [["chain", filters.chain], ["cap_band", filters.cohort], ["age_cohort", filters.age], ["window", filters.window]]) {
+    if (!value || value === "all") url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+  }
+  url.searchParams.delete("source");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function renderBehaviorExplorerResults({ syncUrl = false } = {}) {
+  const model = behaviorExplorerModel;
+  if (!model) return;
+  const filters = {
+    chain: document.getElementById("behaviorChainFilter")?.value || "all",
+    cohort: document.getElementById("behaviorCohortFilter")?.value || "all",
+    age: document.getElementById("behaviorAgeFilter")?.value || "all",
+    window: document.getElementById("behaviorWindowFilter")?.value || "all",
+  };
+  model.filters = filters;
+  const rows = model.rows.filter((row) => behaviorScopeMatches(row, filters));
+  const visibleRows = rows.slice(0, model.displayLimit);
+  const scopeLabel = behaviorScopeLabel(filters);
+  const measured = rows.map((row) => behaviorSettledEvidence(row, model.payoff)).filter(Boolean);
+  const summary = document.getElementById("behaviorExplorerSummary");
+  if (summary) {
+    const ageNote = model.ages.length ? "" : " This view does not yet separate markets by age.";
+    summary.textContent = rows.length
+      ? `${scopeLabel}: ${visibleRows.length < rows.length ? `showing ${visibleRows.length} of ${rows.length} matching slices` : `showing ${rows.length} of ${model.rows.length} current slices`}. ${measured.length} have qualified measured results; each sample remains separate.${ageNote}`
+      : `${scopeLabel}: no current slice matches these filters. Broader cohorts were not substituted.${ageNote}`;
+  }
+  const payoffHost = document.getElementById("behaviorExplorerPayoff");
+  if (payoffHost) payoffHost.innerHTML = behaviorPayoffPanel(behaviorPayoffSubset(model.payoff, rows, filters));
+  const highlightHost = document.getElementById("behaviorExplorerHighlights");
+  if (highlightHost) highlightHost.innerHTML = behaviorExplorerHighlightRail(rows, model.payoff);
+  const matrix = document.getElementById("behaviorExplorerMatrix");
+  if (matrix) {
+    matrix.innerHTML = rows.length
+      ? visibleRows.map((row) => behaviorMatrixCard(row, model.payoff, { detailed: model.detailed })).join("")
+      : `<div class="route-unavailable behavior-explorer-empty"><strong>No supported market slice in this view</strong><p>Change a filter to see more current market groups. RavenOS will not replace an empty result with a broader or older rate.</p></div>`;
+  }
+  const strongestMeasured = measured.sort((a, b) => b.score - a.score)[0] || null;
+  const weakestMeasured = [...measured].sort((a, b) => a.score - b.score)[0] || null;
+  const stateStrip = document.getElementById("routeStateStrip");
+  stateStrip.dataset.columns = "4";
+  stateStrip.innerHTML = [
+    routeStateCard("Slices shown", `${fmtNumber(rows.length)} of ${fmtNumber(model.rows.length)}`),
+    routeStateCard("Best measured result", strongestMeasured?.label || "No qualified comparison"),
+    routeStateCard("Weakest measured result", weakestMeasured && weakestMeasured !== strongestMeasured ? weakestMeasured.label : "No qualified comparison"),
+    routeStateCard("Current data", titleCase(model.freshness)),
+  ].join("");
+  if (behaviorScopeActive(filters)) {
+    document.getElementById("routeHeadline").textContent = rows.length ? `${scopeLabel}: participation under review.` : `${scopeLabel}: current evidence unavailable.`;
+    document.getElementById("routeHeroSummary").textContent = measured.length
+      ? "This view contains qualified completed outcomes. They describe prior results, not a forecast or calibrated probability."
+      : "Current participation is visible where available, but no completed directional comparison is attached to this exact slice.";
+  } else {
+    document.getElementById("routeHeadline").textContent = model.baseHeadline;
+    document.getElementById("routeHeroSummary").textContent = model.baseSummary;
+  }
+  if (syncUrl) syncBehaviorExplorerUrl(filters);
+}
+
+function mountBehaviorExplorer(rows, payoff, { detailed = false, freshness = "unavailable", baseHeadline = "Behavior Lab", baseSummary = "" } = {}) {
+  const root = document.getElementById("behaviorExplorer");
+  if (!root) return;
+  const filters = behaviorScopeFromUrl();
+  const chains = [...new Set(rows.map(behaviorRowChain).filter(Boolean))].sort();
+  const cohorts = [...new Set(rows.map(behaviorRowCohort).filter(Boolean))].sort();
+  const ages = [...new Set(rows.map(behaviorRowAgeCohort).filter(Boolean))].sort();
+  const windows = [...new Set(rows.map(behaviorRowWindow).filter(Boolean))].sort();
+  behaviorExplorerModel = { rows, payoff, detailed, freshness, baseHeadline, baseSummary, ages, filters, displayLimit: detailed ? 24 : 6 };
+  root.hidden = false;
+  setBehaviorFilterOptions(document.getElementById("behaviorChainFilter"), chains, filters.chain, publicMarketLabel, "All chains");
+  setBehaviorFilterOptions(document.getElementById("behaviorCohortFilter"), cohorts, filters.cohort, behaviorCohortLabel, "All market cohorts");
+  setBehaviorFilterOptions(document.getElementById("behaviorWindowFilter"), windows, filters.window, (value) => value === "current" ? "Current" : value, "All windows");
+  const ageField = document.getElementById("behaviorAgeFilterField");
+  if (ageField) ageField.hidden = !ages.length && filters.age === "all";
+  setBehaviorFilterOptions(document.getElementById("behaviorAgeFilter"), ages, filters.age, titleCase, "All age cohorts");
+  if (!behaviorExplorerBound) {
+    behaviorExplorerBound = true;
+    document.getElementById("behaviorExplorerControls")?.addEventListener("change", () => renderBehaviorExplorerResults({ syncUrl: true }));
+    document.getElementById("behaviorExplorerControls")?.addEventListener("reset", (event) => {
+      event.preventDefault();
+      for (const id of ["behaviorChainFilter", "behaviorCohortFilter", "behaviorAgeFilter", "behaviorWindowFilter"]) {
+        const select = document.getElementById(id);
+        if (select) select.value = "all";
+      }
+      renderBehaviorExplorerResults({ syncUrl: true });
+    });
+  }
+  renderBehaviorExplorerResults();
+}
+
+function hideBehaviorExplorer() {
+  behaviorExplorerModel = null;
+  const root = document.getElementById("behaviorExplorer");
+  if (root) root.hidden = true;
 }
 
 function evidenceContextIsCurrent(evidence = {}, fallbackState = "unavailable", maxAgeSeconds = 86_400) {
@@ -1109,30 +1464,35 @@ function renderOpportunity(payload) {
 
 function renderReplay(payload) {
   const data = payload?.data || {};
-  const comparables = Array.isArray(data.comparables) ? data.comparables.slice(0, 6) : [];
-  if (!comparables.length && (data.availability?.state === "unavailable" || data.status === "historical_comparables_unavailable")) {
-    document.getElementById("routeHeadline").textContent = "Similar history is unavailable for this market.";
+  const requestedScope = behaviorScopeFromUrl();
+  const scoped = behaviorScopeActive(requestedScope);
+  const availableComparables = Array.isArray(data.comparables) ? data.comparables : [];
+  const comparables = (scoped ? availableComparables.filter((row) => behaviorScopeMatches(row, requestedScope)) : availableComparables).slice(0, 6);
+  if (!comparables.length && (scoped || data.availability?.state === "unavailable" || data.status === "historical_comparables_unavailable")) {
+    const scopeLabel = scoped ? behaviorScopeLabel(requestedScope) : "this market";
+    document.getElementById("routeHeadline").textContent = `Similar history is unavailable for ${scopeLabel}.`;
     document.getElementById("routeHeroSummary").textContent = text(
-      data.availability?.reason,
-      "Similar history remains unavailable until Raven can reconstruct exactly what was known then without substituting present-day results.",
+      scoped ? "No historical match with the same chain, market group, age, and time window is available. Broader history was not substituted." : "Raven has not found a trustworthy historical match for this view yet.",
+      "Raven has not found a trustworthy historical match for this view yet.",
     );
     document.getElementById("routeStateStrip").innerHTML = [
+      ...(scoped ? [routeStateCard("Requested slice", scopeLabel)] : []),
       routeStateCard("Similar history", "Unavailable"),
-      routeStateCard("Synthetic similarity", data.availability?.synthetic_similarity_generated === false ? "None" : "Unknown"),
-      routeStateCard("Current outcomes substituted", data.availability?.current_outcomes_substituted === false ? "No" : "Unknown"),
+      routeStateCard("Invented matches", data.availability?.synthetic_similarity_generated === false ? "Never" : "Not verified"),
+      routeStateCard("Newer results reused", data.availability?.current_outcomes_substituted === false ? "Never" : "Not verified"),
       routeStateCard("Available analogues", "0"),
     ].join("");
     document.getElementById("routePrimaryPanel").innerHTML = `
       <div class="route-panel-head"><div><div class="route-chip-label">Similar history unavailable</div><h2>No invented analogues</h2></div><span class="route-pill unavailable">Unavailable</span></div>
-      <div class="route-unavailable"><strong>Raven cannot reconstruct a comparable case yet</strong><p>${escapeHtml(text(data.availability?.reason, "Current historical comparisons are not available."))}</p></div>
-      <div class="route-next"><a class="primary" href="/outcomes/">Inspect measured followthrough</a><a href="/opportunity/">Return to current opportunities</a></div>`;
+      <div class="route-unavailable"><strong>No trustworthy match yet</strong><p>${escapeHtml(scoped ? `No historical match is available for ${scopeLabel}. RavenOS did not widen the chain, market group, age, or window to manufacture one.` : "Current historical comparisons are not available for this view.")}</p></div>
+      <div class="route-next"><a class="primary" href="${escapeHtml(behaviorScopedHref("/outcomes/", requestedScope))}">Inspect measured followthrough</a><a href="${escapeHtml(behaviorScopedHref("/behavior/", requestedScope))}">Change Behavior filters</a><a href="/opportunity/">Return to current opportunities</a></div>`;
     document.getElementById("routeSecondaryPanel").innerHTML = `
       <div class="route-panel-head"><div><div class="route-chip-label">Why unavailable</div><h2>What Raven needs before showing similar history</h2></div></div>
       <div class="route-continuity-list">
-        <div><span>Identity</span><strong>Same market and decision boundary</strong><small>No present-day backfill</small></div>
-        <div><span>Time</span><strong>As-of evidence reconstruction</strong><small>Only evidence available then</small></div>
-        <div><span>Outcome</span><strong>Future-only matured path</strong><small>Declared window and sample quality</small></div>
-        <div><span>Evidence</span><strong>Public source history</strong><small>Private identities and thresholds stay private</small></div>
+        <div><span>Setup</span><strong>The same market conditions</strong><small>No looser category used to force a match</small></div>
+        <div><span>Timing</span><strong>Only what was known then</strong><small>No later information added to the original setup</small></div>
+        <div><span>Result</span><strong>The full window must finish</strong><small>Incomplete outcomes stay out of the comparison</small></div>
+        <div><span>Evidence</span><strong>Traceable market history</strong><small>Private identities and thresholds stay private</small></div>
       </div>`;
     return;
   }
@@ -1143,9 +1503,14 @@ function renderReplay(payload) {
   const topMeaning = top
     ? `${fmtPct(top.similarity_score)} similarity means the current public structure matched prior ${comparableLabel(top)} conditions across ${matchReasons.length ? matchReasons.join(", ") : "available public context"}. Prior followthrough was ${topOutcome.toLowerCase()}. This supports historical context, not conviction or a forecast.`
     : "Historical interpretation is forming because no comparable setup is currently available.";
-  document.getElementById("routeHeadline").textContent = traderText(comparables[0]?.public_read, "Historical analogue context is forming.");
-  document.getElementById("routeHeroSummary").textContent = "Similar history explains what looked alike before and what followed, without turning prior results into a forecast.";
+  document.getElementById("routeHeadline").textContent = scoped
+    ? `${behaviorScopeLabel(requestedScope)}: what looked similar before?`
+    : traderText(comparables[0]?.public_read, "Historical analogue context is forming.");
+  document.getElementById("routeHeroSummary").textContent = scoped
+    ? "Only as-of comparables matching the requested market slice are shown. Later data is never rewritten into the original comparison."
+    : "Similar history explains what looked alike before and what followed, without turning prior results into a forecast.";
   document.getElementById("routeStateStrip").innerHTML = [
+    ...(scoped ? [routeStateCard("Requested slice", behaviorScopeLabel(requestedScope))] : []),
     routeStateCard("Similar setups", fmtNumber(comparables.length)),
     routeStateCard("Closest match", top ? comparableLabel(top) : FORMING_TEXT),
     routeStateCard("Top similarity", top ? fmtPct(top.similarity_score) : FORMING_TEXT),
@@ -1166,7 +1531,7 @@ function renderReplay(payload) {
     <div class="route-table-wrap"><table class="route-table"><thead><tr><th>Similar setup</th><th>Similarity</th><th>Followthrough</th><th>Similarity basis</th></tr></thead><tbody>${
       comparables.map((row) => `<tr><td><strong>${escapeHtml(comparableLabel(row))}</strong></td><td>${escapeHtml(fmtPct(row.similarity_score))}</td><td>${escapeHtml(titleCase(row.after_window_summary))}</td><td>${replayBasisList(row.match_reasons || [])}</td></tr>`).join("")
     }</tbody></table></div>
-    <div class="route-next"><a class="primary" href="/opportunity/">Find markets with similar structure</a><a href="/memory/">Open Memory</a></div>
+    <div class="route-next"><a class="primary" href="${escapeHtml(behaviorScopedHref("/outcomes/", requestedScope))}">Check measured followthrough</a>${scoped ? `<a href="${escapeHtml(behaviorScopedHref("/behavior/", requestedScope))}">Adjust market slice</a>` : ""}<a href="/opportunity/">Find markets with similar structure</a><a href="/memory/">Open Memory</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">How to use it</div><h2>History is context, not conviction</h2></div></div><p class="route-caveat">Similarity explains why prior structures may be relevant. Check what matched and what followed before treating an analogue as useful context. Similarity does not validate the current outcome or management path.</p>`;
 }
@@ -1254,6 +1619,7 @@ function currentBehaviorProjection(payload) {
 }
 
 function renderBehaviorUnavailable() {
+  hideBehaviorExplorer();
   document.getElementById("routeHeadline").textContent = "Current Behavior Lab read unavailable.";
   document.getElementById("routeHeroSummary").textContent = "Current market-slice data is incomplete or out of date. Older behavior is not presented as a live read.";
   document.getElementById("routeStateStrip").innerHTML = [
@@ -1281,12 +1647,14 @@ function renderBehaviorFree(payload, projection) {
   const payoff = currentBehaviorPayoff(payload.participation_payoff);
   const payoffLeaders = behaviorPayoffLeaders(payoff);
   const freshness = projection.provenance?.freshness?.state || payload.delivery?.freshness_state || "unavailable";
-  document.getElementById("routeHeadline").textContent = behaviorPayoffHeadline(payoff, focus
+  const baseHeadline = behaviorPayoffHeadline(payoff, focus
     ? `${focusLabel}: ${titleCase(focus.participation_trend || "forming")} participation.`
     : "Behavior Lab is forming.");
-  document.getElementById("routeHeroSummary").textContent = payoff
+  const baseSummary = payoff
     ? "See the strongest and weakest settled followthrough first, then inspect the participation and sample behind each market slice. Mixed or default rates do not create an edge."
     : "Compare current participation across chains, size groups, and time windows. Every slice keeps its usable sample visible; no directional edge is shown without counted outcomes.";
+  document.getElementById("routeHeadline").textContent = baseHeadline;
+  document.getElementById("routeHeroSummary").textContent = baseSummary;
   const stateStrip = document.getElementById("routeStateStrip");
   stateStrip.dataset.columns = "4";
   stateStrip.innerHTML = [
@@ -1298,11 +1666,9 @@ function renderBehaviorFree(payload, projection) {
 
   document.getElementById("routePrimaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Behavior Lab</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(freshness))}">${escapeHtml(titleCase(freshness))}</span></div>
-    ${behaviorPayoffPanel(payoff)}
-    ${behaviorInsightRail(rows)}
-    <div class="behavior-matrix" aria-label="Current market slices">
-      ${rows.map((row) => `<article data-strength="${escapeHtml(statusClass(row.participation_trend || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.participation_trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(row.window || "current")}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
-    </div>
+    <div id="behaviorExplorerPayoff"></div>
+    <div id="behaviorExplorerHighlights"></div>
+    <div class="behavior-matrix" id="behaviorExplorerMatrix" aria-label="Current market slices"></div>
     <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a><a href="/perps/#perpsIntelligence">Compare perps separately</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
@@ -1316,6 +1682,7 @@ function renderBehaviorFree(payload, projection) {
     </div>
     <div class="route-next"><a class="primary" href="https://app.ravenos.xyz/account/intelligence/?view=participants">Open Pro workspace</a><a href="/intelligence/">All Intelligence</a></div>
   `;
+  mountBehaviorExplorer(rows, payoff, { detailed: false, freshness, baseHeadline, baseSummary });
 }
 
 function renderBehavior(payload) {
@@ -1362,31 +1729,31 @@ function renderBehavior(payload) {
   const focusLabel = focus ? behaviorSliceLabel(focus) : "Market behavior";
   const payoff = currentBehaviorPayoff(payload.participation_payoff);
   const payoffLeaders = behaviorPayoffLeaders(payoff);
-  document.getElementById("routeHeadline").textContent = behaviorPayoffHeadline(payoff, focus
+  const baseHeadline = behaviorPayoffHeadline(payoff, focus
     ? `${focusLabel}: ${titleCase(focus.trend || "forming")} participation.`
     : "Behavior Lab is forming.");
-  document.getElementById("routeHeroSummary").textContent = payoff
-    ? "See the strongest and weakest settled followthrough first, then inspect current participation by chain and size group. Mixed or default rates do not create an edge."
+  const baseSummary = payoff
+    ? "See the strongest and weakest measured results first, then inspect current participation by chain and size group. Mixed or default rates do not create an edge."
     : "Compare where participation is broadening, selective, or fading across chains, size groups, and time windows. Directional edge appears only when explicit outcome counts support it.";
+  document.getElementById("routeHeadline").textContent = baseHeadline;
+  document.getElementById("routeHeroSummary").textContent = baseSummary;
   const stateStrip = document.getElementById("routeStateStrip");
   stateStrip.dataset.columns = "4";
   stateStrip.innerHTML = [
     routeStateCard("Market slices", fmtNumber(rows.length)),
     routeStateCard("Working", payoffLeaders.working?.subject || "No qualified edge"),
     routeStateCard("Punishing", payoffLeaders.punishing?.subject || "No qualified edge"),
-    routeStateCard("Recurring wallets", participantContextCurrent ? "Current · aggregate" : "Excluded as stale"),
+    routeStateCard("Wallet-pattern history", participantContextCurrent ? "Current · aggregate" : "Not used because it is old"),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Market slices</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(sampleMaturityLabel(rowUsableSample(focus || {}))))}">${escapeHtml(sampleMaturityLabel(rowUsableSample(focus || {})))}</span></div>
-    ${behaviorPayoffPanel(payoff)}
-    ${behaviorInsightRail(rows)}
-    <div class="behavior-matrix" aria-label="Current market slices">
-      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Evidence quality</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
-    </div>
-    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a><a href="/perps/#perpsIntelligence">Compare perps separately</a></div>
+    <div id="behaviorExplorerPayoff"></div>
+    <div id="behaviorExplorerHighlights"></div>
+    <div class="behavior-matrix" id="behaviorExplorerMatrix" aria-label="Current market slices"></div>
+    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured results</a><a href="/perps/#perpsIntelligence">Compare perps separately</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = participantContextCurrent ? `
-    <div class="route-panel-head"><div><div class="route-chip-label">Recurring-wallet context</div><h2>Aggregate recurrence, kept separate</h2></div><span class="route-pill current">Current</span></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Wallet-pattern history</div><h2>A separate supporting signal</h2></div><span class="route-pill current">Current</span></div>
     <section class="participant-ledger">
       <div><span>Wallets sampled</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>Aggregate snapshot</small></div>
       <div><span>Cohorts tracked</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Grouped without wallet labels</small></div>
@@ -1395,15 +1762,21 @@ function renderBehavior(payload) {
       <div><span>Reached +10% after observation</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Observed path evidence</small></div>
       <div><span>Reached +25% after observation</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe25_count ?? data.actual_mfe25_count))}</strong><small>Not capturable performance</small></div>
     </section>
-    <div class="participant-read"><span>Recurring-wallet read</span><strong>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Recurring-wallet evidence is forming."))}</strong><p>Measured ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. This aggregate context can challenge a setup; it does not identify a wallet or prove involvement in an exact market.</p></div>
+    <div class="participant-read"><span>Repeated activity</span><strong>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Repeated activity is forming."))}</strong><p>Measured ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. This market-wide pattern can challenge a setup; it does not identify a wallet or prove involvement in an exact market.</p></div>
     <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    <div class="route-boundary"><span>Privacy boundary</span><strong>No wallet identities, labels, ownership claims, relationship graphs, coordination allegations, or “smart money” ranking.</strong></div>
+    <div class="route-boundary"><span>What stays private</span><strong>No wallet names, labels, ownership claims, relationship graphs, coordination claims, or “smart money” ranking.</strong></div>
   ` : `
-    <div class="route-panel-head"><div><div class="route-chip-label">Recurring-wallet context</div><h2>Excluded from the current read</h2></div><span class="route-pill unavailable">Excluded</span></div>
-    <div class="route-unavailable"><strong>Market behavior is current; recurring-wallet evidence is not.</strong><p>Last measured ${escapeHtml(fmtWhen(actorEvidence.observed_at))}. Stale wallet counts and narrative are hidden and do not affect the headline, strongest slice, weakest slice, or directional edge.</p></div>
+    <div class="route-panel-head"><div><div class="route-chip-label">Wallet-pattern history</div><h2>Not used in today’s result</h2></div><span class="route-pill unavailable">Not used</span></div>
+    <div class="route-unavailable"><strong>Today’s market activity is current; this supporting history is not.</strong><p>Last measured ${escapeHtml(fmtWhen(actorEvidence.observed_at))}. Older wallet-pattern counts are hidden and do not affect the headline, strongest market group, weakest market group, or directional edge.</p></div>
     <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    <div class="route-boundary"><span>Privacy boundary</span><strong>No wallet identities, labels, ownership claims, relationship graphs, coordination allegations, or “smart money” ranking.</strong></div>
+    <div class="route-boundary"><span>What stays private</span><strong>No wallet names, labels, ownership claims, relationship graphs, coordination claims, or “smart money” ranking.</strong></div>
   `;
+  mountBehaviorExplorer(rows, payoff, {
+    detailed: true,
+    freshness: payload.delivery?.freshness_state || "current",
+    baseHeadline,
+    baseSummary,
+  });
 }
 
 function renderResearch(payload) {
@@ -1544,8 +1917,13 @@ function renderPerps(payload) {
 
 function renderOutcomes(payload) {
   const data = payload?.data || {};
-  const recent = Array.isArray(data.recent_raven_reads) ? data.recent_raven_reads : [];
-  const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+  const requestedScope = behaviorScopeFromUrl();
+  const scoped = behaviorScopeActive(requestedScope);
+  const allRecent = Array.isArray(data.recent_raven_reads) ? data.recent_raven_reads : [];
+  const allOutcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+  const recent = scoped ? allRecent.filter((row) => behaviorScopeMatches(row, requestedScope)) : allRecent;
+  const outcomes = scoped ? allOutcomes.filter((row) => behaviorScopeMatches(row, requestedScope)) : allOutcomes;
+  const scopeLabel = behaviorScopeLabel(requestedScope);
   const recentTotals = sampleTotals(recent);
   const outcomeTotals = sampleTotals(outcomes);
   const readCounts = recent.reduce((acc, row) => {
@@ -1558,11 +1936,13 @@ function renderOutcomes(payload) {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
-  const evidenceObserved = outcomeTotals.observed || recentTotals.observed || data.count || outcomes.length;
+  const evidenceObserved = outcomeTotals.observed || recentTotals.observed || (scoped ? outcomes.length : data.count) || outcomes.length;
   const readsUnderValidation = (readCounts.pending || 0) + (readCounts.partially_settled || 0);
   const confirmedFollowthrough = outcomeCounts.confirmed || readCounts.confirmed || 0;
   const mixedOrInsufficient = (outcomeCounts.mixed || 0) + (outcomeCounts.insufficient || 0);
-  const validationStatus = confirmedFollowthrough > 0
+  const validationStatus = scoped && !outcomes.length
+    ? "No settled match"
+    : confirmedFollowthrough > 0
     ? titleCase(data.aggregate_validation_state || "sample forming")
     : "Validation sample forming";
   const confirmedShare = outcomes.length ? (confirmedFollowthrough / outcomes.length) * 100 : 0;
@@ -1617,9 +1997,12 @@ function renderOutcomes(payload) {
   };
   const initialMobileReads = recent.slice(0, 4);
   const moreMobileReads = recent.slice(4);
-  document.getElementById("routeHeadline").textContent = "Did earlier Raven reads follow through?";
-  document.getElementById("routeHeroSummary").textContent = "Followthrough tracks what happened after earlier Raven reads reached their declared measurement window. Live observations remain open until then.";
+  document.getElementById("routeHeadline").textContent = scoped ? `Followthrough for ${scopeLabel}.` : "Did earlier Raven reads follow through?";
+  document.getElementById("routeHeroSummary").textContent = scoped
+    ? "Only reads and settled outcomes matching this market slice are counted. Broader chains, cohorts, and windows are not substituted."
+    : "Followthrough tracks what happened after earlier Raven reads reached their declared measurement window. Live observations remain open until then.";
   document.getElementById("routeStateStrip").innerHTML = [
+    ...(scoped ? [routeStateCard("Requested slice", scopeLabel)] : []),
     routeStateCard("Evidence observed", `${fmtNumber(evidenceObserved)} observations`),
     routeStateCard("Reads under validation", fmtNumber(readsUnderValidation)),
     routeStateCard("Settled outcomes", fmtNumber(outcomes.length)),
@@ -1628,8 +2011,8 @@ function renderOutcomes(payload) {
     routeStateCard("Validation status", validationStatus)
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Outcome proof</div><h2>What happened after Raven issued the read</h2></div><span class="route-pill ${statusClass(data.aggregate_validation_state)}">${escapeHtml(validationStatus)}</span></div>
-    <section class="outcome-proof-statement"><span>Confirmed followthrough</span><h3>${escapeHtml(`${fmtNumber(confirmedFollowthrough)} of ${fmtNumber(outcomes.length)} settled checks`)}</h3><p>Mixed or insufficient evidence still accounts for ${escapeHtml(fmtNumber(mixedOrInsufficient))} checks. The outcome loop is active, but validation is still developing. Live observations are not outcomes.</p></section>
+    <div class="route-panel-head"><div><div class="route-chip-label">Outcome proof</div><h2>${escapeHtml(scoped ? scopeLabel : "What happened after Raven issued the read")}</h2></div><span class="route-pill ${statusClass(scoped && !outcomes.length ? "unavailable" : data.aggregate_validation_state)}">${escapeHtml(validationStatus)}</span></div>
+    <section class="outcome-proof-statement"><span>Confirmed followthrough</span><h3>${escapeHtml(`${fmtNumber(confirmedFollowthrough)} of ${fmtNumber(outcomes.length)} settled checks`)}</h3><p>${escapeHtml(scoped && !outcomes.length ? "No settled outcome matches every requested slice dimension. RavenOS did not count a broader market result. Live observations are not outcomes." : `Mixed or insufficient evidence still accounts for ${fmtNumber(mixedOrInsufficient)} checks. The outcome loop is active, but validation is still developing. Live observations are not outcomes.`)}</p></section>
     <div class="outcome-distribution" aria-label="Settled outcome distribution">
       <div class="outcome-distribution-track"><i class="confirmed" style="width:${confirmedShare.toFixed(2)}%"></i><i class="mixed" style="width:${mixedShare.toFixed(2)}%"></i><i class="insufficient" style="width:${insufficientShare.toFixed(2)}%"></i></div>
       <div class="outcome-distribution-legend"><span><i class="confirmed"></i>Confirmed <strong>${escapeHtml(fmtNumber(confirmedFollowthrough))}</strong></span><span><i class="mixed"></i>Mixed <strong>${escapeHtml(fmtNumber(mixedCount))}</strong></span><span><i class="insufficient"></i>Insufficient <strong>${escapeHtml(fmtNumber(insufficientCount))}</strong></span></div>
@@ -1648,10 +2031,10 @@ function renderOutcomes(payload) {
   document.getElementById("routeSecondaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Settled evidence</div><h2>Measured cohort checks</h2></div></div>
     <div class="outcome-lesson"><span>How it is measured</span><strong>Observation → Raven read → declared window → measured result</strong><p>A read remains open until its declared future window can be measured. Open observations are never counted as followthrough.</p></div>
-    <div class="route-table-wrap route-outcome-table"><table class="route-table route-settled-table"><thead><tr><th>Surface</th><th>Outcome</th><th>Usable / observed</th><th>Median / tails</th><th>Liquidity</th><th></th></tr></thead><tbody>${settledRows.slice(0, 12).map(settledRow).join("")}</tbody></table></div>
-    <div class="route-mobile-card-list">${settledRows.slice(0, 8).map(settledMobileCard).join("")}</div>
+    ${settledRows.length ? `<div class="route-table-wrap route-outcome-table"><table class="route-table route-settled-table"><thead><tr><th>Surface</th><th>Outcome</th><th>Usable / observed</th><th>Median / tails</th><th>Liquidity</th><th></th></tr></thead><tbody>${settledRows.slice(0, 12).map(settledRow).join("")}</tbody></table></div><div class="route-mobile-card-list">${settledRows.slice(0, 8).map(settledMobileCard).join("")}</div>` : `<div class="route-unavailable"><strong>No settled outcome for this exact slice</strong><p>Broader outcome rows remain excluded. Change the Behavior filters to inspect another aggregate slice.</p></div>`}
     <div class="route-boundary"><span>Performance boundary</span><strong>Post-observation movement is descriptive evidence, not capturable return, a target, or an executable plan.</strong></div>
-    <p class="route-caveat">${escapeHtml(data.population_note || "Outcome coverage reflects the stated public sample.")}</p>
+    <p class="route-caveat">${escapeHtml(scoped ? "Outcome coverage reflects only the requested market slice and its stated sample." : data.population_note || "Outcome coverage reflects the stated public sample.")}</p>
+    ${scoped ? `<div class="route-next"><a class="primary" href="${escapeHtml(behaviorScopedHref("/replay/", requestedScope))}">Check similar history</a><a href="${escapeHtml(behaviorScopedHref("/behavior/", requestedScope))}">Change Behavior filters</a></div>` : ""}
   `;
 }
 

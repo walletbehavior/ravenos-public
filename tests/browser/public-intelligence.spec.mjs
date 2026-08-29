@@ -213,9 +213,10 @@ test("Raven Lab gives aggregate behavior a distinct job without preserving the o
   await expect(page.locator(".ros-mobile-nav > *")).toHaveCount(4);
   await expect(page.locator(".ros-mobile-nav a")).toHaveCount(3);
   await page.getByRole("button", { name: "More RavenOS destinations" }).click();
-  await expect(page.locator('#rosUtilityContent a[href="/behavior/"]')).toContainText("Behavior Lab");
-  await expect(page.locator('#rosUtilityContent a[href="/perps/#perpsIntelligence"]')).toContainText("Perps Intelligence");
-  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toHaveCount(0);
+  await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toContainText("Raven Lab");
+  await expect(page.locator('#rosUtilityContent a[href="/behavior/"]')).toHaveCount(0);
+  await expect(page.locator('#rosUtilityContent a[href="/perps/#perpsIntelligence"]')).toHaveCount(0);
+  await expect(page.locator("#rosUtilityContent")).toContainText("Behavior cohorts, perps, replay, and measured outcomes");
   await expect(page.locator('#rosUtilityDrawer > header a[href="/terms/"]')).toContainText("Not financial advice");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
@@ -318,7 +319,7 @@ test("Free Perps Intelligence receives six current rows and a real server bounda
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
-test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wallet context", async ({ page }) => {
+test("Behavior Lab suppresses unsupported rates and keeps stale wallet-pattern history out of the current result", async ({ page }) => {
   const currentResponse = await page.request.get("/api/behavior");
   const behavior = await currentResponse.json();
   behavior.participation_payoff = participationPayoffProjection();
@@ -337,11 +338,11 @@ test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wal
   await expect(first).toContainText(/Participation.*Directional edge.*Evidence quality.*Coverage/s);
   await expect(first).toContainText(/usable of .* observed.*Developing|Broader sample/s);
   await expect(first).toContainText("Aggregate market behavior");
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Recurring-wallet context.*Excluded from the current read/s);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Stale wallet counts and narrative are hidden.*do not affect the headline.*strongest slice.*weakest slice.*directional edge/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Wallet-pattern history.*Not used in today’s result/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Older wallet-pattern counts are hidden.*do not affect the headline.*strongest market group.*weakest market group.*directional edge/s);
   await expect(page.locator(".participant-ledger")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(/Jupiter velocity/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet identities.*labels.*ownership claims.*coordination allegations.*smart money/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet names.*labels.*ownership claims.*coordination claims.*smart money/s);
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\bParticipant success rate\b|\bSuccess rate\s+50(?:\.00)?%|\bWin-rate band\b/i);
   expect(body).not.toMatch(/\b50(?:\.00)?% success\b/i);
@@ -367,6 +368,125 @@ test("Free Behavior Lab shows six market slices with plain labels and benefit-le
   await page.setViewportSize({ width: 390, height: 844 });
   const overflow = await page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Behavior Lab filters exact market slices and only labels counted followthrough as directional evidence", async ({ page }) => {
+  const projection = freeParticipantProjection();
+  projection.participation_overview[0] = {
+    ...projection.participation_overview[0],
+    age_cohort: "mature",
+    positive_count: 9,
+    mixed_count: 3,
+    negative_count: 8,
+    measured_count: 20,
+  };
+  projection.participation_overview[3] = {
+    ...projection.participation_overview[3],
+    age_cohort: "new",
+  };
+  await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projection) }));
+  await page.goto("/behavior/?chain=solana&cap_band=micro&age_cohort=mature&window=4h");
+
+  await expect(page.locator("#behaviorExplorer")).toBeVisible();
+  await expect(page.locator("#behaviorChainFilter")).toHaveValue("solana");
+  await expect(page.locator("#behaviorCohortFilter")).toHaveValue("micro");
+  await expect(page.locator("#behaviorAgeFilter")).toHaveValue("mature");
+  await expect(page.locator("#behaviorWindowFilter")).toHaveValue("4h");
+  await expect(page.locator("#behaviorAgeFilterField")).toBeVisible();
+  await expect(page.locator(".behavior-matrix article")).toHaveCount(1);
+  await expect(page.locator("#behaviorExplorerHighlights")).toContainText(/Best measured result.*9 of 20 \(45\.0%\) ended positive/s);
+  await expect(page.locator(".behavior-matrix article")).toContainText(/Directional edge.*9 of 20 \(45\.0%\) ended positive.*Coverage/s);
+  await expect(page.locator('.behavior-matrix a[href^="/replay/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*age_cohort=mature.*window=4h.*source=behavior/);
+  await expect(page.locator('.behavior-matrix a[href^="/outcomes/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*age_cohort=mature.*window=4h.*source=behavior/);
+
+  await page.locator("#behaviorChainFilter").selectOption("ethereum");
+  await expect(page.locator(".behavior-matrix article")).toHaveCount(0);
+  await expect(page.locator("#behaviorExplorerSummary")).toContainText(/no current slice matches.*Broader cohorts were not substituted/i);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/no completed directional comparison is attached/i);
+
+  await page.getByRole("button", { name: "Reset" }).click();
+  await expect(page.locator(".behavior-matrix article")).toHaveCount(6);
+  const publicDom = await page.locator("main").innerText();
+  expect(publicDom).not.toMatch(/Success rate\s+50(?:\.0+)?%|Win-rate band|wallet identity|0x[a-fA-F0-9]{40}/i);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Behavior-scoped Similar History refuses to widen an unavailable slice", async ({ page }) => {
+  const generatedAt = new Date().toISOString();
+  await page.route("**/api/replay", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      generated_at: generatedAt,
+      delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
+      data: {
+        comparables: [{
+          chain: "base",
+          cap_band: "large",
+          window: "24h",
+          similarity_score: 0.76,
+          after_window_summary: "positive",
+          match_reasons: ["participation breadth"],
+        }],
+      },
+    }),
+  }));
+  await page.goto("/replay/?chain=solana&cap_band=micro&window=4h&source=behavior");
+
+  await expect(page.locator("#routeHeadline")).toContainText(/Similar history is unavailable for Solana · Micro caps · 4h/i);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/Broader history was not substituted/i);
+  await expect(page.locator("#routePrimaryPanel")).toContainText(/did not widen the chain, market group, age, or window/i);
+  await expect(page.locator("#routePrimaryPanel")).not.toContainText(/Base|76(?:\.0)?% similarity/i);
+  await expect(page.locator('#routePrimaryPanel a[href^="/outcomes/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*window=4h.*source=behavior/);
+  await expect(page.locator('#routePrimaryPanel a[href^="/behavior/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*window=4h.*source=behavior/);
+});
+
+test("Behavior-scoped Followthrough counts only the requested settled slice", async ({ page }) => {
+  const generatedAt = new Date().toISOString();
+  const outcome = (chain, capBand, window, overrides = {}) => ({
+    chain,
+    cap_band: capBand,
+    window,
+    validation_status: "confirmed",
+    direction: "upside",
+    observed_sample: 40,
+    usable_sample: 30,
+    sample_detail: { observed: 40, usable: 30, unit: "observations" },
+    median_move_pct: 4.2,
+    rewarding_pct: 60,
+    punishing_pct: 20,
+    total_liquidity_usd: 125_000,
+    confidence: "developing",
+    ...overrides,
+  });
+  await page.route("**/api/outcomes", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      generated_at: generatedAt,
+      delivery: { source: "current_public_origin", fallback: false, freshness_state: "fresh" },
+      data: {
+        count: 2,
+        aggregate_validation_state: "developing",
+        recent_raven_reads: [],
+        outcomes: [outcome("solana", "micro", "4h"), outcome("base", "large", "24h", { median_move_pct: 91 })],
+      },
+    }),
+  }));
+  await page.goto("/outcomes/?chain=solana&cap_band=micro&window=4h&source=behavior");
+
+  await expect(page.locator("#routeHeadline")).toContainText(/Followthrough for Solana · Micro caps · 4h/i);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/Broader chains, cohorts, and windows are not substituted/i);
+  await expect(page.locator(".route-settled-table tbody tr")).toHaveCount(1);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Solana · Micro Caps.*4h.*30 \/ 40/is);
+  await expect(page.locator("#routeSecondaryPanel")).not.toContainText(/Base|91\.0%/i);
+  await expect(page.locator('#routeSecondaryPanel a[href^="/replay/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*window=4h.*source=behavior/);
+  await expect(page.locator('#routeSecondaryPanel a[href^="/behavior/"]')).toHaveAttribute("href", /chain=solana.*cap_band=micro.*window=4h.*source=behavior/);
 });
 
 test("Behavior Lab keeps an unavailable live feed explicit without stale substitution", async ({ page }) => {

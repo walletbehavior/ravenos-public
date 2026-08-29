@@ -7,14 +7,21 @@
   <meta name="description" content="Live Raven opportunities, exact token movement, and supported markets in one cross-market discovery stream." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-discover.css" />
 </head>
 <body>
-  <main class="workspace-page discover-page" data-route-slug="discover">
-    <header class="workspace-operator-head">
-      <div>
+  <main class="workspace-page discover-page" data-route-slug="discover" data-workspace-mode="first-visit" data-tape-expanded="true">
+    <header class="workspace-operator-head" id="discoverWorkspaceIntro">
+      <div class="discover-intro-copy">
         <span class="workspace-question">What deserves my attention?</span>
         <h1>Find the markets worth opening.</h1>
         <p>Velocity-ranked token markets, Raven signals, perpetuals, and listed markets from current evidence.</p>
+        <ul class="discover-first-visit-guide" id="discoverFirstVisitGuide">
+          <li><strong>Start with why now</strong><span>The row leads with the measured change behind its rank.</span></li>
+          <li><strong>Keep risk attached</strong><span>Freshness and available route evidence stay beside the setup.</span></li>
+          <li><strong>Open the exact pool</strong><span>Terminal, holders, trades, copy, and save preserve exact identity.</span></li>
+        </ul>
+        <button class="discover-intro-toggle" id="discoverIntroToggle" type="button" aria-controls="discoverFirstVisitGuide" aria-expanded="true">Use compact workspace</button>
       </div>
       <div class="workspace-mast-actions">
         <button class="workspace-primary-action" id="discoverSearchTrigger" type="button"><span>Search any supported instrument</span><span>⌘ K</span></button>
@@ -27,7 +34,10 @@
           <span class="discover-market-ribbon-pulse" aria-hidden="true"></span>
           <strong id="discoverMarketRibbonTitle">Markets moving now</strong>
         </div>
-        <time id="discoverMarketRibbonFreshness">Connecting live prices</time>
+        <div class="discover-market-ribbon-actions">
+          <time id="discoverMarketRibbonFreshness">Connecting live prices</time>
+          <button id="discoverTapeToggle" type="button" aria-controls="discoverListedTapeLane" aria-expanded="true">Hide stock tape</button>
+        </div>
       </header>
       <div class="discover-market-ribbon-lane">
         <span class="discover-market-ribbon-label">Majors &amp; perps</span>
@@ -37,7 +47,7 @@
           </div>
         </div>
       </div>
-      <div class="discover-market-ribbon-lane is-listed">
+      <div class="discover-market-ribbon-lane is-listed" id="discoverListedTapeLane">
         <span class="discover-market-ribbon-label">Stocks &amp; ETFs</span>
         <div class="discover-listed-tape-host" id="discoverListedTapeHost" aria-label="Major stock and ETF prices presented by TradingView">
           <span class="discover-market-ribbon-wait">Connecting listed markets…</span>
