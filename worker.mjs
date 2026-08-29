@@ -5002,6 +5002,22 @@ function archivalResearchHealth(researchEndpoint = {}) {
   };
 }
 
+function archivalClaimsHealth(claimsEndpoint = {}) {
+  const sourceFreshnessState = String(claimsEndpoint.state || "unavailable");
+  return {
+    ...claimsEndpoint,
+    state: sourceFreshnessState === "fresh"
+      ? "fresh"
+      : sourceFreshnessState === "unavailable"
+        ? "unavailable"
+        : "historical",
+    source_freshness_state: sourceFreshnessState,
+    role: "historical_claim_archive",
+    current_intelligence: false,
+    blocking: false,
+  };
+}
+
 function validateCurrentAtlasProjection(result = {}) {
   const payload = result.payload;
   const delivery = result.delivery || {};
@@ -5291,7 +5307,7 @@ async function handleHealth(request, env = {}) {
       historical_context_substituted: false,
     };
   });
-  const coreKeys = new Set(["brief", "replay", "outcomes", "memory", "behavior", "perps", "opportunities", "claims"]);
+  const coreKeys = new Set(["brief", "replay", "outcomes", "memory", "behavior", "perps", "opportunities"]);
   const coreEndpointHealth = endpointHealth.filter((row) => coreKeys.has(row.key));
   const researchEndpoint = endpointHealth.find((row) => row.key === "research") || {
     key: "research",
@@ -5307,10 +5323,17 @@ async function handleHealth(request, env = {}) {
     freshness_target_seconds: null,
     generated_at: null,
   };
+  const claimsEndpoint = endpointHealth.find((row) => row.key === "claims") || {
+    key: "claims",
+    state: "unavailable",
+    age_seconds: null,
+    freshness_target_seconds: null,
+    generated_at: null,
+  };
   const intelligenceState = coreEndpointHealth.length === coreKeys.size
     ? worstFreshness(coreEndpointHealth.map((row) => row.state))
     : "unavailable";
-  const ravenReadKeys = new Set(["brief", "opportunities", "claims"]);
+  const ravenReadKeys = new Set(["brief", "opportunities"]);
   const ravenReadEndpoints = endpointHealth.filter((row) => ravenReadKeys.has(row.key));
   const ravenReadState = ravenReadEndpoints.length === ravenReadKeys.size
     ? worstFreshness(ravenReadEndpoints.map((row) => row.state))
@@ -5342,6 +5365,7 @@ async function handleHealth(request, env = {}) {
         : "unavailable";
   const publisherHealth = publicPublisherHealth(projectionStatus, projectionState);
   const researchHealth = archivalResearchHealth(researchEndpoint);
+  const claimsHealth = archivalClaimsHealth(claimsEndpoint);
   const checks = {
     worker: "ok",
     assets: env.ASSETS ? "ok" : "unavailable",
@@ -5394,9 +5418,15 @@ async function handleHealth(request, env = {}) {
       state: intelligenceState,
       core_endpoints: coreEndpointHealth,
       research: researchHealth,
-      note: researchHealth.state === "historical"
-        ? "Research is an explicitly historical archive and does not affect current site health."
-        : null,
+      claims_archive: claimsHealth,
+      note: [
+        researchHealth.state === "historical"
+          ? "Research is an explicitly historical archive and does not affect current site health."
+          : null,
+        claimsHealth.state === "historical"
+          ? "Past claim evidence remains available as history and does not affect current Raven readiness."
+          : null,
+      ].filter(Boolean).join(" ") || null,
     },
     atlas_health: {
       ...atlasEndpoint,
@@ -5412,6 +5442,7 @@ async function handleHealth(request, env = {}) {
       blocking: true,
       mode: "deterministic_structured_projection",
       endpoints: ravenReadEndpoints,
+      archive: claimsHealth,
       spot_tokens: spotRavenHealth,
       note: "Current Raven Reads are rendered from structured public-safe evidence rather than a generated-prose sidecar.",
     },

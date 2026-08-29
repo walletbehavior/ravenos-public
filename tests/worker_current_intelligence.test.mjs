@@ -1048,6 +1048,10 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.intelligence_freshness.research.state, "historical");
     assert.equal(body.intelligence_freshness.research.source_freshness_state, "stale");
     assert.equal(body.intelligence_freshness.research.blocking, false);
+    assert.equal(body.intelligence_freshness.claims_archive.state, "fresh");
+    assert.equal(body.intelligence_freshness.claims_archive.current_intelligence, false);
+    assert.equal(body.intelligence_freshness.claims_archive.blocking, false);
+    assert.equal(body.intelligence_freshness.core_endpoints.some((row) => row.key === "claims"), false);
     assert.equal(body.atlas_health.state, "fresh");
     assert.equal(body.atlas_health.blocking, true);
     assert.equal(body.atlas_health.operational, true);
@@ -1059,6 +1063,8 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.raven_read_health.spot_tokens.tracked_exact_markets, 1);
     assert.equal(body.raven_read_health.spot_tokens.qualified_read_count, 0);
     assert.equal(body.raven_read_health.spot_tokens.provider_rank_creates_raven_signal, false);
+    assert.equal(body.raven_read_health.endpoints.some((row) => row.key === "claims"), false);
+    assert.equal(body.raven_read_health.archive.role, "historical_claim_archive");
     assert.equal(body.narrator_freshness.state, "not_required");
     assert.equal(body.narrator_freshness.blocking, false);
     assert.equal(body.projection_health.state, "operational");
@@ -1069,6 +1075,20 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.execution_health.signing_available, false);
     assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
+
+    manifest.endpoints.find((row) => row.key === "claims").payload_age_seconds = 5_000;
+    status.stale_endpoints = ["research", "claims"];
+    const historicalClaimsResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const historicalClaims = await historicalClaimsResponse.json();
+    assert.equal(historicalClaims.status, "ok");
+    assert.equal(historicalClaims.intelligence_freshness.state, "fresh");
+    assert.equal(historicalClaims.intelligence_freshness.claims_archive.state, "historical");
+    assert.equal(historicalClaims.intelligence_freshness.claims_archive.source_freshness_state, "stale");
+    assert.equal(historicalClaims.intelligence_freshness.claims_archive.blocking, false);
+    assert.equal(historicalClaims.raven_read_health.state, "fresh");
+    assert.equal(historicalClaims.raven_read_health.archive.state, "historical");
+    manifest.endpoints.find((row) => row.key === "claims").payload_age_seconds = 10;
+    status.stale_endpoints = ["research"];
 
     byPath["/public/ravenos/opportunities.json"] = projection(
       "opportunities",
