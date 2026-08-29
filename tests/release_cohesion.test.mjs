@@ -204,6 +204,9 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED/);
+  assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);
+  assert.match(source, /triggers: baseWrangler\.triggers/);
+  assert.match(source, /cron_schedules/);
   assert.match(source, /ONCHAIN_CHART_PROVIDER_SECRET/);
   assert.doesNotMatch(source, /required_server_secret_bindings:[\s\S]{0,200}COINGECKO_PRO_API_KEY/);
   const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
@@ -228,6 +231,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(promote, /Production promotion blocked by on-chain chart-provider gate/);
   assert.match(promote, /production_provider_plan === "demo"/);
   assert.doesNotMatch(promote, /PUBLIC_EVALUATION/);
+  assert.match(promote, /"triggers", "deploy"/);
+  assert.match(promote, /wrangler\.release\.jsonc/);
   const preview = readFileSync("scripts/verify-release-preview.mjs", "utf8");
   assert.match(preview, /chart_readiness\?\.one_minute_requirement !== "verified"/);
   assert.match(preview, /candle_series\?\.provider !== "coingecko_onchain"/);

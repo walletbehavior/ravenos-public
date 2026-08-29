@@ -55,3 +55,14 @@ const result = spawnSync(process.execPath, [
   stdio: "inherit",
 });
 if (result.status !== 0) throw new Error(`Production promotion failed with status ${result.status}`);
+
+const triggerResult = spawnSync(process.execPath, [
+  join(repoRoot, "scripts/run-local-wrangler.mjs"),
+  "triggers", "deploy",
+  "--config", join(bundleRoot, "wrangler.release.jsonc"),
+], {
+  cwd: repoRoot,
+  env: cloudflareEnv,
+  stdio: "inherit",
+});
+if (triggerResult.status !== 0) throw new Error(`Production trigger deployment failed with status ${triggerResult.status}`);
