@@ -557,6 +557,109 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
   }
 });
 
+test("Worker normalizes the Discover edge-cache key to supported contract inputs", async () => {
+  const originalCaches = globalThis.caches;
+  const matched = [];
+  try {
+    globalThis.caches = {
+      default: {
+        async match(request) {
+          matched.push(request.url);
+          return jsonResponse({
+            ok: true,
+            safe_public: true,
+            schema_version: "ravenos.onchain_market_pulse.v1",
+            state: "current",
+            freshness: { state: "current" },
+            rows: [],
+            discovery_lanes: { jupiter_velocity: true },
+          });
+        },
+        async put() {
+          assert.fail("a cache hit must not be rewritten");
+        },
+      },
+    };
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?probe=ignored&duration=1h&chains=solana"),
+      {
+        ...environment(),
+        RAVENOS_RELEASE_ID: "cache-key-test-release",
+      },
+    );
+    assert.equal(response.status, 200);
+    assert.equal(matched.length, 1);
+    const cacheUrl = new URL(matched[0]);
+    assert.equal(cacheUrl.searchParams.get("chains"), "solana");
+    assert.equal(cacheUrl.searchParams.get("duration"), "1h");
+    assert.equal(cacheUrl.searchParams.get("__ravenos_release"), "cache-key-test-release");
+    assert.equal(cacheUrl.searchParams.has("probe"), false);
+  } finally {
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("Worker gives an incomplete configured Jupiter blend only a short recovery cache", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const stored = [];
+  const providerSecret = "server-only-short-cache-provider-token";
+  try {
+    globalThis.caches = {
+      default: {
+        async match() { return undefined; },
+        async put(request, response) {
+          stored.push({ request: request.url, response: response.clone() });
+        },
+      },
+    };
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) {
+        return jsonResponse({}, 503);
+      }
+      if (url.hostname === "api.jup.ag") return jsonResponse({}, 503);
+      if (url.pathname.includes("/networks/solana/trending_pools")) {
+        return jsonResponse(geckoTrendingFixture("solana", {
+          pool: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx",
+          token: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+          quote: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          symbol: "JUP",
+          name: "Jupiter",
+        }));
+      }
+      throw new Error(`unexpected_url:${url}`);
+    };
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana&duration=24h"),
+      {
+        ...environment(),
+        RAVENOS_RELEASE_ID: "short-recovery-cache-test",
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+        JUPITER_API_KEY: "configured-but-temporarily-failing",
+      },
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("cache-control"), /s-maxage=3/);
+    assert.doesNotMatch(response.headers.get("cache-control"), /stale-while-revalidate/);
+    const body = await response.json();
+    assert.equal(body.state, "current");
+    assert.equal(body.discovery_lanes.jupiter_velocity, false);
+    assert.ok(body.rows.some((row) => row.source_type === "market_activity"));
+    assert.equal(stored.length, 1);
+    assert.match(stored[0].response.headers.get("cache-control"), /s-maxage=3/);
+    assert.equal(new URL(stored[0].request).searchParams.has("probe"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("Worker merges Jupiter token velocity into a verified exact Solana pool without leaking credentials", async () => {
   const coinGeckoSecret = "server-only-gecko-velocity-token";
   const jupiterSecret = "server-only-jupiter-velocity-token";

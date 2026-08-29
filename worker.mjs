@@ -3284,12 +3284,29 @@ function discoverRadarSummary(discoveryRadar = {}) {
   });
 }
 
-function onchainPulseEdgeCacheRequest(request, env = {}) {
+function onchainPulseEdgeCacheRequest(request, env = {}, { chains = [], duration = "5m" } = {}) {
   if (request?.method !== "GET") return null;
   const url = new URL(request.url);
-  url.searchParams.sort();
+  // Only contract inputs belong in the cache identity. Ignored query parameters
+  // must not create cache bypasses or leave multiple versions of the same board.
+  url.search = "";
+  url.searchParams.set("chains", chains.join(","));
+  url.searchParams.set("duration", duration);
   url.searchParams.set("__ravenos_release", String(env.RAVENOS_RELEASE_ID || "development"));
   return new Request(url.toString(), { method: "GET" });
+}
+
+function onchainPulseCachePolicy(result = {}, { jupiterConfigured = false } = {}) {
+  const providerBlendIncomplete = result?.state !== "current"
+    || result?.freshness?.state !== "current"
+    || (Array.isArray(result?.unavailable) && result.unavailable.length > 0)
+    || (jupiterConfigured && result?.discovery_lanes?.jupiter_velocity !== true);
+  return Object.freeze({
+    edgeCacheControl: providerBlendIncomplete
+      ? "public, max-age=1, s-maxage=3, must-revalidate"
+      : "public, max-age=15, s-maxage=30, stale-while-revalidate=60",
+    memoryTtlMs: providerBlendIncomplete ? 3_000 : 30_000,
+  });
 }
 
 async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
@@ -3439,7 +3456,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       submission_available: false,
     },
   };
-  cacheSet(onchainPulseCache, cacheKey, result, 30_000);
+  cacheSet(onchainPulseCache, cacheKey, result, onchainPulseCachePolicy(result, { jupiterConfigured }).memoryTtlMs);
   return result;
 }
 
@@ -8426,7 +8443,7 @@ async function routeApi(request, env, executionContext = null) {
       }, { status: 400 });
     }
     const edgeCache = globalThis.caches?.default || null;
-    const edgeCacheRequest = edgeCache ? onchainPulseEdgeCacheRequest(request, env) : null;
+    const edgeCacheRequest = edgeCache ? onchainPulseEdgeCacheRequest(request, env, { chains, duration }) : null;
     if (edgeCache && edgeCacheRequest) {
       try {
         const cached = await edgeCache.match(edgeCacheRequest);
@@ -8436,9 +8453,13 @@ async function routeApi(request, env, executionContext = null) {
       }
     }
     try {
-      const response = json(await onchainMarketPulse({ env, request, chains, duration }), {
+      const pulse = await onchainMarketPulse({ env, request, chains, duration });
+      const cachePolicy = onchainPulseCachePolicy(pulse, {
+        jupiterConfigured: chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim()),
+      });
+      const response = json(pulse, {
         headers: {
-          "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60",
+          "cache-control": cachePolicy.edgeCacheControl,
         },
       });
       if (edgeCache && edgeCacheRequest) {
