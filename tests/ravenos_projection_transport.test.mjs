@@ -25,6 +25,28 @@ function envelope(generatedAt = "2026-08-27T20:00:00Z") {
   };
 }
 
+function opportunityEnvelope(radarGeneratedAt = "2026-08-27T20:00:00Z") {
+  return {
+    ok: true,
+    safe_public: true,
+    key: "opportunities",
+    schema_version: "ravenos_opportunity_census_public_origin_v1",
+    generated_at: "2026-08-27T19:45:00Z",
+    updated_at: radarGeneratedAt,
+    freshness_target_seconds: 3600,
+    redaction_policy: "aggregate_public_market_context_only",
+    data: {
+      discovery_radar: {
+        ok: true,
+        safe_public: true,
+        schema_version: "ravenos.discover_radar.v1",
+        generated_at: radarGeneratedAt,
+        rows: [],
+      },
+    },
+  };
+}
+
 function response(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -173,4 +195,56 @@ test("malformed cache entries are ignored and never expose the protected origin 
   assert.equal(calls, 1);
   assert.equal(result.available, true);
   assert.equal(JSON.stringify([...cache.rows.values()]).includes("transport-test-token"), false);
+});
+
+test("current opportunities revalidate after ten seconds instead of riding the general cache window", async () => {
+  resetPublicProjectionTransportForTests();
+  const cache = memoryCache();
+  let calls = 0;
+  const firstNow = Date.parse("2026-08-27T20:00:05Z");
+  await loadResilientPublicProjection({
+    env: ENV,
+    key: "opportunities",
+    cache,
+    nowMs: firstNow,
+    fetchImpl: async () => {
+      calls += 1;
+      return response(opportunityEnvelope());
+    },
+  });
+  const result = await loadResilientPublicProjection({
+    env: ENV,
+    key: "opportunities",
+    cache,
+    nowMs: firstNow + 11_000,
+    fetchImpl: async () => {
+      calls += 1;
+      return response(opportunityEnvelope("2026-08-27T20:00:15Z"));
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.delivery.transport.state, "origin_current");
+  assert.equal(result.payload.data.discovery_radar.generated_at, "2026-08-27T20:00:15Z");
+});
+
+test("an expired opportunity radar cache cannot rescue a failed origin", async () => {
+  resetPublicProjectionTransportForTests();
+  const cache = memoryCache();
+  await loadResilientPublicProjection({
+    env: ENV,
+    key: "opportunities",
+    cache,
+    nowMs: Date.parse("2026-08-27T20:00:05Z"),
+    fetchImpl: async () => response(opportunityEnvelope()),
+  });
+  const result = await loadResilientPublicProjection({
+    env: ENV,
+    key: "opportunities",
+    cache,
+    nowMs: Date.parse("2026-08-27T20:02:01Z"),
+    fetchImpl: async () => response({}, 503),
+  });
+  assert.equal(result.available, false);
+  assert.equal(result.delivery.source, "unavailable");
+  assert.equal(result.delivery.transport.state, "origin_unavailable");
 });
