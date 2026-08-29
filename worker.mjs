@@ -6103,7 +6103,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           requested_at: providerResult.requested_at || requestedAt,
           quoted_at: providerResult.quoted_at,
           received_at: providerResult.received_at,
-          expires_at: providerResult.expires_at,
+          expires_at: shadowExecution?.round_trip?.expires_at || providerResult.expires_at,
         },
         fee_disclosure: {
           configured_enabled: false,

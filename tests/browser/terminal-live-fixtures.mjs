@@ -441,6 +441,7 @@ export async function mockTerminalLiveApis(page, {
   spotChartCurrent = false,
   spotQuotePreview = false,
   spotQuoteTtlMs = 20_000,
+  spotExitQuoteTtlMs = spotQuoteTtlMs,
   spotQuoteDelayMs = 0,
   spotQuoteOutputMint = null,
 } = {}) {
@@ -1063,6 +1064,7 @@ export async function mockTerminalLiveApis(page, {
           route_state: "exit_verified",
           round_trip: {
             state: "friction_incomplete",
+            expires_at: new Date(now + spotExitQuoteTtlMs).toISOString(),
             exit_verified: true,
             trade_available: false,
             current_executable_liquidation_usdc: 73.84,

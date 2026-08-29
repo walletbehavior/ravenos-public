@@ -374,6 +374,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
   const usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
   const providerCalls = [];
   let returnForbiddenMaterial = false;
+  let reverseQuoteTtlMs = 20_000;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input instanceof URL ? input.toString() : typeof input === "string" ? input : input.url);
     providerCalls.push(`${url.hostname}${url.pathname}`);
@@ -413,7 +414,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
         otherAmountThreshold: reverse ? "480000000" : "99000000000",
         priceImpactPct: reverse ? "0.007" : "0.006",
         quoteTimestamp: now.toISOString(),
-        expireAt: new Date(now.getTime() + 20_000).toISOString(),
+        expireAt: new Date(now.getTime() + (reverse ? reverseQuoteTtlMs : 20_000)).toISOString(),
         routePlan: [{ swapInfo: { inputMint, outputMint, label: "Raydium" } }],
         ...(returnForbiddenMaterial && !reverse ? { swapTransaction: "forbidden-shadow-transaction" } : {}),
       });
@@ -470,6 +471,19 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(body.fee_policy.actual_fee_bps, 0);
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);
+
+    reverseQuoteTtlMs = 5_000;
+    const shorterExitResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }), environment);
+    const shorterExitBody = await shorterExitResponse.json();
+    assert.equal(shorterExitResponse.status, 200, JSON.stringify(shorterExitBody));
+    assert.equal(shorterExitBody.timing.expires_at, shorterExitBody.shadow_execution.round_trip.expires_at);
+    assert.equal(shorterExitBody.timing.expires_at, shorterExitBody.shadow_execution.exit_route.expires_at);
+    assert.ok(Date.parse(shorterExitBody.timing.expires_at) < Date.parse(shorterExitBody.shadow_execution.entry_route.expires_at));
+    assert.equal(shorterExitBody.shadow_execution.round_trip.exit_verified, true);
 
     returnForbiddenMaterial = true;
     const forbiddenResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {

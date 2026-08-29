@@ -5552,13 +5552,26 @@ function spotQuoteResponseMatches(payload, snapshot) {
   const fee = payload.fee_disclosure || payload.fee_policy || payload?.quote?.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
-  const expiresAt = Date.parse(payload?.timing?.expires_at || payload?.quote?.expires_at || "");
+  const expiresAt = spotQuoteEffectiveExpiry(payload);
   return sameIdentity
     && sameSelectedAddress("solana", outputMint, expectedOutputMint)
     && configuredFeeBps !== null
     && actualFeeBps !== null
     && Number.isFinite(expiresAt)
     && expiresAt > Date.now();
+}
+
+function spotQuoteEffectiveExpiry(payload) {
+  const values = [
+    payload?.timing?.expires_at,
+    payload?.quote?.expires_at,
+    payload?.shadow_execution?.round_trip?.expires_at,
+    payload?.shadow_execution?.entry_route?.expires_at,
+    payload?.shadow_execution?.exit_route?.expires_at,
+  ].filter((value) => value !== null && value !== undefined && String(value).trim());
+  if (!values.length) return Number.NaN;
+  const parsed = values.map((value) => Date.parse(value));
+  return parsed.every(Number.isFinite) ? Math.min(...parsed) : Number.NaN;
 }
 
 function syncSpotTicketControls() {
@@ -5723,7 +5736,7 @@ function displayQuoteAmount(value, fallbackSymbol = "") {
 function scheduleSpotQuoteExpiry(payload) {
   clearTimeout(state.spotQuoteExpiryTimer);
   const quoteId = payload?.quote?.quote_id || payload?.quote?.canonical_quote_id || payload?.quote_id;
-  const expiresAt = Date.parse(payload?.timing?.expires_at || payload?.quote?.expires_at || payload?.quote?.quote_expiry || payload?.expires_at || "");
+  const expiresAt = spotQuoteEffectiveExpiry(payload);
   const tick = () => {
     if (!state.spotQuote || (state.spotQuote?.quote?.quote_id || state.spotQuote?.quote?.canonical_quote_id || state.spotQuote?.quote_id) !== quoteId) return;
     const remaining = Number.isFinite(expiresAt) ? Math.max(0, expiresAt - Date.now()) : 0;
@@ -5767,7 +5780,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   state.spotQuote = payload;
   state.spotQuoteStatus = "current";
   state.spotQuoteFingerprint = fingerprint;
-  state.spotQuoteExpiresAt = Date.parse(payload?.timing?.expires_at || payload?.quote?.expires_at || "");
+  state.spotQuoteExpiresAt = spotQuoteEffectiveExpiry(payload);
   const quote = payload.quote || {};
   const outputMint = String(quote.output_mint || payload?.intent?.output_mint || "");
   const outputSymbol = sameSelectedAddress("solana", outputMint, SOLANA_CANONICAL_USDC_MINT)

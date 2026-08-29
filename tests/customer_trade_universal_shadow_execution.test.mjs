@@ -120,6 +120,40 @@ test("a verified exit with unpriced network cost remains non-executable shadow e
   assert.equal(proof.quote_only_round_trip_loss_pct, 1.6);
   assert.ok(Math.abs(proof.minimum_quote_only_round_trip_loss_pct - 2.2) < 1e-9);
   assert.equal(proof.round_trip_friction_pct, null);
+  assert.equal(proof.expires_at, EXPIRY);
+});
+
+test("round-trip proof expires at the earlier leg and refuses a reverse quote that expired during review", () => {
+  const entry = route({ expires_at: "2026-08-29T03:00:30.000Z" });
+  const exit = route({
+    candidate_id: "exit",
+    source_asset_id: DESTINATION,
+    destination_asset_id: SOURCE,
+    expected_output: 492,
+    minimum_output: 489,
+    created_at: "2026-08-29T03:00:01.000Z",
+    expires_at: "2026-08-29T03:00:05.000Z",
+  });
+  const current = createRoundTripProof({ spend_usdc: 500, entry, exit, observed_at: "2026-08-29T03:00:04.000Z" });
+  assert.equal(current.exit_verified, true);
+  assert.equal(current.expires_at, exit.expires_at);
+  const expired = createRoundTripProof({ spend_usdc: 500, entry, exit, observed_at: "2026-08-29T03:00:06.000Z" });
+  assert.equal(expired.state, "exit_expired");
+  assert.equal(expired.exit_verified, false);
+  assert.equal(expired.trade_available, false);
+  assert.equal(expired.entry_quote_available, true);
+  assert.equal(expired.exit_quote_available, false);
+  const shadow = createUniversalShadowExecution({
+    request: request(500),
+    candidates: [entry],
+    selected: selectUniversalRouteCandidate([entry]),
+    entry,
+    exit,
+    proof: expired,
+    observed_at: "2026-08-29T03:00:06.000Z",
+  });
+  assert.equal(shadow.route_state, "stale");
+  assert.deepEqual(shadow.refusal_reasons, ["exit_expired"]);
 });
 
 test("stale, unsafe, and malformed routes cannot win selection", () => {

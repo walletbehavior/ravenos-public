@@ -1406,6 +1406,25 @@ test("spot route expiry fails closed and cannot leave the quote rail complete", 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteState)).toBe("expired");
 });
 
+test("an earlier reverse-route expiry governs currentness and follow refresh", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fixtures = await mockTerminalLiveApis(page, {
+    spotQuotePreview: true,
+    spotQuoteTtlMs: 20_000,
+    spotExitQuoteTtlMs: 1_200,
+  });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotQuoteFollow").check();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Current quote");
+  await expect.poll(() => fixtures.spotQuoteCalls.length, { timeout: 5_000 }).toBeGreaterThan(1);
+  await page.locator("#terminalSpotQuoteFollow").uncheck();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteCurrent), { timeout: 4_000 }).toBe(false);
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Refresh quote");
+  await expect(page.locator('#terminalSpotExecutionRail [data-terminal-step="review"]')).not.toHaveAttribute("data-state", "complete");
+});
+
 test("spot route response is bound to the exact ticket and output asset", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page, {
