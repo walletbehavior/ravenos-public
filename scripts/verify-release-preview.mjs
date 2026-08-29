@@ -735,6 +735,7 @@ if (String(localProviderEnv.JUPITER_API_KEY || "").trim()) {
     token_address: terminalRow.token_address,
     quote_address: terminalRow.quote_token_address,
     instrument_scope: "exact_pool",
+    include_enrichment: "1",
   });
   const terminalCapture = await capture(`/api/terminal/chart?${terminalParams.toString()}`);
   const terminalEnvelope = JSON.parse(terminalCapture.text);
