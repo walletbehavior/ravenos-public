@@ -7228,6 +7228,60 @@ async function handlePublicIntelligenceProjection(env, request, pathname, kind) 
   }
 }
 
+async function handlePublicBehavior(env, request, pathname) {
+  const [behaviorResult, outcomesResult] = await Promise.all([
+    readPublicProjection(env, request, "behavior", "/ravenos/behavior.json"),
+    readPublicProjection(env, request, "outcomes", "/ravenos/outcomes.json"),
+  ]);
+  const freshness = String(behaviorResult?.delivery?.freshness_state || "unavailable").toLowerCase();
+  if (!behaviorResult.available || !["fresh", "delayed"].includes(freshness)) {
+    return json({
+      ok: false,
+      error: "projection_unavailable",
+      status: "degraded",
+      message: "Current behavior context forming.",
+      participation_payoff: null,
+      delivery: behaviorResult.delivery,
+    }, {
+      status: 503,
+      headers: projectionRouteHeaders(pathname, behaviorResult.delivery),
+    });
+  }
+
+  const currentOutcomes = currentOnlyContext(outcomesResult);
+  const publicBehavior = sanitizePublicDiscoveryNarrative(behaviorResult.payload?.data || null);
+  const participationPayoff = currentOutcomes && publicBehavior
+    ? buildParticipationPayoffProjection(currentOutcomes.data || {}, publicBehavior)
+    : null;
+
+  try {
+    const splitActive = resolveCoordinatedIntelligenceSplits(env).participants;
+    const projection = splitActive
+      ? buildParticipantFreeProjection(behaviorResult.payload, { delivery: behaviorResult.delivery })
+      : behaviorResult.payload;
+    return json(attachDelivery({
+      ...projection,
+      participation_payoff: participationPayoff,
+    }, behaviorResult.delivery), {
+      headers: {
+        ...projectionRouteHeaders(pathname, behaviorResult.delivery),
+        ...(splitActive ? { "x-ravenos-access-scope": "free" } : {}),
+      },
+    });
+  } catch {
+    return json({
+      ok: false,
+      error: "behavior_projection_contract_rejected",
+      status: "unavailable",
+      participation_payoff: null,
+      delivery: behaviorResult.delivery,
+    }, {
+      status: 503,
+      headers: projectionRouteHeaders(pathname, behaviorResult.delivery),
+    });
+  }
+}
+
 function researchFallback() {
   return {
     source: "last known research snapshot",
@@ -8146,10 +8200,7 @@ async function routeApi(request, env, executionContext = null) {
     return handlePublicArtifact(env, request, url.pathname, "memory", "/ravenos/memory.json", { status: "degraded", message: "Current memory context forming." });
   }
   if (url.pathname === "/api/behavior" && request.method === "GET") {
-    if (resolveCoordinatedIntelligenceSplits(env).participants) {
-      return handlePublicIntelligenceProjection(env, request, url.pathname, "participants");
-    }
-    return handlePublicArtifact(env, request, url.pathname, "behavior", "/ravenos/behavior.json", { status: "degraded", message: "Current behavior context forming." });
+    return handlePublicBehavior(env, request, url.pathname);
   }
   if (url.pathname === "/api/perps" && request.method === "GET") {
     if (resolveCoordinatedIntelligenceSplits(env).perps) {

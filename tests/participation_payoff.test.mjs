@@ -112,3 +112,74 @@ test("participation payoff hides itself when no segment clears maturity and conf
   );
   assert.equal(projection, null);
 });
+
+test("participation payoff uses settled outcome classifications instead of generic fifty-percent behavior defaults", () => {
+  const behavior = {
+    generated_at: GENERATED_AT,
+    rows: [
+      { ...behaviorRow("solana", "fresh_pairs", "outcomes unclear", 83, "high"), participant_success_rate: 0.5 },
+      { ...behaviorRow("robinhood", "fresh_pairs", "outcomes unclear", 47, "high"), participant_success_rate: 0.5 },
+      { ...behaviorRow("base", "fresh_pairs", "outcomes unclear", 3, "low"), participant_success_rate: 0.5 },
+      { ...behaviorRow("polygon", "fresh_pairs", "outcomes unclear", 42, "high"), participant_success_rate: 0.5 },
+    ],
+  };
+  const outcomes = {
+    generated_at: GENERATED_AT,
+    outcomes: [
+      {
+        ...outcomeRow("solana", "fresh_pairs", -14.805, 30),
+        source: "dexscreener_public_market_context",
+        median_move_pct: -53.13,
+        participant_outcome: "punishing",
+        direction: "negative",
+        validation_status: "invalidated",
+        confidence: "medium",
+        data_quality: "clean",
+        clean_sample: 30,
+      },
+      {
+        ...outcomeRow("robinhood", "fresh_pairs", 0, 47),
+        source: "dexscreener_public_market_context",
+        median_move_pct: 3.7,
+        participant_outcome: "favorable",
+        direction: "positive",
+        validation_status: "confirmed",
+        confidence: "high",
+        data_quality: "clean",
+        clean_sample: 47,
+      },
+      {
+        ...outcomeRow("base", "fresh_pairs", -16.26, 3),
+        source: "dexscreener_public_market_context",
+        participant_outcome: "mixed",
+        direction: "mixed",
+        validation_status: "insufficient",
+        confidence: "low",
+        data_quality: "thin",
+        clean_sample: 3,
+      },
+      {
+        ...outcomeRow("polygon", "fresh_pairs", 0, 42),
+        source: "dexscreener_public_market_context",
+        participant_outcome: "mixed",
+        direction: "mixed",
+        validation_status: "confirmed",
+        confidence: "high",
+        data_quality: "clean",
+        clean_sample: 42,
+      },
+    ],
+  };
+
+  const projection = buildParticipationPayoffProjection(outcomes, behavior);
+  assert.deepEqual(
+    projection.insights.map((row) => [row.state, row.subject, row.usable_sample]),
+    [
+      ["rewarding", "RH fresh pairs", 47],
+      ["punishing", "Solana fresh pairs", 30],
+    ],
+  );
+  assert.equal(projection.insights[0].classification_basis, "settled_forward_outcome");
+  assert.equal(projection.insights[1].validation_status, "invalidated");
+  assert.doesNotMatch(JSON.stringify(projection), /participant_success_rate|0\.5/);
+});

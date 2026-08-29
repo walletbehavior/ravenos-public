@@ -169,6 +169,32 @@ function freeParticipantProjection() {
   };
 }
 
+function participationPayoffProjection() {
+  return {
+    schema_version: "ravenos.participation_payoff.v1",
+    generated_at: new Date().toISOString(),
+    state: "current",
+    public_safe: true,
+    headline: "Participation payoff",
+    summary: "Leadership: Robinhood fresh pairs. Weakest follow-through: Solana fresh pairs.",
+    comparison: null,
+    measurement: { display_window: "Latest samples", minimum_usable_sample: 20, causal_claim: false },
+    insights: [{
+      state: "rewarding",
+      subject: "Robinhood fresh pairs",
+      plain_read: "Robinhood fresh pairs are showing the cleanest follow-through.",
+      operator_detail: "6h +0.00% · 24h +3.7%",
+      usable_sample: 47,
+    }, {
+      state: "punishing",
+      subject: "Solana fresh pairs",
+      plain_read: "Solana fresh pairs are punishing recent participation.",
+      operator_detail: "6h -14.8% · 24h -53.1%",
+      usable_sample: 30,
+    }],
+  };
+}
+
 test("Raven Lab gives aggregate behavior a distinct job without preserving the old evidence directory", async ({ page }) => {
   await page.goto("/intelligence/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h");
   await expect(page.getByRole("heading", { name: "Test the behavior behind a setup." })).toBeVisible();
@@ -295,6 +321,7 @@ test("Free Perps Intelligence receives six current rows and a real server bounda
 test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wallet context", async ({ page }) => {
   const currentResponse = await page.request.get("/api/behavior");
   const behavior = await currentResponse.json();
+  behavior.participation_payoff = participationPayoffProjection();
   behavior.data.actor_evidence.actor_evidence_freshness = "stale";
   behavior.data.actor_evidence.actor_evidence_state = "actor_evidence_stale";
   behavior.data.actor_evidence.public_read_label = "Participant evidence is stale.";
@@ -302,6 +329,9 @@ test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wal
   behavior.data.rows[0].plain_language_summary = "Jupiter Velocity participation on Solana is mixed or still unclear.";
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(behavior) }));
   await page.goto("/behavior/");
+  await expect(page.locator("#routeHeadline")).toContainText("Robinhood fresh pairs are working; Solana fresh pairs are punishing recent participation.");
+  await expect(page.locator(".behavior-payoff")).toContainText(/Where participation is working.*Robinhood fresh pairs.*6h \+0\.00%.*47 observations.*Solana fresh pairs.*6h -14\.8%.*30 observations/s);
+  await expect(page.locator(".behavior-payoff-grid article")).toHaveCount(2);
   await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice.*Directional edge.*No directional edge measured.*Coverage/s);
   const first = page.locator(".behavior-matrix article").first();
   await expect(first).toContainText(/Participation.*Directional edge.*Evidence quality.*Coverage/s);
@@ -314,7 +344,11 @@ test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wal
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet identities.*labels.*ownership claims.*coordination allegations.*smart money/s);
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\bParticipant success rate\b|\bSuccess rate\s+50(?:\.00)?%|\bWin-rate band\b/i);
+  expect(body).not.toMatch(/\b50(?:\.00)?% success\b/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
 });
 
 test("Free Behavior Lab shows six market slices with plain labels and benefit-led Pro copy", async ({ page }) => {

@@ -380,6 +380,89 @@ test("Worker opportunity route is backed by the current Census projection", asyn
   }
 });
 
+test("Worker attaches settled participation payoff to current Behavior without exposing generic default rates", async () => {
+  const projections = {
+    behavior: projection("behavior", "ravenos_behavior_public_origin_v1", {
+      schema_version: "ravenos_participant_heatmap_v0",
+      rows: [{
+        chain: "robinhood",
+        cap_band: "fresh_pairs",
+        window: "24h",
+        public_safe: true,
+        usable_sample: 80,
+        observed_sample: 100,
+        confidence: "high",
+        derived_state: "outcomes unclear",
+        participant_success_rate: 0.5,
+      }, {
+        chain: "solana",
+        cap_band: "fresh_pairs",
+        window: "24h",
+        public_safe: true,
+        usable_sample: 83,
+        observed_sample: 217,
+        confidence: "high",
+        derived_state: "outcomes unclear",
+        participant_success_rate: 0.5,
+      }],
+    }),
+    outcomes: projection("outcomes", "ravenos_outcomes_public_origin_v1", {
+      outcomes: [{
+        chain: "robinhood",
+        cap_band: "fresh_pairs",
+        window: "24h",
+        public_safe: true,
+        source: "dexscreener_public_market_context",
+        clean_sample: 47,
+        observed_sample: 80,
+        confidence: "high",
+        data_quality: "clean",
+        participant_outcome: "favorable",
+        direction: "positive",
+        validation_status: "confirmed",
+        median_h6_move_pct: 0,
+        median_move_pct: 3.7,
+        claim_id: "claim_robinhood_fresh",
+      }, {
+        chain: "solana",
+        cap_band: "fresh_pairs",
+        window: "24h",
+        public_safe: true,
+        source: "dexscreener_public_market_context",
+        clean_sample: 30,
+        observed_sample: 119,
+        confidence: "medium",
+        data_quality: "clean",
+        participant_outcome: "punishing",
+        direction: "negative",
+        validation_status: "invalidated",
+        median_h6_move_pct: -14.805,
+        median_move_pct: -53.13,
+        claim_id: "claim_solana_fresh",
+      }],
+    }, isoAgo(10), 3600),
+  };
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const key = new URL(url).pathname.split("/").pop().replace(/\.json$/, "");
+    return projections[key] ? jsonResponse(projections[key]) : jsonResponse({}, 404);
+  };
+  try {
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/behavior"), environment());
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.participation_payoff.schema_version, "ravenos.participation_payoff.v1");
+    assert.deepEqual(
+      body.participation_payoff.insights.map((row) => [row.state, row.subject, row.usable_sample]),
+      [["rewarding", "RH fresh pairs", 47], ["punishing", "Solana fresh pairs", 30]],
+    );
+    assert.doesNotMatch(JSON.stringify(body.participation_payoff), /participant_success_rate|0\.5/);
+    assert.equal(body.delivery.source, "current_public_origin");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Chain activity without relabeling it as Raven", async () => {
   const providerSecret = "server-only-market-pulse-test-token";
   const solanaPool = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx";

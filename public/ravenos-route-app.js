@@ -441,6 +441,59 @@ function behaviorInsightRail(rows = []) {
   </section>`;
 }
 
+function currentBehaviorPayoff(value) {
+  if (
+    value?.schema_version !== "ravenos.participation_payoff.v1"
+    || value?.state !== "current"
+    || value?.public_safe !== true
+    || value?.measurement?.causal_claim !== false
+    || !Array.isArray(value?.insights)
+  ) return null;
+  const insights = value.insights.filter((row) => (
+    ["rewarding", "fragile", "punishing"].includes(String(row?.state || "").toLowerCase())
+    && String(row?.subject || "").trim()
+    && Number(row?.usable_sample) >= 20
+  )).slice(0, 4);
+  return insights.length ? { ...value, insights } : null;
+}
+
+function behaviorPayoffLeaders(payoff) {
+  const insights = payoff?.insights || [];
+  return {
+    working: insights.find((row) => row.state === "rewarding") || null,
+    fragile: insights.find((row) => row.state === "fragile") || null,
+    punishing: insights.find((row) => row.state === "punishing") || null,
+  };
+}
+
+function behaviorPayoffHeadline(payoff, fallback) {
+  const { working, fragile, punishing } = behaviorPayoffLeaders(payoff);
+  if (working && punishing) return `${working.subject} are working; ${punishing.subject} are punishing recent participation.`;
+  if (working && fragile) return `${working.subject} are working; ${fragile.subject} remain fragile.`;
+  if (working) return `${working.subject} have the cleanest measured followthrough.`;
+  if (punishing) return `${punishing.subject} are punishing recent participation.`;
+  if (fragile) return `${fragile.subject} remain fragile despite pockets of strength.`;
+  return fallback;
+}
+
+function behaviorPayoffPanel(payoff) {
+  if (!payoff) return "";
+  return `<section class="behavior-payoff" aria-label="Measured participation payoff">
+    <header>
+      <div><span>Measured followthrough</span><h3>Where participation is working—and where it is not</h3><p>${escapeHtml(payoff.summary || "Qualified market slices are compared using settled public outcomes.")}</p></div>
+      <small>${escapeHtml(payoff.measurement?.display_window || "Latest samples")} · descriptive, not a forecast</small>
+    </header>
+    <div class="behavior-payoff-grid">
+      ${payoff.insights.map((row) => `<article data-payoff-state="${escapeHtml(row.state)}">
+        <span>${escapeHtml(row.state === "rewarding" ? "Working" : row.state === "fragile" ? "Fragile" : "Punishing")}</span>
+        <strong>${escapeHtml(row.subject)}</strong>
+        <p>${escapeHtml(row.plain_read || "Measured followthrough is available for this slice.")}</p>
+        <dl><div><dt>What followed</dt><dd>${escapeHtml(row.operator_detail || "Measured outcome available")}</dd></div><div><dt>Settled sample</dt><dd>${escapeHtml(`${fmtNumber(row.usable_sample)} observations`)}</dd></div></dl>
+      </article>`).join("")}
+    </div>
+  </section>`;
+}
+
 function evidenceContextIsCurrent(evidence = {}, fallbackState = "unavailable", maxAgeSeconds = 86_400) {
   const state = String(evidence.actor_evidence_freshness || evidence.freshness || fallbackState || "").toLowerCase();
   if (!["fresh", "current"].includes(state)) return false;
@@ -1225,23 +1278,27 @@ function renderBehaviorFree(payload, projection) {
   const focusLabel = focus
     ? behaviorSliceLabel(focus)
     : "Market behavior";
+  const payoff = currentBehaviorPayoff(payload.participation_payoff);
+  const payoffLeaders = behaviorPayoffLeaders(payoff);
   const freshness = projection.provenance?.freshness?.state || payload.delivery?.freshness_state || "unavailable";
-  document.getElementById("routeHeadline").textContent = focus
+  document.getElementById("routeHeadline").textContent = behaviorPayoffHeadline(payoff, focus
     ? `${focusLabel}: ${titleCase(focus.participation_trend || "forming")} participation.`
-    : "Behavior Lab is forming.";
-  document.getElementById("routeHeroSummary").textContent = "Compare current participation across chains, size groups, and time windows. Every slice keeps its usable sample visible; no directional edge is shown without counted outcomes.";
+    : "Behavior Lab is forming.");
+  document.getElementById("routeHeroSummary").textContent = payoff
+    ? "See the strongest and weakest settled followthrough first, then inspect the participation and sample behind each market slice. Mixed or default rates do not create an edge."
+    : "Compare current participation across chains, size groups, and time windows. Every slice keeps its usable sample visible; no directional edge is shown without counted outcomes.";
   const stateStrip = document.getElementById("routeStateStrip");
   stateStrip.dataset.columns = "4";
-  const sizeGroups = new Set(rows.map((row) => String(row.capitalization_band || "").toLowerCase()).filter(Boolean));
   stateStrip.innerHTML = [
     routeStateCard("Market slices", fmtNumber(rows.length)),
-    routeStateCard("Size groups", fmtNumber(sizeGroups.size)),
+    routeStateCard("Working", payoffLeaders.working?.subject || "No qualified edge"),
+    routeStateCard("Punishing", payoffLeaders.punishing?.subject || "No qualified edge"),
     routeStateCard("Current data", titleCase(freshness)),
-    routeStateCard("Directional edge", "Counted outcomes only"),
   ].join("");
 
   document.getElementById("routePrimaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Behavior Lab</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(freshness))}">${escapeHtml(titleCase(freshness))}</span></div>
+    ${behaviorPayoffPanel(payoff)}
     ${behaviorInsightRail(rows)}
     <div class="behavior-matrix" aria-label="Current market slices">
       ${rows.map((row) => `<article data-strength="${escapeHtml(statusClass(row.participation_trend || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.participation_trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(row.window || "current")}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
@@ -1303,22 +1360,25 @@ function renderBehavior(payload) {
     ...(participantContextCurrent ? actorEvidence.warnings || [] : []),
   ].map((item) => limitations[item] || "A behavior-evidence limitation remains attached to this read."))];
   const focusLabel = focus ? behaviorSliceLabel(focus) : "Market behavior";
-  document.getElementById("routeHeadline").textContent = focus
+  const payoff = currentBehaviorPayoff(payload.participation_payoff);
+  const payoffLeaders = behaviorPayoffLeaders(payoff);
+  document.getElementById("routeHeadline").textContent = behaviorPayoffHeadline(payoff, focus
     ? `${focusLabel}: ${titleCase(focus.trend || "forming")} participation.`
-    : "Behavior Lab is forming.";
-  document.getElementById("routeHeroSummary").textContent = "Compare where participation is broadening, selective, or fading across chains, size groups, and time windows. Directional edge appears only when explicit outcome counts support it.";
-  const chains = new Set(rows.map((row) => String(row.chain || "").toLowerCase()).filter(Boolean));
-  const capBands = new Set(rows.map((row) => String(row.cap_band || "").toLowerCase()).filter(Boolean));
-  document.getElementById("routeStateStrip").innerHTML = [
+    : "Behavior Lab is forming.");
+  document.getElementById("routeHeroSummary").textContent = payoff
+    ? "See the strongest and weakest settled followthrough first, then inspect current participation by chain and size group. Mixed or default rates do not create an edge."
+    : "Compare where participation is broadening, selective, or fading across chains, size groups, and time windows. Directional edge appears only when explicit outcome counts support it.";
+  const stateStrip = document.getElementById("routeStateStrip");
+  stateStrip.dataset.columns = "4";
+  stateStrip.innerHTML = [
     routeStateCard("Market slices", fmtNumber(rows.length)),
-    routeStateCard("Chains", fmtNumber(chains.size)),
-    routeStateCard("Size groups", fmtNumber(capBands.size)),
-    routeStateCard("Current data", titleCase(payload.delivery?.freshness_state || "unavailable")),
-    routeStateCard("Recurring-wallet context", participantContextCurrent ? "Current · aggregate" : "Excluded from this read"),
-    routeStateCard("Directional edge", "Counted outcomes only"),
+    routeStateCard("Working", payoffLeaders.working?.subject || "No qualified edge"),
+    routeStateCard("Punishing", payoffLeaders.punishing?.subject || "No qualified edge"),
+    routeStateCard("Recurring wallets", participantContextCurrent ? "Current · aggregate" : "Excluded as stale"),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
     <div class="route-panel-head"><div><div class="route-chip-label">Market slices</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(sampleMaturityLabel(rowUsableSample(focus || {}))))}">${escapeHtml(sampleMaturityLabel(rowUsableSample(focus || {})))}</span></div>
+    ${behaviorPayoffPanel(payoff)}
     ${behaviorInsightRail(rows)}
     <div class="behavior-matrix" aria-label="Current market slices">
       ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Evidence quality</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
