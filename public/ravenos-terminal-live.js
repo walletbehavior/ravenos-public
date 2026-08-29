@@ -1336,10 +1336,7 @@ function setAnatomyRows(rows = []) {
 function currentRavenPaneSurface() {
   const surfaces = [
     ["terminalContextSection", "Current", "positive"],
-    ["terminalAlphaSection", "Current", "positive"],
     ["terminalPlanSection", "Plan current", "positive"],
-    ["terminalMarkerDetail", "Evidence", "positive"],
-    ["terminalComparableSection", "History", "neutral"],
   ];
   return surfaces.find(([id]) => document.getElementById(id)?.hidden === false) || null;
 }
