@@ -1355,34 +1355,40 @@ export class PriceWorkspace {
 
   renderCrosshair(crosshair) {
     const host = this.container.querySelector("[data-rpw-crosshair]");
-    const latest = this.state.candles.at(-1) || null;
-    const selected = crosshair?.time && crosshair.close !== null && crosshair.close !== undefined ? crosshair : latest;
-    this.inspectingCandle = selected === crosshair && Boolean(crosshair);
+    const selected = crosshair?.time && crosshair.close !== null && crosshair.close !== undefined ? crosshair : null;
+    this.inspectingCandle = Boolean(selected);
     if (!selected?.time || selected.close === null || selected.close === undefined) {
       host.hidden = true;
+      host.removeAttribute("data-mode");
+      host.removeAttribute("aria-label");
+      host.replaceChildren();
       return;
     }
     host.hidden = false;
-    host.dataset.mode = this.inspectingCandle ? "inspect" : "latest";
+    host.dataset.mode = "inspect";
     const change = signedPriceChange(selected.open, selected.close);
-    const signed = (value, suffix = "") => value === null ? "—" : `${value >= 0 ? "+" : ""}${priceLabel(value)}${suffix}`;
+    const percent = change.percent === null ? "—" : `${change.percent >= 0 ? "+" : ""}${change.percent.toFixed(2)}%`;
+    const inspectedVolume = finite(selected.volume) ?? finite(selected.quote_volume ?? selected.quoteVolume);
     const fields = [
-      [this.inspectingCandle ? "Inspect" : "Latest", crosshairTimeLabel(selected.time)],
-      ["O", priceLabel(selected.open)],
-      ["H", priceLabel(selected.high)],
-      ["L", priceLabel(selected.low)],
-      ["C", priceLabel(selected.close)],
-      ["Δ", signed(change.absolute)],
-      ["Change", change.percent === null ? "—" : `${change.percent >= 0 ? "+" : ""}${change.percent.toFixed(2)}%`],
+      { label: "Time", value: crosshairTimeLabel(selected.time), field: "time" },
+      { label: "Open", value: priceLabel(selected.open), field: "open" },
+      { label: "Close", value: priceLabel(selected.close), field: "close" },
+      { label: "High", value: priceLabel(selected.high), field: "high" },
+      { label: "Low", value: priceLabel(selected.low), field: "low" },
+      {
+        label: "Change",
+        value: percent,
+        field: "change",
+        tone: change.percent === null ? "neutral" : change.percent >= 0 ? "positive" : "negative",
+      },
+      { label: "Volume", value: volumeLabel(inspectedVolume), field: "volume" },
     ];
-    const baseVolume = volumeLabel(selected.volume);
-    const quoteVolume = volumeLabel(selected.quote_volume ?? selected.quoteVolume);
-    if (baseVolume !== "--") fields.push(["Base vol", baseVolume]);
-    if (quoteVolume !== "--") fields.push(["Quote vol", quoteVolume]);
-    host.setAttribute("aria-label", fields.map(([label, value]) => `${label}: ${value}`).join(", "));
-    host.replaceChildren(...fields.map(([label, value], index) => {
+    host.setAttribute("aria-label", `Inspected candle, ${fields.map(({ label, value }) => `${label}: ${value}`).join(", ")}`);
+    host.replaceChildren(...fields.map(({ label, value, field, tone }) => {
       const cell = document.createElement("span");
-      if (index === 0) cell.className = "rpw-crosshair-time";
+      cell.dataset.field = field;
+      if (field === "time") cell.className = "rpw-crosshair-time";
+      if (tone) cell.dataset.tone = tone;
       const key = document.createElement("small");
       key.textContent = label;
       const result = document.createElement("strong");

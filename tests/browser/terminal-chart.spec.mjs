@@ -598,16 +598,8 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   expect(initialGeometry.price_axis.min_move).toBeGreaterThan(0);
 
   const candleLegend = chart.locator("[data-rpw-crosshair]");
-  await expect(candleLegend).toBeVisible();
-  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
-  await expect(candleLegend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
-  await expect(candleLegend).not.toContainText("Quote vol");
-  await expect(candleLegend).not.toContainText(/--|—/);
-  await expect(candleLegend).toHaveAttribute("aria-label", /Latest:.*O:.*H:.*L:.*C:.*Base vol:/);
+  await expect(candleLegend).toBeHidden();
   const initialStageBox = await chart.locator(".rpw-stage").boundingBox();
-  const initialLegendBox = await candleLegend.boundingBox();
-  expect(initialLegendBox.x - initialStageBox.x).toBeLessThanOrEqual(12);
-  expect((initialStageBox.x + initialStageBox.width) - (initialLegendBox.x + initialLegendBox.width)).toBeGreaterThanOrEqual(70);
 
   await chart.locator("[data-rpw-indicator-trigger]").click();
   await expect(chart.locator("[data-rpw-indicators]")).toBeVisible();
@@ -616,7 +608,14 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema50?.points || 0)).toBeGreaterThan(0);
   await chart.locator('[data-rpw-indicator="rsi14"]').click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.rsi14?.points || 0)).toBeGreaterThan(0);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.indicator_pane_count || 0)).toBe(1);
+  await chart.locator('[data-rpw-indicator="macd"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.macd?.points || 0)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.indicator_pane_count || 0)).toBe(2);
+  const macdReadout = chart.locator('[data-chart-indicator-readout="macd"]');
+  await expect(macdReadout).toBeVisible();
+  await expect(macdReadout).toContainText(/MACD.*M .*S .*H /s);
+  await expect(macdReadout).not.toContainText("—");
+  await expect(macdReadout).toHaveAttribute("aria-label", /MACD .*signal .*histogram /);
   await chart.locator("[data-rpw-indicator-trigger]").click();
   await expect(chart.locator("[data-rpw-indicators]")).toBeHidden();
 
@@ -624,7 +623,13 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   const bounds = await canvas.boundingBox();
   await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45);
   await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
-  await expect(candleLegend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
+  await expect(candleLegend).toContainText(/Time.*UTC.*Open.*Close.*High.*Low.*Change.*Volume/s);
+  await expect(candleLegend).not.toContainText(/--|—/);
+  await expect(candleLegend).toHaveAttribute("aria-label", /Inspected candle, Time:.*Open:.*Close:.*High:.*Low:.*Change:.*Volume:/);
+  const inspectedLegendBox = await candleLegend.boundingBox();
+  expect(inspectedLegendBox.width).toBeLessThanOrEqual(195);
+  expect(inspectedLegendBox.x - initialStageBox.x).toBeLessThanOrEqual(12);
+  expect((initialStageBox.x + initialStageBox.width) - (inspectedLegendBox.x + inspectedLegendBox.width)).toBeGreaterThanOrEqual(60);
   for (let index = 0; index < 12; index += 1) await page.mouse.wheel(0, -500);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.visible_bars || 0))
     .toBeLessThan(Math.floor(initialGeometry.visible_bars * 0.7));
@@ -635,11 +640,11 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   const zoomedGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
   expect(zoomedGeometry.price_axis.auto_scale).toBe("visible_range");
   await page.mouse.move(1, 1);
-  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
+  await expect(candleLegend).toBeHidden();
   await page.mouse.click(bounds.x + bounds.width * 0.42, bounds.y + bounds.height * 0.52);
   await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
   await page.mouse.move(1, 1);
-  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
+  await expect(candleLegend).toBeHidden();
 
   await chart.locator("[data-rpw-focus]").click();
   await expect(chart).toHaveClass(/rpw-focus-mode/);
@@ -648,7 +653,7 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(chart).not.toHaveClass(/rpw-focus-mode/);
 });
 
-test("mobile long hold inspects exact OHLCV and returns to latest on release", async ({ page }) => {
+test("mobile long hold shows a compact exact OHLCV card and clears it on release", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
@@ -657,7 +662,7 @@ test("mobile long hold inspects exact OHLCV and returns to latest on release", a
   const stage = page.locator("#terminalChart .rpw-stage");
   const legend = page.locator("#terminalChart [data-rpw-crosshair]");
   await expect(stage).toBeVisible();
-  await expect(legend).toHaveAttribute("data-mode", "latest");
+  await expect(legend).toBeHidden();
   await stage.scrollIntoViewIfNeeded();
 
   const bounds = await stage.boundingBox();
@@ -678,10 +683,14 @@ test("mobile long hold inspects exact OHLCV and returns to latest on release", a
   });
 
   await expect(legend).toHaveAttribute("data-mode", "inspect");
-  await expect(legend).toContainText(/Inspect.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
+  await expect(legend).toContainText(/Time.*UTC.*Open.*Close.*High.*Low.*Change.*Volume/s);
+  await expect(legend.locator(":scope > span")).toHaveCount(7);
+  const legendBounds = await legend.boundingBox();
+  expect(legendBounds.width).toBeLessThanOrEqual(185);
+  expect(legendBounds.height).toBeLessThanOrEqual(100);
 
   await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await expect(legend).toHaveAttribute("data-mode", "latest");
+  await expect(legend).toBeHidden();
 });
 
 test("instrument and timeframe changes repaint the chart and exact context", async ({ page }) => {
@@ -1397,14 +1406,19 @@ test("spot scope controls never cover the OHLCV candle inspector", async ({ page
   const scope = page.locator("#terminalChart [data-rpw-scopes]");
   const legend = page.locator("#terminalChart [data-rpw-crosshair]");
   await expect(scope).toBeVisible();
+  await page.mouse.move(1, 1);
+  await expect(legend).toBeHidden();
+  const canvas = page.locator("#terminalChart .rpw-stage canvas").first();
+  const canvasBounds = await canvas.boundingBox();
+  await page.mouse.move(canvasBounds.x + canvasBounds.width * 0.56, canvasBounds.y + canvasBounds.height * 0.46);
   await expect(legend).toBeVisible();
   expect(boxesOverlap(await scope.boundingBox(), await legend.boundingBox())).toBe(false);
+  await page.mouse.move(1, 1);
+  await expect(legend).toBeHidden();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(scope).toBeHidden();
-  await expect(legend).toBeVisible();
-  await expect(legend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
-  await expect(legend).not.toContainText("Quote vol");
+  await expect(legend).toBeHidden();
 });
 
 test("universal exact-market search dismisses on Escape and explicit close", async ({ page }) => {
@@ -1537,14 +1551,7 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
-  await expect(page.locator("#terminalChart .rpw-crosshair > span")).toHaveCount(8);
-  const ohlcvLegend = await page.locator("#terminalChart .rpw-crosshair").boundingBox();
-  const chartStage = await page.locator("#terminalChart .rpw-stage").boundingBox();
-  expect(ohlcvLegend?.x).toBeGreaterThanOrEqual(0);
-  expect((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0)).toBeLessThanOrEqual(390);
-  expect(ohlcvLegend?.height).toBeLessThanOrEqual(70);
-  expect((ohlcvLegend?.x || 0) - (chartStage?.x || 0)).toBeLessThanOrEqual(10);
-  expect(((chartStage?.x || 0) + (chartStage?.width || 0)) - ((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0))).toBeGreaterThanOrEqual(70);
+  await expect(page.locator("#terminalChart .rpw-crosshair")).toBeHidden();
   const chart = await page.locator("#terminalChart .rpw-stage").boundingBox();
   expect(chart.width).toBeGreaterThan(350);
   expect(chart.height).toBeGreaterThan(280);

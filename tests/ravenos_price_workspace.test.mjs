@@ -102,6 +102,12 @@ test("all native RavenOS chart surfaces use the shared price or series renderer"
   assert.match(priceChart, /Indicator names and values belong in the controls and upper-left/);
   assert.match(priceChart, /lastValueVisible: false,\s*title: ""/);
   assert.doesNotMatch(priceChart, /priceLine\("EMA 20"|priceLine\("EMA 50"|priceLine\("VWAP"/);
+  assert.match(workspace, /const selected = crosshair\?\.time[\s\S]*?\? crosshair : null/);
+  assert.match(workspace, /host\.removeAttribute\("data-mode"\)/);
+  assert.match(workspace, /label: "Time"[\s\S]*?label: "Open"[\s\S]*?label: "Close"[\s\S]*?label: "High"[\s\S]*?label: "Low"[\s\S]*?label: "Change"[\s\S]*?label: "Volume"/);
+  assert.match(priceChart, /dataset\.chartIndicatorReadout = "macd"/);
+  assert.match(priceChart, /data-indicator-value="macd"/);
+  assert.match(priceChart, /paintMacdReadout\(inspectedIndicatorTime\)/);
   for (const indicator of ["bb20", "rsi14", "macd"]) {
     assert.match(priceChart, new RegExp(`\\b${indicator}\\b`));
   }

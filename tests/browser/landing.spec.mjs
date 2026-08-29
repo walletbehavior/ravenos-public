@@ -156,9 +156,8 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
   await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
   await expect.poll(() => page.locator("#landingChart .rpw-chart canvas").count()).toBeGreaterThan(1);
-  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("Base vol");
-  await expect(page.locator("#landingChart [data-rpw-crosshair]")).not.toContainText("Quote vol");
-  await expect(page.locator("#landingChart [data-rpw-crosshair]")).not.toContainText("--");
+  const candleCard = page.locator("#landingChart [data-rpw-crosshair]");
+  await expect(candleCard).toBeHidden();
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toContainText("SPY");
   await expect(page.locator("#landingAtlasList .landing-atlas-row")).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
   const product = await page.evaluate(() => window.__RAVENOS_LANDING__?.getState());
@@ -255,7 +254,7 @@ test("landing page is composed for a 390px mobile viewport without horizontal ov
   await expect(page.locator(".landing-launch")).toBeVisible();
   await expect(page.locator("#landingChartWrap")).toHaveAttribute("data-state", "live");
   await expect(page.locator("#landingChart .rpw")).toHaveAttribute("data-price-workspace-state", "live");
-  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toContainText("O");
+  await expect(page.locator("#landingChart [data-rpw-crosshair]")).toBeHidden();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
 });

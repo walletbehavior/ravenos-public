@@ -645,7 +645,7 @@
       crosshair: { mode: 0 },
       trackingMode: {
         // Mobile inspection is deliberate: hold to inspect, drag across exact
-        // candles, and return to the latest candle when the finger lifts.
+        // candles, and clear the temporary candle card when the finger lifts.
         exitMode: api.TrackingModeExitMode?.OnTouchEnd ?? 0,
       },
       localization: {
@@ -704,6 +704,10 @@
     const activeIndicators = new Set(Array.isArray(options?.indicators) ? options.indicators : []);
     const indicatorRefreshers = [];
     let nextIndicatorPane = 1;
+    let macdPaneIndex = null;
+    let macdReadout = null;
+    let macdValuesByTime = new Map();
+    let inspectedIndicatorTime = null;
 
     function priceLine(color, { paneIndex = 0, lineWidth = 2, priceScaleId = "right", formatter = priceFormatter } = {}) {
       return chart.addSeries(api.LineSeries, {
@@ -810,6 +814,7 @@
       if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("macd");
       else {
         const paneIndex = nextIndicatorPane++;
+        macdPaneIndex = paneIndex;
         const macd = priceLine("#8da6b8", { paneIndex, priceScaleId: "macd", formatter: priceFormatter });
         const signal = priceLine("#b5965c", { paneIndex, priceScaleId: "macd", lineWidth: 1, formatter: priceFormatter });
         const histogram = chart.addSeries(api.HistogramSeries, {
@@ -823,6 +828,13 @@
           key: "macd",
           refresh() {
             const rows = macdSeries(candles);
+            const signalByTime = new Map(rows.signal.map((row) => [String(row.time), row.value]));
+            const histogramByTime = new Map(rows.histogram.map((row) => [String(row.time), row.value]));
+            macdValuesByTime = new Map(rows.macd.map((row) => [String(row.time), {
+              macd: row.value,
+              signal: signalByTime.get(String(row.time)) ?? null,
+              histogram: histogramByTime.get(String(row.time)) ?? null,
+            }]));
             macd.setData(rows.macd);
             signal.setData(rows.signal);
             histogram.setData(rows.histogram);
@@ -840,7 +852,75 @@
           points,
         };
       });
+      paintMacdReadout(inspectedIndicatorTime);
       if (typeof window !== "undefined") window.__RAVENOS_LAST_INDICATOR_STATE__ = indicatorState;
+    }
+
+    function signedIndicatorValue(value) {
+      if (value === null || value === undefined || value === "") return "—";
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return "—";
+      const formatted = priceFormatter(Math.abs(parsed));
+      return `${parsed > 0 ? "+" : parsed < 0 ? "−" : ""}${formatted}`;
+    }
+
+    function positionMacdReadout() {
+      if (!macdReadout || macdPaneIndex === null) return;
+      const paneList = typeof chart.panes === "function" ? chart.panes() : [];
+      const measuredTop = paneList.slice(0, macdPaneIndex)
+        .reduce((sum, pane) => sum + Math.max(0, Number(pane?.getHeight?.()) || 0), 0);
+      const paneCount = Math.max(1, nextIndicatorPane - 1);
+      const fallbackTop = (chartHost.clientHeight || chartHeight) * ((3 + Math.max(0, macdPaneIndex - 1)) / (3 + paneCount));
+      macdReadout.style.top = `${Math.round((measuredTop || fallbackTop) + 5)}px`;
+    }
+
+    function paintMacdReadout(time = null) {
+      if (!macdReadout) return;
+      const selectedKey = time === null || time === undefined
+        ? Array.from(macdValuesByTime.keys()).at(-1)
+        : String(time);
+      const values = selectedKey ? macdValuesByTime.get(selectedKey) : null;
+      const macdValue = macdReadout.querySelector('[data-indicator-value="macd"]');
+      const signalValue = macdReadout.querySelector('[data-indicator-value="signal"]');
+      const histogramValue = macdReadout.querySelector('[data-indicator-value="histogram"]');
+      if (macdValue) macdValue.textContent = `${macdValue.dataset.prefix} ${signedIndicatorValue(values?.macd)}`;
+      if (signalValue) signalValue.textContent = `${signalValue.dataset.prefix} ${signedIndicatorValue(values?.signal)}`;
+      if (histogramValue) {
+        histogramValue.textContent = `${histogramValue.dataset.prefix} ${signedIndicatorValue(values?.histogram)}`;
+        const histogram = Number(values?.histogram);
+        histogramValue.dataset.tone = values?.histogram !== null && values?.histogram !== undefined && Number.isFinite(histogram)
+          ? histogram >= 0 ? "positive" : "negative"
+          : "neutral";
+      }
+      macdReadout.setAttribute(
+        "aria-label",
+        `MACD ${signedIndicatorValue(values?.macd)}, signal ${signedIndicatorValue(values?.signal)}, histogram ${signedIndicatorValue(values?.histogram)}`,
+      );
+      positionMacdReadout();
+    }
+
+    function createMacdReadout() {
+      if (macdPaneIndex === null) return null;
+      const host = document.createElement("div");
+      host.className = "raven-chart-indicator-readout";
+      host.dataset.chartIndicatorReadout = "macd";
+      host.setAttribute("role", "group");
+      const label = document.createElement("strong");
+      label.textContent = "MACD";
+      const values = [
+        ["macd", "M"],
+        ["signal", "S"],
+        ["histogram", "H"],
+      ].map(([key, prefix]) => {
+        const value = document.createElement("span");
+        value.dataset.indicatorValue = key;
+        value.dataset.prefix = prefix;
+        value.textContent = `${prefix} —`;
+        return value;
+      });
+      host.append(label, ...values);
+      chartHost.appendChild(host);
+      return host;
     }
 
     refreshIndicators();
@@ -849,6 +929,9 @@
       panes[0]?.setStretchFactor?.(3);
       panes.slice(1).forEach((pane) => pane?.setStretchFactor?.(1));
     }
+    macdReadout = createMacdReadout();
+    paintMacdReadout();
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(positionMacdReadout);
 
     function visibleOverlays(type) {
       return enrichedOverlays.filter((overlay) => {
@@ -1034,6 +1117,7 @@
     const inspectedCandle = (param) => {
       const row = param?.seriesData?.get?.(candleSeries);
       if (!param?.time || !row) return null;
+      const macdValues = macdValuesByTime.get(String(param.time)) || null;
       return {
         time: param.time,
         open: Number.isFinite(Number(row.open)) ? Number(row.open) : null,
@@ -1042,12 +1126,15 @@
         close: Number.isFinite(Number(row.close ?? row.value)) ? Number(row.close ?? row.value) : null,
         volume: Number.isFinite(Number(volumeByTime.get(String(param.time)))) ? Number(volumeByTime.get(String(param.time))) : null,
         quote_volume: Number.isFinite(Number(quoteVolumeByTime.get(String(param.time)))) ? Number(quoteVolumeByTime.get(String(param.time))) : null,
+        indicators: macdValues ? { macd: { ...macdValues } } : {},
         point: param.point || null,
       };
     };
     const crosshairHandler = (param) => {
-      if (typeof options?.onCrosshairMove !== "function") return;
-      options.onCrosshairMove(inspectedCandle(param));
+      const selected = inspectedCandle(param);
+      inspectedIndicatorTime = selected?.time ?? null;
+      paintMacdReadout(inspectedIndicatorTime);
+      options?.onCrosshairMove?.(selected);
     };
     if (typeof chart.subscribeCrosshairMove === "function") chart.subscribeCrosshairMove(crosshairHandler);
     const clickHandler = (param) => {
@@ -1055,10 +1142,14 @@
       if (markerId && markerLookup.has(String(markerId))) options?.onMarkerSelect?.(markerLookup.get(String(markerId)));
       // A mouse click should inspect the same exact candle as hover. Touch
       // keeps Lightweight Charts' native hold-and-drag lifecycle so lifting a
-      // finger still returns the inspector to the latest candle.
+      // finger clears the temporary candle card.
       if (window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches) {
         const selected = inspectedCandle(param);
-        if (selected) options?.onCrosshairMove?.(selected);
+        if (selected) {
+          inspectedIndicatorTime = selected.time;
+          paintMacdReadout(inspectedIndicatorTime);
+          options?.onCrosshairMove?.(selected);
+        }
       }
     };
     if (typeof chart.subscribeClick === "function") chart.subscribeClick(clickHandler);
@@ -1068,6 +1159,7 @@
       if (chartHost.clientHeight !== height) chartHost.style.height = `${height}px`;
       chart.applyOptions({ width, height });
       renderRegions();
+      positionMacdReadout();
     });
     resizeObserver.observe(chartHost);
     resizeObserver.observe(container);
@@ -1188,6 +1280,7 @@
           height,
         });
         renderRegions();
+        positionMacdReadout();
       },
       destroy() {
         chart.timeScale().unsubscribeVisibleTimeRangeChange(renderRegions);
