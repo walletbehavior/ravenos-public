@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ShadowRouteLedgerLimits,
   buildShadowRouteReadinessProjection,
+  createD1ShadowExecutionLedgerStore,
   createShadowRouteObservation,
   runShadowRouteCheckpointEvaluator,
 } from "../lib/customer_trade/shadow_execution_ledger.mjs";
@@ -130,6 +131,30 @@ test("checkpoint evaluator appends the first due horizon once under a bounded le
   assert.equal(inserted[0].horizon_seconds, 300);
   assert.equal(inserted[0].route_available, 1);
   assert.equal(inserted[0].current_exit_usdc, 490);
+});
+
+test("D1 ledger pins reads and writes to one first-primary session", async () => {
+  const sessions = [];
+  const session = {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async all() { return { results: [] }; },
+          };
+        },
+      };
+    },
+  };
+  const store = createD1ShadowExecutionLedgerStore({
+    prepare() { throw new Error("base_database_must_not_be_used"); },
+    withSession(mode) {
+      sessions.push(mode);
+      return session;
+    },
+  });
+  assert.deepEqual(await store.recentObservations(0, 10, 1), []);
+  assert.deepEqual(sessions, ["first-primary"]);
 });
 
 test("migration is append-only, retention-bounded, and excludes prohibited identity and execution fields", () => {
