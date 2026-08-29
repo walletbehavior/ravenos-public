@@ -645,6 +645,15 @@ function inspectTerminalPane(pane) {
   const mobile = terminalUsesPaneNavigation();
   const next = setTerminalPane(pane, { restoreScroll: mobile });
   if (mobile) return next;
+  if (state.lane === "spot") {
+    afterTerminalPaneVisible(() => {
+      const dock = document.querySelector(".terminal-intelligence");
+      const target = terminalPaneSurface(next);
+      dock?.scrollTo?.({ top: 0, behavior: "auto" });
+      if (target && !target.hidden && target.matches?.("[tabindex]")) target.focus?.({ preventScroll: true });
+    });
+    return next;
+  }
   afterTerminalPaneVisible(() => {
     const target = terminalPaneSurface(next);
     if (!target || target.hidden) return;
@@ -745,9 +754,7 @@ function updateTerminalPaneAvailability() {
   const accountVisible = perps && state.flags?.public_account_view_available === true;
   if (accountDock) accountDock.hidden = !accountVisible;
   if (accountButton) accountButton.hidden = !accountVisible;
-  const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
-  const ravenAvailable = document.getElementById("terminalContextSection")?.hidden === false;
-  if (ravenButton) ravenButton.disabled = !ravenAvailable;
+  const ravenAvailable = syncRavenPaneAvailability();
   syncWalletControls();
   const current = root?.dataset.terminalPane || "chart";
   if (
@@ -1326,6 +1333,30 @@ function setAnatomyRows(rows = []) {
   return useful.length;
 }
 
+function currentRavenPaneSurface() {
+  const surfaces = [
+    ["terminalContextSection", "Current", "positive"],
+    ["terminalAlphaSection", "Current", "positive"],
+    ["terminalPlanSection", "Plan current", "positive"],
+    ["terminalMarkerDetail", "Evidence", "positive"],
+    ["terminalComparableSection", "History", "neutral"],
+  ];
+  return surfaces.find(([id]) => document.getElementById(id)?.hidden === false) || null;
+}
+
+function syncRavenPaneAvailability() {
+  const availableSurface = currentRavenPaneSurface();
+  const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
+  if (ravenButton) ravenButton.disabled = !availableSurface;
+  setTerminalPaneStatus(
+    "raven",
+    availableSurface?.[1] || "No current read",
+    availableSurface?.[2] || "neutral",
+  );
+  if (!availableSurface && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven") setTerminalPane("chart");
+  return Boolean(availableSurface);
+}
+
 function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven Read" } = {}) {
   const cell = document.getElementById("terminalContextStateCell");
   const section = document.getElementById("terminalContextSection");
@@ -1339,10 +1370,7 @@ function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven R
   }
   if (shellTrigger) shellTrigger.hidden = !visible;
   setText("terminalContextKindLabel", kind, "");
-  const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
-  if (ravenButton) ravenButton.disabled = !visible;
-  setTerminalPaneStatus("raven", visible ? "Current" : "No current read", visible ? "positive" : "neutral");
-  if (!visible && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven") setTerminalPane("chart");
+  syncRavenPaneAvailability();
   if (!visible) document.body.classList.remove("ros-context-open");
 }
 
@@ -2566,6 +2594,37 @@ function marketRiskBlocksAction(risk = state.marketControlRisk) {
   );
 }
 
+function renderSpotTicketRiskSummary(risk = state.marketControlRisk, { loading = false, unavailable = false } = {}) {
+  const root = document.getElementById("terminalSpotRiskSummary");
+  if (!root) return;
+  if (!risk) {
+    root.dataset.state = unavailable ? "unavailable" : "forming";
+    const label = loading ? "Checking" : unavailable ? "Unavailable" : "Checking";
+    const note = loading
+      ? "Exact holder and control checks"
+      : unavailable ? "No risk level was inferred" : "Open holders for current evidence";
+    setText("terminalSpotRiskCompact", label);
+    setText("terminalSpotRiskCompactNote", note);
+    root.title = note;
+    root.setAttribute("aria-label", `Market risk: ${label}. ${note}. Review holders and safety.`);
+    return;
+  }
+  const label = {
+    measured_low: "Measured low",
+    watch: "Watch",
+    elevated: "Elevated",
+    high: "High",
+    severe: "Severe",
+  }[risk.level] || "Review";
+  const lead = risk.risk_factors?.[0]?.label
+    || (risk.mitigating_checks?.length ? `${risk.mitigating_checks.length} checks passed` : "Current exact-market evidence");
+  root.dataset.state = risk.level || "forming";
+  setText("terminalSpotRiskCompact", label);
+  setText("terminalSpotRiskCompactNote", lead);
+  root.title = lead;
+  root.setAttribute("aria-label", `Market risk: ${label}. ${lead}. Review holders and safety.`);
+}
+
 function renderMarketRiskInterrupt(risk = state.marketControlRisk) {
   const root = document.getElementById("terminalRiskInterrupt");
   if (!root) return;
@@ -2602,6 +2661,7 @@ function renderMarketRiskInterrupt(risk = state.marketControlRisk) {
 function setActiveMarketControlRisk(risk) {
   state.marketControlRisk = risk || null;
   renderMarketRiskInterrupt(state.marketControlRisk);
+  renderSpotTicketRiskSummary(state.marketControlRisk);
   const blocked = marketRiskBlocksAction();
   const context = document.getElementById("terminalContextSection");
   const contextGuard = document.getElementById("terminalContextRiskGuard");
@@ -2639,6 +2699,7 @@ function renderMarketControlRisk(payload, { loading = false, unavailable = false
   const identity = currentHolderIdentity();
   const risk = verifiedMarketControlRisk(payload, identity);
   setActiveMarketControlRisk(risk);
+  renderSpotTicketRiskSummary(risk, { loading, unavailable });
   root.hidden = !identity;
   root.dataset.level = risk?.level || "forming";
   if (!identity) return;
@@ -3852,7 +3913,7 @@ function clearMarkerInspection() {
 function showFullMarkerEvidence() {
   if (!state.selectedMarker) return false;
   renderMarkerDetail(state.selectedMarker);
-  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     const detail = document.getElementById("terminalMarkerDetail");
     detail?.scrollIntoView?.({ block: "start", behavior: "smooth" });
@@ -4236,6 +4297,7 @@ function resetPlanPreview() {
   setText("terminalPlanWhy", "");
   syncPlanActionSurfaces(null);
   syncSpotPlanSource();
+  syncRavenPaneAvailability();
 }
 
 function activeChartEvidenceInstrumentId() {
@@ -4503,7 +4565,7 @@ function focusPlanPreview() {
     announceRavenAction("A current Raven plan is not available for this exact market.");
     return false;
   }
-  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     const section = document.getElementById("terminalPlanSection");
     section?.scrollIntoView?.({ block: "start", behavior: "smooth" });
@@ -4521,7 +4583,7 @@ function focusTerminalRaven() {
       ? document.getElementById("terminalAlphaSection")
       : null;
   if (!target) return false;
-  if (terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     target.scrollIntoView?.({ block: "start", behavior: "smooth" });
     target.focus?.({ preventScroll: true });
@@ -4568,6 +4630,7 @@ function renderPlanPreview(plan = {}) {
   setText("terminalPlanDisclaimer", /financial advice/i.test(planDisclaimer) ? planDisclaimer : `${planDisclaimer} Not financial advice.`);
   syncPlanActionSurfaces(validated);
   syncSpotPlanSource();
+  syncRavenPaneAvailability();
   return true;
 }
 
@@ -5242,6 +5305,14 @@ function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) 
   }
 }
 
+function setSpotTicketExitSummary(summaryState = "idle", label = "Not reviewed", note = "Request a current route") {
+  const root = document.getElementById("terminalSpotExitSummary");
+  if (root) root.dataset.state = summaryState;
+  setText("terminalSpotExitCompact", label);
+  setText("terminalSpotExitCompactNote", note);
+  if (root) root.title = note;
+}
+
 function clearSpotQuoteResult(message = "Select a size and review a current route. Nothing will be submitted.", { invalidate = true, stopFollowing = true } = {}) {
   if (invalidate) state.spotQuoteGeneration += 1;
   state.spotQuoteAbortController?.abort?.();
@@ -5262,7 +5333,18 @@ function clearSpotQuoteResult(message = "Select a size and review a current rout
   }
   setText("terminalSpotQuoteState", spotTicketQualified() ? "Ready to quote" : spotTicketIdentityAvailable() ? "Adapter pending" : "Unavailable");
   setText("terminalSpotQuoteMessage", message);
+  setSpotTicketExitSummary();
   updateSpotExecutionRail();
+}
+
+function syncSpotAdvancedSummary() {
+  const source = {
+    raven_exact_market: "Raven plan",
+    user_preset: "Preset",
+    custom: "Custom plan",
+  }[state.spotTicketPlanSource] || "Preset";
+  const slippage = finite(document.getElementById("terminalSpotSlippage")?.value) ?? loadSpotTicketPreferences().slippage_bps;
+  setText("terminalSpotAdvancedState", `${source} · ${(slippage / 100).toFixed(2)}% slippage`);
 }
 
 function renderSpotQuickSizes() {
@@ -5301,6 +5383,7 @@ function renderSpotQuickSizes() {
   if (slippage && [...slippage.options].some((option) => Number(option.value) === preferences.slippage_bps)) slippage.value = String(preferences.slippage_bps);
   if (priority) priority.value = preferences.priority_mode;
   if (cap) cap.value = String(preferences.priority_cap_lamports);
+  syncSpotAdvancedSummary();
 }
 
 function qualifiedSpotRavenPlan() {
@@ -5336,6 +5419,7 @@ function syncSpotPlanSource() {
     custom: "Your exact prices are local ticket inputs. RavenOS will never relabel them as a Raven suggestion.",
   };
   setText("terminalSpotPlanSourceNote", notes[state.spotTicketPlanSource]);
+  syncSpotAdvancedSummary();
 }
 
 function setSpotPlanSource(source) {
@@ -5534,6 +5618,8 @@ function syncSpotTicketControls() {
     const proDiscount = finite(feePreview.pro_discount_pct);
     setText("terminalSpotActiveFee", freeFeeBps === null ? "Shown before review" : `Free · ${(freeFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotProFee", proFeeBps === null ? "Pro rate unavailable" : `${(proFeeBps / 100).toFixed(2)}%${proDiscount === null ? "" : ` · ${Math.round(proDiscount)}% lower`}`);
+    setText("terminalSpotFeeCompact", freeFeeBps === null ? "At review" : `${(freeFeeBps / 100).toFixed(2)}%`);
+    setText("terminalSpotFeeCompactNote", proFeeBps === null ? "Exact fee shown in review" : `Free rate · Pro ${(proFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotFeeNote", feePreview.enabled === true
       ? "The server-enforced builder fee is included in every current review before signing."
       : "The configured builder fee is visible now; quote/review mode currently charges 0 bps.");
@@ -5544,6 +5630,8 @@ function syncSpotTicketControls() {
     setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} market identity, charts, holders, and Raven context stay available. Its noncustodial quote adapter is not active yet, so no substitute chain or route is used.`);
     setText("terminalSpotActiveFee", "Shown when adapter qualifies");
     setText("terminalSpotProFee", "Pro discount preserved");
+    setText("terminalSpotFeeCompact", "Pending");
+    setText("terminalSpotFeeCompactNote", "Shown when route qualifies");
   }
   syncSpotPlanSource();
   updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: spotQuoteStillCurrent() && state.spotQuote?.shadow_execution?.round_trip?.exit_verified === true });
@@ -5554,6 +5642,8 @@ function setSpotTicketSide(side) {
   const next = side === "sell" ? "sell" : "buy";
   state.spotTicketSide = next;
   state.spotSellPercent = null;
+  const advanced = document.getElementById("terminalSpotAdvanced");
+  if (advanced && next === "sell") advanced.open = true;
   const input = document.getElementById("terminalSpotAmount");
   if (input) {
     input.disabled = next === "sell";
@@ -5648,13 +5738,16 @@ function scheduleSpotQuoteExpiry(payload) {
       if (result) result.dataset.state = "expired";
       setText("terminalSpotQuoteState", "Refresh quote");
       setText("terminalSpotQuoteTiming", "Quote expired · request a new exact route");
+      setSpotTicketExitSummary("expired", "Expired", "Refresh the exact route");
       updateSpotExecutionRail();
       if (state.spotQuoteFollow && state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {
         void requestSpotQuote({ automatic: true, expectedFingerprint: state.spotQuoteFingerprint });
       }
       return;
     }
-    setText("terminalSpotQuoteTiming", `Current for ${Math.ceil(remaining / 1_000)}s · quoted ${timestamp(payload?.timing?.quoted_at || payload?.quote?.observed_at || payload?.observed_at)}`);
+    const seconds = Math.ceil(remaining / 1_000);
+    setText("terminalSpotQuoteTiming", `Current for ${seconds}s · quoted ${timestamp(payload?.timing?.quoted_at || payload?.quote?.observed_at || payload?.observed_at)}`);
+    setText("terminalSpotExitCompactNote", `Current for ${seconds}s`);
     state.spotQuoteExpiryTimer = setTimeout(tick, Math.min(1_000, remaining));
   };
   tick();
@@ -5665,11 +5758,13 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   if (!payload?.ok) {
     clearSpotQuoteResult(spotQuoteReason(payload?.unavailable_reason || payload?.error), { invalidate: false });
     setText("terminalSpotQuoteState", "Try again");
+    setSpotTicketExitSummary("unavailable", "Unavailable", "No stale route shown");
     return;
   }
   if (!spotQuoteResponseMatches(payload, snapshot) || fingerprint !== spotTicketFingerprint()) {
     clearSpotQuoteResult("The route response no longer matches this exact ticket. No stale or substituted quote was shown.", { invalidate: true });
     setText("terminalSpotQuoteState", "Review again");
+    setSpotTicketExitSummary("unavailable", "Review again", "Exact ticket changed");
     return;
   }
   state.spotQuote = payload;
@@ -5704,6 +5799,11 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   setText("terminalSpotQuoteExit", exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`);
   setText("terminalSpotQuoteFriction", friction === null ? (roundTrip?.exit_verified ? "Network cost pending" : "Unavailable") : `${friction.toFixed(2)}%`);
   setText("terminalSpotQuoteExitState", roundTrip?.exit_verified ? "Verified now" : state.spotTicketSide === "sell" ? "This is the exit route" : "Unresolved · trade unavailable");
+  setSpotTicketExitSummary(
+    roundTrip?.exit_verified || state.spotTicketSide === "sell" ? "current" : "unavailable",
+    roundTrip?.exit_verified ? "Verified now" : state.spotTicketSide === "sell" ? "Current exit" : "Not verified",
+    roundTrip?.exit_verified ? "Entry + reverse route" : state.spotTicketSide === "sell" ? "Token back to USDC" : "Buy remains unavailable",
+  );
   const result = document.getElementById("terminalSpotQuoteResult");
   if (result) {
     result.hidden = false;
@@ -5752,6 +5852,7 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
   }
   setText("terminalSpotQuoteState", automatic ? "Refreshing" : "Quoting");
   setText("terminalSpotQuoteMessage", automatic ? "Refreshing this unchanged exact ticket before expiry…" : "Checking the exact pool, token mints, balance sizing, and current route…");
+  setSpotTicketExitSummary("loading", automatic ? "Refreshing" : "Checking", "Entry + reverse route");
   updateSpotExecutionRail();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
@@ -7101,6 +7202,7 @@ function bindControls() {
   });
   document.getElementById("terminalUseWallet")?.addEventListener("click", () => void useBrowserWalletAddress());
   document.getElementById("terminalWalletConnect")?.addEventListener("click", () => void useBrowserWalletAddress());
+  document.getElementById("terminalSpotRiskSummary")?.addEventListener("click", inspectSpotRisk);
   document.getElementById("terminalSpotWalletConnect")?.addEventListener("click", () => void connectSolanaWalletReadOnly());
   document.getElementById("terminalSpotQuoteAction")?.addEventListener("click", () => void requestSpotQuote());
   document.getElementById("terminalSpotQuoteFollow")?.addEventListener("change", (event) => {
@@ -7176,6 +7278,7 @@ function bindControls() {
     const slippage = Math.round(boundedSpotPreference(event.currentTarget.value, 50, { minimum: 5, maximum: 300 }));
     saveSpotTicketPreferences({ slippage_bps: slippage });
     setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${document.getElementById("terminalSpotPriorityMode")?.value || "standard"} priority`);
+    syncSpotAdvancedSummary();
     clearSpotQuoteResult("Slippage changed. Review a new exact route.");
   });
   document.getElementById("terminalSpotPriorityMode")?.addEventListener("change", (event) => {
@@ -7185,6 +7288,7 @@ function bindControls() {
     if (field) field.hidden = mode !== "capped";
     const slippage = Number(document.getElementById("terminalSpotSlippage")?.value || 50);
     setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${mode} priority`);
+    syncSpotAdvancedSummary();
     clearSpotQuoteResult("Priority policy changed. Review a new exact route.");
   });
   document.getElementById("terminalSpotPriorityCap")?.addEventListener("change", (event) => {

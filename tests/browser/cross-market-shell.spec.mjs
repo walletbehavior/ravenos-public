@@ -1093,6 +1093,8 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await row.click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
   await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator(".terminal-chart-panel")).toBeVisible();
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
@@ -2076,6 +2078,8 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixtur…ddress");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator(".terminal-chart-panel")).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");

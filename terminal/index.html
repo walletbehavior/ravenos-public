@@ -590,11 +590,6 @@
             <button type="button" id="terminalSpotSell" data-spot-side="sell" aria-pressed="false">Sell</button>
           </div>
 
-          <div class="terminal-spot-wallet" id="terminalSpotWallet">
-            <div><span>Read-only wallet</span><strong id="terminalSpotWalletState">Not connected</strong><small id="terminalSpotWalletNote">Connect only to verify chain-local USDC or token balance. RavenOS will not request a signature.</small></div>
-            <button type="button" id="terminalSpotWalletConnect">Connect</button>
-          </div>
-
           <div class="terminal-preview-inputs terminal-spot-amount-row">
             <label>
               <span id="terminalSpotAmountLabel">Spend</span>
@@ -614,88 +609,22 @@
             <button type="button" data-spot-sell-pct="100" disabled>100%</button>
           </div>
 
-          <details class="terminal-bracket terminal-quick-size-settings" id="terminalSpotQuickSizeSettings">
-            <summary><span>Customize USDC quick-buy sizes</span><strong>Saved on this device</strong></summary>
-            <div class="terminal-quick-size-editor" id="terminalSpotQuickSizeEditor">
-              <label><span>1</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="0" /></label>
-              <label><span>2</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="1" /></label>
-              <label><span>3</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="2" /></label>
-              <label><span>4</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="3" /></label>
+          <div class="terminal-spot-decision-strip" id="terminalSpotDecisionStrip" aria-label="Current route review status">
+            <button type="button" id="terminalSpotRiskSummary" data-state="forming">
+              <span>Market risk</span>
+              <strong id="terminalSpotRiskCompact">Checking</strong>
+              <small id="terminalSpotRiskCompactNote">Exact holder and control checks</small>
+            </button>
+            <div id="terminalSpotExitSummary" data-state="idle">
+              <span>Exit check</span>
+              <strong id="terminalSpotExitCompact">Not reviewed</strong>
+              <small id="terminalSpotExitCompactNote">Request a current route</small>
             </div>
-          </details>
-
-          <div class="terminal-plan-source" id="terminalSpotPlanSource">
-            <span>Exit plan</span>
-            <div role="group" aria-label="Exit plan source">
-              <button type="button" data-spot-plan-source="raven_exact_market" aria-pressed="false" disabled>Raven</button>
-              <button type="button" class="active" data-spot-plan-source="user_preset" aria-pressed="true">My preset</button>
-              <button type="button" data-spot-plan-source="custom" aria-pressed="false">Custom</button>
+            <div id="terminalSpotFeeSummary">
+              <span>Builder fee</span>
+              <strong id="terminalSpotFeeCompact">2.55%</strong>
+              <small id="terminalSpotFeeCompactNote">Free rate · Pro 1.78%</small>
             </div>
-            <p id="terminalSpotPlanSourceNote">Your preset stays separate from Raven research.</p>
-          </div>
-
-          <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotPresetInputs">
-            <label>
-              <span>Take profit</span>
-              <span class="terminal-input-shell"><input id="terminalSpotTakeProfitPct" type="number" min="0.1" max="1000" step="0.1" value="25" inputmode="decimal" /><b>%</b></span>
-            </label>
-            <label>
-              <span>Stop loss</span>
-              <span class="terminal-input-shell"><input id="terminalSpotStopLossPct" type="number" min="0.1" max="99" step="0.1" value="12" inputmode="decimal" /><b>%</b></span>
-            </label>
-          </div>
-          <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotCustomInputs" hidden>
-            <label>
-              <span>Take-profit price</span>
-              <span class="terminal-input-shell"><input id="terminalSpotTakeProfitPrice" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
-            </label>
-            <label>
-              <span>Stop-loss price</span>
-              <span class="terminal-input-shell"><input id="terminalSpotStopLossPrice" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
-            </label>
-          </div>
-          <div class="terminal-raven-plan-receipt" id="terminalSpotRavenPlanReceipt" hidden>
-            <span>Raven exact-market suggestion</span>
-            <strong id="terminalSpotRavenPlanLevels">No current plan</strong>
-            <small id="terminalSpotRavenPlanObserved">Research only</small>
-          </div>
-
-          <details class="terminal-bracket terminal-routing-settings" id="terminalSpotRoutingSettings">
-            <summary><span>Advanced routing</span><strong id="terminalSpotRoutingSummary">0.50% slippage · standard priority</strong></summary>
-            <div class="terminal-routing-grid">
-              <label>
-                <span>Slippage</span>
-                <select id="terminalSpotSlippage" aria-label="Spot quote slippage">
-                  <option value="25">0.25%</option>
-                  <option value="50" selected>0.50%</option>
-                  <option value="100">1.00%</option>
-                  <option value="200">2.00%</option>
-                  <option value="300">3.00%</option>
-                </select>
-              </label>
-              <label>
-                <span>Priority</span>
-                <select id="terminalSpotPriorityMode" aria-label="Spot priority mode">
-                  <option value="standard" selected>Standard</option>
-                  <option value="capped">Capped</option>
-                </select>
-              </label>
-              <label id="terminalSpotPriorityCapField" hidden>
-                <span>Maximum priority</span>
-                <span class="terminal-input-shell"><input id="terminalSpotPriorityCap" type="number" min="1000" max="50000" step="1000" value="10000" inputmode="numeric" /><b>lamports</b></span>
-              </label>
-              <div class="terminal-jito-state">
-                <span>Jito protection</span>
-                <strong>Not available yet</strong>
-                <small>Shown here for route planning; it will remain off until tip recipients, caps, simulation, and sending are independently reviewed.</small>
-              </div>
-            </div>
-          </details>
-
-          <div class="terminal-fee-disclosure" id="terminalSpotFeeDisclosure">
-            <div><span>Builder fee</span><strong id="terminalSpotActiveFee">Free · 2.55%</strong></div>
-            <div><span>Pro rate</span><strong id="terminalSpotProFee">1.78% · 30% lower</strong></div>
-            <small id="terminalSpotFeeNote">The configured fee is disclosed before signing. No fee is charged in quote/review mode.</small>
           </div>
 
           <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Review buy + exit</button>
@@ -728,11 +657,106 @@
             <li data-terminal-step="sign" aria-disabled="true"><span>4</span><strong>Sign</strong><small>Locked</small></li>
             <li data-terminal-step="send" aria-disabled="true"><span>5</span><strong>Send</strong><small>Locked</small></li>
           </ol>
-          <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Select a size and review a short-lived route. No transaction is constructed.</p>
-          <div class="terminal-preview-boundary">
-            <strong>Preview only</strong>
-            <span>Raven checks the entry and reverse liquidation route. Nothing is constructed, signed, or submitted.</span>
-          </div>
+          <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Select a size and review a current route. Nothing will be submitted.</p>
+
+          <details class="terminal-bracket terminal-spot-advanced" id="terminalSpotAdvanced">
+            <summary><span>Plans, wallet &amp; routing</span><strong id="terminalSpotAdvancedState">Preset · 0.50% slippage</strong></summary>
+            <div class="terminal-spot-advanced-body">
+              <div class="terminal-spot-wallet" id="terminalSpotWallet">
+                <div><span>Read-only wallet</span><strong id="terminalSpotWalletState">Not connected</strong><small id="terminalSpotWalletNote">Connect only to verify chain-local USDC or token balance. RavenOS will not request a signature.</small></div>
+                <button type="button" id="terminalSpotWalletConnect">Connect</button>
+              </div>
+
+              <details class="terminal-bracket terminal-quick-size-settings" id="terminalSpotQuickSizeSettings">
+                <summary><span>Customize USDC quick-buy sizes</span><strong>Saved on this device</strong></summary>
+                <div class="terminal-quick-size-editor" id="terminalSpotQuickSizeEditor">
+                  <label><span>1</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="0" /></label>
+                  <label><span>2</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="1" /></label>
+                  <label><span>3</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="2" /></label>
+                  <label><span>4</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="3" /></label>
+                </div>
+              </details>
+
+              <div class="terminal-plan-source" id="terminalSpotPlanSource">
+                <span>Exit plan</span>
+                <div role="group" aria-label="Exit plan source">
+                  <button type="button" data-spot-plan-source="raven_exact_market" aria-pressed="false" disabled>Raven</button>
+                  <button type="button" class="active" data-spot-plan-source="user_preset" aria-pressed="true">My preset</button>
+                  <button type="button" data-spot-plan-source="custom" aria-pressed="false">Custom</button>
+                </div>
+                <p id="terminalSpotPlanSourceNote">Your preset stays separate from Raven research.</p>
+              </div>
+
+              <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotPresetInputs">
+                <label>
+                  <span>Take profit</span>
+                  <span class="terminal-input-shell"><input id="terminalSpotTakeProfitPct" type="number" min="0.1" max="1000" step="0.1" value="25" inputmode="decimal" /><b>%</b></span>
+                </label>
+                <label>
+                  <span>Stop loss</span>
+                  <span class="terminal-input-shell"><input id="terminalSpotStopLossPct" type="number" min="0.1" max="99" step="0.1" value="12" inputmode="decimal" /><b>%</b></span>
+                </label>
+              </div>
+              <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotCustomInputs" hidden>
+                <label>
+                  <span>Take-profit price</span>
+                  <span class="terminal-input-shell"><input id="terminalSpotTakeProfitPrice" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
+                </label>
+                <label>
+                  <span>Stop-loss price</span>
+                  <span class="terminal-input-shell"><input id="terminalSpotStopLossPrice" type="number" min="0" step="any" inputmode="decimal" /><b>USD</b></span>
+                </label>
+              </div>
+              <div class="terminal-raven-plan-receipt" id="terminalSpotRavenPlanReceipt" hidden>
+                <span>Raven exact-market suggestion</span>
+                <strong id="terminalSpotRavenPlanLevels">No current plan</strong>
+                <small id="terminalSpotRavenPlanObserved">Research only</small>
+              </div>
+
+              <details class="terminal-bracket terminal-routing-settings" id="terminalSpotRoutingSettings">
+                <summary><span>Advanced routing</span><strong id="terminalSpotRoutingSummary">0.50% slippage · standard priority</strong></summary>
+                <div class="terminal-routing-grid">
+                  <label>
+                    <span>Slippage</span>
+                    <select id="terminalSpotSlippage" aria-label="Spot quote slippage">
+                      <option value="25">0.25%</option>
+                      <option value="50" selected>0.50%</option>
+                      <option value="100">1.00%</option>
+                      <option value="200">2.00%</option>
+                      <option value="300">3.00%</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Priority</span>
+                    <select id="terminalSpotPriorityMode" aria-label="Spot priority mode">
+                      <option value="standard" selected>Standard</option>
+                      <option value="capped">Capped</option>
+                    </select>
+                  </label>
+                  <label id="terminalSpotPriorityCapField" hidden>
+                    <span>Maximum priority</span>
+                    <span class="terminal-input-shell"><input id="terminalSpotPriorityCap" type="number" min="1000" max="50000" step="1000" value="10000" inputmode="numeric" /><b>lamports</b></span>
+                  </label>
+                  <div class="terminal-jito-state">
+                    <span>Jito protection</span>
+                    <strong>Not available yet</strong>
+                    <small>Shown here for route planning; it will remain off until tip recipients, caps, simulation, and sending are independently reviewed.</small>
+                  </div>
+                </div>
+              </details>
+
+              <div class="terminal-fee-disclosure" id="terminalSpotFeeDisclosure">
+                <div><span>Builder fee</span><strong id="terminalSpotActiveFee">Free · 2.55%</strong></div>
+                <div><span>Pro rate</span><strong id="terminalSpotProFee">1.78% · 30% lower</strong></div>
+                <small id="terminalSpotFeeNote">The configured fee is disclosed before signing. No fee is charged in quote/review mode.</small>
+              </div>
+
+              <div class="terminal-preview-boundary">
+                <strong>Preview only</strong>
+                <span>Raven checks the entry and reverse liquidation route. Nothing is constructed, signed, or submitted.</span>
+              </div>
+            </div>
+          </details>
         </section>
       </aside>
 

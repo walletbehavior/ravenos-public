@@ -640,26 +640,42 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket > .terminal-spot-side-toggle { order: 2; }
 .terminal-spot-ticket > .terminal-spot-amount-row { order: 3; }
 .terminal-spot-ticket > .terminal-size-presets { order: 4; }
-.terminal-spot-ticket > .terminal-fee-disclosure { order: 5; }
-.terminal-spot-ticket > .terminal-quote-follow { order: 6; }
-.terminal-spot-ticket > .terminal-preview-action { order: 7; }
+.terminal-spot-ticket > .terminal-spot-decision-strip { order: 5; }
+.terminal-spot-ticket > .terminal-preview-action { order: 6; }
+.terminal-spot-ticket > .terminal-quote-follow { order: 7; }
 .terminal-spot-ticket > .terminal-preview-result { order: 8; }
-.terminal-spot-ticket > .terminal-preview-message { order: 9; }
-.terminal-spot-ticket > .terminal-execution-rail { order: 10; }
-.terminal-spot-ticket > .terminal-spot-wallet { order: 11; }
-.terminal-spot-ticket > .terminal-plan-source,
-.terminal-spot-ticket > .terminal-spot-plan-inputs,
-.terminal-spot-ticket > .terminal-raven-plan-receipt { order: 12; }
-.terminal-spot-ticket > .terminal-routing-settings { order: 13; }
-.terminal-spot-ticket > .terminal-quick-size-settings { order: 14; }
-.terminal-spot-ticket > .terminal-preview-boundary { order: 15; }
+.terminal-spot-ticket > .terminal-execution-rail { order: 9; }
+.terminal-spot-ticket > .terminal-preview-message { order: 10; }
+.terminal-spot-ticket > .terminal-spot-advanced { order: 11; }
 @media (min-width: 821px) {
-  .terminal-intelligence #terminalSpotTicketSection {
-    max-height: calc(100dvh - 24px);
+  .terminal-live[data-terminal-lane="spot"] .terminal-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 410px);
+    grid-template-areas: "chart intelligence";
+    grid-template-rows: 600px;
+  }
+  .terminal-live[data-terminal-lane="spot"] .terminal-chart-panel { height: 600px; }
+  .terminal-live[data-terminal-lane="spot"] .terminal-intelligence {
+    height: 600px;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
+  .terminal-live[data-terminal-lane="spot"] .terminal-intelligence #terminalSpotTicketSection {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+  }
+  .terminal-live[data-terminal-lane="spot"] .terminal-intelligence > section { display: none !important; }
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="chart"] .terminal-intelligence > #terminalSpotTicketSection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="trade"] .terminal-intelligence > #terminalSpotTicketSection:not([hidden]) { display: flex !important; flex-direction: column; }
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="activity"] .terminal-intelligence > #terminalSpotActivitySection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="holders"] .terminal-intelligence > #terminalAnatomySection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="raven"] .terminal-intelligence > #terminalContextSection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="raven"] .terminal-intelligence > #terminalAlphaSection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="raven"] .terminal-intelligence > #terminalPlanSection:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="raven"] .terminal-intelligence > #terminalMarkerDetail:not([hidden]),
+  .terminal-live[data-terminal-lane="spot"][data-terminal-pane="raven"] .terminal-intelligence > #terminalComparableSection:not([hidden]) { display: block !important; }
 }
 .terminal-adapter-notice { margin-top: 8px; padding: 10px; border: 1px solid rgba(197, 161, 90, .3); background: rgba(197, 161, 90, .055); }
 .terminal-adapter-notice strong,
@@ -670,6 +686,8 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-wallet,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-amount-row,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-size-presets,
+.terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-decision-strip,
+.terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-advanced,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-quick-size-settings,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-plan-source,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-plan-inputs,
@@ -681,6 +699,32 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-execution-rail,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-message,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-boundary { display: none !important; }
+.terminal-spot-decision-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 7px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
+.terminal-spot-decision-strip > button,
+.terminal-spot-decision-strip > div { min-width: 0; min-height: 54px; border: 0; padding: 7px 8px; background: #090e15; color: var(--terminal-text); text-align: left; }
+.terminal-spot-decision-strip > button { cursor: pointer; }
+.terminal-spot-decision-strip > button:hover,
+.terminal-spot-decision-strip > button:focus-visible { background: #101923; outline: 1px solid var(--terminal-line-strong); outline-offset: -1px; }
+.terminal-spot-decision-strip span,
+.terminal-spot-decision-strip strong,
+.terminal-spot-decision-strip small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-spot-decision-strip span { color: var(--terminal-soft); font: 800 7px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-spot-decision-strip strong { margin-top: 5px; color: var(--terminal-text); font: 800 10px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-spot-decision-strip small { margin-top: 4px; color: var(--terminal-muted); font: 7px/1.15 ui-monospace, SFMono-Regular, Consolas, monospace; }
+#terminalSpotRiskSummary[data-state="measured_low"] strong,
+#terminalSpotExitSummary[data-state="current"] strong { color: var(--terminal-positive); }
+#terminalSpotRiskSummary[data-state="watch"] strong,
+#terminalSpotRiskSummary[data-state="elevated"] strong,
+#terminalSpotRiskSummary[data-state="unavailable"] strong,
+#terminalSpotExitSummary[data-state="loading"] strong,
+#terminalSpotExitSummary[data-state="expired"] strong { color: var(--terminal-warning); }
+#terminalSpotRiskSummary[data-state="high"] strong,
+#terminalSpotRiskSummary[data-state="severe"] strong,
+#terminalSpotExitSummary[data-state="unavailable"] strong { color: var(--terminal-negative); }
+.terminal-spot-advanced { margin-top: 8px; }
+.terminal-spot-advanced > summary { min-height: 40px; }
+.terminal-spot-advanced-body { padding: 0 8px 8px; }
+.terminal-spot-advanced-body > .terminal-preview-boundary { margin-bottom: 2px; }
 .terminal-spot-wallet {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1604,6 +1648,16 @@ button, input, select { font: inherit; }
   .terminal-account-dock { order: 9; margin-top: 5px; }
   .terminal-intelligence #terminalTradeReviewSection,
   .terminal-intelligence #terminalSpotTicketSection { position: static; box-shadow: none; }
+  .terminal-spot-side-toggle button,
+  .terminal-spot-ticket > .terminal-size-presets button,
+  .terminal-spot-ticket > .terminal-preview-action,
+  .terminal-spot-ticket > .terminal-quote-follow,
+  .terminal-spot-advanced > summary { min-height: 44px; }
+  .terminal-spot-ticket > .terminal-preview-action { font-size: 12px; }
+  .terminal-spot-decision-strip > button,
+  .terminal-spot-decision-strip > div { min-height: 58px; padding: 8px 7px; }
+  .terminal-spot-decision-strip strong { font-size: 11px; }
+  .terminal-spot-decision-strip small { font-size: 8px; }
   .terminal-spot-ticket > .terminal-execution-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="sign"],
   .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="send"] { display: none; }

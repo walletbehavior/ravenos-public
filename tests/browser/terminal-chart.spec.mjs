@@ -872,6 +872,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
   await expect(page.locator("#terminalInstrumentImage")).toBeVisible();
   await expect(page.locator("#terminalInstrumentImage")).toHaveAttribute("src", "https://assets.geckoterminal.com/token-fixture.png");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalReadTrigger")).toBeVisible();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
@@ -892,6 +893,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalDecisionReference")).toBeVisible();
   await expect(page.locator("#terminalMetric3Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalMetric3")).not.toHaveText("--");
+  await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Liquidity");
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
   await expect(page.locator("#terminalAnatomy2Label")).toHaveText("Market cap");
@@ -928,6 +930,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
   await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /solscan\.io\/account\/Stake/);
   expect(holderCalls[0]).toEqual({ poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
   await expect(page.locator("#terminalAlphaStack")).toContainText("Chart setup");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Accumulation");
@@ -1259,6 +1262,50 @@ test("active wallets can be opened directly without widening exact-pool identity
   });
 });
 
+test("desktop spot Terminal keeps the chart beside a focused trade dock without a reserved middle column", async ({ page }) => {
+  await page.setViewportSize({ width: 2048, height: 1152 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, bullishSpotPlan: true, velocitySpotContext: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade&launch=velocity");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  const chart = page.locator(".terminal-chart-panel");
+  const ticket = page.locator("#terminalSpotTicketSection");
+  await expect(chart).toBeVisible();
+  await expect(ticket).toBeVisible();
+  await expect(page.locator("#terminalMarketRail")).toBeHidden();
+  await expect(page.locator("#terminalSpotAdvanced")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#terminalSpotAmount")).toBeVisible();
+  await expect(page.locator("#terminalSpotBuyPresets")).toBeVisible();
+  await expect(page.locator("#terminalSpotQuoteAction")).toBeVisible();
+  await expect(page.locator("#terminalSpotRiskCompact")).toHaveText("Watch");
+
+  const chartBounds = await chart.boundingBox();
+  const ticketBounds = await ticket.boundingBox();
+  const actionBounds = await page.locator("#terminalSpotQuoteAction").boundingBox();
+  const chartRight = (chartBounds?.x || 0) + (chartBounds?.width || 0);
+  const dockGap = (ticketBounds?.x || 0) - chartRight;
+  expect(dockGap).toBeGreaterThanOrEqual(0);
+  expect(dockGap).toBeLessThanOrEqual(12);
+  expect(Math.abs((ticketBounds?.y || 0) - (chartBounds?.y || 0))).toBeLessThanOrEqual(2);
+  expect((actionBounds?.y || 0) + (actionBounds?.height || 0)).toBeLessThanOrEqual(1152);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.locator('[data-terminal-pane-button="activity"]').click();
+  await expect(chart).toBeVisible();
+  await expect(page.locator("#terminalSpotActivitySection")).toBeVisible();
+  await expect(ticket).toBeHidden();
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect(chart).toBeVisible();
+  await expect(page.locator("#terminalAnatomySection")).toBeVisible();
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(chart).toBeVisible();
+  await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await page.locator('[data-terminal-pane-button="trade"]').click();
+  await expect(chart).toBeVisible();
+  await expect(ticket).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sells explicit without signing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
@@ -1288,9 +1335,16 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotProFee")).toContainText("1.78%");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
+  await expect(page.locator("#terminalSpotDecisionStrip")).toBeVisible();
+  await expect(page.locator("#terminalSpotRiskCompact")).toHaveText("Watch");
+  await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Not reviewed");
+  await expect(page.locator("#terminalSpotAdvanced")).not.toHaveAttribute("open", "");
   const primaryActionBounds = await page.locator("#terminalSpotQuoteAction").boundingBox();
-  expect(primaryActionBounds?.bottom || ((primaryActionBounds?.y || 0) + (primaryActionBounds?.height || 0))).toBeLessThanOrEqual(844);
+  const mobileNavBounds = await page.locator(".ros-mobile-nav").boundingBox();
+  expect((primaryActionBounds?.y || 0) + (primaryActionBounds?.height || 0)).toBeLessThanOrEqual(mobileNavBounds?.y || 844);
+  expect(primaryActionBounds?.height || 0).toBeGreaterThanOrEqual(44);
 
+  await page.locator("#terminalSpotAdvanced > summary").click();
   await page.locator("#terminalSpotQuickSizeSettings > summary").click();
   await page.locator('[data-spot-buy-size-index="0"]').fill("75");
   await page.locator('[data-spot-buy-size-index="0"]').blur();
@@ -1305,6 +1359,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
   await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("Network cost pending");
   await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Verified now");
+  await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Verified now");
 
   await page.locator("#terminalSpotSell").click();
   await page.locator("#terminalSpotQuoteAction").click();
@@ -1408,6 +1463,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
 
   await expect(page.locator("#terminalLaunchBadge")).toBeVisible();
   await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanLabel")).toHaveText("Raven custom TP strategy");
   await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
@@ -1555,6 +1611,7 @@ test("spot markets without matching Raven evidence keep useful anatomy and omit 
   await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeDisabled();
   await expect(page.locator('[data-terminal-pane-button="raven"]')).toHaveAttribute("data-status", "No current read");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
   await expect(page.locator("#terminalAnatomy5")).toContainText("4.85K");
