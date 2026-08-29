@@ -197,6 +197,12 @@ export const RAVENOS_TERMINAL_CHAIN_ROLLOUT = deepFreeze({
     { chain: "base", label: "Base", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
     { chain: "ethereum", label: "Ethereum", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
     { chain: "robinhood", label: "Robinhood Chain", market_scope: "exact_spot_pool", lookup: true, chart: true, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "arbitrum", label: "Arbitrum", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "optimism", label: "Optimism", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "polygon", label: "Polygon", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "avalanche", label: "Avalanche", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "tron", label: "Tron", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
+    { chain: "sui", label: "Sui", market_scope: "exact_spot_pool", lookup: true, chart: false, route_review: false, signing: false, submission: false, state: "adapter_not_activated" },
   ],
   next_adapter_cohorts: [
     { cohort: "evm_expansion", chains: ["arbitrum", "polygon", "avalanche", "optimism"] },

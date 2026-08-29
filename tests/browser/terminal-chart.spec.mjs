@@ -814,7 +814,10 @@ test("verified exact-pool swaps advance the forming candle and headline price be
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
 
   await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0)).toBeGreaterThan(0);
+  await expect.poll(
+    () => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0),
+    { timeout: 10_000 },
+  ).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.last_trade_at || null)).not.toBeNull();
   await expect(page.locator("#terminalLast")).toContainText("1.55");
   const current = await page.evaluate(() => {
@@ -1097,7 +1100,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=holders");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Trade", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
   expect(new URL(page.url()).searchParams.get("panel")).toBe("holders");
@@ -1164,7 +1167,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   const { tradeCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Trade", "Raven"]);
   await expect.poll(() => tradeCalls.length).toBe(1);
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
@@ -1251,6 +1254,100 @@ test("active wallets can be opened directly without widening exact-pool identity
     activeTerminalPane: "activity",
     spotActivityView: "wallets",
     spotRepeatTraderCount: 3,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+});
+
+test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sells explicit without signing", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    window.__SOLANA_SIGN_CALLS__ = 0;
+    const publicKey = { toString: () => "Stake11111111111111111111111111111111111111" };
+    window.phantom = {
+      solana: {
+        publicKey,
+        connect: async () => ({ publicKey }),
+        signTransaction: async () => {
+          window.__SOLANA_SIGN_CALLS__ += 1;
+          throw new Error("signing_must_not_be_called");
+        },
+      },
+    };
+  });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, bullishSpotPlan: true, velocitySpotContext: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade&launch=velocity");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
+  await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "active");
+  await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
+  await expect(page.locator("#terminalSpotActiveFee")).toContainText("2.55%");
+  await expect(page.locator("#terminalSpotProFee")).toContainText("1.78%");
+  await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
+  await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
+
+  await page.locator("#terminalSpotQuickSizeSettings > summary").click();
+  await page.locator('[data-spot-buy-size-index="0"]').fill("75");
+  await page.locator('[data-spot-buy-size-index="0"]').blur();
+  await expect(page.locator('[data-spot-buy-amount="75"]')).toHaveText("$75");
+  await page.locator('[data-spot-buy-amount="75"]').click();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteResult")).toBeVisible();
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("8450.25 JUP");
+  await expect(page.locator("#terminalSpotQuoteMinimum")).toHaveText("Minimum 8408 JUP");
+  await expect(page.locator("#terminalSpotQuoteRoute")).toHaveText("Raydium → Meteora");
+  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("2.55% configured · 0 bps charged");
+  await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
+  await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("Network cost pending");
+  await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Verified now");
+
+  await page.locator("#terminalSpotSell").click();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Choose sell size");
+  await page.locator("#terminalSpotWalletConnect").click();
+  await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
+  await page.locator('[data-spot-sell-pct="25"]').click();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 SOL");
+  await expect(page.locator("#terminalSpotBalance")).toHaveText("100000");
+
+  await expect(page.locator('[data-spot-plan-source="raven_exact_market"]')).toBeEnabled();
+  await page.locator('[data-spot-plan-source="raven_exact_market"]').click();
+  await expect(page.locator("#terminalSpotRavenPlanReceipt")).toBeVisible();
+  await expect(page.locator("#terminalSpotPlanSourceNote")).toContainText("original exact-market levels remain visible");
+  await page.locator('[data-spot-plan-source="custom"]').click();
+  await expect(page.locator("#terminalSpotCustomInputs")).toBeVisible();
+  await expect(page.locator("#terminalSpotPlanSourceNote")).toContainText("never relabel them as a Raven suggestion");
+
+  expect(await page.evaluate(() => window.__SOLANA_SIGN_CALLS__)).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    spotQuotePreviewAvailable: true,
+    spotQuotePreviewChains: ["solana"],
+    spotPlanSource: "custom",
+    spotWalletConnected: true,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+});
+
+test("all-chain spot ticket fails closed with an honest adapter state instead of substituting Solana", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  await page.goto(`/terminal/?instrument_id=bsc%3Apool%3A${encodeURIComponent("0x7bdc9582aca6ca25e5db1f2c8e59003b880672cb")}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${encodeURIComponent("0x6ff45323817d1d53bbb8a8dfba9245ae74057777")}&quote_address=${encodeURIComponent("0x46ceefda28dd7207059ed19b0acdc026955bb15c")}&panel=trade`);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().lane)).toBe("spot");
+  await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
+  await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "pending");
+  await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("BNB Chain trade adapter");
+  await expect(page.locator("#terminalSpotAdapterTitle")).toHaveText("BNB Chain trading is next");
+  await expect(page.locator("#terminalSpotAdapterCopy")).toContainText("without substitution");
+  await expect(page.locator("#terminalSpotQuoteAction")).toBeHidden();
+  await expect(page.locator("#terminalSpotWallet")).toBeHidden();
+  await expect(page.locator("#terminalSpotTicketSection")).not.toContainText("Review exact buy route");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    spotQuoteState: "adapter_pending",
     signingAvailable: false,
     submissionAvailable: false,
   });

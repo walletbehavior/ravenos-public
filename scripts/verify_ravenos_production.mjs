@@ -176,9 +176,16 @@ if (
   || !flagsJson?.account_scenario_venues?.includes("hyperliquid")
   || flagsJson?.account_history_available !== true
   || !flagsJson?.account_history_types?.includes("orders")
+  || flagsJson?.spot_quote_preview_available !== true
+  || !flagsJson?.spot_quote_preview_chains?.includes("solana")
+  || flagsJson?.trade_adapter_states?.solana !== "quote_review"
+  || flagsJson?.trade_adapter_states?.hyperliquid !== "quote_review"
+  || flagsJson?.trade_adapter_states?.base !== "adapter_pending"
+  || flagsJson?.spot_fee_preview?.actual_fee_bps !== 0
+  || flagsJson?.spot_fee_preview?.enabled !== false
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
-) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid planning boundary");
+) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid and Solana shadow-review boundary");
 
 const { res: perpsUniverseRes, json: perpsUniverseJson } = await fetchJson("/api/hyperliquid/perps");
 const { res: perpsProjectionRes, json: perpsProjectionJson } = await fetchJson("/api/perps");

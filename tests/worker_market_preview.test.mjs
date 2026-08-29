@@ -360,5 +360,110 @@ test("public trade flags distinguish market preview from disabled customer execu
   assert.deepEqual(body.account_history_types, ["orders"]);
   assert.equal(body.signing_available, false);
   assert.equal(body.submission_available, false);
+  assert.deepEqual(body.spot_quote_preview_chains, []);
+  assert.equal(body.trade_adapter_states.hyperliquid, "quote_review");
+  assert.equal(body.trade_adapter_states.base, "adapter_pending");
   assert.equal(body.flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE, false);
+});
+
+test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without transaction material", async () => {
+  const previousFetch = globalThis.fetch;
+  const pool = "11111111111111111111111111111111";
+  const token = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6pB2XP1WKY3Mo9f";
+  const quote = "So11111111111111111111111111111111111111112";
+  const usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const providerCalls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(input instanceof URL ? input.toString() : typeof input === "string" ? input : input.url);
+    providerCalls.push(`${url.hostname}${url.pathname}`);
+    if (url.hostname === "api.dexscreener.com") {
+      return jsonResponse({
+        pairs: [{
+          chainId: "solana",
+          dexId: "raydium",
+          pairAddress: pool,
+          baseToken: { address: token, symbol: "BONK", name: "Bonk" },
+          quoteToken: { address: quote, symbol: "SOL", name: "Wrapped SOL" },
+          priceUsd: "0.00002",
+          liquidity: { usd: 10_000_000 },
+          volume: { h24: 25_000_000 },
+          txns: { h24: { buys: 1000, sells: 900 } },
+          priceChange: { h24: 5 },
+        }],
+      });
+    }
+    if (url.hostname.includes("dexpaprika")) return jsonResponse({ tokens: [], pools: [] });
+    if (url.hostname === "solana-display.invalid") {
+      const rpc = JSON.parse(String(init.body || "{}"));
+      if (rpc.method === "getTokenSupply") return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: { amount: "100000000000000", decimals: 5 } } });
+      return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: [] } });
+    }
+    if (url.hostname === "api.jup.ag") {
+      const reverse = url.searchParams.get("inputMint") === token;
+      const now = new Date();
+      const inputMint = reverse ? token : usdc;
+      const outputMint = reverse ? usdc : token;
+      return jsonResponse({
+        quoteId: reverse ? "reverse-proof" : "entry-proof",
+        inputMint,
+        outputMint,
+        inAmount: url.searchParams.get("amount"),
+        outAmount: reverse ? "487610000" : "100000000000",
+        otherAmountThreshold: reverse ? "480000000" : "99000000000",
+        priceImpactPct: reverse ? "0.007" : "0.006",
+        quoteTimestamp: now.toISOString(),
+        expireAt: new Date(now.getTime() + 20_000).toISOString(),
+        routePlan: [{ swapInfo: { inputMint, outputMint, label: "Raydium" } }],
+      });
+    }
+    return jsonResponse({}, 404);
+  };
+
+  try {
+    const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        schema_version: "ravenos.universal_shadow_quote_request.v1",
+        instrument_id: `solana:pool:${pool}`,
+        identity_scope: "exact_pool",
+        chain: "solana",
+        pool_address: pool,
+        token_address: token,
+        quote_address: quote,
+        side: "buy",
+        display_amount: "500",
+        sell_percent: null,
+        wallet_address: null,
+        slippage_bps: 50,
+        priority: { mode: "standard", maximum_lamports: null, jito: false },
+        plan: { source: "custom", take_profit_price: null, stop_loss_price: null, authorizes_transaction: false },
+      }),
+    }), {
+      RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: "1",
+      RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL: "https://solana-display.invalid/rpc",
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(body.intent.economic_flow, "canonical_usdc_to_selected_token");
+    assert.equal(body.intent.input_mint, usdc);
+    assert.equal(body.intent.output_mint, token);
+    assert.equal(body.shadow_execution.mode, "shadow");
+    assert.equal(body.shadow_execution.route_state, "exit_verified");
+    assert.equal(body.shadow_execution.round_trip.exit_verified, true);
+    assert.equal(body.shadow_execution.round_trip.current_executable_liquidation_usdc, 487.61);
+    assert.equal(body.shadow_execution.round_trip.round_trip_friction_pct, null);
+    assert.equal(body.shadow_execution.round_trip.trade_available, false);
+    assert.equal(body.shadow_execution.execution.signing_available, false);
+    assert.equal(body.shadow_execution.execution.submission_available, false);
+    assert.equal(body.shadow_execution.execution.transaction_material_available, false);
+    assert.equal(body.fee_policy.free_fee_bps, 255);
+    assert.equal(body.fee_policy.pro_fee_bps, 178);
+    assert.equal(body.fee_policy.actual_fee_bps, 0);
+    assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
+    assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });

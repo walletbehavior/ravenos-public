@@ -176,8 +176,9 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   expect(workspace.comparableSample).toBe(12);
   expect(workspace.planExecutable).toBe(false);
   expect(workspace.backfillCount).toBe(0);
-  expect(chartRequests).toHaveLength(1);
   expect(chartRequests[0]).not.toContain("before=");
+  expect(chartRequests.filter((url) => !url.includes("before="))).toHaveLength(1);
+  expect(chartRequests.slice(1).every((url) => url.includes("before="))).toBe(true);
   expect(workspace.diagnostics.active_instruments).toBe(1);
   await expect(page.locator("#perpsChart canvas").first()).toBeVisible();
   await expect(page.locator("#perpsMark")).toContainText("150.13");
@@ -187,8 +188,8 @@ test("perps workspace forms a live candle and keeps market truth separate", asyn
   await expect(page.locator(".rpw-trade-buy")).toContainText("BUY");
   await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Upside pressure confirmed");
   await expect(page.locator("#perpsReadSummary")).toContainText("68% buyer-initiated tape");
-  await expect(page.locator("#perpsEvidenceState")).toHaveText("Current · 6/6 live inputs · A90");
-  await expect(page.locator("#perpsDeliveryState")).toHaveText("Attached");
+  await expect(page.locator("#perpsEvidenceState")).toHaveText("Current · A evidence");
+  await expect(page.locator("#perpsDeliveryState")).toHaveText("Available");
   await expect(page.locator("#perpsPathPressure")).toHaveText("Bid depth + buyer tape");
   await expect(page.locator("#perpsPathSide")).toHaveText("Upside");
   await expect(page.locator("#perpsRavenRead")).not.toContainText(/lower.confidence|decayed|unavailable/i);
@@ -257,16 +258,16 @@ test("perps workspace keeps a current Raven read when no retained decision histo
   await page.goto("/perps/");
   await page.waitForFunction(() => window.__RAVENOS_PERPS_WORKSPACE__?.getState?.().liveReadState === "current");
 
-  await expect(page.locator("#perpsContextState")).toHaveText("Current");
-  await expect(page.locator("#perpsDeliveryState")).toHaveText("Not attached");
+  await expect(page.locator("#perpsContextState")).toHaveText("Read current");
+  await expect(page.locator("#perpsDeliveryState")).toHaveText("None");
   await expect(page.locator("#perpsReadHeadline")).toHaveText("SOL-PERP · Upside pressure confirmed");
-  await expect(page.locator("#perpsContinuityMessage")).toContainText("No retained decision history is required");
+  await expect(page.locator("#perpsContinuityMessage")).toContainText("No prior Raven event is required");
   await expect(page.locator("#perpsRavenRead")).not.toContainText(/lower.confidence|decayed|unknown|unavailable/i);
   await expect(page.locator("#perpsComparablePanel")).toBeHidden();
   await expect(page.locator("#perpsPlanPanel")).toBeHidden();
   await expect(page.locator(".perps-evidence-deck")).toHaveAttribute("data-history", "0");
   await expect(page.locator("#perpsRavenMarker")).toBeDisabled();
-  await expect(page.locator("#perpsRavenMarker")).toHaveText("No retained event");
+  await expect(page.locator("#perpsRavenMarker")).toHaveText("No prior Raven event");
 });
 
 test("perps workspace remains usable on a narrow mobile viewport", async ({ page }) => {

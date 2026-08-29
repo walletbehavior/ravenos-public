@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RavenOS Behavior</title>
-  <meta name="description" content="Who is participating, and how?" />
+  <title>Behavior Lab · RavenOS</title>
+  <meta name="description" content="Compare participation across chains, market-size groups, and time windows with evidence counts attached." />
   <link rel="stylesheet" href="/ravenos-route.css" />
   <link rel="stylesheet" href="/ravenos-evidence.css" />
   <link rel="stylesheet" href="/ravenos-funnel.css" />
@@ -16,10 +16,10 @@
       <div class="public-evidence-strip">
         <div class="public-evidence-cell"><span>Read</span><strong data-evidence-field="role">Current read</strong></div>
         <div class="public-evidence-cell"><span>Updated</span><strong data-evidence-field="as_of">awaiting read</strong></div>
-        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">read-defined window</strong></div>
-        <div class="public-evidence-cell"><span>Observations</span><strong data-evidence-field="sample">see totals below</strong></div>
+        <div class="public-evidence-cell"><span>Window</span><strong data-evidence-field="window">current window</strong></div>
+        <div class="public-evidence-cell"><span>Sample</span><strong data-evidence-field="sample">see counts below</strong></div>
         <div class="public-evidence-cell"><span>Status</span><strong data-evidence-field="freshness">checking</strong></div>
-        <div class="public-evidence-cell"><span>Confidence</span><strong data-evidence-field="confidence">developing</strong></div>
+        <div class="public-evidence-cell"><span>Evidence</span><strong data-evidence-field="confidence">developing</strong></div>
       </div>
       <details class="public-evidence-details">
         <summary>Why this read can change</summary>
@@ -27,18 +27,18 @@
         <div class="public-evidence-detail-grid">
           <div>Outcome window<strong data-evidence-field="settlement">pending or not applicable</strong></div>
           <div>Population<strong data-evidence-field="population">aggregate market context</strong></div>
-          <div>Authority<strong data-evidence-field="source">Raven feed</strong></div>
-          <div>Observed / measured<strong data-evidence-field="observed_settled">0 / 0</strong></div>
-          <div>Validation status<strong data-evidence-field="validation">pending</strong></div>
+          <div>Source<strong data-evidence-field="source">Raven feed</strong></div>
+          <div>Observed / completed<strong data-evidence-field="observed_settled">0 / 0</strong></div>
+          <div>Follow-through status<strong data-evidence-field="validation">pending</strong></div>
         </div>
       </details>
     </section>
 
     <section class="route-hero">
-      <div class="route-hero-meta"><span class="route-eyebrow">Behavior</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Checking current data</strong><small>Timestamp pending</small></div></div>
-      <h1 id="routeHeadline">Who is participating, and how?</h1>
-      <p class="route-summary" id="routeHeroSummary">Current read forming.</p>
-      <div class="route-state-strip" id="routeStateStrip">Behavior</div>
+      <div class="route-hero-meta"><span class="route-eyebrow">Raven Lab · Behavior</span><div class="route-delivery-state" id="routeDeliveryState" data-state="unavailable"><span>Unavailable</span><strong>Checking current data</strong><small>Timestamp pending</small></div></div>
+      <h1 id="routeHeadline">Where is participation strengthening or fading?</h1>
+      <p class="route-summary" id="routeHeroSummary">Loading current market slices.</p>
+      <div class="route-state-strip" id="routeStateStrip">Behavior Lab</div>
     </section>
 
     <section class="route-grid">
@@ -48,7 +48,7 @@
 
     <footer hidden aria-hidden="true"><span id="routeHydrationState">Awaiting current data</span><span id="ravenosBuildMark">Public artifact verified</span></footer>
   </main>
-  <script id="ravenosRouteConfig" type="application/json">{"route":"/behavior/","slug":"behavior","title":"Behavior","question":"Who is participating, and how?","funnel_stage":"understand","evidence_role":"leading","api_endpoint":"/api/behavior","fallback_artifact":"/ravenos/behavior.json","fallback_message":"Current aggregate behavior is unavailable; older participant evidence is not substituted as current.","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"2.0","surface_state":"live_intelligence_workspace"}</script>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/behavior/","slug":"behavior","title":"Behavior Lab","question":"Where is participation strengthening or fading?","funnel_stage":"understand","evidence_role":"leading","api_endpoint":"/api/behavior","fallback_artifact":"/ravenos/behavior.json","fallback_message":"Current market-slice data is unavailable. Older behavior is not presented as a live read.","template":"generated","public":true,"nav_group":"primary","next_route":"/opportunity/","route_manifest_version":"2.0","surface_state":"live_intelligence_workspace"}</script>
   <script type="module" src="/ravenos-route-app.js"></script>
 </body>
 </html>

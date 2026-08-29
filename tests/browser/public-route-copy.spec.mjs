@@ -275,12 +275,13 @@ test("/outcomes/ mobile funnel stays compact and preserves the lesson", async ({
 
 test("/behavior/ exposes aggregate participation with denominators and privacy boundaries", async ({ page }) => {
   await page.goto("/behavior/");
-  await expect(page.locator(".behavior-focus")).toContainText(/Clearest supported aggregate/i);
-  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable.*observed.*excluded/i);
-  await expect(page.locator(".participant-ledger")).toContainText(/Participants observed/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/does not reveal wallet identities or labels[\s\S]*assign ownership[\s\S]*allege coordination[\s\S]*rank [“"]smart money\.[”"]/i);
+  await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice/i);
+  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable of .*observed.*(?:Developing|Broader sample)/i);
+  await expect(page.locator(".behavior-matrix article").first()).toContainText(/No directional edge measured/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Recurring-wallet context/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet identities.*ownership claims.*coordination allegations.*smart money/s);
   const body = await visibleBodyText(page);
-  expect(body).toMatch(/Outcome status[\s\S]*Unproven/i);
+  expect(body).not.toMatch(/\bParticipant success rate\b|\bSuccess rate\s+50(?:\.00)?%|\bWin-rate band\b/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 });
 

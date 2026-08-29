@@ -251,6 +251,13 @@ if (
   || !flags?.account_scenario_venues?.includes("hyperliquid")
   || flags?.account_history_available !== true
   || !flags?.account_history_types?.includes("orders")
+  || flags?.spot_quote_preview_available !== true
+  || !flags?.spot_quote_preview_chains?.includes("solana")
+  || flags?.trade_adapter_states?.solana !== "quote_review"
+  || flags?.trade_adapter_states?.hyperliquid !== "quote_review"
+  || flags?.trade_adapter_states?.base !== "adapter_pending"
+  || flags?.spot_fee_preview?.actual_fee_bps !== 0
+  || flags?.spot_fee_preview?.enabled !== false
   || flags?.signing_available !== false
   || flags?.submission_available !== false
   || flags?.fees_enabled !== false

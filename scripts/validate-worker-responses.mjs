@@ -63,6 +63,16 @@ const checks = [
   ["GET", "/api/chains/base"],
   ["GET", "/api/chains/ethereum"],
   ["GET", "/api/trade/flags"],
+  ["POST", "/api/trade/spot-quote-preview", {
+    chain: "solana",
+    identity_scope: "exact_pool",
+    instrument_id: "solana:pool:not-a-real-pool",
+    pool_address: "not-a-real-pool",
+    token_address: "not-a-real-token",
+    quote_address: "not-a-real-quote",
+    side: "buy",
+    display_amount: "10",
+  }],
   ["POST", "/api/trade/market-preview", {
     instrument_id: "hyperliquid:perp:SOL",
     side: "long",

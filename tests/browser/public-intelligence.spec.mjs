@@ -218,35 +218,38 @@ test("Discover shows the complete current attention benchmark and hides a stale 
   await expect(benchmark).toBeHidden();
 });
 
-test("Perps Intelligence renders positioning, pressure, liquidity, and outcome maturity while withholding stale leaderboards", async ({ page }) => {
+test("Perps positioning excludes stale wallet context and keeps outcome counts attached to maturity", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.unroute("**/api/perps");
   await page.route("**/api/perps", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(perpsProjection()) }));
   await page.goto("/perps/#perpsIntelligence");
   await expect(page.locator("#perpsIntelligenceState")).toHaveText("Current");
   await expect(page.locator("#perpsIntelOverview")).toContainText(/176.*markets|Markets observed.*176/s);
-  await expect(page.locator("#perpsIntelOverview")).toContainText(/Participant context.*Stale/s);
+  await expect(page.locator("#perpsIntelOverview")).toContainText(/Recurring-wallet context.*Excluded/s);
+  await expect(page.locator("#perpsIntelOverview")).toContainText(/stale wallet evidence is hidden.*does not affect current conclusions/i);
   await expect(page.locator("#perpsIntelOverview")).toContainText(/Liquidation stream.*Unavailable/s);
   await expect(page.locator("body")).not.toContainText("SENTINEL_PRIVATE_LEADER");
 
-  await page.getByRole("tab", { name: "Positioning" }).click();
+  await page.getByRole("tab", { name: "Funding & OI" }).click();
   await expect(page.locator("#perpsIntelPositioning")).toContainText("Funding neutral");
   await expect(page.locator("#perpsIntelPositioning")).toContainText("Open interest");
-  await page.getByRole("tab", { name: "Pressure & crowding" }).click();
+  await expect(page.locator("#perpsIntelPositioning")).toContainText("Major perps");
+  await page.getByRole("tab", { name: "Crowding" }).click();
   await expect(page.locator("#perpsIntelPressure")).toContainText(/Short crowding watch.*Negative funding elevated/s);
-  await page.getByRole("tab", { name: "Liquidity" }).click();
-  await expect(page.locator("#perpsIntelLiquidity")).toContainText(/Tightest books.*Wide or thin books/s);
+  await page.getByRole("tab", { name: "Tradeability" }).click();
+  await expect(page.locator("#perpsIntelLiquidity")).toContainText(/Most tradeable books.*Friction watch/s);
   await expect(page.locator("#perpsIntelLiquidity")).toContainText("54.50 bps");
 
-  const liquidityTab = page.getByRole("tab", { name: "Liquidity" });
+  const liquidityTab = page.getByRole("tab", { name: "Tradeability" });
   await liquidityTab.focus();
   await page.keyboard.press("End");
-  await expect(page.getByRole("tab", { name: "Outcomes" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#perpsIntelOutcomes")).toContainText(/12h maturity.*7 \/ 14/s);
-  await expect(page.locator("#perpsIntelOutcomes")).toContainText(/Aggregate outcome attribution/i);
+  await expect(page.getByRole("tab", { name: "What followed" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#perpsIntelOutcomes")).toContainText(/12h follow-through.*7 of 14 measured/s);
+  await expect(page.locator("#perpsIntelOutcomes")).toContainText(/4 positive.*3 mixed.*7 negative.*N=14.*Too early/s);
+  await expect(page.locator("#perpsIntelOutcomes")).toContainText(/No group conclusion/i);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("tab", { name: "Liquidity" }).click();
+  await page.getByRole("tab", { name: "Tradeability" }).click();
   await page.locator("#perpsIntelligence").scrollIntoViewIfNeeded();
   const intelligenceTop = await page.locator("#perpsIntelligence").evaluate((element) => element.getBoundingClientRect().top);
   expect(intelligenceTop).toBeGreaterThanOrEqual(54);
@@ -264,21 +267,22 @@ test("Free Perps Intelligence receives six current rows and a real server bounda
   await page.goto("/perps/#perpsIntelligence");
 
   await expect(page.locator("#perpsIntelligenceState")).toHaveText("Current");
-  await page.getByRole("tab", { name: "Positioning" }).click();
+  await page.getByRole("tab", { name: "Funding & OI" }).click();
   await expect(page.locator("#perpsIntelPositioning tbody tr")).toHaveCount(6);
-  await expect(page.locator("#perpsIntelPositioning")).toContainText("Six-market positioning overview");
-  await page.getByRole("tab", { name: "Liquidity" }).click();
-  await expect(page.locator("#perpsIntelLiquidity")).toContainText("Spread and depth comparisons are not in the Free response");
+  await expect(page.locator("#perpsIntelPositioning")).toContainText("Current market positioning");
+  await expect(page.locator("#perpsIntelPositioning")).toContainText(/Major perps.*Alt perps/s);
+  await page.getByRole("tab", { name: "Tradeability" }).click();
+  await expect(page.locator("#perpsIntelLiquidity")).toContainText("Cross-market tradeability comparisons");
   await expect(page.locator("#perpsIntelLiquidity tbody tr")).toHaveCount(0);
-  await page.getByRole("tab", { name: "Outcomes" }).click();
-  await expect(page.locator("#perpsIntelOutcomes")).toContainText("Outcome attribution is not in the Free response");
+  await page.getByRole("tab", { name: "What followed" }).click();
+  await expect(page.locator("#perpsIntelOutcomes")).toContainText("Cross-market follow-through");
   await expect(page.locator("#perpsProBoundary")).toBeVisible();
-  await expect(page.locator("#perpsProBoundary")).toContainText(/Full pressure and crowding matrix.*Spread and depth comparisons.*Outcome attribution/s);
+  await expect(page.locator("#perpsProBoundary")).toContainText(/More crowding comparisons.*Spread and depth across markets.*Counted follow-through by condition/s);
   await expect(page.locator("#perpsProWorkspaceLink")).toHaveAttribute("href", /view=perps&instrument_id=hyperliquid%3Aperp%3ASOL/);
 
   const publicDom = await page.locator("#perpsIntelligence").innerText();
-  expect(publicDom).not.toContain("Tightest books");
-  expect(publicDom).not.toContain("Wide or thin books");
+  expect(publicDom).not.toContain("Most tradeable books");
+  expect(publicDom).not.toContain("Friction watch");
   expect(publicDom).not.toContain("20-level depth");
   expect(publicDom).not.toMatch(/leaderboard|wallet label/i);
 
@@ -288,7 +292,7 @@ test("Free Perps Intelligence receives six current rows and a real server bounda
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
-test("Participant Intelligence keeps denominators, evidence strength, and privacy boundaries visible", async ({ page }) => {
+test("Behavior Lab suppresses unsupported rates and excludes stale recurring-wallet context", async ({ page }) => {
   const currentResponse = await page.request.get("/api/behavior");
   const behavior = await currentResponse.json();
   behavior.data.actor_evidence.actor_evidence_freshness = "stale";
@@ -298,28 +302,32 @@ test("Participant Intelligence keeps denominators, evidence strength, and privac
   behavior.data.rows[0].plain_language_summary = "Jupiter Velocity participation on Solana is mixed or still unclear.";
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(behavior) }));
   await page.goto("/behavior/");
-  await expect(page.locator(".behavior-focus")).toContainText(/Participant success rate.*Win-rate band.*Outcome strength.*Average outcome.*Confidence \/ score.*Sample integrity.*Window/s);
+  await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice.*Directional edge.*No directional edge measured.*Coverage/s);
   const first = page.locator(".behavior-matrix article").first();
-  await expect(first).toContainText(/Trend.*Success rate.*Win-rate band.*Average outcome.*Confidence.*Score strength/s);
-  await expect(first).toContainText(/usable.*observed.*excluded/s);
-  await expect(first).toContainText("Aggregate · identities withheld");
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Participant context is stale.*not used as a live leaderboard/s);
+  await expect(first).toContainText(/Participation.*Directional edge.*Evidence quality.*Coverage/s);
+  await expect(first).toContainText(/usable of .* observed.*Developing|Broader sample/s);
+  await expect(first).toContainText("Aggregate market behavior");
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Recurring-wallet context.*Excluded from the current read/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Stale wallet counts and narrative are hidden.*do not affect the headline.*strongest slice.*weakest slice.*directional edge/s);
+  await expect(page.locator(".participant-ledger")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(/Jupiter velocity/i);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/does not reveal wallet identities or labels[\s\S]*assign ownership[\s\S]*allege coordination[\s\S]*rank [“"]smart money\.[”"]/i);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet identities.*labels.*ownership claims.*coordination allegations.*smart money/s);
   const body = await page.locator("body").innerText();
+  expect(body).not.toMatch(/\bParticipant success rate\b|\bSuccess rate\s+50(?:\.00)?%|\bWin-rate band\b/i);
   expect(body).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 });
 
-test("Free Participant Intelligence receives six aggregate conditions with no advanced rows in the DOM", async ({ page }) => {
+test("Free Behavior Lab shows six market slices with plain labels and benefit-led Pro copy", async ({ page }) => {
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(freeParticipantProjection()) }));
   await page.goto("/behavior/");
 
   await expect(page.locator(".behavior-matrix article")).toHaveCount(6);
-  await expect(page.locator(".behavior-focus")).toContainText(/Sample.*usable.*observed.*Window.*Privacy.*Aggregate/s);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText(/Complete aggregate condition matrix.*Success, win-rate, confidence and outcome bands.*Chain, capitalization and window/s);
-  await expect(page.locator("#routeSecondaryPanel")).toContainText("This public page contains only the Free view");
+  await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice.*Directional edge.*No directional edge measured.*Coverage.*usable of .* observed/s);
+  await expect(page.locator("#routeSecondaryPanel")).toContainText(/More market slices side by side.*Counted followthrough where available.*Challenge a setup, then return to its chart/s);
   const publicDom = await page.locator("main").innerText();
+  expect(publicDom).toMatch(/Solana · Micro caps · 4h/i);
   expect(publicDom).not.toMatch(/\bSuccess rate\s+\d|\bWin-rate band\s+(?:high|low|mixed)|Score strength\s+(?:high|low|strong)/i);
+  expect(publicDom).not.toMatch(/complete condition matrix|Free response|server sends/i);
   expect(publicDom).not.toMatch(/\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -327,7 +335,7 @@ test("Free Participant Intelligence receives six aggregate conditions with no ad
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
-test("Participant Intelligence keeps an unavailable live feed explicit without stale substitution", async ({ page }) => {
+test("Behavior Lab keeps an unavailable live feed explicit without stale substitution", async ({ page }) => {
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, state: "unavailable" }) }));
   await page.goto("/behavior/");
   await expect(page.locator("#routeHeadline")).toContainText("unavailable");
@@ -335,7 +343,7 @@ test("Participant Intelligence keeps an unavailable live feed explicit without s
   await expect(page.locator("#routeHeroSummary")).not.toContainText(/using the last verified public artifact/i);
   await page.setViewportSize({ width: 390, height: 844 });
   const identityCard = page.locator("#routeStateStrip .route-state-card").last();
-  await expect(identityCard).toContainText(/Participant identities.*Withheld/s);
+  await expect(identityCard).toContainText(/Wallet identities.*Not shown/s);
   const stripOverflow = await page.locator("#routeStateStrip").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(stripOverflow).toBeLessThanOrEqual(2);
 });

@@ -52,6 +52,22 @@ import {
   HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
 } from "./lib/customer_trade/hyperliquid_account_history.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
+import { feePolicyFor } from "./lib/customer_trade/fee_policy.mjs";
+import {
+  SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+  SOLANA_CANONICAL_USDC_MINT,
+  SOLANA_WRAPPED_NATIVE_MINT,
+  createExactSolanaSpotIntent,
+  createExactSolanaSpotQuoteReview,
+  createSolanaSpotAdvancedControls,
+} from "./lib/customer_trade/solana_spot_quote_review.mjs";
+import {
+  createRoundTripProof,
+  createUniversalQuoteRequest,
+  createUniversalShadowExecution,
+  normalizeUniversalRouteCandidate,
+  selectUniversalRouteCandidate,
+} from "./lib/customer_trade/universal_shadow_execution.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
 import {
@@ -277,7 +293,7 @@ const LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED = false;
 const DEFAULT_RAVENOS_SPOT_CHART_ORIGIN_URL = "https://ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon"];
+const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon", "avalanche"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
   solana: { aliases: ["solana"], label: "Solana" },
@@ -4730,6 +4746,179 @@ async function pairDex(chainId, pairAddress, selectedTokenAddress = "") {
   return merged;
 }
 
+function publicSolanaTradeRpcUrl(env = {}) {
+  if (String(env.RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED || "") !== "1") return null;
+  try {
+    const url = new URL(String(env.RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL || ""));
+    const host = url.hostname.toLowerCase();
+    const forbidden = !host
+      || host === "localhost"
+      || host.endsWith(".local")
+      || host === "0.0.0.0"
+      || host === "127.0.0.1"
+      || host === "::1"
+      || /^10\./.test(host)
+      || /^192\.168\./.test(host)
+      || /^169\.254\./.test(host)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (url.protocol !== "https:" || url.username || url.password || url.hash || forbidden) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function boundedSolanaTradeRpc(rpcUrl, method, params, { timeoutMs = 4_500, maxBytes = 512 * 1024 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "ravenos-spot-quote", method, params }),
+      signal: controller.signal,
+    });
+    const declared = Number(response.headers.get("content-length") || 0);
+    if (declared > maxBytes) throw new Error("spot_quote_rpc_response_too_large");
+    const body = await response.text();
+    if (byteLengthUtf8(body) > maxBytes) throw new Error("spot_quote_rpc_response_too_large");
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      throw new Error("spot_quote_rpc_invalid_json");
+    }
+    if (!response.ok || payload?.error || !Object.hasOwn(payload || {}, "result")) throw new Error("spot_quote_rpc_unavailable");
+    return payload.result;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("spot_quote_rpc_timeout");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function tokenAmountBaseUnitsFromAccounts(result = {}) {
+  const accounts = Array.isArray(result?.value) ? result.value : [];
+  let total = 0n;
+  for (const row of accounts.slice(0, 256)) {
+    const raw = String(row?.account?.data?.parsed?.info?.tokenAmount?.amount || "");
+    if (/^\d+$/.test(raw)) total += BigInt(raw);
+  }
+  return total.toString();
+}
+
+function displayBaseUnits(value, decimals) {
+  const raw = String(value || "0").replace(/^0+(?=\d)/, "") || "0";
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null;
+  if (decimals === 0) return raw;
+  const padded = raw.padStart(decimals + 1, "0");
+  const whole = padded.slice(0, -decimals);
+  const fraction = padded.slice(-decimals).replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
+function decimalText(value, maximumFractionDigits = 18) {
+  const raw = String(value ?? "").trim();
+  if (!new RegExp(`^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,${maximumFractionDigits}})?$`).test(raw)) return null;
+  if (/^0(?:\.0+)?$/.test(raw)) return null;
+  return raw;
+}
+
+function positivePlanPrice(value) {
+  const amount = optionalFiniteNumber(value);
+  if (!(amount > 0) || amount > 1e15) return null;
+  return String(Number(amount.toPrecision(15)));
+}
+
+function serverSpotPlanInput(body = {}, exact = {}) {
+  const source = String(body?.plan?.source || "custom").trim().toLowerCase();
+  const price = optionalFiniteNumber(exact?.priceUsd);
+  if (source === "user_preset" && price > 0) {
+    const takeProfitPct = optionalFiniteNumber(body?.plan?.take_profit_pct);
+    const stopLossPct = optionalFiniteNumber(body?.plan?.stop_loss_pct);
+    if (!(takeProfitPct > 0 && takeProfitPct <= 1_000) || !(stopLossPct > 0 && stopLossPct < 100)) {
+      throw new Error("spot_plan_preset_invalid");
+    }
+    return {
+      source: "user_preset",
+      preset_id: String(body?.plan?.preset_id || "local_default").slice(0, 120),
+      preset_version: Math.max(1, Math.min(1_000_000, Math.trunc(Number(body?.plan?.preset_version) || 1))),
+      levels: {
+        entries: [positivePlanPrice(price)],
+        take_profits: [{ price: positivePlanPrice(price * (1 + takeProfitPct / 100)), allocation_bps: 10_000 }],
+        stop_loss: positivePlanPrice(price * (1 - stopLossPct / 100)),
+      },
+      user_modifications: [],
+    };
+  }
+  if (source === "custom") {
+    const target = positivePlanPrice(body?.plan?.take_profit_price);
+    const stop = positivePlanPrice(body?.plan?.stop_loss_price);
+    return {
+      source: "custom",
+      levels: {
+        entries: price > 0 ? [positivePlanPrice(price)] : [],
+        take_profits: target ? [{ price: target, allocation_bps: 10_000 }] : [],
+        stop_loss: stop,
+      },
+      user_modifications: [],
+    };
+  }
+  // Browser-derived Raven levels stay visibly separate research context. They
+  // are not promoted into a server-qualified quote or transaction authority.
+  return { source: "custom", levels: {}, user_modifications: [] };
+}
+
+async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amountBaseUnits, slippageBps }) {
+  const url = new URL("https://api.jup.ag/swap/v2/order");
+  url.searchParams.set("inputMint", inputMint);
+  url.searchParams.set("outputMint", outputMint);
+  url.searchParams.set("amount", amountBaseUnits);
+  url.searchParams.set("slippageBps", String(slippageBps));
+  url.searchParams.set("swapMode", "ExactIn");
+  const apiKey = String(env.JUPITER_API_KEY || "").trim();
+  const requestedAt = new Date().toISOString();
+  const payload = await boundedProviderJson(url, {
+    headers: apiKey ? { "x-api-key": apiKey } : {},
+    maxBytes: 96 * 1024,
+    timeoutMs: 3_500,
+    errorPrefix: "jupiter_spot_quote",
+  });
+  const receivedAt = new Date().toISOString();
+  if (String(payload.inAmount || amountBaseUnits) !== amountBaseUnits) throw new Error("quote_input_amount_mismatch");
+  if (payload.inputMint && String(payload.inputMint) !== inputMint) throw new Error("quote_input_mint_mismatch");
+  if (payload.outputMint && String(payload.outputMint) !== outputMint) throw new Error("quote_output_mint_mismatch");
+  const routeRows = (Array.isArray(payload.routePlan) ? payload.routePlan : [])
+    .map((row) => row?.swapInfo || row)
+    .filter((row) => row && typeof row === "object")
+    .slice(0, 8);
+  if (routeRows.length) {
+    const hasInput = routeRows.some((row) => String(row.inputMint || "") === inputMint);
+    const hasOutput = routeRows.some((row) => String(row.outputMint || "") === outputMint);
+    if (!hasInput || !hasOutput) throw new Error("quote_route_identity_mismatch");
+  }
+  const outAmount = String(payload.outAmount || "");
+  const minimum = String(payload.otherAmountThreshold || "");
+  if (!/^\d+$/.test(outAmount) || BigInt(outAmount) <= 0n || !/^\d+$/.test(minimum) || BigInt(minimum) <= 0n || BigInt(minimum) > BigInt(outAmount)) {
+    throw new Error("quote_output_invalid");
+  }
+  const quotedAt = payload.quoteTimestamp && Number.isFinite(Date.parse(payload.quoteTimestamp))
+    ? new Date(payload.quoteTimestamp).toISOString()
+    : receivedAt;
+  const providerExpiry = Date.parse(payload.expireAt || payload.expiresAt || "");
+  const defaultExpiry = Date.parse(quotedAt) + 20_000;
+  const expiresAt = new Date(Number.isFinite(providerExpiry) ? Math.min(providerExpiry, Date.parse(quotedAt) + 60_000) : defaultExpiry).toISOString();
+  return {
+    payload,
+    requested_at: requestedAt,
+    quoted_at: quotedAt,
+    received_at: receivedAt,
+    expires_at: expiresAt,
+    route_rows: routeRows,
+  };
+}
+
 async function tokensDex(chainId, tokenAddresses) {
   if (!chainId || !tokenAddresses) return [];
   const payload = await cachedDex(`/tokens/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddresses)}`);
@@ -5482,6 +5671,418 @@ async function handleHealth(request, env = {}) {
   });
 }
 
+function spotQuotePreviewRuntime(env = {}) {
+  const rpcUrl = publicSolanaTradeRpcUrl(env);
+  return Object.freeze({
+    available: Boolean(rpcUrl),
+    rpc_url: rpcUrl,
+    quote_provider: "jupiter",
+    active_chains: rpcUrl ? ["solana"] : [],
+    adapter_states: Object.freeze({
+      solana: rpcUrl ? "quote_review" : "unavailable",
+      hyperliquid: "quote_review",
+      base: "adapter_pending",
+      bsc: "adapter_pending",
+      ethereum: "adapter_pending",
+      robinhood: "adapter_pending",
+      arbitrum: "adapter_pending",
+      optimism: "adapter_pending",
+      polygon: "adapter_pending",
+      avalanche: "adapter_pending",
+      tron: "adapter_pending",
+      sui: "adapter_pending",
+    }),
+  });
+}
+
+function spotQuotePreviewError(code) {
+  const clean = String(code || "spot_quote_unavailable");
+  if (/timeout/.test(clean)) return { status: 504, error: "quote_provider_timeout" };
+  if (/429|rate_limited|backpressure/.test(clean)) return { status: 429, error: "quote_provider_rate_limited" };
+  if (/market|identity|address|amount|percentage|slippage|priority|plan|client_authority|side|wallet|balance|mint|scope|chain|instrument/.test(clean)) {
+    return { status: 400, error: clean === "spendable_token_balance_base_units_invalid" ? "sell_balance_required" : clean };
+  }
+  return { status: 503, error: "quote_provider_unavailable" };
+}
+
+async function handleTradeSpotQuotePreview(request, env = {}) {
+  const buildId = await terminalBuildId(env, request);
+  const context = createTerminalRequestContext({
+    request,
+    route: "trade_spot_quote_preview",
+    buildId,
+    schemaVersion: SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+    clientOperationType: "exact_solana_spot_quote_review",
+    providerComponent: "solana_spot_quote_preview",
+  });
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available) {
+    return terminalJson(context, {
+      ok: false,
+      schema_version: SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+      state: "unavailable",
+      error: "spot_quote_adapter_unavailable",
+      signing_available: false,
+      submission_available: false,
+      transaction_material_available: false,
+    }, { status: 503, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "disabled",
+      degradedReason: "spot_quote_adapter_unavailable",
+    });
+  }
+
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: routeBudget("trade_spot_quote_preview").max_request_bytes });
+  } catch (error) {
+    const badType = error?.code === "unsupported_content_type";
+    return terminalJson(context, {
+      ok: false,
+      schema_version: SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+      state: "unavailable",
+      error: error?.code === "request_too_large" ? "spot_quote_request_too_large" : badType ? "spot_quote_unsupported_content_type" : "spot_quote_request_invalid",
+      signing_available: false,
+      submission_available: false,
+      transaction_material_available: false,
+    }, { status: error?.code === "request_too_large" ? 413 : badType ? 415 : 400, headers: { "cache-control": "no-store" } }, {
+      resultCategory: "validation_failed",
+      degradedReason: error?.code || "spot_quote_request_invalid",
+    });
+  }
+
+  return withOperationBudget(async () => {
+    try {
+      const chain = String(body?.chain || "").trim().toLowerCase();
+      const scope = String(body?.identity_scope || "").trim().toLowerCase();
+      const poolAddress = String(body?.pool_address || "").trim();
+      const tokenAddress = String(body?.token_address || "").trim();
+      const quoteAddress = String(body?.quote_address || "").trim();
+      const instrumentId = String(body?.instrument_id || "").trim();
+      if (
+        chain !== "solana"
+        || scope !== "exact_pool"
+        || !SOLANA_ADDRESS_RE.test(poolAddress)
+        || !SOLANA_ADDRESS_RE.test(tokenAddress)
+        || !SOLANA_ADDRESS_RE.test(quoteAddress)
+        || instrumentId !== `solana:pool:${poolAddress}`
+      ) throw new Error("exact_market_identity_mismatch");
+
+      const exactRows = await pairDex("solana", poolAddress, tokenAddress);
+      const exact = exactRows.find((row) => (
+        sameOnchainAddress("solana", row?.pairAddress, poolAddress)
+        && sameOnchainAddress("solana", row?.tokenAddress, tokenAddress)
+        && sameOnchainAddress("solana", row?.quoteTokenAddress, quoteAddress)
+      ));
+      if (!exact) throw new Error("exact_market_unavailable");
+
+      const side = String(body?.side || "").trim().toLowerCase();
+      if (!new Set(["buy", "sell"]).has(side)) throw new Error("side_invalid");
+      const walletAddress = body?.wallet_address == null ? null : String(body.wallet_address).trim();
+      if (walletAddress && !SOLANA_ADDRESS_RE.test(walletAddress)) throw new Error("wallet_address_invalid");
+      const supplyResult = await runProviderOperation({
+        component: "solana_spot_quote_preview",
+        operation_key: `mint:${tokenAddress}`,
+        fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTokenSupply", [tokenAddress, { commitment: "confirmed" }]),
+      });
+      const tokenDecimals = Number(supplyResult?.value?.decimals);
+      if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 18) throw new Error("selected_mint_unavailable");
+
+      let spendableTokenBalance = null;
+      let balanceProjection = { available: false, reason: walletAddress ? "balance_unavailable" : "wallet_not_connected" };
+      if (side === "sell") {
+        if (!walletAddress) throw new Error("sell_balance_required");
+        const balanceResult = await runProviderOperation({
+          component: "solana_spot_quote_preview",
+          operation_key: `balance:${walletAddress}:${tokenAddress}`,
+          fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTokenAccountsByOwner", [
+            walletAddress,
+            { mint: tokenAddress },
+            { encoding: "jsonParsed", commitment: "confirmed" },
+          ]),
+        });
+        spendableTokenBalance = tokenAmountBaseUnitsFromAccounts(balanceResult);
+        if (BigInt(spendableTokenBalance) <= 0n) throw new Error("insufficient_balance");
+        balanceProjection = {
+          available: true,
+          amount: { display: displayBaseUnits(spendableTokenBalance, tokenDecimals), symbol: String(exact.symbol || "TOKEN") },
+          source: "current_exact_mint_balance",
+          persisted: false,
+        };
+      } else if (walletAddress) {
+        const balanceResult = await runProviderOperation({
+          component: "solana_spot_quote_preview",
+          operation_key: `usdc-balance:${walletAddress}`,
+          fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTokenAccountsByOwner", [
+            walletAddress,
+            { mint: SOLANA_CANONICAL_USDC_MINT },
+            { encoding: "jsonParsed", commitment: "confirmed" },
+          ]),
+        }).catch(() => null);
+        const usdcBaseUnits = balanceResult ? tokenAmountBaseUnitsFromAccounts(balanceResult) : null;
+        if (/^\d+$/.test(String(usdcBaseUnits || ""))) {
+          balanceProjection = {
+            available: true,
+            amount: { display: displayBaseUnits(usdcBaseUnits, 6), symbol: "USDC" },
+            source: "current_chain_local_canonical_usdc_balance",
+            persisted: false,
+          };
+        }
+      }
+
+      const sellPercent = optionalFiniteNumber(body?.sell_percent);
+      const contractInput = {
+        exact_market: { instrument_id: instrumentId, pool_address: poolAddress, token_address: tokenAddress, quote_address: quoteAddress },
+        side,
+        amount: side === "buy"
+          ? { kind: "canonical_usdc", display_amount: decimalText(body?.display_amount, 6) }
+          : { kind: "sell_percentage", percentage_bps: Math.round((sellPercent || 0) * 100) },
+        advanced_controls: {
+          slippage_bps: body?.slippage_bps,
+          priority: body?.priority?.mode === "capped"
+            ? { mode: "capped", max_lamports: body?.priority?.maximum_lamports }
+            : { mode: "standard" },
+          jito: false,
+        },
+        plan: serverSpotPlanInput(body, exact),
+      };
+      const marketAuthority = {
+        instrument_id: instrumentId,
+        identity_scope: "exact_pool",
+        chain: "solana",
+        pool_address: poolAddress,
+        token_address: tokenAddress,
+        quote_address: quoteAddress,
+        venue: String(exact.dexId || "unknown"),
+        symbol: String(exact.symbol || ""),
+        quote_symbol: String(exact.quoteSymbol || "SOL"),
+        token_decimals: tokenDecimals,
+        native_decimals: 9,
+        ...(side === "sell" ? { spendable_token_balance_base_units: spendableTokenBalance } : {}),
+      };
+      const validatedControls = createSolanaSpotAdvancedControls(contractInput.advanced_controls);
+      const intent = createExactSolanaSpotIntent(contractInput, marketAuthority);
+      const requestedAt = new Date().toISOString();
+      const providerResult = await runProviderOperation({
+        component: "solana_spot_quote_preview",
+        operation_key: `${intent.input_mint}:${intent.output_mint}:${intent.amount.exact_input_amount_base_units}:${validatedControls.slippage_bps}`,
+        fn: () => fetchJupiterExactSpotQuote({
+          env,
+          inputMint: intent.input_mint,
+          outputMint: intent.output_mint,
+          amountBaseUnits: intent.amount.exact_input_amount_base_units,
+          slippageBps: validatedControls.slippage_bps,
+        }),
+      });
+      const provider = providerResult.payload;
+      const routeRows = providerResult.route_rows;
+      const priceImpact = optionalFiniteNumber(provider.priceImpactPct);
+      const publicQuote = {
+        quote_id: String(provider.quoteId || provider.requestId || `spot_${Date.now().toString(36)}`).slice(0, 160),
+        provider: "jupiter",
+        instrument_id: instrumentId,
+        pool_address: poolAddress,
+        token_address: tokenAddress,
+        quote_address: quoteAddress,
+        input_mint: intent.input_mint,
+        output_mint: intent.output_mint,
+        exact_input_amount_base_units: intent.amount.exact_input_amount_base_units,
+        expected_output_amount_base_units: String(provider.outAmount),
+        minimum_output_amount_base_units: String(provider.otherAmountThreshold),
+        price_impact_bps: Number.isFinite(priceImpact) ? Math.max(0, Math.min(10_000, Math.round(priceImpact * 100))) : 0,
+        route_leg_count: routeRows.length,
+        venues: [...new Set(routeRows.map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
+      };
+      let shadowExecution = null;
+      if (side === "buy") {
+        const reverseResult = await runProviderOperation({
+          component: "solana_spot_quote_preview",
+          operation_key: `${tokenAddress}:${SOLANA_CANONICAL_USDC_MINT}:${String(provider.outAmount)}:${validatedControls.slippage_bps}:reverse`,
+          fn: () => fetchJupiterExactSpotQuote({
+            env,
+            inputMint: tokenAddress,
+            outputMint: SOLANA_CANONICAL_USDC_MINT,
+            amountBaseUnits: String(provider.outAmount),
+            slippageBps: validatedControls.slippage_bps,
+          }),
+        }).catch(() => null);
+        const sourceAssetId = `solana:mainnet:spl:${SOLANA_CANONICAL_USDC_MINT}`;
+        const destinationAssetId = `solana:mainnet:spl:${tokenAddress}`;
+        const requestId = publicQuote.quote_id;
+        const universalRequest = createUniversalQuoteRequest({
+          request_id: requestId,
+          requested_at: providerResult.requested_at || requestedAt,
+          source_amount_usdc: Number(intent.amount.display_amount),
+          destination_asset: {
+            chain: "solana",
+            network: "mainnet",
+            address: tokenAddress,
+            standard: "spl",
+            exact_market_id: instrumentId,
+            symbol: String(exact.symbol || ""),
+          },
+          maximum_slippage_bps: validatedControls.slippage_bps,
+          policy: "friction_complete_outcome",
+        });
+        const entryCandidate = normalizeUniversalRouteCandidate({
+          candidate_id: `${requestId}:entry:jupiter`,
+          provider: "jupiter",
+          state: "route_available",
+          source_chain: "solana",
+          destination_chain: "solana",
+          source_asset_id: sourceAssetId,
+          destination_asset_id: destinationAssetId,
+          expected_output: Number(displayBaseUnits(provider.outAmount, tokenDecimals)),
+          minimum_output: Number(displayBaseUnits(provider.otherAmountThreshold, tokenDecimals)),
+          costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
+          price_impact_bps: publicQuote.price_impact_bps,
+          estimated_settlement_ms: null,
+          transaction_count: 1,
+          trust_dependencies: ["jupiter", "solana_rpc"],
+          venues: publicQuote.venues,
+          intermediate_asset_ids: [],
+          created_at: providerResult.quoted_at,
+          expires_at: providerResult.expires_at,
+        });
+        const exitProvider = reverseResult?.payload;
+        const exitCandidate = reverseResult && exitProvider
+          ? normalizeUniversalRouteCandidate({
+              candidate_id: `${requestId}:exit:jupiter`,
+              provider: "jupiter",
+              state: "route_available",
+              source_chain: "solana",
+              destination_chain: "solana",
+              source_asset_id: destinationAssetId,
+              destination_asset_id: sourceAssetId,
+              expected_output: Number(displayBaseUnits(exitProvider.outAmount, 6)),
+              minimum_output: Number(displayBaseUnits(exitProvider.otherAmountThreshold, 6)),
+              costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
+              price_impact_bps: Math.max(0, Math.min(10_000, Math.round((optionalFiniteNumber(exitProvider.priceImpactPct) || 0) * 100))),
+              estimated_settlement_ms: null,
+              transaction_count: 1,
+              trust_dependencies: ["jupiter", "solana_rpc"],
+              venues: [...new Set(reverseResult.route_rows.map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
+              intermediate_asset_ids: [],
+              created_at: reverseResult.quoted_at,
+              expires_at: reverseResult.expires_at,
+            })
+          : normalizeUniversalRouteCandidate({
+              candidate_id: `${requestId}:exit:jupiter`,
+              provider: "jupiter",
+              state: "unavailable",
+              source_chain: "solana",
+              destination_chain: "solana",
+              source_asset_id: destinationAssetId,
+              destination_asset_id: sourceAssetId,
+              costs_usdc: { network: null, bridge: null, provider: null, raven: 0 },
+              transaction_count: 0,
+              trust_dependencies: ["jupiter", "solana_rpc"],
+              venues: [],
+              intermediate_asset_ids: [],
+              created_at: providerResult.quoted_at,
+              expires_at: providerResult.expires_at,
+              refusal_reasons: ["reverse_quote_unavailable"],
+            });
+        const selection = selectUniversalRouteCandidate([entryCandidate], universalRequest.policy);
+        const proof = createRoundTripProof({
+          spend_usdc: universalRequest.source_amount_usdc,
+          entry: entryCandidate,
+          exit: exitCandidate,
+          observed_at: reverseResult?.received_at || providerResult.received_at,
+        });
+        shadowExecution = createUniversalShadowExecution({
+          request: universalRequest,
+          candidates: [entryCandidate],
+          selected: selection,
+          entry: entryCandidate,
+          exit: exitCandidate,
+          proof,
+          observed_at: reverseResult?.received_at || providerResult.received_at,
+        });
+      }
+      const freeFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
+      const proFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
+      const review = createExactSolanaSpotQuoteReview(contractInput, {
+        market_authority: marketAuthority,
+        quote: publicQuote,
+        quote_timing: {
+          requested_at: providerResult.requested_at || requestedAt,
+          quoted_at: providerResult.quoted_at,
+          received_at: providerResult.received_at,
+          expires_at: providerResult.expires_at,
+        },
+        fee_disclosure: {
+          configured_enabled: false,
+          configuration_ready: false,
+          configured_fee_bps: freeFee.configured_fee_bps,
+          actual_fee_bps: 0,
+          actual_fee_amount_base_units: "0",
+        },
+      });
+      const ravenReference = body?.plan?.source === "raven_exact_market" ? {
+        source: "raven_exact_market",
+        instrument_id: instrumentId,
+        state: "kept_separate_from_route",
+        attached_to_quote: false,
+        reason: "browser_research_plan_is_not_transaction_authority",
+      } : null;
+      return terminalJson(context, {
+        ok: true,
+        ...review,
+        balance: balanceProjection,
+        research_plan_reference: ravenReference,
+        fee_policy: {
+          schema_version: freeFee.schema_version,
+          access_tier: "free",
+          configured_fee_bps: freeFee.configured_fee_bps,
+          actual_fee_bps: 0,
+          free_fee_bps: freeFee.configured_fee_bps,
+          pro_fee_bps: proFee.configured_fee_bps,
+          discount_from_free_pct: proFee.discount_from_free_pct,
+          enabled: false,
+          disclosure_string: freeFee.disclosure_string,
+        },
+        provider_latency_ms: review.timing.provider_latency_ms,
+        shadow_execution: shadowExecution,
+      }, { status: review.review_available ? 200 : 409, headers: { "cache-control": "private, no-store" } }, {
+        resultCategory: review.review_available ? "ok" : "expired",
+        degradedReason: review.review_available ? null : "quote_expired",
+        providerComponent: "solana_spot_quote_preview",
+      });
+    } catch (error) {
+      const mapped = spotQuotePreviewError(error?.code || error?.message);
+      return terminalJson(context, {
+        ok: false,
+        schema_version: SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+        state: "unavailable",
+        error: mapped.error,
+        unavailable_reason: mapped.error,
+        signing_available: false,
+        submission_available: false,
+        transaction_material_available: false,
+      }, { status: mapped.status, headers: { "cache-control": "private, no-store" } }, {
+        resultCategory: mapped.status < 500 ? "validation_failed" : "provider_error",
+        degradedReason: mapped.error,
+        providerComponent: "solana_spot_quote_preview",
+      });
+    }
+  }, {
+    timeout_ms: routeBudget("trade_spot_quote_preview").timeout_ms,
+    on_timeout: () => terminalJson(context, {
+      ok: false,
+      schema_version: SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
+      state: "unavailable",
+      error: "quote_provider_timeout",
+      signing_available: false,
+      submission_available: false,
+      transaction_material_available: false,
+    }, { status: 504, headers: { "cache-control": "private, no-store" } }, {
+      resultCategory: "timeout",
+      degradedReason: "quote_provider_timeout",
+      providerComponent: "solana_spot_quote_preview",
+    }),
+  });
+}
+
 function handleTradeFlags(env = {}) {
   const context = createTerminalRequestContext({
     route: "trade_flags",
@@ -5490,6 +6091,9 @@ function handleTradeFlags(env = {}) {
     clientOperationType: "flags",
   });
   const flags = resolveCustomerTradeFlags(env);
+  const spotRuntime = spotQuotePreviewRuntime(env);
+  const freeJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
+  const proJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
   return terminalJson(context, {
     ok: true,
     quote_only: true,
@@ -5510,6 +6114,18 @@ function handleTradeFlags(env = {}) {
     account_history_types: ["orders"],
     signing_available: false,
     submission_available: false,
+    spot_quote_preview_available: spotRuntime.available,
+    spot_quote_preview_chains: spotRuntime.active_chains,
+    trade_adapter_states: spotRuntime.adapter_states,
+    spot_fee_preview: {
+      provider: "jupiter",
+      free_fee_bps: freeJupiterFee.configured_fee_bps,
+      pro_fee_bps: proJupiterFee.configured_fee_bps,
+      pro_discount_pct: proJupiterFee.discount_from_free_pct,
+      actual_fee_bps: 0,
+      enabled: false,
+      disclosure_string: freeJupiterFee.disclosure_string,
+    },
     fees_enabled: false,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
@@ -7451,6 +8067,7 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/terminal/chart" && request.method === "GET") return handleTerminalChart(request, env);
   if (url.pathname.startsWith("/api/chains/") && request.method === "GET") return handleChain(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/trade/flags" && request.method === "GET") return handleTradeFlags(env);
+  if (url.pathname === "/api/trade/spot-quote-preview" && request.method === "POST") return handleTradeSpotQuotePreview(request, env);
   if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
   if (url.pathname === "/api/trade/order-plan" && request.method === "POST") return handleTradeOrderPlan(request, env);
   if (url.pathname === "/api/trade/account-snapshot" && request.method === "POST") return handleTradeAccountSnapshot(request, env);

@@ -98,6 +98,70 @@ function strictFinite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+function wholeCount(value) {
+  const number = strictFinite(value);
+  return number !== null && number >= 0 ? Math.floor(number) : null;
+}
+
+function sampleMaturityLabel(value) {
+  const sample = wholeCount(value) || 0;
+  if (sample < 20) return "Too early";
+  if (sample < 50) return "Early";
+  if (sample < 200) return "Developing";
+  return "Broader sample";
+}
+
+function contextEvidenceIsCurrent(evidence = {}, maxAgeSeconds = 86_400) {
+  const freshness = String(evidence.actor_evidence_freshness || evidence.freshness || "").toLowerCase();
+  if (!["fresh", "current"].includes(freshness)) return false;
+  const observedAt = evidence.observed_at ? new Date(evidence.observed_at).getTime() : Number.NaN;
+  if (!Number.isFinite(observedAt)) return true;
+  return Math.max(0, Date.now() - observedAt) <= maxAgeSeconds * 1000;
+}
+
+function plainPerpsGroup(value) {
+  const raw = String(value || "Context").trim();
+  const key = raw.toLowerCase().replaceAll("_", " ");
+  if (/^(majors|perps majors|major perps)$/.test(key)) return "Major perps";
+  if (/^(large alts|large cap alts|perps large alts)$/.test(key)) return "Large-cap alt perps";
+  if (/^(alts|liquid alts|perps alts)$/.test(key)) return "Alt perps";
+  if (/^(perps all|all perps)$/.test(key)) return "All Hyperliquid perps";
+  return titleCase(raw);
+}
+
+function outcomeCounts(row = {}) {
+  const positive = wholeCount(row.positive ?? row.rewarding);
+  const mixed = wholeCount(row.mixed);
+  const negative = wholeCount(row.negative ?? row.punishing);
+  const sample = wholeCount(row.sample_size);
+  if ([positive, mixed, negative, sample].some((value) => value === null)) return null;
+  if (positive + mixed + negative !== sample) return null;
+  return { positive, mixed, negative, sample };
+}
+
+function outcomeCountLabel(row = {}) {
+  const counts = outcomeCounts(row);
+  if (!counts) return "Counted outcomes unavailable";
+  return `${counts.positive} positive · ${counts.mixed} mixed · ${counts.negative} negative`;
+}
+
+function outcomeReadLabel(row = {}) {
+  const counts = outcomeCounts(row);
+  if (!counts || counts.sample < 20) return "No group conclusion";
+  if (counts.positive > counts.negative * 1.25) return "More positive endpoints";
+  if (counts.negative > counts.positive * 1.25) return "More negative endpoints";
+  return "Mixed endpoints";
+}
+
+function largestBucket(buckets = {}) {
+  const rows = (Array.isArray(buckets)
+    ? buckets.map((row) => [row?.label, wholeCount(row?.count)])
+    : Object.entries(buckets || {}).map(([label, count]) => [label, wholeCount(count)]))
+    .filter(([label, count]) => label && count !== null)
+    .sort((a, b) => b[1] - a[1]);
+  return rows[0] || null;
+}
+
 function appendText(parent, tag, className, value) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -206,31 +270,43 @@ function syncProWorkspaceLink(row = state.row) {
 function renderFreePerps(projection) {
   const overview = projection.overview || {};
   const participantContext = overview.participant_context || {};
+  const participantContextCurrent = contextEvidenceIsCurrent(participantContext);
   const rows = Array.isArray(projection.market_overview) ? projection.market_overview : [];
 
   const overviewHost = intelligencePanel("overview");
   overviewHost.replaceChildren();
   appendMetricGrid(overviewHost, [
     ["Markets observed", Number(overview.markets_observed || 0).toLocaleString("en-US"), `${Number(overview.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
-    ["Free market view", `${rows.length} markets`, "Current Raven data", "current"],
-    ["Participant context", titleCase(participantContext.freshness), participantContext.privacy === "aggregate_status_only" ? "Aggregate state only; identities withheld" : "Unavailable", participantContext.freshness || "unavailable"],
+    ["Current comparison", `${rows.length} markets`, "Funding, open interest, volume, and pressure", "current"],
+    ["Recurring-wallet context", participantContextCurrent ? "Current · aggregate" : "Excluded", participantContextCurrent ? "Aggregate state only; identities withheld" : `Last measured ${timestamp(participantContext.observed_at)}; not used in this read`, participantContextCurrent ? "current" : "unavailable"],
     ["Liquidation stream", "Unavailable", "RavenOS does not have a reliable liquidation feed, so no estimate is shown", "unavailable"],
   ]);
   const read = document.createElement("div");
   read.className = "perps-intel-boundary";
-  appendText(read, "strong", "", "Current public Perps overview");
-  appendText(read, "span", "", overview.public_read || "Current venue context is forming.");
+  appendText(read, "strong", "", "What matters now");
+  const publicRead = String(overview.public_read || "").trim();
+  appendText(read, "span", "", !participantContextCurrent && /actor|cohort|wallet|participant|replication/i.test(publicRead)
+    ? "Funding, open interest, and pressure remain current. Stale recurring-wallet context is excluded."
+    : publicRead || "Current venue context is forming.");
   overviewHost.append(read);
+  if (!participantContextCurrent) {
+    const participantBoundary = document.createElement("div");
+    participantBoundary.className = "perps-intel-boundary";
+    appendText(participantBoundary, "strong", "", "Recurring-wallet context excluded");
+    appendText(participantBoundary, "span", "", "Its latest measurement is stale, so wallet recurrence does not affect this overview or any current conclusion.");
+    overviewHost.append(participantBoundary);
+  }
   appendBucketSet(overviewHost, "Pressure states", overview.pressure_buckets);
   appendBucketSet(overviewHost, "Liquidity quality", overview.liquidity_buckets);
 
   const positioningHost = intelligencePanel("positioning");
   positioningHost.replaceChildren();
   appendDataTable(positioningHost, {
-    title: "Six-market positioning overview",
-    detail: "Current funding and open interest remain free. The server sends no additional positioning rows to this page.",
+    title: "Current market positioning",
+    detail: "Compare funding, open interest, and volume across six major markets.",
     columns: [
       { label: "Market", value: "symbol" },
+      { label: "Group", value: (row) => plainPerpsGroup(row.instrument_group || "Unavailable") },
       { label: "Funding regime", value: (row) => row.funding_regime || "Unavailable" },
       { label: "Funding", value: (row) => rate(row.funding_rate) },
       { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
@@ -243,8 +319,8 @@ function renderFreePerps(projection) {
   pressureHost.replaceChildren();
   appendBucketSet(pressureHost, "Current pressure distribution", overview.pressure_buckets);
   appendDataTable(pressureHost, {
-    title: "Basic pressure overview",
-    detail: "A focused current view is shown here. The complete cross-market pressure and crowding matrix is in Pro Intelligence.",
+    title: "Current crowding watch",
+    detail: "This six-market view keeps pressure separate from liquidation claims. Pro compares more markets and regimes.",
     columns: [
       { label: "Market", value: "symbol" },
       { label: "Pressure state", value: "pressure_state" },
@@ -259,16 +335,16 @@ function renderFreePerps(projection) {
   appendBucketSet(liquidityHost, "Current liquidity distribution", overview.liquidity_buckets);
   const liquidityBoundary = document.createElement("div");
   liquidityBoundary.className = "perps-intel-boundary";
-  appendText(liquidityBoundary, "strong", "", "Spread and depth comparisons are not in the Free response");
-  appendText(liquidityBoundary, "span", "", "Exact-market book and tape remain available in the Terminal. Cross-market book comparisons are available in Pro Intelligence.");
+  appendText(liquidityBoundary, "strong", "", "Cross-market tradeability comparisons");
+  appendText(liquidityBoundary, "span", "", "Use the Terminal for the selected market’s live book and tape. Pro compares spread and depth across more markets.");
   liquidityHost.append(liquidityBoundary);
 
   const outcomesHost = intelligencePanel("outcomes");
   outcomesHost.replaceChildren();
   const outcomesBoundary = document.createElement("div");
   outcomesBoundary.className = "perps-intel-boundary";
-  appendText(outcomesBoundary, "strong", "", "Outcome attribution is not in the Free response");
-  appendText(outcomesBoundary, "span", "", "Current Raven Reads and their timestamps remain public. Complete cross-market outcome tables are available in Pro Intelligence.");
+  appendText(outcomesBoundary, "strong", "", "Cross-market follow-through");
+  appendText(outcomesBoundary, "span", "", "Current Raven Reads and timestamps remain visible. Pro compares what followed across more conditions with samples attached.");
   outcomesHost.append(outcomesBoundary);
   setProBoundaryVisible(true);
 }
@@ -319,18 +395,39 @@ function renderPerpsOverview(data) {
   const host = intelligencePanel("overview");
   host.replaceChildren();
   const summary = data.summary || {};
+  const actorEvidence = data.actor_evidence || {};
+  const actorContextCurrent = contextEvidenceIsCurrent(actorEvidence);
+  const forwardSample = wholeCount(data.forward_observation?.observations ?? summary.forward_observations) || 0;
+  const pressureLeader = largestBucket(summary.pressure_buckets);
+  const grouped = data.outcome_attribution?.grouped || {};
+  const representativeOutcome = [
+    ...(Array.isArray(grouped.funding_regime) ? grouped.funding_regime : []),
+    ...(Array.isArray(grouped.pressure_bucket) ? grouped.pressure_bucket : []),
+    ...(Array.isArray(grouped.instrument_group) ? grouped.instrument_group : []),
+  ].sort((a, b) => (wholeCount(b.sample_size) || 0) - (wholeCount(a.sample_size) || 0))[0] || null;
   appendMetricGrid(host, [
     ["Markets observed", Number(summary.markets_observed || 0).toLocaleString("en-US"), `${Number(summary.books_observed || 0).toLocaleString("en-US")} books observed`, "current"],
-    ["Forward observations", Number(summary.forward_observations || 0).toLocaleString("en-US"), `${Number(summary.matured_12h_windows || 0).toLocaleString("en-US")} matured through 12h`, "forming"],
-    ["Participant context", titleCase(data.actor_evidence?.actor_evidence_freshness, "Unavailable"), data.actor_evidence?.actor_evidence_freshness === "stale" ? "Stale aggregate evidence is withheld from live leaderboards" : "Aggregate status only; identities withheld", data.actor_evidence?.actor_evidence_freshness || "unavailable"],
+    ["Forward sample", forwardSample.toLocaleString("en-US"), `${sampleMaturityLabel(forwardSample)} · ${Number(summary.matured_12h_windows || 0).toLocaleString("en-US")} matured through 12h`, forwardSample >= 20 ? "forming" : "unavailable"],
+    ["Recurring-wallet context", actorContextCurrent ? "Current · aggregate" : "Excluded", actorContextCurrent ? "Aggregate status only; identities withheld" : `Last measured ${timestamp(actorEvidence.observed_at)}; not used in this read`, actorContextCurrent ? "current" : "unavailable"],
     ["Liquidation stream", "Unavailable", "RavenOS does not have a reliable liquidation feed, so no estimate is shown", "unavailable"],
   ]);
+  const read = document.createElement("div");
+  read.className = "perps-intel-boundary perps-intel-current-read";
+  appendText(read, "strong", "", "What matters now");
+  const pressureCopy = pressureLeader
+    ? `${plainPerpsGroup(pressureLeader[0])} is the largest current pressure bucket across ${pressureLeader[1].toLocaleString("en-US")} markets.`
+    : "Current pressure distribution is forming.";
+  const outcomeCopy = representativeOutcome
+    ? `Forward sample: ${outcomeCountLabel(representativeOutcome)} (N=${Number(representativeOutcome.sample_size || 0).toLocaleString("en-US")}) · ${sampleMaturityLabel(representativeOutcome.sample_size)}.`
+    : `Forward sample: N=${forwardSample.toLocaleString("en-US")} · ${sampleMaturityLabel(forwardSample)}.`;
+  appendText(read, "span", "", `${pressureCopy} ${outcomeCopy}`);
+  host.append(read);
   const participant = document.createElement("div");
   participant.className = "perps-intel-boundary";
-  appendText(participant, "strong", "", data.actor_evidence?.actor_evidence_freshness === "stale" ? "Participant context is stale" : "Participant context is aggregate");
-  appendText(participant, "span", "", data.actor_evidence?.actor_evidence_freshness === "stale"
-    ? `Last aggregate participant observation: ${timestamp(data.actor_evidence?.observed_at)}. No live leaderboard is shown.`
-    : "No wallet identities, labels, relationship graphs, or smart-money ranking is exposed.");
+  appendText(participant, "strong", "", actorContextCurrent ? "Recurring-wallet context is aggregate" : "Recurring-wallet context excluded");
+  appendText(participant, "span", "", actorContextCurrent
+    ? "No wallet identities, labels, relationship graphs, or smart-money ranking is exposed."
+    : `Last measured ${timestamp(actorEvidence.observed_at)}. Stale wallet evidence is hidden and does not affect current conclusions.`);
   host.append(participant);
   appendBucketSet(host, "Pressure states", summary.pressure_buckets);
   appendBucketSet(host, "Liquidity quality", summary.liquidity_buckets);
@@ -341,9 +438,10 @@ function renderPerpsPositioning(data) {
   host.replaceChildren();
   appendDataTable(host, {
     title: "Funding and open interest",
-    detail: "Highest current venue volume, with funding posture and outstanding open interest kept separate.",
+    detail: "Highest-volume markets with funding posture and outstanding open interest kept separate.",
     columns: [
       { label: "Market", value: "symbol" },
+      { label: "Group", value: (row) => plainPerpsGroup(row.instrument_group || "Unavailable") },
       { label: "Funding regime", value: (row) => row.funding_regime || "Unavailable" },
       { label: "Funding", value: (row) => rate(row.funding_rate) },
       { label: "Open interest", value: (row) => strictFinite(row.open_interest_usd) === null ? "—" : `$${compact(row.open_interest_usd)}` },
@@ -358,8 +456,8 @@ function renderPerpsPressure(data) {
   host.replaceChildren();
   appendBucketSet(host, "Current pressure distribution", data.summary?.pressure_buckets);
   appendDataTable(host, {
-    title: "Highest-pressure markets",
-    detail: "Pressure and crowding are Raven measurements derived from current public venue structure, not liquidation events.",
+    title: "Crowding watch",
+    detail: "Raven measures pressure from current venue structure. This is not liquidation data.",
     columns: [
       { label: "Market", value: "symbol" },
       { label: "Pressure state", value: "pressure_state" },
@@ -382,8 +480,8 @@ function renderPerpsLiquidity(data) {
     { label: "20-level depth", value: (row) => strictFinite(row.depth_20_usd) === null ? "—" : `$${compact(row.depth_20_usd)}` },
     { label: "24h volume", value: (row) => strictFinite(row.day_volume_usd) === null ? "—" : `$${compact(row.day_volume_usd)}` },
   ];
-  appendDataTable(host, { title: "Tightest books", detail: "Lowest observed spreads among current books.", columns, rows: data.tables.tightest_books.slice(0, 10) });
-  appendDataTable(host, { title: "Wide or thin books", detail: "Markets where visible depth or spread warrants explicit friction caution.", columns, rows: data.tables.wide_or_thin_books.slice(0, 10) });
+  appendDataTable(host, { title: "Most tradeable books", detail: "Lowest observed spreads among current books.", columns, rows: data.tables.tightest_books.slice(0, 10) });
+  appendDataTable(host, { title: "Friction watch", detail: "Markets where visible depth or spread warrants extra caution.", columns, rows: data.tables.wide_or_thin_books.slice(0, 10) });
 }
 
 function renderPerpsOutcomes(data) {
@@ -396,16 +494,16 @@ function renderPerpsOutcomes(data) {
     const observed = strictFinite(forward.median_observed_change_pct?.[windowName]);
     const favorable = strictFinite(forward.median_max_favorable_movement_pct?.[windowName]);
     return [
-      `${windowName} maturity`,
-      matured === null ? "Unavailable" : `${matured.toLocaleString("en-US")} / ${Number(forward.observations || 0).toLocaleString("en-US")}`,
-      observed === null ? "No matured median" : `Median ${percentagePoint(observed)} · favorable ${percentagePoint(favorable)}`,
+      `${windowName} follow-through`,
+      matured === null ? "Unavailable" : `${matured.toLocaleString("en-US")} of ${Number(forward.observations || 0).toLocaleString("en-US")} measured`,
+      observed === null ? "No measured median" : `Median endpoint ${percentagePoint(observed)} · best move ${percentagePoint(favorable)}`,
       matured ? "forming" : "unavailable",
     ];
   }));
   const caveat = document.createElement("div");
   caveat.className = "perps-intel-boundary";
-  appendText(caveat, "strong", "", "Forward-observation maturity");
-  appendText(caveat, "span", "", forward.sample_caveat || "The public forward sample is forming and is not a recommendation.");
+  appendText(caveat, "strong", "", "How mature is this sample?");
+  appendText(caveat, "span", "", `${sampleMaturityLabel(forward.observations)} · ${forward.sample_caveat || "The forward sample is forming and is not a recommendation."}`);
   host.append(caveat);
   const attribution = data.outcome_attribution || {};
   const grouped = attribution.grouped || {};
@@ -415,14 +513,14 @@ function renderPerpsOutcomes(data) {
     ...(Array.isArray(grouped.instrument_group) ? grouped.instrument_group : []),
   ].slice(0, 12);
   appendDataTable(host, {
-    title: "Aggregate outcome attribution",
-    detail: attribution.public_caveat || "Outcome attribution is aggregate validation context.",
+    title: "What followed by market condition",
+    detail: "Endpoint direction is shown with raw counts and sample maturity. It is not friction-complete trading performance.",
     columns: [
-      { label: "Group", value: (row) => `${row.label || "Context"}: ${row.group || "Unavailable"}` },
-      { label: "Read", value: "read" },
-      { label: "Sample", value: (row) => Number(row.sample_size || 0).toLocaleString("en-US") },
-      { label: "Confidence", value: "confidence" },
-      { label: "Median observed", value: (row) => percentagePoint(row.median_observed_change_pct) },
+      { label: "Market slice", value: (row) => `${plainPerpsGroup(row.label || "Context")}: ${plainPerpsGroup(row.group || "Unavailable")}` },
+      { label: "Conclusion", value: (row) => outcomeReadLabel(row) },
+      { label: "Counted outcomes", value: (row) => outcomeCountLabel(row) },
+      { label: "Sample", value: (row) => `N=${Number(row.sample_size || 0).toLocaleString("en-US")} · ${sampleMaturityLabel(row.sample_size)}` },
+      { label: "Median endpoint", value: (row) => percentagePoint(row.median_observed_change_pct) },
     ],
     rows: outcomeRows,
   });
@@ -708,16 +806,16 @@ function renderContext(payload) {
   state.tapeRows = marketData.tape?.trades || state.tapeRows;
 
   setState("perpsMarketFreshness", marketData.components?.market || "unavailable", titleCase(marketData.components?.market));
-  setState("perpsContextState", liveRead?.state || "unavailable", liveReadAvailable ? titleCase(liveRead.state) : "Read paused");
-  setState("perpsDeliveryState", decisionHistoryAvailable ? context.context_state : "not_attached", decisionHistoryAvailable ? "Attached" : "Not attached");
+  setState("perpsContextState", liveRead?.state || "unavailable", liveReadAvailable ? "Read current" : "Read forming");
+  setState("perpsDeliveryState", decisionHistoryAvailable ? context.context_state : "not_attached", decisionHistoryAvailable ? "Available" : "None");
   setText("perpsObservedAt", timestamp(liveRead?.observed_at || marketData.generated_at || context.observed_at));
   setText("perpsContinuityMessage", liveReadAvailable
     ? decisionHistoryAvailable
-      ? "Current Hyperliquid inputs power the live Raven read; the timestamped decision history is attached separately."
-      : "Current Hyperliquid inputs power the live Raven read. No retained decision history is required for this market read."
+      ? "The live Raven read uses current market structure. A prior timestamped Raven event is available separately."
+      : "The live Raven read uses current market structure. No prior Raven event is required."
     : "The exact Hyperliquid market remains visible while Raven waits for enough current inputs to form a read.");
 
-  setText("perpsReadHeadline", activeRead.headline || `${state.row?.asset || "Instrument"} · live read paused`);
+  setText("perpsReadHeadline", activeRead.headline || `${state.row?.asset || "Instrument"} · read forming`);
   setText("perpsReadSummary", activeRead.summary || "The exact market remains live while Raven waits for aligned price, positioning, depth, and tape inputs.");
   setText("perpsWhy", activeRead.why_raven_noticed || "Current exact-market inputs do not yet form a directional edge.");
   setText("perpsPathFamily", liveRead?.setup_label || context.behavior_family || "Read forming");
@@ -729,8 +827,8 @@ function renderContext(payload) {
   setList("perpsStrengthen", activeRead.what_would_strengthen, "Price, visible depth, and recent tape align in the same direction.");
   setList("perpsWeaken", activeRead.what_would_weaken, "Current flow thins or the exact-market structure reverses.");
   setText("perpsEvidenceState", liveReadAvailable
-    ? `${titleCase(liveRead.state)} · ${liveRead.input_count}/${liveRead.input_total} live inputs · ${liveRead.evidence_grade}${liveRead.evidence_score}`
-    : "Waiting for live inputs");
+    ? `${titleCase(liveRead.state)} · ${titleCase(liveRead.evidence_grade || "developing")} evidence`
+    : "Read forming");
 
   renderComparables(payload?.matured_comparables || {}, payload?.plan_preview || {});
   renderPlan(payload?.plan_preview || {});
@@ -740,9 +838,9 @@ function renderContext(payload) {
   const marker = document.getElementById("perpsRavenMarker");
   const eventAvailable = Boolean(payload?.chart_event?.event_id && payload?.chart_event?.observed_at);
   marker.disabled = !eventAvailable;
-  marker.textContent = eventAvailable ? "Decision event" : "No retained event";
+  marker.textContent = eventAvailable ? "Prior Raven event" : "No prior Raven event";
   marker.setAttribute("aria-pressed", eventAvailable ? "true" : "false");
-  setText("perpsChartEventState", eventAvailable ? `Retained observation ${timestamp(payload.chart_event.observed_at)}` : "Live Raven overlays remain available");
+  setText("perpsChartEventState", eventAvailable ? `Raven observed this market ${timestamp(payload.chart_event.observed_at)}` : "Live Raven overlays remain available");
 
   setText("perpsProofMarket", [marketData.components?.book, marketData.components?.tape].every((value) => value === "fresh") ? "Live market flow" : "Partially unavailable");
   setText("perpsProofContext", liveReadAvailable ? `${titleCase(liveRead.state)} · exact Hyperliquid inputs` : "Waiting for enough current inputs");
@@ -798,7 +896,7 @@ function dispatchContext() {
     dataState: state.workspace?.state?.state || "data_unavailable",
     observedAt: liveRead?.observed_at || context.observed_at || state.workspace?.state?.observedAt,
     marketSource: state.workspace?.state?.source || "Hyperliquid",
-    sourceReferences: [state.workspace?.state?.source, liveRead?.source === "hyperliquid_public_api" ? "Current Hyperliquid market read" : null, context.public_context_id ? "Retained Raven decision history" : null].filter(Boolean),
+    sourceReferences: [state.workspace?.state?.source, liveRead?.source === "hyperliquid_public_api" ? "Current Hyperliquid market read" : null, context.public_context_id ? "Prior Raven event" : null].filter(Boolean),
   } }));
 }
 
@@ -997,7 +1095,7 @@ async function boot() {
     mode: "Read only",
     signing: "Sign off",
     broadcast: "Broadcast off",
-    evidence: state.context?.live_market_read ? "Live Raven read" : state.context?.raven_context?.context_available ? "Decision history linked" : "Read forming",
+    evidence: state.context?.live_market_read ? "Live Raven read" : state.context?.raven_context?.context_available ? "Prior Raven event available" : "Read forming",
   });
 
   setInterval(() => {

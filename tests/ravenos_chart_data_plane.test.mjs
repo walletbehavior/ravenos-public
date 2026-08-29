@@ -184,7 +184,20 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   assert.equal(listed.historical_candles_supported, false);
   assert.equal(listed.history_provider, null);
   assert.match(listed.refusal_reason, /commercial_public_display_rights/);
-  assert.deepEqual(RAVENOS_TERMINAL_CHAIN_ROLLOUT.current.map((row) => row.chain), ["hyperliquid", "solana", "bsc", "base", "ethereum", "robinhood"]);
+  assert.deepEqual(RAVENOS_TERMINAL_CHAIN_ROLLOUT.current.map((row) => row.chain), [
+    "hyperliquid",
+    "solana",
+    "bsc",
+    "base",
+    "ethereum",
+    "robinhood",
+    "arbitrum",
+    "optimism",
+    "polygon",
+    "avalanche",
+    "tron",
+    "sui",
+  ]);
   assert.equal(RAVENOS_TERMINAL_CHAIN_ROLLOUT.current.every((row) => row.signing === false && row.submission === false), true);
   assert.deepEqual(RAVENOS_TERMINAL_CHAIN_ROLLOUT.next_adapter_cohorts[0].chains, ["arbitrum", "polygon", "avalanche", "optimism"]);
   assert.equal(RAVENOS_TERMINAL_CHAIN_ROLLOUT.long_tail_lookup.signing_never_inferred_from_lookup, true);

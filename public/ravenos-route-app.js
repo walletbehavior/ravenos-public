@@ -40,8 +40,12 @@ function text(value, fallback = FORMING_TEXT) {
 function publicMarketLabel(value) {
   const raw = text(value, "").trim();
   if (!raw) return raw;
+  if (/^all$/i.test(raw)) return "All chains";
   if (/^solana$/i.test(raw)) return "Solana";
   if (/^base$/i.test(raw)) return "Base";
+  if (/^(bnb|bsc)$/i.test(raw)) return "BNB";
+  if (/^(rh|robinhood)$/i.test(raw)) return "RH";
+  if (/^hyperliquid$/i.test(raw)) return "Hyperliquid";
   if (/^eth$/i.test(raw) || /^ethereum$/i.test(raw)) return "Ethereum";
   return raw;
 }
@@ -78,7 +82,26 @@ function surfaceVerb(value) {
 }
 
 function capBandLabel(value) {
-  const raw = titleCase(value || "surface");
+  const key = String(value || "surface").trim().toLowerCase();
+  const plainLabels = {
+    all: "Broad market",
+    broad: "Broad market",
+    fresh_pairs: "Fresh pairs",
+    micro: "Micro caps",
+    small: "Small caps",
+    mid: "Mid caps",
+    large: "Large caps",
+    mega: "Mega caps",
+    perps_all: "All perps",
+    perps_majors: "Major perps",
+    perps_large_alts: "Large-cap alt perps",
+    perps_alts: "Alt perps",
+    participant_cohorts: "Broad participation",
+    live_activity: "Market activity",
+    jupiter_velocity: "High-velocity tokens",
+  };
+  if (plainLabels[key]) return plainLabels[key];
+  const raw = titleCase(key);
   if (/^Jupiter Velocity$/i.test(raw)) return "high-velocity tokens";
   if (/^Live Activity$/i.test(raw)) return "activity";
   if (/^Participant Cohorts$/i.test(raw)) return "participant cohorts";
@@ -159,7 +182,7 @@ function publicReadType(value, slug = routeConfig?.slug) {
   if (slug === "replay") return "Historical context";
   if (slug === "memory") return "Market memory";
   if (slug === "outcomes") return "Followthrough";
-  if (slug === "behavior") return "Participation";
+  if (slug === "behavior") return "Behavior read";
   if (slug === "perps") return "Perps read";
   if (/leading/i.test(raw)) return "Current opportunity";
   if (/historical/i.test(raw)) return "Historical context";
@@ -296,6 +319,134 @@ function rowUsableSample(row = {}) {
 
 function rowObservedSample(row = {}) {
   return Number(row.sample?.observed ?? row.sample_summary?.observed ?? row.observed_sample ?? row.sample_size ?? 0);
+}
+
+function finiteCount(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.floor(number) : null;
+}
+
+function sampleMaturityLabel(value) {
+  const sample = finiteCount(value) || 0;
+  if (sample < 20) return "Too early";
+  if (sample < 50) return "Early";
+  if (sample < 200) return "Developing";
+  return "Broader sample";
+}
+
+function behaviorSliceLabel(row = {}) {
+  const chain = publicMarketLabel(row.chain || row.market_scope?.chain || "All");
+  const band = capBandLabel(row.cap_band || row.capitalization_band || row.market_scope?.cap_band || "broad");
+  const rawWindow = row.window || row.timeframe || "Current";
+  const windowName = /^live$/i.test(rawWindow) ? "Current" : rawWindow;
+  return traderSurfaceLabel(`${titleCase(chain)} · ${band} · ${windowName}`);
+}
+
+function behaviorSampleLabel(row = {}) {
+  const usable = finiteCount(row.sample_summary?.usable ?? rowUsableSample(row)) || 0;
+  const observed = finiteCount(row.sample_summary?.observed ?? rowObservedSample(row)) || 0;
+  const ratio = observed > 0 ? `${Math.round((usable / observed) * 100)}%` : "coverage unavailable";
+  return `${fmtNumber(usable)} usable of ${fmtNumber(observed)} observed (${ratio}) · ${sampleMaturityLabel(usable)}`;
+}
+
+function behaviorOutcomeCounts(row = {}) {
+  const positive = finiteCount(row.positive_count ?? row.rewarding_count ?? row.rewarding);
+  const mixed = finiteCount(row.mixed_count ?? row.mixed);
+  const negative = finiteCount(row.negative_count ?? row.punishing_count ?? row.punishing);
+  let measured = finiteCount(row.measured_count ?? row.outcome_sample_size ?? row.settled_sample);
+  if (measured === null && positive !== null && mixed !== null && negative !== null) measured = positive + mixed + negative;
+  if (positive === null || measured === null || measured <= 0 || positive > measured) return null;
+  if (mixed !== null && negative !== null && positive + mixed + negative !== measured) return null;
+  return { positive, mixed, negative, measured };
+}
+
+function behaviorOutcomeLabel(row = {}) {
+  const counts = behaviorOutcomeCounts(row);
+  if (!counts) return "No directional edge measured";
+  const share = counts.positive / counts.measured;
+  return `${fmtNumber(counts.positive)} of ${fmtNumber(counts.measured)} (${(share * 100).toFixed(1)}%) ended positive`;
+}
+
+function behaviorNarrative(row = {}) {
+  const counts = behaviorOutcomeCounts(row);
+  const trend = titleCase(row.trend || row.participation_trend || "forming").toLowerCase();
+  const source = traderText(row.plain_language_summary || row.interpretation, `${titleCase(trend)} participation is forming.`);
+  if (counts) return `${source} ${behaviorOutcomeLabel(row)} during the measured window.`;
+  if (/reward|punish|success|win[- ]?rate|followthrough|positive outcome|negative outcome|stronger .*outcome/i.test(source)) {
+    return `${titleCase(trend)} participation in this slice. No directional edge measured.`;
+  }
+  return `${source} No directional edge measured.`;
+}
+
+function behaviorStrengthScore(row = {}) {
+  const strength = String(row.outcome_strength || "").toLowerCase();
+  const trend = String(row.trend || row.participation_trend || "").toLowerCase();
+  const strengthScore = behaviorOutcomeCounts(row)
+    ? { strong: 4, rewarding: 4, mixed: 1, building: 0, weak: -3, punishing: -4 }[strength] ?? 0
+    : 0;
+  const trendScore = { expanding: 2, improving: 2, reaccelerating: 2, stable: 0, selective: -1, fading: -2, weakening: -2 }[trend] ?? 0;
+  return strengthScore + trendScore;
+}
+
+function chooseBehaviorInsights(inputRows = []) {
+  const rows = inputRows.filter(Boolean);
+  const spotRows = rows.filter((row) => {
+    const chain = String(row.chain || "").toLowerCase();
+    const band = String(row.cap_band || row.capitalization_band || "").toLowerCase();
+    return chain !== "hyperliquid" && !band.startsWith("perps_");
+  });
+  const pool = spotRows.length ? spotRows : rows;
+  const supported = pool
+    .filter((row) => rowUsableSample(row) >= 20)
+    .sort((a, b) => behaviorStrengthScore(b) - behaviorStrengthScore(a) || rowUsableSample(b) - rowUsableSample(a));
+  const broad = pool
+    .filter((row) => /^(all|broad|live_activity|participant_cohorts)$/i.test(String(row.cap_band || row.capitalization_band || "")))
+    .sort((a, b) => {
+      const aAll = /^all$/i.test(String(a.chain || "")) ? 1 : 0;
+      const bAll = /^all$/i.test(String(b.chain || "")) ? 1 : 0;
+      return bAll - aAll || rowUsableSample(b) - rowUsableSample(a);
+    })[0]
+    || null;
+  const strongest = supported.find((row) => row !== broad)
+    || broad
+    || [...pool].sort((a, b) => rowUsableSample(b) - rowUsableSample(a))[0]
+    || null;
+  const weakest = [...supported]
+    .reverse()
+    .find((row) => row !== strongest && behaviorStrengthScore(row) < behaviorStrengthScore(strongest || {}))
+    || null;
+  return { broad, strongest, weakest };
+}
+
+function behaviorInsightRail(rows = []) {
+  const insights = chooseBehaviorInsights(rows);
+  const cards = [
+    ["Broad regime", insights.broad],
+    ["Strongest supported slice", insights.strongest],
+    ["Weakest supported slice", insights.weakest],
+  ].filter(([, row], index, all) => row && all.findIndex(([, candidate]) => candidate === row) === index);
+  if (!cards.length) return "";
+  return `<section class="behavior-focus behavior-insight-rail" aria-label="Current behavior summary">
+    ${cards.map(([role, row]) => `<article class="behavior-insight-card" data-insight-role="${escapeHtml(statusClass(role))}">
+      <span>${escapeHtml(role)}</span>
+      <h3>${escapeHtml(behaviorSliceLabel(row))}</h3>
+      <p>${escapeHtml(behaviorNarrative(row))}</p>
+      <dl>
+        <div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.trend || row.participation_trend || "forming"))}</dd></div>
+        <div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div>
+        <div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div>
+      </dl>
+    </article>`).join("")}
+  </section>`;
+}
+
+function evidenceContextIsCurrent(evidence = {}, fallbackState = "unavailable", maxAgeSeconds = 86_400) {
+  const state = String(evidence.actor_evidence_freshness || evidence.freshness || fallbackState || "").toLowerCase();
+  if (!["fresh", "current"].includes(state)) return false;
+  const observedAt = evidence.observed_at ? new Date(evidence.observed_at).getTime() : Number.NaN;
+  if (!Number.isFinite(observedAt)) return true;
+  return Math.max(0, Date.now() - observedAt) <= maxAgeSeconds * 1000;
 }
 
 function opportunitySurfaceRowLabel(row = {}) {
@@ -1050,55 +1201,62 @@ function currentBehaviorProjection(payload) {
 }
 
 function renderBehaviorUnavailable() {
-  document.getElementById("routeHeadline").textContent = "Current Participant Intelligence unavailable.";
-  document.getElementById("routeHeroSummary").textContent = "The aggregate behavior feed did not pass its current-data and privacy checks. Older participant data is not substituted as current.";
+  document.getElementById("routeHeadline").textContent = "Current Behavior Lab read unavailable.";
+  document.getElementById("routeHeroSummary").textContent = "Current market-slice data is incomplete or out of date. Older behavior is not presented as a live read.";
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Current data", "Unavailable"),
+    routeStateCard("Market slices", "Unavailable"),
     routeStateCard("Older data shown", "No"),
-    routeStateCard("Participant identities", "Withheld"),
+    routeStateCard("Wallet identities", "Not shown"),
   ].join("");
-  document.getElementById("routePrimaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Participant Intelligence</div><h2>Current participant context is unavailable</h2></div><span class="route-pill unavailable">Unavailable</span></div><div class="route-unavailable"><strong>Older behavior is not shown as current.</strong><p>The latest participant data is incomplete or out of date. RavenOS will restore this view when current, usable evidence is available.</p></div>`;
+  document.getElementById("routePrimaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Behavior Lab</div><h2>Current market behavior is unavailable</h2></div><span class="route-pill unavailable">Unavailable</span></div><div class="route-unavailable"><strong>Older behavior is not shown as current.</strong><p>RavenOS will restore this view when current, usable market-slice evidence is available.</p></div>`;
   document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><div><div class="route-chip-label">Privacy boundary</div><h2>Nothing private substituted</h2></div></div><div class="route-boundary"><span>Aggregate only</span><strong>No wallet identity, label, relationship graph, coordination claim, or smart-money ranking is exposed.</strong></div>`;
 }
 
 function renderBehaviorFree(payload, projection) {
-  const rows = Array.isArray(projection.participation_overview) ? projection.participation_overview : [];
-  const focus = rows[0] || null;
+  const sourceRows = Array.isArray(projection.participation_overview) ? projection.participation_overview : [];
+  const spotRows = sourceRows.filter((row) => {
+    const chain = String(row.chain || "").toLowerCase();
+    const band = String(row.capitalization_band || "").toLowerCase();
+    return chain !== "hyperliquid" && !band.startsWith("perps_");
+  });
+  const rows = spotRows.length ? spotRows : sourceRows;
+  const insights = chooseBehaviorInsights(rows);
+  const focus = insights.strongest || insights.broad || rows[0] || null;
   const focusLabel = focus
-    ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.capitalization_band)}`)
-    : "Participant context";
+    ? behaviorSliceLabel(focus)
+    : "Market behavior";
   const freshness = projection.provenance?.freshness?.state || payload.delivery?.freshness_state || "unavailable";
   document.getElementById("routeHeadline").textContent = focus
     ? `${focusLabel}: ${titleCase(focus.participation_trend || "forming")} participation.`
-    : "Participant Intelligence is forming.";
-  document.getElementById("routeHeroSummary").textContent = "The Free view shows six aggregate conditions with sample counts, timing windows, and plain-language interpretation. Wallet identities remain private.";
+    : "Behavior Lab is forming.";
+  document.getElementById("routeHeroSummary").textContent = "Compare current participation across chains, size groups, and time windows. Every slice keeps its usable sample visible; no directional edge is shown without counted outcomes.";
   const stateStrip = document.getElementById("routeStateStrip");
   stateStrip.dataset.columns = "4";
+  const sizeGroups = new Set(rows.map((row) => String(row.capitalization_band || "").toLowerCase()).filter(Boolean));
   stateStrip.innerHTML = [
-    routeStateCard("Free conditions", fmtNumber(rows.length)),
-    routeStateCard("Conditions observed", fmtNumber(projection.headline?.conditions_observed)),
+    routeStateCard("Market slices", fmtNumber(rows.length)),
+    routeStateCard("Size groups", fmtNumber(sizeGroups.size)),
     routeStateCard("Current data", titleCase(freshness)),
-    routeStateCard("Privacy", "Aggregate only"),
+    routeStateCard("Directional edge", "Counted outcomes only"),
   ].join("");
 
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Free Participant overview</div><h2>Current aggregate conditions</h2></div><span class="route-pill ${escapeHtml(statusClass(freshness))}">${escapeHtml(titleCase(freshness))}</span></div>
-    ${focus ? `<section class="behavior-focus"><div><span>Current aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.interpretation, "Participation context is forming."))}</p></div><dl><div><dt>Participation trend</dt><dd>${escapeHtml(titleCase(focus.participation_trend || "forming"))}</dd></div><div><dt>Sample</dt><dd>${escapeHtml(`${fmtNumber(focus.usable_sample)} usable · ${fmtNumber(focus.observed_sample)} observed`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || "current")}</dd></div><div><dt>Privacy</dt><dd>Aggregate · identities withheld</dd></div></dl></section>` : ""}
-    <div class="behavior-matrix" aria-label="Free aggregate participation overview">
-      ${rows.map((row) => `<article data-strength="building"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.capitalization_band)}`))}</span><b>${escapeHtml(titleCase(row.participation_trend || "forming"))}</b></header><p>${escapeHtml(traderText(row.interpretation, "Participation context is forming."))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Trend</dt><dd>${escapeHtml(titleCase(row.participation_trend || "forming"))}</dd></div><div><dt>Usable sample</dt><dd>${escapeHtml(fmtNumber(row.usable_sample))}</dd></div><div><dt>Observed sample</dt><dd>${escapeHtml(fmtNumber(row.observed_sample))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(row.window || "current")}</dd></div></dl><footer><span>${escapeHtml(`${fmtNumber(row.usable_sample)} usable / ${fmtNumber(row.observed_sample)} observed`)}</span><span>Aggregate · identities withheld</span></footer></article>`).join("")}
+    <div class="route-panel-head"><div><div class="route-chip-label">Behavior Lab</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(freshness))}">${escapeHtml(titleCase(freshness))}</span></div>
+    ${behaviorInsightRail(rows)}
+    <div class="behavior-matrix" aria-label="Current market slices">
+      ${rows.map((row) => `<article data-strength="${escapeHtml(statusClass(row.participation_trend || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.participation_trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div><div><dt>Window</dt><dd>${escapeHtml(row.window || "current")}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
     </div>
-    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
+    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a><a href="/perps/#perpsIntelligence">Compare perps separately</a></div>
   `;
   document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Pro depth</div><h2>Advanced Participant Intelligence</h2></div><span class="route-pill forming">Pro access</span></div>
-    <p class="route-summary">Approved Pro accounts can explore the complete condition matrix and advanced evidence fields.</p>
+    <div class="route-panel-head"><div><div class="route-chip-label">Go deeper</div><h2>Compare more behavior in Pro</h2></div><span class="route-pill forming">Pro</span></div>
+    <p class="route-summary">Explore more chains, size groups, and time windows without exposing wallet identities.</p>
     <div class="route-continuity-list participant-pro-metadata">
-      <div><span>Matrix</span><strong>Complete aggregate condition matrix</strong><small>No wallet identities or labels</small></div>
-      <div><span>Evidence</span><strong>Success, win-rate, confidence and outcome bands</strong><small>Aggregate denominators remain attached</small></div>
-      <div><span>Integrity</span><strong>Excluded-sample and sample-gap detail</strong><small>Unavailable evidence stays unavailable</small></div>
-      <div><span>Filters</span><strong>Chain, capitalization and window</strong><small>Applied inside your signed-in Pro workspace</small></div>
+      <div><span>Compare</span><strong>More market slices side by side</strong><small>Chain, size group, and time window</small></div>
+      <div><span>Evidence</span><strong>Counted followthrough where available</strong><small>Rates remain attached to their samples</small></div>
+      <div><span>Coverage</span><strong>See excluded and unusable observations</strong><small>Missing evidence remains unavailable</small></div>
+      <div><span>Workflow</span><strong>Challenge a setup, then return to its chart</strong><small>Broader context never replaces exact-market risk</small></div>
     </div>
-    <div class="route-boundary"><span>What’s shown here</span><strong>This public page contains only the Free view.</strong></div>
     <div class="route-next"><a class="primary" href="https://app.ravenos.xyz/account/intelligence/?view=participants">Open Pro workspace</a><a href="/intelligence/">All Intelligence</a></div>
   `;
 }
@@ -1116,57 +1274,75 @@ function renderBehavior(payload) {
   const data = current.data;
   const allRows = Array.isArray(data.rows) ? data.rows : [];
   const actorEvidence = data.actor_evidence || {};
-  const strengthOrder = { strong: 3, mixed: 2, building: 1 };
-  const rows = [...allRows].sort((a, b) => {
+  const strengthOrder = { strong: 3, mixed: 2, building: 1, weak: 0 };
+  const sortedRows = [...allRows].sort((a, b) => {
     const strength = (strengthOrder[b.outcome_strength] || 0) - (strengthOrder[a.outcome_strength] || 0);
     if (strength) return strength;
     return rowUsableSample(b) - rowUsableSample(a);
   });
-  const focus = rows.find((row) => row.outcome_strength === "strong" && rowUsableSample(row) >= 20) || rows[0] || null;
+  const spotRows = sortedRows.filter((row) => {
+    const chain = String(row.chain || "").toLowerCase();
+    const band = String(row.cap_band || "").toLowerCase();
+    return chain !== "hyperliquid" && !band.startsWith("perps_");
+  });
+  const rows = spotRows.length ? spotRows : sortedRows;
+  const insights = chooseBehaviorInsights(rows);
+  const focus = insights.strongest || insights.broad || rows[0] || null;
   const limitations = {
     helius_profile_thin: "Some participant profiles remain incomplete.",
-    outcome_pending: "Participant followthrough is not yet proven.",
+    outcome_pending: "Directional follow-through is not yet proven.",
     raw_wallet_redacted: "Raw wallet identities remain private; this surface uses aggregates.",
     stale_sweep_dependency: "Some participant activity has not refreshed yet.",
   };
-  const warnings = [...new Set([...(data.warnings || []), ...(actorEvidence.warnings || [])].map((item) => limitations[item] || "A participant-evidence limitation remains attached to this read."))];
-  const focusLabel = focus ? traderSurfaceLabel(`${titleCase(focus.chain)} · ${capBandLabel(focus.cap_band)}`) : "Participation context";
-  document.getElementById("routeHeadline").textContent = focus
-    ? `${focusLabel}: ${titleCase(focus.trend || "forming")} participation, ${titleCase(focus.outcome_strength || "forming")} followthrough.`
-    : "Participation context is forming.";
-  document.getElementById("routeHeroSummary").textContent = "Participant Intelligence shows where aggregate participation is broadening, repeating, or failing to follow through. Every row retains its chain, capitalization band, window, denominator, confidence, and privacy boundary.";
-  const chains = new Set(allRows.map((row) => String(row.chain || "").toLowerCase()).filter(Boolean));
-  const capBands = new Set(allRows.map((row) => String(row.cap_band || "").toLowerCase()).filter(Boolean));
   const participantFreshness = actorEvidence.actor_evidence_freshness || data.actor_evidence_freshness || "unavailable";
+  const participantContextCurrent = evidenceContextIsCurrent(actorEvidence, participantFreshness);
+  const actorWarningIds = new Set(["helius_profile_thin", "raw_wallet_redacted", "stale_sweep_dependency"]);
+  const currentDataWarnings = (data.warnings || []).filter((item) => participantContextCurrent || !actorWarningIds.has(item));
+  const warnings = [...new Set([
+    ...currentDataWarnings,
+    ...(participantContextCurrent ? actorEvidence.warnings || [] : []),
+  ].map((item) => limitations[item] || "A behavior-evidence limitation remains attached to this read."))];
+  const focusLabel = focus ? behaviorSliceLabel(focus) : "Market behavior";
+  document.getElementById("routeHeadline").textContent = focus
+    ? `${focusLabel}: ${titleCase(focus.trend || "forming")} participation.`
+    : "Behavior Lab is forming.";
+  document.getElementById("routeHeroSummary").textContent = "Compare where participation is broadening, selective, or fading across chains, size groups, and time windows. Directional edge appears only when explicit outcome counts support it.";
+  const chains = new Set(rows.map((row) => String(row.chain || "").toLowerCase()).filter(Boolean));
+  const capBands = new Set(rows.map((row) => String(row.cap_band || "").toLowerCase()).filter(Boolean));
   document.getElementById("routeStateStrip").innerHTML = [
-    routeStateCard("Aggregate surfaces", fmtNumber(data.count || allRows.length)),
+    routeStateCard("Market slices", fmtNumber(rows.length)),
     routeStateCard("Chains", fmtNumber(chains.size)),
-    routeStateCard("Capitalization bands", fmtNumber(capBands.size)),
+    routeStateCard("Size groups", fmtNumber(capBands.size)),
     routeStateCard("Current data", titleCase(payload.delivery?.freshness_state || "unavailable")),
-    routeStateCard("Participant snapshot", titleCase(participantFreshness)),
-    routeStateCard("Privacy", "Aggregate only"),
+    routeStateCard("Recurring-wallet context", participantContextCurrent ? "Current · aggregate" : "Excluded from this read"),
+    routeStateCard("Directional edge", "Counted outcomes only"),
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Participation field</div><h2>Where behavior is strengthening</h2></div><span class="route-pill ${statusClass(actorEvidence.participation_quality || data.participation_quality)}">${escapeHtml(titleCase(actorEvidence.participation_quality || data.participation_quality || "forming"))}</span></div>
-    ${focus ? `<section class="behavior-focus"><div><span>Clearest supported aggregate</span><h3>${escapeHtml(focusLabel)}</h3><p>${escapeHtml(traderText(focus.plain_language_summary, "Participation context is forming."))}</p></div><dl><div><dt>Participation trend</dt><dd>${escapeHtml(titleCase(focus.trend || "forming"))}</dd></div><div><dt>Participant success rate</dt><dd>${escapeHtml(fmtOptionalPct(focus.participant_success_rate))}</dd></div><div><dt>Win-rate band</dt><dd>${escapeHtml(titleCase(focus.win_rate_band || "unavailable"))}</dd></div><div><dt>Outcome strength</dt><dd>${escapeHtml(titleCase(focus.outcome_strength || "forming"))}</dd></div><div><dt>Average outcome</dt><dd>${escapeHtml(titleCase(focus.avg_outcome || "unavailable"))}</dd></div><div><dt>Confidence / score</dt><dd>${escapeHtml(`${titleCase(focus.confidence || "forming")} / ${titleCase(focus.score_strength || "forming")}`)}</dd></div><div><dt>Sample integrity</dt><dd>${escapeHtml(`${fmtNumber(focus.sample_summary?.usable ?? rowUsableSample(focus))} usable · ${fmtNumber(focus.sample_summary?.observed ?? rowObservedSample(focus))} observed · ${fmtNumber(focus.sample_summary?.excluded_or_unusable ?? focus.sample_gap)} excluded`)}</dd></div><div><dt>Window</dt><dd>${escapeHtml(focus.window || focus.timeframe || "current")}</dd></div></dl></section>` : ""}
-    <div class="behavior-matrix" aria-label="Aggregate participation matrix">
-      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(traderSurfaceLabel(`${titleCase(row.chain)} · ${capBandLabel(row.cap_band)}`))}</span><b>${escapeHtml(titleCase(row.outcome_strength || "forming"))}</b></header><p>${escapeHtml(traderText(row.plain_language_summary, "Participation context is forming."))}</p><dl class="behavior-row-metrics"><div><dt>Trend</dt><dd>${escapeHtml(titleCase(row.trend || "forming"))}</dd></div><div><dt>Success rate</dt><dd>${escapeHtml(fmtOptionalPct(row.participant_success_rate))}</dd></div><div><dt>Win-rate band</dt><dd>${escapeHtml(titleCase(row.win_rate_band || "unavailable"))}</dd></div><div><dt>Average outcome</dt><dd>${escapeHtml(titleCase(row.avg_outcome || "unavailable"))}</dd></div><div><dt>Confidence</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div><div><dt>Score strength</dt><dd>${escapeHtml(titleCase(row.score_strength || "forming"))}</dd></div></dl><footer><span>${escapeHtml(`${fmtNumber(row.sample_summary?.usable ?? rowUsableSample(row))} usable / ${fmtNumber(row.sample_summary?.observed ?? rowObservedSample(row))} observed / ${fmtNumber(row.sample_summary?.excluded_or_unusable ?? row.sample_gap)} excluded`)}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span><span>Aggregate · identities withheld</span></footer></article>`).join("")}
+    <div class="route-panel-head"><div><div class="route-chip-label">Market slices</div><h2>What participation is doing now</h2></div><span class="route-pill ${escapeHtml(statusClass(sampleMaturityLabel(rowUsableSample(focus || {}))))}">${escapeHtml(sampleMaturityLabel(rowUsableSample(focus || {})))}</span></div>
+    ${behaviorInsightRail(rows)}
+    <div class="behavior-matrix" aria-label="Current market slices">
+      ${rows.slice(0, 12).map((row) => `<article data-strength="${escapeHtml(statusClass(row.outcome_strength || "building"))}"><header><span>${escapeHtml(behaviorSliceLabel(row))}</span><b>${escapeHtml(sampleMaturityLabel(rowUsableSample(row)))}</b></header><p>${escapeHtml(behaviorNarrative(row))}</p><dl class="behavior-row-metrics" data-columns="4"><div><dt>Participation</dt><dd>${escapeHtml(titleCase(row.trend || "forming"))}</dd></div><div><dt>Directional edge</dt><dd>${escapeHtml(behaviorOutcomeLabel(row))}</dd></div><div><dt>Evidence quality</dt><dd>${escapeHtml(titleCase(row.confidence || "forming"))}</dd></div><div><dt>Coverage</dt><dd>${escapeHtml(behaviorSampleLabel(row))}</dd></div></dl><footer><span>${escapeHtml(behaviorSampleLabel(row))}</span><span>${escapeHtml(row.window || row.timeframe || "current")}</span><span>Aggregate market behavior</span></footer></article>`).join("")}
     </div>
-    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a></div>
+    <div class="route-next"><a class="primary" href="/discover/">See current opportunities</a><a href="/outcomes/">Check measured followthrough</a><a href="/perps/#perpsIntelligence">Compare perps separately</a></div>
   `;
-  document.getElementById("routeSecondaryPanel").innerHTML = `
-    <div class="route-panel-head"><div><div class="route-chip-label">Participant evidence</div><h2>Recurring market-level patterns</h2></div><span class="route-pill ${escapeHtml(statusClass(participantFreshness))}">${escapeHtml(titleCase(participantFreshness))}</span></div>
+  document.getElementById("routeSecondaryPanel").innerHTML = participantContextCurrent ? `
+    <div class="route-panel-head"><div><div class="route-chip-label">Recurring-wallet context</div><h2>Aggregate recurrence, kept separate</h2></div><span class="route-pill current">Current</span></div>
     <section class="participant-ledger">
-      <div><span>Participants observed</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>${escapeHtml(`${titleCase(participantFreshness)} market snapshot`)}</small></div>
-      <div><span>Market groups</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Grouped without wallet labels</small></div>
-      <div><span>Recurring participants</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
+      <div><span>Wallets sampled</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_count ?? data.actor_count))}</strong><small>Aggregate snapshot</small></div>
+      <div><span>Cohorts tracked</span><strong>${escapeHtml(fmtNumber(actorEvidence.cohort_count ?? data.cohort_count))}</strong><small>Grouped without wallet labels</small></div>
+      <div><span>Recurring wallets</span><strong>${escapeHtml(fmtNumber(actorEvidence.repeat_actor_count ?? data.repeat_actor_count))}</strong><small>Recurrence without identity disclosure</small></div>
       <div><span>Large-move overlap</span><strong>${escapeHtml(fmtNumber(actorEvidence.actor_backed_big_moves ?? data.actor_backed_big_moves))}</strong><small>Descriptive overlap, not causal attribution</small></div>
-      <div><span>10% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Post-observation evidence</small></div>
-      <div><span>25% path events</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe25_count ?? data.actual_mfe25_count))}</strong><small>Not capturable performance</small></div>
+      <div><span>Reached +10% after observation</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe10_count ?? data.actual_mfe10_count))}</strong><small>Observed path evidence</small></div>
+      <div><span>Reached +25% after observation</span><strong>${escapeHtml(fmtNumber(actorEvidence.actual_mfe25_count ?? data.actual_mfe25_count))}</strong><small>Not capturable performance</small></div>
     </section>
-    <div class="participant-read"><span>Participant snapshot status</span><strong>${escapeHtml(participantFreshness === "stale" ? "Participant context is stale; it is not used as a live leaderboard." : traderText(actorEvidence.public_read_label || data.public_read_label, "Participant evidence is forming."))}</strong><p>Observed ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. Outcome status: ${escapeHtml(titleCase(actorEvidence.outcome_status || data.outcome_status || "unproven"))}. Participation can lead price behavior; it does not prove followthrough.</p></div>
+    <div class="participant-read"><span>Recurring-wallet read</span><strong>${escapeHtml(traderText(actorEvidence.public_read_label || data.public_read_label, "Recurring-wallet evidence is forming."))}</strong><p>Measured ${escapeHtml(fmtWhen(actorEvidence.observed_at || data.generated_at))}. This aggregate context can challenge a setup; it does not identify a wallet or prove involvement in an exact market.</p></div>
     <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    <div class="route-boundary"><span>What this view does not claim</span><strong>It does not reveal wallet identities or labels, map wallet relationships, assign ownership, allege coordination, or rank “smart money.”</strong></div>
+    <div class="route-boundary"><span>Privacy boundary</span><strong>No wallet identities, labels, ownership claims, relationship graphs, coordination allegations, or “smart money” ranking.</strong></div>
+  ` : `
+    <div class="route-panel-head"><div><div class="route-chip-label">Recurring-wallet context</div><h2>Excluded from the current read</h2></div><span class="route-pill unavailable">Excluded</span></div>
+    <div class="route-unavailable"><strong>Market behavior is current; recurring-wallet evidence is not.</strong><p>Last measured ${escapeHtml(fmtWhen(actorEvidence.observed_at))}. Stale wallet counts and narrative are hidden and do not affect the headline, strongest slice, weakest slice, or directional edge.</p></div>
+    <ul class="route-limitations">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    <div class="route-boundary"><span>Privacy boundary</span><strong>No wallet identities, labels, ownership claims, relationship graphs, coordination allegations, or “smart money” ranking.</strong></div>
   `;
 }
 
@@ -1259,9 +1435,10 @@ function renderPerps(payload) {
   const top = grouped[0];
   const topPressure = pressureRows[0] || {};
   const actorEvidence = data.actor_evidence || {};
+  const actorContextCurrent = evidenceContextIsCurrent(actorEvidence, data.actor_evidence_freshness);
   const pressureBucket = traderText(topPressure.group || top?.group || "pressure").replace(/\s+pressure$/i, "");
   document.getElementById("routeHeadline").textContent = `Perps pressure remains ${pressureBucket.toLowerCase()}.`;
-  document.getElementById("routeHeroSummary").textContent = `${titleCase(pressureBucket)} pressure is the largest current bucket across ${fmtNumber(summary.markets_observed)} markets. Repeat cohorts and actor-backed moves support context, but management validation remains under review.`;
+  document.getElementById("routeHeroSummary").textContent = `${titleCase(pressureBucket)} pressure is the largest current bucket across ${fmtNumber(summary.markets_observed)} markets. Forward evidence remains attached to its sample size; recurring-wallet context is used only when current.`;
   document.getElementById("routeStateStrip").innerHTML = [
     routeStateCard("Venue", "Hyperliquid Perps"),
     routeStateCard("Markets observed", fmtNumber(summary.markets_observed)),
@@ -1269,7 +1446,7 @@ function renderPerps(payload) {
     routeStateCard("Open observations", fmtNumber(summary.forward_observations || data.forward_observation?.observations)),
     routeStateCard("Matured 12h", fmtNumber(summary.matured_12h_windows || data.forward_observation?.matured_windows?.["12h"])),
     routeStateCard("Websocket messages", fmtNumber(summary.websocket_messages)),
-    routeStateCard("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label || "Actor evidence is forming.")),
+    routeStateCard("Recurring-wallet context", actorContextCurrent ? "Current · aggregate" : "Excluded from this read"),
     routeStateCard("Updated", fmtWhen(data.generated_at))
   ].join("");
   document.getElementById("routePrimaryPanel").innerHTML = `
@@ -1279,10 +1456,9 @@ function renderPerps(payload) {
       ${summaryMetric("Markets observed", fmtNumber(summary.markets_observed))}
       ${summaryMetric("Dominant pressure bucket", titleCase(pressureBucket))}
       ${summaryMetric("Books observed", fmtNumber(summary.books_observed))}
-      ${summaryMetric("Actor evidence", traderText(actorEvidence.public_read_label || data.public_read_label || "Actor evidence is forming."))}
-      ${summaryMetric("Path evidence", "Management path under review")}
-      ${summaryMetric("Unresolved evidence", "Settled followthrough and path validation")}
-      ${summaryMetric("Repeat cohorts", fmtNumber(actorEvidence.repeat_actor_count || data.repeat_actor_count || summary.repeat_actor_count))}
+      ${summaryMetric("Forward sample", sampleMaturityLabel(summary.forward_observations || data.forward_observation?.observations))}
+      ${summaryMetric("What remains open", "More matured observations and friction-aware followthrough")}
+      ${summaryMetric("Recurring-wallet context", actorContextCurrent ? "Current · aggregate" : "Excluded because it is stale")}
     </div>
     <div class="route-table-wrap"><table class="route-table route-perps-table"><thead><tr><th>Pressure bucket</th><th>Read</th><th>Sample</th><th>Path range</th></tr></thead><tbody>${
       pressureRows.slice(0, 8).map((row) => `<tr><td><strong>${escapeHtml(row.group)}</strong><br>${escapeHtml(row.label)}</td><td>${escapeHtml(traderText(row.read))}</td><td>${escapeHtml(`${fmtNumber(row.sample_size)} observations · ${titleCase(row.confidence)}`)}</td><td>${escapeHtml(`${fmtNumber(row.median_max_favorable_movement_pct)}% favorable / ${fmtNumber(row.median_max_adverse_movement_pct)}% adverse`)}</td></tr>`).join("")

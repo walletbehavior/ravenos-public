@@ -2271,7 +2271,7 @@ test("a pasted message resolves the exact BNB token and opens its provider-backe
 
   await page.locator("#terminalChainCoverage > summary").click();
   const coverage = page.locator("#terminalChainCoverageGrid");
-  await expect(coverage.locator("article")).toHaveCount(6);
+  await expect(coverage.locator("article")).toHaveCount(12);
   await expect(coverage.locator("[data-chain='bsc']")).toContainText("BNB Chain");
   await expect(coverage.locator("[data-chain='bsc']")).toContainText("Charts available · trading coming later");
   await expect(page.getByRole("button", { name: /buy|sell|long|short|sign|submit|execute/i })).toHaveCount(0);

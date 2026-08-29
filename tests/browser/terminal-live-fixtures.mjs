@@ -439,6 +439,7 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayMs = 0,
   spotTradePrice = 1.12,
   spotChartCurrent = false,
+  spotQuotePreview = false,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -972,6 +973,30 @@ export async function mockTerminalLiveApis(page, {
       account_history_types: ["orders"],
       signing_available: false,
       submission_available: false,
+      spot_quote_preview_available: spotQuotePreview,
+      spot_quote_preview_chains: spotQuotePreview ? ["solana"] : [],
+      trade_adapter_states: {
+        solana: spotQuotePreview ? "quote_review" : "unavailable",
+        hyperliquid: "quote_review",
+        base: "adapter_pending",
+        bsc: "adapter_pending",
+        ethereum: "adapter_pending",
+        robinhood: "adapter_pending",
+        arbitrum: "adapter_pending",
+        optimism: "adapter_pending",
+        polygon: "adapter_pending",
+        avalanche: "adapter_pending",
+        tron: "adapter_pending",
+        sui: "adapter_pending",
+      },
+      spot_fee_preview: {
+        provider: "jupiter",
+        free_fee_bps: 255,
+        pro_fee_bps: 178,
+        pro_discount_pct: 30.2,
+        actual_fee_bps: 0,
+        enabled: false,
+      },
       flags: {
         RAVENOS_CUSTOMER_TRADE_UI_ENABLE: flagsEnabled,
         RAVENOS_CUSTOMER_TRADE_QUOTE_ENABLE: flagsEnabled,
@@ -981,6 +1006,71 @@ export async function mockTerminalLiveApis(page, {
       },
     }),
   }));
+  await page.route("**/api/trade/spot-quote-preview", async (route) => {
+    const input = route.request().postDataJSON();
+    const now = Date.now();
+    const sell = input.side === "sell";
+    const percent = Number(input.sell_percent || 0);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema_version: "ravenos.solana_spot_quote_review.v1",
+        state: "quote_review_available",
+        review_available: true,
+        intent: {
+          exact_market: {
+            instrument_id: input.instrument_id,
+            pool_address: input.pool_address,
+            token_address: input.token_address,
+            quote_address: input.quote_address,
+          },
+          side: input.side,
+          amount: { kind: sell ? "sell_percentage" : "native_sol", sell_percentage_bps: sell ? percent * 100 : null },
+        },
+        quote: {
+          quote_id: `fixture-spot-${input.side}-${sell ? percent : input.display_amount}`,
+          expected_output_display: sell ? "0.42" : "8450.25",
+          minimum_output_display: sell ? "0.4179" : "8408",
+          price_impact_bps: 18,
+          route: { policy: "exact_selected_token", leg_count: 2, venues: ["Raydium", "Meteora"] },
+        },
+        fee_disclosure: {
+          configured: { enabled: false, fee_bps: 255 },
+          actual: { charged: false, fee_bps: 0, amount_base_units: "0" },
+        },
+        timing: {
+          quoted_at: new Date(now).toISOString(),
+          received_at: new Date(now + 80).toISOString(),
+          expires_at: new Date(now + 20_000).toISOString(),
+          provider_latency_ms: 80,
+          freshness: "current",
+        },
+        balance: sell ? { available: true, amount: { display: "100000", symbol: "JUP" }, source: "current_exact_mint_balance", persisted: false } : { available: false, reason: "wallet_not_connected" },
+        shadow_execution: sell ? null : {
+          schema_version: "ravenos.universal_shadow_execution.v1",
+          mode: "shadow",
+          route_state: "exit_verified",
+          round_trip: {
+            state: "friction_incomplete",
+            exit_verified: true,
+            trade_available: false,
+            current_executable_liquidation_usdc: 73.84,
+            minimum_executable_liquidation_usdc: 73.12,
+            round_trip_friction_pct: null,
+            unavailable_cost_components: ["entry_network_or_route_cost", "exit_network_or_route_cost"],
+            marked_value_used_as_liquidation_value: false,
+          },
+          execution: { allowed: false, shadow_only: true, signing_available: false, submission_available: false, transaction_material_available: false },
+        },
+        execution_boundary: { quote_only: true, review_only: true, signing_available: false, submission_available: false, transaction_material_available: false },
+        signing_available: false,
+        submission_available: false,
+        transaction_material_available: false,
+      }),
+    });
+  });
   await page.route("**/api/trade/account-snapshot", async (route) => {
     const input = route.request().postDataJSON();
     return route.fulfill({
