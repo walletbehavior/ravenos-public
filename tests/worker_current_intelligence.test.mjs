@@ -1054,6 +1054,8 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.raven_read_health.state, "fresh");
     assert.equal(body.raven_read_health.mode, "deterministic_structured_projection");
     assert.equal(body.raven_read_health.spot_tokens.producer_state, "operational");
+    assert.equal(body.raven_read_health.spot_tokens.expected_update_seconds, 90);
+    assert.equal(body.raven_read_health.spot_tokens.maximum_healthy_age_seconds, 120);
     assert.equal(body.raven_read_health.spot_tokens.tracked_exact_markets, 1);
     assert.equal(body.raven_read_health.spot_tokens.qualified_read_count, 0);
     assert.equal(body.raven_read_health.spot_tokens.provider_rank_creates_raven_signal, false);
@@ -1067,6 +1069,25 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.execution_health.signing_available, false);
     assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
+
+    byPath["/public/ravenos/opportunities.json"] = projection(
+      "opportunities",
+      "ravenos_opportunity_census_public_origin_v1",
+      {
+        schema_version: "ravenos_opportunity_census_public_v1",
+        source_state: "current",
+        opportunities: { rows: [] },
+        discovery_radar: spotRadarFixture({ generatedAt: isoAgo(121) }),
+      },
+      isoAgo(10),
+      3_600,
+    );
+    const expiredTruthWindowResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);
+    const expiredTruthWindow = await expiredTruthWindowResponse.json();
+    assert.equal(expiredTruthWindow.status, "degraded");
+    assert.equal(expiredTruthWindow.raven_read_health.spot_tokens.producer_state, "delayed");
+    assert.equal(expiredTruthWindow.raven_read_health.spot_tokens.maximum_healthy_age_seconds, 120);
+    byPath["/public/ravenos/opportunities.json"] = currentOpportunityProjection;
 
     manifest.endpoints.find((row) => row.key === "opportunities").payload_age_seconds = 5_000;
     byPath["/public/ravenos/opportunities.json"] = projection(

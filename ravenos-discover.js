@@ -2394,15 +2394,26 @@ function currentOpportunityPayload(payload) {
   const declaredHealthValid = declaredSpotRavenHealth?.schema_version === "ravenos.spot_raven_health.v1"
     && declaredSpotRavenHealth?.provider_rank_creates_raven_signal === false
     && declaredSpotRavenHealth?.generated_at === discoveryRadar?.generated_at;
-  const producerOperational = Boolean(discoveryRadar && radarAgeSeconds !== null && radarAgeSeconds <= 1_800);
+  const expectedUpdateSeconds = declaredHealthValid
+    ? finite(declaredSpotRavenHealth.expected_update_seconds) || 90
+    : 90;
+  const maximumHealthyAgeSeconds = declaredHealthValid
+    ? finite(declaredSpotRavenHealth.maximum_healthy_age_seconds) || 120
+    : 120;
+  const producerOperational = Boolean(
+    discoveryRadar
+    && radarAgeSeconds !== null
+    && radarAgeSeconds <= maximumHealthyAgeSeconds
+    && (!declaredHealthValid || declaredSpotRavenHealth.producer_state === "operational")
+  );
   const spotRavenHealth = {
     schema_version: "ravenos.spot_raven_health.v1",
     state: producerOperational ? "current" : discoveryRadar ? "delayed" : "unavailable",
     producer_state: producerOperational ? "operational" : discoveryRadar ? "delayed" : "unavailable",
     generated_at: discoveryRadar?.generated_at || null,
     age_seconds: radarAgeSeconds,
-    expected_update_seconds: declaredHealthValid ? finite(declaredSpotRavenHealth.expected_update_seconds) || 720 : 720,
-    maximum_healthy_age_seconds: declaredHealthValid ? finite(declaredSpotRavenHealth.maximum_healthy_age_seconds) || 1_800 : 1_800,
+    expected_update_seconds: expectedUpdateSeconds,
+    maximum_healthy_age_seconds: maximumHealthyAgeSeconds,
     tracked_exact_markets: discoveryRadar?.rows?.length || 0,
     qualified_read_count: qualifiedRadarRows.length,
     provider_rank_creates_raven_signal: false,

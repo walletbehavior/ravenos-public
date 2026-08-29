@@ -6640,8 +6640,11 @@ const CURRENT_OPPORTUNITY_SCHEMA = "ravenos_opportunity_census_public_origin_v1"
 const CURRENT_OPPORTUNITY_DATA_SCHEMA = "ravenos_opportunity_census_public_v1";
 const CURRENT_OPPORTUNITY_SOURCE = "raven_opportunity_projection";
 const CURRENT_OPPORTUNITY_MAX_AGE_SECONDS = 3_600;
-const SPOT_RAVEN_EXPECTED_UPDATE_SECONDS = 720;
-const SPOT_RAVEN_HEALTH_MAX_AGE_SECONDS = 1_800;
+// Exact-market facts expire after 120 seconds. Health must measure that truth
+// window, not the slower aggregate/census cadence, or the product can report a
+// healthy Raven lane after its current rows have already fallen away.
+const SPOT_RAVEN_EXPECTED_UPDATE_SECONDS = 90;
+const SPOT_RAVEN_HEALTH_MAX_AGE_SECONDS = 120;
 
 function spotRavenHealthFromCurrentRadar(discoveryRadar, nowMs = Date.now()) {
   const radarRows = Array.isArray(discoveryRadar?.rows) ? discoveryRadar.rows : [];

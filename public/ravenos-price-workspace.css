@@ -205,7 +205,13 @@
 }
 .rpw-indicator-popover > button:hover { background: #141a21; }
 .rpw-indicator-popover > button[aria-pressed="true"] { box-shadow: inset 2px 0 #8da6b8; background: #151b22; }
-.rpw-indicator-popover > button strong { color: #c2cbd4; font: 700 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.rpw-indicator-popover > button strong { display: flex; align-items: center; gap: 6px; color: #c2cbd4; font: 700 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.rpw-indicator-popover > button strong::before { content: ""; flex: 0 0 16px; width: 16px; height: 2px; border-radius: 999px; background: #8da6b8; box-shadow: 0 0 6px rgba(141,166,184,.2); }
+.rpw-indicator-popover > button[data-rpw-indicator="ema50"] strong::before { background: #998bad; }
+.rpw-indicator-popover > button[data-rpw-indicator="vwap"] strong::before { background: #b5965c; }
+.rpw-indicator-popover > button[data-rpw-indicator="bb20"] strong::before { background: #748fa8; }
+.rpw-indicator-popover > button[data-rpw-indicator="rsi14"] strong::before { background: #7e9fb7; }
+.rpw-indicator-popover > button[data-rpw-indicator="macd"] strong::before { background: linear-gradient(90deg, #8da6b8 0 48%, #b5965c 52% 100%); }
 .rpw-indicator-popover > button span { color: #65717f; font: 8px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .rpw-scope-control {
   display: inline-flex;
@@ -284,12 +290,14 @@
   z-index: 5;
   top: 8px;
   left: 9px;
-  max-width: calc(100% - 18px);
+  right: auto;
+  width: max-content;
+  max-width: min(720px, calc(100% - 88px));
   min-height: 27px;
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   padding: 0;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(8,10,13,.9);
@@ -439,9 +447,10 @@ body.raven-chart-focus { overflow: hidden; }
     box-shadow: 0 18px 46px rgba(0,0,0,.52);
   }
   .rpw-crosshair {
-    right: 7px;
+    right: auto;
     left: 7px;
-    max-width: none;
+    width: min(300px, calc(100% - 76px));
+    max-width: min(300px, calc(100% - 76px));
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -455,6 +464,7 @@ body.raven-chart-focus { overflow: hidden; }
     border-bottom: 1px solid rgba(148,163,184,.1);
   }
   .rpw-crosshair > span:nth-child(5),
+  .rpw-crosshair > span:nth-child(9),
   .rpw-crosshair > span:last-child { border-right: 0; }
   .rpw-crosshair > span:nth-child(n + 6) { border-bottom: 0; }
   .rpw-crosshair-time {

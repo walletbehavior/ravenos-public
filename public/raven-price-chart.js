@@ -705,14 +705,16 @@
     const indicatorRefreshers = [];
     let nextIndicatorPane = 1;
 
-    function priceLine(label, color, { paneIndex = 0, lineWidth = 2, lastValueVisible = true, priceScaleId = "right", formatter = priceFormatter } = {}) {
+    function priceLine(color, { paneIndex = 0, lineWidth = 2, priceScaleId = "right", formatter = priceFormatter } = {}) {
       return chart.addSeries(api.LineSeries, {
         color,
         lineWidth,
         priceScaleId,
         priceLineVisible: false,
-        lastValueVisible,
-        title: label,
+        // Indicator names and values belong in the controls and upper-left
+        // candle inspector, not beside the live candle on the price edge.
+        lastValueVisible: false,
+        title: "",
         priceFormat: {
           type: "custom",
           formatter,
@@ -728,13 +730,13 @@
       };
     }
 
-    function registerLineIndicator({ key, label, color, values }) {
+    function registerLineIndicator({ key, color, values }) {
       if (!activeIndicators.has(key)) return;
       if (indicatorState.sourceState !== "provider_backed") {
         unavailableIndicator(key);
         return;
       }
-      const series = priceLine(label, color);
+      const series = priceLine(color);
       indicatorRefreshers.push({
         key,
         refresh() {
@@ -745,16 +747,16 @@
       });
     }
 
-    registerLineIndicator({ key: "ema20", label: "EMA 20", color: "#8da6b8", values: () => emaSeries(candles, 20) });
-    registerLineIndicator({ key: "ema50", label: "EMA 50", color: "#998bad", values: () => emaSeries(candles, 50) });
-    registerLineIndicator({ key: "vwap", label: "VWAP", color: "#b5965c", values: () => vwapSeries(rawCandles) });
+    registerLineIndicator({ key: "ema20", color: "#8da6b8", values: () => emaSeries(candles, 20) });
+    registerLineIndicator({ key: "ema50", color: "#998bad", values: () => emaSeries(candles, 50) });
+    registerLineIndicator({ key: "vwap", color: "#b5965c", values: () => vwapSeries(rawCandles) });
 
     if (activeIndicators.has("bb20")) {
       if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("bb20");
       else {
-        const upper = priceLine("BB 20 upper", "rgba(116, 145, 168, .72)", { lineWidth: 1, lastValueVisible: false });
-        const middle = priceLine("BB 20", "rgba(141, 166, 184, .88)", { lineWidth: 1, lastValueVisible: false });
-        const lower = priceLine("BB 20 lower", "rgba(116, 145, 168, .72)", { lineWidth: 1, lastValueVisible: false });
+        const upper = priceLine("rgba(116, 145, 168, .72)", { lineWidth: 1 });
+        const middle = priceLine("rgba(141, 166, 184, .88)", { lineWidth: 1 });
+        const lower = priceLine("rgba(116, 145, 168, .72)", { lineWidth: 1 });
         indicatorRefreshers.push({
           key: "bb20",
           refresh() {
@@ -772,23 +774,21 @@
       if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("rsi14");
       else {
         const paneIndex = nextIndicatorPane++;
-        const rsi = priceLine("RSI 14", "#7e9fb7", {
+        const rsi = priceLine("#7e9fb7", {
           paneIndex,
           priceScaleId: "rsi",
           formatter: (value) => Number(value).toFixed(1),
         });
-        const overbought = priceLine("", "rgba(207, 89, 104, .38)", {
+        const overbought = priceLine("rgba(207, 89, 104, .38)", {
           paneIndex,
           priceScaleId: "rsi",
           lineWidth: 1,
-          lastValueVisible: false,
           formatter: (value) => Number(value).toFixed(1),
         });
-        const oversold = priceLine("", "rgba(63, 166, 117, .34)", {
+        const oversold = priceLine("rgba(63, 166, 117, .34)", {
           paneIndex,
           priceScaleId: "rsi",
           lineWidth: 1,
-          lastValueVisible: false,
           formatter: (value) => Number(value).toFixed(1),
         });
         chart.priceScale("rsi", paneIndex).applyOptions({ visible: true, autoScale: true, borderVisible: true });
@@ -810,8 +810,8 @@
       if (indicatorState.sourceState !== "provider_backed") unavailableIndicator("macd");
       else {
         const paneIndex = nextIndicatorPane++;
-        const macd = priceLine("MACD", "#8da6b8", { paneIndex, priceScaleId: "macd", formatter: priceFormatter });
-        const signal = priceLine("Signal", "#b5965c", { paneIndex, priceScaleId: "macd", lineWidth: 1, formatter: priceFormatter });
+        const macd = priceLine("#8da6b8", { paneIndex, priceScaleId: "macd", formatter: priceFormatter });
+        const signal = priceLine("#b5965c", { paneIndex, priceScaleId: "macd", lineWidth: 1, formatter: priceFormatter });
         const histogram = chart.addSeries(api.HistogramSeries, {
           priceScaleId: "macd",
           priceFormat: { type: "custom", formatter: priceFormatter, minMove: scaleContract.min_move },
@@ -1031,14 +1031,10 @@
     if (typeof chart.timeScale().subscribeVisibleLogicalRangeChange === "function") {
       chart.timeScale().subscribeVisibleLogicalRangeChange(logicalRangeHandler);
     }
-    const crosshairHandler = (param) => {
-      if (typeof options?.onCrosshairMove !== "function") return;
+    const inspectedCandle = (param) => {
       const row = param?.seriesData?.get?.(candleSeries);
-      if (!param?.time || !row) {
-        options.onCrosshairMove(null);
-        return;
-      }
-      options.onCrosshairMove({
+      if (!param?.time || !row) return null;
+      return {
         time: param.time,
         open: Number.isFinite(Number(row.open)) ? Number(row.open) : null,
         high: Number.isFinite(Number(row.high)) ? Number(row.high) : null,
@@ -1047,13 +1043,23 @@
         volume: Number.isFinite(Number(volumeByTime.get(String(param.time)))) ? Number(volumeByTime.get(String(param.time))) : null,
         quote_volume: Number.isFinite(Number(quoteVolumeByTime.get(String(param.time)))) ? Number(quoteVolumeByTime.get(String(param.time))) : null,
         point: param.point || null,
-      });
+      };
+    };
+    const crosshairHandler = (param) => {
+      if (typeof options?.onCrosshairMove !== "function") return;
+      options.onCrosshairMove(inspectedCandle(param));
     };
     if (typeof chart.subscribeCrosshairMove === "function") chart.subscribeCrosshairMove(crosshairHandler);
     const clickHandler = (param) => {
       const markerId = param?.hoveredInfo?.objectId ?? param?.hoveredObjectId;
-      if (!markerId || !markerLookup.has(String(markerId))) return;
-      options?.onMarkerSelect?.(markerLookup.get(String(markerId)));
+      if (markerId && markerLookup.has(String(markerId))) options?.onMarkerSelect?.(markerLookup.get(String(markerId)));
+      // A mouse click should inspect the same exact candle as hover. Touch
+      // keeps Lightweight Charts' native hold-and-drag lifecycle so lifting a
+      // finger still returns the inspector to the latest candle.
+      if (window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches) {
+        const selected = inspectedCandle(param);
+        if (selected) options?.onCrosshairMove?.(selected);
+      }
     };
     if (typeof chart.subscribeClick === "function") chart.subscribeClick(clickHandler);
     const resizeObserver = new ResizeObserver(() => {

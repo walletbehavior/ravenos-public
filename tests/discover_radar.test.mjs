@@ -512,6 +512,47 @@ test("retained market history cannot promote an old quote, move, risk, or rank a
   assert.ok(validateDiscoverRadarProjection(result, { nowMs: NOW_MS }));
 });
 
+test("a retained stale Raven observation remains history-only instead of a current Raven signal", () => {
+  const observedMs = NOW_MS - (DISCOVER_MARKET_FACT_TARGET_SECONDS + 1) * 1_000;
+  const observedAt = new Date(observedMs).toISOString();
+  const retained = pool({
+    observed_at: observedAt,
+    source_type: "raven_spot_attention",
+    registry: {
+      first_seen_at: new Date(observedMs - 60_000).toISOString(),
+      last_seen_at: observedAt,
+      retained_after_trending: true,
+      admission_lanes: ["raven_observation"],
+    },
+  });
+  retained.raven_evidence = {
+    instrument_id: retained.instrument_id,
+    observed_at: observedAt,
+    genuine_internal_observation: true,
+    state: "qualified",
+    freshness: "current",
+    classifier: { name: "raven_spot_test", version: "1" },
+    lineage: { public_artifact_id: "retained-raven-history" },
+    why_raven_noticed: "Participation accelerated in the exact pool.",
+  };
+  const result = buildDiscoverRadarProjection([retained], {
+    timeframe: "5m",
+    generatedAt: OBSERVED_AT,
+    nowMs: NOW_MS,
+    sourceState: "shadow",
+  });
+  assert.equal(result.rows.length, 1);
+  const row = result.rows[0];
+  assert.equal(row.raven_signal, false);
+  assert.equal(row.discovery.raven_evidence_state.availability, "stale");
+  assert.equal(row.discovery.raven_evidence_state.state, "history_only");
+  assert.equal(row.discovery.raven_evidence_state.qualified, false);
+  assert.equal(row.discovery.raven_evidence_state.raven_signal, false);
+  assert.equal(row.discovery.raven_evidence_state.lineage.public_artifact_id, "retained-raven-history");
+  assert.match(row.discovery.raven_evidence_state.why_not_available, /current market facts need to refresh/i);
+  assert.ok(validateDiscoverRadarProjection(result, { nowMs: NOW_MS }));
+});
+
 test("Solana, Robinhood Chain, Base, BNB and Ethereum use the same classifier semantics", () => {
   const rows = ["solana", "robinhood", "base", "bsc", "ethereum"].map((chain, index) => pool({
     chain_id: chain,

@@ -1379,6 +1379,7 @@ export class PriceWorkspace {
     const quoteVolume = volumeLabel(selected.quote_volume ?? selected.quoteVolume);
     if (baseVolume !== "--") fields.push(["Base vol", baseVolume]);
     if (quoteVolume !== "--") fields.push(["Quote vol", quoteVolume]);
+    host.setAttribute("aria-label", fields.map(([label, value]) => `${label}: ${value}`).join(", "));
     host.replaceChildren(...fields.map(([label, value], index) => {
       const cell = document.createElement("span");
       if (index === 0) cell.className = "rpw-crosshair-time";

@@ -92,11 +92,16 @@ test("all native RavenOS chart surfaces use the shared price or series renderer"
   assert.match(priceChart, /function RavenPriceChart/);
   assert.match(priceChart, /function RavenSeriesChart/);
   assert.match(priceChart, /TrackingModeExitMode/);
+  assert.match(priceChart, /const inspectedCandle = \(param\)/);
+  assert.match(priceChart, /\(hover: hover\) and \(pointer: fine\)/);
   assert.match(priceChart, /defaultVisiblePriceScaleId: "right"/);
   assert.match(priceChart, /rightPriceScale:\s*\{[\s\S]*?visible: true,[\s\S]*?autoScale: true/);
   assert.match(priceChart, /priceScaleId: "right"/);
   assert.match(priceChart, /minMove: scaleContract\.min_move/);
   assert.match(priceChart, /auto_scale: "visible_range"/);
+  assert.match(priceChart, /Indicator names and values belong in the controls and upper-left/);
+  assert.match(priceChart, /lastValueVisible: false,\s*title: ""/);
+  assert.doesNotMatch(priceChart, /priceLine\("EMA 20"|priceLine\("EMA 50"|priceLine\("VWAP"/);
   for (const indicator of ["bb20", "rsi14", "macd"]) {
     assert.match(priceChart, new RegExp(`\\b${indicator}\\b`));
   }

@@ -603,6 +603,11 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(candleLegend).toContainText(/Latest.*UTC.*O.*H.*L.*C.*Change.*Base vol/s);
   await expect(candleLegend).not.toContainText("Quote vol");
   await expect(candleLegend).not.toContainText(/--|—/);
+  await expect(candleLegend).toHaveAttribute("aria-label", /Latest:.*O:.*H:.*L:.*C:.*Base vol:/);
+  const initialStageBox = await chart.locator(".rpw-stage").boundingBox();
+  const initialLegendBox = await candleLegend.boundingBox();
+  expect(initialLegendBox.x - initialStageBox.x).toBeLessThanOrEqual(12);
+  expect((initialStageBox.x + initialStageBox.width) - (initialLegendBox.x + initialLegendBox.width)).toBeGreaterThanOrEqual(70);
 
   await chart.locator("[data-rpw-indicator-trigger]").click();
   await expect(chart.locator("[data-rpw-indicators]")).toBeVisible();
@@ -629,6 +634,10 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   })).not.toBe(initialGeometry.price_range.max - initialGeometry.price_range.min);
   const zoomedGeometry = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__);
   expect(zoomedGeometry.price_axis.auto_scale).toBe("visible_range");
+  await page.mouse.move(1, 1);
+  await expect(candleLegend).toHaveAttribute("data-mode", "latest");
+  await page.mouse.click(bounds.x + bounds.width * 0.42, bounds.y + bounds.height * 0.52);
+  await expect(candleLegend).toHaveAttribute("data-mode", "inspect");
   await page.mouse.move(1, 1);
   await expect(candleLegend).toHaveAttribute("data-mode", "latest");
 
@@ -1530,9 +1539,12 @@ test("mobile Terminal keeps chart, context, and navigation inside the viewport",
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("#terminalChart .rpw-crosshair > span")).toHaveCount(8);
   const ohlcvLegend = await page.locator("#terminalChart .rpw-crosshair").boundingBox();
+  const chartStage = await page.locator("#terminalChart .rpw-stage").boundingBox();
   expect(ohlcvLegend?.x).toBeGreaterThanOrEqual(0);
   expect((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0)).toBeLessThanOrEqual(390);
   expect(ohlcvLegend?.height).toBeLessThanOrEqual(70);
+  expect((ohlcvLegend?.x || 0) - (chartStage?.x || 0)).toBeLessThanOrEqual(10);
+  expect(((chartStage?.x || 0) + (chartStage?.width || 0)) - ((ohlcvLegend?.x || 0) + (ohlcvLegend?.width || 0))).toBeGreaterThanOrEqual(70);
   const chart = await page.locator("#terminalChart .rpw-stage").boundingBox();
   expect(chart.width).toBeGreaterThan(350);
   expect(chart.height).toBeGreaterThan(280);
