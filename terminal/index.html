@@ -576,8 +576,8 @@
 
         <section class="terminal-order-preview terminal-spot-ticket" id="terminalSpotTicketSection" tabindex="-1" hidden>
           <header>
-            <div><span>Universal USDC shadow route</span><h2 id="terminalSpotTicketTitle">Buy or sell this token</h2></div>
-            <strong id="terminalSpotQuoteState">Ready to quote</strong>
+            <div><span>Solana route review</span><h2 id="terminalSpotTicketTitle">Review buying or selling this token</h2></div>
+            <strong id="terminalSpotQuoteState" role="status" aria-live="polite">Ready to quote</strong>
           </header>
 
           <div class="terminal-adapter-notice" id="terminalSpotAdapterNotice" hidden>
@@ -698,7 +698,11 @@
             <small id="terminalSpotFeeNote">The configured fee is disclosed before signing. No fee is charged in quote/review mode.</small>
           </div>
 
-          <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Check buy + exit</button>
+          <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Review buy + exit</button>
+          <label class="terminal-quote-follow">
+            <input id="terminalSpotQuoteFollow" type="checkbox" />
+            <span><strong>Follow quote</strong><small id="terminalSpotQuoteAutoState">Off</small></span>
+          </label>
           <div class="terminal-preview-result" id="terminalSpotQuoteResult" hidden>
             <div class="terminal-preview-fill">
               <span id="terminalSpotQuoteOutputLabel">Expected output</span>
@@ -709,7 +713,7 @@
               <div><dt>Price impact</dt><dd id="terminalSpotQuoteImpact">--</dd></div>
               <div><dt>Route</dt><dd id="terminalSpotQuoteRoute">--</dd></div>
               <div><dt>Builder fee</dt><dd id="terminalSpotQuoteFee">--</dd></div>
-              <div><dt>Round trip</dt><dd id="terminalSpotQuoteLatency">--</dd></div>
+              <div><dt>Quote speed</dt><dd id="terminalSpotQuoteLatency">--</dd></div>
               <div><dt>Executable exit</dt><dd id="terminalSpotQuoteExit">--</dd></div>
               <div><dt>Round-trip friction</dt><dd id="terminalSpotQuoteFriction">--</dd></div>
               <div><dt>Exit proof</dt><dd id="terminalSpotQuoteExitState">--</dd></div>
@@ -726,8 +730,8 @@
           </ol>
           <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Select a size and review a short-lived route. No transaction is constructed.</p>
           <div class="terminal-preview-boundary">
-            <strong>Shadow route only</strong>
-            <span>Raven checks the entry and reverse liquidation route without constructing a transaction. Wallet signing and network submission are disabled.</span>
+            <strong>Preview only</strong>
+            <span>Raven checks the entry and reverse liquidation route. Nothing is constructed, signed, or submitted.</span>
           </div>
         </section>
       </aside>

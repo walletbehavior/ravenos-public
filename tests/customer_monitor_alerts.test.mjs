@@ -461,7 +461,7 @@ test("no storage or delivery surface includes plan prices, wallets, provider pay
   assert.equal(CustomerMonitorAlertContract.execution_data_stored, false);
 });
 
-test("worker exposes only authenticated monitor routes and a dormant scheduled contract", () => {
+test("worker keeps Monitor dormant even when the shared shadow-evidence scheduler is active", () => {
   const worker = readFileSync("worker.mjs", "utf8");
   assert.match(worker, /routeCustomerMonitorAlerts/);
   assert.match(worker, /runCustomerMonitorEvaluator/);
@@ -470,5 +470,6 @@ test("worker exposes only authenticated monitor routes and a dormant scheduled c
   assert(!/RAVENOS_RESEARCH_ALERTS_ENABLE.*[=:]\s*["']1["']/i.test(worker));
   const wrangler = readFileSync("wrangler.jsonc", "utf8");
   for (const flag of Object.values(CustomerMonitorAlertContract.activation_flags)) assert(!wrangler.includes(flag), flag);
-  assert(!/\bcrons\b/.test(wrangler));
+  assert.match(wrangler, /"crons"\s*:\s*\[\s*"\*\/5 \* \* \* \*"/);
+  assert.match(wrangler, /"RAVENOS_SHADOW_LEDGER_ENABLED"\s*:\s*"1"/);
 });

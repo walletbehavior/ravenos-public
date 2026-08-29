@@ -440,10 +440,14 @@ export async function mockTerminalLiveApis(page, {
   spotTradePrice = 1.12,
   spotChartCurrent = false,
   spotQuotePreview = false,
+  spotQuoteTtlMs = 20_000,
+  spotQuoteDelayMs = 0,
+  spotQuoteOutputMint = null,
 } = {}) {
   const calls = [];
   const holderCalls = [];
   const tradeCalls = [];
+  const spotQuoteCalls = [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   await page.route("https://assets.geckoterminal.com/token-fixture.png", (route) => route.fulfill({
     status: 200,
@@ -1008,9 +1012,12 @@ export async function mockTerminalLiveApis(page, {
   }));
   await page.route("**/api/trade/spot-quote-preview", async (route) => {
     const input = route.request().postDataJSON();
+    spotQuoteCalls.push(input);
+    if (spotQuoteDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, spotQuoteDelayMs));
     const now = Date.now();
     const sell = input.side === "sell";
     const percent = Number(input.sell_percent || 0);
+    const outputMint = spotQuoteOutputMint || (sell ? "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" : input.token_address);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1027,12 +1034,14 @@ export async function mockTerminalLiveApis(page, {
             quote_address: input.quote_address,
           },
           side: input.side,
+          output_mint: outputMint,
           amount: { kind: sell ? "sell_percentage" : "native_sol", sell_percentage_bps: sell ? percent * 100 : null },
         },
         quote: {
           quote_id: `fixture-spot-${input.side}-${sell ? percent : input.display_amount}`,
           expected_output_display: sell ? "0.42" : "8450.25",
           minimum_output_display: sell ? "0.4179" : "8408",
+          output_mint: outputMint,
           price_impact_bps: 18,
           route: { policy: "exact_selected_token", leg_count: 2, venues: ["Raydium", "Meteora"] },
         },
@@ -1043,7 +1052,7 @@ export async function mockTerminalLiveApis(page, {
         timing: {
           quoted_at: new Date(now).toISOString(),
           received_at: new Date(now + 80).toISOString(),
-          expires_at: new Date(now + 20_000).toISOString(),
+          expires_at: new Date(now + spotQuoteTtlMs).toISOString(),
           provider_latency_ms: 80,
           freshness: "current",
         },
@@ -1237,7 +1246,7 @@ export async function mockTerminalLiveApis(page, {
       }),
     });
   });
-  return { calls, holderCalls, tradeCalls, markets };
+  return { calls, holderCalls, tradeCalls, spotQuoteCalls, markets };
 }
 
 export async function waitForTerminalLive(page, expected = {}) {

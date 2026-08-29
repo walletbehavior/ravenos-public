@@ -21,6 +21,7 @@ const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const SPOT_TICKET_STORAGE_KEY = "ravenos.universal_shadow_ticket_preferences.v1";
 const DEFAULT_SPOT_BUY_SIZES = Object.freeze([10, 50, 100, 500]);
 const SPOT_PLAN_SOURCES = new Set(["raven_exact_market", "user_preset", "custom"]);
+const SOLANA_CANONICAL_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const state = {
   lane: "perps",
   markets: [],
@@ -83,6 +84,12 @@ const state = {
   spotQuote: null,
   spotQuoteGeneration: 0,
   spotQuoteExpiryTimer: null,
+  spotQuoteRefreshTimer: null,
+  spotQuoteAbortController: null,
+  spotQuoteStatus: "idle",
+  spotQuoteExpiresAt: 0,
+  spotQuoteFingerprint: "",
+  spotQuoteFollow: false,
   solanaWalletAddress: null,
   solanaWalletConnected: false,
 };
@@ -3020,7 +3027,7 @@ function clearSpotTradeRefresh() {
 function spotTradeSurfaceActive() {
   if (document.hidden || state.lane !== "spot" || !currentProjectIdentity()) return false;
   if (!terminalUsesPaneNavigation()) return true;
-  return ["chart", "activity"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
+  return ["chart", "activity", "trade"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
 }
 
 function scheduleSpotTradeRefresh() {
@@ -5235,11 +5242,19 @@ function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) 
   }
 }
 
-function clearSpotQuoteResult(message = "Select a size and review a short-lived route. No transaction is constructed.", { invalidate = true } = {}) {
+function clearSpotQuoteResult(message = "Select a size and review a current route. Nothing will be submitted.", { invalidate = true, stopFollowing = true } = {}) {
   if (invalidate) state.spotQuoteGeneration += 1;
+  state.spotQuoteAbortController?.abort?.();
+  state.spotQuoteAbortController = null;
   state.spotQuote = null;
+  state.spotQuoteStatus = "idle";
+  state.spotQuoteExpiresAt = 0;
+  state.spotQuoteFingerprint = "";
   clearTimeout(state.spotQuoteExpiryTimer);
   state.spotQuoteExpiryTimer = null;
+  clearSpotQuoteRefresh();
+  if (stopFollowing) state.spotQuoteFollow = false;
+  syncSpotQuoteFollowControl();
   const result = document.getElementById("terminalSpotQuoteResult");
   if (result) {
     result.hidden = true;
@@ -5366,6 +5381,105 @@ function spotPlanRequest() {
   };
 }
 
+function spotTicketSnapshot() {
+  const identity = currentProjectIdentity();
+  if (!identity) return null;
+  const slippageBps = finite(document.getElementById("terminalSpotSlippage")?.value) || 50;
+  const priorityMode = document.getElementById("terminalSpotPriorityMode")?.value === "capped" ? "capped" : "standard";
+  const priorityCap = finite(document.getElementById("terminalSpotPriorityCap")?.value) || 10_000;
+  const amount = document.getElementById("terminalSpotAmount")?.value;
+  return {
+    schema_version: "ravenos.universal_shadow_quote_request.v1",
+    instrument_id: `solana:pool:${identity.poolAddress}`,
+    identity_scope: "exact_pool",
+    chain: "solana",
+    pool_address: identity.poolAddress,
+    token_address: identity.tokenAddress,
+    quote_address: identity.quoteAddress,
+    side: state.spotTicketSide,
+    display_amount: state.spotSellPercent ? null : String(amount || ""),
+    sell_percent: state.spotTicketSide === "sell" ? state.spotSellPercent : null,
+    wallet_address: state.solanaWalletConnected ? state.solanaWalletAddress : null,
+    slippage_bps: slippageBps,
+    priority: {
+      mode: priorityMode,
+      maximum_lamports: priorityMode === "capped" ? priorityCap : null,
+      jito: false,
+    },
+    plan: spotPlanRequest(),
+  };
+}
+
+function spotTicketFingerprint(snapshot = spotTicketSnapshot()) {
+  return snapshot ? JSON.stringify(snapshot) : "";
+}
+
+function spotQuoteStillCurrent() {
+  return Boolean(
+    state.spotQuote
+    && state.spotQuoteStatus === "current"
+    && state.spotQuoteExpiresAt > Date.now()
+    && state.spotQuoteFingerprint
+    && state.spotQuoteFingerprint === spotTicketFingerprint(),
+  );
+}
+
+function syncSpotQuoteFollowControl() {
+  const control = document.getElementById("terminalSpotQuoteFollow");
+  if (control) control.checked = state.spotQuoteFollow;
+  setText("terminalSpotQuoteAutoState", state.spotQuoteFollow ? "Keeps this unchanged ticket current" : "Off");
+}
+
+function clearSpotQuoteRefresh() {
+  clearTimeout(state.spotQuoteRefreshTimer);
+  state.spotQuoteRefreshTimer = null;
+}
+
+function spotQuoteSurfaceActive() {
+  if (document.hidden || !spotTicketQualified()) return false;
+  if (!terminalUsesPaneNavigation()) return true;
+  return (document.querySelector(".terminal-live")?.dataset.terminalPane || "chart") === "trade";
+}
+
+function scheduleSpotQuoteRefresh() {
+  clearSpotQuoteRefresh();
+  if (!state.spotQuoteFollow || !spotQuoteStillCurrent() || !spotQuoteSurfaceActive()) return;
+  const expectedFingerprint = state.spotQuoteFingerprint;
+  const delay = Math.max(250, state.spotQuoteExpiresAt - Date.now() - 3_000);
+  setText("terminalSpotQuoteAutoState", `Following · refreshes before expiry`);
+  state.spotQuoteRefreshTimer = setTimeout(() => {
+    state.spotQuoteRefreshTimer = null;
+    if (
+      state.spotQuoteFollow
+      && expectedFingerprint === state.spotQuoteFingerprint
+      && expectedFingerprint === spotTicketFingerprint()
+      && spotQuoteSurfaceActive()
+    ) void requestSpotQuote({ automatic: true, expectedFingerprint });
+  }, delay);
+}
+
+function spotQuoteResponseMatches(payload, snapshot) {
+  if (!payload?.ok || payload?.review_available !== true || !snapshot) return false;
+  const exact = payload?.intent?.exact_market || {};
+  const sameIdentity = String(exact.instrument_id || "") === snapshot.instrument_id
+    && sameSelectedAddress("solana", exact.pool_address, snapshot.pool_address)
+    && sameSelectedAddress("solana", exact.token_address, snapshot.token_address)
+    && sameSelectedAddress("solana", exact.quote_address, snapshot.quote_address)
+    && String(payload?.intent?.side || "").toLowerCase() === snapshot.side;
+  const expectedOutputMint = snapshot.side === "buy" ? snapshot.token_address : SOLANA_CANONICAL_USDC_MINT;
+  const outputMint = String(payload?.quote?.output_mint || payload?.intent?.output_mint || "");
+  const fee = payload.fee_disclosure || payload.fee_policy || payload?.quote?.fee_policy || {};
+  const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
+  const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
+  const expiresAt = Date.parse(payload?.timing?.expires_at || payload?.quote?.expires_at || "");
+  return sameIdentity
+    && sameSelectedAddress("solana", outputMint, expectedOutputMint)
+    && configuredFeeBps !== null
+    && actualFeeBps !== null
+    && Number.isFinite(expiresAt)
+    && expiresAt > Date.now();
+}
+
 function syncSpotTicketControls() {
   const identity = currentProjectIdentity();
   const identityAvailable = spotTicketIdentityAvailable();
@@ -5390,14 +5504,14 @@ function syncSpotTicketControls() {
   if (buyPresets) buyPresets.hidden = side !== "buy";
   if (sellPresets) sellPresets.hidden = side !== "sell";
   setText("terminalSpotTicketTitle", qualified
-    ? `${side === "buy" ? "Shadow buy" : "Shadow sell"} ${symbol} ${side === "buy" ? "with USDC" : "back to USDC"}`
+    ? `${side === "buy" ? "Review buying" : "Review selling"} ${symbol} ${side === "buy" ? "with USDC" : "back to USDC"}`
     : `${chainDisplayName(identity?.chain)} trade adapter`);
   setText("terminalSpotAmountLabel", side === "buy" ? "Spend" : "Sell amount");
   setText("terminalSpotAmountUnit", side === "buy" ? "USDC" : symbol);
   setText("terminalSpotBalanceUnit", side === "buy" ? "USDC" : symbol);
   const action = document.getElementById("terminalSpotQuoteAction");
   if (action) {
-    action.textContent = qualified ? side === "buy" ? "Check buy + exit" : "Check USDC exit" : `${chainDisplayName(identity?.chain)} route adapter pending`;
+    action.textContent = qualified ? side === "buy" ? "Review buy + exit" : "Review USDC exit" : `${chainDisplayName(identity?.chain)} route adapter pending`;
     action.disabled = !qualified;
   }
   for (const button of document.querySelectorAll("[data-spot-side]")) {
@@ -5432,7 +5546,8 @@ function syncSpotTicketControls() {
     setText("terminalSpotProFee", "Pro discount preserved");
   }
   syncSpotPlanSource();
-  updateSpotExecutionRail({ quoted: Boolean(state.spotQuote), exitVerified: state.spotQuote?.shadow_execution?.round_trip?.exit_verified === true });
+  updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: spotQuoteStillCurrent() && state.spotQuote?.shadow_execution?.round_trip?.exit_verified === true });
+  syncSpotQuoteFollowControl();
 }
 
 function setSpotTicketSide(side) {
@@ -5526,28 +5641,46 @@ function scheduleSpotQuoteExpiry(payload) {
     if (!state.spotQuote || (state.spotQuote?.quote?.quote_id || state.spotQuote?.quote?.canonical_quote_id || state.spotQuote?.quote_id) !== quoteId) return;
     const remaining = Number.isFinite(expiresAt) ? Math.max(0, expiresAt - Date.now()) : 0;
     if (remaining <= 0) {
+      state.spotQuote = null;
+      state.spotQuoteStatus = "expired";
+      state.spotQuoteExpiresAt = 0;
       const result = document.getElementById("terminalSpotQuoteResult");
       if (result) result.dataset.state = "expired";
       setText("terminalSpotQuoteState", "Refresh quote");
       setText("terminalSpotQuoteTiming", "Quote expired · request a new exact route");
       updateSpotExecutionRail();
+      if (state.spotQuoteFollow && state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {
+        void requestSpotQuote({ automatic: true, expectedFingerprint: state.spotQuoteFingerprint });
+      }
       return;
     }
     setText("terminalSpotQuoteTiming", `Current for ${Math.ceil(remaining / 1_000)}s · quoted ${timestamp(payload?.timing?.quoted_at || payload?.quote?.observed_at || payload?.observed_at)}`);
     state.spotQuoteExpiryTimer = setTimeout(tick, Math.min(1_000, remaining));
   };
   tick();
+  scheduleSpotQuoteRefresh();
 }
 
-function renderSpotQuote(payload, clientRttMs) {
+function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   if (!payload?.ok) {
     clearSpotQuoteResult(spotQuoteReason(payload?.unavailable_reason || payload?.error), { invalidate: false });
     setText("terminalSpotQuoteState", "Try again");
     return;
   }
+  if (!spotQuoteResponseMatches(payload, snapshot) || fingerprint !== spotTicketFingerprint()) {
+    clearSpotQuoteResult("The route response no longer matches this exact ticket. No stale or substituted quote was shown.", { invalidate: true });
+    setText("terminalSpotQuoteState", "Review again");
+    return;
+  }
   state.spotQuote = payload;
+  state.spotQuoteStatus = "current";
+  state.spotQuoteFingerprint = fingerprint;
+  state.spotQuoteExpiresAt = Date.parse(payload?.timing?.expires_at || payload?.quote?.expires_at || "");
   const quote = payload.quote || {};
-  const outputSymbol = state.spotTicketSide === "buy" ? String(state.selected?.symbol || "TOKEN") : "SOL";
+  const outputMint = String(quote.output_mint || payload?.intent?.output_mint || "");
+  const outputSymbol = sameSelectedAddress("solana", outputMint, SOLANA_CANONICAL_USDC_MINT)
+    ? "USDC"
+    : String(state.selected?.symbol || "TOKEN");
   setText("terminalSpotQuoteOutput", displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol));
   setText("terminalSpotQuoteMinimum", `Minimum ${displayQuoteAmount(quote.minimum_output_display ?? quote.minimum_output ?? quote.minimum, outputSymbol)}`);
   setText("terminalSpotQuoteImpact", finite(quote.price_impact_bps) === null ? "Not reported" : `${Number(quote.price_impact_bps).toFixed(2)} bps`);
@@ -5560,8 +5693,8 @@ function renderSpotQuote(payload, clientRttMs) {
         : [];
   setText("terminalSpotQuoteRoute", labels.length ? labels.slice(0, 3).join(" → ") : "Jupiter exact-input route");
   const fee = payload.fee_disclosure || payload.fee_policy || quote.fee_policy || {};
-  const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps) || 0;
-  const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps) || 0;
+  const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
+  const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
   setText("terminalSpotQuoteFee", `${configuredFeeBps / 100}% configured · ${actualFeeBps} bps charged`);
   const providerLatency = finite(payload.timing?.provider_latency_ms ?? quote.provider_latency_ms ?? payload.provider_latency_ms);
   setText("terminalSpotQuoteLatency", `${Math.round(clientRttMs)}ms RTT${providerLatency === null ? "" : ` · ${Math.round(providerLatency)}ms provider`}`);
@@ -5576,7 +5709,7 @@ function renderSpotQuote(payload, clientRttMs) {
     result.hidden = false;
     result.dataset.state = "current";
   }
-  setText("terminalSpotQuoteState", "Review ready");
+  setText("terminalSpotQuoteState", "Current quote");
   setText("terminalSpotQuoteMessage", roundTrip?.exit_verified
     ? "Entry and immediate reverse liquidation are verified against current quotes. Network cost remains separate when it cannot yet be priced. Nothing was constructed, signed, or sent."
     : state.spotTicketSide === "buy"
@@ -5591,64 +5724,54 @@ function renderSpotQuote(payload, clientRttMs) {
   scheduleSpotQuoteExpiry(payload);
 }
 
-async function requestSpotQuote() {
+async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } = {}) {
   if (!spotTicketQualified()) return;
-  const identity = currentProjectIdentity();
-  const amount = document.getElementById("terminalSpotAmount")?.value;
-  const slippageBps = finite(document.getElementById("terminalSpotSlippage")?.value) || 50;
-  const priorityMode = document.getElementById("terminalSpotPriorityMode")?.value === "capped" ? "capped" : "standard";
-  const priorityCap = finite(document.getElementById("terminalSpotPriorityCap")?.value) || 10_000;
   const action = document.getElementById("terminalSpotQuoteAction");
   if (state.spotTicketSide === "sell" && (!state.solanaWalletConnected || !state.spotSellPercent)) {
     clearSpotQuoteResult("Connect a Solana wallet and choose 25%, 50%, 75%, or 100% so the server can size against the current exact-mint balance.");
     setText("terminalSpotQuoteState", "Choose sell size");
     return;
   }
+  const snapshot = spotTicketSnapshot();
+  const fingerprint = spotTicketFingerprint(snapshot);
+  if (!snapshot || (automatic && expectedFingerprint && expectedFingerprint !== fingerprint)) return;
+  state.spotQuoteAbortController?.abort?.();
+  const controller = new AbortController();
+  state.spotQuoteAbortController = controller;
   const generation = ++state.spotQuoteGeneration;
   state.spotQuote = null;
+  state.spotQuoteStatus = automatic ? "refreshing" : "quoting";
+  state.spotQuoteFingerprint = fingerprint;
+  state.spotQuoteExpiresAt = 0;
   clearTimeout(state.spotQuoteExpiryTimer);
+  clearSpotQuoteRefresh();
   const startedAt = performance.now();
   if (action) {
     action.disabled = true;
-    action.textContent = "Checking exact route…";
+    action.textContent = automatic ? "Refreshing route…" : "Checking exact route…";
   }
-  setText("terminalSpotQuoteState", "Quoting");
-  setText("terminalSpotQuoteMessage", "Revalidating the exact pool, token mints, balance sizing, and current route…");
+  setText("terminalSpotQuoteState", automatic ? "Refreshing" : "Quoting");
+  setText("terminalSpotQuoteMessage", automatic ? "Refreshing this unchanged exact ticket before expiry…" : "Checking the exact pool, token mints, balance sizing, and current route…");
   updateSpotExecutionRail();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
     const { payload } = await fetchJson("/api/trade/spot-quote-preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        schema_version: "ravenos.universal_shadow_quote_request.v1",
-        instrument_id: `solana:pool:${identity.poolAddress}`,
-        identity_scope: "exact_pool",
-        chain: "solana",
-        pool_address: identity.poolAddress,
-        token_address: identity.tokenAddress,
-        quote_address: identity.quoteAddress,
-        side: state.spotTicketSide,
-        display_amount: state.spotSellPercent ? null : String(amount || ""),
-        sell_percent: state.spotTicketSide === "sell" ? state.spotSellPercent : null,
-        wallet_address: state.solanaWalletConnected ? state.solanaWalletAddress : null,
-        slippage_bps: slippageBps,
-        priority: {
-          mode: priorityMode,
-          maximum_lamports: priorityMode === "capped" ? priorityCap : null,
-          jito: false,
-        },
-        plan: spotPlanRequest(),
-      }),
+      body: JSON.stringify(snapshot),
+      signal: controller.signal,
     });
-    if (generation !== state.spotQuoteGeneration) return;
-    renderSpotQuote(payload, performance.now() - startedAt);
+    if (generation !== state.spotQuoteGeneration || fingerprint !== state.spotQuoteFingerprint || fingerprint !== spotTicketFingerprint()) return;
+    renderSpotQuote(payload, performance.now() - startedAt, { snapshot, fingerprint });
   } catch {
     if (generation !== state.spotQuoteGeneration) return;
-    renderSpotQuote({ ok: false, unavailable_reason: "quote_provider_unavailable" }, performance.now() - startedAt);
+    renderSpotQuote({ ok: false, unavailable_reason: controller.signal.aborted ? "quote_provider_timeout" : "quote_provider_unavailable" }, performance.now() - startedAt, { snapshot, fingerprint });
   } finally {
+    clearTimeout(timeout);
+    if (state.spotQuoteAbortController === controller) state.spotQuoteAbortController = null;
     if (generation === state.spotQuoteGeneration && action) {
       action.disabled = false;
-      action.textContent = state.spotTicketSide === "buy" ? "Check buy + exit" : "Check USDC exit";
+      action.textContent = state.spotTicketSide === "buy" ? "Review buy + exit" : "Review USDC exit";
     }
   }
 }
@@ -6127,6 +6250,7 @@ function spotChartRequest(row, timeframe = state.timeframe) {
 async function selectPerp(asset, { updateUrl = true } = {}) {
   closeProjectLinks();
   clearSpotTradeRefresh();
+  clearSpotQuoteResult("Select an exact Solana pool to review a spot route.");
   const row = state.markets.find((item) => item.asset === asset);
   if (!row) return;
   const generation = ++state.selectionGeneration;
@@ -6183,6 +6307,7 @@ async function selectPerp(asset, { updateUrl = true } = {}) {
 function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   if (!new Set(["perps", "spot", "equity"]).has(lane)) return;
   closeProjectLinks();
+  clearSpotQuoteResult("Market changed. Review a new exact route.");
   state.lane = lane;
   setActiveMarketControlRisk(null);
   if (lane !== "spot") clearSpotTradeRefresh();
@@ -6317,6 +6442,7 @@ async function searchSpot(query) {
 async function selectSpot(row, { updateUrl = true } = {}) {
   closeProjectLinks();
   clearSpotTradeRefresh();
+  clearSpotQuoteResult("Exact market changed. Review a new current route.");
   const chainCoverage = document.getElementById("terminalChainCoverage");
   if (chainCoverage) chainCoverage.open = false;
   const generation = ++state.selectionGeneration;
@@ -6529,6 +6655,7 @@ async function resolveListedSelection({ instrumentId = "", asset = "" } = {}) {
 async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
   closeProjectLinks();
   clearSpotTradeRefresh();
+  clearSpotQuoteResult("Select an exact Solana pool to review a spot route.");
   const requestedSubject = atlasSubject(row);
   const atlasRow = state.atlas?.market_context?.rows?.find(
     (candidate) => candidate?.instrument_id === requestedSubject.instrumentId,
@@ -6926,8 +7053,18 @@ function bindControls() {
     button.addEventListener("click", () => setSpotWalletFilter(button.dataset.activeWalletFilter));
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) clearSpotTradeRefresh();
-    else if (spotTradeSurfaceActive()) void loadSpotTrades();
+    if (document.hidden) {
+      clearSpotTradeRefresh();
+      clearSpotQuoteRefresh();
+    } else {
+      if (spotTradeSurfaceActive()) void loadSpotTrades();
+      if (state.spotQuoteFollow) {
+        if (spotQuoteStillCurrent()) scheduleSpotQuoteRefresh();
+        else if (state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {
+          void requestSpotQuote({ automatic: true, expectedFingerprint: state.spotQuoteFingerprint });
+        }
+      }
+    }
   });
   document.getElementById("terminalChartMarkerClose")?.addEventListener("click", clearMarkerInspection);
   document.getElementById("terminalChartMarkerEvidence")?.addEventListener("click", showFullMarkerEvidence);
@@ -6966,6 +7103,18 @@ function bindControls() {
   document.getElementById("terminalWalletConnect")?.addEventListener("click", () => void useBrowserWalletAddress());
   document.getElementById("terminalSpotWalletConnect")?.addEventListener("click", () => void connectSolanaWalletReadOnly());
   document.getElementById("terminalSpotQuoteAction")?.addEventListener("click", () => void requestSpotQuote());
+  document.getElementById("terminalSpotQuoteFollow")?.addEventListener("change", (event) => {
+    state.spotQuoteFollow = event.currentTarget.checked === true;
+    syncSpotQuoteFollowControl();
+    if (!state.spotQuoteFollow) {
+      clearSpotQuoteRefresh();
+      return;
+    }
+    if (spotQuoteStillCurrent()) scheduleSpotQuoteRefresh();
+    else if (state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {
+      void requestSpotQuote({ automatic: true, expectedFingerprint: state.spotQuoteFingerprint });
+    }
+  });
   document.getElementById("terminalSpotAmount")?.addEventListener("input", (event) => {
     state.spotSellPercent = null;
     event.currentTarget.disabled = false;
@@ -7290,7 +7439,11 @@ async function boot() {
       spotQuotePreviewAvailable: state.flags?.spot_quote_preview_available === true,
       spotQuotePreviewChains: Array.isArray(state.flags?.spot_quote_preview_chains) ? [...state.flags.spot_quote_preview_chains] : [],
       tradeAdapterStates: state.flags?.trade_adapter_states || {},
-      spotQuoteState: state.spotQuote?.state || (spotTicketQualified() ? "ready" : spotTicketIdentityAvailable() ? "adapter_pending" : "unavailable"),
+      spotQuoteState: spotTicketQualified()
+        ? state.spotQuoteStatus === "idle" ? "ready" : state.spotQuoteStatus
+        : spotTicketIdentityAvailable() ? "adapter_pending" : "unavailable",
+      spotQuoteCurrent: spotQuoteStillCurrent(),
+      spotQuoteFollowing: state.spotQuoteFollow,
       spotPlanSource: state.spotTicketPlanSource,
       spotWalletConnected: state.solanaWalletConnected,
       signingAvailable: false,

@@ -339,7 +339,7 @@ test("Behavior Lab keeps an unavailable live feed explicit without stale substit
   await page.route("**/api/behavior", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, state: "unavailable" }) }));
   await page.goto("/behavior/");
   await expect(page.locator("#routeHeadline")).toContainText("unavailable");
-  await expect(page.locator("#routeHeroSummary")).toContainText(/older participant evidence is not substituted as current/i);
+  await expect(page.locator("#routeHeroSummary")).toContainText(/older (?:participant evidence is not substituted as current|behavior is not presented as a live read)/i);
   await expect(page.locator("#routeHeroSummary")).not.toContainText(/using the last verified public artifact/i);
   await page.setViewportSize({ width: 390, height: 844 });
   const identityCard = page.locator("#routeStateStrip .route-state-card").last();

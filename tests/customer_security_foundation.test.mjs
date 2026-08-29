@@ -65,8 +65,15 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.raven_monitor.plan_prices_persisted, false);
   assert.equal(security.raven_monitor.wallet_or_execution_data_persisted, false);
   assert.equal(security.raven_monitor.out_of_app_delivery_active, false);
-  assert.equal(security.raven_monitor.scheduler_trigger_configured, false);
+  assert.equal(security.raven_monitor.scheduler_trigger_configured, true);
+  assert.equal(security.raven_monitor.scheduler_activation_flags_default_off, true);
   assert.equal(security.raven_monitor.production_activation_completed, false);
+  assert.equal(security.shadow_route_sampling.aggregate_public_output_only, true);
+  assert.equal(security.shadow_route_sampling.customer_identity_persisted, false);
+  assert.equal(security.shadow_route_sampling.wallet_or_network_address_persisted, false);
+  assert.equal(security.shadow_route_sampling.transaction_material_persisted, false);
+  assert.equal(security.shadow_route_sampling.signing_available, false);
+  assert.equal(security.shadow_route_sampling.submission_available, false);
   assert(security.blocked_capabilities.includes("persistent_alerts_production_activation"));
   assert.equal(security.entitlement_foundation.implementation_status, "local_dormant_foundation");
   assert.equal(security.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
@@ -404,6 +411,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 12);
+  assert.equal(security.required_documents.length, 13);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

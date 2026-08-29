@@ -68,6 +68,14 @@ import {
   normalizeUniversalRouteCandidate,
   selectUniversalRouteCandidate,
 } from "./lib/customer_trade/universal_shadow_execution.mjs";
+import {
+  SHADOW_ROUTE_READINESS_SCHEMA,
+  createD1ShadowExecutionLedgerStore,
+  createShadowRouteObservation,
+  loadShadowRouteReadiness,
+  runShadowRouteCheckpointEvaluator,
+  shadowLedgerEnabled,
+} from "./lib/customer_trade/shadow_execution_ledger.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
 import {
@@ -4870,6 +4878,32 @@ function serverSpotPlanInput(body = {}, exact = {}) {
   return { source: "custom", levels: {}, user_modifications: [] };
 }
 
+const PROVIDER_TRANSACTION_MATERIAL_KEYS = new Set([
+  "approval", "approvaladdress", "approvalcalldata", "calldata", "signature", "signatures",
+  "serializedtransaction", "swaptransaction", "transaction", "transactiondata", "transactionrequest",
+  "transactions", "tx", "txdata", "unsignedtransaction",
+]);
+
+function assertQuotePayloadContainsNoTransactionMaterial(payload) {
+  const pending = [payload];
+  const seen = new Set();
+  let inspected = 0;
+  while (pending.length) {
+    const value = pending.pop();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    inspected += 1;
+    if (inspected > 2_000) throw new Error("quote_payload_too_complex");
+    for (const [key, child] of Object.entries(value)) {
+      const normalized = String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (PROVIDER_TRANSACTION_MATERIAL_KEYS.has(normalized) && child != null && child !== "" && child !== false) {
+        throw new Error("quote_transaction_material_forbidden");
+      }
+      if (child && typeof child === "object") pending.push(child);
+    }
+  }
+}
+
 async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amountBaseUnits, slippageBps }) {
   const url = new URL("https://api.jup.ag/swap/v2/order");
   url.searchParams.set("inputMint", inputMint);
@@ -4886,6 +4920,7 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
     errorPrefix: "jupiter_spot_quote",
   });
   const receivedAt = new Date().toISOString();
+  assertQuotePayloadContainsNoTransactionMaterial(payload);
   if (String(payload.inAmount || amountBaseUnits) !== amountBaseUnits) throw new Error("quote_input_amount_mismatch");
   if (payload.inputMint && String(payload.inputMint) !== inputMint) throw new Error("quote_input_mint_mismatch");
   if (payload.outputMint && String(payload.outputMint) !== outputMint) throw new Error("quote_output_mint_mismatch");
@@ -5705,7 +5740,58 @@ function spotQuotePreviewError(code) {
   return { status: 503, error: "quote_provider_unavailable" };
 }
 
-async function handleTradeSpotQuotePreview(request, env = {}) {
+async function recordShadowRouteObservation(env, executionContext, input) {
+  if (!shadowLedgerEnabled(env) || !input?.shadow_execution) return;
+  const work = (async () => {
+    try {
+      const store = createD1ShadowExecutionLedgerStore(env.RAVENOS_CUSTOMER_DB);
+      const record = createShadowRouteObservation(input);
+      await store.recordObservation(record);
+      recordProviderComponentEvent({ component: "shadow_route_ledger", category: "success" });
+    } catch (error) {
+      recordProviderComponentEvent({
+        component: "shadow_route_ledger",
+        category: "failure",
+        reason_code: error?.code || error?.message || "shadow_observation_failed",
+      });
+    }
+  })();
+  if (executionContext?.waitUntil) executionContext.waitUntil(work);
+  else await work;
+}
+
+async function handleTradeShadowReadiness(env = {}) {
+  if (!shadowLedgerEnabled(env)) {
+    return json({
+      ok: false,
+      schema_version: SHADOW_ROUTE_READINESS_SCHEMA,
+      state: "unavailable",
+      error: "shadow_route_sampling_unavailable",
+      execution: { signing_available: false, submission_available: false },
+    }, { status: 503, headers: { "cache-control": "public, max-age=15, s-maxage=30" } });
+  }
+  try {
+    const store = createD1ShadowExecutionLedgerStore(env.RAVENOS_CUSTOMER_DB);
+    return json(await loadShadowRouteReadiness(store), {
+      headers: { "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60" },
+    });
+  } catch (error) {
+    recordProviderComponentEvent({
+      component: "shadow_route_ledger",
+      category: "failure",
+      reason_code: error?.code || error?.message || "shadow_readiness_failed",
+    });
+    return json({
+      ok: false,
+      schema_version: SHADOW_ROUTE_READINESS_SCHEMA,
+      state: "unavailable",
+      error: "shadow_route_sampling_unavailable",
+      execution: { signing_available: false, submission_available: false },
+    }, { status: 503, headers: { "cache-control": "public, max-age=5, s-maxage=15" } });
+  }
+}
+
+async function handleTradeSpotQuotePreview(request, env = {}, executionContext = null) {
   const buildId = await terminalBuildId(env, request);
   const context = createTerminalRequestContext({
     request,
@@ -6025,6 +6111,16 @@ async function handleTradeSpotQuotePreview(request, env = {}) {
         attached_to_quote: false,
         reason: "browser_research_plan_is_not_transaction_authority",
       } : null;
+      await recordShadowRouteObservation(env, executionContext, {
+        instrument_id: instrumentId,
+        chain_id: "solana",
+        side,
+        quote: publicQuote,
+        shadow_execution: shadowExecution,
+        provider_latency_ms: review.timing.provider_latency_ms,
+        slippage_bps: validatedControls.slippage_bps,
+        observed_at: shadowExecution?.observed_at || providerResult.received_at,
+      });
       return terminalJson(context, {
         ok: true,
         ...review,
@@ -8005,7 +8101,7 @@ async function handleChain(request, env, slug) {
   }, { headers: projectionRouteHeaders(`/api/chains/${slug}`, delivery) });
 }
 
-async function routeApi(request, env) {
+async function routeApi(request, env, executionContext = null) {
   const url = new URL(request.url);
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
@@ -8067,7 +8163,8 @@ async function routeApi(request, env) {
   if (url.pathname === "/api/terminal/chart" && request.method === "GET") return handleTerminalChart(request, env);
   if (url.pathname.startsWith("/api/chains/") && request.method === "GET") return handleChain(request, env, decodeURIComponent(url.pathname.split("/").pop() || ""));
   if (url.pathname === "/api/trade/flags" && request.method === "GET") return handleTradeFlags(env);
-  if (url.pathname === "/api/trade/spot-quote-preview" && request.method === "POST") return handleTradeSpotQuotePreview(request, env);
+  if (url.pathname === "/api/trade/shadow-readiness" && request.method === "GET") return handleTradeShadowReadiness(env);
+  if (url.pathname === "/api/trade/spot-quote-preview" && request.method === "POST") return handleTradeSpotQuotePreview(request, env, executionContext);
   if (url.pathname === "/api/trade/market-preview" && request.method === "POST") return handleTradeMarketPreview(request, env);
   if (url.pathname === "/api/trade/order-plan" && request.method === "POST") return handleTradeOrderPlan(request, env);
   if (url.pathname === "/api/trade/account-snapshot" && request.method === "POST") return handleTradeAccountSnapshot(request, env);
@@ -8329,13 +8426,45 @@ async function routeApi(request, env) {
 export default {
   async scheduled(_controller, env, context) {
     const request = new Request("https://ravenos.xyz/ravenos/perps.json", { method: "GET" });
-    const work = runCustomerMonitorEvaluator(env || {}, {
+    const monitorWork = runCustomerMonitorEvaluator(env || {}, {
       loadEvidenceBatch: (instrumentIds) => loadMonitorEvidenceBatch(env || {}, request, instrumentIds),
     });
+    const shadowWork = shadowLedgerEnabled(env || {})
+      ? runShadowRouteCheckpointEvaluator(createD1ShadowExecutionLedgerStore(env.RAVENOS_CUSTOMER_DB), {
+          reprice: async (observation) => {
+            const tokenAddress = String(observation.destination_asset_id || "").split(":").pop() || "";
+            if (!SOLANA_ADDRESS_RE.test(tokenAddress) || !/^\d+$/.test(String(observation.destination_amount_base_units || ""))) {
+              const invalid = new Error("shadow_checkpoint_identity_invalid");
+              invalid.code = "shadow_checkpoint_identity_invalid";
+              throw invalid;
+            }
+            const startedAt = Date.now();
+            const result = await runProviderOperation({
+              component: "shadow_route_checkpoint",
+              operation_key: `${tokenAddress}:${observation.destination_amount_base_units}:${observation.slippage_bps}`,
+              fn: () => fetchJupiterExactSpotQuote({
+                env,
+                inputMint: tokenAddress,
+                outputMint: SOLANA_CANONICAL_USDC_MINT,
+                amountBaseUnits: String(observation.destination_amount_base_units),
+                slippageBps: Number(observation.slippage_bps),
+              }),
+            });
+            return {
+              route_available: true,
+              state: "route_available",
+              current_exit_usdc: Number(displayBaseUnits(result.payload.outAmount, 6)),
+              minimum_exit_usdc: Number(displayBaseUnits(result.payload.otherAmountThreshold, 6)),
+              provider_latency_ms: Math.max(0, Date.now() - startedAt),
+            };
+          },
+        })
+      : Promise.resolve({ state: "disabled" });
+    const work = Promise.allSettled([monitorWork, shadowWork]);
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },
-  async fetch(request, env) {
+  async fetch(request, env, executionContext) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/.git") || url.pathname.startsWith("/.wrangler")) {
       return new Response("Not found", { status: 404 });
@@ -8354,7 +8483,7 @@ export default {
       return attachReleaseHeaders(applyAssetSecurityHeaders(authenticatedBoundary.response, url.pathname), releaseState, url.pathname);
     }
     if (url.pathname.startsWith("/api/")) {
-      const response = await routeApi(request, env || {});
+      const response = await routeApi(request, env || {}, executionContext);
       return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
     }
     if (["GET", "HEAD"].includes(request.method)) {

@@ -165,7 +165,19 @@ test("canonical USDC buys remain distinct from native SOL buys", () => {
   assert.equal(intent.input_mint, SOLANA_CANONICAL_USDC_MINT);
   assert.equal(intent.output_mint, TOKEN);
   assert.equal(intent.amount.exact_input_amount_base_units, "500000000");
+  assert.equal(intent.amount.display_amount, "500");
   assert.equal(intent.amount.input_decimals, 6);
+});
+
+test("canonical USDC economic amounts remain exact across supported ticket sizes", () => {
+  for (const [display, baseUnits] of [["10", "10000000"], ["500", "500000000"], ["10000", "10000000000"]]) {
+    const { input, server } = fixture();
+    input.amount = { kind: "canonical_usdc", display_amount: display };
+    const intent = createExactSolanaSpotIntent(input, server.market_authority);
+    assert.equal(intent.amount.display_amount, display);
+    assert.equal(intent.amount.exact_input_amount_base_units, baseUnits);
+    assert.equal(intent.amount.input_decimals, 6);
+  }
 });
 
 test("client-supplied mint conversion and base-unit authority is rejected", () => {

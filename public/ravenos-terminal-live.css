@@ -634,6 +634,33 @@ button, input, select { font: inherit; }
 
 .terminal-order-preview { border-color: rgba(143, 164, 186, .28) !important; }
 .terminal-spot-ticket { border-color: rgba(63, 185, 130, .3) !important; }
+.terminal-spot-ticket:not([hidden]) { display: flex; flex-direction: column; }
+.terminal-spot-ticket > header { order: 0; }
+.terminal-spot-ticket > .terminal-adapter-notice { order: 1; }
+.terminal-spot-ticket > .terminal-spot-side-toggle { order: 2; }
+.terminal-spot-ticket > .terminal-spot-amount-row { order: 3; }
+.terminal-spot-ticket > .terminal-size-presets { order: 4; }
+.terminal-spot-ticket > .terminal-fee-disclosure { order: 5; }
+.terminal-spot-ticket > .terminal-quote-follow { order: 6; }
+.terminal-spot-ticket > .terminal-preview-action { order: 7; }
+.terminal-spot-ticket > .terminal-preview-result { order: 8; }
+.terminal-spot-ticket > .terminal-preview-message { order: 9; }
+.terminal-spot-ticket > .terminal-execution-rail { order: 10; }
+.terminal-spot-ticket > .terminal-spot-wallet { order: 11; }
+.terminal-spot-ticket > .terminal-plan-source,
+.terminal-spot-ticket > .terminal-spot-plan-inputs,
+.terminal-spot-ticket > .terminal-raven-plan-receipt { order: 12; }
+.terminal-spot-ticket > .terminal-routing-settings { order: 13; }
+.terminal-spot-ticket > .terminal-quick-size-settings { order: 14; }
+.terminal-spot-ticket > .terminal-preview-boundary { order: 15; }
+@media (min-width: 821px) {
+  .terminal-intelligence #terminalSpotTicketSection {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
 .terminal-adapter-notice { margin-top: 8px; padding: 10px; border: 1px solid rgba(197, 161, 90, .3); background: rgba(197, 161, 90, .055); }
 .terminal-adapter-notice strong,
 .terminal-adapter-notice span { display: block; }
@@ -799,6 +826,9 @@ button, input, select { font: inherit; }
   color: #f08b99;
 }
 .terminal-preview-inputs { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(88px, .65fr); gap: 5px; margin-top: 8px; }
+.terminal-size-presets[hidden],
+.terminal-spot-plan-inputs[hidden],
+.terminal-raven-plan-receipt[hidden] { display: none !important; }
 .terminal-size-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
 .terminal-size-presets button { min-height: 25px; border: 1px solid var(--terminal-line); background: #090e15; color: var(--terminal-muted); cursor: pointer; font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-size-presets button:hover { border-color: var(--terminal-line-strong); background: #111923; color: var(--terminal-text); }
@@ -878,6 +908,13 @@ button, input, select { font: inherit; }
 .terminal-preview-action:hover:not(:disabled),
 .terminal-preview-action:focus-visible:not(:disabled) { filter: brightness(1.14); outline: none; }
 .terminal-preview-action:disabled { cursor: wait; opacity: .6; }
+.terminal-quote-follow { min-height: 34px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 6px; padding: 6px 8px; border: 1px solid var(--terminal-line); background: #090e15; cursor: pointer; }
+.terminal-quote-follow input { width: 15px; height: 15px; accent-color: var(--terminal-positive); }
+.terminal-quote-follow span,
+.terminal-quote-follow strong,
+.terminal-quote-follow small { display: block; min-width: 0; }
+.terminal-quote-follow strong { color: var(--terminal-text); font-size: 9px; }
+.terminal-quote-follow small { margin-top: 2px; color: var(--terminal-soft); font: 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-preview-result { margin-top: 8px; border: 1px solid var(--terminal-line); background: #090e15; }
 .terminal-preview-fill { padding: 9px; border-bottom: 1px solid var(--terminal-line); }
 .terminal-preview-fill span {
@@ -1567,6 +1604,9 @@ button, input, select { font: inherit; }
   .terminal-account-dock { order: 9; margin-top: 5px; }
   .terminal-intelligence #terminalTradeReviewSection,
   .terminal-intelligence #terminalSpotTicketSection { position: static; box-shadow: none; }
+  .terminal-spot-ticket > .terminal-execution-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="sign"],
+  .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="send"] { display: none; }
   .terminal-live[data-terminal-pane="chart"] .terminal-market-rail,
   .terminal-live[data-terminal-pane="chart"] .terminal-intelligence,
   .terminal-live[data-terminal-pane="chart"] .terminal-account-dock,
@@ -1589,8 +1629,8 @@ button, input, select { font: inherit; }
   .terminal-live[data-terminal-pane="account"] .terminal-market-rail,
   .terminal-live[data-terminal-pane="account"] .terminal-intelligence { display: none !important; }
   .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > section { display: none !important; }
-  .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > #terminalTradeReviewSection:not([hidden]),
-  .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > #terminalSpotTicketSection:not([hidden]) { display: block !important; }
+  .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > #terminalTradeReviewSection:not([hidden]) { display: block !important; }
+  .terminal-live[data-terminal-pane="trade"] .terminal-intelligence > #terminalSpotTicketSection:not([hidden]) { display: flex !important; flex-direction: column; }
   .terminal-live[data-terminal-pane="activity"] .terminal-intelligence > section { display: none !important; }
   .terminal-live[data-terminal-pane="activity"] .terminal-intelligence > #terminalSpotActivitySection:not([hidden]) { display: block !important; }
   .terminal-live[data-terminal-pane="holders"] .terminal-intelligence > section { display: none !important; }

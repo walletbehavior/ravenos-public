@@ -373,6 +373,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
   const quote = "So11111111111111111111111111111111111111112";
   const usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
   const providerCalls = [];
+  let returnForbiddenMaterial = false;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input instanceof URL ? input.toString() : typeof input === "string" ? input : input.url);
     providerCalls.push(`${url.hostname}${url.pathname}`);
@@ -414,42 +415,48 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
         quoteTimestamp: now.toISOString(),
         expireAt: new Date(now.getTime() + 20_000).toISOString(),
         routePlan: [{ swapInfo: { inputMint, outputMint, label: "Raydium" } }],
+        ...(returnForbiddenMaterial && !reverse ? { swapTransaction: "forbidden-shadow-transaction" } : {}),
       });
     }
     return jsonResponse({}, 404);
   };
 
   try {
+    const requestBody = {
+      schema_version: "ravenos.universal_shadow_quote_request.v1",
+      instrument_id: `solana:pool:${pool}`,
+      identity_scope: "exact_pool",
+      chain: "solana",
+      pool_address: pool,
+      token_address: token,
+      quote_address: quote,
+      side: "buy",
+      display_amount: "500",
+      sell_percent: null,
+      wallet_address: null,
+      slippage_bps: 50,
+      priority: { mode: "standard", maximum_lamports: null, jito: false },
+      plan: { source: "custom", take_profit_price: null, stop_loss_price: null, authorizes_transaction: false },
+    };
+    const environment = {
+      RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: "1",
+      RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL: "https://solana-display.invalid/rpc",
+    };
     const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        schema_version: "ravenos.universal_shadow_quote_request.v1",
-        instrument_id: `solana:pool:${pool}`,
-        identity_scope: "exact_pool",
-        chain: "solana",
-        pool_address: pool,
-        token_address: token,
-        quote_address: quote,
-        side: "buy",
-        display_amount: "500",
-        sell_percent: null,
-        wallet_address: null,
-        slippage_bps: 50,
-        priority: { mode: "standard", maximum_lamports: null, jito: false },
-        plan: { source: "custom", take_profit_price: null, stop_loss_price: null, authorizes_transaction: false },
-      }),
-    }), {
-      RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: "1",
-      RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL: "https://solana-display.invalid/rpc",
-    });
+      body: JSON.stringify(requestBody),
+    }), environment);
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));
     assert.equal(response.headers.get("cache-control"), "private, no-store");
     assert.equal(body.intent.economic_flow, "canonical_usdc_to_selected_token");
+    assert.equal(body.intent.amount.display_amount, "500");
+    assert.equal(body.intent.amount.exact_input_amount_base_units, "500000000");
     assert.equal(body.intent.input_mint, usdc);
     assert.equal(body.intent.output_mint, token);
     assert.equal(body.shadow_execution.mode, "shadow");
+    assert.equal(body.shadow_execution.request.source_amount_usdc, 500);
     assert.equal(body.shadow_execution.route_state, "exit_verified");
     assert.equal(body.shadow_execution.round_trip.exit_verified, true);
     assert.equal(body.shadow_execution.round_trip.current_executable_liquidation_usdc, 487.61);
@@ -463,7 +470,29 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(body.fee_policy.actual_fee_bps, 0);
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);
+
+    returnForbiddenMaterial = true;
+    const forbiddenResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }), environment);
+    const forbiddenBody = await forbiddenResponse.json();
+    assert.equal(forbiddenResponse.status, 503, JSON.stringify(forbiddenBody));
+    assert.equal(forbiddenBody.state, "unavailable");
+    assert.equal(forbiddenBody.signing_available, false);
+    assert.equal(forbiddenBody.submission_available, false);
+    assert.doesNotMatch(JSON.stringify(forbiddenBody), /forbidden-shadow-transaction/);
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("Worker exposes no shadow readiness when the empirical ledger is inactive", async () => {
+  const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/shadow-readiness"), {});
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.state, "unavailable");
+  assert.equal(body.execution.signing_available, false);
+  assert.equal(body.execution.submission_available, false);
 });

@@ -121,8 +121,27 @@
     "plan_prices_persisted": false,
     "wallet_or_execution_data_persisted": false,
     "out_of_app_delivery_active": false,
-    "scheduler_trigger_configured": false,
+    "scheduler_trigger_configured": true,
+    "scheduler_activation_flags_default_off": true,
     "production_activation_completed": false
+  },
+  "shadow_route_sampling": {
+    "implementation_status": "production_candidate",
+    "surface": "GET /api/trade/shadow-readiness",
+    "aggregate_public_output_only": true,
+    "exact_market_identity_required": true,
+    "canonical_usdc_address_required": true,
+    "observation_retention_days": 30,
+    "checkpoint_horizons_seconds": [300, 3600, 14400, 86400, 604800],
+    "maximum_checkpoints_per_invocation": 8,
+    "customer_identity_persisted": false,
+    "wallet_or_network_address_persisted": false,
+    "raw_provider_payloads_persisted": false,
+    "plan_prices_persisted": false,
+    "transaction_material_persisted": false,
+    "signing_available": false,
+    "submission_available": false,
+    "fee_charging_available": false
   },
   "entitlement_foundation": {
     "implementation_status": "local_dormant_foundation",
@@ -303,6 +322,7 @@
     "docs/ravenos_entitlements_foundation_v1.md",
     "docs/ravenos_free_pro_projection_workspace_v1.md",
     "docs/ravenos_monitor_alerts_v1.md",
+    "docs/ravenos_shadow_route_truth_loop_v1.md",
     "docs/ravenos_operator_solana_canary_v1.md"
   ],
   "verification_scenarios": [

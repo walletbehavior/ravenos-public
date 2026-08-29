@@ -1282,10 +1282,14 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
   await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "active");
   await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
+  await expect(page.locator("#terminalSpotSellPresets")).toBeHidden();
+  await expect(page.locator("#terminalSpotCustomInputs")).toBeHidden();
   await expect(page.locator("#terminalSpotActiveFee")).toContainText("2.55%");
   await expect(page.locator("#terminalSpotProFee")).toContainText("1.78%");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
+  const primaryActionBounds = await page.locator("#terminalSpotQuoteAction").boundingBox();
+  expect(primaryActionBounds?.bottom || ((primaryActionBounds?.y || 0) + (primaryActionBounds?.height || 0))).toBeLessThanOrEqual(844);
 
   await page.locator("#terminalSpotQuickSizeSettings > summary").click();
   await page.locator('[data-spot-buy-size-index="0"]').fill("75");
@@ -1309,7 +1313,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
   await page.locator('[data-spot-sell-pct="25"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
-  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 SOL");
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 USDC");
   await expect(page.locator("#terminalSpotBalance")).toHaveText("100000");
 
   await expect(page.locator('[data-spot-plan-source="raven_exact_market"]')).toBeEnabled();
@@ -1330,6 +1334,50 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
     signingAvailable: false,
     submissionAvailable: false,
   });
+});
+
+test("spot route expiry fails closed and cannot leave the quote rail complete", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, spotQuoteTtlMs: 700 });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Current quote");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteCurrent)).toBe(false);
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Refresh quote");
+  await expect(page.locator("#terminalSpotQuoteResult")).toHaveAttribute("data-state", "expired");
+  await expect(page.locator('#terminalSpotExecutionRail [data-terminal-step="quote"]')).not.toHaveAttribute("data-state", "complete");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteState)).toBe("expired");
+});
+
+test("spot route response is bound to the exact ticket and output asset", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, {
+    spotQuotePreview: true,
+    spotQuoteOutputMint: "So11111111111111111111111111111111111111112",
+  });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Review again");
+  await expect(page.locator("#terminalSpotQuoteResult")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteCurrent)).toBe(false);
+});
+
+test("follow quote refreshes only an unchanged visible ticket and stops on input change", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fixtures = await mockTerminalLiveApis(page, { spotQuotePreview: true, spotQuoteTtlMs: 1_200 });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotQuoteAction").click();
+  await page.locator("#terminalSpotQuoteFollow").check();
+  await expect.poll(() => fixtures.spotQuoteCalls.length).toBeGreaterThanOrEqual(2);
+  await page.locator("#terminalSpotAmount").fill("75");
+  await expect(page.locator("#terminalSpotQuoteFollow")).not.toBeChecked();
+  const stoppedAt = fixtures.spotQuoteCalls.length;
+  await page.waitForTimeout(1_500);
+  expect(fixtures.spotQuoteCalls.length).toBe(stoppedAt);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteFollowing)).toBe(false);
 });
 
 test("all-chain spot ticket fails closed with an honest adapter state instead of substituting Solana", async ({ page }) => {

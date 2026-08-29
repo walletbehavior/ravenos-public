@@ -47,6 +47,10 @@ Marked value never substitutes for executable liquidation value. Missing reverse
 
 Cross-chain execution is sealed behind explicit states: quoted, authorized, source submitted, source confirmed, destination pending, destination filled, and settled. Failure states include quote expired, source failed, destination failed, refund pending, refunded, failed, and indeterminate. Source confirmation alone can never mean filled.
 
-## Next empirical gate
+## Active empirical gate
 
-Before signing is designed, shadow observations need append-only retention and checkpoint evaluation across route sizes, assets, and providers. The gate measures quote success, reverse-route success, latency, persistence, deterioration, cost completeness, provider failure, and refusal rate. No production execution capability follows automatically from a passing shadow sample.
+Qualified same-chain Solana buy reviews now admit a privacy-safe append-only route observation. A bounded scheduled evaluator revisits the exact token-to-canonical-USDC liquidation route at 5 minutes, 1 hour, 4 hours, 24 hours, and 7 days. The aggregate readiness projection measures quote success, reverse-route success, latency, persistence, deterioration, cost completeness, provider failure, and refusal rate.
+
+The ledger stores no customer ID, wallet address, network address, provider response, plan price, approval, signature, calldata, or transaction. Five-minute sampling deduplication prevents repeated clicks on the same route band from multiplying observations. A lease, eight-checkpoint invocation cap, 30-day retention, and provider operation circuit preserve bounded load.
+
+This evidence gate cannot activate signing, submission, fee charging, custody, or a new chain adapter. Passing samples inform a later security and execution review; they do not authorize it.
