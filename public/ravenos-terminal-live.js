@@ -5803,7 +5803,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const fee = payload.fee_disclosure || payload.fee_policy || quote.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
-  setText("terminalSpotQuoteFee", `${configuredFeeBps / 100}% configured · ${actualFeeBps} bps charged`);
+  setText("terminalSpotQuoteFee", `${(configuredFeeBps / 100).toFixed(2)}% configured · ${actualFeeBps} bps charged`);
   const providerLatency = finite(payload.timing?.provider_latency_ms ?? quote.provider_latency_ms ?? payload.provider_latency_ms);
   setText("terminalSpotQuoteLatency", `${Math.round(clientRttMs)}ms RTT${providerLatency === null ? "" : ` · ${Math.round(providerLatency)}ms provider`}`);
   const roundTrip = payload.shadow_execution?.round_trip || null;
