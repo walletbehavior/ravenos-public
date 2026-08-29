@@ -1357,7 +1357,8 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotQuoteRoute")).toHaveText("Raydium → Meteora");
   await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("2.55% configured · 0 bps charged");
   await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
-  await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("Network cost pending");
+  await expect(page.locator("#terminalSpotQuoteFrictionLabel")).toHaveText("Before network costs");
+  await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("1.55% loss");
   await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Verified now");
   await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Verified now");
 

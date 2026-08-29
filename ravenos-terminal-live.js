@@ -5793,8 +5793,14 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const roundTrip = payload.shadow_execution?.round_trip || null;
   const exitValue = finite(roundTrip?.current_executable_liquidation_usdc);
   const friction = finite(roundTrip?.round_trip_friction_pct);
+  const quoteOnlyLoss = finite(roundTrip?.quote_only_round_trip_loss_pct);
   setText("terminalSpotQuoteExit", exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`);
-  setText("terminalSpotQuoteFriction", friction === null ? (roundTrip?.exit_verified ? "Network cost pending" : "Unavailable") : `${friction.toFixed(2)}%`);
+  setText("terminalSpotQuoteFrictionLabel", friction === null && quoteOnlyLoss !== null ? "Before network costs" : "Round-trip friction");
+  setText("terminalSpotQuoteFriction", friction !== null
+    ? `${friction.toFixed(2)}%`
+    : quoteOnlyLoss !== null
+      ? `${Math.abs(quoteOnlyLoss).toFixed(2)}% ${quoteOnlyLoss < 0 ? "gain" : "loss"}`
+      : roundTrip?.exit_verified ? "Network cost pending" : "Unavailable");
   setText("terminalSpotQuoteExitState", roundTrip?.exit_verified ? "Verified now" : state.spotTicketSide === "sell" ? "This is the exit route" : "Unresolved · trade unavailable");
   setSpotTicketExitSummary(
     roundTrip?.exit_verified || state.spotTicketSide === "sell" ? "current" : "unavailable",

@@ -117,6 +117,9 @@ test("a verified exit with unpriced network cost remains non-executable shadow e
   assert.equal(proof.exit_verified, true);
   assert.equal(proof.trade_available, false);
   assert.equal(proof.current_executable_liquidation_usdc, 492);
+  assert.equal(proof.quote_only_round_trip_loss_pct, 1.6);
+  assert.ok(Math.abs(proof.minimum_quote_only_round_trip_loss_pct - 2.2) < 1e-9);
+  assert.equal(proof.round_trip_friction_pct, null);
 });
 
 test("stale, unsafe, and malformed routes cannot win selection", () => {

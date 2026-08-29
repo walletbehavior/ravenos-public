@@ -45,6 +45,7 @@ function shadowFixture(overrides = {}) {
         trade_available: false,
         current_executable_liquidation_usdc: 487.61,
         minimum_executable_liquidation_usdc: 480,
+        quote_only_round_trip_loss_pct: 2.478,
         round_trip_friction_pct: null,
         unavailable_cost_components: ["entry_network_or_route_cost", "exit_network_or_route_cost"],
       },
@@ -65,6 +66,7 @@ test("shadow observations preserve exact economics while excluding customer and 
   assert.equal(row.destination_amount_base_units, "18942000000");
   assert.equal(row.exit_verified, 1);
   assert.equal(row.friction_complete, 0);
+  assert.equal(row.quote_only_round_trip_loss_pct, 2.478);
   assert.deepEqual(row.privacy, {
     customer_id_stored: false,
     wallet_address_stored: false,
@@ -102,8 +104,21 @@ test("readiness projection measures route truth without calling an incomplete ro
   assert.equal(projection.exit_verified_pct, 100);
   assert.equal(projection.friction_complete_pct, 0);
   assert.equal(projection.trade_available_pct, 0);
+  assert.equal(projection.median_quote_only_round_trip_loss_pct, 2.478);
+  assert.equal(projection.slices[0].median_quote_only_round_trip_loss_pct, 2.478);
   assert.equal(projection.execution.signing_available, false);
   assert.equal(projection.execution.submission_available, false);
+});
+
+test("readiness derives quote-only loss from persisted spend and exit values", () => {
+  const persisted = { ...createShadowRouteObservation(shadowFixture()) };
+  delete persisted.quote_only_round_trip_loss_pct;
+  const projection = buildShadowRouteReadinessProjection([persisted], [], {
+    generated_at: Date.parse(OBSERVED_AT),
+    window_seconds: 86_400,
+  });
+  assert.ok(Math.abs(projection.median_quote_only_round_trip_loss_pct - 2.478) < 1e-9);
+  assert.ok(Math.abs(projection.slices[0].median_quote_only_round_trip_loss_pct - 2.478) < 1e-9);
 });
 
 test("checkpoint evaluator appends the first due horizon once under a bounded lease", async () => {

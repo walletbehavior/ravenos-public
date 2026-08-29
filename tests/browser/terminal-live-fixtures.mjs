@@ -1067,6 +1067,7 @@ export async function mockTerminalLiveApis(page, {
             trade_available: false,
             current_executable_liquidation_usdc: 73.84,
             minimum_executable_liquidation_usdc: 73.12,
+            quote_only_round_trip_loss_pct: 1.5466666667,
             round_trip_friction_pct: null,
             unavailable_cost_components: ["entry_network_or_route_cost", "exit_network_or_route_cost"],
             marked_value_used_as_liquidation_value: false,
