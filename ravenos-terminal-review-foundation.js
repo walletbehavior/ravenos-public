@@ -164,7 +164,7 @@ const adapters = Object.freeze({
     feeModel: "raven_platform_fee_future",
     routeSummary: "Future routed swaps may include a transparent Raven platform fee.",
     feeKind: "raven_platform_fee",
-    feeCopy: "Raven fee when trading opens: Free 2.55% · Pro 1.78%; not charged in preview",
+    feeCopy: "Raven fee when trading opens: Free 1.00% · Pro 0.70%; not charged in preview",
     targetFeeBps: { free: 255, pro: 178, maximum: 255 },
   }),
   base_evm_future: disabledAdapter({

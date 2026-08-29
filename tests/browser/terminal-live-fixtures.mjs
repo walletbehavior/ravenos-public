@@ -996,9 +996,9 @@ export async function mockTerminalLiveApis(page, {
       },
       spot_fee_preview: {
         provider: "jupiter",
-        free_fee_bps: 255,
-        pro_fee_bps: 178,
-        pro_discount_pct: 30.2,
+        free_fee_bps: 100,
+        pro_fee_bps: 70,
+        pro_discount_pct: 30,
         actual_fee_bps: 0,
         enabled: false,
       },
@@ -1047,7 +1047,7 @@ export async function mockTerminalLiveApis(page, {
           route: { policy: "exact_selected_token", leg_count: 2, venues: ["Raydium", "Meteora"] },
         },
         fee_disclosure: {
-          configured: { enabled: false, fee_bps: 255 },
+          configured: { enabled: false, fee_bps: 100 },
           actual: { charged: false, fee_bps: 0, amount_base_units: "0" },
         },
         timing: {

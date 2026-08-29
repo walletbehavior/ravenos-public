@@ -466,8 +466,8 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(body.shadow_execution.execution.signing_available, false);
     assert.equal(body.shadow_execution.execution.submission_available, false);
     assert.equal(body.shadow_execution.execution.transaction_material_available, false);
-    assert.equal(body.fee_policy.free_fee_bps, 255);
-    assert.equal(body.fee_policy.pro_fee_bps, 178);
+    assert.equal(body.fee_policy.free_fee_bps, 100);
+    assert.equal(body.fee_policy.pro_fee_bps, 70);
     assert.equal(body.fee_policy.actual_fee_bps, 0);
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);

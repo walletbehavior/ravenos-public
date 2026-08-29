@@ -5630,10 +5630,12 @@ function syncSpotTicketControls() {
     setText("terminalSpotActiveFee", freeFeeBps === null ? "Shown before review" : `Free · ${(freeFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotProFee", proFeeBps === null ? "Pro rate unavailable" : `${(proFeeBps / 100).toFixed(2)}%${proDiscount === null ? "" : ` · ${Math.round(proDiscount)}% lower`}`);
     setText("terminalSpotFeeCompact", freeFeeBps === null ? "At review" : `${(freeFeeBps / 100).toFixed(2)}%`);
-    setText("terminalSpotFeeCompactNote", proFeeBps === null ? "Exact fee shown in review" : `Free rate · Pro ${(proFeeBps / 100).toFixed(2)}%`);
+    setText("terminalSpotFeeCompactNote", proFeeBps === null
+      ? "Exact cost shown in review"
+      : `Pro ${(proFeeBps / 100).toFixed(2)}% · ${feePreview.enabled === true ? "included in review" : "not charged in preview"}`);
     setText("terminalSpotFeeNote", feePreview.enabled === true
-      ? "The server-enforced builder fee is included in every current review before signing."
-      : "The configured builder fee is visible now; quote/review mode currently charges 0 bps.");
+      ? "The server-enforced Raven fee is included in every current review before signing."
+      : "The configured Raven fee is visible now; quote/review mode currently charges 0 bps.");
   }
   if (!qualified) {
     const adapterState = state.flags?.trade_adapter_states?.[identity?.chain] || "adapter_pending";

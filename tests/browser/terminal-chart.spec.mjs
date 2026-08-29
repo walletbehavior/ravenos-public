@@ -1334,11 +1334,15 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
   await expect(page.locator("#terminalSpotSellPresets")).toBeHidden();
   await expect(page.locator("#terminalSpotCustomInputs")).toBeHidden();
-  await expect(page.locator("#terminalSpotActiveFee")).toContainText("2.55%");
-  await expect(page.locator("#terminalSpotProFee")).toContainText("1.78%");
+  await expect(page.locator("#terminalSpotActiveFee")).toContainText("1.00%");
+  await expect(page.locator("#terminalSpotProFee")).toContainText("0.70%");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotDecisionStrip")).toBeVisible();
+  await expect(page.locator("#terminalSpotDecisionStrip > *")).toHaveCount(2);
+  await expect(page.locator("#terminalSpotFeeSummary")).toBeVisible();
+  await expect(page.locator("#terminalSpotFeeCompact")).toHaveText("1.00%");
+  await expect(page.locator("#terminalSpotFeeCompactNote")).toContainText("Pro 0.70%");
   await expect(page.locator("#terminalSpotRiskCompact")).toHaveText("Watch");
   await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Not reviewed");
   await expect(page.locator("#terminalSpotAdvanced")).not.toHaveAttribute("open", "");
@@ -1358,7 +1362,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("8450.25 JUP");
   await expect(page.locator("#terminalSpotQuoteMinimum")).toHaveText("Minimum 8408 JUP");
   await expect(page.locator("#terminalSpotQuoteRoute")).toHaveText("Raydium → Meteora");
-  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("2.55% configured · 0 bps charged");
+  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("1.00% configured · 0 bps charged");
   await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
   await expect(page.locator("#terminalSpotQuoteFrictionLabel")).toHaveText("Before network costs");
   await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("1.55% loss");

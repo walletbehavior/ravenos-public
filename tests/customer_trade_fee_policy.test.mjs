@@ -7,7 +7,7 @@ import {
   feePolicyFor,
 } from "../lib/customer_trade/fee_policy.mjs";
 
-test("Free uses each venue maximum and Pro is at least 30 percent lower", () => {
+test("Free uses the reviewed venue schedule and Pro is at least 30 percent lower", () => {
   const schedule = customerTradeFeeSchedule();
   assert.deepEqual(schedule["hyperliquid:perpetual"], {
     provider: "hyperliquid",
@@ -19,8 +19,8 @@ test("Free uses each venue maximum and Pro is at least 30 percent lower", () => 
   });
   assert.equal(schedule["hyperliquid:spot"].free_fee_bps, 100);
   assert.equal(schedule["hyperliquid:spot"].pro_fee_bps, 70);
-  assert.equal(schedule["jupiter:spot"].free_fee_bps, 255);
-  assert.equal(schedule["jupiter:spot"].pro_fee_bps, 178);
+  assert.equal(schedule["jupiter:spot"].free_fee_bps, 100);
+  assert.equal(schedule["jupiter:spot"].pro_fee_bps, 70);
   for (const row of Object.values(schedule)) assert.ok(row.pro_fee_bps <= row.free_fee_bps * 0.7);
 });
 
@@ -44,9 +44,9 @@ test("only server-selected tier and schedule control the fee", () => {
     referralFee: 1,
   });
   assert.equal(policy.enabled, true);
-  assert.equal(policy.fee_bps, 178);
-  assert.equal(policy.fee_parameter_value, 178);
-  assert.equal(policy.discount_from_free_pct, 30.2);
+  assert.equal(policy.fee_bps, 70);
+  assert.equal(policy.fee_parameter_value, 70);
+  assert.equal(policy.discount_from_free_pct, 30);
   assert.equal(policy.customer_controls.body_or_query_fee_override_allowed, false);
 });
 

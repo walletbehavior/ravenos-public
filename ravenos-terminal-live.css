@@ -641,12 +641,13 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket > .terminal-spot-amount-row { order: 3; }
 .terminal-spot-ticket > .terminal-size-presets { order: 4; }
 .terminal-spot-ticket > .terminal-spot-decision-strip { order: 5; }
-.terminal-spot-ticket > .terminal-preview-action { order: 6; }
-.terminal-spot-ticket > .terminal-quote-follow { order: 7; }
-.terminal-spot-ticket > .terminal-preview-result { order: 8; }
-.terminal-spot-ticket > .terminal-execution-rail { order: 9; }
-.terminal-spot-ticket > .terminal-preview-message { order: 10; }
-.terminal-spot-ticket > .terminal-spot-advanced { order: 11; }
+.terminal-spot-ticket > .terminal-spot-fee-compact { order: 6; }
+.terminal-spot-ticket > .terminal-preview-action { order: 7; }
+.terminal-spot-ticket > .terminal-quote-follow { order: 8; }
+.terminal-spot-ticket > .terminal-preview-result { order: 9; }
+.terminal-spot-ticket > .terminal-execution-rail { order: 10; }
+.terminal-spot-ticket > .terminal-preview-message { order: 11; }
+.terminal-spot-ticket > .terminal-spot-advanced { order: 12; }
 @media (min-width: 821px) {
   .terminal-live[data-terminal-lane="spot"] .terminal-workspace {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 410px);
@@ -687,6 +688,7 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-amount-row,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-size-presets,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-decision-strip,
+.terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-fee-compact,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-advanced,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-quick-size-settings,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-plan-source,
@@ -699,7 +701,7 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-execution-rail,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-message,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-boundary { display: none !important; }
-.terminal-spot-decision-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 7px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
+.terminal-spot-decision-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 7px; border: 1px solid var(--terminal-line); background: var(--terminal-line); }
 .terminal-spot-decision-strip > button,
 .terminal-spot-decision-strip > div { min-width: 0; min-height: 54px; border: 0; padding: 7px 8px; background: #090e15; color: var(--terminal-text); text-align: left; }
 .terminal-spot-decision-strip > button { cursor: pointer; }
@@ -711,6 +713,10 @@ button, input, select { font: inherit; }
 .terminal-spot-decision-strip span { color: var(--terminal-soft); font: 800 7px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
 .terminal-spot-decision-strip strong { margin-top: 5px; color: var(--terminal-text); font: 800 10px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .terminal-spot-decision-strip small { margin-top: 4px; color: var(--terminal-muted); font: 7px/1.15 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-spot-fee-compact { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 7px 2px 5px; color: var(--terminal-muted); font: 8px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-spot-fee-compact span { color: var(--terminal-soft); font-weight: 800; text-transform: uppercase; }
+.terminal-spot-fee-compact strong { color: var(--terminal-text); font-size: 9px; }
+.terminal-spot-fee-compact small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--terminal-muted); font: inherit; }
 #terminalSpotRiskSummary[data-state="measured_low"] strong,
 #terminalSpotExitSummary[data-state="current"] strong { color: var(--terminal-positive); }
 #terminalSpotRiskSummary[data-state="watch"] strong,
