@@ -3273,6 +3273,25 @@ function latestObservedAt(rows = [], fallback = new Date().toISOString()) {
   return Number.isFinite(latest) ? new Date(latest).toISOString() : fallback;
 }
 
+function discoverRadarSummary(discoveryRadar = {}) {
+  const { rows, ...contract } = discoveryRadar;
+  return Object.freeze({
+    ...contract,
+    schema_version: "ravenos.discover_radar_summary.v1",
+    projection_schema_version: discoveryRadar.schema_version || DISCOVER_RADAR_SCHEMA,
+    row_count: Array.isArray(rows) ? rows.length : 0,
+    rows_duplicated: false,
+  });
+}
+
+function onchainPulseEdgeCacheRequest(request, env = {}) {
+  if (request?.method !== "GET") return null;
+  const url = new URL(request.url);
+  url.searchParams.sort();
+  url.searchParams.set("__ravenos_release", String(env.RAVENOS_RELEASE_ID || "development"));
+  return new Request(url.toString(), { method: "GET" });
+}
+
 async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
@@ -3382,7 +3401,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     duration,
     chains,
     rows: discoveryRadar.rows,
-    discovery_radar: discoveryRadar,
+    // Rows are the heavy portion of this contract. Keep one authoritative
+    // copy at the response root and attach only the versioned classifier
+    // envelope here; the browser reconstructs the validated radar locally.
+    discovery_radar: discoverRadarSummary(discoveryRadar),
     unavailable: failures,
     provenance: {
       provider: registryOnly
@@ -8403,12 +8425,28 @@ async function routeApi(request, env, executionContext = null) {
         allowed_durations: Object.keys(ONCHAIN_PULSE_DURATIONS),
       }, { status: 400 });
     }
+    const edgeCache = globalThis.caches?.default || null;
+    const edgeCacheRequest = edgeCache ? onchainPulseEdgeCacheRequest(request, env) : null;
+    if (edgeCache && edgeCacheRequest) {
+      try {
+        const cached = await edgeCache.match(edgeCacheRequest);
+        if (cached) return cached;
+      } catch {
+        // Edge cache availability is an optimization, never market evidence.
+      }
+    }
     try {
-      return json(await onchainMarketPulse({ env, request, chains, duration }), {
+      const response = json(await onchainMarketPulse({ env, request, chains, duration }), {
         headers: {
           "cache-control": "public, max-age=15, s-maxage=30, stale-while-revalidate=60",
         },
       });
+      if (edgeCache && edgeCacheRequest) {
+        const store = edgeCache.put(edgeCacheRequest, response.clone()).catch(() => undefined);
+        if (executionContext?.waitUntil) executionContext.waitUntil(store);
+        else await store;
+      }
+      return response;
     } catch {
       return json({
         ok: false,

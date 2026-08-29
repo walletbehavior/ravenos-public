@@ -291,7 +291,13 @@ function onchainPulsePayload(rows = [], duration = "5m") {
     duration,
     chains: [...new Set(rows.map((row) => row.chain_id).filter(Boolean))],
     rows: discoveryRadar.rows,
-    discovery_radar: discoveryRadar,
+    discovery_radar: {
+      ...Object.fromEntries(Object.entries(discoveryRadar).filter(([key]) => key !== "rows")),
+      schema_version: "ravenos.discover_radar_summary.v1",
+      projection_schema_version: discoveryRadar.schema_version,
+      row_count: discoveryRadar.rows.length,
+      rows_duplicated: false,
+    },
     unavailable: [],
     provenance: {
       provider: hasJupiterVelocity ? "jupiter_tokens_v2 + coingecko_onchain" : "coingecko_onchain",

@@ -523,7 +523,11 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.equal(body.safe_public, true);
     assert.equal(body.state, "current");
     assert.equal(body.rows.length, 4);
-    assert.equal(body.discovery_radar.schema_version, "ravenos.discover_radar.v1");
+    assert.equal(body.discovery_radar.schema_version, "ravenos.discover_radar_summary.v1");
+    assert.equal(body.discovery_radar.projection_schema_version, "ravenos.discover_radar.v1");
+    assert.equal(body.discovery_radar.row_count, body.rows.length);
+    assert.equal(body.discovery_radar.rows_duplicated, false);
+    assert.equal(Object.hasOwn(body.discovery_radar, "rows"), false);
     assert.equal(body.discovery_radar.timeframe, "5m");
     assert.equal(body.discovery_radar.classifier.monitor_eligible, false);
     assert.equal(body.discovery_radar.monitor_safety.enabled, false);

@@ -2480,7 +2480,19 @@ function currentOnchainPulsePayload(payload) {
     ].includes(provenance.role)
     || provenance.raven_signal !== false
   ) throw new Error("onchain_market_pulse_contract_rejected");
-  const discoveryRadar = currentDiscoverRadar(payload.discovery_radar, state.spotTimeframe);
+  const radarEnvelope = payload.discovery_radar || {};
+  const radarInput = radarEnvelope.schema_version === "ravenos.discover_radar_summary.v1"
+    ? {
+        ...radarEnvelope,
+        schema_version: radarEnvelope.projection_schema_version,
+        rows: payload.rows,
+      }
+    : radarEnvelope;
+  if (
+    radarEnvelope.schema_version === "ravenos.discover_radar_summary.v1"
+    && (radarEnvelope.rows_duplicated !== false || Number(radarEnvelope.row_count) !== payload.rows.length)
+  ) throw new Error("onchain_discover_radar_summary_rejected");
+  const discoveryRadar = currentDiscoverRadar(radarInput, state.spotTimeframe);
   if (!discoveryRadar) throw new Error("onchain_discover_radar_contract_rejected");
   const payloadIds = payload.rows.map((row) => text(row?.instrument_id, ""));
   const radarIds = discoveryRadar.rows.map((row) => text(row?.instrument_id, ""));
