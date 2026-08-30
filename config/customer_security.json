@@ -179,6 +179,53 @@
     "atlas_display_rights_override_available": false,
     "production_activation_completed": false
   },
+  "wallet_copy": {
+    "implementation_status": "local_dormant_migration_safe_vertical_slice",
+    "surface": "https://app.ravenos.xyz/account/copy/",
+    "capability": "wallet.copy",
+    "routes": [
+      "GET /api/v1/wallet-copy",
+      "POST /api/v1/wallet-copy/inspect",
+      "GET /api/v1/wallet-copy/watches",
+      "POST /api/v1/wallet-copy/watches",
+      "PATCH /api/v1/wallet-copy/watches/:watch_id",
+      "DELETE /api/v1/wallet-copy/watches/:watch_id",
+      "POST /api/v1/wallet-copy/watches/:watch_id/refresh",
+      "GET /api/v1/wallet-copy/decisions",
+      "GET /api/v1/wallet-copy/positions"
+    ],
+    "authenticated_origin_only": true,
+    "csrf_required_for_mutations": true,
+    "server_owned_pro_entitlement_required": true,
+    "supported_chains": ["solana"],
+    "maximum_watches_per_account": 25,
+    "maximum_history_transactions_per_refresh": 24,
+    "maximum_new_signals_per_refresh": 3,
+    "shared_source_observation": true,
+    "subscriber_relationships_private": true,
+    "raw_provider_payloads_persisted": false,
+    "signer_material_persisted": false,
+    "transaction_material_persisted": false,
+    "source_and_follower_performance_separate": true,
+    "historical_and_prospective_evidence_separate": true,
+    "live_copy_source_level_disabled": true,
+    "signing_source_level_disabled": true,
+    "broadcasting_source_level_disabled": true,
+    "fee_collection_source_level_disabled": true,
+    "continuous_observer_active": false,
+    "scheduler_active": false,
+    "all_activation_controls_default_off": true,
+    "activation_controls": [
+      "RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE",
+      "RAVENOS_WALLET_INTELLIGENCE_ENABLED",
+      "RAVENOS_WALLET_COPY_ROUTES_ENABLED",
+      "RAVENOS_WALLET_SCREENER_ENABLED",
+      "RAVENOS_SHADOW_COPY_ENABLED",
+      "RAVENOS_LIVE_COPY_ENABLED",
+      "RAVENOS_COPY_FEE_COLLECTION_ENABLED"
+    ],
+    "production_activation_completed": false
+  },
   "public_holder_lists": {
     "implementation_status": "production_provider_validated",
     "surface": "https://ravenos.xyz/terminal/",
@@ -294,7 +341,9 @@
     "operator_canary_submission",
     "customer_signing",
     "transaction_submission",
-    "customer_position_monitoring"
+    "customer_position_monitoring",
+    "live_wallet_copy",
+    "copy_fee_collection"
   ],
   "legacy_quarantine": {
     "routes": [
@@ -323,7 +372,8 @@
     "docs/ravenos_free_pro_projection_workspace_v1.md",
     "docs/ravenos_monitor_alerts_v1.md",
     "docs/ravenos_shadow_route_truth_loop_v1.md",
-    "docs/ravenos_operator_solana_canary_v1.md"
+    "docs/ravenos_operator_solana_canary_v1.md",
+    "docs/ravenos_wallet_copy_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -338,6 +388,8 @@
     { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites" },
     { "id": "SEC-ALT-001", "name": "exact-market monitor ownership, entitlement, CSRF and lifecycle enforcement", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; tests/browser/monitor-alerts.spec.mjs" },
     { "id": "SEC-ALT-002", "name": "qualified transition dedupe, batching, retention, deletion and prohibited-data boundary", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; public no-leak and Worker-response validation" },
+    { "id": "SEC-COPY-001", "name": "owner-bound Pro wallet watches, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
+    { "id": "SEC-COPY-002", "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

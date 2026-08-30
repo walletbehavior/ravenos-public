@@ -125,6 +125,7 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
       "intelligence.perps_advanced": false,
       "intelligence.participant_advanced": false,
       "research.alerts": false,
+      "wallet.copy": false,
     },
   });
   assert.deepEqual(resolveCoordinatedIntelligenceSplits({}), { perps: false, participants: false });
@@ -142,6 +143,11 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
   assert.equal(CustomerEntitlementContract.capabilities["intelligence.perps_advanced"].implementation_state, "implemented_dormant");
   assert.equal(CustomerEntitlementContract.capabilities["intelligence.participant_advanced"].implementation_state, "implemented_dormant");
   assert.equal(CustomerEntitlementContract.capabilities["research.alerts"].implementation_state, "implemented_dormant");
+  assert.equal(CustomerEntitlementContract.capabilities["wallet.copy"].implementation_state, "implemented_dormant");
+  assert.equal(CustomerEntitlementContract.capabilities["wallet.copy"].route, "/account/copy/");
+  assert.equal(CustomerEntitlementContract.customer_owned_wallet_data_stored, false);
+  assert.equal(CustomerEntitlementContract.public_source_wallet_data_stored, true);
+  assert.equal(CustomerEntitlementContract.wallet_copy_storage_separate, true);
   for (const key of [
     "intelligence.replay_advanced",
     "intelligence.export",

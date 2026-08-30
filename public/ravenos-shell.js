@@ -580,6 +580,9 @@ function utilityMarkup(kind, context) {
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
     : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
+  const copyHref = customerAccountState.available && customerAccountState.canonicalOrigin
+    ? `${customerAccountState.canonicalOrigin}/account/copy/`
+    : "https://app.ravenos.xyz/account/copy/";
   return `<div class="ros-more-menu">
     <section>
       <span>Research workspaces</span>
@@ -594,6 +597,7 @@ function utilityMarkup(kind, context) {
         <a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a>
         <button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button>
         <button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button>
+        <a href="${escapeHtml(copyHref)}"><strong>Wallet Intelligence &amp; Raven Copy</strong><span>Separate source returns from follower-realistic shadow results</span></a>
       </nav>
     </section>
     <section>

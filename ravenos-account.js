@@ -17,6 +17,7 @@ const state = { config: null, session: null, csrf: "", intent: "sign_up", previe
 const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
   "intelligence.participant_advanced": Object.freeze({ label: "Behavior Lab", route: "/api/v1/intelligence/participants" }),
+  "wallet.copy": Object.freeze({ label: "Wallet Intelligence & Raven Copy", route: "/api/v1/wallet-copy" }),
 });
 
 async function getJson(url, init = {}) {
@@ -107,6 +108,10 @@ function proCapabilityNode(capability, projectionPayload = null) {
         : capability.state === "suspended"
           ? "Your Pro access is paused. Advanced intelligence is unavailable."
           : "Pro access isn’t available for this account yet. Public Intelligence still works.";
+  } else if (capability.capability === "wallet.copy") {
+    detail.textContent = projectionPayload.activation?.shadow_copy
+      ? "Inspect public Solana wallets, keep source returns separate from follower reality, and record prospective shadow decisions."
+      : "Wallet inspection is ready; prospective shadow decisions are still closed.";
   } else if (capability.capability === "intelligence.perps_advanced") {
     const advanced = projectionPayload.projection?.advanced || {};
     const freshness = projectionPayload.projection?.provenance?.freshness?.state || "unavailable";
@@ -119,7 +124,7 @@ function proCapabilityNode(capability, projectionPayload = null) {
 
   const boundary = document.createElement("small");
   boundary.textContent = capability.available && projectionPayload?.ok
-    ? "Private to this session · read-only aggregate intelligence"
+    ? capability.capability === "wallet.copy" ? "Private policies · public-chain sources · no live trades" : "Private to this session · read-only aggregate intelligence"
     : "No checkout or restricted data";
   row.append(heading, detail, boundary);
   return row;
@@ -156,7 +161,7 @@ async function loadProIntelligenceCapabilities() {
     proPanel.dataset.proState = availableCount ? "available" : "unavailable";
     setText("accountProState", availableCount ? `${availableCount} available` : "Unavailable");
     setText("accountProStatus", availableCount
-      ? "Advanced aggregate intelligence is ready below. It remains read-only."
+      ? "Your available Pro workspaces are ready below. They remain read-only; live trade authority is separate."
       : "Pro access isn’t available for this account yet. Public Intelligence still works.");
   } catch {
     proPanel.dataset.proState = "unavailable";

@@ -136,6 +136,7 @@
 
 .discover-page[data-workspace-mode="returning"] .discover-intro-toggle { margin: 0; }
 .discover-page[data-workspace-mode="returning"] .workspace-primary-action { min-height: 34px; }
+.discover-page[data-workspace-mode="returning"] .workspace-secondary-action { display: none; }
 
 .discover-page[data-workspace-mode="returning"] .discover-market-ribbon > header { min-height: 24px; padding-block: 3px; }
 .discover-page[data-workspace-mode="returning"] .discover-market-ribbon-lane { min-height: 34px; }

@@ -21,7 +21,6 @@ const internalTerms = [
   "permission contract",
   "private rail",
   "paper engine",
-  "copyability",
   "whale routing",
   "cold wallet",
   "promotion engine",

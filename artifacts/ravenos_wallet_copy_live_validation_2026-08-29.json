@@ -1,0 +1,107 @@
+{
+  "schema_version": "ravenos.wallet_copy_live_validation_report.v1",
+  "reviewed_at": "2026-08-29T20:20:06.949-05:00",
+  "mode": "authorized_read_only_manual_probe",
+  "persistence": false,
+  "source_wallet_reference": "public_wallet_04ab6fe180f51a3d",
+  "source_event_reference": "solana_signature_df1bf67db64ee7c3",
+  "history": {
+    "transactions_requested": 24,
+    "normalized_events": 24,
+    "classifications": {
+      "SWAP_BUY": 9,
+      "SWAP_SELL": 6,
+      "TRANSFER_IN": 2,
+      "TRANSFER_OUT": 6,
+      "FAILED_TRANSACTION": 1
+    },
+    "profile_version": 2,
+    "known_cost_basis_pct": 100,
+    "source_performance_state": "partial",
+    "source_realized_pnl_usdc": null,
+    "source_realized_pnl_sol": -0.001345826,
+    "source_roi_pct": -2.9259,
+    "source_win_rate_pct": 20,
+    "source_closed_lots": 5,
+    "bounded_storage_estimate": {
+      "normalized_event_json_bytes_total": 60066,
+      "median_event_json_bytes": 2656,
+      "profile_json_bytes": 2030
+    }
+  },
+  "source_event": {
+    "classification": "SWAP_BUY",
+    "classification_confidence": "observed",
+    "chain": "solana",
+    "network": "mainnet",
+    "mint": "AfGdjAp9djSaqJxzYo3t6jy8tJA3o2aDPHoZ57Egpump",
+    "token_standard": "spl_token_2022",
+    "source_notional_usdc": 0.224269,
+    "source_notional_basis": "source_sol_converted_to_usdc_at_raven_detection"
+  },
+  "follower_reality": {
+    "follower_order_usdc": 100,
+    "expected_token_output": 105874.869167,
+    "minimum_token_output": 105345.494821,
+    "current_executable_exit_usdc": 97.381251,
+    "minimum_executable_exit_usdc": 96.894344,
+    "entry_degradation_bps": 358,
+    "round_trip_friction_excluding_raven_pct": 2.618749,
+    "round_trip_friction_including_raven_pct": 2.81613,
+    "liquidity_usd": null
+  },
+  "decision": {
+    "state": "SHADOW_EXECUTABLE",
+    "reason_code": "all_shadow_policy_checks_passed",
+    "shadow_position_created": true,
+    "live_assets_held": false
+  },
+  "timing_ms": {
+    "manual_detection_delay": 86754,
+    "decode": 43,
+    "entry_quote": 234,
+    "reverse_exit_quote": 287,
+    "bounded_probe_total": 6456
+  },
+  "route_evidence": {
+    "entry_state": "available",
+    "entry_venues": ["BisonFi", "Pump.fun Amm"],
+    "reverse_exit_state": "available",
+    "reverse_exit_venues": ["Pump.fun Amm", "BisonFi"]
+  },
+  "hypothetical_raven_fee": {
+    "scenario_bps": 10,
+    "entry_fee_usdc": 0.1,
+    "exit_fee_usdc": 0.097381,
+    "collected": false
+  },
+  "provider_calls": {
+    "solana_rpc": 27,
+    "jupiter_quote_only": 3,
+    "dexscreener": 1
+  },
+  "repeat_probe": {
+    "manual_detection_delay_ms": 642939,
+    "decision": "COPY_DELAY_TOO_HIGH",
+    "reason_code": "detection_delay_exceeds_policy",
+    "refusal_recorded_as_zero_return": false,
+    "entry_route_state": "available",
+    "reverse_exit_route_state": "available",
+    "note": "The same otherwise quoteable source event was later refused when it crossed the explicit ten-minute diagnostic delay policy."
+  },
+  "execution_boundary": {
+    "signing_available": false,
+    "submission_available": false,
+    "broadcasting_available": false,
+    "transaction_material_available": false,
+    "fee_collection_available": false
+  },
+  "limitations": [
+    "This was a bounded manual probe, not a continuous observer measurement.",
+    "The 86.754 second detection delay includes manual selection and invocation and must not be used as a product speed claim.",
+    "The profile is partial because two inbound transfers retain unresolved acquisition cost.",
+    "Realized source performance is SOL-denominated and is not converted using a current or reconstructed USD price.",
+    "Qualified liquidity metadata was unavailable and remains null; the probe policy used no minimum-liquidity threshold.",
+    "The SHADOW_EXECUTABLE result proves quote and reverse-exit mechanics only and did not move funds or construct a transaction."
+  ]
+}

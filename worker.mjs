@@ -79,6 +79,7 @@ import {
   shadowLedgerEnabled,
 } from "./lib/customer_trade/shadow_execution_ledger.mjs";
 import { buildSolanaTransactionInspection } from "./lib/customer_trade/inspection_service.mjs";
+import { normalizeSolanaWalletTransaction } from "./lib/customer_trade/solana_wallet_intelligence.mjs";
 import { createAndPersistReviewPacket, lookupReviewPacket } from "./lib/customer_trade/review_packets.mjs";
 import {
   applyAssetSecurityHeaders,
@@ -159,6 +160,10 @@ import {
   routeCustomerMonitorAlerts,
   runCustomerMonitorEvaluator,
 } from "./lib/customer_monitor_alerts.mjs";
+import {
+  CUSTOMER_WALLET_COPY_ROUTE,
+  routeCustomerWalletCopy,
+} from "./lib/customer_wallet_copy.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -175,6 +180,8 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-monitor.js",
   "/ravenos-pro-intelligence.css",
   "/ravenos-pro-intelligence.js",
+  "/ravenos-wallet-copy.css",
+  "/ravenos-wallet-copy.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
@@ -248,6 +255,9 @@ function authenticatedAppBoundary(request) {
   const proIntelligencePath = url.pathname === "/account/intelligence"
     || url.pathname === "/account/intelligence/"
     || url.pathname === "/account/intelligence/index.html";
+  const walletCopyPath = url.pathname === "/account/copy"
+    || url.pathname === "/account/copy/"
+    || url.pathname === "/account/copy/index.html";
   const monitorPath = url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html";
   const identityApi = url.pathname === "/api/v1/auth/config"
     || url.pathname === "/api/v1/auth/start"
@@ -265,9 +275,11 @@ function authenticatedAppBoundary(request) {
     || url.pathname === CUSTOMER_PRO_PARTICIPANTS_ROUTE;
   const monitorAlertsApi = url.pathname === CUSTOMER_MONITOR_ALERTS_ROUTE
     || url.pathname.startsWith(`${CUSTOMER_MONITOR_ALERTS_ROUTE}/`);
+  const walletCopyApi = url.pathname === CUSTOMER_WALLET_COPY_ROUTE
+    || url.pathname.startsWith(`${CUSTOMER_WALLET_COPY_ROUTE}/`);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || proIntelligencePath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -4995,6 +5007,194 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
   };
 }
 
+async function loadBoundedSolanaWalletHistory(env, { address, limit, observation_mode: observationMode }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
+  const boundedLimit = Math.max(1, Math.min(24, Number(limit) || 12));
+  const receivedAt = new Date().toISOString();
+  const signatures = await runProviderOperation({
+    component: "solana_rpc",
+    operation_key: `wallet-history:${address}:${boundedLimit}`,
+    fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getSignaturesForAddress", [
+      address,
+      { limit: boundedLimit, commitment: "confirmed" },
+    ], { timeoutMs: 5_000, maxBytes: 128 * 1024 }),
+  });
+  if (!Array.isArray(signatures) || !signatures.length) throw new Error("wallet_history_unavailable");
+  const rows = signatures
+    .filter((row) => typeof row?.signature === "string" && row.signature.length >= 64)
+    .slice(0, boundedLimit);
+  const events = [];
+  for (let offset = 0; offset < rows.length; offset += 4) {
+    const batch = rows.slice(offset, offset + 4);
+    const settled = await Promise.allSettled(batch.map(async (signatureRow) => {
+      const decodeStartedAt = new Date().toISOString();
+      const transaction = await runProviderOperation({
+        component: "solana_rpc",
+        operation_key: `wallet-transaction:${signatureRow.signature}`,
+        fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTransaction", [
+          signatureRow.signature,
+          { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
+        ], { timeoutMs: 5_000, maxBytes: 768 * 1024 }),
+      });
+      const decodedAt = new Date().toISOString();
+      if (!transaction || typeof transaction !== "object") throw new Error("wallet_transaction_unavailable");
+      return normalizeSolanaWalletTransaction({
+        wallet_address: address,
+        signature_record: signatureRow,
+        transaction,
+        provider: "configured_solana_rpc",
+        finality: signatureRow.confirmationStatus || "confirmed",
+        observation_mode: observationMode,
+        observed_at: decodedAt,
+        received_at: receivedAt,
+        decode_started_at: decodeStartedAt,
+        decoded_at: decodedAt,
+      });
+    }));
+    for (const result of settled) if (result.status === "fulfilled") events.push(result.value);
+  }
+  if (!events.length) throw new Error("wallet_history_decode_unavailable");
+  const order = new Map(rows.map((row, index) => [row.signature, index]));
+  events.sort((left, right) => (order.get(left.chain_evidence.signature) ?? 999) - (order.get(right.chain_evidence.signature) ?? 999));
+  return {
+    events,
+    provider: "configured_solana_rpc",
+    signatures_requested: rows.length,
+    transactions_decoded: events.length,
+    partial: events.length !== rows.length,
+  };
+}
+
+function usdcDisplayToBaseUnits(value) {
+  const text = Number(value).toFixed(6);
+  const [whole, fraction = ""] = text.split(".");
+  return `${whole}${fraction.padEnd(6, "0")}`.replace(/^0+(?=\d)/, "") || "0";
+}
+
+function copyQuoteEvidence(providerResult, { decimals, exactAssetIdentity }) {
+  const payload = providerResult?.payload || {};
+  const priceImpact = optionalFiniteNumber(payload.priceImpactPct);
+  return {
+    state: "available",
+    quote_id: String(payload.quoteId || payload.requestId || `copy_quote_${Date.now().toString(36)}`).slice(0, 160),
+    provider: "jupiter",
+    requested_at: providerResult.requested_at,
+    quoted_at: providerResult.quoted_at,
+    received_at: providerResult.received_at,
+    expires_at: providerResult.expires_at,
+    expected_output: Number(displayBaseUnits(payload.outAmount, decimals)),
+    minimum_output: Number(displayBaseUnits(payload.otherAmountThreshold, decimals)),
+    price_impact_bps: Number.isFinite(priceImpact) ? Math.max(0, Math.min(10_000, Math.round(priceImpact * 100))) : null,
+    latency_ms: Math.max(0, Date.parse(providerResult.received_at) - Date.parse(providerResult.requested_at)),
+    venues: [...new Set((providerResult.route_rows || []).map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
+    exact_asset_identity: exactAssetIdentity,
+  };
+}
+
+async function quoteSolanaWalletCopySignal(env, { event, policy }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
+  const destination = event?.economic?.destination_asset;
+  const tokenMint = String(destination?.mint || "");
+  if (!SOLANA_ADDRESS_RE.test(tokenMint)) throw new Error("wallet_copy_asset_identity_unavailable");
+  const [supplyResult, mintAccount] = await Promise.all([
+    runProviderOperation({
+      component: "solana_rpc",
+      operation_key: `wallet-copy-supply:${tokenMint}`,
+      fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTokenSupply", [tokenMint, { commitment: "confirmed" }]),
+    }),
+    runProviderOperation({
+      component: "solana_rpc",
+      operation_key: `wallet-copy-mint:${tokenMint}`,
+      fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getAccountInfo", [tokenMint, { commitment: "confirmed", encoding: "jsonParsed" }]),
+    }),
+  ]);
+  const tokenDecimals = Number(supplyResult?.value?.decimals);
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 18 || tokenDecimals !== Number(destination.decimals)) {
+    throw new Error("wallet_copy_asset_decimals_unavailable");
+  }
+  const tokenProgram = String(mintAccount?.value?.owner || "");
+  const tokenStandard = tokenProgram === "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    ? "spl"
+    : tokenProgram === "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+      ? "spl_token_2022"
+      : null;
+  if (!tokenStandard) throw new Error("wallet_copy_token_standard_unavailable");
+  const parsedMint = mintAccount?.value?.data?.parsed?.info || {};
+  const extensions = Array.isArray(parsedMint.extensions) ? parsedMint.extensions : [];
+  const transferFeeDetected = tokenStandard === "spl_token_2022"
+    ? extensions.some((row) => /transferfee/i.test(String(row?.extension || row?.type || "")))
+    : false;
+  const inputBaseUnits = usdcDisplayToBaseUnits(policy.sizing.fixed_usdc);
+  const entry = await runProviderOperation({
+    component: "jupiter_direct_quote",
+    operation_key: `wallet-copy-entry:${tokenMint}:${inputBaseUnits}`,
+    fn: () => fetchJupiterExactSpotQuote({
+      env,
+      inputMint: SOLANA_CANONICAL_USDC_MINT,
+      outputMint: tokenMint,
+      amountBaseUnits: inputBaseUnits,
+      slippageBps: 50,
+    }),
+  });
+  const exitInput = String(entry.payload.outAmount || "");
+  const exit = await runProviderOperation({
+    component: "jupiter_direct_quote",
+    operation_key: `wallet-copy-exit:${tokenMint}:${exitInput}`,
+    fn: () => fetchJupiterExactSpotQuote({
+      env,
+      inputMint: tokenMint,
+      outputMint: SOLANA_CANONICAL_USDC_MINT,
+      amountBaseUnits: exitInput,
+      slippageBps: 50,
+    }),
+  });
+  let sourceNotionalUsdc = null;
+  let sourceNotionalBasis = "unavailable";
+  const source = event.economic.source_asset;
+  if (source?.mint === SOLANA_CANONICAL_USDC_MINT && Number(source.decimals) === 6) {
+    sourceNotionalUsdc = Number(displayBaseUnits(source.amount_base_units, 6));
+    sourceNotionalBasis = "source_wallet_canonical_usdc_delta";
+  } else if (new Set(["native_sol", SOLANA_WRAPPED_NATIVE_MINT]).has(source?.mint) && Number(source.decimals) === 9) {
+    const conversion = await runProviderOperation({
+      component: "jupiter_direct_quote",
+      operation_key: `wallet-copy-source-sol-usdc:${source.amount_base_units}`,
+      fn: () => fetchJupiterExactSpotQuote({
+        env,
+        inputMint: SOLANA_WRAPPED_NATIVE_MINT,
+        outputMint: SOLANA_CANONICAL_USDC_MINT,
+        amountBaseUnits: source.amount_base_units,
+        slippageBps: 50,
+      }),
+    }).catch(() => null);
+    if (conversion?.payload?.outAmount) {
+      sourceNotionalUsdc = Number(displayBaseUnits(conversion.payload.outAmount, 6));
+      sourceNotionalBasis = "source_sol_converted_to_usdc_at_raven_detection";
+    }
+  }
+  const markets = await tokenDex("solana", tokenMint).catch(() => []);
+  const exactMarkets = exactTokenDexResults(markets, tokenMint, { caseSensitive: true });
+  const liquidityUsd = exactMarkets.length ? optionalFiniteNumber(exactMarkets[0].liquidityUsd) : null;
+  return {
+    source_notional_usdc: sourceNotionalUsdc,
+    source_notional_basis: sourceNotionalBasis,
+    liquidity_usd: liquidityUsd,
+    asset_evidence: {
+      identity_resolved: true,
+      token_standard: tokenStandard,
+      token_standard_resolved: true,
+      sell_simulation_state: "not_requested",
+      reverse_sell_quote_state: "available",
+      freeze_authority_present: Object.hasOwn(parsedMint, "freezeAuthority") ? parsedMint.freezeAuthority !== null : null,
+      mint_authority_present: Object.hasOwn(parsedMint, "mintAuthority") ? parsedMint.mintAuthority !== null : null,
+      transfer_fee_detected: transferFeeDetected,
+    },
+    entry: copyQuoteEvidence(entry, { decimals: tokenDecimals, exactAssetIdentity: true }),
+    exit: copyQuoteEvidence(exit, { decimals: 6, exactAssetIdentity: true }),
+  };
+}
+
 async function tokensDex(chainId, tokenAddresses) {
   if (!chainId || !tokenAddresses) return [];
   const payload = await cachedDex(`/tokens/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(tokenAddresses)}`);
@@ -8232,6 +8432,13 @@ async function routeApi(request, env, executionContext = null) {
     },
   });
   if (monitorAlertsResponse) return monitorAlertsResponse;
+  const walletCopyResponse = await routeCustomerWalletCopy(request, env, {
+    walletProvider: {
+      loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
+      quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
+    },
+  });
+  if (walletCopyResponse) return walletCopyResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);

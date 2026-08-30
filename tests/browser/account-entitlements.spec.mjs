@@ -55,7 +55,8 @@ test("dormant Pro foundation is explicit, non-commercial, and does not request a
   await page.goto("/account/");
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "unavailable");
   await expect(page.locator("#accountProState")).toHaveText("Unavailable");
-  await expect(page.locator(".account-pro-capability")).toHaveCount(2);
+  await expect(page.locator(".account-pro-capability")).toHaveCount(3);
+  await expect(page.locator(".account-pro-capability").nth(2)).toContainText("Wallet Intelligence & Raven Copy");
   await expect(page.locator("#accountProStatus")).toContainText("Pro access isn’t available");
   await expect(page.getByText("Planned · not yet available.")).toBeVisible();
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);

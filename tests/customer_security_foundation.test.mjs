@@ -164,7 +164,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 34);
+  assert.equal(rows.length, 36);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -173,7 +173,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -411,6 +411,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 13);
+  assert.equal(security.required_documents.length, 14);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

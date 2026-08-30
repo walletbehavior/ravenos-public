@@ -119,6 +119,31 @@ assert.equal(config.entitlement_foundation.billing_available, false);
 assert.equal(config.entitlement_foundation.shared_cache_allowed, false);
 assert.equal(config.entitlement_foundation.atlas_display_rights_override_available, false);
 assert.equal(config.entitlement_foundation.production_activation_completed, false);
+assert.equal(config.wallet_copy.implementation_status, "local_dormant_migration_safe_vertical_slice");
+assert.equal(config.wallet_copy.surface, "https://app.ravenos.xyz/account/copy/");
+assert.equal(config.wallet_copy.capability, "wallet.copy");
+assert.equal(config.wallet_copy.authenticated_origin_only, true);
+assert.equal(config.wallet_copy.csrf_required_for_mutations, true);
+assert.equal(config.wallet_copy.server_owned_pro_entitlement_required, true);
+assert.deepEqual(config.wallet_copy.supported_chains, ["solana"]);
+assert.equal(config.wallet_copy.maximum_watches_per_account, 25);
+assert.equal(config.wallet_copy.maximum_history_transactions_per_refresh, 24);
+assert.equal(config.wallet_copy.maximum_new_signals_per_refresh, 3);
+assert.equal(config.wallet_copy.shared_source_observation, true);
+assert.equal(config.wallet_copy.subscriber_relationships_private, true);
+assert.equal(config.wallet_copy.raw_provider_payloads_persisted, false);
+assert.equal(config.wallet_copy.signer_material_persisted, false);
+assert.equal(config.wallet_copy.transaction_material_persisted, false);
+assert.equal(config.wallet_copy.source_and_follower_performance_separate, true);
+assert.equal(config.wallet_copy.historical_and_prospective_evidence_separate, true);
+assert.equal(config.wallet_copy.live_copy_source_level_disabled, true);
+assert.equal(config.wallet_copy.signing_source_level_disabled, true);
+assert.equal(config.wallet_copy.broadcasting_source_level_disabled, true);
+assert.equal(config.wallet_copy.fee_collection_source_level_disabled, true);
+assert.equal(config.wallet_copy.continuous_observer_active, false);
+assert.equal(config.wallet_copy.scheduler_active, false);
+assert.equal(config.wallet_copy.all_activation_controls_default_off, true);
+assert.equal(config.wallet_copy.production_activation_completed, false);
 assert.equal(config.public_holder_lists.implementation_status, "production_provider_validated");
 assert.equal(config.public_holder_lists.free_tier_capability, true);
 assert.equal(config.public_holder_lists.exact_pool_and_mint_identity_required, true);
@@ -177,6 +202,7 @@ const requiredScenarios = [
   "SEC-RSCH-001", "SEC-RSCH-002",
   "SEC-ENT-001", "SEC-ENT-002",
   "SEC-ALT-001", "SEC-ALT-002",
+  "SEC-COPY-001", "SEC-COPY-002",
   "SEC-WAL-003", "SEC-WAL-004", "SEC-WAL-005", "SEC-WAL-006",
   "SEC-BIL-001", "SEC-BIL-002", "SEC-BIL-003", "SEC-ENUM-001",
   "SEC-EDGE-001", "SEC-XSS-001", "SEC-CSP-001", "SEC-LEAK-001",
@@ -202,11 +228,13 @@ assert(worker.includes('from "./lib/customer_identity.mjs"'), "Stage A managed i
 assert(worker.includes('from "./lib/customer_research_state.mjs"'), "Saved Monitor research-state router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_entitlements.mjs"'), "server-owned entitlement router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_monitor_alerts.mjs"'), "Raven Monitor router and evaluator are missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_wallet_copy.mjs"'), "Raven Copy authenticated router is missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
 assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerEntitlements(request, env"), "entitlement routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerMonitorAlerts(request, env"), "Raven Monitor routes are not wired through the authenticated Worker boundary");
+assert(worker.includes("routeCustomerWalletCopy(request, env"), "Raven Copy routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("runCustomerMonitorEvaluator(env"), "Raven Monitor evaluator is not wired through the dormant scheduled boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
@@ -244,6 +272,7 @@ for (const activationFlag of [
   "RAVENOS_CUSTOMER_TRADE_SUBMIT_ENABLE",
   ...config.entitlement_foundation.activation_controls,
   ...config.raven_monitor.activation_controls,
+  ...config.wallet_copy.activation_controls,
 ]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }
@@ -253,6 +282,16 @@ assert.match(packageJson.scripts["validate:security"] || "", /validate-security-
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_monitor_alerts\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /solana_wallet_intelligence\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /customer_trade_wallet_copy\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /customer_wallet_copy\.test\.mjs/);
+assert.equal(packageJson.scripts["validate:wallet-copy-live"], "node scripts/validate-wallet-copy-live.mjs");
+const walletCopyLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-copy-live.mjs"), "utf8");
+assert(walletCopyLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-copy live validator must identify its read-only authority");
+assert(walletCopyLiveValidator.includes("transaction_material_returned"), "wallet-copy live validator must reject transaction material");
+for (const forbiddenWalletCopyAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
+  assert(!walletCopyLiveValidator.includes(forbiddenWalletCopyAuthority), `wallet-copy live validator contains forbidden authority: ${forbiddenWalletCopyAuthority}`);
+}
 
 console.log(JSON.stringify({
   ok: true,

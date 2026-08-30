@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raven Copy · RavenOS Pro</title>
+  <meta name="description" content="Measure whether a Solana wallet's trades were realistically copyable, then shadow Raven's policy decisions without moving funds." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-wallet-copy.css" />
+</head>
+<body>
+  <main class="copy-page" data-route-slug="account-copy" data-copy-state="loading">
+    <header class="copy-hero">
+      <div class="copy-hero-copy">
+        <a href="/account/">← Account</a>
+        <span>RavenOS Pro · Solana first</span>
+        <h1>Find returns<br />you could actually capture.</h1>
+        <p>Inspect what a public wallet did, then test what a real Raven follower would have received after detection, liquidity, entry, exit, and fees.</p>
+      </div>
+      <aside class="copy-mode-card" aria-live="polite">
+        <div><span>Mode</span><strong>Shadow only</strong></div>
+        <p>No funds move. No wallet signature, approval, transaction, or fee collection is available here.</p>
+        <strong id="copyWorkspaceState">Checking Pro access</strong>
+        <small id="copyWorkspaceIdentity">Waiting for sign-in</small>
+      </aside>
+    </header>
+
+    <section class="copy-signin" id="copySignIn" hidden>
+      <div>
+        <span>RavenOS Pro account required</span>
+        <h2>Sign in to inspect and shadow wallets.</h2>
+        <p>Source wallets are public-chain addresses. Your watch list, policies, and shadow results stay private to your account.</p>
+      </div>
+      <div class="copy-signin-actions">
+        <form method="post" action="/api/v1/auth/start">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="google" />
+          <input type="hidden" name="return_to" value="/account/copy/" />
+          <button type="submit">Continue with Google <span aria-hidden="true">→</span></button>
+        </form>
+        <form method="post" action="/api/v1/auth/start">
+          <input type="hidden" name="intent" value="sign_in" />
+          <input type="hidden" name="provider" value="managed" />
+          <input type="hidden" name="return_to" value="/account/copy/" />
+          <button type="submit">Email, password, or code <span aria-hidden="true">→</span></button>
+        </form>
+        <a href="/account/">Create or manage an account</a>
+      </div>
+    </section>
+
+    <section class="copy-unavailable" id="copyUnavailable" hidden>
+      <span>Private beta</span>
+      <h2>Raven Copy is not open for this account yet.</h2>
+      <p id="copyUnavailableReason">Wallet intelligence remains closed until this account and the monitoring service are ready.</p>
+      <div><a href="/discover/">Open Discover</a><a href="/terminal/">Open Terminal</a></div>
+    </section>
+
+    <section class="copy-workspace" id="copyWorkspace" hidden>
+      <nav class="copy-tabs" role="tablist" aria-label="Raven Copy workspace">
+        <button type="button" role="tab" aria-selected="true" data-copy-view="find">Find a wallet</button>
+        <button type="button" role="tab" aria-selected="false" data-copy-view="watching">Watching <span id="copyWatchCount">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-copy-view="feed">Shadow feed <span id="copyDecisionCount">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-copy-view="positions">Positions <span id="copyPositionCount">0</span></button>
+      </nav>
+
+      <section class="copy-panel" data-copy-panel="find">
+        <div class="copy-find-grid">
+          <form class="copy-wallet-search" id="copyWalletSearch">
+            <span>Public Solana wallet</span>
+            <label for="copyWalletAddress">Paste an address</label>
+            <div><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Inspect wallet</button></div>
+            <p id="copySearchStatus" aria-live="polite">Raven will load a bounded public history and separate trades, transfers, airdrops, and unresolved activity.</p>
+          </form>
+          <aside class="copy-proof-card">
+            <span>Raven’s test</span>
+            <ol>
+              <li><strong>Did the wallet profit?</strong><small>Only where cost basis is reconstructable.</small></li>
+              <li><strong>Could Raven detect it?</strong><small>Chain time and Raven receipt stay separate.</small></li>
+              <li><strong>Could you enter and exit?</strong><small>Current entry and reverse-USDC evidence are required.</small></li>
+            </ol>
+          </aside>
+        </div>
+
+        <section class="copy-profile" id="copyProfile" hidden>
+          <header>
+            <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
+            <button id="copyStartSetup" type="button">Shadow this wallet</button>
+          </header>
+          <div class="copy-performance-split">
+            <article>
+              <span>Source performance</span>
+              <strong id="copySourcePnl">Insufficient evidence</strong>
+              <dl id="copySourceMetrics"></dl>
+              <p id="copySourceLimits"></p>
+            </article>
+            <article>
+              <span>Follower reality</span>
+              <strong>Prospective evidence starts after you shadow</strong>
+              <dl>
+                <div><dt>Executable copies</dt><dd>Not sampled</dd></div>
+                <div><dt>Entry degradation</dt><dd>Not sampled</dd></div>
+                <div><dt>Executable exit</dt><dd>Not sampled</dd></div>
+                <div><dt>Copyability</dt><dd>Insufficient evidence</dd></div>
+              </dl>
+              <p>Historical source returns never become hypothetical follower fills.</p>
+            </article>
+          </div>
+          <section class="copy-event-list"><header><span>Recent reconstructed activity</span><strong id="copyEventCount">0 events</strong></header><div id="copyRecentEvents"></div></section>
+        </section>
+
+        <form class="copy-policy" id="copyPolicy" hidden>
+          <header><div><span>Start shadowing</span><h2>Set the order Raven should test.</h2><p>These rules create simulated decisions only. They cannot place or prepare a transaction.</p></div><strong>Raven Copy</strong></header>
+          <div class="copy-policy-grid">
+            <label><span>Wallet label</span><input id="copyPolicyLabel" maxlength="80" value="Wallet strategy" /></label>
+            <label><span>Order size</span><div class="copy-input-unit"><input id="copyPolicySize" type="number" min="1" max="100000" step="1" value="100" /><small>USDC</small></div></label>
+            <label><span>Maximum round trip</span><div class="copy-input-unit"><input id="copyPolicyFriction" type="number" min="0" max="100" step="0.1" value="5" /><small>%</small></div></label>
+            <label><span>Minimum liquidity</span><div class="copy-input-unit"><input id="copyPolicyLiquidity" type="number" min="0" max="10000000000" step="1000" value="25000" /><small>USD</small></div></label>
+            <label><span>Maximum delay</span><div class="copy-input-unit"><input id="copyPolicyDelay" type="number" min="0.25" max="600" step="0.25" value="30" /><small>SEC</small></div></label>
+            <label><span>Hypothetical Raven fee</span><select id="copyPolicyFee"><option value="0">0.00%</option><option value="5">0.05% · 5 bps</option><option value="10" selected>0.10% · 10 bps</option><option value="20">0.20% · 20 bps</option><option value="25">0.25% · 25 bps</option><option value="50">0.50% · 50 bps</option></select></label>
+          </div>
+          <div class="copy-safeguards">
+            <label><input type="checkbox" id="copyRequireExit" checked /><span>Require an executable reverse-USDC exit</span></label>
+            <label><input type="checkbox" id="copySkipFailedSell" checked /><span>Skip when sell simulation explicitly fails</span></label>
+            <label><input type="checkbox" id="copySkipFreeze" checked /><span>Skip when freeze authority is evidenced</span></label>
+          </div>
+          <footer><button type="button" id="copyCancelSetup">Cancel</button><button type="submit">Start shadowing</button><p id="copyPolicyStatus" aria-live="polite"></p></footer>
+        </form>
+      </section>
+
+      <section class="copy-panel" data-copy-panel="watching" hidden>
+        <header class="copy-section-head"><div><span>One public wallet · your private rules</span><h2>Wallets you are shadowing</h2><p>Refresh is manual during the private beta. Raven establishes a historical baseline first, then treats only newer source trades as prospective signals.</p></div><strong>Live copy off</strong></header>
+        <div class="copy-card-list" id="copyWatches"></div>
+      </section>
+
+      <section class="copy-panel" data-copy-panel="feed" hidden>
+        <header class="copy-section-head"><div><span>Every decision stays visible</span><h2>Prospective shadow feed</h2><p>Approved, refused, unavailable, and indeterminate signals all remain in the record.</p></div><strong>Complete record</strong></header>
+        <div class="copy-card-list" id="copyDecisions"></div>
+      </section>
+
+      <section class="copy-panel" data-copy-panel="positions" hidden>
+        <header class="copy-section-head"><div><span>Follower reality</span><h2>Shadow positions</h2><p>Only policy-approved prospective buys create a shadow position. Nothing here represents assets held or a fill received.</p></div><strong>No funds moved</strong></header>
+        <div class="copy-card-list" id="copyPositions"></div>
+      </section>
+    </section>
+
+    <footer class="copy-boundary">
+      <div><span>Watch</span><strong>Public-chain evidence</strong><p>Wallet history, normalized activity, and evidence-bound source performance.</p></div>
+      <div><span>Shadow</span><strong>Prospective follower reality</strong><p>Current entry, reverse exit, policy, latency, and hypothetical fee evidence.</p></div>
+      <div><span>Live</span><strong>Not enabled</strong><p>No custody, signing, broadcasting, automatic approvals, or actual fee collection.</p></div>
+    </footer>
+  </main>
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-wallet-copy.js"></script>
+</body>
+</html>
