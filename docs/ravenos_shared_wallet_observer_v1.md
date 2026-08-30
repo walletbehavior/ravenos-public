@@ -94,19 +94,41 @@ Both controls default off:
 
 The evaluator also requires wallet intelligence and Shadow Copy activation. Enabling either observer control never enables live copy, signing, broadcasting, custody, or fee collection.
 
-The current staging milestone supplies the domain contract, D1/SQLite-compatible queue store, migration, bounded evaluator, a default-off hook in the existing scheduled Worker boundary, latency summary, and deterministic tests. It does not configure a new cron, public ingest route, gRPC credential, or ShredStream connection.
+The current staging milestone supplies the domain contract, D1/SQLite-compatible queue store, migration, bounded evaluator, a default-off hook in the existing scheduled Worker boundary, latency summary, provider-neutral transport adapters, and deterministic tests. It does not configure a new cron, public ingest route, gRPC credential, or ShredStream connection.
+
+## Provider adapters and catch-up integrity
+
+`lib/customer_trade/source_wallet_transports.mjs` now provides the private adapter boundary used by both polling and future stream receivers.
+
+- A watch universe is deduplicated by exact `solana + mainnet + public address`; subscriber IDs and policies never enter the transport envelope.
+- RPC polling is bounded to 250 unique wallets per run, 100 signatures per page, four pages per existing cursor, and eight concurrent wallet requests.
+- Existing cursors page oldest-to-newest before they advance. If the bounded pages cannot close the gap, Raven emits no deliveries and does not advance the cursor. The result is `provider_catch_up_bound_exceeded`, not silent history loss.
+- A newly requested wallet receives one explicitly partial initial page. That initial-history truncation is counted and never represented as complete lifetime coverage.
+- Queue ingestion must succeed for the entire wallet batch before its cursor advances. Partial ingest is safely replayable because downstream delivery and job keys are idempotent.
+- Private gRPC, ShredStream, and replay references use the same exact reference normalizer. Off-universe wallets, malformed identities, and duplicate references are rejected or deduplicated before queue ingestion.
+- Raw provider messages, transactions, subscriber identity, and signer material are discarded at the adapter boundary. Only the exact reference delivery reaches persistence.
+
+Transport health keeps provider access distinct from trading results. It reports current/degraded/unavailable state, request latency, chain-to-receipt age, error categories, reference counts, cursor advancement, gap detection, and ingest failures. RPC catch-up age is explicitly not prospective stream-detection latency. At least 100 prospective stream observations remain required before the transport is considered calibrated.
+
+The manual `npm run validate:wallet-observer-live -- --wallet <public-address>` harness exercises configured Solana RPC access, bounded catch-up, transaction hydration, and Raven economic decoding entirely in memory. Its output hashes wallet, signature, and mint references and returns no raw provider response or transaction material. It never writes a watch, decision, position, migration, or database row.
+
+## First read-only provider sample
+
+On 2026-08-30, Raven sampled five public wallets from a current exact-pool trade tape through the configured adapter contract using the public Solana RPC as a deliberately weak baseline. The bounded run received and ingested 20/20 signature references, hydrated 10/12 requested transactions, and decoded two exact `SWAP_BUY` signals, one `SWAP_SELL`, two split-route swaps, four internal account movements, and one transfer-in. Signature polling measured 94 ms p50 and 116 ms p95. Successful transaction hydration measured 32 ms p50 and 34 ms p95.
+
+The public RPC rate-limited two of twelve transaction hydrations. This is retained as provider failure evidence rather than dropped from the denominator, and it validates why the production observer needs the paid provider and fallback path. Chain-to-poll age is intentionally not reported as detection latency because the command was a manual historical catch-up, not a continuous listener. No speed claim is supported yet. The sanitized result is `artifacts/ravenos_wallet_observer_live_validation_2026-08-30.json`.
 
 ## Next adapter milestone
 
-When the Constant-K endpoint and credentials are available, add one private Netcup adapter that:
+When the Constant-K endpoint and credentials are available, connect one private Netcup receiver to the completed adapter contract. It must:
 
-1. loads the unique Raven watch universe;
-2. subscribes once per public source wallet;
-3. converts provider messages in memory into the bounded delivery contract;
-4. records provider receipt before optional hydration;
-5. reconnects with bounded backoff and a confirmed-RPC catch-up cursor;
-6. never exposes the ingest surface publicly;
-7. reports provider health, stream lag, queue depth, and lease recovery;
-8. runs a deliberately mixed shadow cohort before any speed or copyability claim.
+1. load the unique Raven watch universe;
+2. subscribe once per public source wallet;
+3. convert provider messages in memory into the bounded delivery contract;
+4. record provider receipt before optional hydration;
+5. reconnect with bounded backoff and a confirmed-RPC catch-up cursor;
+6. never expose the ingest surface publicly;
+7. report provider health, stream lag, queue depth, and lease recovery;
+8. run a deliberately mixed shadow cohort before any speed or copyability claim.
 
 The first empirical gate remains at least seven days across high-frequency, swing, deep-liquidity, low-liquidity, concentrated-profit, and frequently refused wallets.

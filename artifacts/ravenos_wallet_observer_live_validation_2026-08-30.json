@@ -1,0 +1,132 @@
+{
+  "schema_version": "ravenos.wallet_observer_live_validation.v1",
+  "generated_at": "2026-08-30T22:26:56.145Z",
+  "mode": "authorized_read_only_manual_probe",
+  "persistence": false,
+  "transport": "rpc_poll",
+  "public_wallet_references": [
+    "public_wallet_60450ecfd7d2bf6c",
+    "public_wallet_87db586146577a23",
+    "public_wallet_a6c63eba3e7cd7bb",
+    "public_wallet_a7c9f8df253bd8cf",
+    "public_wallet_c9b5ae19de3abbcb"
+  ],
+  "observation": {
+    "wallet_count": 5,
+    "signatures_requested_per_wallet": 4,
+    "references_received": 20,
+    "references_ingested_in_memory": 20,
+    "transactions_hydrated": 10,
+    "hydration_failures": 2,
+    "classifications": {
+      "INTERNAL_ACCOUNT_MOVEMENT": 4,
+      "SPLIT_ROUTE_SWAP": 2,
+      "SWAP_BUY": 2,
+      "SWAP_SELL": 1,
+      "TRANSFER_IN": 1
+    },
+    "eligible_buy_signals": 2,
+    "signal_evidence": [
+      {
+        "evidence_reference": "solana_signature_f09b915f458cae01",
+        "wallet_reference": "public_wallet_60450ecfd7d2bf6c",
+        "classification": "SWAP_BUY",
+        "confidence": "observed",
+        "slot": 442986285,
+        "chain_event_at": "2026-08-30T21:54:48.000Z",
+        "exact_destination_asset_reference": "solana_mint_4fb8525534587208"
+      },
+      {
+        "evidence_reference": "solana_signature_43d378ada829020a",
+        "wallet_reference": "public_wallet_60450ecfd7d2bf6c",
+        "classification": "SWAP_BUY",
+        "confidence": "observed",
+        "slot": 442988868,
+        "chain_event_at": "2026-08-30T22:08:25.000Z",
+        "exact_destination_asset_reference": "solana_mint_4fb8525534587208"
+      }
+    ],
+    "initial_history_truncated_wallets": 5
+  },
+  "provider_health": {
+    "schema_version": "ravenos.source_wallet_transport_health.v1",
+    "observed_at": "2026-08-30T22:26:56.054Z",
+    "provider": "configured_solana_rpc",
+    "transport": "rpc_poll",
+    "state": "current",
+    "counts": {
+      "unique_wallets": 5,
+      "requests_attempted": 5,
+      "provider_successes": 5,
+      "references_received": 20,
+      "references_rejected": 0,
+      "duplicate_references": 0,
+      "deliveries_ingested": 20,
+      "ingest_failures": 0,
+      "cursor_updates": 5,
+      "gap_wallets": 0,
+      "initial_history_truncated_wallets": 5
+    },
+    "request_latency": {
+      "available": true,
+      "samples": 5,
+      "p50_ms": 94,
+      "p90_ms": 116,
+      "p95_ms": 116,
+      "p99_ms": 116
+    },
+    "chain_to_receipt_age": {
+      "available": true,
+      "samples": 20,
+      "p50_ms": 177029,
+      "p90_ms": 3371036,
+      "p95_ms": 8535029,
+      "p99_ms": 8543029
+    },
+    "errors": {},
+    "calibrated": false,
+    "limitations": [
+      "RPC catch-up age is not prospective stream-detection latency.",
+      "Provider health does not imply entry, exit, or copy-trade executability."
+    ],
+    "execution_boundary": {
+      "signing": false,
+      "broadcasting": false,
+      "custody": false,
+      "live_copy": false,
+      "fee_collection": false
+    }
+  },
+  "hydration": {
+    "latency": {
+      "available": true,
+      "samples": 10,
+      "p50_ms": 32,
+      "p90_ms": 34,
+      "p95_ms": 34,
+      "p99_ms": 34
+    },
+    "errors": {
+      "provider_rate_limited": 2
+    }
+  },
+  "provider_calls": {
+    "solana_rpc": 17
+  },
+  "total_probe_ms": 244,
+  "interpretation": {
+    "prospective_detection_latency_measured": false,
+    "speed_claim_supported": false,
+    "reason": "This manual RPC catch-up probe measures provider access and decode viability, not continuous stream detection speed.",
+    "next_evidence": "Run the same adapter contract behind the private gRPC or shred receiver and retain at least 100 prospective observations before a speed claim."
+  },
+  "execution_boundary": {
+    "signing_available": false,
+    "submission_available": false,
+    "broadcasting_available": false,
+    "transaction_material_returned": false,
+    "custody_available": false,
+    "live_copy_available": false,
+    "fee_collection_available": false
+  }
+}

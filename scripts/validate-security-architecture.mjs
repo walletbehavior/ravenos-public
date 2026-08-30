@@ -299,6 +299,17 @@ assert(walletCopyLiveValidator.includes("transaction_material_returned"), "walle
 for (const forbiddenWalletCopyAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
   assert(!walletCopyLiveValidator.includes(forbiddenWalletCopyAuthority), `wallet-copy live validator contains forbidden authority: ${forbiddenWalletCopyAuthority}`);
 }
+assert.equal(packageJson.scripts["validate:wallet-observer-live"], "node scripts/validate-wallet-observer-live.mjs");
+const walletObserverLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-observer-live.mjs"), "utf8");
+const walletObserverTransports = readFileSync(join(root, "lib", "customer_trade", "source_wallet_transports.mjs"), "utf8");
+assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
+assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
+assert(walletObserverTransports.includes('transport: "shredstream"') || walletObserverTransports.includes('"shredstream"'), "private shred adapter contract is missing");
+assert(walletObserverTransports.includes("provider_catch_up_bound_exceeded"), "wallet observer must fail closed on a bounded catch-up gap");
+for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
+  assert(!walletObserverLiveValidator.includes(forbiddenWalletObserverAuthority), `wallet-observer live validator contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletObserverTransports.includes(forbiddenWalletObserverAuthority), `wallet-observer transport contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+}
 
 console.log(JSON.stringify({
   ok: true,
