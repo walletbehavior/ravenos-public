@@ -223,6 +223,16 @@ test("wallet-copy activation is entitlement-coordinated and source-level live au
   assert.equal(active.fee_collection, false);
   assert.equal(active.continuous_observer, false);
   assert.equal(CustomerWalletCopyContract.source_level_disabled.broadcasting, true);
+  const observer = resolveWalletCopyActivation(env({
+    RAVENOS_WALLET_OBSERVER_ENABLED: "1",
+    RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED: "1",
+  }));
+  assert.equal(observer.continuous_observer, true);
+  assert.equal(observer.observer_ingest, true);
+  assert.equal(observer.scheduler, true);
+  assert.equal(observer.monitoring_mode, "shared_observer");
+  assert.equal(observer.live_copy, false);
+  assert.equal(observer.fee_collection, false);
 });
 
 test("wallet-copy migration shares source evidence, isolates subscribers, and preserves append-only decisions", () => {

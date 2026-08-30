@@ -154,6 +154,17 @@ test("a fresh exact entry plus reverse exit produces an appendable shadow decisi
   assert.equal(position.source_strategy_attribution_preserved, true);
 });
 
+test("lease retries retain one decision identity while preserving the first exact quote as evidence", () => {
+  const first = createRavenCopyDecision(evidence(), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const retry = createRavenCopyDecision(evidence({
+    entry: { ...evidence().entry, quote_id: "entry_retry", expected_output: 39.4 },
+    exit: { ...evidence().exit, quote_id: "exit_retry", expected_output: 97.4 },
+  }), { now: Date.parse("2026-08-29T12:00:01.700Z") });
+  assert.equal(first.decision_version, 2);
+  assert.equal(first.decision_id, retry.decision_id);
+  assert.notEqual(first.entry.quote_id, retry.entry.quote_id);
+});
+
 test("entry without a reverse route is an explicit refusal, not a zero-return trade", () => {
   const decision = createRavenCopyDecision(evidence({
     exit: { state: "unavailable", provider: "jupiter", reason: "no_reverse_route", exact_asset_identity: true },

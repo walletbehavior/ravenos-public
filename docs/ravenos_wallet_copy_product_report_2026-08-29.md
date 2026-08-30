@@ -117,6 +117,6 @@ Dollar costs are intentionally not estimated here because provider plan allowanc
 
 ## Next smallest move after migration
 
-Run one shared Solana observer against a deliberately mixed cohort of 25 public wallets for at least seven days. Decode each source transaction once, evaluate standard follower sizes, service refusal and executable checkpoints, and report p50/p90/p95/p99 receipt, decode, entry-quote, exit-proof, and total-decision latency. The cohort must include high-frequency, swing, deep-liquidity, low-liquidity, concentrated-profit, and frequently refused wallets.
+The RS2000 staging build now includes the provider-neutral shared observer, durable queue, one-decode job identity, finality upgrades, leases, retries, dead letters, and phase-latency evidence. The next move is to attach the private gRPC/shred transport and run it against a deliberately mixed cohort of 25 public wallets for at least seven days. Evaluate standard follower sizes, service refusal and executable checkpoints, and report p50/p90/p95/p99 receipt, decode, entry-quote, exit-proof, and total-decision latency. The cohort must include high-frequency, swing, deep-liquidity, low-liquidity, concentrated-profit, and frequently refused wallets.
 
 Only after that dataset exists should Raven publish a Copyability score, follower-capture ratio, speed claim, fair-use policy, or controlled live-copy canary.

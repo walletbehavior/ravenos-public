@@ -80,11 +80,11 @@ Raven’s intended advantage is not a larger headline P&L. It is the explicit sp
 
 Before activating continuous observation on the new RavenOS machine, validate D1 migration and backup retention, staged-origin authorization, provider subrequest budgets, queue backpressure, event lag, RPC costs, storage growth, and restart recovery. Measure p50, p90, p95, and p99 from chain event through receipt, decode, entry quote, reverse-exit proof, and decision.
 
-The current host remains manual-refresh only. No scheduler or wallet WebSocket fan-out is added before the migration. This avoids turning a resource-constrained machine into a hidden reliability dependency.
+The dedicated RS2000 staging host now carries the dormant shared-observer contract and durable queue described in `ravenos_shared_wallet_observer_v1.md`. Manual refresh remains the only active customer workflow until the staging migration, private transport adapter, queue telemetry, and controlled cohort are verified. No public scheduler or stream is activated by this code.
 
 Operators can validate one public source-wallet buy against real read-only chain and quote evidence with `npm run validate:wallet-copy-live -- --wallet <address> --source-signature <signature>`. The validator reads only the allowlisted Solana RPC and Jupiter credentials from the configured parent environment, persists nothing, hashes the public wallet and signature in its report, rejects transaction material, and has no construction, signing, submission, broadcast, or fee-collection path.
 
-A manual refresh is deliberately bounded: at most 24 transaction fetches plus signature, mint, route, reverse-route, optional SOL conversion, and liquidity lookups. A refresh with three genuinely new qualifying buys can therefore approach 43 provider calls. This is an activation constraint, not a sustainable subscriber polling model; the post-migration shared observer must decode each unique source event once and fan out only policy evaluation.
+A manual refresh is deliberately bounded: at most 24 transaction fetches plus signature, mint, route, reverse-route, optional SOL conversion, and liquidity lookups. A refresh with three genuinely new qualifying buys can therefore approach 43 provider calls. It remains an activation constraint, not the scaling model. The staging shared observer instead keys one durable job by source wallet, signature, and decode version and fans out only idempotent policy evaluation.
 
 ## Read-only chain validation
 
@@ -98,6 +98,6 @@ The same event was probed again after 642.939 seconds. Its entry and reverse-exi
 
 The current screener covers only exact public wallets already requested or observed by Raven. It supports retained activity, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
 
-The following are not claimed by v1: chain-wide wallet coverage, deep historical backfill, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, continuous observation, automatic alerts, source-sell position mapping, checkpoint servicing, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
+The following are not claimed by v1: chain-wide wallet coverage, deep historical backfill, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, an active continuous provider connection, automatic alerts, source-sell position mapping, checkpoint servicing, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
 
-The smallest post-migration move is a shared Solana observer with durable queueing and one controlled public-wallet cohort. That service should measure detection and quote latency before Raven publishes any speed or follower-capture claim.
+The shared Solana observer contract, durable queue, retry/restart semantics, and latency ledger are implemented in staging. The next move is the private gRPC/shred adapter plus one controlled public-wallet cohort. That service must measure detection and quote latency before Raven publishes any speed or follower-capture claim.

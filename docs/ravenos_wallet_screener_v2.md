@@ -85,7 +85,7 @@ Signed-in Pro users can also save up to 100 exact source wallets across 20 priva
 - a universal bot identity label;
 - EVM wallets;
 - copyability, follower P&L or capture ratios without prospective Raven Copy evidence;
-- continuous observation before the planned machine migration;
+- an active continuous provider connection before the private staging adapter and cohort prove reliability;
 - live copying, signing, broadcasting, custody and actual fee collection.
 
-The smallest post-migration reliability move remains a shared observer and bounded backfill queue: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication.
+The shared observer and bounded durable queue are now implemented as a dormant staging contract: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining reliability move is the private gRPC/shred adapter, restart/catch-up exercise, and measured mixed-wallet cohort.

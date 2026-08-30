@@ -162,8 +162,16 @@ import {
 } from "./lib/customer_monitor_alerts.mjs";
 import {
   CUSTOMER_WALLET_COPY_ROUTE,
+  createD1CustomerWalletCopyStore,
+  fanOutObservedWalletEvent,
+  persistSourceWalletProfile,
   routeCustomerWalletCopy,
 } from "./lib/customer_wallet_copy.mjs";
+import {
+  createD1SourceWalletObserverStore,
+  resolveSourceWalletObserverActivation,
+  runSourceWalletObserverBatch,
+} from "./lib/customer_trade/source_wallet_observer.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -5070,6 +5078,35 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
   };
 }
 
+async function hydrateSourceWalletObserverDelivery(env, delivery) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_observer_solana_rpc_unavailable");
+  const decodeStartedAt = new Date().toISOString();
+  const transaction = await runProviderOperation({
+    component: "solana_rpc",
+    operation_key: `wallet-observer-transaction:${delivery.signature}`,
+    fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTransaction", [
+      delivery.signature,
+      { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: delivery.finality === "finalized" ? "finalized" : "confirmed" },
+    ], { timeoutMs: 5_000, maxBytes: 768 * 1024 }),
+  });
+  const decodedAt = new Date().toISOString();
+  if (!transaction || typeof transaction !== "object") throw new Error("wallet_observer_transaction_unavailable");
+  return {
+    wallet_address: delivery.source_wallet.address,
+    signature: delivery.signature,
+    transaction,
+    provider: "configured_solana_rpc_hydration",
+    finality: delivery.finality,
+    observation_mode: "prospective",
+    provider_observed_at: delivery.provider_observed_at,
+    received_at: delivery.raven_received_at,
+    decode_started_at: decodeStartedAt,
+    decoded_at: decodedAt,
+    observed_at: decodedAt,
+  };
+}
+
 function usdcDisplayToBaseUnits(value) {
   const text = Number(value).toFixed(6);
   const [whole, fraction = ""] = text.split(".");
@@ -8800,7 +8837,46 @@ export default {
           },
         })
       : Promise.resolve({ state: "disabled" });
-    const work = Promise.allSettled([monitorWork, shadowWork]);
+    const observerActivation = resolveSourceWalletObserverActivation(env || {});
+    const observerWork = observerActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (() => {
+          const observerStore = createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB);
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const walletProvider = {
+            quoteCopySignalCacheKey: ({ event, policy }) => `${event.event_id}:${policy.sizing.fixed_usdc}:50`,
+            quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
+          };
+          return runSourceWalletObserverBatch(observerStore, {
+            hydrateDelivery: (delivery) => hydrateSourceWalletObserverDelivery(env, delivery),
+            recordSharedEvent: async ({ event, delivery }) => {
+              const now = Math.floor(Date.now() / 1_000);
+              const inserted = await walletStore.recordEvents(delivery.source_wallet_id, [event], now);
+              await walletStore.updateSourceCursor(delivery.source_wallet_id, {
+                state: "current",
+                last_observed_at: now,
+                last_signature: event.chain_evidence.signature,
+                now,
+              });
+              if (inserted.includes(event.event_id)) {
+                await persistSourceWalletProfile(walletStore, delivery.source_wallet_id, now);
+              }
+              return { inserted: inserted.includes(event.event_id) };
+            },
+            fanOut: ({ event, delivery }) => fanOutObservedWalletEvent({
+              event,
+              source_wallet_id: delivery.source_wallet_id,
+              store: walletStore,
+              provider: walletProvider,
+              now: Math.floor(Date.now() / 1_000),
+            }),
+          }, {
+            worker_id: `observer_worker_${Date.now().toString(36)}`,
+            batch_size: 10,
+            concurrency: 2,
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
+    const work = Promise.allSettled([monitorWork, shadowWork, observerWork]);
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },

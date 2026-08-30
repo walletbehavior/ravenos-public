@@ -180,7 +180,7 @@
     "production_activation_completed": false
   },
   "wallet_copy": {
-    "implementation_status": "local_dormant_migration_safe_vertical_slice",
+    "implementation_status": "staging_dormant_shared_observer_candidate",
     "surface": "https://app.ravenos.xyz/account/copy/",
     "capability": "wallet.copy",
     "routes": [
@@ -208,6 +208,13 @@
     "screener_scope": "bounded_raven_indexed_solana_wallets",
     "screener_claims_all_solana_wallets": false,
     "shared_source_observation": true,
+    "shared_observer_queue_implemented": true,
+    "shared_observer_transport_contracts": ["rpc_poll", "geyser_grpc", "shredstream", "replay"],
+    "one_decode_per_source_transaction": true,
+    "subscriber_proportional_rpc_polling": false,
+    "provider_and_finality_deliveries_append_only": true,
+    "observer_queue_restart_safe": true,
+    "observer_latency_percentiles_recorded": [50, 90, 95, 99],
     "subscriber_relationships_private": true,
     "raw_provider_payloads_persisted": false,
     "signer_material_persisted": false,
@@ -227,6 +234,8 @@
       "RAVENOS_WALLET_COPY_ROUTES_ENABLED",
       "RAVENOS_WALLET_SCREENER_ENABLED",
       "RAVENOS_SHADOW_COPY_ENABLED",
+      "RAVENOS_WALLET_OBSERVER_ENABLED",
+      "RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED",
       "RAVENOS_LIVE_COPY_ENABLED",
       "RAVENOS_COPY_FEE_COLLECTION_ENABLED"
     ],
@@ -379,7 +388,8 @@
     "docs/ravenos_monitor_alerts_v1.md",
     "docs/ravenos_shadow_route_truth_loop_v1.md",
     "docs/ravenos_operator_solana_canary_v1.md",
-    "docs/ravenos_wallet_copy_v1.md"
+    "docs/ravenos_wallet_copy_v1.md",
+    "docs/ravenos_shared_wallet_observer_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -394,6 +404,7 @@
     { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites" },
     { "id": "SEC-ALT-001", "name": "exact-market monitor ownership, entitlement, CSRF and lifecycle enforcement", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; tests/browser/monitor-alerts.spec.mjs" },
     { "id": "SEC-ALT-002", "name": "qualified transition dedupe, batching, retention, deletion and prohibited-data boundary", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; public no-leak and Worker-response validation" },
+    { "id": "SEC-WOBS-001", "name": "shared wallet observer exact identity, one-decode dedupe, lease recovery, retry bounds and prohibited-data boundary", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_observer.test.mjs; customer-migrations/0010_source_wallet_observer.sql; public no-leak validation" },
     { "id": "SEC-COPY-001", "name": "owner-bound Pro wallet watches, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
     { "id": "SEC-COPY-002", "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
