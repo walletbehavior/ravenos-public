@@ -12,13 +12,15 @@ const state = {
   csrf: "",
   activation: {},
   address: "",
+  source_wallet_id: null,
   profile: null,
   events: [],
   watches: [],
   decisions: [],
   positions: [],
   copyability: [],
-  screener: { page: 1, total_pages: 0, total: 0, wallets: [] },
+  saved: [],
+  screener: { page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
 };
 
 function text(value, fallback = "—") {
@@ -89,6 +91,26 @@ function duration(value) {
   if (milliseconds < 1_000) return `${Math.round(milliseconds)}ms`;
   const seconds = milliseconds / 1_000;
   return `${seconds < 10 ? seconds.toFixed(2) : seconds.toFixed(1)}s`;
+}
+
+function humanDuration(value) {
+  if (value === null || value === undefined || value === "") return "Unavailable";
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return "Unavailable";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3_600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86_400) return `${(seconds / 3_600).toFixed(seconds < 7_200 ? 1 : 0)}h`;
+  return `${(seconds / 86_400).toFixed(seconds < 172_800 ? 1 : 0)}d`;
+}
+
+function decimal(value, suffix = "") {
+  if (value === null || value === undefined || value === "") return "Unavailable";
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toLocaleString("en-US", { maximumFractionDigits: 2 })}${suffix}` : "Unavailable";
+}
+
+function realizedPair(pair) {
+  return realizedPerformance({ realized_pnl_usdc: pair?.usdc, realized_pnl_sol: pair?.sol });
 }
 
 function readable(value) {
@@ -212,19 +234,22 @@ function renderProfile(payload) {
   state.profile = payload.profile;
   state.events = payload.recent_events || [];
   state.address = payload.profile?.source_wallet?.address || state.address;
+  state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
   profileNode.hidden = false;
   policyNode.hidden = true;
   setText("copyProfileAddress", shortAddress(state.address));
-  setText("copyProfileCoverage", `${profile.coverage.transactions_observed} transactions · ${profile.coverage.trade_events} trade events · ${profile.coverage.known_cost_basis_pct === null ? "cost basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% known cost basis`}`);
+  const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
+  setText("copyProfileCoverage", `${profile.coverage.transactions_observed} transactions · ${profile.coverage.trade_events} trade events · ${profile.coverage.known_cost_basis_pct === null ? "cost basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% known cost basis`} · ${historyLabel}`);
   const performance = profile.source_performance;
   setText("copySourcePnl", realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
   sourceMetrics.replaceChildren(
     fact("ROI", pct(performance.roi_pct)),
     fact("Win rate", pct(performance.win_rate_pct)),
-    fact("Closed lots", performance.closed_lots),
-    fact("Median hold", profile.behavior.median_hold_seconds === null ? "Unavailable" : `${Math.round(profile.behavior.median_hold_seconds / 60)}m`),
+    fact("Profit factor", decimal(performance.profit_factor)),
+    fact("Closed observations", performance.closed_observations ?? performance.closed_lots),
+    fact("Median hold", humanDuration(profile.behavior.median_hold_seconds)),
     fact("Trades", profile.behavior.trade_count),
     fact("Tokens", profile.behavior.tokens_traded ?? "Unavailable"),
     fact("Active days", profile.behavior.active_days),
@@ -234,6 +259,73 @@ function renderProfile(payload) {
     fact("Trade rate", profile.behavior.trade_rate_per_active_day === null || profile.behavior.trade_rate_per_active_day === undefined ? "Unavailable" : `${profile.behavior.trade_rate_per_active_day}/day`),
     fact("Last trade", when(profile.behavior.last_trade_at)),
   );
+  const windows = document.getElementById("copyPerformanceWindows");
+  const windowRows = [["24H", performance.windows?.h24], ["7D", performance.windows?.d7], ["30D", performance.windows?.d30], ["90D", performance.windows?.d90], ["All observed", performance.windows?.all_available]];
+  windows.replaceChildren(...windowRows.map(([label, row]) => {
+    const item = document.createElement("div");
+    const name = document.createElement("span");
+    const result = document.createElement("strong");
+    const sample = document.createElement("small");
+    name.textContent = label;
+    result.textContent = row?.state === "available" ? realizedPair(row.realized_pnl) : "Unavailable";
+    sample.textContent = `${Number(row?.observations || 0)} closed observation${Number(row?.observations || 0) === 1 ? "" : "s"}`;
+    item.append(name, result, sample);
+    return item;
+  }));
+  const usdcQuality = profile.profit_quality?.by_basis?.usdc || {};
+  const solQuality = profile.profit_quality?.by_basis?.sol || {};
+  document.getElementById("copyProfitQuality").replaceChildren(
+    fact("Top-1 · USDC", pct(usdcQuality.top_1_profit_concentration_pct)),
+    fact("Top-1 · SOL", pct(solQuality.top_1_profit_concentration_pct)),
+    fact("Top-5 · USDC", pct(usdcQuality.top_5_profit_concentration_pct)),
+    fact("Top-5 · SOL", pct(solQuality.top_5_profit_concentration_pct)),
+    fact("Profitable closes · USDC", usdcQuality.profitable_observations ?? "Unavailable"),
+    fact("Profitable closes · SOL", solQuality.profitable_observations ?? "Unavailable"),
+    fact("Profitable weeks · USDC", pct(usdcQuality.weekly_consistency?.profitable_period_pct)),
+    fact("Profitable weeks · SOL", pct(solQuality.weekly_consistency?.profitable_period_pct)),
+  );
+  const patterns = profile.behavior?.mechanical_pattern_evidence || {};
+  document.getElementById("copyBehaviorMetrics").replaceChildren(
+    fact("Median hold", humanDuration(profile.behavior?.median_hold_seconds)),
+    fact("Trade rate", profile.behavior?.trade_rate_per_active_day === null || profile.behavior?.trade_rate_per_active_day === undefined ? "Unavailable" : `${decimal(profile.behavior.trade_rate_per_active_day)}/day`),
+    fact("Repeat-token rate", pct(profile.behavior?.repeat_token_rate_pct)),
+    fact("Tokens with an exit", pct(profile.behavior?.observed_token_exit_coverage_pct ?? profile.behavior?.observed_trade_completion_pct)),
+    fact("Scaled in", pct(profile.behavior?.scaled_into_token_pct)),
+    fact("Scaled out", pct(profile.behavior?.scaled_out_token_pct)),
+    fact("Mechanical patterns", readable(patterns.state || "insufficient_evidence")),
+    fact("Rapid intervals", pct(patterns.rapid_under_30_seconds_pct)),
+  );
+  const quality = profile.data_quality || {};
+  document.getElementById("copyEvidenceMetrics").replaceChildren(
+    fact("History scope", readable(quality.history_scope || "bounded_partial_history")),
+    fact("Provider window", quality.provider_history_exhausted ? "Exhausted" : "More history may exist"),
+    fact("Cost basis", pct(quality.cost_basis_coverage_pct ?? profile.coverage?.known_cost_basis_pct)),
+    fact("Transaction decode", pct(quality.trade_decode_coverage_pct)),
+    fact("Classification", pct(quality.classification_coverage_pct)),
+    fact("Reconstruction", pct(quality.reconstruction_confidence_pct)),
+    fact("Historical pricing", pct(quality.historical_price_evidence_coverage_pct)),
+    fact("Full confidence", pct(quality.full_data_confidence_pct)),
+  );
+  const capital = profile.capital_observations || {};
+  const openPositions = Array.isArray(profile.positions?.known_cost_open_positions) ? profile.positions.known_cost_open_positions : [];
+  document.getElementById("copyCapitalMetrics").replaceChildren(
+    fact("Last observed SOL", capital.sol?.amount === null || capital.sol?.amount === undefined ? "Unavailable" : `${decimal(capital.sol.amount)} SOL`),
+    fact("SOL observed", when(capital.sol?.observed_at)),
+    fact("Last observed USDC", capital.canonical_usdc?.amount === null || capital.canonical_usdc?.amount === undefined ? "Unavailable" : money(capital.canonical_usdc.amount)),
+    fact("USDC observed", when(capital.canonical_usdc?.observed_at)),
+    fact("Known-cost open", profile.positions?.known_cost_open_position_count ?? "Unavailable"),
+    fact("Unresolved basis events", profile.positions?.unresolved_cost_basis_event_count ?? "Unavailable"),
+  );
+  const openHost = document.getElementById("copyOpenPositions");
+  openHost.replaceChildren(...(openPositions.length ? openPositions.slice(0, 8).map((position) => {
+    const row = document.createElement("div");
+    const identity = document.createElement("strong");
+    const detail = document.createElement("span");
+    identity.textContent = shortAddress(position.mint);
+    detail.textContent = `${position.lot_count} known-cost lot${position.lot_count === 1 ? "" : "s"} · ${decimal(position.remaining_cost)} ${String(position.basis || "").toUpperCase()} · mark unavailable`;
+    row.append(identity, detail);
+    return row;
+  }) : [empty("No known-cost open positions", "Unknown inventory is not converted into a zero-cost position or a marked gain.")]));
   renderFollowerReality();
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
   setText("copyEventCount", `${state.events.length} event${state.events.length === 1 ? "" : "s"}`);
@@ -388,6 +480,21 @@ function screenerRequest() {
     const value = document.getElementById(id).value;
     return value === "" ? null : Number(value);
   };
+  const clauses = [];
+  const clause = (field, operator, id) => {
+    const value = optionalNumber(id);
+    if (value !== null) clauses.push({ field, operator, value });
+  };
+  clause("profit_factor", "gte", "copyScreenProfitFactor");
+  clause("top_1_profit_concentration_pct", "lte", "copyScreenTopOne");
+  clause("reconstruction_confidence_pct", "gte", "copyScreenReconstruction");
+  const holdMinimum = optionalNumber("copyScreenHoldMin");
+  const holdMaximum = optionalNumber("copyScreenHoldMax");
+  if (holdMinimum !== null && holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "between", value: [holdMinimum, holdMaximum] });
+  else if (holdMinimum !== null) clauses.push({ field: "median_hold_seconds", operator: "gte", value: holdMinimum });
+  else if (holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "lte", value: holdMaximum });
+  const mechanical = document.getElementById("copyScreenMechanical").value;
+  if (mechanical) clauses.push({ field: "mechanical_pattern_state", operator: "eq", value: mechanical });
   return {
     filters: {
       active_within_hours: optionalNumber("copyScreenActive"),
@@ -399,16 +506,66 @@ function screenerRequest() {
       min_roi_pct: optionalNumber("copyScreenRoi"),
       performance_state: document.getElementById("copyScreenEvidence").value,
     },
+    clauses,
+    preset: state.screener.preset,
     sort: document.getElementById("copyScreenSort").value,
     page: state.screener.page,
     page_size: 12,
   };
 }
 
+function syncScreenerUrl() {
+  const url = new URL(location.href);
+  const fields = {
+    screen: state.screener.preset,
+    active: document.getElementById("copyScreenActive").value,
+    trades: document.getElementById("copyScreenTrades").value,
+    days: document.getElementById("copyScreenDays").value,
+    basis: document.getElementById("copyScreenBasis").value,
+    evidence: document.getElementById("copyScreenEvidence").value,
+    sort: document.getElementById("copyScreenSort").value,
+    closed: document.getElementById("copyScreenClosed").value,
+    win: document.getElementById("copyScreenWin").value,
+    roi: document.getElementById("copyScreenRoi").value,
+    pf: document.getElementById("copyScreenProfitFactor").value,
+    top1: document.getElementById("copyScreenTopOne").value,
+    recon: document.getElementById("copyScreenReconstruction").value,
+    hold_min: document.getElementById("copyScreenHoldMin").value,
+    hold_max: document.getElementById("copyScreenHoldMax").value,
+    pattern: document.getElementById("copyScreenMechanical").value,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === null || value === undefined || value === "" || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
+    else url.searchParams.set(key, String(value).slice(0, 64));
+  }
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function hydrateScreenerFromUrl() {
+  const params = new URL(location.href).searchParams;
+  const preset = params.get("screen");
+  if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
+  const mappings = {
+    active: "copyScreenActive", trades: "copyScreenTrades", days: "copyScreenDays", basis: "copyScreenBasis",
+    evidence: "copyScreenEvidence", sort: "copyScreenSort", closed: "copyScreenClosed", win: "copyScreenWin",
+    roi: "copyScreenRoi", pf: "copyScreenProfitFactor", top1: "copyScreenTopOne", recon: "copyScreenReconstruction",
+    hold_min: "copyScreenHoldMin", hold_max: "copyScreenHoldMax", pattern: "copyScreenMechanical",
+  };
+  for (const [parameter, id] of Object.entries(mappings)) {
+    const value = params.get(parameter);
+    const input = document.getElementById(id);
+    if (value === null || !input) continue;
+    if (input.tagName === "SELECT" && ![...input.options].some((option) => option.value === value)) continue;
+    input.value = value.slice(0, 64);
+  }
+  document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.screenPreset === state.screener.preset)));
+}
+
 async function loadStoredWallet(sourceWalletId, button) {
+  const idleLabel = button?.textContent || "Open analysis";
   if (button) { button.disabled = true; button.textContent = "Opening…"; }
   const result = await api(`${API}/wallets/${encodeURIComponent(sourceWalletId)}`);
-  if (button) { button.disabled = false; button.textContent = "Open analysis"; }
+  if (button) { button.disabled = false; button.textContent = idleLabel; }
   if (!result.response.ok) {
     state.profile = null;
     profileNode.hidden = true;
@@ -416,6 +573,64 @@ async function loadStoredWallet(sourceWalletId, button) {
     return;
   }
   renderProfile(result.payload);
+}
+
+function savedResearchRow(save) {
+  const row = document.createElement("article");
+  const identity = document.createElement("div");
+  const list = document.createElement("span");
+  const label = document.createElement("strong");
+  const address = document.createElement("small");
+  list.textContent = save.list_name;
+  label.textContent = save.label;
+  const short = shortAddress(save.source_wallet?.address);
+  address.textContent = save.label === short ? "Solana · exact wallet" : short;
+  identity.append(list, label, address);
+  const actions = document.createElement("div");
+  const open = document.createElement("button");
+  const remove = document.createElement("button");
+  open.type = remove.type = "button";
+  open.textContent = "Open";
+  remove.textContent = "Remove";
+  open.addEventListener("click", () => loadStoredWallet(save.source_wallet_id, open));
+  remove.addEventListener("click", async () => {
+    remove.disabled = true;
+    await api(`${API}/saved-wallets/${encodeURIComponent(save.save_id)}`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_saved_wallet" }) });
+    await loadSavedResearch();
+  });
+  actions.append(open, remove);
+  row.append(identity, actions);
+  return row;
+}
+
+function renderSavedResearch() {
+  setText("copySavedCount", `${state.saved.length} saved`);
+  const host = document.getElementById("copySavedWallets");
+  if (!state.saved.length) {
+    const message = document.createElement("p");
+    message.textContent = "No saved research wallets yet. Saving does not start monitoring or copying.";
+    host.replaceChildren(message);
+    return;
+  }
+  host.replaceChildren(...state.saved.map(savedResearchRow));
+}
+
+async function loadSavedResearch() {
+  const result = await api(`${API}/saved-wallets`);
+  state.saved = result.response.ok && Array.isArray(result.payload?.saves) ? result.payload.saves : [];
+  renderSavedResearch();
+}
+
+async function saveResearchWallet(sourceWalletId, label, button) {
+  if (!sourceWalletId) return;
+  const listName = document.getElementById("copySaveListName").value.trim() || "Research";
+  if (button) { button.disabled = true; button.textContent = "Saving…"; }
+  const result = await api(`${API}/saved-wallets`, {
+    method: "POST",
+    body: JSON.stringify({ source_wallet_id: sourceWalletId, list_name: listName, label }),
+  });
+  if (button) { button.disabled = false; button.textContent = result.response.ok ? "Saved" : "Try again"; }
+  if (result.response.ok) await loadSavedResearch();
 }
 
 function screenerCard(wallet) {
@@ -435,12 +650,13 @@ function screenerCard(wallet) {
       realized_pnl_usdc: wallet.source_performance?.realized_pnl?.usdc,
       realized_pnl_sol: wallet.source_performance?.realized_pnl?.sol,
     })),
-    fact("ROI", pct(wallet.source_performance?.roi_pct)),
+    fact("Profit factor", decimal(wallet.source_performance?.profit_factor)),
+    fact("Top-1 profit", pct(wallet.profit_quality?.top_1_profit_concentration_pct)),
+    fact("Reconstruction", pct(wallet.coverage?.reconstruction_confidence_pct)),
     fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
     fact("Trades", wallet.behavior?.trade_count ?? 0),
-    fact("Active days", wallet.behavior?.active_days ?? 0),
+    fact("Median hold", humanDuration(wallet.behavior?.median_hold_seconds)),
     fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
-    fact("Closed lots", wallet.source_performance?.closed_lots ?? 0),
     fact("Follower", wallet.follower_reality?.state === "not_sampled" ? "Not sampled" : readable(wallet.follower_reality?.state)),
   );
   const why = document.createElement("div");
@@ -450,11 +666,18 @@ function screenerCard(wallet) {
   whyLabel.textContent = "Why surfaced";
   whyText.textContent = Array.isArray(wallet.why_surfaced) && wallet.why_surfaced.length ? wallet.why_surfaced.map((reason) => reason.label).filter(Boolean).join(" · ") : "Matches the current evidence filters.";
   why.append(whyLabel, whyText);
+  const actions = document.createElement("div");
+  actions.className = "copy-screener-card-actions";
+  const save = document.createElement("button");
   const analyze = document.createElement("button");
+  save.type = "button";
   analyze.type = "button";
+  save.textContent = "Save";
   analyze.textContent = "Open analysis";
+  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, shortAddress(wallet.source_wallet?.address), save));
   analyze.addEventListener("click", () => loadStoredWallet(wallet.source_wallet_id, analyze));
-  card.append(identity, metrics, why, analyze);
+  actions.append(save, analyze);
+  card.append(identity, metrics, why, actions);
   return card;
 }
 
@@ -465,6 +688,7 @@ function renderScreener(payload) {
     total_pages: Number(payload.pagination?.total_pages || payload.total_pages || 0),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
+    preset: state.screener.preset,
   };
   setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
   setText("copyScreenerStatus", wallets.length
@@ -521,6 +745,7 @@ async function loadWorkspace() {
 
 async function inspectWalletAddress(address, button) {
   state.address = String(address || "").trim();
+  state.source_wallet_id = null;
   state.profile = null;
   state.events = [];
   profileNode.hidden = true;
@@ -593,7 +818,8 @@ async function boot() {
   await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;
-    await loadScreener();
+    hydrateScreenerFromUrl();
+    await Promise.all([loadScreener(), loadSavedResearch()]);
   }
   if (requestedWallet) {
     const button = document.querySelector('#copyWalletSearch button[type="submit"]');
@@ -603,19 +829,32 @@ async function boot() {
 
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
+document.getElementById("copySaveProfile").addEventListener("click", (event) => saveResearchWallet(state.source_wallet_id, shortAddress(state.address), event.currentTarget));
 document.getElementById("copyStartSetup").addEventListener("click", () => { policyNode.hidden = false; policyNode.scrollIntoView({ behavior: "smooth", block: "start" }); });
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);
 document.getElementById("copyScreenerFilters").addEventListener("submit", async (event) => {
   event.preventDefault();
   state.screener.page = 1;
+  syncScreenerUrl();
   await loadScreener();
 });
 document.getElementById("copyScreenReset").addEventListener("click", async () => {
   document.getElementById("copyScreenerFilters").reset();
+  state.screener.preset = null;
+  document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", "false"));
   state.screener.page = 1;
+  syncScreenerUrl();
   await loadScreener();
 });
+document.querySelectorAll("[data-screen-preset]").forEach((button) => button.addEventListener("click", async () => {
+  state.screener.preset = state.screener.preset === button.dataset.screenPreset ? null : button.dataset.screenPreset;
+  document.querySelectorAll("[data-screen-preset]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenPreset === state.screener.preset)));
+  if (state.screener.preset === "active_swing") document.getElementById("copyScreenActive").value = "168";
+  state.screener.page = 1;
+  syncScreenerUrl();
+  await loadScreener();
+}));
 document.getElementById("copyScreenPrevious").addEventListener("click", async () => {
   state.screener.page = Math.max(1, state.screener.page - 1);
   await loadScreener();

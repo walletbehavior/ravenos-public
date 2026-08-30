@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   WALLET_SCREENER_SCHEMA,
   WalletScreenerLimits,
+  WalletScreenerOperators,
   WalletScreenerPerformanceStates,
+  WalletScreenerPresets,
   WalletScreenerSorts,
   buildWalletScreenerResponse,
   normalizeWalletScreenerRequest,
@@ -20,7 +22,7 @@ function row(overrides = {}) {
     source_wallet_id: SOURCE_ID,
     address: ADDRESS,
     profile_snapshot_id: `swp_${"b".repeat(40)}`,
-    profile_version: 3,
+    profile_version: 4,
     generated_at: Math.floor(Date.parse("2026-08-29T17:59:00.000Z") / 1_000),
     first_trade_at: "2026-08-20T12:00:00.000Z",
     last_trade_at: Math.floor(Date.parse("2026-08-29T17:55:00.000Z") / 1_000),
@@ -35,6 +37,34 @@ function row(overrides = {}) {
     win_rate_pct: 61.25,
     closed_lots: 42,
     median_hold_seconds: 1_800,
+    profit_factor: 2.4,
+    average_trade_roi_pct: 18.5,
+    median_trade_roi_pct: 9.2,
+    top_1_profit_concentration_pct: 42.5,
+    top_5_profit_concentration_pct: 88.4,
+    profitable_observations: 28,
+    weekly_profitable_pct: 75,
+    maximum_drawdown_usdc: 412.5,
+    maximum_drawdown_sol: null,
+    trade_rate_per_active_day: 18.2857,
+    repeat_token_rate_pct: 32.5,
+    mechanical_pattern_state: "moderate",
+    buy_count: 71,
+    sell_count: 57,
+    average_buy_usdc: 184.25,
+    median_buy_usdc: 92.1,
+    average_buy_sol: null,
+    median_buy_sol: null,
+    open_known_cost_positions: 6,
+    reconstruction_confidence_pct: 91.5,
+    trade_decode_coverage_pct: 96,
+    classification_coverage_pct: 98.5,
+    provider_history_exhausted: 1,
+    source_history_complete: 0,
+    last_observed_sol_balance: 14.25,
+    last_observed_sol_at: Math.floor(Date.parse("2026-08-29T17:55:00.000Z") / 1_000),
+    last_observed_usdc_balance: 812.5,
+    last_observed_usdc_at: Math.floor(Date.parse("2026-08-29T17:55:00.000Z") / 1_000),
     ...overrides,
   };
 }
@@ -49,6 +79,8 @@ test("wallet screener defaults are bounded, deterministic, and immutable", () =>
   assert.equal(query.page, 1);
   assert.equal(query.page_size, WalletScreenerLimits.default_page_size);
   assert.equal(query.offset, 0);
+  assert.equal(query.preset, null);
+  assert.deepEqual(query.clauses, []);
   assert.deepEqual(query.filters, {
     active_within_hours: null,
     active_since_at: null,
@@ -87,6 +119,27 @@ test("all supported filters, sort, and pagination normalize for deterministic D1
   assert.equal(query.page_size, 30);
 });
 
+test("composable clauses and transparent presets normalize without accepting SQL-shaped input", () => {
+  assert.ok(WalletScreenerOperators.includes("unavailable"));
+  assert.equal(WalletScreenerPresets.consistent_winners.clauses[1].field, "profit_factor");
+  const query = normalizeWalletScreenerRequest({
+    preset: "consistent_winners",
+    clauses: [
+      { field: "median_hold_seconds", operator: "between", value: [300, 86_400] },
+      { field: "mechanical_pattern_state", operator: "in", value: ["low", "moderate"] },
+      { field: "last_observed_usdc_balance", operator: "available" },
+    ],
+    sort: "profit_concentration_asc",
+  }, { now: NOW });
+  assert.equal(query.preset.id, "consistent_winners");
+  assert.equal(query.requested_clauses.length, 3);
+  assert.equal(query.clauses.length, 7);
+  assert.deepEqual(query.clauses.at(-1), { field: "last_observed_usdc_balance", operator: "available", value: null });
+  assert.throws(() => normalizeWalletScreenerRequest({ clauses: [{ field: "1; DROP TABLE wallets", operator: "gte", value: 1 }] }, { now: NOW }), /wallet_screener_clause_field_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ clauses: [{ field: "profit_factor", operator: "between", value: [2, 1] }] }, { now: NOW }), /wallet_screener_clause_range_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ preset: "magic_alpha" }, { now: NOW }), /wallet_screener_preset_invalid/);
+});
+
 test("request validation rejects unknown controls, unallowlisted sorts, and unbounded values", () => {
   assert.deepEqual(WalletScreenerPerformanceStates, ["any", "available", "partial", "insufficient_evidence"]);
   assert.ok(WalletScreenerSorts.includes("realized_pnl_usdc_desc"));
@@ -110,6 +163,13 @@ test("row projection exposes exact identity and source evidence without inventin
   assert.equal(projected.profile.generated_at, "2026-08-29T17:59:00.000Z");
   assert.equal(projected.behavior.last_trade_at, "2026-08-29T17:55:00.000Z");
   assert.equal(projected.source_performance.state, "available");
+  assert.equal(projected.source_performance.profit_factor, 2.4);
+  assert.equal(projected.profit_quality.top_1_profit_concentration_pct, 42.5);
+  assert.equal(projected.coverage.reconstruction_confidence_pct, 91.5);
+  assert.equal(projected.coverage.provider_history_exhausted, true);
+  assert.equal(projected.coverage.source_history_complete, false);
+  assert.equal(projected.capital_observations.current_balance_claimed, false);
+  assert.equal(projected.capital_observations.sol.amount, 14.25);
   assert.deepEqual(projected.source_performance.realized_pnl, {
     usdc: 4812.25,
     sol: -0.4,
@@ -127,7 +187,7 @@ test("row projection exposes exact identity and source evidence without inventin
     "last_trade_observed",
     "normalized_trade_history",
     "known_cost_basis_coverage",
-    "closed_lot_evidence",
+    "reconstruction_confidence",
   ]);
   assert.equal(Object.isFrozen(projected), true);
   assert.equal(Object.isFrozen(projected.why_surfaced[0]), true);
@@ -174,6 +234,7 @@ test("response is bounded, paginated, honest about universe coverage, and exclud
   assert.equal(response.pagination.has_next, true);
   assert.equal(response.scope.claim, "bounded_raven_index_only");
   assert.equal(response.scope.comprehensive_chain_index, false);
+  assert.deepEqual(response.presets.map((preset) => preset.id), ["evidence_first", "consistent_winners", "broad_edge", "active_swing", "fast_systematic"]);
   assert.match(response.limitations[0], /not every wallet on Solana/i);
   assert.equal(Object.isFrozen(response.rows), true);
 });

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Raven Copy · RavenOS Pro</title>
-  <meta name="description" content="Measure whether a Solana wallet's trades were realistically copyable, then shadow Raven's policy decisions without moving funds." />
+  <title>Wallet Intelligence · RavenOS Pro</title>
+  <meta name="description" content="Discover and analyze Solana wallets with evidence-bound performance, profit quality, behavior, and optional prospective Raven Copy testing." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-wallet-copy.css" />
 </head>
@@ -14,12 +14,12 @@
       <div class="copy-hero-copy">
         <a href="/account/">← Account</a>
         <span>RavenOS Pro · Solana first</span>
-        <h1>Find returns<br />you could actually capture.</h1>
-        <p>Inspect what a public wallet did, then test what a real Raven follower would have received after detection, liquidity, entry, exit, and fees.</p>
+        <h1>Find repeatable edge.<br />See the evidence.</h1>
+        <p>Screen Raven-indexed Solana wallets, reconstruct how they made money, expose concentration and missing cost basis, then optionally test follower reality in Shadow mode.</p>
       </div>
       <aside class="copy-mode-card" aria-live="polite">
-        <div><span>Mode</span><strong>Shadow only</strong></div>
-        <p>No funds move and nothing can be signed or submitted. Any fee shown is hypothetical.</p>
+        <div><span>Workspace</span><strong>Research + Shadow</strong></div>
+        <p>Wallet research is evidence-bound. Optional Shadow tests move no funds and cannot sign or submit anything.</p>
         <strong id="copyWorkspaceState">Checking Pro access</strong>
         <small id="copyWorkspaceIdentity">Waiting for sign-in</small>
       </aside>
@@ -72,34 +72,51 @@
             <p id="copySearchStatus" aria-live="polite">Raven reviews recent public activity and separates trades, transfers, airdrops, and anything it cannot resolve.</p>
           </form>
           <aside class="copy-proof-card">
-            <span>Raven’s test</span>
+            <span>Raven’s evidence stack</span>
             <ol>
-              <li><strong>Did the wallet profit?</strong><small>Only where cost basis is reconstructable.</small></li>
-              <li><strong>Could Raven detect it?</strong><small>We measure how long a copy signal takes to reach you.</small></li>
-              <li><strong>Could you enter and exit?</strong><small>A copy needs a current buy route and a way back to USDC.</small></li>
+              <li><strong>Was the profit reconstructable?</strong><small>Inbound transfers never become zero-cost winners.</small></li>
+              <li><strong>Was the edge broad or concentrated?</strong><small>Largest-winner dependence, profit factor, drawdown, and consistency stay visible.</small></li>
+              <li><strong>Could a follower capture it?</strong><small>Prospective Raven Copy evidence stays separate until Shadow has sampled real signals.</small></li>
             </ol>
           </aside>
         </div>
 
         <section class="copy-screener" id="copyScreener" hidden>
           <header class="copy-screener-head">
-            <div><span>Raven wallet index</span><h2>Wallets Raven has actually seen.</h2><p>Screen wallets Raven has already reviewed. This is not every Solana wallet, and missing copy results never become a zero.</p></div>
+            <div><span>Raven Pro wallet screener</span><h2>Find wallets with reconstructable edge.</h2><p>Rank only Raven-indexed public wallets. Missing history, cost basis, entry context, and copy evidence remain visibly unavailable.</p></div>
             <strong id="copyScreenerCount">0 indexed</strong>
           </header>
+          <div class="copy-preset-rail" id="copyPresetRail" aria-label="Wallet screener presets">
+            <button type="button" data-screen-preset="evidence_first">Evidence first<small>Strong reconstruction</small></button>
+            <button type="button" data-screen-preset="consistent_winners">Consistent winners<small>Profit quality</small></button>
+            <button type="button" data-screen-preset="broad_edge">Broad edge<small>Less one-hit dependence</small></button>
+            <button type="button" data-screen-preset="active_swing">Active swing<small>1h–7d holds</small></button>
+            <button type="button" data-screen-preset="fast_systematic">Fast patterns<small>Mechanical evidence</small></button>
+          </div>
+          <section class="copy-saved-research" aria-label="Saved wallet research">
+            <header><div><span>Saved wallet lists</span><strong id="copySavedCount">0 saved</strong></div><label for="copySaveListName">Save new wallets to <input id="copySaveListName" maxlength="48" value="Research" /></label></header>
+            <div id="copySavedWallets"><p>No saved research wallets yet.</p></div>
+          </section>
           <form class="copy-screener-filters" id="copyScreenerFilters">
             <label><span>Active within</span><select id="copyScreenActive"><option value="">Any retained date</option><option value="24">24 hours</option><option value="168">7 days</option><option value="720" selected>30 days</option><option value="2160">90 days</option></select></label>
             <label><span>Minimum trades</span><input id="copyScreenTrades" type="number" min="0" max="2000" step="1" value="1" /></label>
             <label><span>Minimum active days</span><input id="copyScreenDays" type="number" min="0" max="3650" step="1" value="1" /></label>
             <label><span>Known cost basis</span><select id="copyScreenBasis"><option value="" selected>Any coverage</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option></select></label>
             <label><span>Performance evidence</span><select id="copyScreenEvidence"><option value="any">Any state</option><option value="available">Available</option><option value="partial">Partial</option><option value="insufficient_evidence">Insufficient</option></select></label>
-            <label><span>Sort</span><select id="copyScreenSort"><option value="last_trade_desc">Recently active</option><option value="trade_count_desc">Most trades</option><option value="active_days_desc">Most active days</option><option value="known_cost_basis_desc">Best coverage</option><option value="closed_lots_desc">Most closed lots</option><option value="win_rate_desc">Win rate</option><option value="roi_desc">ROI</option><option value="realized_pnl_usdc_desc">USDC P&amp;L</option><option value="realized_pnl_sol_desc">SOL P&amp;L</option></select></label>
+            <label><span>Sort</span><select id="copyScreenSort"><option value="last_trade_desc">Recently active</option><option value="reconstruction_confidence_desc">Best reconstruction</option><option value="profit_factor_desc">Profit factor</option><option value="profit_concentration_asc">Lowest winner concentration</option><option value="weekly_consistency_desc">Weekly consistency</option><option value="trade_count_desc">Most trades</option><option value="active_days_desc">Most active days</option><option value="trade_rate_desc">Trade rate</option><option value="known_cost_basis_desc">Best cost basis</option><option value="closed_lots_desc">Most closed lots</option><option value="win_rate_desc">Win rate</option><option value="roi_desc">ROI</option><option value="median_trade_roi_desc">Median trade ROI</option><option value="median_hold_asc">Shortest hold</option><option value="median_hold_desc">Longest hold</option><option value="realized_pnl_usdc_desc">USDC P&amp;L</option><option value="realized_pnl_sol_desc">SOL P&amp;L</option><option value="maximum_drawdown_usdc_asc">Lowest USDC drawdown</option><option value="maximum_drawdown_sol_asc">Lowest SOL drawdown</option></select></label>
             <div class="copy-screener-actions"><button type="button" id="copyScreenReset">Reset</button><button type="submit">Apply filters</button></div>
             <details class="copy-screener-more">
-              <summary>More performance filters</summary>
+              <summary>Profit quality, behavior, and evidence filters</summary>
               <div>
-                <label><span>Minimum closed lots</span><input id="copyScreenClosed" type="number" min="0" max="1000000" step="1" placeholder="Any" /></label>
+                <label><span>Minimum closed observations</span><input id="copyScreenClosed" type="number" min="0" max="1000000" step="1" placeholder="Any" /></label>
                 <label><span>Minimum win rate</span><div class="copy-input-unit"><input id="copyScreenWin" type="number" min="0" max="100" step="0.1" placeholder="Any" /><small>%</small></div></label>
                 <label><span>Minimum ROI</span><div class="copy-input-unit"><input id="copyScreenRoi" type="number" min="-100" max="1000000000" step="0.1" placeholder="Any" /><small>%</small></div></label>
+                <label><span>Minimum profit factor</span><input id="copyScreenProfitFactor" type="number" min="0" max="1000000000" step="0.01" placeholder="Any" /></label>
+                <label><span>Maximum top-1 concentration</span><div class="copy-input-unit"><input id="copyScreenTopOne" type="number" min="0" max="100" step="0.1" placeholder="Any" /><small>%</small></div></label>
+                <label><span>Minimum reconstruction</span><div class="copy-input-unit"><input id="copyScreenReconstruction" type="number" min="0" max="100" step="0.1" placeholder="Any" /><small>%</small></div></label>
+                <label><span>Minimum median hold</span><div class="copy-input-unit"><input id="copyScreenHoldMin" type="number" min="0" max="315360000" step="60" placeholder="Any" /><small>SEC</small></div></label>
+                <label><span>Maximum median hold</span><div class="copy-input-unit"><input id="copyScreenHoldMax" type="number" min="0" max="315360000" step="60" placeholder="Any" /><small>SEC</small></div></label>
+                <label><span>Mechanical pattern</span><select id="copyScreenMechanical"><option value="">Any state</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="insufficient_evidence">Insufficient evidence</option></select></label>
               </div>
             </details>
           </form>
@@ -111,13 +128,14 @@
         <section class="copy-profile" id="copyProfile" hidden>
           <header>
             <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
-            <button id="copyStartSetup" type="button">Shadow this wallet</button>
+            <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Shadow this wallet</button></div>
           </header>
           <div class="copy-performance-split">
             <article>
               <span>Source performance</span>
               <strong id="copySourcePnl">Insufficient evidence</strong>
               <dl id="copySourceMetrics"></dl>
+              <div class="copy-window-rail" id="copyPerformanceWindows" aria-label="Realized performance by observation window"></div>
               <p id="copySourceLimits"></p>
             </article>
             <article>
@@ -128,6 +146,12 @@
               <p id="copyFollowerLimit">Historical source returns never become hypothetical follower fills.</p>
             </article>
           </div>
+          <section class="copy-research-grid" aria-label="Deep wallet research">
+            <article><header><span>Profit quality</span><strong>How returns were made</strong></header><dl id="copyProfitQuality"></dl><p>USDC and SOL settlement results are never combined into a fictional total.</p></article>
+            <article><header><span>Behavior</span><strong>How the wallet trades</strong></header><dl id="copyBehaviorMetrics"></dl><p id="copyBehaviorLimit">Mechanical patterns describe timing and sizing only; they do not identify a person or bot.</p></article>
+            <article><header><span>Evidence quality</span><strong>How much Raven knows</strong></header><dl id="copyEvidenceMetrics"></dl><p id="copyEvidenceLimit">Full confidence remains unavailable without contemporaneous historical price and liquidity evidence.</p></article>
+            <article><header><span>Capital &amp; inventory</span><strong>Last observed, never implied current</strong></header><dl id="copyCapitalMetrics"></dl><div class="copy-open-positions" id="copyOpenPositions"></div></article>
+          </section>
           <section class="copy-event-list"><header><span>Recent reconstructed activity</span><strong id="copyEventCount">0 events</strong></header><div id="copyRecentEvents"></div></section>
         </section>
 

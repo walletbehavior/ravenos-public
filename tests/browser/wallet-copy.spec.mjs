@@ -43,9 +43,21 @@ function profile() {
       roi_pct: 38.42,
       win_rate_pct: 62.5,
       closed_lots: 8,
+      profit_factor: 2.18,
+      windows: {
+        h24: { state: "available", observations: 2, realized_pnl: { usdc: 52.2, sol: null, combined: null, bases_combined: false } },
+        d7: { state: "available", observations: 5, realized_pnl: { usdc: 211.4, sol: null, combined: null, bases_combined: false } },
+        d30: { state: "available", observations: 8, realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false } },
+        d90: { state: "available", observations: 8, realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false } },
+        all_available: { state: "available", observations: 8, realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false } },
+      },
       limitations: ["Some positions have unresolved cost basis and are excluded from realized performance."],
     },
-    behavior: { median_hold_seconds: 1_860, average_hold_seconds: 2_100, trade_count: 7, active_days: 4, tokens_traded: 3, first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z" },
+    behavior: { median_hold_seconds: 1_860, average_hold_seconds: 2_100, trade_count: 7, active_days: 4, tokens_traded: 3, first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z", repeat_token_rate_pct: 33.3, observed_trade_completion_pct: 66.7, scaled_into_token_pct: 25, scaled_out_token_pct: 20, mechanical_pattern_evidence: { state: "insufficient_evidence", rapid_under_30_seconds_pct: 14.3 } },
+    profit_quality: { by_basis: { usdc: { top_1_profit_concentration_pct: 48.2, top_5_profit_concentration_pct: 100, profitable_observations: 5, weekly_consistency: { profitable_period_pct: 75 } }, sol: {} } },
+    data_quality: { history_scope: "bounded_partial_history", provider_history_exhausted: false, cost_basis_coverage_pct: 71.4, trade_decode_coverage_pct: 91.7, classification_coverage_pct: 100, reconstruction_confidence_pct: 87.7, historical_price_evidence_coverage_pct: null, full_data_confidence_pct: null },
+    positions: { known_cost_open_position_count: 1, unresolved_cost_basis_event_count: 2, known_cost_open_positions: [{ mint: TOKEN, basis: "usdc", lot_count: 1, remaining_cost: 25 }] },
+    capital_observations: { current_balance_claimed: false, sol: { amount: 8.2, observed_at: "2026-08-29T11:59:58.000Z" }, canonical_usdc: { amount: 412.5, observed_at: "2026-08-29T11:59:58.000Z" } },
   };
 }
 
@@ -54,9 +66,10 @@ function screenedWallet() {
     source_wallet_id: SOURCE_ID,
     source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
     profile: { snapshot_id: `swp_${"b".repeat(40)}`, version: 3, generated_at: "2026-08-29T12:00:00.000Z" },
-    source_performance: { state: "partial", realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false }, roi_pct: 38.42, win_rate_pct: 62.5, closed_lots: 8 },
+    source_performance: { state: "partial", realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false }, roi_pct: 38.42, win_rate_pct: 62.5, closed_lots: 8, profit_factor: 2.18 },
     behavior: { first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z", trade_count: 7, active_days: 4, token_count: 3, median_hold_seconds: 1_860 },
-    coverage: { known_cost_basis_pct: 71.4, source_history_complete: false, chain_wide_coverage_claimed: false },
+    profit_quality: { top_1_profit_concentration_pct: 48.2 },
+    coverage: { known_cost_basis_pct: 71.4, reconstruction_confidence_pct: 87.7, source_history_complete: false, chain_wide_coverage_claimed: false },
     why_surfaced: [{ code: "normalized_trade_history", label: "7 normalized trades observed." }, { code: "closed_lot_evidence", label: "8 closed lots support source-performance calculations." }],
     follower_reality: { state: "not_sampled", prospective_sample_size: null },
   };
@@ -158,8 +171,24 @@ async function install(page, shared, { authenticated = true, entitled = true } =
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}` && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY")], provider_request_performed: false }) });
     }
+    if (url.pathname.endsWith("/saved-wallets") && request.method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.saved?.length ? "available" : "empty", saves: shared.saved || [], lists: [] }) });
+    }
+    if (url.pathname.endsWith("/saved-wallets") && request.method() === "POST") {
+      const body = JSON.parse(request.postData() || "{}");
+      const existing = (shared.saved || []).find((row) => row.source_wallet_id === body.source_wallet_id && row.list_name === body.list_name);
+      const save = existing || { save_id: `wrs_${"s".repeat(40)}`, source_wallet_id: body.source_wallet_id, list_name: body.list_name, label: body.label, source_wallet: { chain: "solana", network: "mainnet", address: WALLET }, created_at: "2026-08-29T12:00:00.000Z", updated_at: "2026-08-29T12:00:00.000Z", revision: 1, shadow_monitoring_started: false, execution_authorized: false };
+      shared.saved = existing ? shared.saved : [...(shared.saved || []), save];
+      return route.fulfill({ status: existing ? 200 : 201, contentType: "application/json", body: JSON.stringify({ ok: true, created: !existing, save }) });
+    }
+    if (url.pathname.includes("/saved-wallets/") && request.method() === "DELETE") {
+      const saveId = url.pathname.split("/").pop();
+      const before = (shared.saved || []).length;
+      shared.saved = (shared.saved || []).filter((row) => row.save_id !== saveId);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
+    }
     if (url.pathname.endsWith("/inspect") && request.method() === "POST") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", profile: profile(), recent_events: [event("SWAP_BUY"), event("TRANSFER_IN")] }) });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY"), event("TRANSFER_IN")] }) });
     }
     if (url.pathname.endsWith("/watches") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.watch ? "available" : "empty", watches: shared.watch ? [shared.watch] : [] }) });
@@ -243,20 +272,35 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Wallets Raven has actually seen." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
   await expect(page.getByText("7 normalized trades observed.")).toBeVisible();
   await expect(page.getByText("Follower", { exact: true })).toBeVisible();
   await expect(page.getByText("Not sampled", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("#copySavedWallets").getByText("7KxQmT…MpfHrt", { exact: true })).toBeVisible();
+  const saveRequest = shared.requests.find((row) => row.method === "POST" && row.path.endsWith("/saved-wallets"));
+  expect(saveRequest.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
+  expect(JSON.parse(saveRequest.body)).toEqual({ source_wallet_id: SOURCE_ID, list_name: "Research", label: "7KxQmT…MpfHrt" });
+  expect(shared.watch).toBeNull();
   await captureVisual(page, "wallet-copy-screener-desktop-1440");
   await page.getByRole("button", { name: "Open analysis" }).click();
   await expect(page.getByText("25 USDC", { exact: true })).toBeVisible();
+  await expect(page.getByText("How returns were made", { exact: true })).toBeVisible();
+  await expect(page.getByText("How much Raven knows", { exact: true })).toBeVisible();
+  await expect(page.getByText("Last observed, never implied current", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save wallet" })).toBeVisible();
   await expect(page.getByRole("link", { name: /View transaction/ })).toHaveAttribute("href", /solscan\.io\/tx\//);
+  await captureVisual(page, "wallet-intelligence-profile-desktop-1440");
   const detailRequest = shared.requests.find((row) => row.path === `/api/v1/wallet-copy/wallets/${SOURCE_ID}`);
   expect(detailRequest.method).toBe("GET");
   expect(shared.requests.filter((row) => row.path.endsWith("/inspect"))).toHaveLength(0);
   const screenerRequest = shared.requests.find((row) => row.path.endsWith("/screener"));
   expect(screenerRequest.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
   expect(JSON.parse(screenerRequest.body).filters.min_known_cost_basis_pct).toBeNull();
+  await page.getByRole("button", { name: /Consistent winners/ }).click();
+  const presetRequest = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
+  expect(JSON.parse(presetRequest.body).preset).toBe("consistent_winners");
+  expect(new URL(page.url()).searchParams.get("screen")).toBe("consistent_winners");
 });
 
 test("mobile wallet screener keeps filters, source evidence, and analysis controls contained", async ({ page }) => {
@@ -264,7 +308,7 @@ test("mobile wallet screener keeps filters, source evidence, and analysis contro
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Wallets Raven has actually seen." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
   await page.getByLabel("Sort").selectOption("trade_count_desc");
   await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page.getByRole("button", { name: "Open analysis" })).toBeVisible();
@@ -275,6 +319,13 @@ test("mobile wallet screener keeps filters, source evidence, and analysis contro
   const latest = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(latest.body).sort).toBe("trade_count_desc");
   await captureVisual(page, "wallet-copy-screener-mobile-390");
+  await page.getByRole("button", { name: "Open analysis" }).click();
+  await expect(page.getByText("How the wallet trades", { exact: true })).toBeVisible();
+  const profileOverflow = await page.evaluate(() => [...document.querySelectorAll("#copyProfile *")]
+    .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
+    .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));
+  expect(profileOverflow).toEqual([]);
+  await captureVisual(page, "wallet-intelligence-profile-mobile-390");
 });
 
 test("wallet handoff pre-fills and inspects the exact public address after Pro authentication", async ({ page }) => {

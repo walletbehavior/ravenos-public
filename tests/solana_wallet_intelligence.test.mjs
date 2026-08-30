@@ -92,6 +92,8 @@ test("a Jupiter canonical-USDC buy becomes one exact, prospective copy signal", 
   assert.equal(event.economic.destination_asset.mint, TOKEN);
   assert.equal(event.economic.destination_asset.standard, "spl_or_token_2022_unresolved");
   assert.equal(event.timing.detection_delay_ms, 2_000);
+  assert.equal(event.wallet_state.canonical_usdc_balance_base_units, "75000000");
+  assert.equal(event.wallet_state.current_balance_claimed, false);
   assert.equal(event.execution_boundary, undefined);
   assert.equal(event.privacy.subscriber_identity_included, false);
 });
@@ -167,7 +169,7 @@ test("FIFO source performance excludes unknown cost basis and never promotes mar
   }), "i", { observation_mode: "historical_backfill" });
   const unknown = normalize(transaction({
     slot: 103,
-    blockTime: 1_777_000_200,
+    blockTime: 1_777_086_500,
     pre: [balance(WALLET, TOKEN_2022, 0, 6)],
     post: [balance(WALLET, TOKEN_2022, 5_000_000, 6)],
     logs: ["Program log: Instruction: TransferChecked"],
@@ -185,6 +187,16 @@ test("FIFO source performance excludes unknown cost basis and never promotes mar
   assert.equal(profile.behavior.trade_rate_per_active_day, 2);
   assert.equal(profile.behavior.median_hold_seconds, 100);
   assert.equal(profile.behavior.average_hold_seconds, 100);
+  assert.equal(profile.behavior.active_days, 1);
+  assert.equal(profile.behavior.observed_token_exit_coverage_pct, 100);
+  assert.equal(profile.behavior.observed_trade_completion_scope, "bought_token_with_any_observed_sell");
+  assert.equal(profile.exit_behavior.partial_exit_token_pct, null);
+  assert.equal(profile.exit_behavior.fully_exited_token_pct, null);
+  assert.equal(profile.exit_behavior.known_cost_fully_exited_token_pct, 100);
+  assert.equal(profile.coverage.known_cost_basis_pct, 50);
+  assert.equal(profile.coverage.cost_basis_observations, 2);
+  assert.equal(profile.coverage.known_cost_basis_observations, 1);
+  assert.equal(profile.coverage.unresolved_cost_basis_observations, 1);
   assert.deepEqual(profile.behavior.buy_notional_by_basis.usdc, {
     count: 1,
     total: 25,
@@ -221,7 +233,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 3);
+  assert.equal(profile.profile_version, 4);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -255,7 +267,7 @@ test("negative native-SOL performance remains a loss rather than an unavailable 
   assert.equal(profile.source_performance.win_rate_pct, 0);
 });
 
-test("profile v3 separates USDC and SOL buy notionals and counts exact traded assets", () => {
+test("profile v4 separates USDC and SOL buy notionals and counts exact traded assets", () => {
   const usdcBuy10 = normalize(transaction({
     slot: 401,
     blockTime: 1_777_100_000,
@@ -290,7 +302,7 @@ test("profile v3 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 3);
+  assert.equal(profile.profile_version, 4);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);
@@ -304,4 +316,57 @@ test("profile v3 separates USDC and SOL buy notionals and counts exact traded as
   });
   assert.equal(profile.source_performance.roi_pct, null);
   assert.equal(profile.evidence.cross_basis_conversion_performed, false);
+});
+
+test("profile v4 exposes profit quality, drawdown, windows, and reconstruction coverage without inventing full confidence", () => {
+  const base = Math.floor(Date.parse("2026-08-29T10:00:00.000Z") / 1_000);
+  const buy = (mint, spend, slot, suffix) => normalize(transaction({
+    slot,
+    blockTime: base + slot,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 1_000_000_000, 6), balance(WALLET, mint, 0, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 1_000_000_000 - spend, 6), balance(WALLET, mint, 100_000_000, 6)],
+  }), suffix, { observation_mode: "historical_backfill" });
+  const sell = (mint, proceeds, slot, suffix) => normalize(transaction({
+    slot,
+    blockTime: base + slot,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 500_000_000, 6), balance(WALLET, mint, 100_000_000, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 500_000_000 + proceeds, 6), balance(WALLET, mint, 0, 6)],
+  }), suffix, { observation_mode: "historical_backfill" });
+  const events = [
+    buy(TOKEN, 100_000_000, 1, "u"),
+    sell(TOKEN, 150_000_000, 2, "v"),
+    buy(TOKEN_TWO, 100_000_000, 3, "w"),
+    sell(TOKEN_TWO, 110_000_000, 4, "x"),
+    buy(TOKEN_2022, 100_000_000, 5, "y"),
+    sell(TOKEN_2022, 90_000_000, 6, "z"),
+  ];
+  const profile = buildSolanaWalletProfile(events, {
+    generated_at: "2026-08-29T12:00:00.000Z",
+    history: {
+      provider: "fixture_rpc",
+      history_limit: 24,
+      history_exhausted: true,
+      signatures_requested: 6,
+      transactions_decoded: 6,
+    },
+  });
+  assert.equal(profile.source_performance.realized_pnl_usdc, 50);
+  assert.equal(profile.source_performance.profit_factor, 6);
+  assert.equal(profile.source_performance.by_basis.usdc.average_trade_roi_pct, 16.6667);
+  assert.equal(profile.source_performance.by_basis.usdc.median_trade_roi_pct, 10);
+  assert.equal(profile.source_performance.by_basis.usdc.maximum_realized_drawdown, 10);
+  assert.equal(profile.profit_quality.by_basis.usdc.top_1_profit_concentration_pct, 83.3333);
+  assert.equal(profile.profit_quality.by_basis.usdc.top_5_profit_concentration_pct, 100);
+  assert.equal(profile.source_performance.windows.d7.observations, 3);
+  assert.equal(profile.source_performance.windows.d7.realized_pnl.usdc, 50);
+  assert.equal(profile.data_quality.provider_history_exhausted, true);
+  assert.equal(profile.data_quality.history_complete, false);
+  assert.equal(profile.data_quality.trade_decode_coverage_pct, 100);
+  assert.equal(profile.data_quality.classification_coverage_pct, 100);
+  assert.equal(profile.data_quality.reconstruction_confidence_pct, 100);
+  assert.equal(profile.data_quality.full_data_confidence_pct, null);
+  assert.equal(profile.positions.known_cost_open_position_count, 0);
+  assert.equal(profile.capital_observations.current_balance_claimed, false);
+  assert.equal(profile.capital_observations.canonical_usdc.state, "last_observed_in_transaction");
+  assert.equal(profile.copy_readiness.source_performance_substituted, false);
 });

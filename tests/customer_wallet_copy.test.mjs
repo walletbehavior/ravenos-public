@@ -88,6 +88,7 @@ function memoryStore() {
   const sources = new Map();
   const events = new Map();
   const profiles = new Map();
+  const researchSaves = new Map();
   const watches = new Map();
   const decisions = [];
   const positions = [];
@@ -97,6 +98,7 @@ function memoryStore() {
     sources,
     events,
     profiles,
+    researchSaves,
     watches,
     decisions,
     positions,
@@ -139,8 +141,32 @@ function memoryStore() {
         win_rate_pct: profile.source_performance.win_rate_pct,
         closed_lots: profile.source_performance.closed_lots,
         median_hold_seconds: profile.behavior.median_hold_seconds,
+        profit_factor: profile.source_performance.profit_factor,
+        average_trade_roi_pct: profile.source_performance.by_basis?.usdc?.average_trade_roi_pct ?? profile.source_performance.by_basis?.sol?.average_trade_roi_pct ?? null,
+        median_trade_roi_pct: profile.source_performance.by_basis?.usdc?.median_trade_roi_pct ?? profile.source_performance.by_basis?.sol?.median_trade_roi_pct ?? null,
+        top_1_profit_concentration_pct: profile.profit_quality?.by_basis?.usdc?.top_1_profit_concentration_pct ?? profile.profit_quality?.by_basis?.sol?.top_1_profit_concentration_pct ?? null,
+        top_5_profit_concentration_pct: profile.profit_quality?.by_basis?.usdc?.top_5_profit_concentration_pct ?? profile.profit_quality?.by_basis?.sol?.top_5_profit_concentration_pct ?? null,
+        reconstruction_confidence_pct: profile.data_quality?.reconstruction_confidence_pct,
+        trade_decode_coverage_pct: profile.data_quality?.trade_decode_coverage_pct,
+        classification_coverage_pct: profile.data_quality?.classification_coverage_pct,
+        provider_history_exhausted: profile.data_quality?.provider_history_exhausted ? 1 : 0,
+        source_history_complete: profile.data_quality?.history_complete ? 1 : 0,
       }));
       return { rows: rows.slice(query.offset, query.offset + query.page_size), total: rows.length };
+    },
+    async countResearchSaves(userId) { return [...researchSaves.values()].filter((row) => row.user_id === userId).length; },
+    async countResearchLists(userId) { return new Set([...researchSaves.values()].filter((row) => row.user_id === userId).map((row) => row.list_name.toLowerCase())).size; },
+    async listResearchSaves(userId) { return [...researchSaves.values()].filter((row) => row.user_id === userId).map((row) => ({ ...row, address: sources.get(row.source_wallet_id)?.address })); },
+    async saveResearchWallet(record) {
+      const duplicate = [...researchSaves.values()].find((row) => row.user_id === record.user_id && row.source_wallet_id === record.source_wallet_id && row.list_name.toLowerCase() === record.list_name.toLowerCase());
+      if (duplicate) return { ...duplicate, address: sources.get(duplicate.source_wallet_id)?.address };
+      const row = { ...record, created_at: record.now, updated_at: record.now, revision: 1 };
+      researchSaves.set(record.save_id, row);
+      return { ...row, address: sources.get(row.source_wallet_id)?.address };
+    },
+    async deleteResearchSave(userId, saveId) {
+      const row = researchSaves.get(saveId);
+      return row?.user_id === userId && researchSaves.delete(saveId) ? 1 : 0;
     },
     async countWatches(userId) { return [...watches.values()].filter((row) => row.user_id === userId).length; },
     async createWatch(record) {
@@ -202,6 +228,7 @@ test("wallet-copy activation is entitlement-coordinated and source-level live au
 test("wallet-copy migration shares source evidence, isolates subscribers, and preserves append-only decisions", () => {
   const sql = readFileSync("customer-migrations/0007_customer_wallet_copy.sql", "utf8");
   const screenerSql = readFileSync("customer-migrations/0008_customer_wallet_screener.sql", "utf8");
+  const depthSql = readFileSync("customer-migrations/0009_customer_wallet_screener_depth.sql", "utf8");
   assert.match(sql, /'wallet\.copy'/);
   assert.match(sql, /CREATE TABLE ravenos_source_wallets/i);
   assert.match(sql, /UNIQUE \(chain, network, address\)/i);
@@ -218,6 +245,15 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   assert.match(screenerSql, /performance_state TEXT NOT NULL CHECK/i);
   assert.match(screenerSql, /WHERE NOT EXISTS/i);
   assert.doesNotMatch(screenerSql, /user_id|private_key|seed_phrase|signer_material|raw_provider_payload/i);
+  assert.match(depthSql, /profit_factor REAL/i);
+  assert.match(depthSql, /reconstruction_confidence_pct REAL/i);
+  assert.match(depthSql, /provider_history_exhausted/i);
+  assert.match(depthSql, /CREATE TABLE ravenos_customer_wallet_research_saves/i);
+  assert.match(depthSql, /user_id TEXT NOT NULL REFERENCES ravenos_users\(user_id\) ON DELETE CASCADE/i);
+  assert.match(depthSql, /source_wallet_id TEXT NOT NULL REFERENCES ravenos_source_wallets\(source_wallet_id\) ON DELETE CASCADE/i);
+  assert.match(depthSql, /list_name TEXT NOT NULL COLLATE NOCASE/i);
+  assert.match(depthSql, /UNIQUE \(user_id, source_wallet_id, list_name\)/i);
+  assert.doesNotMatch(depthSql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
 });
 
 test("authenticated Pro route rejects cross-origin and unentitled access", async () => {
@@ -292,6 +328,49 @@ test("wallet screener rejects unallowlisted controls and exact source details fa
   const missing = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/sw_sol_${"f".repeat(40)}`), activeEnv, deps(store, provider));
   assert.equal(missing.status, 404);
   assert.equal((await json(missing)).error, "wallet_source_not_found");
+});
+
+test("private wallet research saves are owner-bound, idempotent, and never start shadow monitoring", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const d = deps(store, provider);
+  const inspected = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d);
+  const inspectedPayload = await json(inspected);
+  const sourceId = inspectedPayload.source_wallet_id;
+
+  const body = { source_wallet_id: sourceId, list_name: "Research", label: "Measured source" };
+  const created = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/saved-wallets", { method: "POST", body }), activeEnv, d);
+  const createdPayload = await json(created);
+  assert.equal(created.status, 201);
+  assert.equal(createdPayload.created, true);
+  assert.equal(createdPayload.save.source_wallet.address, WALLET);
+  assert.equal(createdPayload.save.shadow_monitoring_started, false);
+  assert.equal(createdPayload.save.execution_authorized, false);
+  assert.equal(store.watches.size, 0);
+
+  const duplicate = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/saved-wallets", { method: "POST", body }), activeEnv, d);
+  assert.equal(duplicate.status, 200);
+  assert.equal((await json(duplicate)).created, false);
+  assert.equal(store.researchSaves.size, 1);
+
+  const caseDuplicate = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/saved-wallets", { method: "POST", body: { ...body, list_name: "research" } }), activeEnv, d);
+  assert.equal(caseDuplicate.status, 200);
+  assert.equal((await json(caseDuplicate)).created, false);
+  assert.equal(store.researchSaves.size, 1);
+
+  const listed = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/saved-wallets"), activeEnv, d);
+  const listedPayload = await json(listed);
+  assert.equal(listedPayload.saves.length, 1);
+  assert.deepEqual(listedPayload.lists, [{ name: "Research", count: 1 }]);
+
+  store.researchSaves.set(`wrs_${"z".repeat(40)}`, { ...store.researchSaves.values().next().value, save_id: `wrs_${"z".repeat(40)}`, user_id: `usr_${"x".repeat(32)}` });
+  const foreign = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/saved-wallets/wrs_${"z".repeat(40)}`, { method: "DELETE", body: { confirm: "delete_saved_wallet" } }), activeEnv, d);
+  assert.equal((await json(foreign)).deleted, false);
+
+  const removed = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/saved-wallets/${createdPayload.save.save_id}`, { method: "DELETE", body: { confirm: "delete_saved_wallet" } }), activeEnv, d);
+  assert.equal((await json(removed)).deleted, true);
+  assert.equal(store.researchSaves.size, 1);
 });
 
 test("first refresh establishes a baseline and only a later source trade can produce a shadow decision", async () => {

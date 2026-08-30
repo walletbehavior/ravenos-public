@@ -5017,13 +5017,13 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
     operation_key: `wallet-history:${address}:${boundedLimit}`,
     fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getSignaturesForAddress", [
       address,
-      { limit: boundedLimit, commitment: "confirmed" },
+      { limit: Math.min(25, boundedLimit + 1), commitment: "confirmed" },
     ], { timeoutMs: 5_000, maxBytes: 128 * 1024 }),
   });
   if (!Array.isArray(signatures) || !signatures.length) throw new Error("wallet_history_unavailable");
-  const rows = signatures
-    .filter((row) => typeof row?.signature === "string" && row.signature.length >= 64)
-    .slice(0, boundedLimit);
+  const eligibleRows = signatures.filter((row) => typeof row?.signature === "string" && row.signature.length >= 64);
+  const historyExhausted = signatures.length <= boundedLimit && eligibleRows.length === signatures.length;
+  const rows = eligibleRows.slice(0, boundedLimit);
   const events = [];
   for (let offset = 0; offset < rows.length; offset += 4) {
     const batch = rows.slice(offset, offset + 4);
@@ -5060,9 +5060,13 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
   return {
     events,
     provider: "configured_solana_rpc",
+    observation_mode: observationMode,
+    history_limit: boundedLimit,
+    history_exhausted: historyExhausted,
     signatures_requested: rows.length,
     transactions_decoded: events.length,
-    partial: events.length !== rows.length,
+    decode_partial: eligibleRows.length !== signatures.length || events.length !== rows.length,
+    partial: !historyExhausted || eligibleRows.length !== signatures.length || events.length !== rows.length,
   };
 }
 
