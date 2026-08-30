@@ -233,7 +233,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 4);
+  assert.equal(profile.profile_version, 5);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -267,7 +267,7 @@ test("negative native-SOL performance remains a loss rather than an unavailable 
   assert.equal(profile.source_performance.win_rate_pct, 0);
 });
 
-test("profile v4 separates USDC and SOL buy notionals and counts exact traded assets", () => {
+test("profile v5 separates USDC and SOL buy notionals and counts exact traded assets", () => {
   const usdcBuy10 = normalize(transaction({
     slot: 401,
     blockTime: 1_777_100_000,
@@ -302,7 +302,7 @@ test("profile v4 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 4);
+  assert.equal(profile.profile_version, 5);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);
@@ -318,7 +318,7 @@ test("profile v4 separates USDC and SOL buy notionals and counts exact traded as
   assert.equal(profile.evidence.cross_basis_conversion_performed, false);
 });
 
-test("profile v4 exposes profit quality, drawdown, windows, and reconstruction coverage without inventing full confidence", () => {
+test("profile v5 exposes profit quality, drawdown, windows, reconstruction coverage, and a bounded research thesis", () => {
   const base = Math.floor(Date.parse("2026-08-29T10:00:00.000Z") / 1_000);
   const buy = (mint, spend, slot, suffix) => normalize(transaction({
     slot,
@@ -368,5 +368,10 @@ test("profile v4 exposes profit quality, drawdown, windows, and reconstruction c
   assert.equal(profile.positions.known_cost_open_position_count, 0);
   assert.equal(profile.capital_observations.current_balance_claimed, false);
   assert.equal(profile.capital_observations.canonical_usdc.state, "last_observed_in_transaction");
+  assert.equal(profile.research_thesis.schema_version, "ravenos.wallet_research_thesis.v1");
+  assert.equal(profile.research_thesis.source_edge.state, "concentrated_positive_record");
+  assert.match(profile.research_thesis.headline, /concentrated/i);
+  assert.equal(profile.research_thesis.follower_reality.source_performance_used_as_follower_performance, false);
+  assert.equal(profile.research_thesis.claim_boundary.copyability_claimed, false);
   assert.equal(profile.copy_readiness.source_performance_substituted, false);
 });

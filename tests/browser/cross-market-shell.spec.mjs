@@ -113,6 +113,8 @@ test("Discover rows lead with why-now and attach only available route, risk, and
   await expect(row).toBeVisible();
   await expect(row.locator(".discover-token-raven > strong")).not.toHaveText("");
   await expect(row.locator(".discover-token-raven > strong")).not.toContainText(/qualified provider|configured short-window|next qualified observation/i);
+  await expect(row.locator(".discover-token-raven > strong")).not.toContainText(/\bRaven\b/i);
+  expect((await row.locator(".discover-token-raven > strong").innerText()).length).toBeLessThanOrEqual(72);
   await expect(row.locator(".discover-token-decision-strip")).toContainText("Risk");
   await expect(row.locator(".discover-token-decision-strip")).toContainText("Capacity $2.5K");
   await expect(row.locator(".discover-token-decision-strip")).toContainText("42 bps slip");
@@ -1066,7 +1068,7 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("#discoverRefineSummary")).toHaveText("Opportunities");
   await page.locator("[data-spot-sort='raven']").click();
   const ravenRead = page.locator(".discover-token-row").first().locator(".discover-token-raven");
-  await expect(ravenRead).toContainText("Raven read · Current");
+  await expect(ravenRead).toContainText("Read · Current");
   await expect(ravenRead).not.toContainText("Raven spotted a 5m upside move backed by active trading.");
   await expect(ravenRead).toContainText(/price|participation|flow|activity/i);
   await page.locator("[data-spot-sort='velocity']").click();
@@ -1315,7 +1317,7 @@ test("Discover never presents a retained exact-market snapshot as a live opportu
   const shell = row.locator("xpath=ancestor::div[contains(@class, 'discover-token-row-shell')]");
   await shell.locator(".discover-token-evidence > summary").click();
   await expect(shell.locator(".discover-token-evidence-body")).toContainText("Live quote refreshing");
-  await expect(shell.locator(".discover-token-evidence-body")).toContainText("its old quote, move, risk, and rank are not being presented as current");
+  await expect(shell.locator(".discover-token-evidence-body")).toContainText("its old quote, move, risk, and rank are not shown as current");
   await expect(shell.locator("[data-discover-terminal-panel='raven']")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });

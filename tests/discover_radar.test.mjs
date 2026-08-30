@@ -120,7 +120,8 @@ test("a very new high-turnover pool stays visible with explicit integrity warnin
   assert.ok(discovery.risk_flags.some((flag) => flag.value === "very_new_pool"));
   assert.ok(discovery.velocity_state.score.penalties.some((penalty) => penalty.explanation === "High-turnover penalty applied"));
   assert.ok(discovery.velocity_state.score.penalties.some((penalty) => penalty.explanation === "Very-new-pool penalty applied"));
-  assert.match(discovery.decision_support.why_now, /turnover is unusually high/i);
+  assert.doesNotMatch(discovery.decision_support.why_now, /turnover is unusually high|very new/i);
+  assert.equal(discovery.risk_flags.filter((flag) => ["high_turnover", "very_new_pool"].includes(flag.value)).length, 2);
   assert.equal(discovery.notability.default_opportunity_eligible, true);
 });
 
@@ -379,7 +380,7 @@ test("public decision support is regenerated from current behavior instead of pr
   })]).rows[0].discovery;
   assert.match(discovery.decision_support.why_now, /market value|flow/i);
   assert.equal(discovery.decision_support.what_changed, "Price and participation accelerated together.");
-  assert.doesNotMatch(JSON.stringify(discovery.decision_support), /provider projection|registry|classifier/i);
+  assert.doesNotMatch(JSON.stringify(discovery.decision_support), /provider projection|registry|classifier|Raven/i);
 });
 
 test("failed breakouts and recorded-range reclaims remain distinct lifecycle states", () => {
@@ -549,7 +550,7 @@ test("a retained stale Raven observation remains history-only instead of a curre
   assert.equal(row.discovery.raven_evidence_state.qualified, false);
   assert.equal(row.discovery.raven_evidence_state.raven_signal, false);
   assert.equal(row.discovery.raven_evidence_state.lineage.public_artifact_id, "retained-raven-history");
-  assert.match(row.discovery.raven_evidence_state.why_not_available, /current market facts need to refresh/i);
+  assert.match(row.discovery.raven_evidence_state.why_not_available, /current market facts must refresh/i);
   assert.ok(validateDiscoverRadarProjection(result, { nowMs: NOW_MS }));
 });
 

@@ -1,7 +1,7 @@
 # RavenOS Pro Wallet Screener v2
 
 Status: local, dormant, migration-gated
-Reviewed: 2026-08-29
+Reviewed: 2026-08-30
 Entitlement: existing RavenOS Pro (`wallet.copy`)
 Live execution changed: no
 
@@ -42,7 +42,7 @@ The table records public product evidence, not independently verified vendor int
 
 ## Raven-native depth
 
-Profile v4 adds:
+Profile v5 adds:
 
 - gross profit and loss, profit factor, average and median outcomes, average and median trade ROI;
 - top-1, top-3 and top-5 concentration as shares of gross positive realized P&L;
@@ -54,6 +54,16 @@ Profile v4 adds:
 - known-cost open inventory, unresolved basis events and last transaction-touched balances;
 - provider decode, classification and cost-basis coverage;
 - reconstruction confidence from available components while full data confidence remains unavailable without historical price and liquidity coverage.
+
+Profile v5 also adds a versioned `ravenos.wallet_research_thesis.v1` projection. It turns the raw measurements into a concise, inspectable research brief with:
+
+- source-result shape: broad positive, concentrated positive, developing, negative, flat, mixed settlement bases, or insufficient evidence;
+- observed timing style from median reconstructed hold time;
+- explicit evidence strength from closed observations, cost-basis coverage, and reconstruction coverage;
+- bounded strengths, watch-outs, and the next evidence Raven needs;
+- an immutable claim boundary that forbids identity, bot, “smart money,” copyability, calibrated-alpha, or cross-settlement-basis claims.
+
+The thesis is deterministic and contains no opaque score. It never converts source performance into follower performance. Fast wallets explicitly call out unmeasured latency sensitivity until prospective Shadow evidence exists; concentrated wallets identify largest-winner dependence instead of presenting the headline P&L alone.
 
 Unknown is never zero. USDC and SOL results are never added. An inbound transfer or airdrop of a non-settlement asset lowers cost-basis coverage and is never converted to a zero-cost winner. Non-trade activity never inflates active trading days. A source result never becomes a follower result.
 

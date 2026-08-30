@@ -12,6 +12,7 @@ import {
   normalizeWalletScreenerRequest,
   projectWalletScreenerRow,
 } from "../lib/customer_trade/wallet_screener.mjs";
+import { buildWalletResearchThesis } from "../lib/customer_trade/wallet_research_thesis.mjs";
 
 const NOW = "2026-08-29T18:00:00.000Z";
 const ADDRESS = "11111111111111111111111111111111";
@@ -181,6 +182,13 @@ test("row projection exposes exact identity and source evidence without inventin
   assert.equal(projected.follower_reality.state, "not_sampled");
   assert.equal(projected.follower_reality.prospective_sample_size, null);
   assert.equal(projected.follower_reality.source_performance_used_as_follower_performance, false);
+  assert.equal(projected.research_thesis.schema_version, "ravenos.wallet_research_thesis.v1");
+  assert.equal(projected.research_thesis.state, "reviewable");
+  assert.equal(projected.research_thesis.source_edge.state, "mixed_settlement_bases");
+  assert.equal(projected.research_thesis.timing_style.state, "intraday");
+  assert.match(projected.research_thesis.headline, /USDC and SOL results disagree/i);
+  assert.equal(projected.research_thesis.claim_boundary.smart_money_claimed, false);
+  assert.equal(projected.research_thesis.claim_boundary.copyability_claimed, false);
   assert.equal("score" in projected, false);
   assert.equal("copyability_score" in projected.follower_reality, false);
   assert.deepEqual(projected.why_surfaced.map((reason) => reason.code), [
@@ -191,6 +199,52 @@ test("row projection exposes exact identity and source evidence without inventin
   ]);
   assert.equal(Object.isFrozen(projected), true);
   assert.equal(Object.isFrozen(projected.why_surfaced[0]), true);
+  assert.equal(Object.isFrozen(projected.research_thesis.strengths[0]), true);
+});
+
+test("research thesis distinguishes one-hit risk, mixed settlement bases, thin evidence, and prospective copy evidence", () => {
+  const broad = buildWalletResearchThesis({
+    performance: { realized_pnl_usdc: 12_000, realized_pnl_sol: null, closed_observations: 24, profit_factor: 2.1 },
+    behavior: { trade_count: 72, active_days: 18, median_hold_seconds: 4_500 },
+    profit_quality: { top_1_profit_concentration_pct: 38, profitable_observations: 16, weekly_profitable_pct: 80 },
+    quality: { known_cost_basis_pct: 92, reconstruction_confidence_pct: 93, source_history_complete: false },
+    follower_reality: { state: "not_sampled" },
+  });
+  assert.equal(broad.state, "reviewable");
+  assert.equal(broad.source_edge.state, "broad_positive_record");
+  assert.match(broad.headline, /Broad source profits/i);
+
+  const concentrated = buildWalletResearchThesis({
+    performance: { realized_pnl_usdc: 50_000, realized_pnl_sol: null, closed_observations: 20, profit_factor: 2.8 },
+    behavior: { trade_count: 45, active_days: 12, median_hold_seconds: 20 },
+    profit_quality: { top_1_profit_concentration_pct: 92, profitable_observations: 14, weekly_profitable_pct: 75 },
+    quality: { known_cost_basis_pct: 96, reconstruction_confidence_pct: 94, source_history_complete: false },
+    follower_reality: { state: "not_sampled" },
+  });
+  assert.equal(concentrated.source_edge.state, "concentrated_positive_record");
+  assert.equal(concentrated.timing_style.state, "very_fast");
+  assert.ok(concentrated.watchouts.some((finding) => finding.code === "largest_winner_dependence"));
+  assert.ok(concentrated.watchouts.some((finding) => finding.code === "latency_sensitivity_unmeasured"));
+  assert.ok(concentrated.next_evidence.some((finding) => finding.code === "prospective_copy_evidence"));
+
+  const mixed = buildWalletResearchThesis({
+    performance: { realized_pnl_usdc: 1_000, realized_pnl_sol: -4, closed_observations: 12 },
+    behavior: { trade_count: 30, active_days: 6, median_hold_seconds: 7_200 },
+    profit_quality: { top_1_profit_concentration_pct: 55, profitable_observations: 7 },
+    quality: { known_cost_basis_pct: 90, reconstruction_confidence_pct: 90, source_history_complete: true },
+  });
+  assert.equal(mixed.source_edge.state, "mixed_settlement_bases");
+  assert.match(mixed.summary, /kept separate/i);
+  assert.equal(mixed.claim_boundary.settlement_bases_combined, false);
+
+  const thin = buildWalletResearchThesis({
+    performance: { realized_pnl_usdc: null, realized_pnl_sol: null, closed_observations: 0 },
+    behavior: { trade_count: 2, active_days: 1 },
+    quality: { known_cost_basis_pct: null, reconstruction_confidence_pct: 42, source_history_complete: false },
+  });
+  assert.equal(thin.state, "insufficient_evidence");
+  assert.equal(thin.source_edge.state, "insufficient_evidence");
+  assert.equal(thin.claim_boundary.calibrated_alpha_claimed, false);
 });
 
 test("projection fails closed on identity and never turns malformed or missing metrics into zero", () => {

@@ -6,6 +6,33 @@ const TOKEN = "4M7YQqGfRWfBpcA7mN5uY3z8Jj6Hk2VtD9sLxEePoaBn";
 const WATCH_ID = "wcw_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
 
+function researchThesis() {
+  return {
+    schema_version: "ravenos.wallet_research_thesis.v1",
+    thesis_version: 1,
+    state: "developing",
+    headline: "Broad source profits · intraday",
+    summary: "5 profitable closes are observed; the largest winner contributes 48.2% of gross positive realized P&L. Median observed hold: 31m.",
+    source_edge: { state: "broad_positive_record", label: "Broad positive record" },
+    timing_style: { state: "intraday", label: "Intraday", median_hold_seconds: 1_860 },
+    evidence_strength: { state: "developing", label: "Developing evidence" },
+    strengths: [
+      { code: "profit_factor_strength", label: "2.18× profit factor on the available settlement basis." },
+      { code: "profit_breadth", label: "5 profitable closes with 48.2% from the largest winner." },
+    ],
+    watchouts: [
+      { code: "cost_basis_gap", label: "Only 71.4% of observed trade cost basis is known." },
+      { code: "small_closed_sample", label: "8 known-cost closed observations; source results may be sample-sensitive." },
+    ],
+    next_evidence: [
+      { code: "prospective_copy_evidence", label: "Collect prospective Shadow entry, reverse-exit, latency, and refusal evidence before judging copyability." },
+      { code: "entry_context", label: "Retain contemporaneous entry liquidity, market-cap, token-age, and impact evidence." },
+    ],
+    follower_reality: { state: "not_sampled", source_performance_used_as_follower_performance: false },
+    claim_boundary: { wallet_identity_claimed: false, bot_identity_claimed: false, smart_money_claimed: false, copyability_claimed: false, calibrated_alpha_claimed: false, settlement_bases_combined: false },
+  };
+}
+
 async function captureVisual(page, name) {
   const directory = process.env.RAVENOS_VISUAL_ARTIFACT_DIR;
   if (directory) await page.screenshot({ path: join(directory, `${name}.png`), fullPage: true });
@@ -55,6 +82,7 @@ function profile() {
     },
     behavior: { median_hold_seconds: 1_860, average_hold_seconds: 2_100, trade_count: 7, active_days: 4, tokens_traded: 3, first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z", repeat_token_rate_pct: 33.3, observed_trade_completion_pct: 66.7, scaled_into_token_pct: 25, scaled_out_token_pct: 20, mechanical_pattern_evidence: { state: "insufficient_evidence", rapid_under_30_seconds_pct: 14.3 } },
     profit_quality: { by_basis: { usdc: { top_1_profit_concentration_pct: 48.2, top_5_profit_concentration_pct: 100, profitable_observations: 5, weekly_consistency: { profitable_period_pct: 75 } }, sol: {} } },
+    research_thesis: researchThesis(),
     data_quality: { history_scope: "bounded_partial_history", provider_history_exhausted: false, cost_basis_coverage_pct: 71.4, trade_decode_coverage_pct: 91.7, classification_coverage_pct: 100, reconstruction_confidence_pct: 87.7, historical_price_evidence_coverage_pct: null, full_data_confidence_pct: null },
     positions: { known_cost_open_position_count: 1, unresolved_cost_basis_event_count: 2, known_cost_open_positions: [{ mint: TOKEN, basis: "usdc", lot_count: 1, remaining_cost: 25 }] },
     capital_observations: { current_balance_claimed: false, sol: { amount: 8.2, observed_at: "2026-08-29T11:59:58.000Z" }, canonical_usdc: { amount: 412.5, observed_at: "2026-08-29T11:59:58.000Z" } },
@@ -69,6 +97,7 @@ function screenedWallet() {
     source_performance: { state: "partial", realized_pnl: { usdc: 428.12, sol: null, combined: null, bases_combined: false }, roi_pct: 38.42, win_rate_pct: 62.5, closed_lots: 8, profit_factor: 2.18 },
     behavior: { first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z", trade_count: 7, active_days: 4, token_count: 3, median_hold_seconds: 1_860 },
     profit_quality: { top_1_profit_concentration_pct: 48.2 },
+    research_thesis: researchThesis(),
     coverage: { known_cost_basis_pct: 71.4, reconstruction_confidence_pct: 87.7, source_history_complete: false, chain_wide_coverage_claimed: false },
     why_surfaced: [{ code: "normalized_trade_history", label: "7 normalized trades observed." }, { code: "closed_lot_evidence", label: "8 closed lots support source-performance calculations." }],
     follower_reality: { state: "not_sampled", prospective_sample_size: null },
@@ -273,7 +302,8 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await install(page, shared);
   await page.goto("/account/copy/");
   await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
-  await expect(page.getByText("7 normalized trades observed.")).toBeVisible();
+  await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Watch: Only 71.4% of observed trade cost basis is known/)).toBeVisible();
   await expect(page.getByText("Follower", { exact: true })).toBeVisible();
   await expect(page.getByText("Not sampled", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -284,6 +314,11 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   expect(shared.watch).toBeNull();
   await captureVisual(page, "wallet-copy-screener-desktop-1440");
   await page.getByRole("button", { name: "Open analysis" }).click();
+  await expect(page.getByText("Raven research thesis", { exact: true })).toBeVisible();
+  const thesis = page.getByLabel("Raven wallet research thesis");
+  await expect(thesis.getByText("What supports it", { exact: true })).toBeVisible();
+  await expect(thesis.getByText("What could mislead", { exact: true })).toBeVisible();
+  await expect(thesis.getByText("What Raven needs next", { exact: true })).toBeVisible();
   await expect(page.getByText("25 USDC", { exact: true })).toBeVisible();
   await expect(page.getByText("How returns were made", { exact: true })).toBeVisible();
   await expect(page.getByText("How much Raven knows", { exact: true })).toBeVisible();

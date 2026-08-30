@@ -74,7 +74,7 @@ export function customerFacingText(value, fallback = "") {
     )
     .replace(
       /^The exact market remains in Raven's registry after leaving the current provider feed; its latest facts are stale and are not rescored as current\.?$/i,
-      "Still tracked after leaving trending; the latest market update is older, so RavenOS is not treating it as current.",
+      "Still tracked after leaving trending; the latest market update is older and is not shown as current.",
     )
     .replace(
       /^The classifier changed while this retained exact market was stale; a current observation is required before assigning its next state\.?$/i,
@@ -82,6 +82,10 @@ export function customerFacingText(value, fallback = "") {
     )
     .replace(/\bthe next qualified observation\b/gi, "the next market update")
     .replace(/\bthe next real observation\b/gi, "the next market update")
+    .replace(/^Raven is collecting real observations before assigning a stable behavioral state\.?$/i, "More real market updates are needed before naming a stable pattern.")
+    .replace(/\bRaven's actual first recorded state\b/gi, "its first recorded state")
+    .replace(/\bRaven's actual first observation\b/gi, "its first observation")
+    .replace(/\bRaven-recorded high\b/gi, "recorded high")
     .replace(/\bLive Activity\b/gi, "market activity")
     .replace(/\bCurrent Raven Read\b/gi, "Current market read")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")

@@ -169,6 +169,15 @@ function empty(title, detail) {
   return node;
 }
 
+function findingItems(items, fallback) {
+  const findings = Array.isArray(items) ? items.filter((item) => item && typeof item.label === "string" && item.label.trim()).slice(0, 3) : [];
+  return (findings.length ? findings.map((item) => item.label) : [fallback]).map((label) => {
+    const row = document.createElement("li");
+    row.textContent = label;
+    return row;
+  });
+}
+
 function eventCard(event) {
   const card = document.createElement("article");
   card.className = "copy-event-card";
@@ -241,6 +250,18 @@ function renderProfile(payload) {
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
   setText("copyProfileCoverage", `${profile.coverage.transactions_observed} transactions · ${profile.coverage.trade_events} trade events · ${profile.coverage.known_cost_basis_pct === null ? "cost basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% known cost basis`} · ${historyLabel}`);
+  const thesis = profile.research_thesis;
+  const thesisNode = document.getElementById("copyProfileThesis");
+  thesisNode.hidden = !thesis;
+  if (thesis) {
+    thesisNode.dataset.thesisState = text(thesis.state, "insufficient_evidence");
+    setText("copyThesisState", thesis.evidence_strength?.label || readable(thesis.state));
+    setText("copyThesisHeadline", thesis.headline || "Source record still forming");
+    setText("copyThesisSummary", thesis.summary || "Raven needs more known-cost closes before characterizing this wallet.");
+    document.getElementById("copyThesisStrengths").replaceChildren(...findingItems(thesis.strengths, "No durable source strength is established yet."));
+    document.getElementById("copyThesisWatchouts").replaceChildren(...findingItems(thesis.watchouts, "No additional watch-out is supported by the retained evidence."));
+    document.getElementById("copyThesisNext").replaceChildren(...findingItems(thesis.next_evidence, "Continue prospective observation without rewriting prior evidence."));
+  }
   const performance = profile.source_performance;
   setText("copySourcePnl", realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
@@ -640,7 +661,8 @@ function screenerCard(wallet) {
   const stateLabel = document.createElement("span");
   const address = document.createElement("strong");
   const observed = document.createElement("p");
-  stateLabel.textContent = readable(wallet.source_performance?.state || "insufficient_evidence");
+  const thesis = wallet.research_thesis;
+  stateLabel.textContent = thesis?.evidence_strength?.label || readable(wallet.source_performance?.state || "insufficient_evidence");
   address.textContent = shortAddress(wallet.source_wallet?.address);
   observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact Solana address`;
   identity.append(stateLabel, address, observed);
@@ -660,12 +682,20 @@ function screenerCard(wallet) {
     fact("Follower", wallet.follower_reality?.state === "not_sampled" ? "Not sampled" : readable(wallet.follower_reality?.state)),
   );
   const why = document.createElement("div");
-  why.className = "copy-screener-why";
-  const whyLabel = document.createElement("strong");
+  why.className = "copy-screener-thesis";
+  why.dataset.edgeState = text(thesis?.source_edge?.state, "unavailable");
+  const whyLabel = document.createElement("span");
+  const whyHeadline = document.createElement("strong");
   const whyText = document.createElement("p");
-  whyLabel.textContent = "Why surfaced";
-  whyText.textContent = Array.isArray(wallet.why_surfaced) && wallet.why_surfaced.length ? wallet.why_surfaced.map((reason) => reason.label).filter(Boolean).join(" · ") : "Matches the current evidence filters.";
-  why.append(whyLabel, whyText);
+  whyLabel.textContent = thesis ? "Raven thesis" : "Why surfaced";
+  whyHeadline.textContent = thesis?.headline || "Evidence match";
+  const firstWatchout = Array.isArray(thesis?.watchouts) ? thesis.watchouts.find((item) => item?.label)?.label : null;
+  whyText.textContent = thesis?.summary
+    ? `${thesis.summary}${firstWatchout ? ` Watch: ${firstWatchout}` : ""}`
+    : Array.isArray(wallet.why_surfaced) && wallet.why_surfaced.length
+      ? wallet.why_surfaced.map((reason) => reason.label).filter(Boolean).join(" · ")
+      : "Matches the current evidence filters.";
+  why.append(whyLabel, whyHeadline, whyText);
   const actions = document.createElement("div");
   actions.className = "copy-screener-card-actions";
   const save = document.createElement("button");
