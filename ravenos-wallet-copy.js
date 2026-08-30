@@ -5,15 +5,20 @@ const unavailable = document.getElementById("copyUnavailable");
 const workspace = document.getElementById("copyWorkspace");
 const profileNode = document.getElementById("copyProfile");
 const policyNode = document.getElementById("copyPolicy");
+const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_WRAPPED_NATIVE = "So11111111111111111111111111111111111111112";
 
 const state = {
   csrf: "",
+  activation: {},
   address: "",
   profile: null,
   events: [],
   watches: [],
   decisions: [],
   positions: [],
+  copyability: [],
+  screener: { page: 1, total_pages: 0, total: 0, wallets: [] },
 };
 
 function text(value, fallback = "—") {
@@ -56,6 +61,15 @@ function realizedPerformance(performance) {
   return values.length ? `${values.join(" · ")} realized` : "Insufficient evidence";
 }
 
+function basisNotional(behavior, field) {
+  const values = [];
+  const usdc = behavior?.buy_notional_by_basis?.usdc?.[field];
+  const sol = behavior?.buy_notional_by_basis?.sol?.[field];
+  if (usdc !== null && usdc !== undefined) values.push(money(usdc));
+  if (sol !== null && sol !== undefined && Number.isFinite(Number(sol))) values.push(`${Number(sol).toLocaleString("en-US", { maximumFractionDigits: 4 })} SOL`);
+  return values.length ? values.join(" · ") : "Unavailable";
+}
+
 function bpsAsPercent(value) {
   if (value === null || value === undefined || value === "") return "Unavailable";
   const number = Number(value);
@@ -79,6 +93,27 @@ function duration(value) {
 
 function readable(value) {
   return text(value).toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function compactNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "Unavailable";
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(number);
+}
+
+function exactAssetAmount(endpoint) {
+  if (!endpoint || !/^-?\d+$/.test(String(endpoint.amount_base_units ?? ""))) return "Unavailable";
+  const decimals = Number(endpoint.decimals);
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return "Unavailable";
+  let units = BigInt(endpoint.amount_base_units);
+  const sign = units < 0n ? "-" : "";
+  if (units < 0n) units = -units;
+  const scale = 10n ** BigInt(decimals);
+  const whole = units / scale;
+  const fraction = (units % scale).toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
+  const mint = String(endpoint.mint || "");
+  const asset = mint === SOLANA_USDC ? "USDC" : new Set([SOLANA_WRAPPED_NATIVE, "native_sol"]).has(mint) ? "SOL" : shortAddress(mint);
+  return `${sign}${whole}${fraction ? `.${fraction}` : ""} ${asset}`;
 }
 
 async function api(url, init = {}) {
@@ -125,11 +160,52 @@ function eventCard(event) {
   details.append(
     fact("Evidence", readable(event.classification?.confidence)),
     fact("Cost basis", readable(event.economic?.cost_basis_state)),
+    fact("Paid", exactAssetAmount(event.economic?.source_asset)),
+    fact("Received", exactAssetAmount(event.economic?.destination_asset)),
   );
-  const signature = document.createElement("p");
-  signature.textContent = shortAddress(event.chain_evidence?.signature);
+  const signature = document.createElement("a");
+  signature.href = `https://solscan.io/tx/${encodeURIComponent(event.chain_evidence?.signature || "")}`;
+  signature.target = "_blank";
+  signature.rel = "noopener noreferrer";
+  signature.textContent = `View transaction · ${shortAddress(event.chain_evidence?.signature)}`;
   card.append(head, details, signature);
   return card;
+}
+
+function activeCopyability() {
+  const watch = state.watches.find((row) => row.source_wallet?.address === state.address);
+  return watch ? state.copyability.find((row) => row.watch_id === watch.watch_id) || null : null;
+}
+
+function renderFollowerReality() {
+  const record = activeCopyability();
+  const overall = record?.snapshot || null;
+  const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
+  setText("copyFollowerHeadline", overall?.prospective_sample_count
+    ? `${overall.prospective_sample_count} new-trade test${overall.prospective_sample_count === 1 ? "" : "s"} · ${overall.state === "available" ? `copyability ${overall.score}/100` : "score forming"}`
+    : "Copy evidence starts after you shadow");
+  const metrics = document.getElementById("copyFollowerMetrics");
+  metrics.replaceChildren(
+    fact("Executable copies", overall?.components?.policy_pass_pct === null || overall?.components?.policy_pass_pct === undefined ? "Not sampled" : pct(overall.components.policy_pass_pct)),
+    fact("Entry available", overall?.components?.entry_executable_pct === null || overall?.components?.entry_executable_pct === undefined ? "Not sampled" : pct(overall.components.entry_executable_pct)),
+    fact("Exit available", overall?.components?.exit_executable_pct === null || overall?.components?.exit_executable_pct === undefined ? "Not sampled" : pct(overall.components.exit_executable_pct)),
+    fact("Entry degradation", overall?.components?.median_entry_degradation_bps === null || overall?.components?.median_entry_degradation_bps === undefined ? "Not sampled" : bpsAsPercent(overall.components.median_entry_degradation_bps)),
+  );
+  const capacity = document.getElementById("copyCapacityRail");
+  capacity.replaceChildren(...rail.map((row) => {
+    const item = document.createElement("div");
+    const size = document.createElement("span");
+    const result = document.createElement("strong");
+    const sample = document.createElement("small");
+    size.textContent = money(row.order_size_usdc).replace(".00", "");
+    result.textContent = row.state === "available" && row.score !== null ? `${row.score}/100` : "Not sampled";
+    sample.textContent = `${Number(row.prospective_sample_count || 0)} decision${Number(row.prospective_sample_count || 0) === 1 ? "" : "s"}`;
+    item.append(size, result, sample);
+    return item;
+  }));
+  setText("copyFollowerLimit", overall?.prospective_sample_count
+    ? "Shadow tests include approved, skipped, unavailable, and unresolved trades. Historical source returns are never substituted."
+    : "Historical source returns never become hypothetical follower fills.");
 }
 
 function renderProfile(payload) {
@@ -149,7 +225,16 @@ function renderProfile(payload) {
     fact("Win rate", pct(performance.win_rate_pct)),
     fact("Closed lots", performance.closed_lots),
     fact("Median hold", profile.behavior.median_hold_seconds === null ? "Unavailable" : `${Math.round(profile.behavior.median_hold_seconds / 60)}m`),
+    fact("Trades", profile.behavior.trade_count),
+    fact("Tokens", profile.behavior.tokens_traded ?? "Unavailable"),
+    fact("Active days", profile.behavior.active_days),
+    fact("Known basis", pct(profile.coverage.known_cost_basis_pct)),
+    fact("Avg buy", basisNotional(profile.behavior, "average")),
+    fact("Total buys", basisNotional(profile.behavior, "total")),
+    fact("Trade rate", profile.behavior.trade_rate_per_active_day === null || profile.behavior.trade_rate_per_active_day === undefined ? "Unavailable" : `${profile.behavior.trade_rate_per_active_day}/day`),
+    fact("Last trade", when(profile.behavior.last_trade_at)),
   );
+  renderFollowerReality();
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
   setText("copyEventCount", `${state.events.length} event${state.events.length === 1 ? "" : "s"}`);
   const events = document.getElementById("copyRecentEvents");
@@ -203,7 +288,7 @@ function watchCard(watch) {
   const stateLabel = document.createElement("span");
   const title = document.createElement("strong");
   const address = document.createElement("p");
-  stateLabel.textContent = watch.backfill_complete ? "Ready for prospective signals" : "Baseline required";
+  stateLabel.textContent = watch.backfill_complete ? "Ready for new trades" : "First check needed";
   title.textContent = watch.label;
   address.textContent = shortAddress(watch.source_wallet.address);
   main.append(stateLabel, title, address);
@@ -298,6 +383,116 @@ function positionCard(position) {
   return card;
 }
 
+function screenerRequest() {
+  const optionalNumber = (id) => {
+    const value = document.getElementById(id).value;
+    return value === "" ? null : Number(value);
+  };
+  return {
+    filters: {
+      active_within_hours: optionalNumber("copyScreenActive"),
+      min_trade_count: optionalNumber("copyScreenTrades"),
+      min_active_days: optionalNumber("copyScreenDays"),
+      min_known_cost_basis_pct: optionalNumber("copyScreenBasis"),
+      min_closed_lots: optionalNumber("copyScreenClosed"),
+      min_win_rate_pct: optionalNumber("copyScreenWin"),
+      min_roi_pct: optionalNumber("copyScreenRoi"),
+      performance_state: document.getElementById("copyScreenEvidence").value,
+    },
+    sort: document.getElementById("copyScreenSort").value,
+    page: state.screener.page,
+    page_size: 12,
+  };
+}
+
+async function loadStoredWallet(sourceWalletId, button) {
+  if (button) { button.disabled = true; button.textContent = "Opening…"; }
+  const result = await api(`${API}/wallets/${encodeURIComponent(sourceWalletId)}`);
+  if (button) { button.disabled = false; button.textContent = "Open analysis"; }
+  if (!result.response.ok) {
+    state.profile = null;
+    profileNode.hidden = true;
+    setText("copyScreenerStatus", "That wallet analysis is unavailable. Raven did not substitute another wallet.");
+    return;
+  }
+  renderProfile(result.payload);
+}
+
+function screenerCard(wallet) {
+  const card = document.createElement("article");
+  card.className = "copy-screener-card";
+  const identity = document.createElement("div");
+  const stateLabel = document.createElement("span");
+  const address = document.createElement("strong");
+  const observed = document.createElement("p");
+  stateLabel.textContent = readable(wallet.source_performance?.state || "insufficient_evidence");
+  address.textContent = shortAddress(wallet.source_wallet?.address);
+  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact Solana address`;
+  identity.append(stateLabel, address, observed);
+  const metrics = document.createElement("dl");
+  metrics.append(
+    fact("Realized", realizedPerformance({
+      realized_pnl_usdc: wallet.source_performance?.realized_pnl?.usdc,
+      realized_pnl_sol: wallet.source_performance?.realized_pnl?.sol,
+    })),
+    fact("ROI", pct(wallet.source_performance?.roi_pct)),
+    fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
+    fact("Trades", wallet.behavior?.trade_count ?? 0),
+    fact("Active days", wallet.behavior?.active_days ?? 0),
+    fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
+    fact("Closed lots", wallet.source_performance?.closed_lots ?? 0),
+    fact("Follower", wallet.follower_reality?.state === "not_sampled" ? "Not sampled" : readable(wallet.follower_reality?.state)),
+  );
+  const why = document.createElement("div");
+  why.className = "copy-screener-why";
+  const whyLabel = document.createElement("strong");
+  const whyText = document.createElement("p");
+  whyLabel.textContent = "Why surfaced";
+  whyText.textContent = Array.isArray(wallet.why_surfaced) && wallet.why_surfaced.length ? wallet.why_surfaced.map((reason) => reason.label).filter(Boolean).join(" · ") : "Matches the current evidence filters.";
+  why.append(whyLabel, whyText);
+  const analyze = document.createElement("button");
+  analyze.type = "button";
+  analyze.textContent = "Open analysis";
+  analyze.addEventListener("click", () => loadStoredWallet(wallet.source_wallet_id, analyze));
+  card.append(identity, metrics, why, analyze);
+  return card;
+}
+
+function renderScreener(payload) {
+  const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
+  state.screener = {
+    page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
+    total_pages: Number(payload.pagination?.total_pages || payload.total_pages || 0),
+    total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
+    wallets,
+  };
+  setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
+  setText("copyScreenerStatus", wallets.length
+    ? `Showing ${wallets.length} evidence-bound wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
+    : "No wallet Raven has reviewed matches these filters. Analyzing an exact public address can add it to the index.");
+  const host = document.getElementById("copyScreenerResults");
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
+  const pages = document.getElementById("copyScreenerPages");
+  pages.hidden = state.screener.total_pages <= 1;
+  setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
+  document.getElementById("copyScreenPrevious").disabled = state.screener.page <= 1;
+  document.getElementById("copyScreenNext").disabled = state.screener.page >= state.screener.total_pages;
+}
+
+async function loadScreener() {
+  if (!state.activation.wallet_screener) return;
+  setText("copyScreenerStatus", "Screening wallets Raven has reviewed…");
+  const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
+  if (!result.response.ok) {
+    setText("copyScreenerCount", "Unavailable");
+    setText("copyScreenerStatus", "Wallet screening is unavailable right now. Exact-address inspection remains available.");
+    document.getElementById("copyScreenerResults").replaceChildren(empty("Wallet screening unavailable", "Analyze an exact public address or try the screener again. Raven will not show stale results as current."));
+    document.getElementById("copyScreenerPages").hidden = true;
+    return;
+  }
+  renderScreener(result.payload);
+}
+
 function renderCollections() {
   setText("copyWatchCount", state.watches.length);
   setText("copyDecisionCount", state.decisions.length);
@@ -306,8 +501,8 @@ function renderCollections() {
   const decisions = document.getElementById("copyDecisions");
   const positions = document.getElementById("copyPositions");
   watches.replaceChildren(...(state.watches.length ? state.watches.map(watchCard) : [empty("No wallets shadowed yet", "Inspect a public Solana wallet, review the evidence, and choose the order Raven should test.")]));
-  decisions.replaceChildren(...(state.decisions.length ? state.decisions.map(decisionCard) : [empty("No prospective decisions yet", "Build a wallet baseline, then check again after the source wallet creates a new transaction.")]));
-  positions.replaceChildren(...(state.positions.length ? state.positions.map(positionCard) : [empty("No shadow positions", "Only a prospective source buy that passes entry, reverse-exit, liquidity, latency, and policy checks can appear here.")]));
+  decisions.replaceChildren(...(state.decisions.length ? state.decisions.map(decisionCard) : [empty("No shadow decisions yet", "Run the first check, then check again after the source wallet makes a new trade.")]));
+  positions.replaceChildren(...(state.positions.length ? state.positions.map(positionCard) : [empty("No shadow positions", "Only a new source buy that passes entry, exit, liquidity, speed, and your rules can appear here.")]));
 }
 
 async function loadWorkspace() {
@@ -319,25 +514,35 @@ async function loadWorkspace() {
   state.watches = watches.response.ok ? watches.payload.watches || [] : [];
   state.decisions = decisions.response.ok ? decisions.payload.decisions || [] : [];
   state.positions = positions.response.ok ? positions.payload.positions || [] : [];
+  state.copyability = decisions.response.ok ? decisions.payload.copyability || [] : [];
   renderCollections();
+  if (state.profile) renderFollowerReality();
+}
+
+async function inspectWalletAddress(address, button) {
+  state.address = String(address || "").trim();
+  state.profile = null;
+  state.events = [];
+  profileNode.hidden = true;
+  policyNode.hidden = true;
+  button.disabled = true;
+  button.textContent = "Analyzing…";
+  setText("copySearchStatus", "Reviewing recent public activity and rebuilding the wallet’s trades…");
+  const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address }) });
+  button.disabled = false;
+  button.textContent = "Analyze wallet";
+  if (!result.response.ok) {
+    setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "No usable public history was available for this wallet." : "Raven could not inspect this wallet right now. Nothing was inferred.");
+    return;
+  }
+  setText("copySearchStatus", "Analysis ready. Review the wallet’s results before starting a shadow test.");
+  renderProfile(result.payload);
 }
 
 async function inspectWallet(event) {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
-  state.address = document.getElementById("copyWalletAddress").value.trim();
-  button.disabled = true;
-  button.textContent = "Inspecting…";
-  setText("copySearchStatus", "Loading a bounded public history and reconstructing economic activity…");
-  const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address }) });
-  button.disabled = false;
-  button.textContent = "Inspect wallet";
-  if (!result.response.ok) {
-    setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "No usable public history was available for this wallet." : "Raven could not inspect this wallet right now. Nothing was inferred.");
-    return;
-  }
-  setText("copySearchStatus", "Wallet history reconstructed. Review source evidence before starting prospective shadowing.");
-  renderProfile(result.payload);
+  await inspectWalletAddress(document.getElementById("copyWalletAddress").value, button);
 }
 
 async function savePolicy(event) {
@@ -360,6 +565,10 @@ async function savePolicy(event) {
 }
 
 async function boot() {
+  const requestedWallet = new URL(location.href).searchParams.get("wallet") || "";
+  if (requestedWallet) document.getElementById("copyWalletAddress").value = requestedWallet.slice(0, 44);
+  const returnTo = `/account/copy/${requestedWallet ? `?wallet=${encodeURIComponent(requestedWallet.slice(0, 44))}` : ""}`;
+  document.querySelectorAll('input[name="return_to"]').forEach((input) => { input.value = returnTo; });
   const session = await api("/api/v1/auth/session");
   if (!session.response.ok || session.payload?.authenticated !== true) {
     page.dataset.copyState = "signed-out";
@@ -377,10 +586,19 @@ async function boot() {
     setText("copyUnavailableReason", summary.response.status === 403 ? "Raven Copy is part of RavenOS Pro and is not enabled for this account." : "Wallet intelligence is being held until its operating controls are ready. Discover and Terminal remain available.");
     return;
   }
+  state.activation = summary.payload.activation || {};
   page.dataset.copyState = "active";
   workspace.hidden = false;
   setText("copyWorkspaceState", "Shadow workspace ready");
   await loadWorkspace();
+  if (state.activation.wallet_screener) {
+    document.getElementById("copyScreener").hidden = false;
+    await loadScreener();
+  }
+  if (requestedWallet) {
+    const button = document.querySelector('#copyWalletSearch button[type="submit"]');
+    await inspectWalletAddress(requestedWallet, button);
+  }
 }
 
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
@@ -388,6 +606,24 @@ document.getElementById("copyWalletSearch").addEventListener("submit", inspectWa
 document.getElementById("copyStartSetup").addEventListener("click", () => { policyNode.hidden = false; policyNode.scrollIntoView({ behavior: "smooth", block: "start" }); });
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);
+document.getElementById("copyScreenerFilters").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  state.screener.page = 1;
+  await loadScreener();
+});
+document.getElementById("copyScreenReset").addEventListener("click", async () => {
+  document.getElementById("copyScreenerFilters").reset();
+  state.screener.page = 1;
+  await loadScreener();
+});
+document.getElementById("copyScreenPrevious").addEventListener("click", async () => {
+  state.screener.page = Math.max(1, state.screener.page - 1);
+  await loadScreener();
+});
+document.getElementById("copyScreenNext").addEventListener("click", async () => {
+  state.screener.page += 1;
+  await loadScreener();
+});
 
 boot().catch(() => {
   page.dataset.copyState = "unavailable";

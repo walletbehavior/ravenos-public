@@ -14,6 +14,7 @@ import {
 const WALLET = bs58.encode(Buffer.alloc(32, 7));
 const TOKEN = bs58.encode(Buffer.alloc(32, 9));
 const TOKEN_2022 = bs58.encode(Buffer.alloc(32, 11));
+const TOKEN_TWO = bs58.encode(Buffer.alloc(32, 13));
 const JUPITER = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 
 function balance(owner, mint, amount, decimals) {
@@ -178,6 +179,24 @@ test("FIFO source performance excludes unknown cost basis and never promotes mar
   assert.equal(profile.source_performance.closed_lots, 1);
   assert.equal(profile.source_performance.unrealized_pnl_usdc, null);
   assert.equal(profile.source_performance.executable_liquidation_value_usdc, null);
+  assert.equal(profile.behavior.first_trade_at, new Date(1_777_000_000_000).toISOString());
+  assert.equal(profile.behavior.last_trade_at, new Date(1_777_000_100_000).toISOString());
+  assert.equal(profile.behavior.tokens_traded, 1);
+  assert.equal(profile.behavior.trade_rate_per_active_day, 2);
+  assert.equal(profile.behavior.median_hold_seconds, 100);
+  assert.equal(profile.behavior.average_hold_seconds, 100);
+  assert.deepEqual(profile.behavior.buy_notional_by_basis.usdc, {
+    count: 1,
+    total: 25,
+    average: 25,
+    median: 25,
+  });
+  assert.deepEqual(profile.behavior.buy_notional_by_basis.sol, {
+    count: 0,
+    total: null,
+    average: null,
+    median: null,
+  });
   assert.equal(profile.evidence.unknown_cost_basis_is_zero, false);
   assert.equal(profile.evidence.transfers_treated_as_trades, false);
   assert.equal(profile.evidence.airdrops_treated_as_profit, false);
@@ -202,7 +221,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 2);
+  assert.equal(profile.profile_version, 3);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -234,4 +253,55 @@ test("negative native-SOL performance remains a loss rather than an unavailable 
   assert.equal(profile.source_performance.realized_pnl_sol, -0.2);
   assert.equal(profile.source_performance.roi_pct, -20);
   assert.equal(profile.source_performance.win_rate_pct, 0);
+});
+
+test("profile v3 separates USDC and SOL buy notionals and counts exact traded assets", () => {
+  const usdcBuy10 = normalize(transaction({
+    slot: 401,
+    blockTime: 1_777_100_000,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 100_000_000, 6), balance(WALLET, TOKEN, 0, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 90_000_000, 6), balance(WALLET, TOKEN, 10_000_000, 6)],
+  }), "o", { observation_mode: "historical_backfill" });
+  const usdcBuy30 = normalize(transaction({
+    slot: 402,
+    blockTime: 1_777_100_100,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 90_000_000, 6), balance(WALLET, TOKEN, 10_000_000, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 60_000_000, 6), balance(WALLET, TOKEN, 20_000_000, 6)],
+  }), "q", { observation_mode: "historical_backfill" });
+  const solBuy1 = normalize(transaction({
+    slot: 403,
+    blockTime: 1_777_186_400,
+    preLamports: 10_000_000_000,
+    postLamports: 8_999_995_000,
+    pre: [balance(WALLET, TOKEN_TWO, 0, 6)],
+    post: [balance(WALLET, TOKEN_TWO, 10_000_000, 6)],
+  }), "r", { observation_mode: "historical_backfill" });
+  const solBuy3 = normalize(transaction({
+    slot: 404,
+    blockTime: 1_777_186_500,
+    preLamports: 10_000_000_000,
+    postLamports: 6_999_995_000,
+    pre: [balance(WALLET, TOKEN_TWO, 10_000_000, 6)],
+    post: [balance(WALLET, TOKEN_TWO, 20_000_000, 6)],
+  }), "s", { observation_mode: "historical_backfill" });
+
+  const profile = buildSolanaWalletProfile(
+    [solBuy3, usdcBuy10, solBuy1, usdcBuy30],
+    { generated_at: "2026-08-29T12:00:00.000Z" },
+  );
+
+  assert.equal(profile.profile_version, 3);
+  assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
+  assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
+  assert.equal(profile.behavior.active_days, 2);
+  assert.equal(profile.behavior.trade_count, 4);
+  assert.equal(profile.behavior.tokens_traded, 2);
+  assert.equal(profile.behavior.trade_rate_per_active_day, 2);
+  assert.equal(profile.behavior.average_hold_seconds, null);
+  assert.deepEqual(profile.behavior.buy_notional_by_basis, {
+    usdc: { count: 2, total: 40, average: 20, median: 20 },
+    sol: { count: 2, total: 4, average: 2, median: 2 },
+  });
+  assert.equal(profile.source_performance.roi_pct, null);
+  assert.equal(profile.evidence.cross_basis_conversion_performed, false);
 });

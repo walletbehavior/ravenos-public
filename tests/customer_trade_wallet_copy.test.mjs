@@ -9,6 +9,8 @@ import {
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
 import {
   RavenCopyFeeScenariosBps,
+  RavenCopyStandardOrderSizesUsdc,
+  buildCopyabilityBySize,
   buildCopyabilitySnapshot,
   createRavenCopyDecision,
   createRavenCopyPolicy,
@@ -203,4 +205,31 @@ test("copyability does not publish a score before sufficient prospective evidenc
   assert.equal(mature.state, "available");
   assert.ok(Number.isInteger(mature.score));
   assert.equal(mature.unavailable_decisions_dropped, false);
+});
+
+test("copyability is separated by standard follower order size without inventing unsampled outcomes", () => {
+  const atOneHundred = createRavenCopyDecision(evidence(), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const atFiveHundred = createRavenCopyDecision(evidence({
+    watch_id: `wcw_${"b".repeat(40)}`,
+    policy: policy({
+      sizing: { fixed_usdc: 500 },
+      allocation: {
+        total_strategy_usdc: 5_000,
+        maximum_per_trade_usdc: 500,
+        minimum_per_trade_usdc: 25,
+        maximum_token_exposure_usdc: 1_000,
+        maximum_daily_notional_usdc: 5_000,
+      },
+    }),
+    entry: { ...evidence().entry, expected_output: 197.5, minimum_output: 195.5 },
+    exit: { ...evidence().exit, expected_output: 482, minimum_output: 478 },
+  }), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const rail = buildCopyabilityBySize([atOneHundred, atFiveHundred], { generated_at: "2026-08-29T12:05:00.000Z" });
+  assert.deepEqual(RavenCopyStandardOrderSizesUsdc, [25, 100, 500, 1_000, 5_000]);
+  assert.deepEqual(rail.map((row) => row.order_size_usdc), RavenCopyStandardOrderSizesUsdc);
+  assert.equal(rail.find((row) => row.order_size_usdc === 100).prospective_sample_count, 1);
+  assert.equal(rail.find((row) => row.order_size_usdc === 500).prospective_sample_count, 1);
+  assert.equal(rail.find((row) => row.order_size_usdc === 25).prospective_sample_count, 0);
+  assert.equal(rail.find((row) => row.order_size_usdc === 25).score, null);
+  assert.equal(rail.find((row) => row.order_size_usdc === 5_000).state, "insufficient_evidence");
 });

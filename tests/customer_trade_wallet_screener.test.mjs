@@ -1,0 +1,192 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  WALLET_SCREENER_SCHEMA,
+  WalletScreenerLimits,
+  WalletScreenerPerformanceStates,
+  WalletScreenerSorts,
+  buildWalletScreenerResponse,
+  normalizeWalletScreenerRequest,
+  projectWalletScreenerRow,
+} from "../lib/customer_trade/wallet_screener.mjs";
+
+const NOW = "2026-08-29T18:00:00.000Z";
+const ADDRESS = "11111111111111111111111111111111";
+const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
+
+function row(overrides = {}) {
+  return {
+    source_wallet_id: SOURCE_ID,
+    address: ADDRESS,
+    profile_snapshot_id: `swp_${"b".repeat(40)}`,
+    profile_version: 3,
+    generated_at: Math.floor(Date.parse("2026-08-29T17:59:00.000Z") / 1_000),
+    first_trade_at: "2026-08-20T12:00:00.000Z",
+    last_trade_at: Math.floor(Date.parse("2026-08-29T17:55:00.000Z") / 1_000),
+    trade_count: 128,
+    active_days: 7,
+    token_count: 34,
+    known_cost_basis_pct: 82.5,
+    performance_state: "available",
+    realized_pnl_usdc: 4812.25,
+    realized_pnl_sol: -0.4,
+    roi_pct: 38.75,
+    win_rate_pct: 61.25,
+    closed_lots: 42,
+    median_hold_seconds: 1_800,
+    ...overrides,
+  };
+}
+
+test("wallet screener defaults are bounded, deterministic, and immutable", () => {
+  const query = normalizeWalletScreenerRequest({}, { now: NOW });
+  assert.equal(query.schema_version, WALLET_SCREENER_SCHEMA);
+  assert.equal(query.scope, "raven_indexed_solana_wallets");
+  assert.equal(query.chain, "solana");
+  assert.equal(query.network, "mainnet");
+  assert.equal(query.sort, "last_trade_desc");
+  assert.equal(query.page, 1);
+  assert.equal(query.page_size, WalletScreenerLimits.default_page_size);
+  assert.equal(query.offset, 0);
+  assert.deepEqual(query.filters, {
+    active_within_hours: null,
+    active_since_at: null,
+    min_trade_count: null,
+    min_active_days: null,
+    min_known_cost_basis_pct: null,
+    min_closed_lots: null,
+    min_win_rate_pct: null,
+    min_roi_pct: null,
+    performance_state: "any",
+  });
+  assert.equal(Object.isFrozen(query), true);
+  assert.equal(Object.isFrozen(query.filters), true);
+});
+
+test("all supported filters, sort, and pagination normalize for deterministic D1 binding", () => {
+  const query = normalizeWalletScreenerRequest({
+    filters: {
+      active_within_hours: 6,
+      min_trade_count: 25,
+      min_active_days: 3,
+      min_known_cost_basis_pct: 75.5,
+      min_closed_lots: 10,
+      min_win_rate_pct: 55.25,
+      min_roi_pct: -12.5,
+      performance_state: "PARTIAL",
+    },
+    sort: "ROI_DESC",
+    page: 4,
+    page_size: 30,
+  }, { now: NOW });
+  assert.equal(query.filters.active_since_at, Math.floor(Date.parse(NOW) / 1_000) - (6 * 60 * 60));
+  assert.equal(query.filters.performance_state, "partial");
+  assert.equal(query.sort, "roi_desc");
+  assert.equal(query.offset, 90);
+  assert.equal(query.page_size, 30);
+});
+
+test("request validation rejects unknown controls, unallowlisted sorts, and unbounded values", () => {
+  assert.deepEqual(WalletScreenerPerformanceStates, ["any", "available", "partial", "insufficient_evidence"]);
+  assert.ok(WalletScreenerSorts.includes("realized_pnl_usdc_desc"));
+  assert.throws(() => normalizeWalletScreenerRequest({ claim_all_wallets: true }, { now: NOW }), /wallet_screener_request_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { mystery: 1 } }, { now: NOW }), /wallet_screener_filters_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ sort: "address_desc" }, { now: NOW }), /wallet_screener_sort_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { performance_state: "profitable" } }, { now: NOW }), /performance_state_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { active_within_hours: 0 } }, { now: NOW }), /active_within_hours_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_known_cost_basis_pct: 100.01 } }, { now: NOW }), /min_known_cost_basis_pct_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_win_rate_pct: false } }, { now: NOW }), /min_win_rate_pct_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_roi_pct: -100.01 } }, { now: NOW }), /min_roi_pct_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ page: 26 }, { now: NOW }), /wallet_screener_page_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ page_size: 31 }, { now: NOW }), /wallet_screener_page_size_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({}, { now: "not-a-time" }), /wallet_screener_now_invalid/);
+});
+
+test("row projection exposes exact identity and source evidence without inventing follower results", () => {
+  const projected = projectWalletScreenerRow(row());
+  assert.equal(projected.source_wallet_id, SOURCE_ID);
+  assert.deepEqual(projected.source_wallet, { chain: "solana", network: "mainnet", address: ADDRESS });
+  assert.equal(projected.profile.generated_at, "2026-08-29T17:59:00.000Z");
+  assert.equal(projected.behavior.last_trade_at, "2026-08-29T17:55:00.000Z");
+  assert.equal(projected.source_performance.state, "available");
+  assert.deepEqual(projected.source_performance.realized_pnl, {
+    usdc: 4812.25,
+    sol: -0.4,
+    combined: null,
+    bases_combined: false,
+  });
+  assert.equal(projected.coverage.known_cost_basis_pct, 82.5);
+  assert.equal(projected.coverage.chain_wide_coverage_claimed, false);
+  assert.equal(projected.follower_reality.state, "not_sampled");
+  assert.equal(projected.follower_reality.prospective_sample_size, null);
+  assert.equal(projected.follower_reality.source_performance_used_as_follower_performance, false);
+  assert.equal("score" in projected, false);
+  assert.equal("copyability_score" in projected.follower_reality, false);
+  assert.deepEqual(projected.why_surfaced.map((reason) => reason.code), [
+    "last_trade_observed",
+    "normalized_trade_history",
+    "known_cost_basis_coverage",
+    "closed_lot_evidence",
+  ]);
+  assert.equal(Object.isFrozen(projected), true);
+  assert.equal(Object.isFrozen(projected.why_surfaced[0]), true);
+});
+
+test("projection fails closed on identity and never turns malformed or missing metrics into zero", () => {
+  assert.equal(projectWalletScreenerRow(row({ source_wallet_id: "sw_sol_not_exact" })), null);
+  assert.equal(projectWalletScreenerRow(row({ address: "not-a-solana-address" })), null);
+  const projected = projectWalletScreenerRow(row({
+    performance_state: "available",
+    realized_pnl_usdc: "not-a-number",
+    realized_pnl_sol: null,
+    roi_pct: "<script>alert(1)</script>",
+    win_rate_pct: 101,
+    known_cost_basis_pct: -1,
+    closed_lots: 0,
+    median_hold_seconds: -5,
+  }));
+  assert.equal(projected.source_performance.state, "insufficient_evidence");
+  assert.equal(projected.source_performance.realized_pnl.usdc, null);
+  assert.equal(projected.source_performance.realized_pnl.sol, null);
+  assert.equal(projected.source_performance.roi_pct, null);
+  assert.equal(projected.source_performance.win_rate_pct, null);
+  assert.equal(projected.coverage.known_cost_basis_pct, null);
+  assert.equal(projected.behavior.median_hold_seconds, null);
+});
+
+test("response is bounded, paginated, honest about universe coverage, and excludes malformed rows", () => {
+  const query = normalizeWalletScreenerRequest({ page: 2, page_size: 2 }, { now: NOW });
+  const response = buildWalletScreenerResponse({
+    query,
+    rows: [row(), row({ source_wallet_id: "invalid" }), row({ source_wallet_id: `sw_sol_${"c".repeat(40)}` })],
+    total: 101,
+    now: NOW,
+  });
+  assert.equal(response.state, "available");
+  assert.equal(response.ok, true);
+  assert.equal(response.rows.length, 1);
+  assert.equal(response.projection_exclusions, 1);
+  assert.equal(response.pagination.total_matching_rows, 101);
+  assert.equal(response.pagination.total_pages, 25);
+  assert.equal(response.pagination.result_window_limited, true);
+  assert.equal(response.pagination.has_previous, true);
+  assert.equal(response.pagination.has_next, true);
+  assert.equal(response.scope.claim, "bounded_raven_index_only");
+  assert.equal(response.scope.comprehensive_chain_index, false);
+  assert.match(response.limitations[0], /not every wallet on Solana/i);
+  assert.equal(Object.isFrozen(response.rows), true);
+});
+
+test("a page containing only invalid identities fails closed instead of posing as an empty universe", () => {
+  const response = buildWalletScreenerResponse({
+    query: {},
+    rows: [{ source_wallet_id: "bad", address: ADDRESS }],
+    total: 1,
+    now: NOW,
+  });
+  assert.equal(response.ok, false);
+  assert.equal(response.state, "unavailable");
+  assert.equal(response.rows.length, 0);
+  assert.equal(response.projection_exclusions, 1);
+});

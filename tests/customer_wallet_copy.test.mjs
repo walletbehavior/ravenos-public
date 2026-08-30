@@ -116,8 +116,32 @@ function memoryStore() {
       return inserted;
     },
     async listSourceEvents(id) { return [...events.values()].filter((row) => row.id === id).map((row) => row.row); },
-    async recordProfile(id, profile) { profiles.set(id, profile); return `profile_${id}`; },
+    async recordProfile(id, profile) { profiles.set(id, profile); return `swp_${"p".repeat(40)}`; },
     async latestProfile(id) { return profiles.get(id) || null; },
+    async getSourceWallet(id) { return sources.get(id) || null; },
+    async screenSourceWallets(query) {
+      const rows = [...profiles.entries()].map(([id, profile]) => ({
+        source_wallet_id: id,
+        address: sources.get(id)?.address,
+        profile_snapshot_id: `swp_${"b".repeat(40)}`,
+        profile_version: profile.profile_version,
+        generated_at: NOW,
+        first_trade_at: Math.floor(Date.parse(profile.behavior.first_trade_at || profile.coverage.first_observed_at) / 1_000),
+        last_trade_at: Math.floor(Date.parse(profile.behavior.last_trade_at || profile.coverage.last_observed_at) / 1_000),
+        trade_count: profile.behavior.trade_count,
+        active_days: profile.behavior.active_days,
+        token_count: profile.behavior.tokens_traded,
+        known_cost_basis_pct: profile.coverage.known_cost_basis_pct,
+        performance_state: profile.source_performance.state,
+        realized_pnl_usdc: profile.source_performance.realized_pnl_usdc,
+        realized_pnl_sol: profile.source_performance.realized_pnl_sol,
+        roi_pct: profile.source_performance.roi_pct,
+        win_rate_pct: profile.source_performance.win_rate_pct,
+        closed_lots: profile.source_performance.closed_lots,
+        median_hold_seconds: profile.behavior.median_hold_seconds,
+      }));
+      return { rows: rows.slice(query.offset, query.offset + query.page_size), total: rows.length };
+    },
     async countWatches(userId) { return [...watches.values()].filter((row) => row.user_id === userId).length; },
     async createWatch(record) {
       const row = { ...record, copy_mode: record.policy.mode, policy_version: record.policy.policy_version, policy_hash: record.policy.policy_hash, policy_json: JSON.stringify(record.policy), state: "active", cursor_signature: null, cursor_slot: null, backfill_complete: 0, created_at: record.now, updated_at: record.now, revision: 1 };
@@ -177,6 +201,7 @@ test("wallet-copy activation is entitlement-coordinated and source-level live au
 
 test("wallet-copy migration shares source evidence, isolates subscribers, and preserves append-only decisions", () => {
   const sql = readFileSync("customer-migrations/0007_customer_wallet_copy.sql", "utf8");
+  const screenerSql = readFileSync("customer-migrations/0008_customer_wallet_screener.sql", "utf8");
   assert.match(sql, /'wallet\.copy'/);
   assert.match(sql, /CREATE TABLE ravenos_source_wallets/i);
   assert.match(sql, /UNIQUE \(chain, network, address\)/i);
@@ -188,6 +213,11 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   assert.match(sql, /live_execution_authorized INTEGER NOT NULL DEFAULT 0 CHECK \(live_execution_authorized = 0\)/i);
   assert.match(sql, /transaction_hash TEXT CHECK \(transaction_hash IS NULL\)/i);
   assert.doesNotMatch(sql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
+  assert.match(screenerSql, /CREATE TABLE ravenos_source_wallet_current_profiles/i);
+  assert.match(screenerSql, /REFERENCES ravenos_source_wallet_profiles\(profile_snapshot_id\) ON DELETE CASCADE/i);
+  assert.match(screenerSql, /performance_state TEXT NOT NULL CHECK/i);
+  assert.match(screenerSql, /WHERE NOT EXISTS/i);
+  assert.doesNotMatch(screenerSql, /user_id|private_key|seed_phrase|signer_material|raw_provider_payload/i);
 });
 
 test("authenticated Pro route rejects cross-origin and unentitled access", async () => {
@@ -210,6 +240,58 @@ test("inspect builds evidence-bound source performance without creating a watch"
   assert.equal(payload.profile.coverage.transactions_observed, 1);
   assert.equal(payload.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(store.watches.size, 0);
+});
+
+test("Raven-indexed screener is separately gated, bounded, and opens retained evidence without another provider request", async () => {
+  let providerLoads = 0;
+  const store = memoryStore();
+  const provider = { async loadHistory() { providerLoads += 1; return { events: [walletEvent()] }; } };
+  const d = deps(store, provider);
+  const inspected = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), env(), d);
+  assert.equal(inspected.status, 200);
+  assert.equal(providerLoads, 1);
+
+  const disabled = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", { method: "POST", body: { filters: {}, page: 1, page_size: 12 } }), env(), d);
+  assert.equal(disabled.status, 503);
+  assert.equal((await json(disabled)).error, "wallet_screener_disabled");
+
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const screened = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", {
+    method: "POST",
+    body: { filters: { min_trade_count: 1, performance_state: "any" }, sort: "last_trade_desc", page: 1, page_size: 12 },
+  }), activeEnv, d);
+  const screenedPayload = await json(screened);
+  assert.equal(screened.status, 200);
+  assert.equal(screenedPayload.scope.claim, "bounded_raven_index_only");
+  assert.equal(screenedPayload.scope.comprehensive_chain_index, false);
+  assert.equal(screenedPayload.rows.length, 1);
+  assert.equal(screenedPayload.rows[0].source_wallet.address, WALLET);
+  assert.equal(screenedPayload.rows[0].follower_reality.state, "not_sampled");
+  assert.equal(screenedPayload.rows[0].source_performance.realized_pnl.combined, null);
+
+  const sourceId = screenedPayload.rows[0].source_wallet_id;
+  const detail = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}`), activeEnv, d);
+  const detailPayload = await json(detail);
+  assert.equal(detail.status, 200);
+  assert.equal(detailPayload.provider_request_performed, false);
+  assert.equal(detailPayload.profile.source_wallet.address, WALLET);
+  assert.equal(detailPayload.recent_events.length, 1);
+  assert.equal(providerLoads, 1);
+});
+
+test("wallet screener rejects unallowlisted controls and exact source details fail closed", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const invalid = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", {
+    method: "POST",
+    body: { filters: {}, sort: "profit_magic_desc" },
+  }), activeEnv, deps(store, provider));
+  assert.equal(invalid.status, 400);
+  assert.equal((await json(invalid)).error, "wallet_screener_sort_invalid");
+  const missing = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/sw_sol_${"f".repeat(40)}`), activeEnv, deps(store, provider));
+  assert.equal(missing.status, 404);
+  assert.equal((await json(missing)).error, "wallet_source_not_found");
 });
 
 test("first refresh establishes a baseline and only a later source trade can produce a shadow decision", async () => {
@@ -253,5 +335,11 @@ test("first refresh establishes a baseline and only a later source trade can pro
   assert.equal(store.decisions.length, 1);
   assert.equal(store.positions.length, 1);
   assert.equal(store.positions[0].live_assets_held, false);
+  const decisionResponse = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/decisions"), env(), d);
+  const decisionPayload = await json(decisionResponse);
+  assert.deepEqual(decisionPayload.copyability[0].by_size.map((row) => row.order_size_usdc), [25, 100, 500, 1_000, 5_000]);
+  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 100).prospective_sample_count, 1);
+  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).prospective_sample_count, 0);
+  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).score, null);
   assert.equal(refresh, 1);
 });

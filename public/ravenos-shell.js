@@ -135,6 +135,39 @@ function extractedMarketAddresses(value = "") {
   return [...new Map(matches.map((address) => [address.toLowerCase().startsWith("0x") ? address.toLowerCase() : address, address])).values()].slice(0, 3);
 }
 
+const SOLANA_BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function isExactSolanaPublicAddress(value = "") {
+  const clean = String(value || "").trim();
+  if (clean.length < 32 || clean.length > 44 || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(clean)) return false;
+  let decoded = 0n;
+  for (const character of clean) {
+    const digit = SOLANA_BASE58_ALPHABET.indexOf(character);
+    if (digit < 0) return false;
+    decoded = (decoded * 58n) + BigInt(digit);
+  }
+  let nonzeroBytes = 0;
+  while (decoded > 0n) {
+    decoded >>= 8n;
+    nonzeroBytes += 1;
+  }
+  const leadingZeroBytes = clean.match(/^1*/)?.[0].length || 0;
+  return leadingZeroBytes + nonzeroBytes === 32;
+}
+
+function publicWalletCommandResult(query = "") {
+  const address = String(query || "").trim();
+  if (!isExactSolanaPublicAddress(address)) return null;
+  return {
+    commandType: "wallet",
+    label: "Analyze public wallet",
+    detail: `${shortMarketId(address)} · Solana public address`,
+    group: "Wallet intelligence",
+    state: "Open in Pro",
+    href: `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(address)}`,
+  };
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -249,9 +282,9 @@ function createShellMarkup(slug) {
         <span class="ros-brand-type"><strong>RavenOS</strong></span>
       </a>
       <nav class="ros-workspace-nav" aria-label="RavenOS workspaces">${navMarkup(slug)}</nav>
-      <button class="ros-command-trigger" id="rosCommandTrigger" type="button" aria-haspopup="dialog" aria-controls="rosCommandPalette">
+      <button class="ros-command-trigger" id="rosCommandTrigger" type="button" aria-label="Search markets or wallets" aria-haspopup="dialog" aria-controls="rosCommandPalette">
         <span class="ros-search-icon" aria-hidden="true"></span>
-        <span class="ros-command-copy"><strong>Search instruments</strong><small>Symbol, contract, or pasted message</small></span>
+        <span class="ros-command-copy"><strong>Search markets or wallets</strong><small>Symbol, contract, wallet, or pasted message</small></span>
         <kbd>⌘ K</kbd>
       </button>
       <div class="ros-freshness" id="rosFreshness" hidden><span class="ros-state-dot"></span><span><strong>Data unavailable</strong><time>No timestamp</time></span></div>
@@ -275,10 +308,10 @@ function createShellMarkup(slug) {
       <div class="ros-utility-content" id="rosUtilityContent"></div>
     </aside>
     <nav class="ros-mobile-nav" aria-label="Mobile primary navigation">${navMarkup(slug, { mobile: true })}</nav>
-    <dialog class="ros-command-palette" id="rosCommandPalette" aria-label="Universal instrument search">
-      <div class="ros-command-head"><div><span>Universal search</span><strong>Search a market, token address, or exact pool address.</strong></div><button type="button" id="rosCommandClose" aria-label="Close search">Close</button></div>
-      <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, token address, or pool address" /></label>
-      <div class="ros-search-status" id="rosSearchStatus">Loading live supported instruments…</div>
+    <dialog class="ros-command-palette" id="rosCommandPalette" aria-label="Universal market and wallet search">
+      <div class="ros-command-head"><div><span>Universal search</span><strong>Search a market, token, pool, or public wallet.</strong></div><button type="button" id="rosCommandClose" aria-label="Close search">Close</button></div>
+      <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, token, pool, or wallet address" /></label>
+      <div class="ros-search-status" id="rosSearchStatus">Loading supported markets…</div>
       <div class="ros-command-results" id="rosCommandResults"></div>
       <footer><span>Exact identity</span><span>Recent markets stay on this browser</span><span>Research only</span></footer>
     </dialog>`;
@@ -774,7 +807,7 @@ export function mountRavenOSShell(options = {}) {
   function appendCommandResult(item, host = commandResults) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "ros-command-result instrument";
+    button.className = `ros-command-result ${item.commandType === "wallet" ? "wallet" : "instrument"}`;
     const eyebrow = document.createElement("span");
     eyebrow.className = "ros-command-result-group";
     eyebrow.textContent = item.group || (item.raven_context ? "Raven now" : "Live market");
@@ -920,6 +953,7 @@ export function mountRavenOSShell(options = {}) {
   function renderCommands(query = "") {
     const clean = query.trim();
     const normalized = clean.toLowerCase();
+    const walletResult = publicWalletCommandResult(clean);
     commandResults.replaceChildren();
     commandActiveIndex = -1;
     const recent = clean ? [] : recentCommandResults();
@@ -949,13 +983,16 @@ export function mountRavenOSShell(options = {}) {
     for (const [family, rows] of grouped) {
       appendCommandGroup(family, rows);
     }
-    if (!instruments.length && !recent.length) {
+    if (walletResult) {
+      appendCommandGroup("Wallet intelligence", [walletResult], "Explicit public address · Pro analysis");
+    }
+    if (!instruments.length && !recent.length && !walletResult) {
       const empty = document.createElement("div");
       empty.className = "ros-command-empty";
       const searchPending = clean.length >= 1 && spotSearch.query === normalized && spotSearch.state === "searching";
       empty.innerHTML = searchPending
         ? "<strong>Resolving exact markets.</strong><p>RavenOS is checking listed instruments, perpetuals, chains, DEXs, and pools without making a mode choice for you.</p>"
-        : "<strong>No supported instrument matched.</strong><p>RavenOS will not silently choose a chain, pool, venue, expiry, or contract.</p>";
+        : "<strong>No supported market or public wallet matched.</strong><p>RavenOS will not silently choose a chain, pool, venue, expiry, contract, or wallet identity.</p>";
       commandResults.append(empty);
     }
     const registryState = !clean && recent.length
@@ -976,7 +1013,8 @@ export function mountRavenOSShell(options = {}) {
             : spotSearch.state === "unavailable"
               ? " · live market lookup unavailable"
               : "";
-    searchStatus.textContent = registryState + spotState;
+    const walletState = walletResult ? " · public-wallet analysis available" : "";
+    searchStatus.textContent = registryState + spotState + walletState;
   }
 
   function moveCommandSelection(direction) {

@@ -797,7 +797,7 @@ test("desktop adds Raven Lab without crowding the four mobile workspaces", async
   await page.locator("#rosCommandTrigger").click();
   await page.locator("#rosCommandInput").fill("Replay");
   await expect(page.locator(".ros-command-result.route")).toHaveCount(0);
-  await expect(page.locator(".ros-command-empty")).toContainText("No supported instrument matched");
+  await expect(page.locator(".ros-command-empty")).toContainText("No supported market or public wallet matched");
   await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1759,7 +1759,7 @@ test("Portfolio offers a useful public account risk view without claiming a cust
   await page.goto("/portfolio/");
   await expect(page.locator(".portfolio-account-workspace")).toContainText("See the whole account before the next trade");
   await expect(page.locator(".connection-row, .connection-list, .workspace-ledger")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Search instruments", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Search markets or wallets", exact: true })).toBeEnabled();
   await expect(page.locator(".portfolio-account-workspace")).not.toContainText(/demo portfolio|sample holding|connected wallet|connections are not open|unavailable|unknown/i);
   await expect(page.locator("#rosFreshness")).toBeHidden();
   await expect(page.locator("#rosContextTrigger")).toBeHidden();
@@ -2152,6 +2152,66 @@ test("an exact listed instrument uses TradingView visual context when native pub
   const source = await page.locator(".terminal-external-chart iframe").getAttribute("src");
   expect(decodeURIComponent(source || "")).toContain('"symbol":"NASDAQ:AAPL"');
   expect(cspErrors).toEqual([]);
+});
+
+test("universal search offers explicit wallet analysis without replacing an exact Solana market match", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.unroute("**/api/dexscreener/search**");
+  await page.route("**/api/dexscreener/search**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      results: [{
+        chainId: "solana",
+        dexId: "pumpswap",
+        pairAddress: bitcatPoolAddress,
+        tokenAddress: bitcatTokenAddress,
+        quoteTokenAddress: wrappedSolAddress,
+        symbol: "BITCAT",
+        name: "bitcat",
+        quoteSymbol: "SOL",
+        priceUsd: 0.0005663,
+        liquidityUsd: 64_600,
+        volume24h: 208_000,
+        input_match: "pool_address",
+        chart_coverage: { schema_version: "ravenos.search_chart_coverage.v1", state: "probe_required", request_supported: true, provider_id: "dexpaprika" },
+      }],
+    }),
+  }));
+  await page.route("https://app.ravenos.xyz/account/copy/**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<!doctype html><title>Wallet intelligence</title>",
+  }));
+  await page.goto("/discover/");
+  await expect(page.getByRole("button", { name: "Search markets or wallets", exact: true })).toBeEnabled();
+  await page.locator("#rosCommandTrigger").click();
+  await expect(page.locator("#rosCommandPalette")).toHaveAttribute("aria-label", "Universal market and wallet search");
+  await page.locator("#rosCommandInput").fill(bitcatPoolAddress);
+
+  const market = page.locator(".ros-command-result.instrument").filter({ hasText: "BITCAT/SOL" });
+  const wallet = page.locator(".ros-command-result.wallet");
+  await expect(market).toHaveCount(1);
+  await expect(wallet).toHaveCount(1);
+  await expect(wallet).toContainText("Analyze public wallet");
+  await expect(wallet).toContainText("Solana public address");
+  await expect(wallet).toContainText("Open in Pro");
+  await expect(page.locator(".ros-command-empty")).toHaveCount(0);
+  await expect(page.locator("#rosSearchStatus")).toContainText("public-wallet analysis available");
+
+  await wallet.click();
+  await expect(page).toHaveURL(`https://app.ravenos.xyz/account/copy/?wallet=${bitcatPoolAddress}`);
+});
+
+test("universal search does not classify malformed or non-32-byte base58 input as a wallet", async ({ page }) => {
+  await mockWorkspaceApis(page);
+  await page.goto("/discover/");
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill("O0Il-not-base58-11111111111111111111111111111111");
+  await expect(page.locator(".ros-command-result.wallet")).toHaveCount(0);
+  await page.locator("#rosCommandInput").fill("1111111111111111111111111111111");
+  await expect(page.locator(".ros-command-result.wallet")).toHaveCount(0);
 });
 
 test("universal search resolves an exact supported spot pool without a second mode search", async ({ page }) => {

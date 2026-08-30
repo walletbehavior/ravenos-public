@@ -19,7 +19,7 @@
       </div>
       <aside class="copy-mode-card" aria-live="polite">
         <div><span>Mode</span><strong>Shadow only</strong></div>
-        <p>No funds move. No wallet signature, approval, transaction, or fee collection is available here.</p>
+        <p>No funds move and nothing can be signed or submitted. Any fee shown is hypothetical.</p>
         <strong id="copyWorkspaceState">Checking Pro access</strong>
         <small id="copyWorkspaceIdentity">Waiting for sign-in</small>
       </aside>
@@ -68,18 +68,45 @@
           <form class="copy-wallet-search" id="copyWalletSearch">
             <span>Public Solana wallet</span>
             <label for="copyWalletAddress">Paste an address</label>
-            <div><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Inspect wallet</button></div>
-            <p id="copySearchStatus" aria-live="polite">Raven will load a bounded public history and separate trades, transfers, airdrops, and unresolved activity.</p>
+            <div><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
+            <p id="copySearchStatus" aria-live="polite">Raven reviews recent public activity and separates trades, transfers, airdrops, and anything it cannot resolve.</p>
           </form>
           <aside class="copy-proof-card">
             <span>Raven’s test</span>
             <ol>
               <li><strong>Did the wallet profit?</strong><small>Only where cost basis is reconstructable.</small></li>
-              <li><strong>Could Raven detect it?</strong><small>Chain time and Raven receipt stay separate.</small></li>
-              <li><strong>Could you enter and exit?</strong><small>Current entry and reverse-USDC evidence are required.</small></li>
+              <li><strong>Could Raven detect it?</strong><small>We measure how long a copy signal takes to reach you.</small></li>
+              <li><strong>Could you enter and exit?</strong><small>A copy needs a current buy route and a way back to USDC.</small></li>
             </ol>
           </aside>
         </div>
+
+        <section class="copy-screener" id="copyScreener" hidden>
+          <header class="copy-screener-head">
+            <div><span>Raven wallet index</span><h2>Wallets Raven has actually seen.</h2><p>Screen wallets Raven has already reviewed. This is not every Solana wallet, and missing copy results never become a zero.</p></div>
+            <strong id="copyScreenerCount">0 indexed</strong>
+          </header>
+          <form class="copy-screener-filters" id="copyScreenerFilters">
+            <label><span>Active within</span><select id="copyScreenActive"><option value="">Any retained date</option><option value="24">24 hours</option><option value="168">7 days</option><option value="720" selected>30 days</option><option value="2160">90 days</option></select></label>
+            <label><span>Minimum trades</span><input id="copyScreenTrades" type="number" min="0" max="2000" step="1" value="1" /></label>
+            <label><span>Minimum active days</span><input id="copyScreenDays" type="number" min="0" max="3650" step="1" value="1" /></label>
+            <label><span>Known cost basis</span><select id="copyScreenBasis"><option value="" selected>Any coverage</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option></select></label>
+            <label><span>Performance evidence</span><select id="copyScreenEvidence"><option value="any">Any state</option><option value="available">Available</option><option value="partial">Partial</option><option value="insufficient_evidence">Insufficient</option></select></label>
+            <label><span>Sort</span><select id="copyScreenSort"><option value="last_trade_desc">Recently active</option><option value="trade_count_desc">Most trades</option><option value="active_days_desc">Most active days</option><option value="known_cost_basis_desc">Best coverage</option><option value="closed_lots_desc">Most closed lots</option><option value="win_rate_desc">Win rate</option><option value="roi_desc">ROI</option><option value="realized_pnl_usdc_desc">USDC P&amp;L</option><option value="realized_pnl_sol_desc">SOL P&amp;L</option></select></label>
+            <div class="copy-screener-actions"><button type="button" id="copyScreenReset">Reset</button><button type="submit">Apply filters</button></div>
+            <details class="copy-screener-more">
+              <summary>More performance filters</summary>
+              <div>
+                <label><span>Minimum closed lots</span><input id="copyScreenClosed" type="number" min="0" max="1000000" step="1" placeholder="Any" /></label>
+                <label><span>Minimum win rate</span><div class="copy-input-unit"><input id="copyScreenWin" type="number" min="0" max="100" step="0.1" placeholder="Any" /><small>%</small></div></label>
+                <label><span>Minimum ROI</span><div class="copy-input-unit"><input id="copyScreenRoi" type="number" min="-100" max="1000000000" step="0.1" placeholder="Any" /><small>%</small></div></label>
+              </div>
+            </details>
+          </form>
+          <p class="copy-screener-status" id="copyScreenerStatus" aria-live="polite">Loading Raven-indexed wallets…</p>
+          <div class="copy-screener-results" id="copyScreenerResults"></div>
+          <footer class="copy-screener-pages" id="copyScreenerPages" hidden><button type="button" id="copyScreenPrevious">← Previous</button><span id="copyScreenPage">Page 1</span><button type="button" id="copyScreenNext">Next →</button></footer>
+        </section>
 
         <section class="copy-profile" id="copyProfile" hidden>
           <header>
@@ -95,14 +122,10 @@
             </article>
             <article>
               <span>Follower reality</span>
-              <strong>Prospective evidence starts after you shadow</strong>
-              <dl>
-                <div><dt>Executable copies</dt><dd>Not sampled</dd></div>
-                <div><dt>Entry degradation</dt><dd>Not sampled</dd></div>
-                <div><dt>Executable exit</dt><dd>Not sampled</dd></div>
-                <div><dt>Copyability</dt><dd>Insufficient evidence</dd></div>
-              </dl>
-              <p>Historical source returns never become hypothetical follower fills.</p>
+              <strong id="copyFollowerHeadline">Copy evidence starts after you shadow</strong>
+              <dl id="copyFollowerMetrics"></dl>
+              <div class="copy-capacity-rail" id="copyCapacityRail" aria-label="Copyability by follower order size"></div>
+              <p id="copyFollowerLimit">Historical source returns never become hypothetical follower fills.</p>
             </article>
           </div>
           <section class="copy-event-list"><header><span>Recent reconstructed activity</span><strong id="copyEventCount">0 events</strong></header><div id="copyRecentEvents"></div></section>
@@ -128,7 +151,7 @@
       </section>
 
       <section class="copy-panel" data-copy-panel="watching" hidden>
-        <header class="copy-section-head"><div><span>One public wallet · your private rules</span><h2>Wallets you are shadowing</h2><p>Refresh is manual during the private beta. Raven establishes a historical baseline first, then treats only newer source trades as prospective signals.</p></div><strong>Live copy off</strong></header>
+        <header class="copy-section-head"><div><span>One public wallet · your private rules</span><h2>Wallets you are shadowing</h2><p>Checks are manual during this private beta. The first check learns where the wallet stands; later checks evaluate only genuinely new trades.</p></div><strong>Live copy off</strong></header>
         <div class="copy-card-list" id="copyWatches"></div>
       </section>
 
@@ -138,14 +161,14 @@
       </section>
 
       <section class="copy-panel" data-copy-panel="positions" hidden>
-        <header class="copy-section-head"><div><span>Follower reality</span><h2>Shadow positions</h2><p>Only policy-approved prospective buys create a shadow position. Nothing here represents assets held or a fill received.</p></div><strong>No funds moved</strong></header>
+        <header class="copy-section-head"><div><span>Follower reality</span><h2>Shadow positions</h2><p>Only a policy-approved new buy creates a shadow position. Nothing here represents assets held or a fill received.</p></div><strong>No funds moved</strong></header>
         <div class="copy-card-list" id="copyPositions"></div>
       </section>
     </section>
 
     <footer class="copy-boundary">
-      <div><span>Watch</span><strong>Public-chain evidence</strong><p>Wallet history, normalized activity, and evidence-bound source performance.</p></div>
-      <div><span>Shadow</span><strong>Prospective follower reality</strong><p>Current entry, reverse exit, policy, latency, and hypothetical fee evidence.</p></div>
+      <div><span>Watch</span><strong>Public wallet history</strong><p>Trades, transfers, and source returns only where the wallet evidence supports them.</p></div>
+      <div><span>Shadow</span><strong>Follower reality from new trades</strong><p>Current entry, reverse exit, policy, latency, and hypothetical fee evidence.</p></div>
       <div><span>Live</span><strong>Not enabled</strong><p>No custody, signing, broadcasting, automatic approvals, or actual fee collection.</p></div>
     </footer>
   </main>

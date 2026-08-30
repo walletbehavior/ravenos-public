@@ -6,7 +6,7 @@ Production activation: not approved
 
 ## Product boundary
 
-Wallet Intelligence and Raven Copy are part of the existing RavenOS Pro entitlement. They do not introduce a second subscription, custody, a copy-bot wallet, or a live execution path. The first implementation supports public Solana source wallets and two customer modes: Watch and Shadow. Live Raven Copy is source-level disabled.
+Wallet Intelligence and Raven Copy are part of the existing RavenOS Pro entitlement. They do not introduce a second subscription, custody, a copy-bot wallet, or a live execution path. The first implementation supports public Solana source wallets, a bounded Raven-indexed screener, and two customer modes: Watch and Shadow. Live Raven Copy is source-level disabled.
 
 Raven keeps these statements distinct:
 
@@ -29,7 +29,7 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 
 ## Current workflow
 
-1. A Raven Pro user enters an exact Solana public address.
+1. A Raven Pro user can enter an exact Solana public address or screen the bounded set of wallets Raven has already normalized. The screener never claims every Solana wallet and never substitutes source performance for follower performance.
 2. Raven loads at most 24 recent signatures through the configured Solana RPC and fetches decoded transactions in bounded batches.
 3. Net wallet balance changes are normalized into explicit economic events. Opposing balance changes are not called swaps without swap-route evidence.
 4. Transfers, airdrops, failed transactions, liquidity operations, ambiguous activity, and unsupported activity remain separate from buys and sells.
@@ -42,7 +42,7 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 
 ## Storage and mutability
 
-Migration `0007_customer_wallet_copy.sql` adds a single `wallet.copy` capability to the existing grant registry. It also adds shared source wallets, append-only normalized events, append-only finality observations, append-only profile snapshots, owner-bound watches, append-only shadow decisions, shadow positions, and future checkpoint storage.
+Migration `0007_customer_wallet_copy.sql` adds a single `wallet.copy` capability to the existing grant registry. It also adds shared source wallets, append-only normalized events, append-only finality observations, append-only profile snapshots, owner-bound watches, append-only shadow decisions, shadow positions, and future checkpoint storage. Migration `0008_customer_wallet_screener.sql` adds a rebuildable current-profile projection for bounded filtering and deterministic sorting; the append-only profile snapshots remain the historical source of truth.
 
 Economic events are idempotent by wallet, signature, and decode version. Processed, confirmed, and finalized observations are recorded separately so a finality upgrade does not create a second trade. Corrections require a new decode version or superseding evidence; historical decisions retain their policy and quote evidence.
 
@@ -96,6 +96,8 @@ The same event was probed again after 642.939 seconds. Its entry and reverse-exi
 
 ## Deferred work
 
-The following are not claimed by v1: global wallet screener coverage, deep historical backfill, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, continuous observation, automatic alerts, source-sell position mapping, checkpoint servicing, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
+The current screener covers only exact public wallets already requested or observed by Raven. It supports retained activity, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
+
+The following are not claimed by v1: chain-wide wallet coverage, deep historical backfill, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, continuous observation, automatic alerts, source-sell position mapping, checkpoint servicing, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
 
 The smallest post-migration move is a shared Solana observer with durable queueing and one controlled public-wallet cohort. That service should measure detection and quote latency before Raven publishes any speed or follower-capture claim.
