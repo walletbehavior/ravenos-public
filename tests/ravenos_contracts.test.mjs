@@ -81,7 +81,7 @@ test("legacy implementation language is normalized for customer renderings", () 
   assert.equal(customerFacingText("Price holds above the Raven-recorded high."), "Price holds above the recorded high.");
   assert.equal(
     customerFacingText("The exact-market registry has one real observation and is waiting for another before assigning a behavioral state."),
-    "First market update recorded; waiting for another before naming the pattern.",
+    "One market update; trend unconfirmed.",
   );
   assert.equal(
     customerFacingText("Raven froze a crowding fade observation while mixed pressure was present."),

@@ -69,7 +69,7 @@ test("Discover explains the board once, then returns to a compact actionable wor
   await expect(discover).toHaveAttribute("data-workspace-mode", "first-visit");
   await expect(page.locator("#discoverFirstVisitGuide")).toBeVisible();
   await expect(page.locator("#discoverFirstVisitGuide")).toContainText("Start with why now");
-  await expect(page.locator("#discoverFirstVisitGuide")).toContainText("Open the exact pool");
+  await expect(page.locator("#discoverFirstVisitGuide")).toContainText("Exact identity persists");
 
   await page.locator("#discoverIntroToggle").click();
   await expect(discover).toHaveAttribute("data-workspace-mode", "returning");

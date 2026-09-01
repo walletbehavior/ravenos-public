@@ -185,7 +185,7 @@ test("an extreme provider move is surfaced for exact-chart verification rather t
   assert.equal(Object.hasOwn(discovery.notability, "thresholds"), false);
   assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_pct"), false);
   assert.equal(Object.hasOwn(discovery.notability.primary_trigger, "threshold_multiple"), false);
-  assert.match(discovery.decision_support.why_now, /first market update recorded/i);
+  assert.equal(discovery.decision_support.why_now, "One market update; trend unconfirmed.");
   assert.doesNotMatch(discovery.decision_support.why_now, /registry|provider|classifier/i);
 });
 

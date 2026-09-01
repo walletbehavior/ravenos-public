@@ -1475,7 +1475,7 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
   const discovery = row?.discovery || {};
   const raven = discovery.raven_evidence_state || {};
   const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
-  if (state.spotSort !== "raven" && observationCount < 2) return spotFirstObservationHeadline(row, risks);
+  if (observationCount < 2) return spotFirstObservationHeadline(row, risks);
   const activityHeadlines = {
     accumulation: "Buy flow leading as participation accelerates.",
     absorption: "Buyers strengthening into price pressure.",
@@ -1512,7 +1512,7 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
     return candidate;
   }
   if (state.spotSort === "activity") return `${title(activityState)} participation is the clearest current change.`;
-  if (state.spotSort === "raven") return "Current exact-market read; open it to inspect the evidence.";
+  if (state.spotSort === "raven") return "Current exact-market evidence is available.";
   return [...new Set([title(velocityState), title(primary)])].join(" · ");
 }
 
@@ -1628,13 +1628,13 @@ function renderSpotEvidence(shell, row) {
   }
   const inspect = append(body, "section", "discover-token-inspect", "");
   const inspectCopy = append(inspect, "div", "discover-token-inspect-copy", "");
-  append(inspectCopy, "h4", "", `Open ${text(row.symbol)} in Terminal`);
+  append(inspectCopy, "h4", "", `${text(row.symbol)} market evidence`);
   append(inspectCopy, "p", "", factFreshness.current
     ? customerFacingText(
       discovery.decision_support?.why_now,
-      "Inspect the exact chart, recent trades, holder concentration, and current read.",
+      "Current price, activity, holders, and market evidence are available.",
     )
-    : "Open the exact market for the latest chart while Discover retries its current market snapshot.");
+    : "The current market snapshot is refreshing.");
   const inspectActions = append(inspect, "div", "discover-token-inspect-actions", "");
   const rowAnchor = shell.querySelector(".discover-token-row");
   for (const [panel, label] of [["chart", "Chart"], ["activity", "Trades"], ["holders", "Holders"]]) {
@@ -2205,7 +2205,7 @@ function createListedMarketCard(row) {
   const detail = append(anchor, "div", "", "");
   detail.textContent = "";
   append(detail, "span", "", row.entity_kind === "etf" ? "ETF" : "Equity");
-  append(detail, "small", "", row.optionable ? "Options · chart on open" : "Chart on open");
+  append(detail, "small", "", row.optionable ? "Options available" : "Exact listing");
   append(anchor, "b", "", "→");
   anchor.addEventListener("click", async (event) => {
     event.preventDefault();
@@ -2265,7 +2265,7 @@ function createOpportunityRow(row) {
     : spot
       ? row.identity_scope === "exact_pool"
         ? `${text(row.venue, "Spot market")} · exact pool`
-        : "Exact token · opens chart directly"
+        : "Exact token"
       : "Hyperliquid · exact perpetual");
   if (lifecycle) {
     const lifecycleNode = append(identity, "div", "discover-opportunity-meta", "");
@@ -2319,7 +2319,7 @@ function createOpportunityRow(row) {
       ].filter(Boolean).join(" · ");
   if (marketDetail) append(market, "small", "", marketDetail);
 
-  append(anchor, "span", "discover-open", spot ? "Open chart" : "Inspect");
+  append(anchor, "span", "discover-open", spot ? "Terminal" : "Inspect");
   return anchor;
 }
 

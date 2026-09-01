@@ -566,6 +566,8 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
   ));
   const accumulating = eligibleSpot.filter((row) => ["accumulation", "absorption", "participation_accelerating"].includes(row?.discovery?.activity_state?.value)).length;
   const distributing = eligibleSpot.filter((row) => ["distribution", "participation_decelerating"].includes(row?.discovery?.activity_state?.value)).length;
+  const balanced = eligibleSpot.filter((row) => row?.discovery?.activity_state?.value === "balanced").length;
+  const directional = accumulating + distributing;
   const spotVolume = eligibleSpot.reduce((sum, row) => sum + (windowMetric(row, "volume_usd", timeframe) || 0), 0);
   const opportunityReads = opportunityRows.map((row) => opportunityLifecycle(row, row.market_snapshot || {}));
   const lifecycleCounts = Object.fromEntries(["confirmed", "forming", "watch", "fading", "invalidated"].map((key) => [
@@ -596,14 +598,25 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
     });
   }
   if (eligibleSpot.length) {
-    const flowValue = accumulating > distributing
-      ? "Buy pressure leads"
-      : distributing > accumulating ? "Sell pressure leads" : "Flow is balanced";
+    const flowValue = directional === 0
+      ? balanced > 0 ? "Flow is balanced" : "Direction not established"
+      : accumulating > distributing
+        ? "Buy pressure leads"
+        : distributing > accumulating ? "Sell pressure leads" : "Flow is mixed";
+    const flowCounts = directional > 0
+      ? [
+        accumulating ? `${accumulating} buy-led ${accumulating === 1 ? "pool" : "pools"}` : "",
+        distributing ? `${distributing} sell-led ${distributing === 1 ? "pool" : "pools"}` : "",
+        balanced ? `${balanced} balanced ${balanced === 1 ? "pool" : "pools"}` : "",
+      ].filter(Boolean).join(" · ")
+      : balanced > 0
+        ? `${balanced} balanced ${balanced === 1 ? "pool" : "pools"}`
+        : "No directional pool reads";
     cards.push({
       key: "onchain_flow",
       label: "On-chain flow",
       value: flowValue,
-      detail: `${accumulating} buy-side · ${distributing} sell-side · ${compact(spotVolume, { currency: true })} ${timeframe} volume`,
+      detail: `${flowCounts} · ${compact(spotVolume, { currency: true })} ${timeframe} volume`,
       tone: accumulating > distributing ? "positive" : distributing > accumulating ? "negative" : "neutral",
     });
   }

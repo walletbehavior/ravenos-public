@@ -486,7 +486,7 @@ function renderFeatured(host, featured) {
       const value = append(button, "span", "atlas-pulse-value");
       value.dataset.state = shown.state;
       append(value, "strong", "", shown.value);
-      append(value, "small", "", shown.change || (row.public_display_eligibility === "allowed" ? "Open chart and context" : "Identity available"));
+      append(value, "small", "", shown.change || (row.public_display_eligibility === "allowed" ? "Market context available" : "Identity available"));
       append(button, "span", "atlas-pulse-open", "→");
       button.addEventListener("click", () => selectEntity(row.entity_id));
     }

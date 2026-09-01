@@ -314,3 +314,18 @@ test("desk frame fuses live markets, flows, lifecycle, and Atlas without empty-l
   assert.ok(frame.cards.some((row) => row.key === "cross_market"));
   assert.doesNotMatch(JSON.stringify(frame), /unknown|unavailable/i);
 });
+
+test("desk frame never presents unclassified pool flow as zero buy-side and zero sell-side", () => {
+  const unclassifiedSpot = pool();
+  unclassifiedSpot.discovery = {
+    schema_version: "ravenos.discover_market.v1",
+    measurements: { timeframe: "5m" },
+    activity_state: { value: "insufficient_history" },
+  };
+  const frame = buildDeskFrame({ spotRows: [unclassifiedSpot], timeframe: "5m" });
+  const flow = frame.cards.find((row) => row.key === "onchain_flow");
+  assert.equal(flow.value, "Direction not established");
+  assert.match(flow.detail, /No directional pool reads/);
+  assert.match(flow.detail, /\$18K 5m volume/);
+  assert.doesNotMatch(flow.detail, /0 buy-side|0 sell-side|Flow is balanced/);
+});

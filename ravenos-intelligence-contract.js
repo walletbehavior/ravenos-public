@@ -70,7 +70,7 @@ export function customerFacingText(value, fallback = "") {
     .replace(/\bCurrent provider input admitted for observation\b/gi, "Current market added to tracking")
     .replace(
       /^The exact-market registry has one real observation and is waiting for another before assigning a behavioral state\.?$/i,
-      "First market update recorded; waiting for another before naming the pattern.",
+      "One market update; trend unconfirmed.",
     )
     .replace(
       /^The exact market remains in Raven's registry after leaving the current provider feed; its latest facts are stale and are not rescored as current\.?$/i,
