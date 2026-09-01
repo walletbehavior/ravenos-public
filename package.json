@@ -7,6 +7,7 @@
     "prebuild": "npm run build:wallet-execution && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
     "build": "node scripts/cloudflare-build-check.mjs && npm run validate:security && npm run validate:no-leak",
     "test:discover-radar": "node --test --experimental-test-isolation=none tests/discover_radar.test.mjs",
+    "test:route-cache": "node --test tests/ravenos_public_route_cache.test.mjs",
     "test:canary-dry-run": "node --test --experimental-test-isolation=none tests/solana_transaction_decoder.test.mjs tests/operator_solana_canary.test.mjs",
     "validate:wallet-copy-live": "node scripts/validate-wallet-copy-live.mjs",
     "validate:wallet-observer-live": "node scripts/validate-wallet-observer-live.mjs",
