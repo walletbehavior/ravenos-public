@@ -18,6 +18,7 @@ const state = {
   deep_poll_token: 0,
   deep_poll_attempts: 0,
   events: [],
+  activity: { filter: "all", next_cursor: null, has_more: false, matching_event_count: 0, loading: false },
   watches: [],
   decisions: [],
   exit_decisions: [],
@@ -185,6 +186,7 @@ function findingItems(items, fallback) {
 function eventCard(event) {
   const card = document.createElement("article");
   card.className = "copy-event-card";
+  card.dataset.activityKind = event.classification?.kind || "UNSUPPORTED";
   const head = document.createElement("header");
   const kind = document.createElement("strong");
   const time = document.createElement("span");
@@ -198,13 +200,90 @@ function eventCard(event) {
     fact("Paid", exactAssetAmount(event.economic?.source_asset)),
     fact("Received", exactAssetAmount(event.economic?.destination_asset)),
   );
+  const evidence = document.createElement("p");
+  const provider = readable(event.chain_evidence?.provider || "provider unavailable");
+  const finality = readable(event.chain_evidence?.finality || "finality unavailable");
+  evidence.textContent = `${provider} · ${finality}${event.chain_evidence?.slot === null || event.chain_evidence?.slot === undefined ? "" : ` · slot ${event.chain_evidence.slot}`}`;
+  const disclosure = document.createElement("details");
+  disclosure.className = "copy-event-evidence";
+  const summary = document.createElement("summary");
+  summary.textContent = "Evidence details";
+  const proof = document.createElement("dl");
+  const reasons = Array.isArray(event.classification?.reasons) ? event.classification.reasons.map(readable).join(" · ") : "Unavailable";
+  const programs = Array.isArray(event.route_evidence?.program_ids) ? event.route_evidence.program_ids.map(shortAddress).join(" · ") : "Unavailable";
+  proof.append(
+    fact("Classification basis", reasons || "Unavailable"),
+    fact("Observation", readable(event.timing?.observation_mode)),
+    fact("Route", readable(event.route_evidence?.route_shape)),
+    fact("Programs", programs || "Unavailable"),
+    fact("Network fee", event.economic?.transaction_fee_lamports === null || event.economic?.transaction_fee_lamports === undefined ? "Unavailable" : `${Number(event.economic.transaction_fee_lamports).toLocaleString()} lamports`),
+    fact("Detection", duration(event.timing?.detection_delay_ms)),
+  );
+  disclosure.append(summary, proof);
   const signature = document.createElement("a");
   signature.href = `https://solscan.io/tx/${encodeURIComponent(event.chain_evidence?.signature || "")}`;
   signature.target = "_blank";
   signature.rel = "noopener noreferrer";
   signature.textContent = `View transaction · ${shortAddress(event.chain_evidence?.signature)}`;
-  card.append(head, details, signature);
+  card.append(head, details, evidence, disclosure, signature);
   return card;
+}
+
+function renderWalletActivity(activity, { append = false } = {}) {
+  const incoming = Array.isArray(activity?.events) ? activity.events : [];
+  const filter = String(activity?.filter || state.activity.filter || "all");
+  const prior = append && filter === state.activity.filter ? state.events : [];
+  const seen = new Set(prior.map((event) => event.event_id));
+  const merged = [...prior, ...incoming.filter((event) => !seen.has(event.event_id))];
+  state.events = merged;
+  state.activity = {
+    filter,
+    next_cursor: activity?.pagination?.next_cursor || null,
+    has_more: activity?.pagination?.has_more === true,
+    matching_event_count: Math.max(0, Number(activity?.pagination?.matching_event_count ?? merged.length)),
+    loading: false,
+  };
+  const filterNode = document.getElementById("copyActivityFilter");
+  filterNode.value = filter;
+  filterNode.disabled = false;
+  const host = document.getElementById("copyRecentEvents");
+  host.replaceChildren(...(merged.length ? merged.map(eventCard) : [empty("No matching activity", "Nothing in Raven’s retained evidence matches this filter. Unavailable events are not converted into zero activity.")]));
+  const total = state.activity.matching_event_count;
+  setText("copyEventCount", `${merged.length.toLocaleString()} of ${total.toLocaleString()} retained`);
+  setText("copyActivityStatus", state.activity.has_more
+    ? "Older retained evidence is available. Loading it does not make another Solana provider request."
+    : total
+      ? "End of the retained Raven index for this filter. This is not a lifetime-history claim."
+      : "No retained evidence matches this filter.");
+  const more = document.getElementById("copyActivityMore");
+  more.hidden = !state.activity.has_more;
+  more.disabled = false;
+  more.textContent = "Load older";
+}
+
+async function loadWalletActivity({ append = false } = {}) {
+  if (!state.source_wallet_id || state.activity.loading) return;
+  const filterNode = document.getElementById("copyActivityFilter");
+  const filter = filterNode.value || "all";
+  const cursor = append && filter === state.activity.filter ? state.activity.next_cursor : null;
+  state.activity.loading = true;
+  filterNode.disabled = true;
+  const more = document.getElementById("copyActivityMore");
+  more.disabled = true;
+  more.textContent = append ? "Loading…" : "Filtering…";
+  setText("copyActivityStatus", append ? "Loading the next retained page…" : "Filtering retained wallet evidence…");
+  const params = new URLSearchParams({ filter, limit: "12" });
+  if (cursor) params.set("cursor", cursor);
+  const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}/events?${params}`);
+  if (!result.response.ok) {
+    state.activity.loading = false;
+    filterNode.disabled = false;
+    more.disabled = false;
+    more.textContent = "Try again";
+    setText("copyActivityStatus", "Raven could not read this retained page. No missing activity was treated as zero.");
+    return;
+  }
+  renderWalletActivity(result.payload, { append });
 }
 
 function activeCopyability() {
@@ -294,7 +373,6 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     state.deep_poll_attempts = 0;
   }
   state.profile = payload.profile;
-  state.events = payload.recent_events || [];
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
@@ -408,9 +486,17 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   }) : [empty("No known-cost open positions", "Unknown inventory is not converted into a zero-cost position or a marked gain.")]));
   renderFollowerReality();
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
-  setText("copyEventCount", `${state.events.length} event${state.events.length === 1 ? "" : "s"}`);
-  const events = document.getElementById("copyRecentEvents");
-  events.replaceChildren(...state.events.map(eventCard));
+  if (!fromPoll || !state.events.length) {
+    renderWalletActivity(payload.activity || {
+      filter: "all",
+      events: payload.recent_events || [],
+      pagination: {
+        matching_event_count: (payload.recent_events || []).length,
+        has_more: false,
+        next_cursor: null,
+      },
+    });
+  }
   scheduleDeepHistoryPoll(state.deep_poll_token);
   if (scroll) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -892,6 +978,7 @@ async function inspectWalletAddress(address, button) {
   state.profile = null;
   state.deep_history = null;
   state.events = [];
+  state.activity = { filter: "all", next_cursor: null, has_more: false, matching_event_count: 0, loading: false };
   profileNode.hidden = true;
   policyNode.hidden = true;
   button.disabled = true;
@@ -1011,6 +1098,8 @@ document.getElementById("copyScreenNext").addEventListener("click", async () => 
   state.screener.page += 1;
   await loadScreener();
 });
+document.getElementById("copyActivityFilter").addEventListener("change", () => loadWalletActivity({ append: false }));
+document.getElementById("copyActivityMore").addEventListener("click", () => loadWalletActivity({ append: true }));
 
 boot().catch(() => {
   page.dataset.copyState = "unavailable";

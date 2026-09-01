@@ -159,6 +159,26 @@ function memoryStore() {
       return inserted;
     },
     async listSourceEvents(id) { return [...events.values()].filter((row) => row.id === id).map((row) => row.row); },
+    async listSourceEventPage(id, { kinds = null, limit = 12, cursor = null } = {}) {
+      const matching = [...events.values()]
+        .filter((entry) => entry.id === id && (!Array.isArray(kinds) || kinds.includes(entry.row.classification.kind)))
+        .map((entry) => ({
+          row: entry.row,
+          order_time: Math.floor(Date.parse(entry.row.chain_evidence.block_time || entry.row.timing.raven_received_at) / 1_000),
+        }))
+        .sort((left, right) => right.order_time - left.order_time || right.row.event_id.localeCompare(left.row.event_id));
+      const after = cursor
+        ? matching.filter((entry) => entry.order_time < cursor.order_time || (entry.order_time === cursor.order_time && entry.row.event_id < cursor.event_id))
+        : matching;
+      const visible = after.slice(0, limit);
+      const last = visible.at(-1);
+      return {
+        events: visible.map((entry) => entry.row),
+        matching_event_count: matching.length,
+        has_more: after.length > limit,
+        next_cursor: after.length > limit && last ? `${last.order_time}~${last.row.event_id}` : null,
+      };
+    },
     async recordProfile(id, profile) { profiles.set(id, profile); return `swp_${"p".repeat(40)}`; },
     async latestProfile(id) { return profiles.get(id) || null; },
     async getSourceWallet(id) { return sources.get(id) || null; },
@@ -445,6 +465,82 @@ test("Raven-indexed screener is separately gated, bounded, and opens retained ev
   assert.equal(detailPayload.profile.source_wallet.address, WALLET);
   assert.equal(detailPayload.recent_events.length, 1);
   assert.equal(providerLoads, 1);
+});
+
+test("wallet activity explorer pages retained evidence deterministically without another provider request", async () => {
+  let providerLoads = 0;
+  const store = memoryStore();
+  const provider = { async loadHistory() { providerLoads += 1; return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const d = deps(store, provider);
+  const inspected = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d);
+  const inspectedPayload = await json(inspected);
+  const sourceId = inspectedPayload.source_wallet_id;
+  const older = Array.from({ length: 8 }, (_, index) => walletEvent({
+    signature: `${"b".repeat(86)}${String(index).padStart(2, "0")}`,
+    slot: 90 - index,
+    blockTime: NOW - 10 - index,
+  }));
+  await store.recordEvents(sourceId, older);
+
+  const first = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}/events?filter=trades&limit=5`), activeEnv, d);
+  const firstPayload = await json(first);
+  assert.equal(first.status, 200);
+  assert.equal(firstPayload.schema_version, "ravenos.wallet_activity_page.v1");
+  assert.equal(firstPayload.events.length, 5);
+  assert.equal(firstPayload.pagination.matching_event_count, 9);
+  assert.equal(firstPayload.pagination.has_more, true);
+  assert.match(firstPayload.pagination.next_cursor, /^\d+~swe_[a-f0-9]{40}$/);
+  assert.equal(firstPayload.scope.provider_request_performed, false);
+  assert.equal(firstPayload.scope.history_complete_claimed, false);
+  assert.equal(firstPayload.events[0].schema_version, "ravenos.wallet_activity_event.v1");
+  assert.equal(firstPayload.events[0].evidence_boundary.provider_payload_included, false);
+  assert.equal(firstPayload.events[0].evidence_boundary.transaction_material_included, false);
+  assert.equal("deltas" in firstPayload.events[0].economic, false);
+  assert.equal(firstPayload.events[0].chain_evidence.evidence_reference, `solana:signature:${firstPayload.events[0].chain_evidence.signature}`);
+
+  const second = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}/events?filter=trades&limit=5&cursor=${encodeURIComponent(firstPayload.pagination.next_cursor)}`), activeEnv, d);
+  const secondPayload = await json(second);
+  assert.equal(second.status, 200);
+  assert.equal(secondPayload.events.length, 4);
+  assert.equal(secondPayload.pagination.has_more, false);
+  assert.equal(new Set([...firstPayload.events, ...secondPayload.events].map((event) => event.event_id)).size, 9);
+  assert.equal(providerLoads, 1);
+});
+
+test("wallet activity explorer allowlists filters, cursors, and page size", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const d = deps(store, provider);
+  const inspected = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d));
+  const base = `/api/v1/wallet-copy/wallets/${inspected.source_wallet_id}/events`;
+  const invalidFilter = await routeCustomerWalletCopy(request(`${base}?filter=profit_magic`), activeEnv, d);
+  assert.equal(invalidFilter.status, 400);
+  assert.equal((await json(invalidFilter)).error, "wallet_activity_filter_invalid");
+  const invalidCursor = await routeCustomerWalletCopy(request(`${base}?cursor=oldest`), activeEnv, d);
+  assert.equal(invalidCursor.status, 400);
+  assert.equal((await json(invalidCursor)).error, "wallet_activity_cursor_invalid");
+  const invalidLimit = await routeCustomerWalletCopy(request(`${base}?limit=21`), activeEnv, d);
+  assert.equal(invalidLimit.status, 400);
+  assert.equal((await json(invalidLimit)).error, "wallet_activity_limit_invalid");
+  const unexpected = await routeCustomerWalletCopy(request(`${base}?wallet=${WALLET}`), activeEnv, d);
+  assert.equal(unexpected.status, 400);
+  assert.equal((await json(unexpected)).error, "wallet_activity_query_invalid");
+});
+
+test("wallet activity explorer fails closed on a retained source-identity mismatch", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const d = deps(store, provider);
+  const inspected = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d));
+  const corrupt = structuredClone(walletEvent({ signature: "c".repeat(88), slot: 99, blockTime: NOW - 3 }));
+  corrupt.source_wallet.address = bs58.encode(Buffer.alloc(32, 31));
+  store.events.set(corrupt.event_id, { id: inspected.source_wallet_id, row: corrupt });
+  const response = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspected.source_wallet_id}/events`), activeEnv, d);
+  assert.equal(response.status, 503);
+  assert.equal((await json(response)).error, "stored_wallet_activity_event_invalid");
 });
 
 test("wallet screener rejects unallowlisted controls and exact source details fail closed", async () => {

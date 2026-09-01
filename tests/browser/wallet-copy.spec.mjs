@@ -44,18 +44,32 @@ function session(authenticated = true) {
     : { ok: true, authenticated: false, account: null, session: null };
 }
 
-function event(kind = "SWAP_BUY") {
+function event(kind = "SWAP_BUY", sequence = 0) {
+  const eventTail = sequence.toString(16).padStart(40, "a").slice(-40);
   return {
-    schema_version: "ravenos.solana_wallet_event.v1",
-    event_id: "swe_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    schema_version: "ravenos.wallet_activity_event.v1",
+    event_id: `swe_${eventTail}`,
     source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
-    chain_evidence: { signature: "5".repeat(88), block_time: "2026-08-29T11:59:58.000Z" },
-    classification: { kind, confidence: "observed" },
+    chain_evidence: { signature: String(5 + (sequence % 4)).repeat(88), slot: 100 - sequence, block_time: new Date(Date.parse("2026-08-29T11:59:58.000Z") - (sequence * 60_000)).toISOString(), provider: "constant_k_nexus", finality: "confirmed" },
+    timing: { observation_mode: sequence ? "historical_backfill" : "prospective", detection_delay_ms: sequence ? null : 870, decode_latency_ms: 41 },
+    classification: { kind, confidence: new Set(["AMBIGUOUS", "UNSUPPORTED"]).has(kind) ? "insufficient" : "observed", reasons: kind === "SWAP_BUY" ? ["canonical_spend_and_token_receipt"] : ["asset_increase_without_observed_consideration"] },
     economic: {
       cost_basis_state: kind === "SWAP_BUY" ? "known_canonical_usdc" : "unresolved_non_usdc_basis",
       source_asset: kind === "SWAP_BUY" ? { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount_base_units: "25000000", decimals: 6 } : null,
       destination_asset: kind === "SWAP_BUY" ? { mint: TOKEN, amount_base_units: "81000000", decimals: 6 } : null,
+      transaction_fee_lamports: 5_000,
     },
+    route_evidence: { route_shape: kind === "SWAP_BUY" ? "direct" : "not_proven", program_ids: ["JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"] },
+  };
+}
+
+function activityPage(events, { filter = "all", total = events.length, hasMore = false, nextCursor = null } = {}) {
+  return {
+    schema_version: "ravenos.wallet_activity_page.v1",
+    filter,
+    events,
+    pagination: { limit: 12, returned: events.length, matching_event_count: total, has_more: hasMore, next_cursor: hasMore ? nextCursor : null },
+    scope: { evidence_mode: "retained_raven_index", provider_request_performed: false, history_complete_claimed: false, current_balance_claimed: false },
   };
 }
 
@@ -248,7 +262,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
   await page.route("**/api/v1/wallet-copy**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const record = { method: request.method(), path: url.pathname, body: request.postData(), headers: request.headers() };
+    const record = { method: request.method(), path: url.pathname, search: url.search, body: request.postData(), headers: request.headers() };
     shared.requests.push(record);
     if (url.pathname === "/api/v1/wallet-copy" && request.method() === "GET") {
       return route.fulfill({
@@ -269,7 +283,24 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}` && request.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY")], deep_history: deepHistory(), provider_request_performed: false }) });
+      const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: activity.events, activity, deep_history: deepHistory(), provider_request_performed: false }) });
+    }
+    if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}/events` && request.method() === "GET") {
+      const filter = url.searchParams.get("filter") || "all";
+      const cursor = url.searchParams.get("cursor");
+      const rows = filter === "unresolved"
+        ? [event("AMBIGUOUS", 4)]
+        : cursor
+          ? [event("SWAP_SELL", 2), event("TRANSFER_OUT", 3)]
+          : [event("SWAP_BUY"), event("TRANSFER_IN", 1)];
+      const activity = activityPage(rows, {
+        filter,
+        total: filter === "unresolved" ? 1 : 26,
+        hasMore: filter === "all" && !cursor,
+        nextCursor: `123~swe_${"a".repeat(40)}`,
+      });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: rows.length ? "available" : "empty", source_wallet_id: SOURCE_ID, ...activity }) });
     }
     if (url.pathname.endsWith("/saved-wallets") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.saved?.length ? "available" : "empty", saves: shared.saved || [], lists: [] }) });
@@ -288,7 +319,8 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
     }
     if (url.pathname.endsWith("/inspect") && request.method() === "POST") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY"), event("TRANSFER_IN")], deep_history: deepHistory() }) });
+      const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: activity.events, activity, deep_history: deepHistory() }) });
     }
     if (url.pathname.endsWith("/watches") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.watch ? "available" : "empty", watches: shared.watch ? [shared.watch] : [] }) });
@@ -398,6 +430,16 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.getByText("How much Raven knows", { exact: true })).toBeVisible();
   await expect(page.getByText("Last observed, never implied current", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save wallet" })).toBeVisible();
+  await expect(page.locator("#copyEventCount")).toHaveText("2 of 26 retained");
+  await page.getByRole("button", { name: "Load older" }).click();
+  await expect(page.locator("#copyEventCount")).toHaveText("4 of 26 retained");
+  await expect(page.getByText("Swap Sell", { exact: true })).toBeVisible();
+  const pagedActivity = [...shared.requests].reverse().find((row) => row.path.endsWith("/events"));
+  expect(new URLSearchParams(pagedActivity.search).has("cursor")).toBe(true);
+  await page.getByLabel("Wallet activity filter").selectOption("unresolved");
+  await expect(page.locator("#copyEventCount")).toHaveText("1 of 1 retained");
+  await expect(page.getByText("Ambiguous", { exact: true })).toBeVisible();
+  await expect(page.getByText("End of the retained Raven index for this filter. This is not a lifetime-history claim.")).toBeVisible();
   await expect(page.getByRole("link", { name: /View transaction/ })).toHaveAttribute("href", /solscan\.io\/tx\//);
   await captureVisual(page, "wallet-intelligence-profile-desktop-1440");
   const detailRequest = shared.requests.find((row) => row.path === `/api/v1/wallet-copy/wallets/${SOURCE_ID}`);

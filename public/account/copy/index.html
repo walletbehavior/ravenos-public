@@ -166,7 +166,14 @@
             <article><header><span>Evidence quality</span><strong>How much Raven knows</strong></header><dl id="copyEvidenceMetrics"></dl><p id="copyEvidenceLimit">Full confidence remains unavailable without contemporaneous historical price and liquidity evidence.</p></article>
             <article><header><span>Capital &amp; inventory</span><strong>Last observed, never implied current</strong></header><dl id="copyCapitalMetrics"></dl><div class="copy-open-positions" id="copyOpenPositions"></div></article>
           </section>
-          <section class="copy-event-list"><header><span>Recent reconstructed activity</span><strong id="copyEventCount">0 events</strong></header><div id="copyRecentEvents"></div></section>
+          <section class="copy-event-list">
+            <header>
+              <div><span>Wallet activity</span><strong id="copyEventCount">0 retained</strong></div>
+              <label><span>Show</span><select id="copyActivityFilter" aria-label="Wallet activity filter"><option value="all">All activity</option><option value="trades">All trades</option><option value="buys">Buys</option><option value="sells">Sells</option><option value="transfers">Transfers</option><option value="unresolved">Needs review</option><option value="other">Other activity</option></select></label>
+            </header>
+            <div id="copyRecentEvents"></div>
+            <footer><p id="copyActivityStatus">Choose a wallet to inspect retained evidence.</p><button type="button" id="copyActivityMore" hidden>Load older</button></footer>
+          </section>
         </section>
 
         <form class="copy-policy" id="copyPolicy" hidden>

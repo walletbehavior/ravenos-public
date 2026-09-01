@@ -32,7 +32,7 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 1. A Raven Pro user can enter an exact Solana public address or screen the bounded set of wallets Raven has already normalized. The screener never claims every Solana wallet and never substitutes source performance for follower performance.
 2. Raven returns an immediate 24-transaction evidence window, then can enqueue one shared resumable deep-history job for the exact source wallet. The dormant worker reads 100 signatures per page and indexes up to 10,000 signatures without duplicating work per subscriber.
 3. Net wallet balance changes are normalized into explicit economic events. Opposing balance changes are not called swaps without swap-route evidence.
-4. Transfers, airdrops, failed transactions, liquidity operations, ambiguous activity, and unsupported activity remain separate from buys and sells.
+4. Transfers, airdrops, failed transactions, liquidity operations, ambiguous activity, and unsupported activity remain separate from buys and sells. The wallet profile exposes this retained evidence through bounded cursor pages with explicit trade, buy, sell, transfer, unresolved, and other-activity filters.
 5. FIFO source P&L uses exact canonical-USDC or native SOL/wSOL settlement lots. SOL returns remain SOL-denominated; Raven never converts them with a current price and calls it historical USD performance. Unknown inbound cost basis never becomes zero-cost profit.
 6. The first watch refresh establishes a historical baseline and cursor. It cannot create a shadow trade.
 7. A later source-wallet buy may request an exact canonical-USDC entry quote and immediate token-to-canonical-USDC reverse quote.
@@ -53,6 +53,8 @@ Economic events are idempotent by wallet, signature, and decode version. Process
 Current position derivation is bounded at 2,000 Raven-created lots and 2,000 retained source-exit decisions per position view. Hitting either bound fails closed instead of silently omitting older exits or presenting an incorrect remaining balance.
 
 Customer deletion cascades private watches and customer shadow state. Public-chain source evidence has an independent retention policy. Raw provider payloads, signer material, transaction construction material, private keys, and subscriber identities are excluded.
+
+The activity explorer reads only Raven's retained normalized-event ledger. Each page is capped at 20 events, uses a deterministic event-time and event-ID cursor, and returns a compact allowlisted evidence projection rather than raw RPC data. It preserves exact asset base units, classification reasons, provider/finality, route programs, network fee, and timing evidence. Filtering or loading older pages never performs another Solana provider request, never changes the source cursor, and never upgrades bounded provider history into a lifetime-history claim.
 
 ## Activation and authority
 
@@ -103,7 +105,7 @@ The same event was probed again after 642.939 seconds. Its entry and reverse-exi
 
 ## Deferred work
 
-The current screener covers only exact public wallets already requested or observed by Raven. It supports retained activity, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. Deep history is bounded at 10,000 signatures, and each current profile snapshot openly discloses its 2,000-event analysis ceiling. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
+The current screener covers only exact public wallets already requested or observed by Raven. It supports paginated retained activity, event-kind filtering, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. Deep history is bounded at 10,000 signatures, and each current profile snapshot openly discloses its 2,000-event analysis ceiling. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
 
 The following are not claimed by v1: chain-wide wallet coverage, unbounded lifetime history, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, an activated continuous provider connection, automatic alerts, checkpoint servicing beyond retained exit evidence, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
 

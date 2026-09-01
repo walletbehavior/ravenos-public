@@ -188,6 +188,7 @@
       "POST /api/v1/wallet-copy/inspect",
       "POST /api/v1/wallet-copy/screener",
       "GET /api/v1/wallet-copy/wallets/:source_wallet_id",
+      "GET /api/v1/wallet-copy/wallets/:source_wallet_id/events",
       "GET /api/v1/wallet-copy/watches",
       "POST /api/v1/wallet-copy/watches",
       "PATCH /api/v1/wallet-copy/watches/:watch_id",
