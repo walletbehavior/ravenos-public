@@ -358,6 +358,27 @@ test("entry without a reverse route is an explicit refusal, not a zero-return tr
   assert.throws(() => createShadowCopyPosition(decision), /executable_shadow_decision_required/);
 });
 
+test("copyability exposes a deterministic refusal fingerprint instead of hiding skipped signals", () => {
+  const unavailable = createRavenCopyDecision(evidence({
+    exit: { state: "unavailable", provider: "jupiter", reason: "no_reverse_route", exact_asset_identity: true },
+  }), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const stale = createRavenCopyDecision(evidence({
+    watch_id: `wcw_${"c".repeat(40)}`,
+    entry: { ...evidence().entry, quoted_at: "2026-08-29T11:00:00.000Z", expires_at: "2026-08-29T11:00:15.000Z" },
+  }), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const snapshot = buildCopyabilitySnapshot([
+    unavailable,
+    { ...unavailable, decision_id: `${unavailable.decision_id}_2` },
+    stale,
+  ], { generated_at: "2026-08-29T12:05:00.000Z", order_size_usdc: 100 });
+  assert.equal(snapshot.refusal_count, 3);
+  assert.equal(snapshot.dominant_refusal.reason_code, "no_reverse_route");
+  assert.equal(snapshot.dominant_refusal.count, 2);
+  assert.equal(snapshot.dominant_refusal.pct_of_signals, 66.67);
+  assert.equal(snapshot.dominant_refusal.refusal_is_zero_return, false);
+  assert.equal(snapshot.refusal_fingerprint[1].reason_code, "entry_quote_stale");
+});
+
 test("copy policy fails closed on delay, stale quotes, liquidity, friction, funding, simulation, and unresolved standards", () => {
   const now = Date.parse("2026-08-29T12:00:01.500Z");
   const delayedEvent = sourceBuy();

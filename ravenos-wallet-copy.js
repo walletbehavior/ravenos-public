@@ -306,6 +306,7 @@ function renderFollowerReality() {
   const overall = record?.snapshot || null;
   const marketContext = shared?.detection_market_context || null;
   const outcomes = shared?.prospective_outcomes || null;
+  const diagnosis = shared?.copy_diagnosis || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
   setText("copyFollowerHeadline", sharedAvailable
@@ -355,6 +356,14 @@ function renderFollowerReality() {
     item.append(size, result, sample);
     return item;
   }));
+  const refusal = diagnosis?.reference_dominant_refusal || overall?.dominant_refusal || null;
+  const refusalNode = document.getElementById("copyRefusalDiagnosis");
+  refusalNode.hidden = !sharedAvailable || !refusal;
+  if (sharedAvailable && refusal) {
+    setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
+    setText("copyRefusalHeadline", readable(refusal.reason_code));
+    setText("copyRefusalDetail", `${refusal.count} of ${overall?.prospective_sample_count || 0} prospective routes · ${pct(refusal.pct_of_signals)} of signals. Refusals remain visible and are never recorded as zero-return trades.`);
+  }
   const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
   setText("copyFollowerLimit", sharedAvailable
     ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.${Number(outcomeReference?.checkpoint_count || 0) > 0 ? " Later outcomes are exact-quantity liquidation quotes, not fills or the source wallet's realized P&L." : ""}${Number(marketContext?.context_observation_count || 0) > 0 ? " Market context is the highest-liquidity exact-token pair Raven saw near detection, not proof of the source wallet's pool or fill." : ""}`

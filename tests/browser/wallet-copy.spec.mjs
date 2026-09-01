@@ -175,6 +175,14 @@ function prospectiveCopyability() {
         exit_executable_pct: 87.5,
         median_entry_degradation_bps: 42,
       },
+      dominant_refusal: {
+        decision_state: "EXIT_UNAVAILABLE",
+        reason_code: "reverse_exit_unavailable",
+        count: 5,
+        pct_of_signals: 20.83,
+        pct_of_refusals: 62.5,
+        refusal_is_zero_return: false,
+      },
     },
     by_size: sizes.map((size) => ({
       order_size_usdc: size,
@@ -183,6 +191,23 @@ function prospectiveCopyability() {
       prospective_sample_count: 24,
       components: { policy_pass_pct: size <= 100 ? 66.67 : 54.17 },
     })),
+    copy_diagnosis: {
+      state: "available",
+      reference_order_size_usdc: 100,
+      minimum_prospective_sample_count: 20,
+      majority_policy_pass_threshold_pct: 50,
+      largest_tested_size_with_majority_policy_pass_usdc: 5_000,
+      first_tested_size_below_majority_policy_pass_usdc: null,
+      reference_dominant_refusal: {
+        decision_state: "EXIT_UNAVAILABLE",
+        reason_code: "reverse_exit_unavailable",
+        count: 5,
+        pct_of_signals: 20.83,
+        pct_of_refusals: 62.5,
+        refusal_is_zero_return: false,
+      },
+      liquidity_capacity_claimed: false,
+    },
     prospective_outcomes: {
       reference_order_size_usdc: 100,
       reference_horizon_seconds: 3_600,
@@ -512,6 +537,9 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.locator("#copyFollowerMetrics").getByText("+4.82%", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerMetrics").getByText("58.40%", { exact: true })).toBeVisible();
   await expect(page.locator("#copyCapacityRail").getByText("24 routes · 18 +1h", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("#copyRefusalLabel")).toHaveText("Leading blocker · $100");
+  await expect(page.locator("#copyRefusalHeadline")).toHaveText("Reverse Exit Unavailable");
+  await expect(page.locator("#copyRefusalDetail")).toContainText("5 of 24 prospective routes");
   await expect(page.getByRole("button", { name: "Save wallet" })).toBeVisible();
   await expect(page.locator("#copyEventCount")).toHaveText("2 of 26 retained");
   await page.getByRole("button", { name: "Load older" }).click();

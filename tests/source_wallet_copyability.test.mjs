@@ -256,6 +256,10 @@ test("copyability scores form independently at each follower order size", () => 
   assert.equal(matrix.by_size.length, 5);
   assert.ok(matrix.by_size.every((row) => row.prospective_sample_count === 20));
   assert.ok(matrix.by_size.every((row) => Number.isInteger(row.score)));
+  assert.equal(matrix.copy_diagnosis.state, "available");
+  assert.equal(matrix.copy_diagnosis.largest_tested_size_with_majority_policy_pass_usdc, 5_000);
+  assert.equal(matrix.copy_diagnosis.reference_dominant_refusal, null);
+  assert.equal(matrix.copy_diagnosis.liquidity_capacity_claimed, false);
   assert.equal(matrix.historical_estimates_included, false);
   assert.equal(matrix.source_performance_used_as_follower_performance, false);
   assert.equal(matrix.unavailable_decisions_dropped, false);

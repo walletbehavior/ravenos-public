@@ -394,6 +394,7 @@ const walletDetectionMarketContextMigration = readFileSync(join(root, "customer-
 const walletResearchCohort = readFileSync(join(root, "lib", "customer_trade", "source_wallet_research_cohort.mjs"), "utf8");
 const walletBackfill = readFileSync(join(root, "lib", "customer_trade", "source_wallet_backfill.mjs"), "utf8");
 const walletBackfillPriorityMigration = readFileSync(join(root, "customer-migrations", "0020_source_wallet_backfill_priority.sql"), "utf8");
+const walletDiscoveryPriorityMigration = readFileSync(join(root, "customer-migrations", "0021_source_wallet_discovery_priority.sql"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
 assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
 assert(walletObserverTransports.includes('transport: "shredstream"') || walletObserverTransports.includes('"shredstream"'), "private shred adapter contract is missing");
@@ -448,6 +449,12 @@ assert(walletBackfillPriorityMigration.includes("source_wallet_backfill_demand_p
 assert(!/SET[\s\S]{0,300}cursor_before\s*=/.test(walletBackfillPriorityMigration), "priority migration must not reset a history cursor");
 assert(!/SET[\s\S]{0,300}next_attempt_at\s*=/.test(walletBackfillPriorityMigration), "priority migration must preserve provider retry timing");
 assert(!/\b(user_id|watch_id|private_key|seed_phrase|signer_key|transaction_hash)\b/i.test(walletBackfillPriorityMigration.replace(/--.*$/gm, "")), "priority queue contains subscriber identity or execution authority");
+assert(walletDiscoveryAdmission.includes("research_priority_score DESC"), "Nexus candidate hydration must use evidence priority before raw activity volume");
+assert(walletDiscoveryAdmission.includes("exact_opposing_delta_points"), "Nexus candidate priority must expose its strongest evidence component");
+assert(walletDiscoveryAdmission.includes("copyability_claimed: false"), "Nexus candidate priority must not claim copyability");
+assert(walletDiscoveryPriorityMigration.includes("exact_swap_shape_count * 400.0"), "Nexus candidate priority migration must reward exact economic evidence");
+assert(walletDiscoveryPriorityMigration.includes("source_wallet_discovery_quality_due_idx"), "Nexus candidate priority migration must index the bounded hydration queue");
+assert(!/\b(user_id|watch_id|subscriber_id|private_key|seed_phrase|signer_key|transaction_hash)\b/i.test(walletDiscoveryPriorityMigration.replace(/--.*$/gm, "")), "Nexus candidate priority contains subscriber identity or execution authority");
 assert(walletObserverReceiverDaemon.indexOf("posted = await postConstantKNexusWalletDiscoveryObservations") < walletObserverReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "receiver must durably post discovery evidence before checkpoint persistence");
 for (const discoveryFlag of ["RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED", "RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED"]) {
   assert(!wrangler.includes(discoveryFlag), `wallet discovery activation flag must not be configured in Wrangler: ${discoveryFlag}`);

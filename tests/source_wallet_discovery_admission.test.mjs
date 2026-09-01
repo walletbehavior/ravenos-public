@@ -10,6 +10,7 @@ import {
 } from "../lib/customer_trade/constant_k_nexus_wallet_discovery.mjs";
 import {
   SOURCE_WALLET_DISCOVERY_HYDRATION_SCHEMA,
+  buildSourceWalletDiscoveryResearchPriority,
   resolveSourceWalletDiscoveryAdmissionActivation,
   runSourceWalletDiscoveryAdmissionBatch,
 } from "../lib/customer_trade/source_wallet_discovery_admission.mjs";
@@ -134,6 +135,33 @@ test("discovery activation requires coordinated ingress, intelligence, evaluator
   assert.equal(active.evaluator, true);
   assert.equal(active.live_copy, false);
   assert.equal(active.broadcasting, false);
+});
+
+test("Nexus hydration priority rewards exact diverse evidence instead of raw noisy volume", () => {
+  const exactDiverse = buildSourceWalletDiscoveryResearchPriority({
+    observation_count: 8,
+    exact_swap_shape_count: 8,
+    reviewed_buy_instruction_count: 0,
+    distinct_mint_count: 5,
+  });
+  const noisyFrequent = buildSourceWalletDiscoveryResearchPriority({
+    observation_count: 100,
+    exact_swap_shape_count: 0,
+    reviewed_buy_instruction_count: 100,
+    distinct_mint_count: 2,
+  });
+  assert.equal(exactDiverse.score, 960);
+  assert.equal(noisyFrequent.score, 480);
+  assert.ok(exactDiverse.score > noisyFrequent.score);
+  assert.equal(exactDiverse.components.exact_opposing_delta_points, 400);
+  assert.equal(exactDiverse.profitability_claimed, false);
+  assert.equal(exactDiverse.copyability_claimed, false);
+  assert.throws(() => buildSourceWalletDiscoveryResearchPriority({
+    observation_count: 2,
+    exact_swap_shape_count: 2,
+    reviewed_buy_instruction_count: 1,
+    distinct_mint_count: 1,
+  }), /wallet_discovery_priority_evidence_count_mismatch/);
 });
 
 test("independent Raven hydration admits only a verified economic trade and queues existing backfill", async () => {
@@ -276,6 +304,7 @@ test("discovery ingress stays missing when disabled and rejects wrong HMAC", asy
 
 test("discovery migration is append-only, replay-safe, provider-only, and grants no execution authority", () => {
   const sql = readFileSync(new URL("../customer-migrations/0014_source_wallet_discovery.sql", import.meta.url), "utf8");
+  const prioritySql = readFileSync(new URL("../customer-migrations/0021_source_wallet_discovery_priority.sql", import.meta.url), "utf8");
   assert.match(sql, /CREATE TABLE ravenos_source_wallet_discovery_candidates/i);
   assert.match(sql, /CREATE TABLE ravenos_source_wallet_discovery_observations/i);
   assert.match(sql, /CREATE TRIGGER ravenos_source_wallet_discovery_observations_append_only/i);
@@ -286,4 +315,8 @@ test("discovery migration is append-only, replay-safe, provider-only, and grants
   assert.match(sql, /live_copy/i);
   assert.doesNotMatch(sql, /private_key|seed_phrase|signing_key|treasury_key/i);
   assert.doesNotMatch(sql, /\buser_id\s+TEXT|\bsubscriber_id\s+TEXT|\bpolicy_json\s+TEXT|\bfollower_count\s+INTEGER/i);
+  assert.match(prioritySql, /research_priority_score/i);
+  assert.match(prioritySql, /exact_swap_shape_count \* 400\.0/i);
+  assert.match(prioritySql, /source_wallet_discovery_quality_due_idx/i);
+  assert.doesNotMatch(prioritySql, /private_key|seed_phrase|signer_key|user_id|subscriber_id|follower_count/i);
 });
