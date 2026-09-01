@@ -141,11 +141,17 @@ This proves the private transport and economic-decoding boundary. It does not su
 
 ## Continuous receiver milestone
 
-The next activation step is one private Netcup receiver using this completed adapter contract. It must:
+The restart-safe receiver contract is now implemented in `lib/customer_trade/constant_k_nexus_wallet_receiver.mjs`. It follows the compact event journal by device, inode, and exact byte offset; commits newline-complete rows only; crosses the retained `.1` rotation without skipping; and fails closed if a restart outlives the rotation window or a file truncates in place. A first start tails current data by default so historical replay cannot be mislabeled as prospective observation. An explicit beginning mode remains available for bounded operator replay.
+
+The receiver advances its reduced checkpoint only after every exact delivery reaches the injected durable sink. A partial sink failure leaves the prior checkpoint in place, making the whole batch safely replayable through the existing idempotent D1 delivery and job keys. Malformed and oversized source rows are counted as degraded input and committed without entering the sink. The checkpoint contains only file continuity, aggregate counters, a watch-universe hash, provider slot, and hashed signature reference—never raw provider rows, wallet addresses, subscriber identity, or transaction material.
+
+Large watch universes are dynamically chunked against the existing 1,000-reference transport ceiling. The deterministic worst-case test uses 250 watched signers across five transactions and delivers all 1,250 exact references in two bounded chunks without overflow. Restart, partial-line, rotation, gap, truncation, malformed-line, sink-failure, checkpoint, privacy, and raw-payload exclusion paths are covered in `tests/constant_k_nexus_wallet_receiver.test.mjs`.
+
+This is still a dormant contract, not a running daemon. The remaining activation step is one private Netcup service that supplies the exact Raven watch universe and binds the receiver to the existing D1 observer ingest—not a second queue. It must:
 
 1. load the unique Raven watch universe;
 2. subscribe once per public source wallet;
-3. convert provider messages in memory into the bounded delivery contract;
+3. bind the completed rotation-safe receiver to the existing durable observer sink;
 4. record provider receipt before optional hydration;
 5. reconnect with bounded backoff and a confirmed-RPC catch-up cursor;
 6. never expose the ingest surface publicly;
