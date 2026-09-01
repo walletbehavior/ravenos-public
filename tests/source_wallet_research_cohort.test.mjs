@@ -6,7 +6,10 @@ import test from "node:test";
 import bs58 from "bs58";
 
 import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs";
-import { SOURCE_WALLET_DISCOVERY_CANDIDATE_SCHEMA } from "../lib/customer_trade/source_wallet_discovery_admission.mjs";
+import {
+  SOURCE_WALLET_DISCOVERY_CANDIDATE_SCHEMA,
+  buildSourceWalletDiscoveryResearchPriority,
+} from "../lib/customer_trade/source_wallet_discovery_admission.mjs";
 import {
   SOURCE_WALLET_RESEARCH_COHORT_ADMISSION_SCHEMA,
   SourceWalletResearchCohortLimits,
@@ -28,7 +31,7 @@ function wallet(index) {
 
 function candidate(index = 1, overrides = {}) {
   const address = wallet(index);
-  return {
+  const row = {
     schema_version: SOURCE_WALLET_DISCOVERY_CANDIDATE_SCHEMA,
     candidate_id: `swc_${digest(["solana", "mainnet", address])}`,
     source_wallet_id: `sw_sol_${digest(["solana", "mainnet", address])}`,
@@ -41,6 +44,8 @@ function candidate(index = 1, overrides = {}) {
     distinct_mint_count: 4,
     ...overrides,
   };
+  row.research_priority = buildSourceWalletDiscoveryResearchPriority(row);
+  return row;
 }
 
 test("research cohort is separately gated and never grants execution authority", () => {
@@ -68,16 +73,28 @@ test("only independently verified recurring candidates become transparent resear
   assert.equal(admission.state, "active");
   assert.equal(admission.admission_basis, "constant_k_nexus_verified_trade");
   assert.equal(admission.evidence_tier, "high_signal");
-  assert.ok(admission.priority_score >= 800 && admission.priority_score <= 1_000);
+  assert.equal(admission.priority_score, 820);
+  assert.equal(admission.priority_evidence.components.exact_opposing_delta_points, 300);
+  assert.equal(admission.claim_boundary.activity_volume_alone_determines_priority, false);
   assert.equal(admission.claim_boundary.profitable_wallet_claimed, false);
   assert.equal(admission.claim_boundary.copyable_wallet_claimed, false);
   assert.equal(admission.privacy.subscriber_identity_included, false);
   assert.equal(admission.execution_boundary.live_copy, false);
   assert.doesNotMatch(JSON.stringify(admission), /user_id|watch_id|private_key|transaction_hash/i);
   assert.throws(() => createSourceWalletResearchCohortAdmission({
-    candidate: candidate(2, { evidence_tier: "single_observation", observation_count: 1 }),
+    candidate: candidate(2, {
+      evidence_tier: "single_observation",
+      observation_count: 1,
+      exact_swap_shape_count: 1,
+      reviewed_buy_instruction_count: 0,
+      distinct_mint_count: 1,
+    }),
     admitted_at: NOW,
   }), /wallet_research_cohort_candidate_ineligible/);
+  assert.throws(() => createSourceWalletResearchCohortAdmission({
+    candidate: { ...candidate(3), research_priority: { ...candidate(3).research_priority, score: 999 } },
+    admitted_at: NOW,
+  }), /wallet_research_cohort_priority_invalid/);
 });
 
 test("cohort storage preserves protected wallets first and fills only bounded spare manifest capacity", async () => {
