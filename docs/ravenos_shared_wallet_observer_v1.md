@@ -145,16 +145,21 @@ The restart-safe receiver contract is now implemented in `lib/customer_trade/con
 
 The receiver advances its reduced checkpoint only after every exact delivery reaches the injected durable sink. A partial sink failure leaves the prior checkpoint in place, making the whole batch safely replayable through the existing idempotent D1 delivery and job keys. Malformed and oversized source rows are counted as degraded input and committed without entering the sink. The checkpoint contains only file continuity, aggregate counters, a watch-universe hash, provider slot, and hashed signature reference—never raw provider rows, wallet addresses, subscriber identity, or transaction material.
 
-Large watch universes are dynamically chunked against the existing 1,000-reference transport ceiling. The deterministic worst-case test uses 250 watched signers across five transactions and delivers all 1,250 exact references in two bounded chunks without overflow. Restart, partial-line, rotation, gap, truncation, malformed-line, sink-failure, checkpoint, privacy, and raw-payload exclusion paths are covered in `tests/constant_k_nexus_wallet_receiver.test.mjs`.
+Large watch universes are dynamically chunked against the existing 1,000-reference transport ceiling. RPC polling remains capped at 250 wallets per run, while the private stream contract now accepts up to 25,000 exact public wallets. Event batches are divided by the number of matching signers—not the total subscriber count—so an idle 25,000-wallet universe does not create 25,000 queue operations. The deterministic tests cover a 1,001-wallet universe and the worst-case 250-watched-signers-per-event burst without overflow.
+
+`source_wallet_watch_manifest.mjs` builds a deterministic private Constant-K manifest from distinct active copy watches and saved research wallets. It uses stable hash buckets with no more than 900 accounts per provider filter and contains no subscriber IDs, policies, follower counts, or signing material. `constant_k_nexus_wallet_pipeline.mjs` will not read or advance the receiver until the provider side confirms the exact manifest hash, wallet count, shard count, and current coverage. This prevents RavenOS from silently describing a partial subscription as continuous monitoring. The public/reporting projection contains only counts and hashes; exact addresses stay in the private transport manifest.
+
+Restart, partial-line, rotation, gap, truncation, malformed-line, sink-failure, checkpoint, manifest-mismatch, large-universe, privacy, and raw-payload exclusion paths are covered in `tests/constant_k_nexus_wallet_receiver.test.mjs` and `tests/source_wallet_watch_manifest.test.mjs`.
 
 This is still a dormant contract, not a running daemon. The remaining activation step is one private Netcup service that supplies the exact Raven watch universe and binds the receiver to the existing D1 observer ingest—not a second queue. It must:
 
-1. load the unique Raven watch universe;
-2. subscribe once per public source wallet;
-3. bind the completed rotation-safe receiver to the existing durable observer sink;
-4. record provider receipt before optional hydration;
-5. reconnect with bounded backoff and a confirmed-RPC catch-up cursor;
-6. never expose the ingest surface publicly;
+1. load the unique Raven watch universe through the completed D1 projection;
+2. activate and acknowledge the completed deterministic Constant-K manifest;
+3. subscribe once per public source wallet across bounded provider filters;
+4. bind the completed rotation-safe receiver to the existing durable observer sink;
+5. record provider receipt before optional hydration;
+6. reconnect with bounded backoff and a confirmed-RPC catch-up cursor;
+7. never expose the ingest surface publicly;
 7. report provider health, stream lag, queue depth, and lease recovery;
 8. run a deliberately mixed shadow cohort before any speed or copyability claim.
 

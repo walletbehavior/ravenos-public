@@ -242,6 +242,33 @@ test("large watch universes are chunked so a worst-case signer burst cannot over
   assert.equal(run.transport.counts.ingest_failures, 0);
 });
 
+test("receiver matches a thousand-plus wallet universe without subscriber-proportional delivery work", async () => {
+  const wallets = Array.from({ length: 1_001 }, (_, index) => {
+    const bytes = Buffer.alloc(32);
+    bytes.writeUInt32BE(index + 1, 28);
+    return bs58.encode(bytes);
+  });
+  const selected = wallets.at(-1);
+  const rows = Array.from({ length: 5 }, (_, index) => transaction({
+    rowSignature: signature(index + 40),
+    slot: 443_340_040 + index,
+    wallet: selected,
+  }));
+  let deliveries = 0;
+  const run = await runConstantKNexusWalletReceiverCycle({
+    watches: wallets,
+    now: () => NOW,
+    async read_batch() { return receiverBatch(rows); },
+    async ingest_delivery() { deliveries += 1; },
+    async save_checkpoint() {},
+  });
+  assert.equal(run.watch_universe_size, 1_001);
+  assert.equal(run.transport.chunks, 1);
+  assert.equal(run.transport.maximum_chunk_size, 5);
+  assert.equal(run.transport.counts.references_received, 5);
+  assert.equal(deliveries, 5);
+});
+
 test("restart from a saved file cursor ingests each new reference once", async (t) => {
   const path = tempFile(t, line(transaction({ rowSignature: signature(6), slot: 443_340_006 })));
   let currentCheckpoint = null;

@@ -56,6 +56,27 @@ test("watch universe observes one public address once and retains only the stron
   assert.equal(JSON.stringify(rows).includes("policy"), false);
 });
 
+test("private stream transport accepts a large exact universe while RPC normalization keeps its smaller default bound", async () => {
+  const wallets = Array.from({ length: 1_001 }, (_, index) => {
+    const bytes = Buffer.alloc(32);
+    bytes.writeUInt32BE(index + 1, 28);
+    return bs58.encode(bytes);
+  });
+  assert.throws(() => normalizeSourceWalletWatchUniverse(wallets), /observer_watch_universe_too_large/);
+  const deliveries = [];
+  const run = await runSourceWalletStreamAdapterBatch({
+    watches: wallets,
+    references: [reference({ wallet: wallets.at(-1) })],
+    provider: "constant_k_nexus",
+    transport: "geyser_grpc",
+    now: () => NOW,
+    async ingest_delivery(delivery) { deliveries.push(delivery); },
+  });
+  assert.equal(run.limits.unique_wallets, 1_001);
+  assert.equal(run.health.counts.deliveries_ingested, 1);
+  assert.equal(deliveries[0].source_wallet.address, wallets.at(-1));
+});
+
 test("provider references are reduced to exact bounded envelopes without raw transaction material", () => {
   const delivery = normalizeSourceWalletTransportReference(reference({
     extra: {
