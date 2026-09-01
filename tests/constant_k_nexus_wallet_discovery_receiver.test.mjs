@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   appendFileSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   renameSync,
@@ -13,6 +14,10 @@ import test from "node:test";
 
 import bs58 from "bs58";
 
+import {
+  createConstantKNexusDiscoveryCoverageAcknowledgement,
+  createConstantKNexusDiscoveryCoverageManifest,
+} from "../lib/customer_trade/constant_k_nexus_discovery_coverage.mjs";
 import { routeSourceWalletDiscoveryIngress } from "../lib/customer_trade/source_wallet_discovery_ingress.mjs";
 import { sourceWalletDiscoveryReceipt } from "../lib/customer_trade/source_wallet_discovery_ingress_protocol.mjs";
 import {
@@ -55,12 +60,36 @@ function transaction(value = 1) {
 function tempState(t) {
   const directory = mkdtempSync(join(tmpdir(), "ravenos-nexus-discovery-receiver-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  return {
+  const paths = {
     directory,
     event_path: join(directory, "events.jsonl"),
     checkpoint_path: join(directory, "receiver-checkpoint.json"),
     health_path: join(directory, "receiver-health.json"),
+    coverage_manifest_path: join(directory, "coverage-manifest.json"),
+    provider_acknowledgement_path: join(directory, "provider-coverage-ack.json"),
   };
+  writeCoverage(paths);
+  return paths;
+}
+
+function writeCoverage(paths, {
+  activated_at: activatedAt = "2026-09-01T14:59:00.000Z",
+  verified_at: verifiedAt = NOW,
+  expires_at: expiresAt = "2026-09-01T15:10:00.000Z",
+  acknowledgement_overrides: acknowledgementOverrides = {},
+} = {}) {
+  const manifest = createConstantKNexusDiscoveryCoverageManifest({ generated_at: NOW });
+  const acknowledgement = {
+    ...createConstantKNexusDiscoveryCoverageAcknowledgement({
+      manifest,
+      activated_at: activatedAt,
+      verified_at: verifiedAt,
+      expires_at: expiresAt,
+    }),
+    ...acknowledgementOverrides,
+  };
+  writeFileSync(paths.coverage_manifest_path, `${JSON.stringify(manifest)}\n`, { mode: 0o600 });
+  writeFileSync(paths.provider_acknowledgement_path, `${JSON.stringify(acknowledgement)}\n`, { mode: 0o600 });
 }
 
 function config(paths) {
@@ -69,6 +98,8 @@ function config(paths) {
     event_path: paths.event_path,
     checkpoint_path: paths.checkpoint_path,
     health_path: paths.health_path,
+    coverage_manifest_path: paths.coverage_manifest_path,
+    provider_acknowledgement_path: paths.provider_acknowledgement_path,
     ingress_origin: "https://ingest.ravenos.xyz",
     credentials: { key_id: KEY_ID, secret: SECRET },
     maximum_bytes: 16 * 1024 * 1024,
@@ -149,11 +180,48 @@ test("discovery firehose receiver is explicitly gated and confines mutable state
   };
   const settings = constantKWalletDiscoveryReceiverSettings(base);
   assert.equal(settings.checkpoint_path, "/var/lib/ravenos-wallet-discovery/receiver-checkpoint.json");
+  assert.equal(settings.coverage_manifest_path, "/var/lib/ravenos-wallet-discovery/coverage-manifest.json");
+  assert.equal(settings.provider_acknowledgement_path, "/var/lib/ravenos-wallet-discovery/provider-coverage-ack.json");
   assert.equal(settings.maximum_bytes, 16 * 1024 * 1024);
   assert.throws(() => constantKWalletDiscoveryReceiverSettings({
     ...base,
     RAVENOS_WALLET_DISCOVERY_FIREHOSE_CHECKPOINT_PATH: "/tmp/escaped.json",
   }), /constant_k_discovery_receiver_checkpoint_path_invalid/);
+});
+
+test("receiver refuses missing, stale, or wrong-mode provider coverage before reading Nexus", async (t) => {
+  const paths = tempState(t);
+  writeFileSync(paths.event_path, `${JSON.stringify(transaction(1))}\n`, { mode: 0o600 });
+  let reads = 0;
+  const guardedRead = () => { reads += 1; return {}; };
+  rmSync(paths.provider_acknowledgement_path);
+  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    read_batch: guardedRead,
+    post_observations: acceptedPost([]),
+    now: () => new Date(NOW),
+  }), /constant_k_discovery_receiver_provider_ack_unavailable/);
+  assert.equal(reads, 0);
+  assert.equal(existsSync(paths.checkpoint_path), false);
+
+  writeCoverage(paths, {
+    activated_at: "2026-09-01T14:39:00.000Z",
+    verified_at: "2026-09-01T14:40:00.000Z",
+    expires_at: "2026-09-01T14:50:00.000Z",
+  });
+  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    read_batch: guardedRead,
+    post_observations: acceptedPost([]),
+    now: () => new Date(NOW),
+  }), /constant_k_discovery_coverage_ack_expired/);
+  assert.equal(reads, 0);
+
+  writeCoverage(paths, { acknowledgement_overrides: { active_filter_mode: "identity_backed" } });
+  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    read_batch: guardedRead,
+    post_observations: acceptedPost([]),
+    now: () => new Date(NOW),
+  }), /constant_k_discovery_coverage_not_active/);
+  assert.equal(reads, 0);
 });
 
 test("discovery receiver tails first and admits only new prospective Nexus evidence", async (t) => {
@@ -166,6 +234,10 @@ test("discovery receiver tails first and admits only new prospective Nexus evide
     now: () => new Date(NOW),
   });
   assert.equal(first.state, "idle");
+  assert.equal(first.coverage.state, "provider_acknowledged");
+  assert.equal(first.coverage.filter_mode, "reviewed_swap_programs");
+  assert.equal(first.coverage.program_count >= 8, true);
+  assert.equal(first.coverage.chain_wide_coverage_claimed, false);
   assert.equal(first.source.initial_history_truncated, true);
   assert.equal(first.discovery.qualifying_observations, 0);
   assert.equal(calls[0].observations.length, 0);
@@ -304,6 +376,9 @@ test("discovery health and checkpoint expose no wallet, signature, secret, or ex
   assert.equal(serialized.includes(TOKEN), false);
   assert.equal(serialized.includes(signature(4)), false);
   assert.equal(serialized.includes(SECRET), false);
+  assert.equal(output.coverage.program_ids_included, false);
+  assert.equal(output.coverage.wallet_addresses_included, false);
+  assert.equal(output.coverage.execution_authority, false);
   assert.equal(output.discovery.exact_watch_coverage_claimed, false);
   assert.equal(output.discovery.chain_wide_coverage_claimed, false);
   assert.deepEqual(output.execution_boundary, {

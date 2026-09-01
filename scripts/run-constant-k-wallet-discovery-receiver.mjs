@@ -13,6 +13,10 @@ import {
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import { postConstantKNexusWalletDiscoveryObservations } from "../lib/customer_trade/constant_k_nexus_wallet_ingress_client.mjs";
+import {
+  normalizeConstantKNexusDiscoveryCoverageAcknowledgement,
+  normalizeConstantKNexusDiscoveryCoverageManifest,
+} from "../lib/customer_trade/constant_k_nexus_discovery_coverage.mjs";
 import { discoverConstantKNexusWalletCandidates } from "../lib/customer_trade/constant_k_nexus_wallet_discovery.mjs";
 import {
   CONSTANT_K_NEXUS_RECEIVER_CHECKPOINT_SCHEMA,
@@ -22,11 +26,6 @@ import {
 } from "../lib/customer_trade/constant_k_nexus_wallet_receiver.mjs";
 
 export const CONSTANT_K_NEXUS_DISCOVERY_RECEIVER_DAEMON_SCHEMA = "ravenos.constant_k_nexus_wallet_discovery_receiver_daemon.v1";
-
-const DISCOVERY_READER_SCOPE_HASH = createHash("sha256")
-  .update("ravenos:constant-k:wallet-discovery-firehose:v1")
-  .digest("hex")
-  .slice(0, 24);
 
 function fail(code) {
   const error = new Error(code);
@@ -81,6 +80,13 @@ function digest(value) {
   return createHash("sha256").update(String(value || "")).digest("hex").slice(0, 24);
 }
 
+function discoveryReaderScopeHash(coverageHash) {
+  return createHash("sha256")
+    .update(`ravenos:constant-k:wallet-discovery-firehose:v2:${coverageHash}`)
+    .digest("hex")
+    .slice(0, 24);
+}
+
 function sameCursor(left, right) {
   return Boolean(left && right)
     && left.device === right.device
@@ -120,7 +126,7 @@ function latestObservationCursor(observations = [], prior = null) {
   };
 }
 
-function nextCheckpoint({ prior, batch, observations, observedAt }) {
+function nextCheckpoint({ prior, batch, observations, observedAt, coverageScopeHash }) {
   const providerCursor = latestObservationCursor(observations, prior);
   const counters = prior?.counters || {};
   return normalizeConstantKNexusReceiverCheckpoint({
@@ -130,7 +136,7 @@ function nextCheckpoint({ prior, batch, observations, observedAt }) {
     // The shared reader schema calls this a watch hash. Here it is a stable
     // scope discriminator for the independent discovery cursor; it does not
     // claim that Nexus is observing Raven's exact watch manifest.
-    watch_universe_hash: DISCOVERY_READER_SCOPE_HASH,
+    watch_universe_hash: coverageScopeHash,
     last_provider_slot: providerCursor.slot,
     last_signature_reference: providerCursor.signature_reference,
     initial_history_truncated: batch.initial_history_truncated === true || prior?.initial_history_truncated === true,
@@ -171,6 +177,16 @@ export function constantKWalletDiscoveryReceiverSettings(env = process.env) {
       stateDirectory,
       "constant_k_discovery_receiver_health_path_invalid",
     ),
+    coverage_manifest_path: statePath(
+      env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_COVERAGE_MANIFEST_PATH || `${stateDirectory}/coverage-manifest.json`,
+      stateDirectory,
+      "constant_k_discovery_receiver_coverage_manifest_path_invalid",
+    ),
+    provider_acknowledgement_path: statePath(
+      env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_PROVIDER_ACK_PATH || `${stateDirectory}/provider-coverage-ack.json`,
+      stateDirectory,
+      "constant_k_discovery_receiver_provider_ack_path_invalid",
+    ),
     ingress_origin: ingressOrigin,
     credentials: Object.freeze({
       key_id: keyId,
@@ -209,13 +225,14 @@ export function constantKWalletDiscoveryReceiverSettings(env = process.env) {
   });
 }
 
-function sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes }) {
+function sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes, coverage }) {
   const degraded = batch.parse_failures > 0 || batch.oversized_lines > 0 || discovery.state === "degraded";
   return Object.freeze({
     schema_version: CONSTANT_K_NEXUS_DISCOVERY_RECEIVER_DAEMON_SCHEMA,
     observed_at: observedAt,
     state: degraded ? "degraded" : batch.lines_committed > 0 ? "current" : "idle",
     continuity: batch.continuity,
+    coverage,
     source: Object.freeze({
       event_rows: batch.event_rows,
       lines_committed: batch.lines_committed,
@@ -286,9 +303,18 @@ export async function runConstantKWalletDiscoveryReceiverCycle(config, {
   const cycleDate = clockValue instanceof Date ? clockValue : new Date(clockValue);
   if (!Number.isFinite(cycleDate.getTime())) fail("constant_k_discovery_receiver_clock_invalid");
   const observedAt = cycleDate.toISOString();
+  const coverageManifest = normalizeConstantKNexusDiscoveryCoverageManifest(parseJsonFile(
+    config.coverage_manifest_path,
+    "constant_k_discovery_receiver_coverage_manifest_unavailable",
+  ));
+  const coverage = normalizeConstantKNexusDiscoveryCoverageAcknowledgement(parseJsonFile(
+    config.provider_acknowledgement_path,
+    "constant_k_discovery_receiver_provider_ack_unavailable",
+  ), coverageManifest, { now: cycleDate });
+  const coverageScopeHash = discoveryReaderScopeHash(coverage.coverage_hash);
   const rawPrior = parseJsonFile(config.checkpoint_path, "constant_k_discovery_receiver_checkpoint_invalid", { optional: true });
   const prior = rawPrior ? normalizeConstantKNexusReceiverCheckpoint(rawPrior) : null;
-  if (prior && prior.watch_universe_hash !== DISCOVERY_READER_SCOPE_HASH) fail("constant_k_discovery_receiver_checkpoint_scope_invalid");
+  if (prior && prior.watch_universe_hash !== coverageScopeHash) fail("constant_k_discovery_receiver_checkpoint_scope_invalid");
   const batch = readBatch({
     event_path: config.event_path,
     checkpoint: prior,
@@ -306,6 +332,7 @@ export async function runConstantKWalletDiscoveryReceiverCycle(config, {
     batch,
     observations: discovery.observations,
     observedAt,
+    coverageScopeHash,
   });
   const ingress = await postObservations({
     ingress_origin: config.ingress_origin,
@@ -318,7 +345,7 @@ export async function runConstantKWalletDiscoveryReceiverCycle(config, {
   });
   atomicJson(config.checkpoint_path, checkpoint);
   const backlogBytes = sourceBacklogBytes(config.event_path, checkpoint.cursor);
-  const output = sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes });
+  const output = sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes, coverage });
   atomicJson(config.health_path, output);
   return output;
 }

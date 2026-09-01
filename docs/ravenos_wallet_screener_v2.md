@@ -112,6 +112,8 @@ Migration `0014_source_wallet_discovery.sql` and the three coordinated discovery
 
 The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously unwatched candidates, 37 recurring candidates, and three high-signal candidates from 14,213 complete Nexus frames with zero parse failures. This is evidence that the existing feed can expand Raven's research universe economically. It is not evidence of chain-wide coverage or candidate quality because the active Constant-K research filter remains bounded to 208 identity accounts. The sanitized aggregate is retained at `artifacts/ravenos_constant_k_wallet_discovery_live_validation_2026-09-01.json`.
 
+Scaling beyond that proof now has an explicit coverage gate. RavenOS can generate a deterministic 11-program reviewed-DEX transaction manifest, but the discovery receiver refuses to read Nexus until the provider emits a matching acknowledgement refreshed within 15 minutes. The current `identity_backed` sidecar cannot satisfy that contract. This keeps “large wallet universe” as an activation target rather than a fabricated current claim; see `ravenos_constant_k_discovery_coverage_v1.md`.
+
 ## Deferred, not approximated
 
 - chain-wide wallet coverage and unbounded lifetime backfill;
