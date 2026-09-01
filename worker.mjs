@@ -20,6 +20,10 @@ import {
   PUBLIC_PROJECTION_TRANSPORT_POLICY,
   loadResilientPublicProjection,
 } from "./lib/ravenos_projection_transport.mjs";
+import {
+  readPublicRouteResponseCache,
+  storePublicRouteResponseCache,
+} from "./lib/ravenos_public_route_cache.mjs";
 import { atlasObservationDecision } from "./lib/atlas_display_rights.mjs";
 import { buildAtlasFreeSourceRegistry } from "./lib/atlas_free_sources.mjs";
 import {
@@ -8612,8 +8616,16 @@ export default {
       return attachReleaseHeaders(applyAssetSecurityHeaders(authenticatedBoundary.response, url.pathname), releaseState, url.pathname);
     }
     if (url.pathname.startsWith("/api/")) {
+      const cachedPublicResponse = await readPublicRouteResponseCache({ request, env: env || {} });
+      if (cachedPublicResponse) return cachedPublicResponse;
       const response = await routeApi(request, env || {}, executionContext);
-      return attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
+      const sealedResponse = attachReleaseHeaders(applyAssetSecurityHeaders(response, url.pathname), releaseState, url.pathname);
+      return storePublicRouteResponseCache({
+        request,
+        env: env || {},
+        response: sealedResponse,
+        executionContext,
+      });
     }
     if (["GET", "HEAD"].includes(request.method)) {
       const intelligenceSplits = resolveCoordinatedIntelligenceSplits(env || {});
