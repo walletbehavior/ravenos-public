@@ -1108,6 +1108,14 @@ function riskLabel(value) {
     late_chase: "Late chase risk",
     flow_divergence: "Flow divergence",
     liquidity_thinning: "Liquidity thinning",
+    high_market_cap_to_liquidity: "Thin liquidity vs value",
+    bundle_concentration: "Bundle concentration",
+    bundle_distribution: "Bundle selling",
+    developer_exposure: "Developer exposure",
+    sniper_concentration: "Sniper concentration",
+    holder_concentration: "Holder concentration",
+    liquidity_control: "Liquidity control",
+    unrouteable: "No current route",
     concentration_risk: "Concentration risk",
     manipulation_risk: "Manipulation risk",
     high_turnover: "High turnover",
@@ -1445,10 +1453,29 @@ function renderTokenStat(host, label, value) {
   append(node, "strong", "", value);
 }
 
-function spotDecisionHeadline(row, { current = true, velocityState = "forming", activityState = "forming", primary = "forming" } = {}) {
+function spotFirstObservationHeadline(row, risks = []) {
+  const discovery = row?.discovery || {};
+  const trigger = discovery.notability?.primary_trigger;
+  const window = ["5m", "1h", "24h"].includes(text(trigger?.window, ""))
+    ? text(trigger.window)
+    : state.spotTimeframe;
+  const movement = trigger?.kind === "material_price_move"
+    ? finite(trigger.value_pct)
+    : spotMetric(row, "price_change", window);
+  const move = movement === null ? "" : `${percent(movement)} over ${window}`;
+  const volume = spotMetric(row, "volume_usd", window);
+  if (move && volume !== null) return `${move} on ${compact(volume, { currency: true })} volume; follow-through unconfirmed.`;
+  if (move) return `${move}; follow-through unconfirmed.`;
+  if (risks.length) return `${riskLabel(risks[0])}; follow-through unconfirmed.`;
+  return "Follow-through is not established yet.";
+}
+
+function spotDecisionHeadline(row, { current = true, velocityState = "forming", activityState = "forming", primary = "forming", risks = [] } = {}) {
   if (!current) return "Price, move, risk, and rank are withheld until this exact pool refreshes.";
   const discovery = row?.discovery || {};
   const raven = discovery.raven_evidence_state || {};
+  const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
+  if (state.spotSort !== "raven" && observationCount < 2) return spotFirstObservationHeadline(row, risks);
   const activityHeadlines = {
     accumulation: "Buy flow leading as participation accelerates.",
     absorption: "Buyers strengthening into price pressure.",
@@ -1493,7 +1520,7 @@ function spotRiskDecision(risks = [], current = true) {
   if (!current) return { label: "Risk refreshing", tone: "pending" };
   if (!risks.length) return { label: "Risk · no current flag", tone: "quiet" };
   return {
-    label: `Risk · ${riskLabel(risks[0])}${risks.length > 1 ? ` +${risks.length - 1}` : ""}`,
+    label: `${riskLabel(risks[0])}${risks.length > 1 ? ` +${risks.length - 1}` : ""}`,
     tone: "warning",
   };
 }
@@ -1821,33 +1848,37 @@ function updateSpotTokenRow(anchor, row, index) {
   renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
-  const exactChartRequired = discovery.notability?.verification_state === "exact_chart_required";
+  const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
+  const firstObservation = observationCount < 2;
   const decisionHeadline = spotDecisionHeadline(row, {
     current: factFreshness.current,
     velocityState,
     activityState,
     primary,
+    risks,
   });
   if (!factFreshness.current) {
     append(raven, "span", "", "Retained exact market · live check pending");
     append(raven, "strong", "", decisionHeadline);
   } else if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
-    append(raven, "span", "", [
-      risks.includes("late_chase") ? "Chase risk" : "",
-      exactChartRequired ? "Open chart to confirm" : "",
-      label,
-      title(velocityState),
-    ].filter(Boolean).join(" · "));
+    append(raven, "span", "", firstObservation
+      ? "New observation"
+      : velocityScore?.availability !== "available" || velocityState === "insufficient_history"
+        ? "Building history"
+        : [label, title(velocityState)].filter(Boolean).join(" · "));
     append(raven, "strong", "", decisionHeadline);
   } else if (state.spotSort === "activity") {
     const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
-    append(raven, "span", "", [
-      exactChartRequired ? "Open chart to confirm" : "",
-      scoreLabel(activityScore, "Activity strength"),
-      title(activityState),
-      buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`,
-    ].filter(Boolean).join(" · "));
+    append(raven, "span", "", firstObservation
+      ? "New observation"
+      : activityScore?.availability !== "available" || activityState === "insufficient_history"
+        ? "Building history"
+        : [
+          scoreLabel(activityScore, "Activity strength"),
+          title(activityState),
+          buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`,
+        ].filter(Boolean).join(" · "));
     append(raven, "strong", "", decisionHeadline);
   } else {
     const ravenEvidence = discovery.raven_evidence_state;
@@ -1858,17 +1889,13 @@ function updateSpotTokenRow(anchor, row, index) {
       weakened: "Weakening",
       invalidated: "Invalidated",
     }[text(ravenEvidence.state, "").toLowerCase()] || "Current";
-    append(raven, "span", "", [
-      `Read · ${ravenState}`,
-      exactChartRequired ? "Open chart to confirm" : "",
-    ].filter(Boolean).join(" · "));
+    append(raven, "span", "", `Read · ${ravenState}`);
     append(raven, "strong", "", decisionHeadline);
   }
   renderSpotDecisionStrip(raven, row, risks, factFreshness.current);
-  const compactDetail = factFreshness.current ? [
-    opportunityLaneLabel(discovery.opportunity_lane?.value) === "Opportunities" ? "" : opportunityLaneLabel(discovery.opportunity_lane?.value),
-    text(discovery.sample_evidence?.label, ""),
-  ].filter(Boolean).join(" · ") : `Still tracked after leaving trending · last exact update ${spotMarketFactAgeLabel(row)}`;
+  const compactDetail = factFreshness.current
+    ? ""
+    : `Still tracked after leaving trending · last exact update ${spotMarketFactAgeLabel(row)}`;
   if (compactDetail) append(raven, "small", "", compactDetail);
 
   const open = append(anchor, "span", "discover-token-open", "Terminal");

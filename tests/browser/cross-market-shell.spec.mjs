@@ -115,7 +115,7 @@ test("Discover rows lead with why-now and attach only available route, risk, and
   await expect(row.locator(".discover-token-raven > strong")).not.toContainText(/qualified provider|configured short-window|next qualified observation/i);
   await expect(row.locator(".discover-token-raven > strong")).not.toContainText(/\bRaven\b/i);
   expect((await row.locator(".discover-token-raven > strong").innerText()).length).toBeLessThanOrEqual(72);
-  await expect(row.locator(".discover-token-decision-strip")).toContainText("Risk");
+  await expect(row.locator(".discover-token-decision-strip")).toContainText("Thin liquidity vs value");
   await expect(row.locator(".discover-token-decision-strip")).toContainText("Capacity $2.5K");
   await expect(row.locator(".discover-token-decision-strip")).toContainText("42 bps slip");
   await expect(row.locator(".discover-token-decision-strip")).toContainText("Quote");
@@ -123,6 +123,22 @@ test("Discover rows lead with why-now and attach only available route, risk, and
   await expect(page.locator(".discover-copy-ca").first()).toBeVisible();
   await expect(page.locator(".discover-monitor-save").first()).toHaveCount(1);
   await expect(page.locator(".discover-token-evidence summary").first()).toHaveText("Inspect");
+});
+
+test("Discover says first-observation uncertainty once and keeps the reason market-specific", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const firstObservation = structuredClone(jupiterVelocityRow);
+  firstObservation.registry = { observation_count: 1 };
+  await mockWorkspaceApis(page, { pulseRowsOverride: [firstObservation] });
+  await page.goto("/discover/");
+
+  const summary = page.locator(".discover-token-row").first().locator(".discover-token-raven");
+  await expect(summary.locator(":scope > span").first()).toHaveText("New observation");
+  await expect(summary.locator(":scope > strong")).toHaveText("+12.80% over 5m on $1.8M volume; follow-through unconfirmed.");
+  await expect(summary).not.toContainText(/open chart to confirm|velocity forming|insufficient history|first market update|waiting for another/i);
+  await expect(summary.locator(".discover-token-decision-strip")).toContainText("Thin liquidity vs value");
+  await expect(summary.locator(".discover-token-decision-strip")).toContainText("Quote");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
 });
 
 const opportunityRows = [
@@ -313,6 +329,7 @@ function radarSourceRows(rows, { raven = false, generatedAt = new Date().toISOSt
         admission_lanes: [raven ? "raven_observation" : "provider_current_input"],
         admission_reason: raven ? "Exact Raven observation" : "Current market update",
         event_evidence_append_only: true,
+        ...(source.registry || {}),
       },
       raven_signal: false,
     };
