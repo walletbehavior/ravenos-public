@@ -260,9 +260,40 @@ test("copyability scores form independently at each follower order size", () => 
   assert.equal(matrix.copy_diagnosis.largest_tested_size_with_majority_policy_pass_usdc, 5_000);
   assert.equal(matrix.copy_diagnosis.reference_dominant_refusal, null);
   assert.equal(matrix.copy_diagnosis.liquidity_capacity_claimed, false);
+  assert.equal(matrix.size_stress.state, "resilient_through_largest_tested");
+  assert.equal(matrix.size_stress.full_ladder_signal_count, 20);
+  assert.equal(matrix.size_stress.full_ladder_coverage_pct, 100);
+  assert.equal(matrix.size_stress.largest_contiguous_size_with_majority_policy_pass_usdc, 5_000);
+  assert.equal(matrix.size_stress.concurrent_follower_demand_measured, false);
+  assert.equal(matrix.size_stress.liquidity_capacity_claimed, false);
+  assert.ok(matrix.size_stress.by_size.every((row) => row.median_entry_price_impact_bps === 25));
   assert.equal(matrix.historical_estimates_included, false);
   assert.equal(matrix.source_performance_used_as_follower_performance, false);
   assert.equal(matrix.unavailable_decisions_dropped, false);
+});
+
+test("route-size stress identifies where exact follower quotes stop passing policy", () => {
+  const observations = [];
+  for (let signal = 0; signal < 20; signal += 1) {
+    const event = sourceBuy(signal);
+    for (const size of RavenCopyStandardOrderSizesUsdc) {
+      const evidence = quoteEvidence(size, `stress_${signal}`);
+      if (size >= 1_000) evidence.entry = { ...evidence.entry, price_impact_bps: 600 };
+      observations.push(createSourceWalletCopyabilityObservation({
+        source_wallet_id: SOURCE_ID,
+        source_event: event,
+        policy: createSourceWalletCopyabilityPolicy(size, { fee_bps: 10 }),
+        ...evidence,
+      }, { now: NOW }));
+    }
+  }
+  const matrix = buildSourceWalletCopyabilityMatrix(observations, { generated_at: "2026-09-01T13:00:00.000Z" });
+  assert.equal(matrix.size_stress.state, "size_sensitive");
+  assert.equal(matrix.size_stress.largest_contiguous_size_with_majority_policy_pass_usdc, 500);
+  assert.equal(matrix.size_stress.first_qualified_size_below_majority_policy_pass_usdc, 1_000);
+  assert.equal(matrix.size_stress.by_size.find((row) => row.order_size_usdc === 1_000).median_entry_price_impact_bps, 600);
+  assert.equal(matrix.size_stress.batched_execution_assumed, false);
+  assert.equal(matrix.size_stress.isolated_quotes_presented_as_concurrent_fills, false);
 });
 
 test("detection-time market context is counted once per source signal, not once per follower size", () => {

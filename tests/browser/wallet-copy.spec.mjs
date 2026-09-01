@@ -208,6 +208,17 @@ function prospectiveCopyability() {
       },
       liquidity_capacity_claimed: false,
     },
+    size_stress: {
+      schema_version: "ravenos.source_wallet_copyability_size_stress.v1",
+      state: "size_sensitive",
+      prospective_signal_count: 24,
+      full_ladder_signal_count: 24,
+      full_ladder_coverage_pct: 100,
+      largest_contiguous_size_with_majority_policy_pass_usdc: 500,
+      first_qualified_size_below_majority_policy_pass_usdc: 1_000,
+      concurrent_follower_demand_measured: false,
+      liquidity_capacity_claimed: false,
+    },
     prospective_outcomes: {
       reference_order_size_usdc: 100,
       reference_horizon_seconds: 3_600,
@@ -566,6 +577,9 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.locator("#copyRefusalLabel")).toHaveText("Leading blocker · $100");
   await expect(page.locator("#copyRefusalHeadline")).toHaveText("Reverse Exit Unavailable");
   await expect(page.locator("#copyRefusalDetail")).toContainText("5 of 24 prospective routes");
+  await expect(page.locator("#copySizeStressHeadline")).toHaveText("Majority drops at $1,000");
+  await expect(page.locator("#copySizeStressDetail")).toContainText("24/24 signals tested at all five sizes");
+  await expect(page.locator("#copySizeStressDetail")).toContainText("not a simultaneous-follower fill promise");
   await expect(page.locator("#copyMarketFit").getByText("Where the route survives", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$200K–$750K", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$100K–$500K", { exact: true })).toBeVisible();

@@ -191,11 +191,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-capacity-rail span { color: var(--copy-soft); font: 800 7px var(--copy-mono); text-transform: uppercase; }
 .copy-capacity-rail strong { font: 800 10px var(--copy-mono); }
 .copy-capacity-rail small { color: var(--copy-muted); font: 7px var(--copy-mono); }
-.copy-refusal-diagnosis { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--copy-amber) 42%, var(--copy-line)); background: color-mix(in srgb, var(--copy-amber) 5%, var(--copy-panel-2)); }
+.copy-follower-insights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.copy-refusal-diagnosis, .copy-size-stress { min-width: 0; display: grid; align-content: start; gap: 4px; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--copy-amber) 42%, var(--copy-line)); background: color-mix(in srgb, var(--copy-amber) 5%, var(--copy-panel-2)); }
 .copy-refusal-diagnosis[hidden] { display: none; }
-.copy-refusal-diagnosis span { color: var(--copy-amber); font: 800 7px var(--copy-mono); letter-spacing: .06em; text-transform: uppercase; }
-.copy-refusal-diagnosis strong { min-height: 0 !important; font: 800 11px/1.35 var(--copy-mono) !important; letter-spacing: 0 !important; }
-.copy-refusal-diagnosis p { margin: 0; color: var(--copy-muted); font: 8px/1.45 var(--copy-mono); }
+.copy-size-stress { border-color: color-mix(in srgb, var(--copy-green) 35%, var(--copy-line)); background: color-mix(in srgb, var(--copy-green) 4%, var(--copy-panel-2)); }
+.copy-size-stress[hidden] { display: none; }
+.copy-refusal-diagnosis span, .copy-size-stress span { color: var(--copy-amber); font: 800 7px var(--copy-mono); letter-spacing: .06em; text-transform: uppercase; }
+.copy-size-stress span { color: var(--copy-green); }
+.copy-refusal-diagnosis strong, .copy-size-stress strong { min-height: 0 !important; font: 800 11px/1.35 var(--copy-mono) !important; letter-spacing: 0 !important; }
+.copy-refusal-diagnosis p, .copy-size-stress p { margin: 0; color: var(--copy-muted); font: 8px/1.45 var(--copy-mono); }
 .copy-market-fit { display: grid; gap: 1px; border-top: 1px solid var(--copy-line); background: var(--copy-line); }
 .copy-market-fit[hidden] { display: none; }
 .copy-market-fit > header { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 14px 18px; background: var(--copy-panel); }
@@ -356,6 +360,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-research-grid { grid-template-columns: 1fr; }
   .copy-research-grid > article { padding: 14px; }
   .copy-capacity-rail { grid-template-columns: repeat(5, minmax(58px, 1fr)); overflow-x: auto; }
+  .copy-follower-insights { grid-template-columns: 1fr; }
   .copy-market-fit > header { align-items: start; flex-direction: column; gap: 6px; }
   #copyMarketFitGrid { grid-template-columns: 1fr; }
   .copy-event-list > header { align-items: flex-start; flex-direction: column; gap: 8px; padding: 12px 14px; }

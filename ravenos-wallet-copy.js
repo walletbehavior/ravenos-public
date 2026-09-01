@@ -307,6 +307,7 @@ function renderFollowerReality() {
   const marketContext = shared?.detection_market_context || null;
   const outcomes = shared?.prospective_outcomes || null;
   const diagnosis = shared?.copy_diagnosis || null;
+  const sizeStress = shared?.size_stress || null;
   const marketRegimes = shared?.market_regimes || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
@@ -364,6 +365,24 @@ function renderFollowerReality() {
     setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
     setText("copyRefusalHeadline", readable(refusal.reason_code));
     setText("copyRefusalDetail", `${refusal.count} of ${overall?.prospective_sample_count || 0} prospective routes · ${pct(refusal.pct_of_signals)} of signals. Refusals remain visible and are never recorded as zero-return trades.`);
+  }
+  const sizeStressNode = document.getElementById("copySizeStress");
+  sizeStressNode.hidden = !sharedAvailable || !sizeStress || sizeStress.state === "insufficient_evidence";
+  if (!sizeStressNode.hidden) {
+    const majoritySize = sizeStress.largest_contiguous_size_with_majority_policy_pass_usdc;
+    const firstWeakSize = sizeStress.first_qualified_size_below_majority_policy_pass_usdc;
+    const headline = sizeStress.state === "resilient_through_largest_tested"
+      ? `Majority-pass through ${money(majoritySize).replace(".00", "")}`
+      : sizeStress.state === "size_sensitive"
+        ? `Majority drops at ${money(firstWeakSize).replace(".00", "")}`
+        : sizeStress.state === "constrained_at_smallest_tested"
+          ? `Below majority at ${money(firstWeakSize).replace(".00", "")}`
+          : sizeStress.state === "mixed_evidence"
+            ? "Non-linear route evidence"
+            : "Size evidence forming";
+    setText("copySizeStressHeadline", headline);
+    setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals tested at all five sizes. Isolated route quotes—not a simultaneous-follower fill promise.`);
+    sizeStressNode.dataset.stressState = sizeStress.state;
   }
   const marketFit = document.getElementById("copyMarketFit");
   const marketDimensions = Array.isArray(marketRegimes?.dimensions)
