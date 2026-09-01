@@ -14,6 +14,10 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import { postConstantKNexusWalletDiscoveryObservations } from "../lib/customer_trade/constant_k_nexus_wallet_ingress_client.mjs";
 import {
+  ConstantKNexusCandidateCensusLimits,
+  createConstantKNexusCandidateCensus,
+} from "../lib/customer_trade/constant_k_nexus_wallet_candidate_census.mjs";
+import {
   normalizeConstantKNexusDiscoveryCoverageAcknowledgement,
   normalizeConstantKNexusDiscoveryCoverageManifest,
 } from "../lib/customer_trade/constant_k_nexus_discovery_coverage.mjs";
@@ -187,6 +191,48 @@ export function constantKWalletDiscoveryReceiverSettings(env = process.env) {
       stateDirectory,
       "constant_k_discovery_receiver_provider_ack_path_invalid",
     ),
+    candidate_census_path: statePath(
+      env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_CENSUS_PATH || `${stateDirectory}/candidate-census.sqlite`,
+      stateDirectory,
+      "constant_k_discovery_receiver_census_path_invalid",
+    ),
+    candidate_census_limits: Object.freeze({
+      minimum_observations: boundedInteger(
+        env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_MINIMUM_OBSERVATIONS,
+        ConstantKNexusCandidateCensusLimits.minimum_observations,
+        2,
+        20,
+        "constant_k_discovery_receiver_minimum_observations_invalid",
+      ),
+      minimum_distinct_mints: boundedInteger(
+        env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_MINIMUM_DISTINCT_MINTS,
+        ConstantKNexusCandidateCensusLimits.minimum_distinct_mints,
+        2,
+        20,
+        "constant_k_discovery_receiver_minimum_mints_invalid",
+      ),
+      minimum_observation_span_seconds: boundedInteger(
+        env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_MINIMUM_SPAN_SECONDS,
+        ConstantKNexusCandidateCensusLimits.minimum_observation_span_seconds,
+        0,
+        24 * 60 * 60,
+        "constant_k_discovery_receiver_minimum_span_invalid",
+      ),
+      maximum_promotion_rounds_per_hour: boundedInteger(
+        env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_MAXIMUM_PROMOTIONS_PER_HOUR,
+        ConstantKNexusCandidateCensusLimits.maximum_promotion_rounds_per_hour,
+        1,
+        10_000,
+        "constant_k_discovery_receiver_hour_budget_invalid",
+      ),
+      maximum_promotion_rounds_per_day: boundedInteger(
+        env.RAVENOS_WALLET_DISCOVERY_FIREHOSE_MAXIMUM_PROMOTIONS_PER_DAY,
+        ConstantKNexusCandidateCensusLimits.maximum_promotion_rounds_per_day,
+        1,
+        100_000,
+        "constant_k_discovery_receiver_day_budget_invalid",
+      ),
+    }),
     ingress_origin: ingressOrigin,
     credentials: Object.freeze({
       key_id: keyId,
@@ -225,7 +271,19 @@ export function constantKWalletDiscoveryReceiverSettings(env = process.env) {
   });
 }
 
-function sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes, coverage }) {
+function sanitizedRun({
+  batch,
+  discovery,
+  censusStage,
+  censusOutbound,
+  censusHealth,
+  ingress,
+  prior,
+  checkpoint,
+  observedAt,
+  backlogBytes,
+  coverage,
+}) {
   const degraded = batch.parse_failures > 0 || batch.oversized_lines > 0 || discovery.state === "degraded";
   return Object.freeze({
     schema_version: CONSTANT_K_NEXUS_DISCOVERY_RECEIVER_DAEMON_SCHEMA,
@@ -257,6 +315,27 @@ function sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt
       normalized_trade_claimed: false,
       profitability_claim_supported: false,
       copyability_claim_supported: false,
+    }),
+    candidate_census: Object.freeze({
+      observations_received: censusStage.received,
+      observations_staged: censusStage.unique,
+      replay_duplicates: censusStage.duplicates,
+      evidence_retained: censusStage.evidence_retained,
+      outbound_observations: censusOutbound.queued_observation_count,
+      initial_promotion_rounds: censusOutbound.initial_rounds_created,
+      refresh_rounds: censusOutbound.refresh_rounds_created,
+      candidate_count: censusHealth.candidate_count,
+      unpromoted_candidate_count: censusHealth.unpromoted_candidate_count,
+      promoted_candidate_count: censusHealth.promoted_candidate_count,
+      eligible_candidate_backlog: censusHealth.eligible_candidate_backlog,
+      held_evidence_count: censusHealth.evidence.held_count,
+      queued_evidence_count: censusHealth.evidence.queued_count,
+      promotion_budget: censusHealth.budget,
+      admission: censusHealth.admission,
+      outcome_data_used: false,
+      subscriber_data_used: false,
+      addresses_included: false,
+      signatures_included: false,
     }),
     ingress: Object.freeze({
       batches: ingress.batches,
@@ -298,6 +377,7 @@ export async function runConstantKWalletDiscoveryReceiverCycle(config, {
   now = () => new Date(),
   read_batch: readBatch = readConstantKNexusEventFileBatch,
   post_observations: postObservations = postConstantKNexusWalletDiscoveryObservations,
+  candidate_census: suppliedCensus = null,
 } = {}) {
   const clockValue = typeof now === "function" ? now() : now;
   const cycleDate = clockValue instanceof Date ? clockValue : new Date(clockValue);
@@ -334,20 +414,50 @@ export async function runConstantKWalletDiscoveryReceiverCycle(config, {
     observedAt,
     coverageScopeHash,
   });
-  const ingress = await postObservations({
-    ingress_origin: config.ingress_origin,
-    credentials: config.credentials,
-    observations: discovery.observations,
-    receiver_checkpoint: checkpoint,
-    fetch_impl: fetchImpl,
-    sent_at: observedAt,
-    now: cycleDate,
+  const ownsCensus = !suppliedCensus;
+  const census = suppliedCensus || createConstantKNexusCandidateCensus({
+    database_path: config.candidate_census_path || `${config.state_directory}/candidate-census.sqlite`,
+    limits: config.candidate_census_limits,
   });
-  atomicJson(config.checkpoint_path, checkpoint);
-  const backlogBytes = sourceBacklogBytes(config.event_path, checkpoint.cursor);
-  const output = sanitizedRun({ batch, discovery, ingress, prior, checkpoint, observedAt, backlogBytes, coverage });
-  atomicJson(config.health_path, output);
-  return output;
+  try {
+    // Raw candidate rows become durable locally before the source cursor can
+    // move. One-off activity remains in this outcome-blind census. Only
+    // recurring, mint-diverse evidence enters the bounded remote admission
+    // frontier, preventing provider throughput from becoming unbounded D1
+    // growth or hydration work.
+    const censusStage = census.stageObservations(discovery.observations, { now: cycleDate });
+    const censusOutbound = census.prepareOutbound({ now: cycleDate });
+    const ingress = await postObservations({
+      ingress_origin: config.ingress_origin,
+      credentials: config.credentials,
+      observations: censusOutbound.observations,
+      receiver_checkpoint: checkpoint,
+      fetch_impl: fetchImpl,
+      sent_at: observedAt,
+      now: cycleDate,
+    });
+    census.markDelivered(censusOutbound.observations.map((row) => row.observation_id), { now: cycleDate });
+    atomicJson(config.checkpoint_path, checkpoint);
+    const backlogBytes = sourceBacklogBytes(config.event_path, checkpoint.cursor);
+    const censusHealth = census.health({ now: cycleDate });
+    const output = sanitizedRun({
+      batch,
+      discovery,
+      censusStage,
+      censusOutbound,
+      censusHealth,
+      ingress,
+      prior,
+      checkpoint,
+      observedAt,
+      backlogBytes,
+      coverage,
+    });
+    atomicJson(config.health_path, output);
+    return output;
+  } finally {
+    if (ownsCensus) census.close();
+  }
 }
 
 async function main() {

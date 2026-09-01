@@ -173,6 +173,20 @@ assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_candidate_is
 assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_independent_raven_hydration_required, true);
 assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_raw_provider_payload_persisted, false);
 assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_subscriber_identity_included, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_implemented, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_active, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_storage, "host_local_sqlite_0600");
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_minimum_observations, 5);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_minimum_distinct_mints, 2);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_minimum_span_seconds, 60);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_maximum_retained_evidence_per_candidate, 8);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_maximum_promotion_rounds_per_hour, 100);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_maximum_promotion_rounds_per_day, 1_000);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_maximum_outbound_observations, 50);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_cursor_after_durable_remote_ack, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_outcome_data_used, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_subscriber_data_used, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_local_census_raw_provider_payload_persisted, false);
 assert.equal(config.wallet_copy.deep_history_backfill_contract_implemented, true);
 assert.equal(config.wallet_copy.deep_history_backfill_active, false);
 assert.equal(config.wallet_copy.deep_history_shared_per_source_wallet, true);
@@ -410,6 +424,7 @@ const walletObserverIngressProtocol = readFileSync(join(root, "lib", "customer_t
 const walletObserverIngressClient = readFileSync(join(root, "lib", "customer_trade", "constant_k_nexus_wallet_ingress_client.mjs"), "utf8");
 const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-observer-receiver.mjs"), "utf8");
 const walletDiscoveryReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-discovery-receiver.mjs"), "utf8");
+const walletDiscoveryCandidateCensus = readFileSync(join(root, "lib", "customer_trade", "constant_k_nexus_wallet_candidate_census.mjs"), "utf8");
 const walletDiscoveryCoverage = readFileSync(join(root, "lib", "customer_trade", "constant_k_nexus_discovery_coverage.mjs"), "utf8");
 const walletDiscoveryManifestGenerator = readFileSync(join(root, "scripts", "generate-constant-k-nexus-discovery-manifest.mjs"), "utf8");
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
@@ -446,6 +461,20 @@ assert(walletDiscoveryManifestGenerator.includes("provider_acknowledgement_creat
 assert(walletDiscoveryReceiverDaemon.includes('initial_position: "tail"'), "broad Nexus discovery must start at the live tail");
 assert(walletDiscoveryReceiverDaemon.includes("watched_wallets: []"), "broad Nexus discovery must stay independent from exact-watch coverage");
 assert(walletDiscoveryReceiverDaemon.indexOf("const ingress = await postObservations") < walletDiscoveryReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "broad Nexus discovery must receive a durable ingress acknowledgement before checkpoint persistence");
+assert(walletDiscoveryReceiverDaemon.includes("createConstantKNexusCandidateCensus"), "broad Nexus discovery must stage candidates in a bounded local census");
+assert(walletDiscoveryReceiverDaemon.indexOf("census.stageObservations") < walletDiscoveryReceiverDaemon.indexOf("const ingress = await postObservations"), "candidate evidence must become durable locally before remote ingress");
+assert(walletDiscoveryReceiverDaemon.indexOf("census.markDelivered") < walletDiscoveryReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "candidate delivery must be acknowledged locally before the source cursor advances");
+assert(walletDiscoveryCandidateCensus.includes('from "node:sqlite"'), "candidate census must use durable host-local storage");
+assert(walletDiscoveryCandidateCensus.includes("minimum_observations: 5"), "candidate census must require recurrence before initial promotion");
+assert(walletDiscoveryCandidateCensus.includes("minimum_distinct_mints: 2"), "candidate census must require mint breadth before initial promotion");
+assert(walletDiscoveryCandidateCensus.includes("minimum_observation_span_seconds: 60"), "candidate census must reject same-burst promotion by default");
+assert(walletDiscoveryCandidateCensus.includes("maximum_promotion_rounds_per_hour: 100"), "candidate census must enforce an hourly research budget");
+assert(walletDiscoveryCandidateCensus.includes("maximum_promotion_rounds_per_day: 1_000"), "candidate census must enforce a daily research budget");
+assert(walletDiscoveryCandidateCensus.includes("outcome_data_used: false"), "candidate census ranking must remain outcome blind");
+assert(walletDiscoveryCandidateCensus.includes("subscriber_data_used: false"), "candidate census ranking must remain subscriber blind");
+for (const forbiddenCandidateCensusAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
+  assert(!walletDiscoveryCandidateCensus.includes(forbiddenCandidateCensusAuthority), `candidate census contains forbidden authority: ${forbiddenCandidateCensusAuthority}`);
+}
 assert(walletDiscoveryReceiverDaemon.includes("exact_watch_coverage_claimed: false"), "broad discovery must not claim exact watched-wallet coverage");
 assert(walletDiscoveryReceiverDaemon.includes("chain_wide_coverage_claimed: false"), "broad discovery must not claim every Solana wallet");
 assert(walletDiscoveryReceiverDaemon.includes("raw_provider_payload_persisted: false"), "broad discovery must not persist raw Nexus rows");

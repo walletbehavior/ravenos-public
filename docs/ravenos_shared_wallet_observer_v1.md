@@ -241,6 +241,21 @@ Before reading any journal byte, the receiver now requires `ravenos.constant_k_n
 
 The new local gate is `RAVENOS_WALLET_DISCOVERY_FIREHOSE_RECEIVER_ENABLED=1`; it is off by default and is not configured in Wrangler. The Worker ingress and evaluator remain separately gated. The dormant process can be started through `npm run run:constant-k-wallet-discovery-receiver` after the migration owner provisions the dedicated ingress identity, local event path, state directory, and service supervision. Activating it still does not establish chain-wide coverage or exact watched-wallet monitoring. The latter continues to require the provider-side manifest acknowledgement enforced by `run-constant-k-wallet-observer-receiver.mjs`.
 
+### Host-local candidate census
+
+The receiver no longer sends every reduced firehose observation to D1. Before its source cursor can advance, it writes each unique candidate observation to a private, mode-`0600` SQLite census on the RavenOS host. One-off activity remains local and expires. A wallet becomes eligible for its initial bounded remote research round only after at least five qualifying observations, two distinct mints, and sixty seconds of observed activity. Ranking uses only recurrence, mint breadth, and exact economic-shape evidence; subscriber demand, follower capital, returns, and copy outcomes are unavailable to the census.
+
+An initial promotion carries five mint-diverse evidence rows so the existing independent-hydration gate can verify recurrence without trusting a local aggregate. A promoted candidate may send one newer refresh observation after 24 hours. At most eight rounds are created per cycle, 100 per hour, 1,000 per day, and 50 observations are placed in one outbound request. The budgets and queued outbox survive process restarts.
+
+Crash behavior is intentionally replay-safe:
+
+- a stop before local staging leaves the source cursor unchanged;
+- a stop after local staging replays the same raw rows into the local observation-ID dedupe;
+- a stop after remote receipt but before local acknowledgement re-posts the same observation IDs into D1's existing idempotent receipt boundary;
+- a stop after local acknowledgement but before cursor persistence cannot re-promote the delivered evidence.
+
+The local health projection exposes only aggregate candidate, backlog, evidence-state, and rate-budget counts. It contains no address, signature, raw Nexus row, subscriber identity, policy, outcome, transaction material, or execution authority. Default retention is 36 hours for unpromoted candidates, 90 days for promoted candidates, 48 hours for raw replay IDs, and seven days for delivered evidence. The census and receiver remain dormant until their existing independent activation gates and private service supervision are explicitly approved.
+
 ## Shared prospective copyability milestone
 
 Raven can now evaluate one admitted, prospectively observed source-wallet buy against the standard follower-size ladder of $25, $100, $500, $1,000, and $5,000. This is shared source-level research, not subscriber fanout. Each size receives its own exact current entry quote and reverse-USDC exit quote through the existing Raven Copy provider boundary. Asset identity, liquidity, detection delay, price impact, entry degradation, round-trip friction, policy outcome, provider failure, and a hypothetical Raven fee scenario remain explicit.

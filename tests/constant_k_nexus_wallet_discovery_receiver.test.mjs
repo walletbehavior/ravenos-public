@@ -36,23 +36,23 @@ function signature(value) {
   return bs58.encode(Buffer.alloc(64, value));
 }
 
-function transaction(value = 1) {
+function transaction(value = 1, { wallet = WALLET, token = TOKEN, observed_at: observedAt = NOW } = {}) {
   return {
     event: "solana_grpc_transaction",
     provider: "constant_k",
-    ts: NOW,
+    ts: observedAt,
     slot: String(443_800_000 + value),
     signature: signature(value),
     failed: false,
     is_vote: false,
-    signer_accounts: [WALLET],
+    signer_accounts: [wallet],
     programs: ["JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"],
     joint_entity_required_signer_accounts_complete: true,
     joint_entity_token_balance_deltas_complete: true,
     joint_entity_token_balance_delta_economics_complete: true,
     joint_entity_token_balance_deltas: [
-      { owner: WALLET, mint: USDC, delta_raw: "-25000000", token_balance_economics_complete: true },
-      { owner: WALLET, mint: TOKEN, delta_raw: "10000000", token_balance_economics_complete: true },
+      { owner: wallet, mint: USDC, delta_raw: "-25000000", token_balance_economics_complete: true },
+      { owner: wallet, mint: token, delta_raw: "10000000", token_balance_economics_complete: true },
     ],
   };
 }
@@ -100,6 +100,7 @@ function config(paths) {
     health_path: paths.health_path,
     coverage_manifest_path: paths.coverage_manifest_path,
     provider_acknowledgement_path: paths.provider_acknowledgement_path,
+    candidate_census_path: join(paths.directory, "candidate-census.sqlite"),
     ingress_origin: "https://ingest.ravenos.xyz",
     credentials: { key_id: KEY_ID, secret: SECRET },
     maximum_bytes: 16 * 1024 * 1024,
@@ -107,6 +108,50 @@ function config(paths) {
     poll_interval_ms: 500,
     maximum_backoff_ms: 30_000,
   };
+}
+
+function passThroughCensus() {
+  let observations = [];
+  return {
+    stageObservations(rows) {
+      observations = [...rows];
+      return { received: rows.length, unique: rows.length, duplicates: 0, evidence_retained: rows.length };
+    },
+    prepareOutbound() {
+      return {
+        observations,
+        initial_rounds_created: observations.length ? 1 : 0,
+        refresh_rounds_created: 0,
+        queued_observation_count: observations.length,
+        budget: { rounds_last_hour: 0, rounds_last_day: 0, remaining_this_hour: 1, remaining_this_day: 1 },
+      };
+    },
+    markDelivered() { return observations.length; },
+    health() {
+      return {
+        candidate_count: observations.length ? 1 : 0,
+        unpromoted_candidate_count: 0,
+        promoted_candidate_count: observations.length ? 1 : 0,
+        eligible_candidate_backlog: 0,
+        evidence: { held_count: 0, queued_count: 0, delivered_count: observations.length },
+        budget: { rounds_last_hour: 0, rounds_last_day: 0, remaining_this_hour: 1, remaining_this_day: 1 },
+        admission: {
+          minimum_observations: 1,
+          minimum_distinct_mints: 1,
+          minimum_observation_span_seconds: 0,
+          outcome_data_used: false,
+          subscriber_data_used: false,
+        },
+      };
+    },
+  };
+}
+
+function runReceiver(configInput, dependencies = {}) {
+  return runConstantKWalletDiscoveryReceiverCycle(configInput, {
+    candidate_census: passThroughCensus(),
+    ...dependencies,
+  });
 }
 
 function authenticatedIngressHarness() {
@@ -180,6 +225,11 @@ test("discovery firehose receiver is explicitly gated and confines mutable state
   };
   const settings = constantKWalletDiscoveryReceiverSettings(base);
   assert.equal(settings.checkpoint_path, "/var/lib/ravenos-wallet-discovery/receiver-checkpoint.json");
+  assert.equal(settings.candidate_census_path, "/var/lib/ravenos-wallet-discovery/candidate-census.sqlite");
+  assert.equal(settings.candidate_census_limits.minimum_observations, 5);
+  assert.equal(settings.candidate_census_limits.minimum_distinct_mints, 2);
+  assert.equal(settings.candidate_census_limits.minimum_observation_span_seconds, 60);
+  assert.equal(settings.candidate_census_limits.maximum_promotion_rounds_per_day, 1_000);
   assert.equal(settings.coverage_manifest_path, "/var/lib/ravenos-wallet-discovery/coverage-manifest.json");
   assert.equal(settings.provider_acknowledgement_path, "/var/lib/ravenos-wallet-discovery/provider-coverage-ack.json");
   assert.equal(settings.maximum_bytes, 16 * 1024 * 1024);
@@ -195,7 +245,7 @@ test("receiver refuses missing, stale, or wrong-mode provider coverage before re
   let reads = 0;
   const guardedRead = () => { reads += 1; return {}; };
   rmSync(paths.provider_acknowledgement_path);
-  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await assert.rejects(() => runReceiver(config(paths), {
     read_batch: guardedRead,
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
@@ -208,7 +258,7 @@ test("receiver refuses missing, stale, or wrong-mode provider coverage before re
     verified_at: "2026-09-01T14:40:00.000Z",
     expires_at: "2026-09-01T14:50:00.000Z",
   });
-  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await assert.rejects(() => runReceiver(config(paths), {
     read_batch: guardedRead,
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
@@ -216,7 +266,7 @@ test("receiver refuses missing, stale, or wrong-mode provider coverage before re
   assert.equal(reads, 0);
 
   writeCoverage(paths, { acknowledgement_overrides: { active_filter_mode: "identity_backed" } });
-  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await assert.rejects(() => runReceiver(config(paths), {
     read_batch: guardedRead,
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
@@ -229,7 +279,7 @@ test("discovery receiver tails first and admits only new prospective Nexus evide
   const calls = [];
   writeFileSync(paths.event_path, `${JSON.stringify(transaction(1))}\n`, { mode: 0o600 });
 
-  const first = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const first = await runReceiver(config(paths), {
     post_observations: acceptedPost(calls),
     now: () => new Date(NOW),
   });
@@ -244,7 +294,7 @@ test("discovery receiver tails first and admits only new prospective Nexus evide
   const firstCheckpoint = JSON.parse(readFileSync(paths.checkpoint_path, "utf8"));
 
   appendFileSync(paths.event_path, `${JSON.stringify(transaction(2))}\n`);
-  const second = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const second = await runReceiver(config(paths), {
     post_observations: acceptedPost(calls),
     now: () => new Date(NOW),
   });
@@ -264,21 +314,21 @@ test("discovery receiver tails first and admits only new prospective Nexus evide
 test("durable ingress failure preserves the old discovery cursor for exact replay", async (t) => {
   const paths = tempState(t);
   writeFileSync(paths.event_path, "", { mode: 0o600 });
-  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await runReceiver(config(paths), {
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
   });
   const before = readFileSync(paths.checkpoint_path, "utf8");
   appendFileSync(paths.event_path, `${JSON.stringify(transaction(3))}\n`);
 
-  await assert.rejects(() => runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await assert.rejects(() => runReceiver(config(paths), {
     async post_observations() { throw new Error("fixture_discovery_sink_unavailable"); },
     now: () => new Date(NOW),
   }), /fixture_discovery_sink_unavailable/);
   assert.equal(readFileSync(paths.checkpoint_path, "utf8"), before);
 
   const calls = [];
-  const recovered = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const recovered = await runReceiver(config(paths), {
     post_observations: acceptedPost(calls),
     now: () => new Date(NOW),
   });
@@ -291,13 +341,13 @@ test("discovery receiver completes the authenticated candidate-ingress boundary 
   const paths = tempState(t);
   const harness = authenticatedIngressHarness();
   writeFileSync(paths.event_path, "", { mode: 0o600 });
-  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await runReceiver(config(paths), {
     fetch_impl: harness.fetchImpl,
     now: () => new Date(NOW),
   });
   appendFileSync(paths.event_path, `${JSON.stringify(transaction(5))}\n`);
 
-  const run = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const run = await runReceiver(config(paths), {
     fetch_impl: harness.fetchImpl,
     now: () => new Date(NOW),
   });
@@ -308,10 +358,56 @@ test("discovery receiver completes the authenticated candidate-ingress boundary 
   assert.equal([...harness.observations.values()][0].source_wallet.address, WALLET);
 });
 
+test("production census keeps one-offs local and promotes only sustained mint-diverse wallets", async (t) => {
+  const paths = tempState(t);
+  const calls = [];
+  writeFileSync(paths.event_path, "", { mode: 0o600 });
+  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    post_observations: acceptedPost(calls),
+    now: () => new Date(NOW),
+  });
+  appendFileSync(paths.event_path, `${JSON.stringify(transaction(70, {
+    observed_at: "2026-09-01T14:57:30.000Z",
+  }))}\n`);
+  const held = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    post_observations: acceptedPost(calls),
+    now: () => new Date(NOW),
+  });
+  assert.equal(held.discovery.qualifying_observations, 1);
+  assert.equal(held.candidate_census.observations_staged, 1);
+  assert.equal(held.candidate_census.outbound_observations, 0);
+  assert.equal(held.ingress.observations, 0);
+
+  const secondToken = bs58.encode(Buffer.alloc(32, 93));
+  for (let index = 0; index < 4; index += 1) {
+    appendFileSync(paths.event_path, `${JSON.stringify(transaction(71 + index, {
+      token: index < 2 ? TOKEN : secondToken,
+      observed_at: new Date(Date.parse("2026-09-01T14:58:00.000Z") + index * 30_000).toISOString(),
+    }))}\n`);
+  }
+  const promoted = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    post_observations: acceptedPost(calls),
+    now: () => new Date(NOW),
+  });
+  assert.equal(promoted.candidate_census.initial_promotion_rounds, 1);
+  assert.equal(promoted.candidate_census.outbound_observations, 5);
+  assert.equal(promoted.ingress.observations, 5);
+  assert.equal(promoted.candidate_census.promoted_candidate_count, 1);
+  assert.equal(promoted.candidate_census.outcome_data_used, false);
+  assert.equal(promoted.candidate_census.subscriber_data_used, false);
+
+  const restarted = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+    post_observations: acceptedPost(calls),
+    now: () => new Date(NOW),
+  });
+  assert.equal(restarted.candidate_census.outbound_observations, 0);
+  assert.equal(restarted.ingress.observations, 0);
+});
+
 test("discovery cursor crosses the retained Nexus rotation without losing candidates", async (t) => {
   const paths = tempState(t);
   writeFileSync(paths.event_path, "", { mode: 0o600 });
-  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await runReceiver(config(paths), {
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
   });
@@ -320,7 +416,7 @@ test("discovery cursor crosses the retained Nexus rotation without losing candid
   writeFileSync(paths.event_path, `${JSON.stringify(transaction(7))}\n`, { mode: 0o600 });
 
   const calls = [];
-  const run = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const run = await runReceiver(config(paths), {
     post_observations: acceptedPost(calls),
     now: () => new Date(NOW),
   });
@@ -334,7 +430,7 @@ test("discovery cursor crosses the retained Nexus rotation without losing candid
 test("malformed and irrelevant rows advance as degraded input without becoming wallets", async (t) => {
   const paths = tempState(t);
   writeFileSync(paths.event_path, "", { mode: 0o600 });
-  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await runReceiver(config(paths), {
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
   });
@@ -342,7 +438,7 @@ test("malformed and irrelevant rows advance as degraded input without becoming w
   appendFileSync(paths.event_path, `${JSON.stringify({ event: "solana_grpc_slot", provider: "constant_k", slot: "443800010" })}\n`);
 
   const calls = [];
-  const run = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const run = await runReceiver(config(paths), {
     post_observations: acceptedPost(calls),
     now: () => new Date(NOW),
   });
@@ -358,12 +454,12 @@ test("malformed and irrelevant rows advance as degraded input without becoming w
 test("discovery health and checkpoint expose no wallet, signature, secret, or execution authority", async (t) => {
   const paths = tempState(t);
   writeFileSync(paths.event_path, "", { mode: 0o600 });
-  await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  await runReceiver(config(paths), {
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
   });
   appendFileSync(paths.event_path, `${JSON.stringify(transaction(4))}\n`);
-  const output = await runConstantKWalletDiscoveryReceiverCycle(config(paths), {
+  const output = await runReceiver(config(paths), {
     post_observations: acceptedPost([]),
     now: () => new Date(NOW),
   });
