@@ -34,7 +34,7 @@ The table records public product evidence, not independently verified vendor int
 | Tokens traded | Distinct tokens | Exact non-settlement mints | Canonical asset identities | Available | Tickers never identify assets |
 | Success / trade rate | Successful trade percentage and completed-trade rate | FIFO win rate, bought-token exit coverage and trades per active day | FIFO closes and normalized activity | Available | An observed sell is not overstated as universal trade completion |
 | Buy / sell size | Total and average buy/sell | Total, average and median by USDC or SOL basis | Exact settlement deltas | Available | No cross-basis total |
-| Entry market cap | Median market cap at buy | Historical entry market cap | Contemporaneous market evidence | Unavailable | Current market cap is never substituted |
+| Entry market cap | Median market cap at buy | Market context Raven detected during prospective route proof; exact historical entry context remains separate | Exact-token market observation near Raven detection | Prospective partial | Not the source wallet's proven pool, fill, or token age |
 | P&L / ROI | Completed trade P&L and average/median ROI | Realized P&L, profit factor, average/median ROI and drawdown by settlement basis | FIFO exact-settlement accounting | Available where basis is known | Partial basis remains explicit |
 | Immediate wallet lookup | Public address search | Exact Solana address inspection | Configured Solana RPC | Available | Bounded and Pro-gated |
 | Holdings / positions | Current holdings and P&L views | Known-cost open lots plus unresolved inventory | Reconstructed lots | Partial | Marks and executable values require later evidence |
@@ -80,8 +80,13 @@ Every field maps to a fixed server-owned SQL column. Client input cannot provide
 - Broad edge
 - Active swing
 - Fast patterns
+- Follower tested
 
 The URL stores bounded filter state for reload/share continuity. The server remains authoritative.
+
+Prospective follower evidence also supports filters and deterministic sorts for entry availability, reverse-exit availability, policy-pass rate, round-trip friction, detected market cap, detected liquidity, selected-pair age, and source trade size as a share of detected liquidity. These market dimensions come from one exact-token observation per source signal, not one observation per follower-size quote. They are labeled “At Raven detection” in the interface. Raven does not claim the selected market was the source wallet's route, does not relabel pair age as token age, and does not reconstruct a historical fill from current state.
+
+Migration `0018_source_wallet_detection_market_context.sql` extends only the rebuildable current copyability projection. Append-only prospective observations remain the evidence source; missing observations stay unavailable rather than becoming zero. The projection is bound to the same exact fee and policy-matrix reference as the current $100 follower comparison.
 
 Signed-in Pro users can also save up to 100 exact source wallets across 20 private research-list names. A save references the canonical `source_wallet_id`; it is not a symbol lookup, does not start observation or shadow copying, does not create a policy, and conveys no execution authority. Save and removal mutations use the authenticated app origin, CSRF protection, object ownership and idempotent contracts.
 
@@ -107,7 +112,7 @@ The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously 
 
 - chain-wide wallet coverage and unbounded lifetime backfill;
 - verified wallet creation time;
-- historical entry market cap, liquidity, token age, depth and price impact;
+- exact historical source-entry market cap, liquidity, token age, depth and price impact (prospective Raven-detection context is available separately and is not substituted);
 - current marked or executable portfolio values;
 - sector/theme classifications;
 - a universal bot identity label;

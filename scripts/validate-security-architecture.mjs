@@ -187,6 +187,13 @@ assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projecti
 assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projection_active, false);
 assert.equal(config.wallet_copy.shared_prospective_copyability_superseded_policies_mixed, false);
 assert.equal(config.wallet_copy.shared_prospective_copyability_screener_reference_size_usdc, 100);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_implemented, true);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_active, false);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_counted_once_per_source_signal, true);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_exact_source_pool_claimed, false);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_source_fill_claimed, false);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_pair_age_used_as_token_age, false);
+assert.equal(config.wallet_copy.shared_prospective_detection_market_context_current_state_substituted_for_source_fill, false);
 assert.equal(config.wallet_copy.nexus_research_cohort_implemented, true);
 assert.equal(config.wallet_copy.nexus_research_cohort_active, false);
 assert.equal(config.wallet_copy.nexus_research_cohort_maximum_wallets, 20_000);
@@ -365,6 +372,7 @@ const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-con
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
 const walletDiscoveryAdmission = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_admission.mjs"), "utf8");
 const walletCopyability = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability.mjs"), "utf8");
+const walletDetectionMarketContextMigration = readFileSync(join(root, "customer-migrations", "0018_source_wallet_detection_market_context.sql"), "utf8");
 const walletResearchCohort = readFileSync(join(root, "lib", "customer_trade", "source_wallet_research_cohort.mjs"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
 assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
@@ -386,6 +394,13 @@ assert(walletCopyability.includes("source_performance_substituted: false"), "sha
 assert(walletCopyability.includes("subscriber_identity_included: false"), "shared copyability observations must exclude subscriber identity");
 assert(walletCopyability.includes("shadow_position_created: false"), "shared copyability probes must not create customer positions");
 assert(walletCopyability.includes("broadcasting: false"), "shared copyability probes must not expose broadcast authority");
+assert(walletCopyability.includes("exact_source_pool_claimed: false"), "detection-time market context must not claim the source pool");
+assert(walletCopyability.includes("pair_age_used_as_token_age: false"), "selected pair age must not become token age");
+assert(walletCopyability.includes("current_market_context_substituted_for_source_fill: false"), "current market context must not become source fill evidence");
+assert(walletDetectionMarketContextMigration.includes("median_detected_market_cap_usd"), "detected market-cap projection is missing");
+assert(walletDetectionMarketContextMigration.includes("median_detected_liquidity_usd"), "detected liquidity projection is missing");
+assert(walletDetectionMarketContextMigration.includes("source wallet's exact pool"), "market-context migration must preserve the source-pool claim boundary");
+assert(!/private_key|seed_phrase|signer_key|transaction_hash|user_id/i.test(walletDetectionMarketContextMigration), "market-context projection contains prohibited authority or subscriber identity");
 assert(walletResearchCohort.includes("RAVENOS_WALLET_RESEARCH_COHORT_ENABLED"), "research cohort must have an independent default-off gate");
 assert(walletResearchCohort.includes("maximum_research_wallets: 20_000"), "research cohort must remain below the observer manifest ceiling");
 assert(walletResearchCohort.includes("subscriber_identity_included: false"), "research cohort must not contain subscriber identity");

@@ -15,6 +15,7 @@ import {
   RavenCopyStandardOrderSizesUsdc,
 } from "../lib/customer_trade/wallet_copy.mjs";
 import {
+  SOURCE_WALLET_DETECTION_MARKET_CONTEXT_SCHEMA,
   SOURCE_WALLET_COPYABILITY_OBSERVATION_SCHEMA,
   buildSourceWalletCopyabilityMatrix,
   createSourceWalletCopyabilityObservation,
@@ -26,6 +27,8 @@ import {
 
 const WALLET = bs58.encode(Buffer.alloc(32, 41));
 const TOKEN = bs58.encode(Buffer.alloc(32, 43));
+const PAIR_A = bs58.encode(Buffer.alloc(32, 45));
+const PAIR_B = bs58.encode(Buffer.alloc(32, 47));
 const NOW = Date.parse("2026-09-01T12:00:03.000Z");
 const SOURCE_ID = `sw_sol_${createHash("sha256").update(["solana", "mainnet", WALLET].join("|")).digest("hex").slice(0, 40)}`;
 
@@ -258,6 +261,63 @@ test("copyability scores form independently at each follower order size", () => 
   assert.equal(matrix.unavailable_decisions_dropped, false);
 });
 
+test("detection-time market context is counted once per source signal, not once per follower size", () => {
+  const observations = [];
+  const contexts = [
+    {
+      pair_address: PAIR_A,
+      liquidity_usd: 2_500,
+      market_cap_usd: 100_000,
+      fully_diluted_value_usd: 120_000,
+      pair_age_seconds: 60,
+    },
+    {
+      pair_address: PAIR_B,
+      liquidity_usd: 7_500,
+      market_cap_usd: 300_000,
+      fully_diluted_value_usd: 350_000,
+      pair_age_seconds: 180,
+    },
+  ];
+  for (let signal = 0; signal < contexts.length; signal += 1) {
+    const sourceEvent = sourceBuy(signal);
+    for (const size of RavenCopyStandardOrderSizesUsdc) {
+      observations.push(createSourceWalletCopyabilityObservation({
+        source_wallet_id: SOURCE_ID,
+        source_event: sourceEvent,
+        policy: createSourceWalletCopyabilityPolicy(size, { fee_bps: 10 }),
+        ...quoteEvidence(size, `market_${signal}`),
+        market_context: {
+          token_mint: TOKEN,
+          observed_at: new Date(NOW).toISOString(),
+          provider: "dexscreener",
+          venue: "raydium",
+          source_trade_notional_usdc: 25,
+          ...contexts[signal],
+        },
+      }, { now: NOW }));
+    }
+  }
+  const matrix = buildSourceWalletCopyabilityMatrix(observations, { generated_at: "2026-09-01T13:00:00.000Z" });
+  const context = matrix.detection_market_context;
+  assert.equal(matrix.prospective_signal_count, 2);
+  assert.equal(matrix.probe_observation_count, 10);
+  assert.equal(context.context_observation_count, 2);
+  assert.equal(context.context_coverage_pct, 100);
+  assert.equal(context.market_cap_coverage_pct, 100);
+  assert.equal(context.liquidity_coverage_pct, 100);
+  assert.equal(context.pair_age_coverage_pct, 100);
+  assert.equal(context.median_detected_market_cap_usd, 200_000);
+  assert.equal(context.median_detected_liquidity_usd, 5_000);
+  assert.equal(context.median_detected_pair_age_seconds, 120);
+  assert.equal(context.median_source_trade_liquidity_pct, 0.666667);
+  assert.equal(context.exact_source_pool_claimed, false);
+  assert.equal(context.historical_entry_context_claimed, false);
+  assert.equal(context.pair_age_used_as_token_age, false);
+  assert.equal(context.current_market_context_substituted_for_source_fill, false);
+  assert.ok(observations.every((row) => row.market_context.schema_version === SOURCE_WALLET_DETECTION_MARKET_CONTEXT_SCHEMA));
+});
+
 test("fee scenarios remain separate and never double-count one source signal", () => {
   const event = sourceBuy();
   const observations = [];
@@ -308,6 +368,17 @@ test("the rebuildable screener projection stores only the current shared policy 
     source_event: event,
     policy: createSourceWalletCopyabilityPolicy(size, { fee_bps: 10 }),
     ...quoteEvidence(size, "projection"),
+    market_context: {
+      token_mint: TOKEN,
+      observed_at: new Date(NOW).toISOString(),
+      provider: "dexscreener",
+      pair_address: PAIR_A,
+      venue: "raydium",
+      liquidity_usd: 125_000,
+      market_cap_usd: 750_000,
+      pair_age_seconds: 3_600,
+      source_trade_notional_usdc: 25,
+    },
   }, { now: NOW }));
   const writes = [];
   const db = {
@@ -338,8 +409,10 @@ test("the rebuildable screener projection stores only the current shared policy 
   assert.equal(matrix.prospective_signal_count, 1);
   assert.equal(writes.length, 1);
   assert.match(writes[0].sql, /INSERT INTO ravenos_source_wallet_copyability_current/i);
+  assert.match(writes[0].sql, /median_detected_liquidity_usd/i);
   const serialized = writes[0].bindings.find((value) => typeof value === "string" && value.includes('"schema_version":"ravenos.source_wallet_copyability_matrix.v1"'));
   assert.ok(serialized);
+  assert.equal(JSON.parse(serialized).detection_market_context.context_observation_count, 1);
   assert.equal(serialized.includes("user_id"), false);
   assert.equal(serialized.includes("watch_id"), false);
 });
@@ -347,6 +420,7 @@ test("the rebuildable screener projection stores only the current shared policy 
 test("copyability migration is append-only, subscriber-free, and has no live authority", () => {
   const sql = readFileSync(new URL("../customer-migrations/0015_source_wallet_copyability.sql", import.meta.url), "utf8");
   const projectionSql = readFileSync(new URL("../customer-migrations/0017_source_wallet_copyability_projection.sql", import.meta.url), "utf8");
+  const marketContextSql = readFileSync(new URL("../customer-migrations/0018_source_wallet_detection_market_context.sql", import.meta.url), "utf8");
   assert.match(sql, /ravenos_source_wallet_copyability_observations/);
   assert.match(sql, /source_wallet_copyability_observation_append_only/);
   assert.match(sql, /subscriber_identity_included/);
@@ -359,4 +433,9 @@ test("copyability migration is append-only, subscriber-free, and has no live aut
   assert.match(projectionSql, /unavailable_decisions_dropped/i);
   assert.match(projectionSql, /reference_score/i);
   assert.doesNotMatch(projectionSql, /private_key|seed_phrase|signer_key|user_id/i);
+  assert.match(marketContextSql, /median_detected_market_cap_usd/i);
+  assert.match(marketContextSql, /median_detected_liquidity_usd/i);
+  assert.match(marketContextSql, /source wallet's exact pool/i);
+  assert.match(marketContextSql, /token's true age/i);
+  assert.doesNotMatch(marketContextSql, /private_key|seed_phrase|signer_key|transaction_hash|user_id/i);
 });

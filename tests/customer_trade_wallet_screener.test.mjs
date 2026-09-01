@@ -148,6 +148,7 @@ test("request validation rejects unknown controls, unallowlisted sorts, and unbo
   assert.deepEqual(WalletScreenerPerformanceStates, ["any", "available", "partial", "insufficient_evidence"]);
   assert.ok(WalletScreenerSorts.includes("realized_pnl_usdc_desc"));
   assert.ok(WalletScreenerSorts.includes("copyability_score_desc"));
+  assert.ok(WalletScreenerSorts.includes("detected_liquidity_desc"));
   assert.throws(() => normalizeWalletScreenerRequest({ claim_all_wallets: true }, { now: NOW }), /wallet_screener_request_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { mystery: 1 } }, { now: NOW }), /wallet_screener_filters_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ sort: "address_desc" }, { now: NOW }), /wallet_screener_sort_invalid/);
@@ -169,20 +170,27 @@ test("prospective follower evidence is an internal-policy-bound, composable scre
       { field: "exit_executable_pct", operator: "gte", value: 80 },
       { field: "policy_pass_pct", operator: "gte", value: 60 },
       { field: "median_round_trip_friction_pct", operator: "lte", value: 5 },
+      { field: "detection_context_sample_count", operator: "gte", value: 20 },
+      { field: "median_detected_liquidity_usd", operator: "gte", value: 100_000 },
+      { field: "median_detected_market_cap_usd", operator: "between", value: [200_000, 2_000_000] },
+      { field: "median_source_trade_liquidity_pct", operator: "lte", value: 1 },
     ],
     sort: "copyability_score_desc",
   }, { now: NOW, copyability_reference: reference });
   assert.equal(query.follower_reality_reference.matrix_policy_hash, reference.matrix_policy_hash);
   assert.equal(query.follower_reality_reference.reference_order_size_usdc, 100);
-  assert.equal(query.clauses.length, 4);
+  assert.equal(query.clauses.length, 8);
   assert.equal(query.sort, "copyability_score_desc");
 });
 
 test("D1 screening joins one exact fee and policy projection with deterministic binding order", async () => {
   const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
   const query = normalizeWalletScreenerRequest({
-    clauses: [{ field: "copyability_sample_count", operator: "gte", value: 20 }],
-    sort: "policy_pass_desc",
+    clauses: [
+      { field: "copyability_sample_count", operator: "gte", value: 20 },
+      { field: "median_detected_liquidity_usd", operator: "gte", value: 100_000 },
+    ],
+    sort: "detected_liquidity_desc",
     page_size: 12,
   }, { now: NOW, copyability_reference: reference });
   const calls = [];
@@ -203,9 +211,9 @@ test("D1 screening joins one exact fee and policy projection with deterministic 
   assert.deepEqual(result, { rows: [], total: 0 });
   assert.equal(calls.length, 2);
   assert.match(calls[0].sql, /LEFT JOIN ravenos_source_wallet_copyability_current cp/i);
-  assert.match(calls[1].sql, /cp\.policy_pass_pct IS NULL ASC/i);
-  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, 20]);
-  assert.deepEqual(calls[1].bindings, [10, reference.matrix_policy_hash, 20, 12, 0]);
+  assert.match(calls[1].sql, /cp\.median_detected_liquidity_usd IS NULL ASC/i);
+  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, 20, 100_000]);
+  assert.deepEqual(calls[1].bindings, [10, reference.matrix_policy_hash, 20, 100_000, 12, 0]);
 });
 
 test("row projection exposes exact identity and source evidence without inventing follower results", () => {
@@ -311,6 +319,16 @@ test("screener rows expose prospective $100 follower reality without converting 
     median_round_trip_friction_pct: 2.41,
     copyability_fee_bps: 10,
     copyability_last_observed_at: Math.floor(Date.parse("2026-08-29T17:58:00.000Z") / 1_000),
+    detection_context_sample_count: 24,
+    detection_context_coverage_pct: 100,
+    detected_market_cap_coverage_pct: 95.83,
+    detected_liquidity_coverage_pct: 100,
+    detected_pair_age_coverage_pct: 91.67,
+    median_detected_market_cap_usd: 750_000,
+    median_detected_liquidity_usd: 125_000,
+    median_detected_pair_age_seconds: 3_600,
+    median_source_trade_liquidity_pct: 0.4,
+    median_market_context_delay_ms: 1_200,
   }));
   assert.equal(projected.follower_reality.state, "available");
   assert.equal(projected.follower_reality.copyability_score, 81);
@@ -320,6 +338,14 @@ test("screener rows expose prospective $100 follower reality without converting 
   assert.equal(projected.follower_reality.median_entry_degradation_pct, 0.42);
   assert.equal(projected.follower_reality.median_round_trip_friction_pct, 2.41);
   assert.equal(projected.follower_reality.hypothetical_raven_fee_bps, 10);
+  assert.equal(projected.detected_market_context.state, "available");
+  assert.equal(projected.detected_market_context.context_sample_count, 24);
+  assert.equal(projected.detected_market_context.median_market_cap_usd, 750_000);
+  assert.equal(projected.detected_market_context.median_liquidity_usd, 125_000);
+  assert.equal(projected.detected_market_context.median_selected_pair_age_seconds, 3_600);
+  assert.equal(projected.detected_market_context.median_source_trade_liquidity_pct, 0.4);
+  assert.equal(projected.detected_market_context.exact_source_pool_claimed, false);
+  assert.equal(projected.detected_market_context.pair_age_used_as_token_age, false);
   assert.equal(projected.source_performance.realized_pnl.usdc, 4812.25);
   assert.equal(projected.follower_reality.source_performance_used_as_follower_performance, false);
   assert.equal(projected.follower_reality.unavailable_decisions_dropped, false);
@@ -338,6 +364,9 @@ test("projection fails closed on identity and never turns malformed or missing m
     known_cost_basis_pct: -1,
     closed_lots: 0,
     median_hold_seconds: -5,
+    detection_context_sample_count: "not-a-number",
+    median_detected_market_cap_usd: "<script>alert(2)</script>",
+    median_detected_liquidity_usd: -5,
   }));
   assert.equal(projected.source_performance.state, "insufficient_evidence");
   assert.equal(projected.source_performance.realized_pnl.usdc, null);
@@ -346,6 +375,9 @@ test("projection fails closed on identity and never turns malformed or missing m
   assert.equal(projected.source_performance.win_rate_pct, null);
   assert.equal(projected.coverage.known_cost_basis_pct, null);
   assert.equal(projected.behavior.median_hold_seconds, null);
+  assert.equal(projected.detected_market_context.state, "not_sampled");
+  assert.equal(projected.detected_market_context.median_market_cap_usd, null);
+  assert.equal(projected.detected_market_context.median_liquidity_usd, null);
 });
 
 test("response is bounded, paginated, honest about universe coverage, and excludes malformed rows", () => {

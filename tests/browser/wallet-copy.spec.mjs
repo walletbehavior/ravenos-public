@@ -129,6 +129,20 @@ function screenedWallet() {
     coverage: { known_cost_basis_pct: 71.4, reconstruction_confidence_pct: 87.7, source_history_complete: false, chain_wide_coverage_claimed: false },
     why_surfaced: [{ code: "normalized_trade_history", label: "7 normalized trades observed." }, { code: "closed_lot_evidence", label: "8 closed lots support source-performance calculations." }],
     follower_reality: { state: "not_sampled", prospective_sample_size: null },
+    detected_market_context: {
+      state: "available",
+      prospective_signal_count: 24,
+      context_sample_count: 24,
+      context_coverage_pct: 100,
+      median_market_cap_usd: 750_000,
+      median_liquidity_usd: 125_000,
+      median_selected_pair_age_seconds: 3_600,
+      median_source_trade_liquidity_pct: 0.4,
+      evidence_scope: "raven_detection_time_exact_token_market_context",
+      exact_source_pool_claimed: false,
+      historical_entry_context_claimed: false,
+      pair_age_used_as_token_age: false,
+    },
   };
 }
 
@@ -412,6 +426,8 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.getByText(/Watch: Only 71.4% of observed trade cost basis is known/)).toBeVisible();
   await expect(page.getByText("Follower $100", { exact: true })).toBeVisible();
   await expect(page.getByText("Not sampled", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("At Raven detection", { exact: true })).toBeVisible();
+  await expect(page.getByText("$750K cap · $125K liq · 1h pair", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("#copySavedWallets").getByText("7KxQmT…MpfHrt", { exact: true })).toBeVisible();
   const saveRequest = shared.requests.find((row) => row.method === "POST" && row.path.endsWith("/saved-wallets"));

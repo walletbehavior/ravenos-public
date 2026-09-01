@@ -105,8 +105,8 @@ function humanDuration(value) {
   if (!Number.isFinite(seconds) || seconds < 0) return "Unavailable";
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3_600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86_400) return `${(seconds / 3_600).toFixed(seconds < 7_200 ? 1 : 0)}h`;
-  return `${(seconds / 86_400).toFixed(seconds < 172_800 ? 1 : 0)}d`;
+  if (seconds < 86_400) return `${Number((seconds / 3_600).toFixed(seconds < 7_200 ? 1 : 0))}h`;
+  return `${Number((seconds / 86_400).toFixed(seconds < 172_800 ? 1 : 0))}d`;
 }
 
 function decimal(value, suffix = "") {
@@ -298,6 +298,7 @@ function renderFollowerReality() {
   const sharedAvailable = Number(shared?.probe_observation_count || 0) > 0;
   const record = sharedAvailable ? shared : personal;
   const overall = record?.snapshot || null;
+  const marketContext = shared?.detection_market_context || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
   setText("copyFollowerHeadline", sharedAvailable
     ? `${Number(shared.prospective_signal_count || 0)} wallet trade${Number(shared.prospective_signal_count || 0) === 1 ? "" : "s"} · ${Number(shared.probe_observation_count || 0)} exact follower routes`
@@ -305,12 +306,17 @@ function renderFollowerReality() {
       ? `${overall.prospective_sample_count} private policy test${overall.prospective_sample_count === 1 ? "" : "s"} · ${overall.state === "available" ? `copyability ${overall.score}/100` : "score forming"}`
       : "Prospective copy evidence is still forming");
   const metrics = document.getElementById("copyFollowerMetrics");
-  metrics.replaceChildren(
+  const metricRows = [
     fact("Executable copies", overall?.components?.policy_pass_pct === null || overall?.components?.policy_pass_pct === undefined ? "Not sampled" : pct(overall.components.policy_pass_pct)),
     fact("Entry available", overall?.components?.entry_executable_pct === null || overall?.components?.entry_executable_pct === undefined ? "Not sampled" : pct(overall.components.entry_executable_pct)),
     fact("Exit available", overall?.components?.exit_executable_pct === null || overall?.components?.exit_executable_pct === undefined ? "Not sampled" : pct(overall.components.exit_executable_pct)),
     fact("Entry degradation", overall?.components?.median_entry_degradation_bps === null || overall?.components?.median_entry_degradation_bps === undefined ? "Not sampled" : bpsAsPercent(overall.components.median_entry_degradation_bps)),
+  ];
+  if (Number(marketContext?.context_observation_count || 0) > 0) metricRows.push(
+    fact("Detected market cap", money(marketContext.median_detected_market_cap_usd)),
+    fact("Detected liquidity", money(marketContext.median_detected_liquidity_usd)),
   );
+  metrics.replaceChildren(...metricRows);
   const capacity = document.getElementById("copyCapacityRail");
   capacity.replaceChildren(...rail.map((row) => {
     const item = document.createElement("div");
@@ -331,7 +337,7 @@ function renderFollowerReality() {
   }));
   const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
   setText("copyFollowerLimit", sharedAvailable
-    ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.`
+    ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.${Number(marketContext?.context_observation_count || 0) > 0 ? " Market context is the highest-liquidity exact-token pair Raven saw near detection, not proof of the source wallet's pool or fill." : ""}`
     : overall?.prospective_sample_count
       ? "Your private shadow tests include approved, skipped, unavailable, and unresolved trades. Historical source returns are never substituted."
       : "Historical source returns never become hypothetical follower fills or copyability.");
@@ -723,6 +729,11 @@ function screenerRequest() {
   clause("exit_executable_pct", "gte", "copyScreenExitRate");
   clause("policy_pass_pct", "gte", "copyScreenPassRate");
   clause("median_round_trip_friction_pct", "lte", "copyScreenFriction");
+  clause("detection_context_sample_count", "gte", "copyScreenContextSample");
+  clause("median_detected_liquidity_usd", "gte", "copyScreenDetectedLiquidity");
+  clause("median_detected_market_cap_usd", "gte", "copyScreenMarketCapMin");
+  clause("median_detected_market_cap_usd", "lte", "copyScreenMarketCapMax");
+  clause("median_source_trade_liquidity_pct", "lte", "copyScreenSourceFootprint");
   const holdMinimum = optionalNumber("copyScreenHoldMin");
   const holdMaximum = optionalNumber("copyScreenHoldMax");
   if (holdMinimum !== null && holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "between", value: [holdMinimum, holdMaximum] });
@@ -772,6 +783,11 @@ function syncScreenerUrl() {
     exit_rate: document.getElementById("copyScreenExitRate").value,
     pass_rate: document.getElementById("copyScreenPassRate").value,
     friction: document.getElementById("copyScreenFriction").value,
+    context_sample: document.getElementById("copyScreenContextSample").value,
+    detected_liq: document.getElementById("copyScreenDetectedLiquidity").value,
+    mcap_min: document.getElementById("copyScreenMarketCapMin").value,
+    mcap_max: document.getElementById("copyScreenMarketCapMax").value,
+    source_footprint: document.getElementById("copyScreenSourceFootprint").value,
   };
   for (const [key, value] of Object.entries(fields)) {
     if (value === null || value === undefined || value === "" || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
@@ -790,6 +806,8 @@ function hydrateScreenerFromUrl() {
     roi: "copyScreenRoi", pf: "copyScreenProfitFactor", top1: "copyScreenTopOne", recon: "copyScreenReconstruction",
     hold_min: "copyScreenHoldMin", hold_max: "copyScreenHoldMax", pattern: "copyScreenMechanical",
     copy_sample: "copyScreenCopySample", exit_rate: "copyScreenExitRate", pass_rate: "copyScreenPassRate", friction: "copyScreenFriction",
+    context_sample: "copyScreenContextSample", detected_liq: "copyScreenDetectedLiquidity",
+    mcap_min: "copyScreenMarketCapMin", mcap_max: "copyScreenMarketCapMax", source_footprint: "copyScreenSourceFootprint",
   };
   for (const [parameter, id] of Object.entries(mappings)) {
     const value = params.get(parameter);
@@ -906,6 +924,12 @@ function screenerCard(wallet) {
     fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
     fact("Follower $100", followerLabel),
   );
+  const marketContext = wallet.detected_market_context || {};
+  const marketContextParts = [];
+  if (marketContext.median_market_cap_usd !== null && marketContext.median_market_cap_usd !== undefined) marketContextParts.push(`$${compactNumber(marketContext.median_market_cap_usd)} cap`);
+  if (marketContext.median_liquidity_usd !== null && marketContext.median_liquidity_usd !== undefined) marketContextParts.push(`$${compactNumber(marketContext.median_liquidity_usd)} liq`);
+  if (marketContext.median_selected_pair_age_seconds !== null && marketContext.median_selected_pair_age_seconds !== undefined) marketContextParts.push(`${humanDuration(marketContext.median_selected_pair_age_seconds)} pair`);
+  if (marketContextParts.length) metrics.append(fact("At Raven detection", marketContextParts.join(" · ")));
   const why = document.createElement("div");
   why.className = "copy-screener-thesis";
   why.dataset.edgeState = text(thesis?.source_edge?.state, "unavailable");

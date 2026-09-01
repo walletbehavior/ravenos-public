@@ -5306,13 +5306,32 @@ async function loadSolanaWalletCopySignalContext(env, event) {
   }
   const markets = await tokenDex("solana", tokenMint).catch(() => []);
   const exactMarkets = exactTokenDexResults(markets, tokenMint, { caseSensitive: true });
-  const liquidityUsd = exactMarkets.length ? optionalFiniteNumber(exactMarkets[0].liquidityUsd) : null;
+  const selectedMarket = exactMarkets[0] || null;
+  const liquidityUsd = optionalFiniteNumber(selectedMarket?.liquidityUsd);
+  const marketCapUsd = optionalFiniteNumber(selectedMarket?.marketCap);
+  const fullyDilutedValueUsd = optionalFiniteNumber(selectedMarket?.fdv);
+  const pairAgeMs = optionalFiniteNumber(selectedMarket?.pairAgeMs);
+  const marketObservedAt = Number.isFinite(Date.parse(String(selectedMarket?.lastUpdated || "")))
+    ? new Date(Date.parse(selectedMarket.lastUpdated)).toISOString()
+    : new Date().toISOString();
   return {
     token_mint: tokenMint,
     token_decimals: token.tokenDecimals,
     source_notional_usdc: sourceNotionalUsdc,
     source_notional_basis: sourceNotionalBasis,
     liquidity_usd: liquidityUsd,
+    market_context: {
+      token_mint: tokenMint,
+      observed_at: marketObservedAt,
+      provider: selectedMarket ? "dexscreener" : null,
+      pair_address: selectedMarket?.pairAddress || null,
+      venue: selectedMarket?.dexId || null,
+      liquidity_usd: liquidityUsd,
+      market_cap_usd: marketCapUsd,
+      fully_diluted_value_usd: fullyDilutedValueUsd,
+      pair_age_seconds: pairAgeMs === null ? null : Math.max(0, pairAgeMs / 1_000),
+      source_trade_notional_usdc: sourceNotionalUsdc,
+    },
     asset_evidence: token.asset_evidence,
   };
 }
@@ -5339,6 +5358,7 @@ async function quoteSolanaWalletCopySignal(env, { event, policy, shared_context:
         source_notional_usdc: context.source_notional_usdc,
         source_notional_basis: context.source_notional_basis,
         liquidity_usd: context.liquidity_usd,
+        market_context: context.market_context,
         asset_evidence: context.asset_evidence,
       };
     }
@@ -5363,6 +5383,7 @@ async function quoteSolanaWalletCopySignal(env, { event, policy, shared_context:
       source_notional_usdc: context.source_notional_usdc,
       source_notional_basis: context.source_notional_basis,
       liquidity_usd: context.liquidity_usd,
+      market_context: context.market_context,
       asset_evidence: context.asset_evidence,
       entry: copyQuoteEvidence(entry, { decimals: context.token_decimals, exactAssetIdentity: true }),
       exit: {
@@ -5377,6 +5398,7 @@ async function quoteSolanaWalletCopySignal(env, { event, policy, shared_context:
     source_notional_usdc: context.source_notional_usdc,
     source_notional_basis: context.source_notional_basis,
     liquidity_usd: context.liquidity_usd,
+    market_context: context.market_context,
     asset_evidence: context.asset_evidence,
     entry: copyQuoteEvidence(entry, { decimals: context.token_decimals, exactAssetIdentity: true }),
     exit: copyQuoteEvidence(exit, { decimals: 6, exactAssetIdentity: true }),

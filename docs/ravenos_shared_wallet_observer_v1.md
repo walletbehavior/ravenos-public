@@ -241,7 +241,11 @@ The Raven Pro wallet profile can consume this shared matrix before a subscriber 
 
 Migration `0017_source_wallet_copyability_projection.sql` adds a rebuildable current projection for the Pro screener. It lets traders filter and sort by prospective sample size, entry availability, verified-exit rate, policy-pass rate, round-trip friction, and mature $100 Copyability without rescanning every append-only route observation on each request. Current scores are bound to an exact versioned policy-matrix hash; superseded policy observations remain in history but are never mixed into the current score.
 
-This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015` and `0017`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
+Migration `0018_source_wallet_detection_market_context.sql` retains the exact-token market Raven observed while producing the prospective route proof. For each source signal, Raven records at most one selected-pair context even though it tests five follower sizes. The rebuildable wallet projection exposes coverage plus median detected market cap, liquidity, selected-pair age, source-notional/liquidity footprint, and observation delay. The selected pair is the highest-liquidity exact-token pair Raven saw near detection; it is not represented as the source wallet's pool, source fill context, or token age. Current market state is never used as historical fill evidence.
+
+These dimensions make the screener more useful before live copying: a researcher can distinguish wallets whose prospective trades repeatedly appeared in deeper markets from wallets whose source orders were large relative to detected liquidity. Missing context remains unavailable rather than zero, and five follower-size quotes cannot inflate the market-context sample count.
+
+This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015`, `0017`, and `0018`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
 
 ## Nexus research-cohort milestone
 
