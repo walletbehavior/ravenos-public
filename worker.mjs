@@ -228,6 +228,12 @@ import {
   createSourceWalletResearchCohortAdmission,
   resolveSourceWalletResearchCohortActivation,
 } from "./lib/customer_trade/source_wallet_research_cohort.mjs";
+import {
+  AGENTIC_ROUTE_PREFIX,
+  AGENTIC_WORKSPACE_ROUTE,
+  routeAgenticTrading,
+} from "./lib/agentic_trading/routes.mjs";
+import { runScheduledRobinhoodChainIngestion } from "./lib/agentic_trading/robinhood/scheduled.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -246,6 +252,8 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-pro-intelligence.js",
   "/ravenos-wallet-copy.css",
   "/ravenos-wallet-copy.js",
+  "/ravenos-agents.css",
+  "/ravenos-agents.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
@@ -266,6 +274,7 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
 const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "",
   "atlas",
+  "agents",
   "behavior",
   "brief",
   "chains",
@@ -329,6 +338,7 @@ function authenticatedAppBoundary(request) {
   const readRequest = request.method === "GET" || request.method === "HEAD";
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
   const terminalPath = url.pathname === "/terminal" || url.pathname === "/terminal/" || url.pathname === "/terminal/index.html";
+  const agentsPath = url.pathname === "/agents" || url.pathname === "/agents/" || url.pathname === "/agents/index.html";
   const proIntelligencePath = url.pathname === "/account/intelligence"
     || url.pathname === "/account/intelligence/"
     || url.pathname === "/account/intelligence/index.html";
@@ -358,6 +368,8 @@ function authenticatedAppBoundary(request) {
     || url.pathname === SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE;
   const liveExecutionApi = url.pathname === "/api/trade/live/session"
     || url.pathname.startsWith("/api/trade/live/");
+  const agenticApi = url.pathname === AGENTIC_WORKSPACE_ROUTE
+    || url.pathname.startsWith(`${AGENTIC_ROUTE_PREFIX}/`);
   const terminalReadApi = readRequest && (
     new Set([
       "/api/atlas",
@@ -387,7 +399,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -9175,6 +9187,8 @@ async function routeApi(request, env, executionContext = null) {
   }
   const walletCopyResponse = await routeCustomerWalletCopy(request, env, walletCopyDependencies);
   if (walletCopyResponse) return walletCopyResponse;
+  const agenticResponse = await routeAgenticTrading(request, env);
+  if (agenticResponse) return agenticResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);
@@ -9769,6 +9783,45 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
+    const robinhoodChainIngestionWork = runScheduledRobinhoodChainIngestion(env || {}).then(
+      (result) => {
+        if (result?.state !== "disabled") {
+          console.log(JSON.stringify({
+            event: "robinhood_chain_ingestion_cycle",
+            state: result?.state || "unavailable",
+            cycles: Number(result?.cycles || 0),
+            queries: Number(result?.counts?.queries || 0),
+            logs_received: Number(result?.counts?.logs_received || 0),
+            observations_inserted: Number(result?.counts?.observations_inserted || 0),
+            observations_duplicate: Number(result?.counts?.observations_duplicate || 0),
+            live_execution: false,
+          }));
+        }
+        return result;
+      },
+      (error) => {
+        const candidate = String(error?.code || error?.message || "");
+        const errorCode = /^robinhood_[a-z0-9_]{1,80}$/.test(candidate)
+          ? candidate
+          : "robinhood_ingestion_failed";
+        console.error(JSON.stringify({
+          event: "robinhood_chain_ingestion_cycle",
+          state: "failed",
+          error_code: errorCode,
+          live_execution: false,
+        }));
+        throw error;
+      },
+    );
+    const scheduledWorkNames = [
+      "monitor",
+      "shadow_route_sampling",
+      "source_wallet_observer",
+      "copyability_checkpoints",
+      "source_wallet_backfill",
+      "source_wallet_discovery",
+      "robinhood_chain_ingestion",
+    ];
     const work = Promise.allSettled([
       monitorWork,
       shadowWork,
@@ -9776,7 +9829,20 @@ export default {
       copyabilityCheckpointWork,
       backfillWork,
       discoveryWork,
-    ]);
+      robinhoodChainIngestionWork,
+    ]).then((results) => {
+      const failedWork = results.flatMap((result, index) => result.status === "rejected" ? [scheduledWorkNames[index]] : []);
+      if (failedWork.length) {
+        console.error(JSON.stringify({
+          event: "ravenos_scheduled_work",
+          state: "failed",
+          failed_work: failedWork,
+          failure_count: failedWork.length,
+        }));
+        throw new Error("ravenos_scheduled_work_failed");
+      }
+      return results;
+    });
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },
@@ -9823,6 +9889,15 @@ export default {
       }
       if (url.hostname.toLowerCase() === "ravenos.xyz" && (url.pathname === "/monitor" || url.pathname === "/monitor/" || url.pathname === "/monitor/index.html")) {
         const target = savedMonitorRedirectTarget(url);
+        return attachReleaseHeaders(
+          applyAssetSecurityHeaders(Response.redirect(target, 308), url.pathname),
+          releaseState,
+          url.pathname,
+        );
+      }
+      if (url.hostname.toLowerCase() === "ravenos.xyz" && (url.pathname === "/agents" || url.pathname === "/agents/" || url.pathname === "/agents/index.html")) {
+        const target = new URL("/agents/", `https://${AUTHENTICATED_APP_HOST}`);
+        target.search = url.search;
         return attachReleaseHeaders(
           applyAssetSecurityHeaders(Response.redirect(target, 308), url.pathname),
           releaseState,

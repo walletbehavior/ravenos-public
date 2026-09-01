@@ -61,6 +61,21 @@
       "next_route": "/opportunity/"
     },
     {
+      "route": "/agents/",
+      "slug": "agents",
+      "title": "Agents",
+      "question": "What can Raven safely do in paper mode?",
+      "funnel_stage": "portfolio",
+      "evidence_role": "customer_agent_control_plane",
+      "api_endpoint": "/api/v1/agents/workspace",
+      "fallback_artifact": null,
+      "template": "existing",
+      "source_path": "agents/index.html",
+      "public": true,
+      "nav_group": "primary",
+      "next_route": "/portfolio/"
+    },
+    {
       "route": "/portfolio/",
       "slug": "portfolio",
       "title": "Portfolio",

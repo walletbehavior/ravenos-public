@@ -126,6 +126,7 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
       "intelligence.participant_advanced": false,
       "research.alerts": false,
       "wallet.copy": false,
+      "agents.paper": false,
     },
   });
   assert.deepEqual(resolveCoordinatedIntelligenceSplits({}), { perps: false, participants: false });
@@ -145,6 +146,9 @@ test("capability contract is stable, bounded, dormant, and has no commercial mut
   assert.equal(CustomerEntitlementContract.capabilities["research.alerts"].implementation_state, "implemented_dormant");
   assert.equal(CustomerEntitlementContract.capabilities["wallet.copy"].implementation_state, "implemented_dormant");
   assert.equal(CustomerEntitlementContract.capabilities["wallet.copy"].route, "/account/copy/");
+  assert.equal(CustomerEntitlementContract.capabilities["agents.paper"].implementation_state, "implemented_dormant");
+  assert.equal(CustomerEntitlementContract.capabilities["agents.paper"].route, "/agents/");
+  assert.equal(CustomerEntitlementContract.activation_flags.agentic_paper, "RAVENOS_AGENTIC_PAPER_ENABLED");
   assert.equal(CustomerEntitlementContract.customer_owned_wallet_data_stored, false);
   assert.equal(CustomerEntitlementContract.public_source_wallet_data_stored, true);
   assert.equal(CustomerEntitlementContract.wallet_copy_storage_separate, true);

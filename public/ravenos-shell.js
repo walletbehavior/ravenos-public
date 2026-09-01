@@ -19,6 +19,7 @@ const NAV_ITEMS = Object.freeze([
     match: ["discover", "home", "opportunity"],
   },
   { key: "terminal", label: "Terminal", href: "/terminal/", glyph: "T", match: ["terminal", "perps"] },
+  { key: "agents", label: "Agents", href: "/agents/", glyph: "G", mobile: false, match: ["agents"] },
   {
     key: "intelligence",
     label: "Raven Lab",

@@ -440,6 +440,8 @@ for (const activationFlag of [
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 assert.match(packageJson.scripts["validate:security"] || "", /validate-security-architecture\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
+assert.match(packageJson.scripts["pretest:contracts"] || "", /test:agentic/);
+assert.match(packageJson.scripts["test:agentic"] || "", /agentic_\*\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_monitor_alerts\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /solana_wallet_intelligence\.test\.mjs/);

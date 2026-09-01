@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Build and inspect evidence-bound Raven paper agents." />
+  <title>Agents · RavenOS</title>
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-agents.css" />
+</head>
+<body>
+  <main class="workspace-page agents-page" data-route-slug="agents">
+    <header class="agents-head">
+      <div>
+        <span class="workspace-kicker">Raven control plane</span>
+        <h1>Agents</h1>
+      </div>
+      <div class="agents-safety" aria-label="Execution status">
+        <span>Paper only</span>
+        <strong>Live off</strong>
+      </div>
+    </header>
+
+    <nav class="agents-mode" aria-label="Agents workspace mode">
+      <button type="button" class="active" data-agent-view="agents">Agents</button>
+      <button type="button" data-agent-view="radar">Agent Radar</button>
+    </nav>
+
+    <section class="agents-status" id="agentsStatus" data-state="loading" aria-live="polite">
+      <span>Loading</span><strong>Checking paper workspace</strong>
+    </section>
+
+    <section class="agents-layout" id="agentsWorkspace" hidden>
+      <aside class="agents-list-panel">
+        <header><span>Agent fleet</span><strong id="agentsCount">0</strong></header>
+        <div class="agents-list" id="agentsList"></div>
+      </aside>
+
+      <article class="agent-detail" id="agentDetail">
+        <header class="agent-detail-head">
+          <div><span id="agentStrategy">Paper strategy</span><h2 id="agentName">No agent selected</h2></div>
+          <div class="agent-state" id="agentState">Draft</div>
+        </header>
+
+        <dl class="agent-metrics" id="agentMetrics"></dl>
+
+        <section class="agent-section">
+          <header><span>Capital</span><strong>Venue local</strong></header>
+          <div class="agent-capital" id="agentCapital"></div>
+        </section>
+
+        <section class="agent-section">
+          <header><span>Latest plan</span><strong id="agentPlanState">No plan</strong></header>
+          <div class="agent-plan" id="agentPlan"></div>
+        </section>
+
+        <section class="agent-section agent-policy-section">
+          <header><span>Policy</span><strong id="agentPolicyResult">Not evaluated</strong></header>
+          <div class="agent-policy" id="agentPolicy"></div>
+        </section>
+
+        <section class="agent-section">
+          <header><span>Activity</span><strong>Append only</strong></header>
+          <ol class="agent-events" id="agentEvents"></ol>
+        </section>
+
+        <footer class="agent-controls">
+          <button type="button" id="agentPause" disabled>Pause</button>
+          <button type="button" id="agentKill" disabled>Kill</button>
+          <span>No signing or order submission</span>
+        </footer>
+      </article>
+    </section>
+
+    <section class="radar-workspace" id="radarWorkspace" hidden>
+      <header class="radar-head">
+        <div><span>Robinhood Chain</span><h2>Agent Radar</h2></div>
+        <strong id="radarFreshness">No indexed evidence</strong>
+      </header>
+      <div class="radar-grid" id="radarGrid"></div>
+      <article class="radar-detail" id="radarDetail" hidden></article>
+    </section>
+  </main>
+
+  <script type="module" src="/ravenos-shell.js"></script>
+  <script type="module" src="/ravenos-agents.js"></script>
+</body>
+</html>

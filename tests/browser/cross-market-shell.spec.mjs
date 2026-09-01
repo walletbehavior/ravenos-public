@@ -808,7 +808,7 @@ async function mockWorkspaceApis(page, {
 test("desktop adds Raven Lab without crowding the four mobile workspaces", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
-  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Raven Lab", "Portfolio", "Atlas"]);
+  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Agents", "Raven Lab", "Portfolio", "Atlas"]);
   await expect(page.locator(".ros-left-nav")).toHaveCount(0);
   await expect(page.locator(".ros-workspace-nav")).not.toContainText(/Solana|Base|Spot|Perps|Robinhood|Tradier/);
   await expect(page.locator("#discoverSearchTrigger")).toContainText("Search any supported instrument");
