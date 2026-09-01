@@ -485,7 +485,7 @@ body.raven-chart-focus { overflow: hidden; }
     left: 7px;
     width: min(178px, calc(100% - 76px));
   }
-  .rpw-crosshair > span { padding: 3px 5px; }
+  .rpw-crosshair > span { padding: 2px 5px; }
   .rpw-crosshair small { font-size: 6px; }
   .rpw-crosshair strong { font-size: 8px; }
   .raven-chart-indicator-readout { left: 7px; gap: 5px; font-size: 7px; }
