@@ -172,6 +172,12 @@ import {
   resolveSourceWalletObserverActivation,
   runSourceWalletObserverBatch,
 } from "./lib/customer_trade/source_wallet_observer.mjs";
+import {
+  createD1SourceWalletBackfillStore,
+  resolveSourceWalletBackfillActivation,
+  runSourceWalletBackfillBatch,
+  sourceWalletBackfillHistoryEvidence,
+} from "./lib/customer_trade/source_wallet_backfill.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -5078,6 +5084,36 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
   };
 }
 
+async function fetchSourceWalletBackfillSignatures(env, { wallet_address: address, before, limit, commitment }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_backfill_solana_rpc_unavailable");
+  const options = { limit, commitment };
+  if (before) options.before = before;
+  return runProviderOperation({
+    component: "solana_rpc",
+    operation_key: `wallet-backfill-signatures:${address}:${before || "head"}:${limit}`,
+    fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getSignaturesForAddress", [address, options], {
+      timeoutMs: 7_500,
+      maxBytes: 384 * 1024,
+    }),
+  });
+}
+
+async function hydrateSourceWalletBackfillTransaction(env, { signature_record: signatureRow, commitment }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_backfill_solana_rpc_unavailable");
+  const transaction = await runProviderOperation({
+    component: "solana_rpc",
+    operation_key: `wallet-backfill-transaction:${signatureRow.signature}`,
+    fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTransaction", [
+      signatureRow.signature,
+      { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment },
+    ], { timeoutMs: 7_500, maxBytes: 768 * 1024 }),
+  });
+  if (!transaction || typeof transaction !== "object") throw new Error("wallet_backfill_transaction_unavailable");
+  return transaction;
+}
+
 async function hydrateSourceWalletObserverDelivery(env, delivery) {
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_observer_solana_rpc_unavailable");
@@ -8473,12 +8509,21 @@ async function routeApi(request, env, executionContext = null) {
     },
   });
   if (monitorAlertsResponse) return monitorAlertsResponse;
-  const walletCopyResponse = await routeCustomerWalletCopy(request, env, {
+  const walletCopyDependencies = {
     walletProvider: {
       loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
       quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
     },
-  });
+  };
+  const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
+  if (backfillActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare) {
+    const walletCopyStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+    walletCopyDependencies.walletCopyStore = walletCopyStore;
+    walletCopyDependencies.sourceWalletBackfillStore = createD1SourceWalletBackfillStore(env.RAVENOS_CUSTOMER_DB, {
+      record_events: (sourceId, events, now) => walletCopyStore.recordEvents(sourceId, events, now),
+    });
+  }
+  const walletCopyResponse = await routeCustomerWalletCopy(request, env, walletCopyDependencies);
   if (walletCopyResponse) return walletCopyResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
@@ -8876,7 +8921,37 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
-    const work = Promise.allSettled([monitorWork, shadowWork, observerWork]);
+    const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
+    const backfillWork = backfillActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (() => {
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const backfillStore = createD1SourceWalletBackfillStore(env.RAVENOS_CUSTOMER_DB, {
+            record_events: (sourceId, events, now) => walletStore.recordEvents(sourceId, events, now),
+          });
+          return runSourceWalletBackfillBatch(backfillStore, {
+            fetchSignatures: (input) => fetchSourceWalletBackfillSignatures(env, input),
+            hydrateTransaction: (input) => hydrateSourceWalletBackfillTransaction(env, input),
+          }, {
+            worker_id: `backfill_worker_${Date.now().toString(36)}`,
+            maximum_jobs: 4,
+            maximum_pages_per_job: 1,
+            concurrency: 8,
+          }).then(async (run) => {
+            const now = Math.floor(Date.now() / 1_000);
+            const candidates = await backfillStore.listProfileRefreshCandidates(4);
+            const profileResults = await Promise.allSettled(candidates.map((job) => (
+              persistSourceWalletProfile(walletStore, job.source_wallet_id, now, sourceWalletBackfillHistoryEvidence(job))
+            )));
+            return {
+              ...run,
+              profile_refresh_candidates: candidates.length,
+              profiles_refreshed: profileResults.filter((row) => row.status === "fulfilled" && row.value).length,
+              profile_refresh_failures: profileResults.filter((row) => row.status === "rejected").length,
+            };
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
+    const work = Promise.allSettled([monitorWork, shadowWork, observerWork, backfillWork]);
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },

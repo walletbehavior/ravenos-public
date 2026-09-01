@@ -14,6 +14,9 @@ const state = {
   address: "",
   source_wallet_id: null,
   profile: null,
+  deep_history: null,
+  deep_poll_token: 0,
+  deep_poll_attempts: 0,
   events: [],
   watches: [],
   decisions: [],
@@ -239,7 +242,56 @@ function renderFollowerReality() {
     : "Historical source returns never become hypothetical follower fills.");
 }
 
-function renderProfile(payload) {
+function renderDeepHistory(history) {
+  state.deep_history = history || null;
+  const node = document.getElementById("copyDeepHistory");
+  const active = history && !new Set(["not_enabled", "not_queued"]).has(history.state);
+  node.hidden = !active;
+  if (!active) return;
+  const signatures = Math.max(0, Number(history.signatures_indexed || 0));
+  const maximum = Math.max(1, Number(history.maximum_signatures || 10_000));
+  const progress = history.state === "complete" || history.state === "bounded_partial"
+    ? 100
+    : Math.min(99, (signatures / maximum) * 100);
+  const labels = {
+    queued: ["Deep history queued", "Raven will rebuild older activity once and reuse it for every researcher and follower."],
+    leased: ["Indexing older activity", "A bounded provider page is being normalized into Raven's shared wallet evidence."],
+    retry_wait: ["History retry queued", "The current page did not complete cleanly, so Raven kept the cursor in place and will retry it."],
+    complete: ["Provider history exhausted", "The indexed provider window reached its oldest available page. Raven still does not call this verified lifetime history."],
+    bounded_partial: ["10,000-signature window indexed", "The safety ceiling was reached. Older activity may exist and remains outside this profile."],
+    dead_letter: ["History needs operator review", "Raven stopped at an invalid or repeatedly unavailable page instead of skipping over an evidence gap."],
+    unavailable: ["Deep history unavailable", "Immediate evidence remains visible, but no deeper completeness claim is being made."],
+  };
+  const [headline, detail] = labels[history.state] || ["History state forming", "Raven is preserving the current evidence boundary."];
+  setText("copyDeepHistoryHeadline", headline);
+  setText("copyDeepHistoryDetail", detail);
+  const progressNode = document.getElementById("copyDeepHistoryProgress");
+  progressNode.value = progress;
+  progressNode.textContent = `${Math.round(progress)}%`;
+  setText("copyDeepHistoryCount", `${compactNumber(signatures)} signatures · ${compactNumber(history.transactions_decoded || 0)} decoded · ${compactNumber(history.pages_indexed || 0)} pages`);
+}
+
+function deepHistoryPending(history) {
+  return new Set(["queued", "leased", "retry_wait"]).has(history?.state);
+}
+
+function scheduleDeepHistoryPoll(token) {
+  if (!state.activation.wallet_screener || !deepHistoryPending(state.deep_history) || !state.source_wallet_id || state.deep_poll_attempts >= 12) return;
+  state.deep_poll_attempts += 1;
+  window.setTimeout(async () => {
+    if (token !== state.deep_poll_token || !state.source_wallet_id) return;
+    const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}`);
+    if (token !== state.deep_poll_token) return;
+    if (result.response.ok) renderProfile(result.payload, { scroll: false, from_poll: true });
+    else scheduleDeepHistoryPoll(token);
+  }, 10_000);
+}
+
+function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
+  if (!fromPoll) {
+    state.deep_poll_token += 1;
+    state.deep_poll_attempts = 0;
+  }
   state.profile = payload.profile;
   state.events = payload.recent_events || [];
   state.address = payload.profile?.source_wallet?.address || state.address;
@@ -247,6 +299,7 @@ function renderProfile(payload) {
   const profile = state.profile;
   profileNode.hidden = false;
   policyNode.hidden = true;
+  renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
   setText("copyProfileCoverage", `${profile.coverage.transactions_observed} transactions · ${profile.coverage.trade_events} trade events · ${profile.coverage.known_cost_basis_pct === null ? "cost basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% known cost basis`} · ${historyLabel}`);
@@ -324,9 +377,14 @@ function renderProfile(payload) {
     fact("Transaction decode", pct(quality.trade_decode_coverage_pct)),
     fact("Classification", pct(quality.classification_coverage_pct)),
     fact("Reconstruction", pct(quality.reconstruction_confidence_pct)),
+    fact("Profile events", quality.analysis_events === null || quality.analysis_events === undefined ? "Unavailable" : compactNumber(quality.analysis_events)),
+    fact("Analysis scope", readable(quality.analysis_scope || "all_retained_normalized_events")),
     fact("Historical pricing", pct(quality.historical_price_evidence_coverage_pct)),
     fact("Full confidence", pct(quality.full_data_confidence_pct)),
   );
+  setText("copyEvidenceLimit", quality.analysis_truncated
+    ? `Raven indexed more history than this snapshot can safely analyze at once. These metrics use the most recent ${compactNumber(quality.analysis_events)} normalized events; older evidence remains retained. Full confidence still requires contemporaneous price and liquidity evidence.`
+    : "Full confidence remains unavailable without contemporaneous historical price and liquidity evidence.");
   const capital = profile.capital_observations || {};
   const openPositions = Array.isArray(profile.positions?.known_cost_open_positions) ? profile.positions.known_cost_open_positions : [];
   document.getElementById("copyCapitalMetrics").replaceChildren(
@@ -352,7 +410,8 @@ function renderProfile(payload) {
   setText("copyEventCount", `${state.events.length} event${state.events.length === 1 ? "" : "s"}`);
   const events = document.getElementById("copyRecentEvents");
   events.replaceChildren(...state.events.map(eventCard));
-  profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  scheduleDeepHistoryPoll(state.deep_poll_token);
+  if (scroll) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function policyPayload() {
@@ -777,6 +836,7 @@ async function inspectWalletAddress(address, button) {
   state.address = String(address || "").trim();
   state.source_wallet_id = null;
   state.profile = null;
+  state.deep_history = null;
   state.events = [];
   profileNode.hidden = true;
   policyNode.hidden = true;
@@ -844,7 +904,11 @@ async function boot() {
   state.activation = summary.payload.activation || {};
   page.dataset.copyState = "active";
   workspace.hidden = false;
-  setText("copyWorkspaceState", "Shadow workspace ready");
+  setText("copyWorkspaceState", state.activation.continuous_observer ? "Nexus Shadow ready" : "Shadow workspace ready");
+  setText("copyWatchingDescription", state.activation.continuous_observer
+    ? "Nexus watches each exact source once, then Raven evaluates every private policy against the same prospective event. Manual checks remain available as a fallback."
+    : "Checks are manual during this private beta. The first check learns where the wallet stands; later checks evaluate only genuinely new trades.");
+  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : "Live copy off");
   await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;

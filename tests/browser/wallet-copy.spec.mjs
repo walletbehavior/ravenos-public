@@ -83,9 +83,23 @@ function profile() {
     behavior: { median_hold_seconds: 1_860, average_hold_seconds: 2_100, trade_count: 7, active_days: 4, tokens_traded: 3, first_trade_at: "2026-08-20T12:00:00.000Z", last_trade_at: "2026-08-29T11:59:58.000Z", repeat_token_rate_pct: 33.3, observed_trade_completion_pct: 66.7, scaled_into_token_pct: 25, scaled_out_token_pct: 20, mechanical_pattern_evidence: { state: "insufficient_evidence", rapid_under_30_seconds_pct: 14.3 } },
     profit_quality: { by_basis: { usdc: { top_1_profit_concentration_pct: 48.2, top_5_profit_concentration_pct: 100, profitable_observations: 5, weekly_consistency: { profitable_period_pct: 75 } }, sol: {} } },
     research_thesis: researchThesis(),
-    data_quality: { history_scope: "bounded_partial_history", provider_history_exhausted: false, cost_basis_coverage_pct: 71.4, trade_decode_coverage_pct: 91.7, classification_coverage_pct: 100, reconstruction_confidence_pct: 87.7, historical_price_evidence_coverage_pct: null, full_data_confidence_pct: null },
+    data_quality: { history_scope: "bounded_partial_history", provider_history_exhausted: false, cost_basis_coverage_pct: 71.4, trade_decode_coverage_pct: 91.7, classification_coverage_pct: 100, reconstruction_confidence_pct: 87.7, analysis_events: 700, analysis_event_limit: 2_000, analysis_truncated: false, analysis_scope: "all_retained_normalized_events", historical_price_evidence_coverage_pct: null, full_data_confidence_pct: null },
     positions: { known_cost_open_position_count: 1, unresolved_cost_basis_event_count: 2, known_cost_open_positions: [{ mint: TOKEN, basis: "usdc", lot_count: 1, remaining_cost: 25 }] },
     capital_observations: { current_balance_claimed: false, sol: { amount: 8.2, observed_at: "2026-08-29T11:59:58.000Z" }, canonical_usdc: { amount: 412.5, observed_at: "2026-08-29T11:59:58.000Z" } },
+  };
+}
+
+function deepHistory(state = "queued") {
+  return {
+    state,
+    pages_indexed: 7,
+    signatures_indexed: 700,
+    transactions_decoded: 694,
+    decode_failures: 0,
+    history_exhausted: false,
+    history_complete_claimed: false,
+    maximum_signatures: 10_000,
+    updated_at: "2026-08-29T12:00:00.000Z",
   };
 }
 
@@ -198,7 +212,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}` && request.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY")], provider_request_performed: false }) });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY")], deep_history: deepHistory(), provider_request_performed: false }) });
     }
     if (url.pathname.endsWith("/saved-wallets") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.saved?.length ? "available" : "empty", saves: shared.saved || [], lists: [] }) });
@@ -217,7 +231,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
     }
     if (url.pathname.endsWith("/inspect") && request.method() === "POST") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY"), event("TRANSFER_IN")] }) });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), recent_events: [event("SWAP_BUY"), event("TRANSFER_IN")], deep_history: deepHistory() }) });
     }
     if (url.pathname.endsWith("/watches") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.watch ? "available" : "empty", watches: shared.watch ? [shared.watch] : [] }) });
@@ -273,6 +287,8 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await expect(page.getByText("Source performance", { exact: true })).toBeVisible();
   await expect(page.locator("#copyProfile").getByText("Follower reality", { exact: true })).toBeVisible();
   await expect(page.locator("#copySourcePnl")).toHaveText("+$428 realized");
+  await expect(page.getByText("Deep history queued", { exact: true })).toBeVisible();
+  await expect(page.getByText("700 signatures · 694 decoded · 7 pages", { exact: true })).toBeVisible();
   await expect(page.getByText("Transfer In")).toBeVisible();
   await page.getByRole("button", { name: "Shadow this wallet" }).click();
   await page.getByRole("button", { name: "Start shadowing" }).click();

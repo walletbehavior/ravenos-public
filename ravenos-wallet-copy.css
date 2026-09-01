@@ -144,6 +144,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-profile header p, .copy-policy header p, .copy-section-head p { margin: 0; color: var(--copy-muted); font-size: 10px; line-height: 1.5; }
 .copy-profile > header > .copy-profile-actions { flex: 0 0 auto; }
 .copy-profile-actions button:first-child { border-color: var(--copy-line-strong); background: transparent; color: var(--copy-muted); }
+.copy-history-state { min-height: 68px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .55fr); align-items: center; gap: 22px; padding: 12px 18px; border-bottom: 1px solid var(--copy-line); background: linear-gradient(90deg, rgba(111, 218, 166, .08), transparent 44%), var(--copy-panel-2); }
+.copy-history-state[hidden] { display: none; }
+.copy-history-state > div:first-child { min-width: 0; display: grid; gap: 3px; }
+.copy-history-state span { color: var(--copy-green); font: 800 8px var(--copy-mono); letter-spacing: .06em; text-transform: uppercase; }
+.copy-history-state strong { font-size: 13px; }
+.copy-history-state p, .copy-history-state small { margin: 0; color: var(--copy-muted); font: 8px/1.45 var(--copy-mono); }
+.copy-history-progress { display: grid; gap: 6px; }
+.copy-history-progress progress { width: 100%; height: 5px; border: 0; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, .06); }
+.copy-history-progress progress::-webkit-progress-bar { background: rgba(255, 255, 255, .06); }
+.copy-history-progress progress::-webkit-progress-value { background: linear-gradient(90deg, var(--copy-green), #91e8be); }
+.copy-history-progress progress::-moz-progress-bar { background: linear-gradient(90deg, var(--copy-green), #91e8be); }
+.copy-history-progress small { text-align: right; }
 .copy-profile-thesis { display: grid; gap: 1px; border-bottom: 1px solid var(--copy-line); background: var(--copy-line); }
 .copy-profile-thesis > header { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 18px; background: linear-gradient(90deg, rgba(111, 218, 166, .09), transparent 45%), var(--copy-panel-2); }
 .copy-profile-thesis > header span { color: var(--copy-green); font: 800 8px var(--copy-mono); letter-spacing: .06em; text-transform: uppercase; }
@@ -299,6 +311,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-screener-card > .copy-screener-card-actions { grid-column: auto; }
   .copy-profile > header, .copy-policy > header, .copy-section-head { align-items: flex-start; flex-direction: column; gap: 11px; padding: 14px; }
   .copy-profile > header > .copy-profile-actions { width: 100%; }
+  .copy-history-state { grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; }
+  .copy-history-progress small { text-align: left; }
   .copy-profile-thesis > header { align-items: flex-start; flex-direction: column; }
   .copy-thesis-lead { padding: 14px; }
   .copy-thesis-grid { grid-template-columns: 1fr; }

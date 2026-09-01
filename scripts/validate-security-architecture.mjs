@@ -140,6 +140,14 @@ assert.equal(config.wallet_copy.constant_k_nexus_watch_manifest_contract_impleme
 assert.equal(config.wallet_copy.constant_k_nexus_maximum_wallet_universe, 25_000);
 assert.equal(config.wallet_copy.constant_k_nexus_watch_manifest_active, false);
 assert.equal(config.wallet_copy.constant_k_nexus_persistent_receiver_active, false);
+assert.equal(config.wallet_copy.deep_history_backfill_contract_implemented, true);
+assert.equal(config.wallet_copy.deep_history_backfill_active, false);
+assert.equal(config.wallet_copy.deep_history_shared_per_source_wallet, true);
+assert.equal(config.wallet_copy.deep_history_provider_page_size, 100);
+assert.equal(config.wallet_copy.deep_history_scheduled_wallets_per_run, 4);
+assert.equal(config.wallet_copy.deep_history_maximum_signatures_per_wallet, 10_000);
+assert.equal(config.wallet_copy.deep_history_profile_snapshot_event_limit, 2_000);
+assert.equal(config.wallet_copy.deep_history_completion_requires_provider_exhaustion, true);
 assert.equal(config.wallet_copy.one_decode_per_source_transaction, true);
 assert.equal(config.wallet_copy.subscriber_proportional_rpc_polling, false);
 assert.equal(config.wallet_copy.provider_and_finality_deliveries_append_only, true);
@@ -300,6 +308,7 @@ assert.match(packageJson.scripts["test:contracts"] || "", /customer_monitor_aler
 assert.match(packageJson.scripts["test:contracts"] || "", /solana_wallet_intelligence\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_trade_wallet_copy\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_wallet_copy\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_backfill\.test\.mjs/);
 assert.equal(packageJson.scripts["validate:wallet-copy-live"], "node scripts/validate-wallet-copy-live.mjs");
 const walletCopyLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-copy-live.mjs"), "utf8");
 assert(walletCopyLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-copy live validator must identify its read-only authority");

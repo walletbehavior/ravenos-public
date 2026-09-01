@@ -9,7 +9,7 @@ Live execution changed: no
 
 This milestone makes the existing authenticated Wallet Intelligence surface independently useful for research. It does not add a second subscription, another wallet database, another quote engine, live copying, transaction construction, signing, broadcasting, custody, or fee collection.
 
-The universe is explicitly `raven_indexed_solana_wallets`: exact public addresses that Raven has requested or observed. It is not presented as every Solana wallet. The current provider request is capped at 24 normalized transactions and probes one extra signature to distinguish a bounded partial window from a provider window that appears exhausted. Even an exhausted provider page is not presented as verified lifetime history.
+The universe is explicitly `raven_indexed_solana_wallets`: exact public addresses that Raven has requested or observed. It is not presented as every Solana wallet. An interactive lookup still returns a fast 24-transaction evidence window, then a shared resumable backfill can index up to 10,000 signatures for that exact source wallet in 100-signature pages. The job is shared across every researcher and follower, retries an incomplete page without advancing its cursor, and becomes `complete` only after provider exhaustion. A 10,000-signature ceiling is labeled `bounded_partial`; neither state is presented as verified lifetime history without a separately reconciled current head.
 
 ## Competitive evidence matrix
 
@@ -85,9 +85,15 @@ The URL stores bounded filter state for reload/share continuity. The server rema
 
 Signed-in Pro users can also save up to 100 exact source wallets across 20 private research-list names. A save references the canonical `source_wallet_id`; it is not a symbol lookup, does not start observation or shadow copying, does not create a policy, and conveys no execution authority. Save and removal mutations use the authenticated app origin, CSRF protection, object ownership and idempotent contracts.
 
+## Deep-history contract
+
+Migration `0011_source_wallet_backfill.sql` adds one durable job per exact source wallet, append-only page-attempt evidence, and append-only run summaries. Successful normalized events enter the existing source-event ledger; there is no second wallet database or accounting engine. Raw RPC payloads, hydrated transaction material, subscriber identity, and execution authority are excluded.
+
+The Worker integration is present but activation remains off behind `RAVENOS_WALLET_BACKFILL_ENABLED` plus the existing wallet-intelligence controls. Each scheduled invocation is intentionally budgeted to four wallets and one 100-signature page per wallet; normalized event writes use bounded batches instead of hundreds of sequential database round trips. Nexus remains the fast prospective observation lane; bounded RPC backfill reconstructs historical evidence. Profile snapshots currently analyze at most the most recent 2,000 retained normalized events and disclose when the larger indexed history exceeds that analysis window.
+
 ## Deferred, not approximated
 
-- chain-wide wallet coverage and arbitrary lifetime backfill;
+- chain-wide wallet coverage and unbounded lifetime backfill;
 - verified wallet creation time;
 - historical entry market cap, liquidity, token age, depth and price impact;
 - current marked or executable portfolio values;
@@ -98,4 +104,4 @@ Signed-in Pro users can also save up to 100 exact source wallets across 20 priva
 - an active continuous provider connection before the private staging adapter and cohort prove reliability;
 - live copying, signing, broadcasting, custody and actual fee collection.
 
-The shared observer and bounded durable queue are now implemented as a dormant staging contract: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining reliability move is the private gRPC/shred adapter, restart/catch-up exercise, and measured mixed-wallet cohort.
+The shared observer, Constant-K Nexus adapter, restart-safe receiver, 25,000-wallet exact manifest contract, and resumable history backfill are implemented as dormant contracts: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining activation work is a controlled cohort with queue, latency, provider-cost, storage-growth, and reconstruction-coverage measurement.

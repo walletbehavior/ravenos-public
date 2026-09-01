@@ -130,6 +130,10 @@
             <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
             <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Shadow this wallet</button></div>
           </header>
+          <section class="copy-history-state" id="copyDeepHistory" hidden aria-live="polite">
+            <div><span>History reconstruction</span><strong id="copyDeepHistoryHeadline">Deep history queued</strong><p id="copyDeepHistoryDetail">Raven is indexing older activity once for every researcher and follower.</p></div>
+            <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" max="100" value="0">0%</progress><small id="copyDeepHistoryCount">0 signatures indexed</small></div>
+          </section>
           <section class="copy-profile-thesis" id="copyProfileThesis" hidden aria-label="Raven wallet research thesis">
             <header><span>Raven research thesis</span><strong id="copyThesisState">Evidence forming</strong></header>
             <div class="copy-thesis-lead"><h3 id="copyThesisHeadline">Source record still forming</h3><p id="copyThesisSummary">Raven needs more known-cost closes before characterizing this wallet.</p></div>
@@ -185,7 +189,7 @@
       </section>
 
       <section class="copy-panel" data-copy-panel="watching" hidden>
-        <header class="copy-section-head"><div><span>One public wallet · your private rules</span><h2>Wallets you are shadowing</h2><p>Checks are manual during this private beta. The first check learns where the wallet stands; later checks evaluate only genuinely new trades.</p></div><strong>Live copy off</strong></header>
+        <header class="copy-section-head"><div><span>One public wallet · your private rules</span><h2>Wallets you are shadowing</h2><p id="copyWatchingDescription">Checks are manual during this private beta. The first check learns where the wallet stands; later checks evaluate only genuinely new trades.</p></div><strong id="copyWatchingBadge">Live copy off</strong></header>
         <div class="copy-card-list" id="copyWatches"></div>
       </section>
 

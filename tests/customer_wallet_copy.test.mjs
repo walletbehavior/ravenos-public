@@ -8,8 +8,10 @@ import {
   SOLANA_CANONICAL_USDC_MINT,
   normalizeSolanaWalletTransaction,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
+import { createSourceWalletBackfillJob } from "../lib/customer_trade/source_wallet_backfill.mjs";
 import {
   CustomerWalletCopyContract,
+  createD1CustomerWalletCopyStore,
   resolveWalletCopyActivation,
   routeCustomerWalletCopy,
 } from "../lib/customer_wallet_copy.mjs";
@@ -286,6 +288,64 @@ test("inspect builds evidence-bound source performance without creating a watch"
   assert.equal(payload.profile.coverage.transactions_observed, 1);
   assert.equal(payload.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(store.watches.size, 0);
+});
+
+test("inspect queues one shared deep-history job and source detail reports its honest progress", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  let job = null;
+  let enqueueCount = 0;
+  const backfillStore = {
+    async enqueueJob({ address }) {
+      enqueueCount += 1;
+      job ||= createSourceWalletBackfillJob({ address, requested_at: new Date(NOW * 1_000).toISOString() });
+      return job;
+    },
+    async jobForSource(sourceId) {
+      return job?.source_wallet_id === sourceId ? job : null;
+    },
+  };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1", RAVENOS_WALLET_BACKFILL_ENABLED: "1" });
+  const d = { ...deps(store, provider), sourceWalletBackfillStore: backfillStore };
+  const inspected = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d);
+  const inspectedPayload = await json(inspected);
+  assert.equal(inspected.status, 200);
+  assert.equal(inspectedPayload.deep_history.state, "queued");
+  assert.equal(inspectedPayload.deep_history.signatures_indexed, 0);
+  assert.equal(inspectedPayload.deep_history.history_complete_claimed, false);
+  const detail = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspectedPayload.source_wallet_id}`), activeEnv, d);
+  const detailPayload = await json(detail);
+  assert.equal(detailPayload.deep_history.state, "queued");
+  assert.equal(detailPayload.provider_request_performed, false);
+  assert.equal(enqueueCount, 1);
+  assert.equal(resolveWalletCopyActivation(activeEnv).deep_history, true);
+  assert.equal(resolveWalletCopyActivation(activeEnv).live_copy, false);
+});
+
+test("shared D1 event ingestion batches deep-history writes without changing event idempotency", async () => {
+  const batches = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...bindings) {
+          return { sql, bindings };
+        },
+      };
+    },
+    async batch(statements) {
+      batches.push(statements);
+      return statements.map((_statement, index) => ({ meta: { changes: index % 2 === 0 ? 1 : 0 } }));
+    },
+  };
+  const first = walletEvent({ signature: "d".repeat(88), slot: 101 });
+  const second = walletEvent({ signature: "e".repeat(88), slot: 102 });
+  const inserted = await createD1CustomerWalletCopyStore(db).recordEvents(`sw_sol_${"a".repeat(40)}`, [first, second], NOW);
+  assert.deepEqual(inserted, [first.event_id, second.event_id]);
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].length, 4);
+  assert.match(batches[0][0].sql, /INSERT OR IGNORE INTO ravenos_source_wallet_events/i);
+  assert.match(batches[0][1].sql, /INSERT OR IGNORE INTO ravenos_source_wallet_event_finality_observations/i);
+  assert.equal(batches[0][0].bindings.includes(JSON.stringify(first)), true);
 });
 
 test("Raven-indexed screener is separately gated, bounded, and opens retained evidence without another provider request", async () => {
