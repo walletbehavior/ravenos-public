@@ -14,22 +14,22 @@ Neither capability grants wallet, signing, submission, brokerage, or execution a
 
 Required query fields:
 
-- `chain=solana`
+- `chain=solana|robinhood|base|bsc|ethereum`
 - `pair_address`
 - `token_address`
 - optional exact `quote_address`
 
 The Worker first re-resolves the exact pool and token orientation. It fails closed when the pool, selected mint, or quote identity differs. Symbols never select a holder list.
 
-The response is `ravenos.onchain_holder_list.v2`. The preferred path resolves the mint's Token or Token-2022 program, scans its token accounts using an exact mint filter and provider pagination, decodes balances without floating-point conversion, and aggregates every nonzero token account into its on-chain owner. The public response contains the top 100 owners plus the total owner and token-account counts and top-10/20/50/100 concentration summaries.
+The response is `ravenos.onchain_holder_list.v2`. Solana resolves the Token or Token-2022 program and aggregates token accounts into owners. Robinhood, Base, BNB Chain, and Ethereum use Blockscout's exact-contract holder index and return up to 50 current holders. Both paths calculate supply shares from integer base units and exclude only an exact pool-address match.
 
 The scan is bounded to 25 provider pages and 25,000 source token accounts. `complete_holder_census` is true only when provider pagination ends inside those bounds. If a complete scan cannot be proven, RavenOS discards the partial ranking and returns the independently verified largest-20 view instead. It never presents a partial account scan as a complete or globally ranked census.
 
 An account is identified as the exact pool account only when the exact address matches. Program, exchange, custody, bundle, developer, and insider labels are not guessed.
 
-The list includes rank, address, exact token balance, supply share, token-account count, classification, pool-account exclusion, observation time, slot, and an allowlisted Solscan link. Raw JSON-RPC payloads and provider URLs are never returned.
+The list includes rank, address, exact token balance, supply share, classification, pool exclusion, observation time, and an allowlisted chain explorer link. Raw provider payloads and credentials are never returned.
 
-The census describes current ownership only. Historical balance changes, named exchange/program labels, bundle or coordination claims, and cross-chain holder lists require separately qualified evidence.
+The census describes current ownership only. EVM results are indexed top-holder snapshots, never complete-census claims. Historical changes, labels, bundles, and coordination require separate evidence.
 
 ## Exact-market risk screen
 
@@ -57,7 +57,7 @@ This tape is useful for reviewing an extreme-turnover warning, but it is not com
 
 ## Activation
 
-The Free UI and route require both:
+Solana requires:
 
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED=1`
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL=<dedicated HTTPS endpoint>`
@@ -65,6 +65,13 @@ The Free UI and route require both:
 The production release enables the first control and requires the second as a server-only Cloudflare secret. Raven's existing paid Solana Alchemy endpoint was structurally validated against the exact BITCAT mint using `getAccountInfo`, `getTokenSupply`, and the exact-mint `getProgramAccounts` scan. No endpoint or key entered a public response or release artifact.
 
 The route does not implicitly fall back to `RAVENOS_SOLANA_RPC_URL`. This prevents an environment mistake from silently placing public-product load on an unrelated private RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
+
+EVM holders remain disabled until both are configured:
+
+- `RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED=1`
+- `BLOCKSCOUT_API_KEY=<server-only key>`
+
+One Blockscout key covers Robinhood (`4663`), Base (`8453`), BNB Chain (`56`), and Ethereum (`1`). The Worker calls only the fixed `https://api.blockscout.com` origin, bounds responses and timeouts, caches snapshots for three minutes, and never returns the key or raw provider payload.
 
 The dedicated endpoint may be an Alchemy Solana endpoint owned by the existing Raven account. It remains a separate environment binding so public holder traffic can be metered, rotated, and disabled without changing Raven's private trading or research access.
 

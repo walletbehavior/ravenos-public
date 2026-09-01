@@ -122,6 +122,7 @@ import {
   measurePublicSolanaOwnerHolding,
   publicHolderUnavailable,
 } from "./lib/onchain_holder_projection.mjs";
+import { buildPublicEvmHolderProjection } from "./lib/onchain_evm_holder_projection.mjs";
 import {
   ONCHAIN_TRADE_SCHEMA,
   PUBLIC_ONCHAIN_TRADE_ROUTE,
@@ -3613,7 +3614,10 @@ async function fetchGeckoPoolTrades({ env = {}, chain = "", pairAddress = "", to
     source_label: runtime.attribution_label,
     attribution_url: runtime.attribution_url,
   });
-  cacheSet(geckoTradeCache, cacheKey, projection, Math.max(5, Number(runtime.refresh_seconds) || 10) * 1_000);
+  // Exact-pool transactions drive both the visible tape and the forming chart
+  // candle. Keep this bounded shared cache short enough that the chart cannot
+  // remain one provider refresh behind a trade the user can already inspect.
+  cacheSet(geckoTradeCache, cacheKey, projection, 5_000);
   return projection;
 }
 
@@ -8806,7 +8810,8 @@ async function routeApi(request, env, executionContext = null) {
     const tokenAddress = String(url.searchParams.get("token_address") || "").trim();
     const quoteAddress = String(url.searchParams.get("quote_address") || "").trim();
     try {
-      if (chain !== "solana" || !SOLANA_ADDRESS_RE.test(pairAddress) || !SOLANA_ADDRESS_RE.test(tokenAddress) || (quoteAddress && !SOLANA_ADDRESS_RE.test(quoteAddress))) {
+      const addressPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_ADDRESS_RE;
+      if (!ONCHAIN_PULSE_NETWORKS[chain] || !addressPattern.test(pairAddress) || !addressPattern.test(tokenAddress) || (quoteAddress && !addressPattern.test(quoteAddress))) {
         const invalid = new Error("holder_identity_invalid");
         invalid.code = "holder_identity_invalid";
         invalid.status = 400;
@@ -8831,7 +8836,9 @@ async function routeApi(request, env, executionContext = null) {
         quote_token_address: quoteAddress || exact.quoteTokenAddress,
       };
       const [projection, marketProfile] = await Promise.all([
-        buildPublicSolanaHolderProjection({ env, identity: exactIdentity }),
+        chain === "solana"
+          ? buildPublicSolanaHolderProjection({ env, identity: exactIdentity })
+          : buildPublicEvmHolderProjection({ env, identity: exactIdentity }),
         fetchGeckoPoolMarketProfile({
           env,
           chain,
@@ -8841,7 +8848,7 @@ async function routeApi(request, env, executionContext = null) {
         }).catch(() => null),
       ]);
       const developerAddress = String(marketProfile?.token_controls?.developer_address || "");
-      const developerHolding = SOLANA_ADDRESS_RE.test(developerAddress)
+      const developerHolding = chain === "solana" && SOLANA_ADDRESS_RE.test(developerAddress)
         && !sameOnchainAddress(chain, developerAddress, pairAddress)
         && !sameOnchainAddress(chain, developerAddress, tokenAddress)
         && !sameOnchainAddress(chain, developerAddress, exactIdentity.quote_token_address)
@@ -8901,7 +8908,7 @@ async function routeApi(request, env, executionContext = null) {
       const projection = await fetchGeckoPoolTrades({ env, chain, pairAddress, tokenAddress, quoteAddress });
       return json(projection, {
         headers: {
-          "cache-control": "public, max-age=3, s-maxage=10, stale-while-revalidate=30",
+          "cache-control": "public, max-age=1, s-maxage=5, stale-while-revalidate=10",
           "x-content-type-options": "nosniff",
         },
       });

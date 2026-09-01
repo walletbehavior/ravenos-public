@@ -138,7 +138,7 @@ test("Worker trade route verifies exact CoinGecko pool identity and never return
     assert.equal(body.identity.pool_address, POOL);
     assert.equal(body.trades.length, 3);
     assert.equal(body.active_traders[0].trade_count, 2);
-    assert.match(response.headers.get("cache-control"), /s-maxage=10/);
+    assert.match(response.headers.get("cache-control"), /s-maxage=5/);
     assert.equal(calls.length, 2);
     assert.equal(calls[0].headers["x-cg-pro-api-key"], "server-only-test-key");
     assert.equal(JSON.stringify(body).includes("x-cg-pro-api-key"), false);

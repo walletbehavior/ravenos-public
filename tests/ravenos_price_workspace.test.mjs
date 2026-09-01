@@ -52,6 +52,8 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /timeframeSeconds\(timeframe\)/);
   assert.match(workspace, /exact_pool_trade_tape/);
   assert.match(workspace, /ageSeconds >= -30[\s\S]*?ageSeconds <= 120/);
+  assert.match(workspace, /A current exact-pool trade may form the live bucket/);
+  assert.doesNotMatch(workspace, /bucket > latestCandleTime \+ bucketSeconds \* 2/);
   assert.doesNotMatch(workspace, /synthetic_tape|fallback_trade_price/);
 });
 
@@ -90,6 +92,8 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /ingestExactPoolTrades/);
   assert.match(terminalRuntime, /\["chart", "activity", "trade"\]\.includes/);
   assert.match(terminalRuntime, /setLastMetric\(livePrice\)/);
+  assert.match(terminalRuntime, /const SPOT_TRADE_REFRESH_MS = 5_000/);
+  assert.match(terminalRuntime, /const SPOT_TRADE_RENDER_LIMIT = 60/);
 });
 
 test("all native RavenOS chart surfaces use the shared price or series renderer", () => {

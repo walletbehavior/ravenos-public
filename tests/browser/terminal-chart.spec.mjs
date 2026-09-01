@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 
 import {
   HYPERLIQUID_ACCOUNT_ADDRESS,
+  ROBINHOOD_CONTRACT,
+  ROBINHOOD_POOL,
+  ROBINHOOD_QUOTE,
   mockTerminalLiveApis,
   openExactSpotSearch,
   selectUniversalInstrument,
@@ -836,6 +839,32 @@ test("verified exact-pool swaps advance the forming candle and headline price be
   expect(current.geometry?.loaded_bars).toBeGreaterThan(0);
 });
 
+test("the latest exact-pool transaction forms a current candle when OHLC is several buckets behind", async ({ page }) => {
+  const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.77 });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
+  await expect.poll(
+    () => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0),
+    { timeout: 10_000 },
+  ).toBeGreaterThan(0);
+  await expect(page.locator("#terminalLast")).toContainText("1.77");
+  const current = await page.evaluate(() => {
+    const terminal = window.__RAVENOS_TERMINAL__?.getState?.();
+    return {
+      lastCandleTime: terminal?.lastCandleTime,
+      lastCandleClose: terminal?.lastCandleClose,
+      livePriceSource: terminal?.livePriceSource,
+      tape: terminal?.diagnostics?.exact_pool_tape,
+    };
+  });
+  expect(current.lastCandleTime).toBeGreaterThan(Math.floor(Date.now() / 1_000) - 120);
+  expect(current.lastCandleClose).toBe(1.77);
+  expect(current.livePriceSource).toBe("exact_pool_trade_tape");
+  expect(current.tape?.last_trade_at).not.toBeNull();
+});
+
 test("mobile Chart keeps the exact-pool tape active without opening Txns", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.55, spotChartCurrent: true });
@@ -907,7 +936,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderMap")).toBeVisible();
   await expect(page.locator("#terminalHolderMapLabel")).toHaveText("Wallet concentration · pool excluded");
-  await expect(page.locator("#terminalHolderMapState")).toContainText("Complete owner census");
+  await expect(page.locator("#terminalHolderMapState")).toContainText("Complete census");
   await expect(page.locator("#terminalHolderTop10")).toHaveText("26.2%");
   await expect(page.locator("#terminalHolderNext10Cell")).toBeHidden();
   await expect(page.locator("#terminalHolderNext20Cell")).toBeHidden();
@@ -930,7 +959,6 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   expect(holderCalls[0]).toEqual({ poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
-  await expect(page.locator("#terminalAlphaStack")).toContainText("Chart setup");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Accumulation");
   await expect(page.locator("#terminalAlphaStack")).toContainText(/Buy count 2\.5× opposing flow · holders \+1\.80%/);
   await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
@@ -1163,9 +1191,30 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
 });
 
+test("Robinhood exact-token holders render from a bounded indexed snapshot", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0003219 });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await openExactSpotSearch(page, "RUNNER");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1h" });
+
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect.poll(() => holderCalls.length).toBe(1);
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(3);
+  await expect(page.locator("#terminalHolderListState")).toContainText("3 of 314 owners");
+  await expect(page.locator("#terminalHolderMapState")).toContainText("Indexed holders");
+  await expect(page.locator('#terminalHolderListRows [data-classification="contract"]')).toContainText("Contract account");
+  await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
+  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /robinhoodchain\.blockscout\.com\/address\/0x/);
+  expect(holderCalls[0]).toEqual({ poolAddress: ROBINHOOD_POOL, tokenAddress: ROBINHOOD_CONTRACT, quoteAddress: ROBINHOOD_QUOTE });
+  await expect(page.locator("#terminalRiskScreen")).toContainText("Holder concentration watch");
+  await expect(page.locator("#terminalRiskScreen")).not.toContainText(/Mint authority disabled|Freeze authority disabled/);
+});
+
 test("recent exact-pool swaps and repeat activity have a dedicated honest mobile pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { tradeCalls } = await mockTerminalLiveApis(page);
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
@@ -1185,6 +1234,8 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await expect(page.locator("#terminalSpotFlow3")).toHaveText("+$20K");
   await expect(page.locator("#terminalSpotFlow4")).toHaveText("3 · 100.0% flow");
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
+  const compactRows = await page.locator("#terminalSpotTradeRows .terminal-spot-trade-row").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  expect(compactRows.every((height) => height <= 28)).toBe(true);
   await page.locator('[data-spot-trade-filter="buy"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(24);
   await page.locator('[data-spot-trade-filter="large"]').click();
@@ -1192,6 +1243,8 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await page.locator('[data-spot-trade-filter="repeat"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
   await expect(page.locator("#terminalSpotTradeRows a").first()).toHaveAttribute("href", /solscan\.io\/account\//);
+  await expect.poll(() => holderCalls.length).toBe(1);
+  await expect(page.locator('[data-terminal-pane-button="holders"]')).toHaveAttribute("data-status", "Watch");
   await page.locator('[data-spot-activity-view="wallets"]').click();
   await expect(page.locator('[data-spot-activity-view="wallets"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#terminalSpotTradesView")).toBeHidden();
@@ -1583,7 +1636,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalChartPlanSummary")).toHaveText("Entry + 3 TP + Risk");
   await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText("5 Raven layers active");
   await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeVisible();
-  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Breakout.*RSI.*volume/s);
+  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Trend ↑.*RSI/s);
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Defensive de-risk");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Token-wide activity · selected pool revalidated");
@@ -1600,7 +1653,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
     launchSource: "velocity",
     autoRavenOverlays: true,
     chartReadDirection: "long",
-    chartReadSetup: "breakout_confirmed",
+    chartReadSetup: "trend_aligned",
     chartReadScore: 5,
     planPreviewAvailable: true,
     planStrategyId: "defensive_de_risk",

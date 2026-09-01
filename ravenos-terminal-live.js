@@ -22,6 +22,8 @@ const SPOT_TICKET_STORAGE_KEY = "ravenos.universal_shadow_ticket_preferences.v1"
 const DEFAULT_SPOT_BUY_SIZES = Object.freeze([10, 50, 100, 500]);
 const SPOT_PLAN_SOURCES = new Set(["raven_exact_market", "user_preset", "custom"]);
 const SOLANA_CANONICAL_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SPOT_TRADE_REFRESH_MS = 5_000;
+const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
   lane: "perps",
   markets: [],
@@ -2514,23 +2516,44 @@ async function copyProjectContract() {
 }
 
 const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_DISPLAY_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const HOLDER_CHAINS = new Set(["solana", "robinhood", "base", "bsc", "ethereum"]);
+const HOLDER_EXPLORERS = Object.freeze({
+  solana: "https://solscan.io/account/",
+  robinhood: "https://robinhoodchain.blockscout.com/address/",
+  base: "https://basescan.org/address/",
+  bsc: "https://bscscan.com/address/",
+  ethereum: "https://etherscan.io/address/",
+});
 const MARKET_CONTROL_RISK_SCHEMA = "ravenos.market_control_risk.v1";
 const MARKET_CONTROL_RISK_LEVELS = new Set(["forming", "measured_low", "watch", "elevated", "high", "severe"]);
 const MARKET_CONTROL_RISK_SEVERITIES = new Set(["info", "positive", "elevated", "high", "critical"]);
 
 function currentHolderIdentity() {
-  if (state.lane !== "spot" || String(state.selected?.chainId || "").toLowerCase() !== "solana") return null;
+  const chain = String(state.selected?.chainId || "").toLowerCase();
+  if (state.lane !== "spot" || !HOLDER_CHAINS.has(chain)) return null;
   const poolAddress = String(state.selected?.pairAddress || "").trim();
   const tokenAddress = String(state.selected?.tokenAddress || "").trim();
   const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
-  if (!poolAddress || !tokenAddress) return null;
+  const pattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
+  // Preserve the existing Solana selection contract; the Worker validates its
+  // addresses before returning holder evidence. Newly added EVM identities are
+  // address-strict in the browser as well as at the Worker boundary.
+  if (!poolAddress || !tokenAddress || (chain !== "solana" && (!pattern.test(poolAddress) || !pattern.test(tokenAddress) || (quoteAddress && !pattern.test(quoteAddress))))) return null;
+  const normalize = (value) => chain === "solana" ? value : value.toLowerCase();
   return {
-    key: `solana:${poolAddress}:${tokenAddress}`,
-    chain: "solana",
-    pool_address: poolAddress,
-    token_address: tokenAddress,
-    quote_address: quoteAddress,
+    key: `${chain}:${normalize(poolAddress)}:${normalize(tokenAddress)}`,
+    chain,
+    pool_address: normalize(poolAddress),
+    token_address: normalize(tokenAddress),
+    quote_address: quoteAddress ? normalize(quoteAddress) : "",
   };
+}
+
+function holderExplorerUrl(chain, address) {
+  const base = HOLDER_EXPLORERS[String(chain || "").toLowerCase()];
+  const pattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
+  return base && pattern.test(String(address || "")) ? `${base}${address}` : null;
 }
 
 function compactHolderAddress(value) {
@@ -2548,8 +2571,10 @@ function holderBalanceLabel(value) {
 }
 
 function verifiedHolderProjection(payload, identity) {
+  const chain = String(identity?.chain || "").toLowerCase();
   const complete = payload?.coverage?.complete_holder_census;
   const totalOwners = Number(payload?.coverage?.total_owner_rows);
+  const maximumSourceAccounts = Number(payload?.coverage?.maximum_source_accounts);
   const largestWalletPct = finite(payload?.summary?.largest_non_pool_wallet_supply_pct);
   const top3WalletPct = finite(payload?.summary?.top_3_wallet_supply_pct);
   const top10WalletPct = finite(payload?.summary?.top_10_wallet_supply_pct);
@@ -2558,27 +2583,29 @@ function verifiedHolderProjection(payload, identity) {
     || payload?.safe_public !== true
     || payload?.schema_version !== "ravenos.onchain_holder_list.v2"
     || payload?.state !== "available"
-    || payload?.identity?.chain !== "solana"
-    || payload.identity.pool_address !== identity.pool_address
-    || payload.identity.token_address !== identity.token_address
+    || String(payload?.identity?.chain || "").toLowerCase() !== chain
+    || !sameSelectedAddress(chain, payload.identity.pool_address, identity.pool_address)
+    || !sameSelectedAddress(chain, payload.identity.token_address, identity.token_address)
     || !Array.isArray(payload.holders)
     || payload.holders.length > 100
     || ![true, false].includes(complete)
     || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
-    || (!complete && payload.holders.length > 20)
+    || (!complete && (!Number.isInteger(maximumSourceAccounts) || maximumSourceAccounts < payload.holders.length || maximumSourceAccounts > (chain === "solana" ? 20 : 50)))
     || [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
     || largestWalletPct > top3WalletPct
     || top3WalletPct > top10WalletPct
   ) return null;
+  const addressPattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
   const holders = payload.holders.filter((row) => (
     Number.isInteger(row?.rank)
     && row.rank >= 1
-    && SOLANA_DISPLAY_ADDRESS_RE.test(String(row?.holder_address || ""))
+    && addressPattern.test(String(row?.holder_address || ""))
     && typeof row?.balance === "string"
     && finite(row?.supply_share_pct) !== null
     && finite(row.supply_share_pct) >= 0
     && finite(row.supply_share_pct) <= 100
-    && ["owner", "token_account", "exact_pool_account"].includes(row?.classification)
+    && ["owner", "contract", "token_account", "exact_pool_account"].includes(row?.classification)
+    && holderExplorerUrl(chain, row.holder_address) === row.explorer_url
   ));
   if (holders.length !== payload.holders.length) return null;
   return { ...payload, holders };
@@ -2826,7 +2853,7 @@ function renderVerifiedHolderConcentration(payload) {
   const freshness = Number.isFinite(observedMs)
     ? ` · updated ${durationLabel(Math.max(0, Math.round((Date.now() - observedMs) / 1_000)))}`
     : "";
-  setText("terminalHolderMapState", `${complete ? "Complete owner census" : "Largest-account scan"}${freshness}`);
+  setText("terminalHolderMapState", `${complete ? "Complete census" : "Indexed holders"}${freshness}`);
   return true;
 }
 
@@ -2867,7 +2894,7 @@ function renderHolderCheck(payload) {
   setText("terminalHolderTop3", profilePercent(top3));
   setText("terminalHolderCheckTop10", profilePercent(top10));
   setText("terminalHolderOwnerCount", holderCount === null ? "Partial scan" : compact(holderCount));
-  setText("terminalHolderOwnerScope", payload.coverage?.complete_holder_census === true ? "Owner-aggregated census" : "Largest-account scan");
+  setText("terminalHolderOwnerScope", payload.coverage?.complete_holder_census === true ? "Complete census" : "Indexed snapshot");
   setText("terminalHolderTrend", trend ? percent(trend.change) : "Not measured");
   setText("terminalHolderTrendScope", trend ? `${trend.window} · exact token holder count` : "Wallet balance history not inferred");
   const observedMs = Date.parse(String(payload.observed_at || ""));
@@ -2882,17 +2909,19 @@ function holderTradeEvidence(payload) {
   const holderIdentity = currentHolderIdentity();
   const trades = state.spotTradeCache.get(projectIdentity?.key)?.payload;
   if (!projectIdentity || !holderIdentity || !trades) return null;
+  const normalize = (value) => holderIdentity.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
   const holders = new Map((Array.isArray(payload?.holders) ? payload.holders : [])
     .filter((row) => row.excluded_from_wallet_concentration !== true)
-    .map((row) => [row.holder_address, row]));
+    .map((row) => [normalize(row.holder_address), row]));
   const byHolder = new Map();
   for (const trade of trades.trades) {
-    if (!trade.trader_address || !holders.has(trade.trader_address)) continue;
-    const current = byHolder.get(trade.trader_address) || { tradeCount: 0, buyUsd: 0, sellUsd: 0 };
+    const address = normalize(trade.trader_address);
+    if (!address || !holders.has(address)) continue;
+    const current = byHolder.get(address) || { tradeCount: 0, buyUsd: 0, sellUsd: 0 };
     current.tradeCount += 1;
     if (trade.side === "buy") current.buyUsd += Number(trade.volume_usd) || 0;
     else current.sellUsd += Number(trade.volume_usd) || 0;
-    byHolder.set(trade.trader_address, current);
+    byHolder.set(address, current);
   }
   const totals = [...byHolder.values()].reduce((result, row) => ({
     tradeCount: result.tradeCount + row.tradeCount,
@@ -2925,9 +2954,10 @@ function renderHolderTradeActivity(payload) {
 function holderRowsForFilter(payload, filter = state.holderListFilter) {
   const rows = Array.isArray(payload?.holders) ? payload.holders : [];
   const activeAddresses = holderTradeEvidence(payload)?.byHolder || new Map();
+  const normalize = (value) => payload?.identity?.chain === "solana" ? String(value || "") : String(value || "").toLowerCase();
   if (filter === "wallets") return rows.filter((row) => row.excluded_from_wallet_concentration !== true);
   if (filter === "large") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && finite(row.supply_share_pct) >= 1);
-  if (filter === "active") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && activeAddresses.has(row.holder_address));
+  if (filter === "active") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && activeAddresses.has(normalize(row.holder_address)));
   if (filter === "pool") return rows.filter((row) => row.classification === "exact_pool_account");
   return rows;
 }
@@ -2968,15 +2998,18 @@ function renderHolderListProjection(payload) {
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
     const address = document.createElement("a");
-    address.href = `https://solscan.io/account/${row.holder_address}`;
+    address.href = holderExplorerUrl(payload.identity.chain, row.holder_address);
     address.target = "_blank";
     address.rel = "noopener noreferrer nofollow";
     address.textContent = compactHolderAddress(row.holder_address);
     address.title = row.holder_address;
     const classification = document.createElement("small");
-    const holderActivity = holderActivityByAddress.get(row.holder_address);
+    const holderKey = payload.identity.chain === "solana" ? row.holder_address : row.holder_address.toLowerCase();
+    const holderActivity = holderActivityByAddress.get(holderKey);
     const classificationLabel = row.classification === "exact_pool_account"
       ? "Exact pool account · excluded from wallet concentration"
+      : row.classification === "contract"
+        ? "Contract account"
       : row.classification === "owner"
         ? row.token_account_count > 1 ? `${row.token_account_count} top token accounts · same owner` : "On-chain owner"
         : "Token account · owner unresolved";
@@ -3030,15 +3063,16 @@ function renderHolderListProjection(payload) {
     : "No returned holder matches this filter.");
   host.scrollTop = Math.min(previousScrollTop, Math.max(0, host.scrollHeight - host.clientHeight));
   const complete = payload.coverage.complete_holder_census === true;
-  const totalOwners = complete ? Number(payload.coverage.total_owner_rows) : null;
+  const indexedOwners = Number(payload.coverage.total_owner_rows);
+  const totalOwners = Number.isInteger(indexedOwners) && indexedOwners >= payload.holders.length ? indexedOwners : null;
   const filterLabel = { wallets: "wallets", large: "1%+ wallets", active: "active holders", pool: "pool accounts" }[state.holderListFilter];
   setText("terminalHolderListState", filterLabel
     ? `${visibleRows.length} ${filterLabel}`
-    : complete ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
+    : totalOwners !== null ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
   const observed = timestamp(payload.observed_at);
   setText("terminalHolderListNote", complete
-    ? `Complete current census · ${compact(payload.coverage.scanned_source_accounts)} token accounts grouped into ${compact(totalOwners)} owners · showing the top ${payload.holders.length} · ${observed}.`
-    : `Largest 20 token accounts, grouped by owner when available · full census unavailable · ${observed}.`);
+    ? `${compact(totalOwners)} owners · top ${payload.holders.length} · ${observed}.`
+    : `${payload.holders.length} indexed holders${totalOwners !== null ? ` of ${compact(totalOwners)}` : ""} · ${observed}.`);
   renderVerifiedHolderConcentration(payload);
   renderHolderCheck(payload);
   renderHolderTradeActivity(payload);
@@ -3067,14 +3101,14 @@ function renderHolderListSurface() {
   else if (state.holderListLoadingKey === identity.key) {
     document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "Loading");
-    setText("terminalHolderListNote", "Reading current on-chain holder accounts for this exact token.");
+    setText("terminalHolderListNote", "Loading current holders.");
     renderHolderListMessage("Loading top holders…");
     renderMarketControlRisk(null, { loading: true });
   } else {
     document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "View list");
-    setText("terminalHolderListNote", "Ranked on-chain owners for this exact token.");
-    renderHolderListMessage("Open this section to load the current holder list.");
+    setText("terminalHolderListNote", "Current holders for this token.");
+    renderHolderListMessage("Open to load holders.");
     renderMarketControlRisk(null, { loading: false });
   }
   if (changed && details.open && !cached) void loadHolderList();
@@ -3103,8 +3137,9 @@ async function loadHolderList() {
     const verified = response.ok ? verifiedHolderProjection(payload, identity) : null;
     if (!verified) {
       setText("terminalHolderListState", "Unavailable");
-      setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
-      renderHolderListMessage("The exact holder list could not be verified, so RavenOS did not show partial or substituted accounts.");
+      const providerMissing = ["holder_source_disabled", "holder_source_misconfigured"].includes(payload?.error);
+      setText("terminalHolderListNote", providerMissing ? "Holder index not connected." : "Holders unavailable for this market.");
+      renderHolderListMessage(providerMissing ? "Holder index not connected." : "No unverified or substitute wallets shown.");
       renderMarketControlRisk(null, { unavailable: true });
       return;
     }
@@ -3114,8 +3149,8 @@ async function loadHolderList() {
   } catch {
     if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
     setText("terminalHolderListState", "Unavailable");
-    setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
-    renderHolderListMessage("The exact holder list could not be loaded. No substitute market was used.");
+    setText("terminalHolderListNote", "Holders unavailable for this market.");
+    renderHolderListMessage("No substitute wallets shown.");
     renderMarketControlRisk(null, { unavailable: true });
   } finally {
     if (state.holderListLoadingKey === identity.key) state.holderListLoadingKey = "";
@@ -3123,7 +3158,7 @@ async function loadHolderList() {
 }
 
 const SPOT_TRADE_SCHEMA = "ravenos.onchain_pool_trades.v1";
-const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io"]);
+const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io", "robinhoodchain.blockscout.com"]);
 
 function clearSpotTradeRefresh() {
   clearTimeout(state.spotTradeRefreshTimer);
@@ -3139,7 +3174,7 @@ function spotTradeSurfaceActive() {
 function scheduleSpotTradeRefresh() {
   clearSpotTradeRefresh();
   if (!spotTradeSurfaceActive()) return;
-  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), 12_000);
+  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), SPOT_TRADE_REFRESH_MS);
 }
 
 function safeSpotTradeLink(value) {
@@ -3249,7 +3284,7 @@ function filteredSpotTrades(payload) {
     || row.side === state.spotTradeFilter
     || (state.spotTradeFilter === "large" && row.sample_size_tier === "largest_10_pct")
     || (state.spotTradeFilter === "repeat" && repeatAddresses.has(row.trader_address))
-  ));
+  )).slice(0, SPOT_TRADE_RENDER_LIMIT);
 }
 
 function appendSpotTradeLink(host, { href, label, title = "" } = {}) {
@@ -3449,7 +3484,7 @@ function renderSpotTradeProjection(payload) {
   }
   renderSpotTradeSummary(payload);
   renderSpotTradeRows(payload);
-  renderActiveTraders(payload);
+  if (state.spotActivityView === "wallets") renderActiveTraders(payload);
   setText("terminalActivityTradeCount", `${payload.trades.length} swaps`);
   setText("terminalActivityWalletCount", `${payload.active_traders.length} wallet${payload.active_traders.length === 1 ? "" : "s"}`);
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
@@ -3465,8 +3500,10 @@ function renderSpotTradeProjection(payload) {
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
   }
+  const holderSurface = document.getElementById("terminalHolderList");
+  const holderPaneActive = !terminalUsesPaneNavigation() || document.querySelector(".terminal-live")?.dataset.terminalPane === "holders";
   const holders = state.holderListCache.get(currentHolderIdentity()?.key);
-  if (holders) renderHolderListProjection(holders);
+  if (holders && holderSurface?.open && holderPaneActive) renderHolderListProjection(holders);
 }
 
 function renderSpotTradeSurface() {
@@ -3496,9 +3533,9 @@ function renderSpotTradeSurface() {
 
 async function loadSpotTrades({ force = false } = {}) {
   const identity = currentProjectIdentity();
-  if (!identity || (state.spotTradeLoadingKey === identity.key && !force)) return;
+  if (!identity || state.spotTradeLoadingKey === identity.key) return;
   const cached = state.spotTradeCache.get(identity.key);
-  if (!force && cached?.payload && Date.now() - cached.loadedAt < 10_000) {
+  if (!force && cached?.payload && Date.now() - cached.loadedAt < SPOT_TRADE_REFRESH_MS) {
     renderSpotTradeProjection(cached.payload);
     scheduleSpotTradeRefresh();
     return;
@@ -6640,7 +6677,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   renderSpotFacts(row);
   renderSpotTradeSurface();
   if (spotTradeSurfaceActive()) void loadSpotTrades();
-  if (String(row.chainId || "").toLowerCase() === "solana") void loadHolderList();
+  if (HOLDER_CHAINS.has(String(row.chainId || "").toLowerCase())) void loadHolderList();
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Loading this pool’s price history.");
   const chartCapability = spotChartCapability(row, state.timeframe);
@@ -7590,6 +7627,7 @@ async function boot() {
       instrumentId: state.workspace?.state?.instrument?.canonical_id || null,
       timeframe: state.timeframe,
       candleCount: state.workspace?.state?.candles?.length || 0,
+      lastCandleTime: finite(state.workspace?.state?.candles?.at(-1)?.time),
       lastCandleClose: finite(state.workspace?.state?.candles?.at(-1)?.close),
       livePriceSource: state.workspace?.state?.marketState?.live_price_source || null,
       chartState: state.workspace?.state?.state || "unavailable",

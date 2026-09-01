@@ -90,6 +90,10 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.entitlement_foundation.production_activation_completed, false);
   assert.equal(security.public_holder_lists.implementation_status, "production_provider_validated");
   assert.equal(security.public_holder_lists.free_tier_capability, true);
+  assert.deepEqual(security.public_holder_lists.supported_chains, ["solana", "robinhood", "base", "bsc", "ethereum"]);
+  assert.equal(security.public_holder_lists.evm_provider, "blockscout");
+  assert.equal(security.public_holder_lists.evm_complete_holder_census_claimed, false);
+  assert.equal(security.public_holder_lists.evm_production_activation_completed, false);
   assert.equal(security.public_holder_lists.maximum_public_owner_rows, 100);
   assert.equal(security.public_holder_lists.maximum_census_source_token_accounts, 25_000);
   assert.equal(security.public_holder_lists.partial_scan_rankings_returned, false);

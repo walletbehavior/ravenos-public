@@ -22,6 +22,7 @@ const baseWrangler = JSON.parse(readFileSync(join(repoRoot, "wrangler.jsonc"), "
 const releaseConfig = JSON.parse(readFileSync(join(repoRoot, "config/release.json"), "utf8"));
 const customerSecurity = JSON.parse(readFileSync(join(repoRoot, "config/customer_security.json"), "utf8"));
 const publicHolderListsActive = customerSecurity.public_holder_lists?.production_activation_completed === true;
+const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_production_activation_completed === true;
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -119,6 +120,7 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
+    RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED: publicEvmHolderListsActive ? "1" : "0",
     RAVENOS_SHADOW_LEDGER_ENABLED: baseWrangler.vars?.RAVENOS_SHADOW_LEDGER_ENABLED === "1" ? "1" : "0",
     RAVENOS_AUTH_ORIGIN: customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz",
     RAVENOS_AUTH_REDIRECT_URI: `${customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz"}/api/v1/auth/callback`,
@@ -148,6 +150,7 @@ const packageManifest = {
     chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
     "JUPITER_API_KEY",
     ...(publicHolderListsActive ? ["RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"] : []),
+    ...(publicEvmHolderListsActive ? ["BLOCKSCOUT_API_KEY"] : []),
     ...(customerSecurity.customer_capabilities_enabled === true
       ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
       : []),
