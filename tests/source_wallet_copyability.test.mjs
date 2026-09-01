@@ -436,6 +436,7 @@ test("the rebuildable screener projection stores only the current shared policy 
           return {
             async all() {
               if (/FROM ravenos_source_wallet_copyability_checkpoints/i.test(sql)) return { results: [] };
+              if (/FROM ravenos_source_wallet_copy_crowding_observations/i.test(sql)) return { results: [] };
               assert.match(sql, /FROM ravenos_source_wallet_copyability_observations/i);
               return { results: observations.map((observation) => ({ observation_json: JSON.stringify(observation) })) };
             },

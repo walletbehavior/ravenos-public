@@ -308,6 +308,7 @@ function renderFollowerReality() {
   const outcomes = shared?.prospective_outcomes || null;
   const diagnosis = shared?.copy_diagnosis || null;
   const sizeStress = shared?.size_stress || null;
+  const crowding = shared?.crowding || null;
   const marketRegimes = shared?.market_regimes || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
@@ -383,6 +384,19 @@ function renderFollowerReality() {
     setText("copySizeStressHeadline", headline);
     setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals tested at all five sizes. Isolated route quotes—not a simultaneous-follower fill promise.`);
     sizeStressNode.dataset.stressState = sizeStress.state;
+  }
+  const crowdingNode = document.getElementById("copyCrowdingStress");
+  crowdingNode.hidden = !sharedAvailable || !crowding || !new Set(["forming", "available"]).has(crowding.state);
+  if (!crowdingNode.hidden) {
+    const available = Number(crowding.aggregate_route_available_pct);
+    setText("copyCrowdingStressHeadline", crowding.state === "available" && Number.isFinite(available)
+      ? `${available.toFixed(0)}% held under load`
+      : "Aggregate evidence forming");
+    const blocker = crowding.dominant_constraint?.reason_code
+      ? ` · blocker: ${readable(crowding.dominant_constraint.reason_code)}`
+      : "";
+    setText("copyCrowdingStressDetail", `${crowding.eligible_signal_sample_count || 0} privacy-qualified signals${blocker}. Demand stays private; no allocation or fill promise.`);
+    crowdingNode.dataset.crowdingState = crowding.state;
   }
   const marketFit = document.getElementById("copyMarketFit");
   const marketDimensions = Array.isArray(marketRegimes?.dimensions)

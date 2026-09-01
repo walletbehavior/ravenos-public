@@ -178,6 +178,11 @@ import {
   resolveSourceWalletCopyabilityActivation,
 } from "./lib/customer_trade/source_wallet_copyability.mjs";
 import {
+  createD1SourceWalletCopyCrowdingStore,
+  evaluateSourceWalletCopyCrowding,
+  resolveSourceWalletCopyCrowdingActivation,
+} from "./lib/customer_trade/source_wallet_copy_crowding.mjs";
+import {
   createD1SourceWalletCopyabilityCheckpointStore,
   resolveSourceWalletCopyabilityCheckpointActivation,
   runSourceWalletCopyabilityCheckpointBatch,
@@ -9065,10 +9070,12 @@ export default {
       : Promise.resolve({ state: "disabled" });
     const observerActivation = resolveSourceWalletObserverActivation(env || {});
     const copyabilityActivation = resolveSourceWalletCopyabilityActivation(env || {});
+    const crowdingActivation = resolveSourceWalletCopyCrowdingActivation(env || {});
     const observerWork = observerActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
       ? (() => {
           const observerStore = createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB);
           const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const crowdingStore = createD1SourceWalletCopyCrowdingStore(env.RAVENOS_CUSTOMER_DB);
           const copySignalContextCache = new Map();
           const walletProvider = {
             quoteCopySignalCacheKey: ({ event, policy }) => `${event.event_id}:${policy.sizing.fixed_usdc}:50`,
@@ -9100,6 +9107,22 @@ export default {
             },
             fanOut: async ({ event, delivery }) => {
               const now = Math.floor(Date.now() / 1_000);
+              const crowding = crowdingActivation.evaluator && event.copy_signal?.eligible_buy_signal === true
+                ? await evaluateSourceWalletCopyCrowding({
+                    event,
+                    source_wallet_id: delivery.source_wallet_id,
+                    store: crowdingStore,
+                    provider: walletProvider,
+                    now,
+                    fee_bps: env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10,
+                  })
+                : {
+                    complete: true,
+                    observation_count: 0,
+                    duplicate_count: 0,
+                    quote_variant_count: 0,
+                    decision_completed_at: new Date(now * 1_000).toISOString(),
+                  };
               const shared = copyabilityActivation.evaluator
                 ? await evaluateSourceWalletCopyabilityMatrix({
                     event,
@@ -9126,12 +9149,15 @@ export default {
               });
               return {
                 ...subscriber,
-                complete: shared.complete !== false && subscriber.complete !== false,
-                quote_variant_count: Number(shared.quote_variant_count || 0) + Number(subscriber.quote_variant_count || 0),
+                complete: crowding.complete !== false && shared.complete !== false && subscriber.complete !== false,
+                quote_variant_count: Number(crowding.quote_variant_count || 0) + Number(shared.quote_variant_count || 0) + Number(subscriber.quote_variant_count || 0),
+                crowding_evaluation_count: crowding.observation_count || crowding.duplicate_count ? 1 : 0,
+                crowding_observation_count: Number(crowding.observation_count || 0),
+                crowding_duplicate_count: Number(crowding.duplicate_count || 0),
                 copyability_probe_count: Number(shared.probe_count || 0),
                 copyability_observation_count: Number(shared.observation_count || 0),
                 copyability_duplicate_count: Number(shared.duplicate_count || 0),
-                decision_completed_at: subscriber.decision_completed_at || shared.decision_completed_at,
+                decision_completed_at: subscriber.decision_completed_at || shared.decision_completed_at || crowding.decision_completed_at,
               };
             },
           }, {

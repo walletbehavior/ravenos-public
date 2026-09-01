@@ -219,6 +219,21 @@ function prospectiveCopyability() {
       concurrent_follower_demand_measured: false,
       liquidity_capacity_claimed: false,
     },
+    crowding: {
+      schema_version: "ravenos.source_wallet_copy_crowding_summary.v1",
+      state: "available",
+      eligible_signal_sample_count: 24,
+      minimum_signal_sample_count: 20,
+      aggregate_route_available_pct: 70.83,
+      aggregate_route_constrained_pct: 20.83,
+      aggregate_route_unavailable_pct: 8.34,
+      dominant_constraint: { reason_code: "round_trip_friction_exceeds_policy", signal_count: 5, pct_of_eligible_signals: 20.83 },
+      current_follower_count_disclosed: false,
+      aggregate_follower_capital_disclosed: false,
+      exact_allocation_promised: false,
+      simultaneous_fill_promised: false,
+      live_copy: false,
+    },
     prospective_outcomes: {
       reference_order_size_usdc: 100,
       reference_horizon_seconds: 3_600,
@@ -580,6 +595,9 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.locator("#copySizeStressHeadline")).toHaveText("Majority drops at $1,000");
   await expect(page.locator("#copySizeStressDetail")).toContainText("24/24 signals tested at all five sizes");
   await expect(page.locator("#copySizeStressDetail")).toContainText("not a simultaneous-follower fill promise");
+  await expect(page.locator("#copyCrowdingStressHeadline")).toHaveText("71% held under load");
+  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("24 privacy-qualified signals");
+  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("no allocation or fill promise");
   await expect(page.locator("#copyMarketFit").getByText("Where the route survives", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$200K–$750K", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$100K–$500K", { exact: true })).toBeVisible();
