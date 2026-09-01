@@ -187,6 +187,15 @@ assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projecti
 assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projection_active, false);
 assert.equal(config.wallet_copy.shared_prospective_copyability_superseded_policies_mixed, false);
 assert.equal(config.wallet_copy.shared_prospective_copyability_screener_reference_size_usdc, 100);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_checkpoints_implemented, true);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_checkpoints_active, false);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_reference_size_usdc, 100);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_reference_horizon_seconds, 3_600);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_source_quote_shared_per_event_horizon, true);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_failures_recorded_as_zero_return, false);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_source_counterfactual_claimed_as_realized, false);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_expected_quote_claimed_as_fill, false);
+assert.equal(config.wallet_copy.shared_prospective_follower_outcome_capture_ratio_capped, false);
 assert.equal(config.wallet_copy.shared_prospective_detection_market_context_implemented, true);
 assert.equal(config.wallet_copy.shared_prospective_detection_market_context_active, false);
 assert.equal(config.wallet_copy.shared_prospective_detection_market_context_counted_once_per_source_signal, true);
@@ -372,6 +381,8 @@ const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-con
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
 const walletDiscoveryAdmission = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_admission.mjs"), "utf8");
 const walletCopyability = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability.mjs"), "utf8");
+const walletCopyabilityCheckpoints = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability_checkpoints.mjs"), "utf8");
+const walletCopyabilityCheckpointMigration = readFileSync(join(root, "customer-migrations", "0019_source_wallet_copyability_checkpoints.sql"), "utf8");
 const walletDetectionMarketContextMigration = readFileSync(join(root, "customer-migrations", "0018_source_wallet_detection_market_context.sql"), "utf8");
 const walletResearchCohort = readFileSync(join(root, "lib", "customer_trade", "source_wallet_research_cohort.mjs"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
@@ -397,6 +408,18 @@ assert(walletCopyability.includes("broadcasting: false"), "shared copyability pr
 assert(walletCopyability.includes("exact_source_pool_claimed: false"), "detection-time market context must not claim the source pool");
 assert(walletCopyability.includes("pair_age_used_as_token_age: false"), "selected pair age must not become token age");
 assert(walletCopyability.includes("current_market_context_substituted_for_source_fill: false"), "current market context must not become source fill evidence");
+assert(walletCopyabilityCheckpoints.includes("RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED"), "follower outcome checkpoints must have an independent default-off gate");
+assert(walletCopyabilityCheckpoints.includes("actual_source_exit_claimed: false"), "source opportunity checkpoints must not claim an actual source exit");
+assert(walletCopyabilityCheckpoints.includes("realized_source_pnl_claimed: false"), "source opportunity checkpoints must not claim realized source P&L");
+assert(walletCopyabilityCheckpoints.includes("expected_quote_not_fill: true"), "follower outcome checkpoints must distinguish expected quotes from fills");
+assert(walletCopyabilityCheckpoints.includes("capture_ratio_capped: false"), "follower capture must retain negative and above-100 outcomes");
+assert(walletCopyabilityCheckpoints.includes("actual_position_created: false"), "shared follower checkpoints must not create customer positions");
+assert(walletCopyabilityCheckpoints.includes("broadcasting: false"), "shared follower checkpoints must not expose broadcast authority");
+assert(walletCopyabilityCheckpointMigration.includes("source_wallet_opportunity_checkpoint_append_only"), "source opportunity checkpoints must be append-only");
+assert(walletCopyabilityCheckpointMigration.includes("source_wallet_copyability_checkpoint_append_only"), "follower outcome checkpoints must be append-only");
+assert(walletCopyabilityCheckpointMigration.includes("capture_ratio_capped') = 0"), "checkpoint storage must preserve uncapped follower capture");
+assert(walletCopyabilityCheckpointMigration.includes("expected_quote_not_fill') = 1"), "checkpoint storage must preserve quote-versus-fill truth");
+assert(!/\b(user_id|watch_id|private_key|seed_phrase|signer_key)\b/i.test(walletCopyabilityCheckpointMigration), "checkpoint ledgers contain subscriber identity or signer authority");
 assert(walletDetectionMarketContextMigration.includes("median_detected_market_cap_usd"), "detected market-cap projection is missing");
 assert(walletDetectionMarketContextMigration.includes("median_detected_liquidity_usd"), "detected liquidity projection is missing");
 assert(walletDetectionMarketContextMigration.includes("source wallet's exact pool"), "market-context migration must preserve the source-pool claim boundary");
@@ -410,6 +433,7 @@ for (const discoveryFlag of ["RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED", "RAVENO
   assert(!wrangler.includes(discoveryFlag), `wallet discovery activation flag must not be configured in Wrangler: ${discoveryFlag}`);
 }
 assert(!wrangler.includes("RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED"), "shared copyability activation flag must not be configured in Wrangler");
+assert(!wrangler.includes("RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED"), "follower outcome checkpoint activation flag must not be configured in Wrangler");
 assert(!wrangler.includes("RAVENOS_WALLET_RESEARCH_COHORT_ENABLED"), "research cohort activation flag must not be configured in Wrangler");
 for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
   assert(!walletObserverLiveValidator.includes(forbiddenWalletObserverAuthority), `wallet-observer live validator contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
@@ -421,6 +445,7 @@ for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTrans
   assert(!walletDiscoveryIngress.includes(forbiddenWalletObserverAuthority), `wallet-discovery ingress contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletDiscoveryAdmission.includes(forbiddenWalletObserverAuthority), `wallet-discovery admission contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletCopyability.includes(forbiddenWalletObserverAuthority), `wallet-copyability probe contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletCopyabilityCheckpoints.includes(forbiddenWalletObserverAuthority), `wallet-copyability checkpoints contain forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletResearchCohort.includes(forbiddenWalletObserverAuthority), `wallet research cohort contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
 }
 

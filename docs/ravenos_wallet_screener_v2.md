@@ -84,9 +84,11 @@ Every field maps to a fixed server-owned SQL column. Client input cannot provide
 
 The URL stores bounded filter state for reload/share continuity. The server remains authoritative.
 
-Prospective follower evidence also supports filters and deterministic sorts for entry availability, reverse-exit availability, policy-pass rate, round-trip friction, detected market cap, detected liquidity, selected-pair age, and source trade size as a share of detected liquidity. These market dimensions come from one exact-token observation per source signal, not one observation per follower-size quote. They are labeled “At Raven detection” in the interface. Raven does not claim the selected market was the source wallet's route, does not relabel pair age as token age, and does not reconstruct a historical fill from current state.
+Prospective follower evidence also supports filters and deterministic sorts for entry availability, reverse-exit availability, policy-pass rate, round-trip friction, detected market cap, detected liquidity, selected-pair age, source trade size as a share of detected liquidity, +1h route persistence, net follower return, and alpha retained. These market dimensions come from one exact-token observation per source signal, not one observation per follower-size quote. They are labeled “At Raven detection” in the interface. Raven does not claim the selected market was the source wallet's route, does not relabel pair age as token age, and does not reconstruct a historical fill from current state.
 
 Migration `0018_source_wallet_detection_market_context.sql` extends only the rebuildable current copyability projection. Append-only prospective observations remain the evidence source; missing observations stay unavailable rather than becoming zero. The projection is bound to the same exact fee and policy-matrix reference as the current $100 follower comparison.
+
+Migration `0019_source_wallet_copyability_checkpoints.sql` adds append-only outcome evidence at `30s`, `60s`, `90s`, `5m`, `15m`, `1h`, `4h`, and `24h`. The screener uses the $100 follower at +1h as a compact comparison point while the wallet profile retains the full five-size capacity rail. Route failures stay in the denominator with unavailable returns. “Alpha retained” compares a follower's hypothetical net return with the source wallet's same-horizon counterfactual liquidation return only when the latter is positive; it is not realized source P&L and it is not capped. All values remain read-only expected quotes rather than fills.
 
 Signed-in Pro users can also save up to 100 exact source wallets across 20 private research-list names. A save references the canonical `source_wallet_id`; it is not a symbol lookup, does not start observation or shadow copying, does not create a policy, and conveys no execution authority. Save and removal mutations use the authenticated app origin, CSRF protection, object ownership and idempotent contracts.
 
@@ -117,7 +119,7 @@ The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously 
 - sector/theme classifications;
 - a universal bot identity label;
 - EVM wallets;
-- copyability, follower P&L or capture ratios without prospective Raven Copy evidence;
+- copyability, follower returns or capture ratios without prospective Raven Copy evidence;
 - an active continuous provider connection before the private staging adapter and cohort prove reliability;
 - automatic admission of provider candidates without Raven hydration, economic normalization, and bounded history reconstruction;
 - live copying, signing, broadcasting, custody and actual fee collection.

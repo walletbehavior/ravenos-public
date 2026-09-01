@@ -148,6 +148,7 @@ test("request validation rejects unknown controls, unallowlisted sorts, and unbo
   assert.deepEqual(WalletScreenerPerformanceStates, ["any", "available", "partial", "insufficient_evidence"]);
   assert.ok(WalletScreenerSorts.includes("realized_pnl_usdc_desc"));
   assert.ok(WalletScreenerSorts.includes("copyability_score_desc"));
+  assert.ok(WalletScreenerSorts.includes("follower_capture_desc"));
   assert.ok(WalletScreenerSorts.includes("detected_liquidity_desc"));
   assert.throws(() => normalizeWalletScreenerRequest({ claim_all_wallets: true }, { now: NOW }), /wallet_screener_request_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { mystery: 1 } }, { now: NOW }), /wallet_screener_filters_invalid/);
@@ -174,13 +175,16 @@ test("prospective follower evidence is an internal-policy-bound, composable scre
       { field: "median_detected_liquidity_usd", operator: "gte", value: 100_000 },
       { field: "median_detected_market_cap_usd", operator: "between", value: [200_000, 2_000_000] },
       { field: "median_source_trade_liquidity_pct", operator: "lte", value: 1 },
+      { field: "outcome_checkpoint_count", operator: "gte", value: 20 },
+      { field: "follower_route_persistence_pct", operator: "gte", value: 75 },
+      { field: "follower_capture_ratio_pct", operator: "available" },
     ],
-    sort: "copyability_score_desc",
+    sort: "follower_capture_desc",
   }, { now: NOW, copyability_reference: reference });
   assert.equal(query.follower_reality_reference.matrix_policy_hash, reference.matrix_policy_hash);
   assert.equal(query.follower_reality_reference.reference_order_size_usdc, 100);
-  assert.equal(query.clauses.length, 8);
-  assert.equal(query.sort, "copyability_score_desc");
+  assert.equal(query.clauses.length, 11);
+  assert.equal(query.sort, "follower_capture_desc");
 });
 
 test("D1 screening joins one exact fee and policy projection with deterministic binding order", async () => {
@@ -317,6 +321,14 @@ test("screener rows expose prospective $100 follower reality without converting 
     policy_pass_pct: 66.67,
     median_entry_degradation_bps: 42,
     median_round_trip_friction_pct: 2.41,
+    outcome_checkpoint_count: 18,
+    outcome_reference_horizon_seconds: 3_600,
+    follower_route_persistence_pct: 83.33,
+    median_follower_return_pct: 4.82,
+    follower_win_rate_pct: 61.11,
+    follower_capture_sample_count: 11,
+    follower_capture_ratio_pct: 58.4,
+    follower_minus_source_return_pct: -3.42,
     copyability_fee_bps: 10,
     copyability_last_observed_at: Math.floor(Date.parse("2026-08-29T17:58:00.000Z") / 1_000),
     detection_context_sample_count: 24,
@@ -337,6 +349,14 @@ test("screener rows expose prospective $100 follower reality without converting 
   assert.equal(projected.follower_reality.policy_pass_rate_pct, 66.67);
   assert.equal(projected.follower_reality.median_entry_degradation_pct, 0.42);
   assert.equal(projected.follower_reality.median_round_trip_friction_pct, 2.41);
+  assert.equal(projected.follower_reality.outcome_checkpoint_count, 18);
+  assert.equal(projected.follower_reality.outcome_reference_horizon_seconds, 3_600);
+  assert.equal(projected.follower_reality.route_persistence_pct, 83.33);
+  assert.equal(projected.follower_reality.median_follower_return_pct, 4.82);
+  assert.equal(projected.follower_reality.follower_win_rate_pct, 61.11);
+  assert.equal(projected.follower_reality.follower_capture_sample_count, 11);
+  assert.equal(projected.follower_reality.follower_capture_ratio_pct, 58.4);
+  assert.equal(projected.follower_reality.follower_minus_source_return_pct, -3.42);
   assert.equal(projected.follower_reality.hypothetical_raven_fee_bps, 10);
   assert.equal(projected.detected_market_context.state, "available");
   assert.equal(projected.detected_market_context.context_sample_count, 24);

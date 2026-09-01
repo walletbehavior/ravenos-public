@@ -387,10 +387,12 @@ test("the rebuildable screener projection stores only the current shared policy 
         bind(...bindings) {
           return {
             async all() {
+              if (/FROM ravenos_source_wallet_copyability_checkpoints/i.test(sql)) return { results: [] };
               assert.match(sql, /FROM ravenos_source_wallet_copyability_observations/i);
               return { results: observations.map((observation) => ({ observation_json: JSON.stringify(observation) })) };
             },
             async run() {
+              assert.equal((sql.match(/\?/g) || []).length, bindings.length);
               writes.push({ sql, bindings });
               return { meta: { changes: 1 } };
             },
@@ -413,6 +415,7 @@ test("the rebuildable screener projection stores only the current shared policy 
   const serialized = writes[0].bindings.find((value) => typeof value === "string" && value.includes('"schema_version":"ravenos.source_wallet_copyability_matrix.v1"'));
   assert.ok(serialized);
   assert.equal(JSON.parse(serialized).detection_market_context.context_observation_count, 1);
+  assert.equal(JSON.parse(serialized).prospective_outcomes.checkpoint_count, 0);
   assert.equal(serialized.includes("user_id"), false);
   assert.equal(serialized.includes("watch_id"), false);
 });

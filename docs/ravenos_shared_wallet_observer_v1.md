@@ -245,7 +245,11 @@ Migration `0018_source_wallet_detection_market_context.sql` retains the exact-to
 
 These dimensions make the screener more useful before live copying: a researcher can distinguish wallets whose prospective trades repeatedly appeared in deeper markets from wallets whose source orders were large relative to detected liquidity. Missing context remains unavailable rather than zero, and five follower-size quotes cannot inflate the market-context sample count.
 
-This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015`, `0017`, and `0018`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
+Migration `0019_source_wallet_copyability_checkpoints.sql` adds the prospective outcome layer. For every due source signal and horizon (`30s`, `60s`, `90s`, `5m`, `15m`, `1h`, `4h`, and `24h`), Raven requests one exact-quantity liquidation quote for the source wallet's received tokens and re-quotes each follower size's exact expected quantity. The source quote is shared across the five sizes; follower quotes remain size-specific. Provider failures are retained with unavailable economics, never a fabricated zero return.
+
+The current screener reference is the $100 follower at +1 hour. It exposes route persistence, median net follower return, follower win rate, alpha retained when the source counterfactual return is positive, and the follower-minus-source return gap. The source comparison is a same-horizon counterfactual liquidation, not the source wallet's actual exit or realized P&L. Every follower value is an expected read-only quote, not a fill. Alpha retained is intentionally uncapped so negative capture and values above 100% remain visible instead of being cosmetically normalized.
+
+The entry evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`; the outcome evaluator has the additional independent gate `RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED`. Both require the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015`, `0017`, `0018`, and `0019`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
 
 ## Nexus research-cohort milestone
 

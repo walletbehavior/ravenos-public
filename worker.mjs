@@ -173,9 +173,15 @@ import {
   runSourceWalletObserverBatch,
 } from "./lib/customer_trade/source_wallet_observer.mjs";
 import {
+  createSourceWalletCopyabilityPolicyReference,
   evaluateSourceWalletCopyabilityMatrix,
   resolveSourceWalletCopyabilityActivation,
 } from "./lib/customer_trade/source_wallet_copyability.mjs";
+import {
+  createD1SourceWalletCopyabilityCheckpointStore,
+  resolveSourceWalletCopyabilityCheckpointActivation,
+  runSourceWalletCopyabilityCheckpointBatch,
+} from "./lib/customer_trade/source_wallet_copyability_checkpoints.mjs";
 import {
   SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE,
   SOURCE_WALLET_INGRESS_MANIFEST_ROUTE,
@@ -9135,6 +9141,50 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
+    const copyabilityCheckpointActivation = resolveSourceWalletCopyabilityCheckpointActivation(env || {});
+    const copyabilityCheckpointWork = copyabilityCheckpointActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (() => {
+          const checkpointStore = createD1SourceWalletCopyabilityCheckpointStore(env.RAVENOS_CUSTOMER_DB);
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const feeBps = Number(env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10);
+          const policyReference = createSourceWalletCopyabilityPolicyReference({ fee_bps: feeBps });
+          return runSourceWalletCopyabilityCheckpointBatch(checkpointStore, {
+            quoteExit: async ({ token_mint: tokenMint, quantity_base_units: quantityBaseUnits, purpose, source_event_id: sourceEventId, horizon_seconds: horizonSeconds }) => {
+              if (!SOLANA_ADDRESS_RE.test(String(tokenMint || "")) || !/^[1-9]\d{0,79}$/.test(String(quantityBaseUnits || ""))) {
+                const invalid = new Error("source_wallet_copyability_checkpoint_identity_invalid");
+                invalid.code = "source_wallet_copyability_checkpoint_identity_invalid";
+                throw invalid;
+              }
+              const startedAt = Date.now();
+              const result = await runProviderOperation({
+                component: "source_wallet_copyability_checkpoint",
+                operation_key: `${purpose}:${sourceEventId}:${horizonSeconds}:${tokenMint}:${quantityBaseUnits}`,
+                fn: () => fetchJupiterExactSpotQuote({
+                  env,
+                  inputMint: tokenMint,
+                  outputMint: SOLANA_CANONICAL_USDC_MINT,
+                  amountBaseUnits: String(quantityBaseUnits),
+                  slippageBps: 50,
+                }),
+              });
+              return {
+                route_available: true,
+                state: "route_available",
+                current_exit_usdc: Number(displayBaseUnits(result.payload.outAmount, 6)),
+                minimum_exit_usdc: Number(displayBaseUnits(result.payload.otherAmountThreshold, 6)),
+                provider_id: "jupiter",
+                provider_latency_ms: Math.max(0, Date.now() - startedAt),
+              };
+            },
+          }, {
+            on_source_updated: (sourceId, now) => walletStore.refreshSourceCopyabilityProjection(sourceId, {
+              fee_bps: feeBps,
+              policy_reference: policyReference,
+              now,
+            }),
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
     const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
     const backfillWork = backfillActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
       ? (() => {
@@ -9226,7 +9276,14 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
-    const work = Promise.allSettled([monitorWork, shadowWork, observerWork, backfillWork, discoveryWork]);
+    const work = Promise.allSettled([
+      monitorWork,
+      shadowWork,
+      observerWork,
+      copyabilityCheckpointWork,
+      backfillWork,
+      discoveryWork,
+    ]);
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },
