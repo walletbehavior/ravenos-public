@@ -161,6 +161,7 @@ test("identity and transaction references reject ticker-like, wrong-chain, and m
 test("independently confirmed Robinhood buy becomes a route-proof candidate, never an execution claim", () => {
   const event = normalizeRobinhoodWalletEconomicEvent(coreEvent());
   assert.equal(event.schema_version, SOURCE_WALLET_CHAIN_EVENT_SCHEMA);
+  assert.equal(event.decode_version, 1);
   assert.equal(event.source_wallet_id, createSourceWalletId({ chain: "robinhood", network: "mainnet", address: ACTOR }));
   assert.equal(event.chain_evidence.transaction_reference, TX_HASH);
   assert.equal(event.chain_evidence.provider_state, "AGREED");

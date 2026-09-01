@@ -16,10 +16,13 @@ import {
 } from "../lib/customer_trade/wallet_screener.mjs";
 import { buildWalletResearchThesis } from "../lib/customer_trade/wallet_research_thesis.mjs";
 import { createSourceWalletCopyabilityPolicyReference } from "../lib/customer_trade/source_wallet_copyability.mjs";
+import { createSourceWalletId } from "../lib/customer_trade/source_wallet_chain_identity.mjs";
 
 const NOW = "2026-08-29T18:00:00.000Z";
 const ADDRESS = "11111111111111111111111111111111";
-const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
+const SOURCE_ID = createSourceWalletId({ chain: "solana", network: "mainnet", address: ADDRESS });
+const ROBINHOOD_ADDRESS = `0x${"12".repeat(20)}`;
+const ROBINHOOD_SOURCE_ID = createSourceWalletId({ chain: "robinhood", network: "mainnet", chain_id: 4663, address: ROBINHOOD_ADDRESS });
 
 function row(overrides = {}) {
   return {
@@ -216,14 +219,14 @@ test("D1 screening joins one exact fee and policy projection with deterministic 
   assert.equal(calls.length, 2);
   assert.match(calls[0].sql, /LEFT JOIN ravenos_source_wallet_copyability_current cp/i);
   assert.match(calls[1].sql, /cp\.median_detected_liquidity_usd IS NULL ASC/i);
-  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, 20, 100_000]);
-  assert.deepEqual(calls[1].bindings, [10, reference.matrix_policy_hash, 20, 100_000, 12, 0]);
+  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, "solana", "mainnet", 20, 100_000]);
+  assert.deepEqual(calls[1].bindings, [10, reference.matrix_policy_hash, "solana", "mainnet", 20, 100_000, 12, 0]);
 });
 
 test("row projection exposes exact identity and source evidence without inventing follower results", () => {
   const projected = projectWalletScreenerRow(row());
   assert.equal(projected.source_wallet_id, SOURCE_ID);
-  assert.deepEqual(projected.source_wallet, { chain: "solana", network: "mainnet", address: ADDRESS });
+  assert.deepEqual(projected.source_wallet, { chain: "solana", network: "mainnet", chain_id: "solana", vm_family: "svm", address: ADDRESS });
   assert.equal(projected.profile.generated_at, "2026-08-29T17:59:00.000Z");
   assert.equal(projected.behavior.last_trade_at, "2026-08-29T17:55:00.000Z");
   assert.equal(projected.source_performance.state, "available");
@@ -263,6 +266,62 @@ test("row projection exposes exact identity and source evidence without inventin
   assert.equal(Object.isFrozen(projected), true);
   assert.equal(Object.isFrozen(projected.why_surfaced[0]), true);
   assert.equal(Object.isFrozen(projected.research_thesis.strengths[0]), true);
+});
+
+test("Robinhood Chain uses the same bounded filter engine without inheriting Solana identity claims", () => {
+  const query = normalizeWalletScreenerRequest({
+    chain: "robinhood",
+    network: "mainnet",
+    clauses: [
+      { field: "trade_count", operator: "gte", value: 20 },
+      { field: "reconstruction_confidence_pct", operator: "gte", value: 80 },
+    ],
+  }, { now: NOW });
+  assert.equal(query.scope, "raven_indexed_robinhood_wallets");
+  assert.equal(query.chain, "robinhood");
+  assert.throws(() => normalizeWalletScreenerRequest({ chain: "ethereum" }, { now: NOW }), /wallet_screener_chain_invalid/);
+
+  const projected = projectWalletScreenerRow(row({
+    source_wallet_id: ROBINHOOD_SOURCE_ID,
+    chain: "robinhood",
+    network: "mainnet",
+    chain_id: 4663,
+    vm_family: "evm",
+    address: ROBINHOOD_ADDRESS.toUpperCase().replace("0X", "0x"),
+    performance_state: "insufficient_evidence",
+    realized_pnl_usdc: null,
+    realized_pnl_sol: null,
+    roi_pct: null,
+    win_rate_pct: null,
+    closed_lots: 0,
+    known_cost_basis_pct: 0,
+  }));
+  assert.equal(projected.source_wallet_id, ROBINHOOD_SOURCE_ID);
+  assert.deepEqual(projected.source_wallet, {
+    chain: "robinhood",
+    network: "mainnet",
+    chain_id: 4663,
+    vm_family: "evm",
+    address: ROBINHOOD_ADDRESS,
+  });
+  assert.equal(projected.source_performance.state, "insufficient_evidence");
+  assert.equal(projected.scope.universe, "raven_indexed_robinhood_wallets");
+  assert.equal(projected.coverage.chain_wide_coverage_claimed, false);
+  assert.doesNotMatch(projected.why_surfaced.map((reason) => reason.label).join(" "), /Solana/i);
+
+  const response = buildWalletScreenerResponse({ query, rows: [row({
+    source_wallet_id: ROBINHOOD_SOURCE_ID,
+    chain: "robinhood",
+    network: "mainnet",
+    chain_id: 4663,
+    address: ROBINHOOD_ADDRESS,
+    performance_state: "insufficient_evidence",
+    realized_pnl_usdc: null,
+    realized_pnl_sol: null,
+    closed_lots: 0,
+  })], total: 1, now: NOW });
+  assert.equal(response.scope.chain, "robinhood");
+  assert.match(response.limitations[0], /Robinhood Chain/);
 });
 
 test("research thesis distinguishes one-hit risk, mixed settlement bases, thin evidence, and prospective copy evidence", () => {
@@ -420,7 +479,7 @@ test("response is bounded, paginated, honest about universe coverage, and exclud
   assert.equal(response.scope.claim, "bounded_raven_index_only");
   assert.equal(response.scope.comprehensive_chain_index, false);
   assert.deepEqual(response.presets.map((preset) => preset.id), ["evidence_first", "consistent_winners", "broad_edge", "active_swing", "fast_systematic", "follower_tested"]);
-  assert.match(response.limitations[0], /not every wallet on Solana/i);
+  assert.match(response.limitations[0], /bounded indexed Solana wallet universe, not every wallet on the chain/i);
   assert.equal(Object.isFrozen(response.rows), true);
 });
 

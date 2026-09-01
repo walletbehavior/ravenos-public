@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import bs58 from "bs58";
@@ -143,9 +144,9 @@ function memoryStore() {
     decisions,
     exitDecisions,
     positions,
-    async upsertSourceWallet({ source_wallet_id, address, now, state }) {
+    async upsertSourceWallet({ source_wallet_id, chain = "solana", network = "mainnet", chain_id = "solana", address, now, state }) {
       const existing = sources.get(source_wallet_id) || {};
-      const row = { ...existing, source_wallet_id, address, observation_state: state, first_requested_at: existing.first_requested_at || now, last_observed_at: existing.last_observed_at || null, last_signature: existing.last_signature || null, updated_at: now };
+      const row = { ...existing, source_wallet_id, chain, network, chain_id, vm_family: chain === "robinhood" ? "evm" : "svm", address, observation_state: state, first_requested_at: existing.first_requested_at || now, last_observed_at: existing.last_observed_at || null, last_signature: existing.last_signature || null, updated_at: now };
       sources.set(source_wallet_id, row);
       return row;
     },
@@ -217,13 +218,13 @@ function memoryStore() {
     },
     async countResearchSaves(userId) { return [...researchSaves.values()].filter((row) => row.user_id === userId).length; },
     async countResearchLists(userId) { return new Set([...researchSaves.values()].filter((row) => row.user_id === userId).map((row) => row.list_name.toLowerCase())).size; },
-    async listResearchSaves(userId) { return [...researchSaves.values()].filter((row) => row.user_id === userId).map((row) => ({ ...row, address: sources.get(row.source_wallet_id)?.address })); },
+    async listResearchSaves(userId) { return [...researchSaves.values()].filter((row) => row.user_id === userId).map((row) => { const source = sources.get(row.source_wallet_id) || {}; return { ...row, chain: source.chain, network: source.network, chain_id: source.chain_id, vm_family: source.vm_family, address: source.address }; }); },
     async saveResearchWallet(record) {
       const duplicate = [...researchSaves.values()].find((row) => row.user_id === record.user_id && row.source_wallet_id === record.source_wallet_id && row.list_name.toLowerCase() === record.list_name.toLowerCase());
-      if (duplicate) return { ...duplicate, address: sources.get(duplicate.source_wallet_id)?.address };
+      if (duplicate) { const source = sources.get(duplicate.source_wallet_id) || {}; return { ...duplicate, chain: source.chain, network: source.network, chain_id: source.chain_id, vm_family: source.vm_family, address: source.address }; }
       const row = { ...record, created_at: record.now, updated_at: record.now, revision: 1 };
       researchSaves.set(record.save_id, row);
-      return { ...row, address: sources.get(row.source_wallet_id)?.address };
+      { const source = sources.get(row.source_wallet_id) || {}; return { ...row, chain: source.chain, network: source.network, chain_id: source.chain_id, vm_family: source.vm_family, address: source.address }; }
     },
     async deleteResearchSave(userId, saveId) {
       const row = researchSaves.get(saveId);
@@ -316,6 +317,7 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   const screenerSql = readFileSync("customer-migrations/0008_customer_wallet_screener.sql", "utf8");
   const depthSql = readFileSync("customer-migrations/0009_customer_wallet_screener_depth.sql", "utf8");
   const exitsSql = readFileSync("customer-migrations/0012_shadow_copy_source_exits.sql", "utf8");
+  const chainNeutralSql = readFileSync("customer-migrations/0023_source_wallet_chain_neutral.sql", "utf8");
   assert.match(sql, /'wallet\.copy'/);
   assert.match(sql, /CREATE TABLE ravenos_source_wallets/i);
   assert.match(sql, /UNIQUE \(chain, network, address\)/i);
@@ -348,6 +350,139 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   assert.match(exitsSql, /live_execution_authorized INTEGER NOT NULL DEFAULT 0 CHECK \(live_execution_authorized = 0\)/i);
   assert.match(exitsSql, /transaction_hash TEXT CHECK \(transaction_hash IS NULL\)/i);
   assert.doesNotMatch(exitsSql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
+  assert.match(chainNeutralSql, /chain TEXT NOT NULL CHECK \(chain IN \('solana', 'robinhood'\)\)/i);
+  assert.match(chainNeutralSql, /transaction_reference TEXT NOT NULL/i);
+  assert.match(chainNeutralSql, /last_transaction_reference TEXT/i);
+  assert.match(chainNeutralSql, /PRAGMA defer_foreign_keys = ON/i);
+  assert.match(chainNeutralSql, /CREATE TABLE ravenos_source_wallets_m0023_new/i);
+  assert.match(chainNeutralSql, /CREATE TABLE ravenos_m0023_source_wallet_profiles AS SELECT \* FROM ravenos_source_wallet_profiles/i);
+  assert.match(chainNeutralSql, /DROP TABLE ravenos_source_wallets;[\s\S]*ALTER TABLE ravenos_source_wallets_m0023_new RENAME TO ravenos_source_wallets/i);
+  assert.doesNotMatch(chainNeutralSql, /ALTER TABLE ravenos_source_wallets RENAME TO/i);
+  assert.doesNotMatch(chainNeutralSql, /PRAGMA legacy_alter_table/i);
+  assert.match(chainNeutralSql, /schema_version = 'ravenos\.source_wallet_chain_event\.v1'/i);
+  assert.doesNotMatch(chainNeutralSql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
+});
+
+test("chain-neutral migration preserves Solana evidence and accepts exact Robinhood identity inside one transaction", () => {
+  const db = new DatabaseSync(":memory:");
+  for (const name of readdirSync("customer-migrations").filter((name) => /^00(?:0[1-9]|1\d|2[0-2])_.*\.sql$/.test(name)).sort()) {
+    db.exec(readFileSync(`customer-migrations/${name}`, "utf8"));
+  }
+  db.exec(`
+    INSERT INTO ravenos_source_wallets (
+      source_wallet_id, chain, network, address, observation_state, provider_scope,
+      first_requested_at, last_observed_at, last_signature, updated_at
+    ) VALUES (
+      'sw_sol_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'solana', 'mainnet',
+      '11111111111111111111111111111111', 'current', 'migration_fixture',
+      100, 110, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 110
+    );
+    INSERT INTO ravenos_source_wallet_events (
+      event_id, schema_version, source_wallet_id, signature, slot, block_time,
+      finality, classification, decode_version, evidence_hash, event_json,
+      observed_at, retention_expires_at
+    ) VALUES (
+      'swe_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'ravenos.solana_wallet_event.v1',
+      'sw_sol_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      77, 105, 'confirmed', 'SWAP_BUY', 1,
+      'cccccccccccccccccccccccccccccccccccccccc', '{}', 106, 1000
+    );
+    INSERT INTO ravenos_source_wallet_event_finality_observations (
+      finality_observation_id, event_id, finality, provider, observed_at
+    ) VALUES (
+      'swf_dddddddddddddddddddddddddddddddddddddddd',
+      'swe_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'confirmed', 'fixture', 106
+    );
+    INSERT INTO ravenos_source_wallet_profiles (
+      profile_snapshot_id, source_wallet_id, profile_version, normalized_event_count,
+      profile_json, generated_at, retention_expires_at
+    ) VALUES (
+      'swp_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'sw_sol_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 1, 1, '{}', 107, 1000
+    );
+    INSERT INTO ravenos_source_wallet_current_profiles (
+      source_wallet_id, profile_snapshot_id, profile_version, generated_at,
+      trade_count, active_days, token_count, performance_state, closed_lots,
+      profile_hash, updated_at
+    ) VALUES (
+      'sw_sol_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'swp_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 1, 107,
+      1, 1, 1, 'insufficient_evidence', 0,
+      'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 107
+    );
+    INSERT INTO ravenos_source_wallet_observer_deliveries (
+      delivery_id, source_wallet_id, signature, slot, finality, provider,
+      transport, received_at, evidence_reference, delivery_json,
+      retention_expires_at
+    ) VALUES (
+      'swd_ffffffffffffffffffffffffffffffffffffffff',
+      'sw_sol_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      77, 'confirmed', 'fixture', 'rpc_poll', 106,
+      'fixture:delivery', '{}', 1000
+    );
+  `);
+  const migration = readFileSync("customer-migrations/0023_source_wallet_chain_neutral.sql", "utf8");
+  db.exec(`BEGIN IMMEDIATE;\n${migration}\nCOMMIT;`);
+  assert.deepEqual({ ...db.prepare(`
+    SELECT
+      (SELECT count(*) FROM ravenos_source_wallets WHERE chain = 'solana') AS sources,
+      (SELECT count(*) FROM ravenos_source_wallet_events WHERE chain = 'solana') AS events,
+      (SELECT count(*) FROM ravenos_source_wallet_event_finality_observations) AS finality,
+      (SELECT count(*) FROM ravenos_source_wallet_profiles) AS profiles,
+      (SELECT count(*) FROM ravenos_source_wallet_current_profiles) AS current_profiles,
+      (SELECT count(*) FROM ravenos_source_wallet_observer_deliveries) AS deliveries
+  `).get() }, { sources: 1, events: 1, finality: 1, profiles: 1, current_profiles: 1, deliveries: 1 });
+  assert.equal(db.prepare(`
+    SELECT count(*) AS count
+    FROM sqlite_master AS m
+    JOIN pragma_foreign_key_list(m.name) AS f
+    WHERE m.type = 'table' AND f.[table] LIKE '%legacy%'
+  `).get().count, 0);
+  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  db.exec(`
+    INSERT INTO ravenos_source_wallets (
+      source_wallet_id, schema_version, chain, network, chain_id, vm_family,
+      address, observation_state, provider_scope, first_requested_at,
+      last_observed_at, last_transaction_reference, last_block_number,
+      last_signature, updated_at
+    ) VALUES (
+      'sw_rh_ffffffffffffffffffffffffffffffffffffffff', 'ravenos.source_wallet.v2',
+      'robinhood', 'mainnet', '4663', 'evm',
+      '0x1111111111111111111111111111111111111111', 'current', 'migration_fixture',
+      200, 210,
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      12345, NULL, 210
+    );
+    INSERT INTO ravenos_source_wallet_events (
+      event_id, schema_version, source_wallet_id, chain, network,
+      transaction_reference, signature, slot, block_time, block_number,
+      block_hash, chain_event_time, finality, classification, decode_version,
+      evidence_hash, event_json, observed_at, retention_expires_at
+    ) VALUES (
+      'swe_1111111111111111111111111111111111111111',
+      'ravenos.source_wallet_chain_event.v1',
+      'sw_rh_ffffffffffffffffffffffffffffffffffffffff', 'robinhood', 'mainnet',
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      NULL, NULL, NULL, 12345,
+      '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      205, 'safe', 'SWAP_BUY', 1,
+      'cccccccccccccccccccccccccccccccccccccccc', '{}', 206, 2000
+    );
+  `);
+  assert.equal(db.prepare("SELECT count(*) AS count FROM ravenos_source_wallet_events WHERE chain = 'robinhood' AND signature IS NULL AND slot IS NULL AND block_number = 12345").get().count, 1);
+  assert.throws(() => db.exec(`
+    INSERT INTO ravenos_source_wallets (
+      source_wallet_id, chain, network, chain_id, vm_family, address,
+      observation_state, provider_scope, first_requested_at, updated_at
+    ) VALUES (
+      'sw_rh_9999999999999999999999999999999999999999', 'robinhood', 'mainnet',
+      '4663', 'evm', '0x111111111111111111111111111111111111111z',
+      'current', 'fixture', 300, 300
+    )
+  `), /constraint/i);
+  db.close();
 });
 
 test("authenticated Pro route rejects cross-origin and unentitled access", async () => {
@@ -469,7 +604,7 @@ test("shared D1 event ingestion batches deep-history writes without changing eve
   };
   const first = walletEvent({ signature: "d".repeat(88), slot: 101 });
   const second = walletEvent({ signature: "e".repeat(88), slot: 102 });
-  const inserted = await createD1CustomerWalletCopyStore(db).recordEvents(`sw_sol_${"a".repeat(40)}`, [first, second], NOW);
+  const inserted = await createD1CustomerWalletCopyStore(db).recordEvents(first.source_wallet_id, [first, second], NOW);
   assert.deepEqual(inserted, [first.event_id, second.event_id]);
   assert.equal(batches.length, 1);
   assert.equal(batches[0].length, 4);

@@ -476,12 +476,14 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       });
     }
     if (url.pathname.endsWith("/screener") && request.method() === "POST") {
+      const screenerBody = JSON.parse(request.postData() || "{}");
+      const robinhood = screenerBody.chain === "robinhood";
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         ok: true,
-        state: "available",
-        scope: { claim: "bounded_raven_index_only", comprehensive_chain_index: false },
-        rows: [screenedWallet()],
-        pagination: { page: 1, page_size: 12, total_matching_rows: 1, total_pages: 1, has_previous: false, has_next: false },
+        state: robinhood ? "empty" : "available",
+        scope: { chain: robinhood ? "robinhood" : "solana", claim: "bounded_raven_index_only", comprehensive_chain_index: false },
+        rows: robinhood ? [] : [screenedWallet()],
+        pagination: { page: 1, page_size: 12, total_matching_rows: robinhood ? 0 : 1, total_pages: robinhood ? 0 : 1, has_previous: false, has_next: false },
       }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}` && request.method() === "GET") {
@@ -684,6 +686,19 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   const presetRequest = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(presetRequest.body).preset).toBe("consistent_winners");
   expect(new URL(page.url()).searchParams.get("screen")).toBe("consistent_winners");
+});
+
+test("wallet screener switches to a bounded Robinhood index without turning unavailable evidence into zero", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.goto("/account/copy/");
+  await page.getByRole("button", { name: "Robinhood", exact: true }).click();
+  await expect(page.locator("#copyScreenerCount")).toHaveText("0 indexed");
+  await expect(page.locator("#copyScreenerStatus")).toContainText("will not pad the new chain index with guessed performance");
+  await expect(page.getByText("Unobserved wallets and unavailable metrics are not converted into zeroes.")).toBeVisible();
+  const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
+  expect(JSON.parse(request.body)).toMatchObject({ chain: "robinhood", network: "mainnet" });
+  expect(new URL(page.url()).searchParams.get("chain")).toBe("robinhood");
 });
 
 test("mobile wallet screener keeps filters, source evidence, and analysis controls contained", async ({ page }) => {

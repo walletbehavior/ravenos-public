@@ -26,7 +26,7 @@ const state = {
   positions: [],
   copyability: [],
   saved: [],
-  screener: { page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
+  screener: { chain: "solana", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
 };
 
 function text(value, fallback = "—") {
@@ -42,6 +42,10 @@ function setText(id, value) {
 function shortAddress(value) {
   const address = text(value, "Wallet");
   return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+}
+
+function chainLabel(chain) {
+  return chain === "robinhood" ? "Robinhood Chain" : "Solana";
 }
 
 function money(value) {
@@ -136,7 +140,13 @@ function compactNumber(value) {
 }
 
 function exactAssetAmount(endpoint) {
-  if (!endpoint || !/^-?\d+$/.test(String(endpoint.amount_base_units ?? ""))) return "Unavailable";
+  if (!endpoint) return "Unavailable";
+  if (!/^-?\d+$/.test(String(endpoint.amount_base_units ?? ""))) {
+    const raw = String(endpoint.delta_raw ?? "");
+    if (!/^-?\d+$/.test(raw)) return "Unavailable";
+    const identity = endpoint.symbol || endpoint.contract || endpoint.asset_id;
+    return `${raw} raw units · ${shortAddress(identity)}`;
+  }
   const decimals = Number(endpoint.decimals);
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return "Unavailable";
   let units = BigInt(endpoint.amount_base_units);
@@ -198,7 +208,7 @@ function eventCard(event) {
   const kind = document.createElement("strong");
   const time = document.createElement("span");
   kind.textContent = readable(event.classification?.kind);
-  time.textContent = when(event.chain_evidence?.block_time);
+  time.textContent = when(event.chain_evidence?.block_time || event.timing?.raven_received_at);
   head.append(kind, time);
   const details = document.createElement("dl");
   details.append(
@@ -227,12 +237,18 @@ function eventCard(event) {
     fact("Detection", duration(event.timing?.detection_delay_ms)),
   );
   disclosure.append(summary, proof);
-  const signature = document.createElement("a");
-  signature.href = `https://solscan.io/tx/${encodeURIComponent(event.chain_evidence?.signature || "")}`;
-  signature.target = "_blank";
-  signature.rel = "noopener noreferrer";
-  signature.textContent = `View transaction · ${shortAddress(event.chain_evidence?.signature)}`;
-  card.append(head, details, evidence, disclosure, signature);
+  const transactionReference = event.chain_evidence?.transaction_reference || event.chain_evidence?.signature;
+  const transaction = event.source_wallet?.chain === "solana" ? document.createElement("a") : document.createElement("span");
+  transaction.className = "copy-event-transaction";
+  if (event.source_wallet?.chain === "solana") {
+    transaction.href = `https://solscan.io/tx/${encodeURIComponent(transactionReference || "")}`;
+    transaction.target = "_blank";
+    transaction.rel = "noopener noreferrer";
+    transaction.textContent = `View transaction · ${shortAddress(transactionReference)}`;
+  } else {
+    transaction.textContent = `Transaction · ${shortAddress(transactionReference)}`;
+  }
+  card.append(head, details, evidence, disclosure, transaction);
   return card;
 }
 
@@ -306,8 +322,107 @@ function renderFollowerReality() {
   const overall = record?.snapshot || null;
   const marketContext = shared?.detection_market_context || null;
   const outcomes = shared?.prospective_outcomes || null;
+  const diagnosis = shared?.copy_diagnosis || null;
+  const sizeStress = shared?.size_stress || null;
+  const crowding = shared?.crowding || null;
+  const marketRegimes = shared?.market_regimes || null;
+  const playbook = shared?.copy_playbook || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
+  const playbookNode = document.getElementById("copyPlaybook");
+  playbookNode.hidden = !playbook;
+  if (playbook) {
+    const sizeWindow = playbook.size_window || {};
+    const marketFit = playbook.strongest_observed_market_fit || {};
+    const persistence = playbook.route_persistence || {};
+    const constraint = playbook.leading_constraint || {};
+    const code = String(playbook.headline_code || "NEEDS_MORE_ROUTE_SAMPLES");
+    const majoritySize = Number(sizeWindow.largest_contiguous_majority_pass_size_usdc);
+    const firstWeakSize = Number(sizeWindow.first_below_majority_size_usdc);
+    const smallestSize = Number(sizeWindow.smallest_sampled_size_usdc);
+    const status = playbook.state === "constrained"
+      ? "Constrained"
+      : playbook.state === "available"
+        ? code === "ROUTES_WEAKEN_ABOVE_SIZE"
+          ? "Size-sensitive"
+          : code === "ROUTE_EVIDENCE_MIXED"
+            ? "Mixed evidence"
+            : "Observed fit"
+        : playbook.state === "forming"
+          ? "Evidence forming"
+          : "No sample";
+    const headline = code === "ROUTES_WEAKEN_ABOVE_SIZE"
+      ? `Routes weaken above ${money(majoritySize).replace(".00", "")}`
+      : code === "CONSTRAINED_AT_SMALLEST_TESTED"
+        ? `Even ${money(firstWeakSize || smallestSize).replace(".00", "")} misses most policy checks`
+        : code === "ROUTE_EVIDENCE_MIXED"
+          ? "Route quality changes unevenly with size"
+          : code === "ROUTES_SURVIVE_THROUGH_LARGEST_TESTED"
+            ? `Routes held through ${money(majoritySize).replace(".00", "")}`
+            : code === "NO_PROSPECTIVE_EVIDENCE"
+              ? "No prospective routes yet"
+              : "More route samples needed";
+    const referencePass = playbook.reference_policy_pass_pct === null || playbook.reference_policy_pass_pct === undefined
+      ? null
+      : Number(playbook.reference_policy_pass_pct);
+    setText("copyPlaybookState", status);
+    setText("copyPlaybookHeadline", headline);
+    setText("copyPlaybookSummary", Number.isFinite(referencePass)
+      ? `${pct(referencePass)} of ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")} routes passed policy across ${playbook.prospective_signal_count || 0} observed wallet buys.`
+      : `${playbook.prospective_signal_count || 0} wallet buys tested. A pattern requires ${playbook.minimum_prospective_sample_count || 20} observations per size.`);
+
+    if (Number.isFinite(majoritySize) && majoritySize > 0) {
+      const range = Number.isFinite(smallestSize) && smallestSize > 0 && smallestSize !== majoritySize
+        ? `${money(smallestSize).replace(".00", "")}–${money(majoritySize).replace(".00", "")}`
+        : money(majoritySize).replace(".00", "");
+      setText("copyPlaybookSize", `${range} majority-pass`);
+      setText("copyPlaybookSizeDetail", Number.isFinite(firstWeakSize) && firstWeakSize > 0
+        ? `${money(firstWeakSize).replace(".00", "")} fell to ${pct(sizeWindow.policy_pass_pct_at_first_below_majority_size)}. Exact isolated quotes.`
+        : `${pct(sizeWindow.policy_pass_pct_at_largest_majority_size)} passed at the upper tested size. Exact isolated quotes.`);
+    } else {
+      setText("copyPlaybookSize", playbook.state === "forming" ? "Threshold forming" : "No majority-pass size");
+      setText("copyPlaybookSizeDetail", `${sizeWindow.evidence_qualified_size_count || 0} of 5 sizes have enough prospective evidence.`);
+    }
+
+    if (marketFit.state === "available") {
+      const marketSuffix = marketFit.dimension === "market_cap_usd"
+        ? " cap"
+        : marketFit.dimension === "liquidity_usd"
+          ? " liquidity"
+          : " pair age";
+      setText("copyPlaybookMarket", `${marketFit.bucket_label}${marketSuffix}`);
+      setText("copyPlaybookMarketDetail", `${pct(marketFit.policy_pass_pct)} passed · ${marketFit.prospective_sample_count || 0} signals at ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}.`);
+    } else {
+      setText("copyPlaybookMarket", marketFit.state === "forming" ? "Segment evidence forming" : "Not sampled");
+      setText("copyPlaybookMarketDetail", `A segment needs ${playbook.minimum_prospective_sample_count || 20} prospective signals before it is surfaced.`);
+    }
+
+    if (Number(persistence.checkpoint_count || 0) > 0 && Number.isFinite(Number(persistence.route_persistence_pct))) {
+      setText("copyPlaybookPersistence", `${pct(persistence.route_persistence_pct)} still routable`);
+      const followerReturn = persistence.median_follower_return_pct !== null
+        && persistence.median_follower_return_pct !== undefined
+        && Number.isFinite(Number(persistence.median_follower_return_pct))
+        ? ` · median ${signedPct(persistence.median_follower_return_pct)}`
+        : "";
+      setText("copyPlaybookPersistenceDetail", `${persistence.checkpoint_count} exact-quantity checks${followerReturn}${persistence.state === "forming" ? " · forming" : ""}.`);
+    } else {
+      setText("copyPlaybookPersistence", "Not sampled");
+      setText("copyPlaybookPersistenceDetail", "The +1h reverse route has not been serviced yet.");
+    }
+
+    if (constraint.state === "observed" && constraint.reason_code) {
+      setText("copyPlaybookConstraint", readable(constraint.reason_code));
+      const constraintPct = constraint.pct_of_signals === null || constraint.pct_of_signals === undefined
+        ? null
+        : Number(constraint.pct_of_signals);
+      const constraintSize = Number(constraint.order_size_usdc);
+      setText("copyPlaybookConstraintDetail", `${constraint.observation_count || 0} observations${Number.isFinite(constraintSize) && constraintSize > 0 ? ` at ${money(constraintSize).replace(".00", "")}` : ""}${Number.isFinite(constraintPct) ? ` · ${pct(constraintPct)} of signals` : ""}. Refusals remain in the sample.`);
+    } else {
+      setText("copyPlaybookConstraint", constraint.state === "insufficient_evidence" ? "Not sampled" : "No dominant blocker");
+      setText("copyPlaybookConstraintDetail", "No refusal category currently dominates the retained evidence.");
+    }
+    playbookNode.dataset.playbookState = playbook.state;
+  }
   setText("copyFollowerHeadline", sharedAvailable
     ? `${Number(shared.prospective_signal_count || 0)} wallet trade${Number(shared.prospective_signal_count || 0) === 1 ? "" : "s"} · ${Number(shared.probe_observation_count || 0)} exact follower routes${Number(outcomeReference?.checkpoint_count || 0) ? ` · ${Number(outcomeReference.checkpoint_count)} +1h outcomes` : ""}`
     : overall?.prospective_sample_count
@@ -355,6 +470,67 @@ function renderFollowerReality() {
     item.append(size, result, sample);
     return item;
   }));
+  const refusal = diagnosis?.reference_dominant_refusal || overall?.dominant_refusal || null;
+  const refusalNode = document.getElementById("copyRefusalDiagnosis");
+  refusalNode.hidden = !sharedAvailable || !refusal;
+  if (sharedAvailable && refusal) {
+    setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
+    setText("copyRefusalHeadline", readable(refusal.reason_code));
+    setText("copyRefusalDetail", `${refusal.count} of ${overall?.prospective_sample_count || 0} prospective routes · ${pct(refusal.pct_of_signals)} of signals. Refusals remain visible and are never recorded as zero-return trades.`);
+  }
+  const sizeStressNode = document.getElementById("copySizeStress");
+  sizeStressNode.hidden = !sharedAvailable || !sizeStress || sizeStress.state === "insufficient_evidence";
+  if (!sizeStressNode.hidden) {
+    const majoritySize = sizeStress.largest_contiguous_size_with_majority_policy_pass_usdc;
+    const firstWeakSize = sizeStress.first_qualified_size_below_majority_policy_pass_usdc;
+    const headline = sizeStress.state === "resilient_through_largest_tested"
+      ? `Majority-pass through ${money(majoritySize).replace(".00", "")}`
+      : sizeStress.state === "size_sensitive"
+        ? `Majority drops at ${money(firstWeakSize).replace(".00", "")}`
+        : sizeStress.state === "constrained_at_smallest_tested"
+          ? `Below majority at ${money(firstWeakSize).replace(".00", "")}`
+          : sizeStress.state === "mixed_evidence"
+            ? "Non-linear route evidence"
+            : "Size evidence forming";
+    setText("copySizeStressHeadline", headline);
+    setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals tested at all five sizes. Isolated route quotes—not a simultaneous-follower fill promise.`);
+    sizeStressNode.dataset.stressState = sizeStress.state;
+  }
+  const crowdingNode = document.getElementById("copyCrowdingStress");
+  crowdingNode.hidden = !sharedAvailable || !crowding || !new Set(["forming", "available"]).has(crowding.state);
+  if (!crowdingNode.hidden) {
+    const available = Number(crowding.aggregate_route_available_pct);
+    setText("copyCrowdingStressHeadline", crowding.state === "available" && Number.isFinite(available)
+      ? `${available.toFixed(0)}% held under load`
+      : "Aggregate evidence forming");
+    const blocker = crowding.dominant_constraint?.reason_code
+      ? ` · blocker: ${readable(crowding.dominant_constraint.reason_code)}`
+      : "";
+    setText("copyCrowdingStressDetail", `${crowding.eligible_signal_sample_count || 0} privacy-qualified signals${blocker}. Demand stays private; no allocation or fill promise.`);
+    crowdingNode.dataset.crowdingState = crowding.state;
+  }
+  const marketFit = document.getElementById("copyMarketFit");
+  const marketDimensions = Array.isArray(marketRegimes?.dimensions)
+    ? marketRegimes.dimensions.filter((row) => row?.representative_bucket)
+    : [];
+  marketFit.hidden = !sharedAvailable || !marketDimensions.length;
+  if (sharedAvailable && marketDimensions.length) {
+    setText("copyMarketFitScope", `Prospective ${money(marketRegimes.reference_order_size_usdc || 100).replace(".00", "")} routes · ${marketRegimes.minimum_prospective_sample_count || 20} signals before a segment is evidence-qualified`);
+    document.getElementById("copyMarketFitGrid").replaceChildren(...marketDimensions.map((dimension) => {
+      const bucket = dimension.representative_bucket;
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const headline = document.createElement("strong");
+      const detail = document.createElement("p");
+      label.textContent = dimension.label;
+      headline.textContent = bucket.bucket_label;
+      const pass = bucket.policy_pass_pct === null || bucket.policy_pass_pct === undefined ? "pass rate forming" : `${pct(bucket.policy_pass_pct)} passed`;
+      const blocker = bucket.dominant_refusal ? ` · blocker: ${readable(bucket.dominant_refusal.reason_code)}` : "";
+      detail.textContent = `${bucket.prospective_sample_count} signal${bucket.prospective_sample_count === 1 ? "" : "s"} · ${pass}${blocker}`;
+      card.append(label, headline, detail);
+      return card;
+    }));
+  }
   const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
   setText("copyFollowerLimit", sharedAvailable
     ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.${Number(outcomeReference?.checkpoint_count || 0) > 0 ? " Later outcomes are exact-quantity liquidation quotes, not fills or the source wallet's realized P&L." : ""}${Number(marketContext?.context_observation_count || 0) > 0 ? " Market context is the highest-liquidity exact-token pair Raven saw near detection, not proof of the source wallet's pool or fill." : ""}`
@@ -418,8 +594,15 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
+  const profileChain = profile?.source_wallet?.chain || "solana";
   profileNode.hidden = false;
   policyNode.hidden = true;
+  const shadowButton = document.getElementById("copyStartSetup");
+  shadowButton.disabled = profileChain !== "solana";
+  shadowButton.textContent = profileChain === "solana" ? "Shadow this wallet" : "Route proof pending";
+  shadowButton.title = profileChain === "solana"
+    ? "Create a prospective Raven Copy policy"
+    : "Robinhood shadow copying stays closed until exact entry and reverse-exit routing are connected.";
   renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
@@ -766,6 +949,8 @@ function screenerRequest() {
   const mechanical = document.getElementById("copyScreenMechanical").value;
   if (mechanical) clauses.push({ field: "mechanical_pattern_state", operator: "eq", value: mechanical });
   return {
+    chain: state.screener.chain,
+    network: "mainnet",
     filters: {
       active_within_hours: optionalNumber("copyScreenActive"),
       min_trade_count: optionalNumber("copyScreenTrades"),
@@ -787,6 +972,7 @@ function screenerRequest() {
 function syncScreenerUrl() {
   const url = new URL(location.href);
   const fields = {
+    chain: state.screener.chain === "solana" ? null : state.screener.chain,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -826,6 +1012,8 @@ function syncScreenerUrl() {
 
 function hydrateScreenerFromUrl() {
   const params = new URL(location.href).searchParams;
+  const chain = params.get("chain");
+  if (new Set(["solana", "robinhood"]).has(chain)) state.screener.chain = chain;
   const preset = params.get("screen");
   if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
   const mappings = {
@@ -847,6 +1035,7 @@ function hydrateScreenerFromUrl() {
     input.value = value.slice(0, 64);
   }
   document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.screenPreset === state.screener.preset)));
+  document.querySelectorAll("[data-screen-chain]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.screenChain === state.screener.chain)));
 }
 
 async function loadStoredWallet(sourceWalletId, button) {
@@ -872,7 +1061,7 @@ function savedResearchRow(save) {
   list.textContent = save.list_name;
   label.textContent = save.label;
   const short = shortAddress(save.source_wallet?.address);
-  address.textContent = save.label === short ? "Solana · exact wallet" : short;
+  address.textContent = save.label === short ? `${chainLabel(save.source_wallet?.chain)} · exact wallet` : `${short} · ${chainLabel(save.source_wallet?.chain)}`;
   identity.append(list, label, address);
   const actions = document.createElement("div");
   const open = document.createElement("button");
@@ -931,7 +1120,7 @@ function screenerCard(wallet) {
   const thesis = wallet.research_thesis;
   stateLabel.textContent = thesis?.evidence_strength?.label || readable(wallet.source_performance?.state || "insufficient_evidence");
   address.textContent = shortAddress(wallet.source_wallet?.address);
-  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact Solana address`;
+  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact ${chainLabel(wallet.source_wallet?.chain)} address`;
   identity.append(stateLabel, address, observed);
   const follower = wallet.follower_reality || {};
   const followerLabel = Number(follower.outcome_checkpoint_count || 0) > 0
@@ -998,18 +1187,24 @@ function screenerCard(wallet) {
 function renderScreener(payload) {
   const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
   state.screener = {
+    chain: payload.scope?.chain || state.screener.chain,
     page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
     total_pages: Number(payload.pagination?.total_pages || payload.total_pages || 0),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
     preset: state.screener.preset,
   };
+  const scopeLabel = chainLabel(state.screener.chain);
   setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
   setText("copyScreenerStatus", wallets.length
-    ? `Showing ${wallets.length} evidence-bound wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
-    : "No wallet Raven has reviewed matches these filters. Analyzing an exact public address can add it to the index.");
+    ? `Showing ${wallets.length} evidence-bound ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
+    : state.screener.chain === "robinhood"
+      ? "No indexed Robinhood wallet matches these filters yet. Raven will not pad the new chain index with guessed performance."
+      : "No indexed Solana wallet matches these filters. Direct lookup can add an exact public address.");
   const host = document.getElementById("copyScreenerResults");
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "robinhood"
+    ? "The bounded Robinhood index is still forming. Unobserved wallets and unavailable metrics are not converted into zeroes."
+    : "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1019,7 +1214,7 @@ function renderScreener(payload) {
 
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
-  setText("copyScreenerStatus", "Screening wallets Raven has reviewed…");
+  setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)} wallets Raven has reviewed…`);
   const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
   if (!result.response.ok) {
     setText("copyScreenerCount", "Unavailable");
@@ -1178,6 +1373,15 @@ document.querySelectorAll("[data-screen-preset]").forEach((button) => button.add
   document.querySelectorAll("[data-screen-preset]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenPreset === state.screener.preset)));
   if (state.screener.preset === "active_swing") document.getElementById("copyScreenActive").value = "168";
   state.screener.page = 1;
+  syncScreenerUrl();
+  await loadScreener();
+}));
+document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addEventListener("click", async () => {
+  const chain = button.dataset.screenChain;
+  if (!new Set(["solana", "robinhood"]).has(chain) || chain === state.screener.chain) return;
+  state.screener.chain = chain;
+  state.screener.page = 1;
+  document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));
   syncScreenerUrl();
   await loadScreener();
 }));

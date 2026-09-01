@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Wallet Intelligence · RavenOS Pro</title>
-  <meta name="description" content="Discover and analyze Solana wallets with evidence-bound performance, profit quality, behavior, and optional prospective Raven Copy testing." />
+  <meta name="description" content="Discover and analyze Solana and Robinhood Chain wallets with evidence-bound activity, performance quality, and prospective Raven Copy research." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-wallet-copy.css" />
 </head>
@@ -13,9 +13,9 @@
     <header class="copy-hero">
       <div class="copy-hero-copy">
         <a href="/account/">← Account</a>
-        <span>RavenOS Pro · Solana first</span>
+        <span>RavenOS Pro · Wallet intelligence</span>
         <h1>Find repeatable edge.<br />See the evidence.</h1>
-        <p>Screen Raven-indexed Solana wallets, reconstruct how they made money, expose concentration and missing cost basis, then optionally test follower reality in Shadow mode.</p>
+        <p>Hunt wallets across Solana and Robinhood Chain, separate proven performance from incomplete evidence, and test follower reality only where Raven can establish a route.</p>
       </div>
       <aside class="copy-mode-card" aria-live="polite">
         <div><span>Workspace</span><strong>Research + Shadow</strong></div>
@@ -66,7 +66,7 @@
       <section class="copy-panel" data-copy-panel="find">
         <div class="copy-find-grid">
           <form class="copy-wallet-search" id="copyWalletSearch">
-            <span>Public Solana wallet</span>
+            <span>Direct Solana lookup</span>
             <label for="copyWalletAddress">Paste an address</label>
             <div><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
             <p id="copySearchStatus" aria-live="polite">Raven reviews recent public activity and separates trades, transfers, airdrops, and anything it cannot resolve.</p>
@@ -84,7 +84,13 @@
         <section class="copy-screener" id="copyScreener" hidden>
           <header class="copy-screener-head">
             <div><span>Raven Pro wallet screener</span><h2>Find wallets with reconstructable edge.</h2><p>Rank only Raven-indexed public wallets. Missing history, cost basis, entry context, and copy evidence remain visibly unavailable.</p></div>
-            <strong id="copyScreenerCount">0 indexed</strong>
+            <div class="copy-screener-scope">
+              <div class="copy-chain-rail" role="group" aria-label="Wallet chain">
+                <button type="button" data-screen-chain="solana" aria-pressed="true">Solana</button>
+                <button type="button" data-screen-chain="robinhood" aria-pressed="false">Robinhood</button>
+              </div>
+              <strong id="copyScreenerCount">0 indexed</strong>
+            </div>
           </header>
           <div class="copy-preset-rail" id="copyPresetRail" aria-label="Wallet screener presets">
             <button type="button" data-screen-preset="evidence_first">Evidence first<small>Strong reconstruction</small></button>

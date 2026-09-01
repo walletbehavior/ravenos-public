@@ -1,6 +1,6 @@
 # Robinhood wallet-event adapter
 
-Status: staged contract only. It does not expose a public route, write D1, activate a service, create a shadow decision, quote a trade, or authorize execution.
+Status: staged shared-ledger implementation; activation remains disabled. The code now includes the chain-neutral D1 migration, bounded Robinhood activity profiles, shared screener projection, private ingress boundary, and RavenOS Pro chain selector. Migration `0023` has not been applied to production, no Raven Core delivery service is activated, and no shadow decision, quote, transaction construction, fee collection, signing, broadcasting, custody, or live execution is authorized.
 
 RavenOS's first source-wallet tables and observer were deliberately Solana-specific. Their IDs, addresses, signatures, slots, transports, profile fields, position assets, and database checks encode Solana semantics. A Robinhood transaction must not be forced into those columns by calling a block number a slot or an EVM address a mint.
 
@@ -13,4 +13,8 @@ RavenOS's first source-wallet tables and observer were deliberately Solana-speci
 
 `robinhood_wallet_event_adapter.mjs` accepts only the reviewed Raven Core economic-event contract. It verifies the exact economic actor, transaction and block identity, finality, independent-provider state, asset identities and net deltas, canonical-USDC truth, privacy boundary, and all-disabled execution boundary. An agreed event becomes `ROUTE_PROOF_REQUIRED`; a single-provider event remains `PROVIDER_CONFIRMATION_REQUIRED`. Neither state is a trade decision.
 
-This contract is the seam for the future chain-neutral D1 migration. The migration must update the existing shared source-wallet system coherently—identity, events, observer deliveries/jobs/latency, watches, positions, profiles, backfill, screener, and copyability—rather than create a parallel Robinhood wallet product. Until that migration and its rollback plan are reviewed, the adapter remains unwired and Robinhood data is not represented as Solana data.
+Migration `0023_source_wallet_chain_neutral.sql` extends the shared source-wallet and event ledger without relabeling EVM transaction hashes as Solana signatures or EVM blocks as slots. Existing Solana identifiers and rows remain stable. RavenOS can ingest an already-normalized adapter event into that ledger, build an activity-only Robinhood profile, save the wallet for research, and screen the bounded Robinhood index through the same filter engine.
+
+The current profile deliberately leaves cost basis, P&L, ROI, win rate, historical entry liquidity, balances, marks, and executable value unavailable. USDG, wrapped ETH, native ETH, and canonical USDC remain distinct. The Robinhood Shadow control remains disabled until Raven can prove a current exact entry and reverse liquidation route. The existing Solana observer universe is explicitly restricted to Solana rows, so the transition cannot send an EVM address into Solana transport or backfill code.
+
+Activation still requires a reviewed private Raven Core → RavenOS delivery path, production migration approval and rollback evidence, bounded Robinhood archive backfill, asset metadata/decimal evidence, and exact entry plus reverse-exit routing. Those are operational milestones; the staged implementation grants no execution authority.

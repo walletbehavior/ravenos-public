@@ -26,7 +26,7 @@ const state = {
   positions: [],
   copyability: [],
   saved: [],
-  screener: { page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
+  screener: { chain: "solana", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
 };
 
 function text(value, fallback = "—") {
@@ -42,6 +42,10 @@ function setText(id, value) {
 function shortAddress(value) {
   const address = text(value, "Wallet");
   return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+}
+
+function chainLabel(chain) {
+  return chain === "robinhood" ? "Robinhood Chain" : "Solana";
 }
 
 function money(value) {
@@ -136,7 +140,13 @@ function compactNumber(value) {
 }
 
 function exactAssetAmount(endpoint) {
-  if (!endpoint || !/^-?\d+$/.test(String(endpoint.amount_base_units ?? ""))) return "Unavailable";
+  if (!endpoint) return "Unavailable";
+  if (!/^-?\d+$/.test(String(endpoint.amount_base_units ?? ""))) {
+    const raw = String(endpoint.delta_raw ?? "");
+    if (!/^-?\d+$/.test(raw)) return "Unavailable";
+    const identity = endpoint.symbol || endpoint.contract || endpoint.asset_id;
+    return `${raw} raw units · ${shortAddress(identity)}`;
+  }
   const decimals = Number(endpoint.decimals);
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return "Unavailable";
   let units = BigInt(endpoint.amount_base_units);
@@ -198,7 +208,7 @@ function eventCard(event) {
   const kind = document.createElement("strong");
   const time = document.createElement("span");
   kind.textContent = readable(event.classification?.kind);
-  time.textContent = when(event.chain_evidence?.block_time);
+  time.textContent = when(event.chain_evidence?.block_time || event.timing?.raven_received_at);
   head.append(kind, time);
   const details = document.createElement("dl");
   details.append(
@@ -227,12 +237,18 @@ function eventCard(event) {
     fact("Detection", duration(event.timing?.detection_delay_ms)),
   );
   disclosure.append(summary, proof);
-  const signature = document.createElement("a");
-  signature.href = `https://solscan.io/tx/${encodeURIComponent(event.chain_evidence?.signature || "")}`;
-  signature.target = "_blank";
-  signature.rel = "noopener noreferrer";
-  signature.textContent = `View transaction · ${shortAddress(event.chain_evidence?.signature)}`;
-  card.append(head, details, evidence, disclosure, signature);
+  const transactionReference = event.chain_evidence?.transaction_reference || event.chain_evidence?.signature;
+  const transaction = event.source_wallet?.chain === "solana" ? document.createElement("a") : document.createElement("span");
+  transaction.className = "copy-event-transaction";
+  if (event.source_wallet?.chain === "solana") {
+    transaction.href = `https://solscan.io/tx/${encodeURIComponent(transactionReference || "")}`;
+    transaction.target = "_blank";
+    transaction.rel = "noopener noreferrer";
+    transaction.textContent = `View transaction · ${shortAddress(transactionReference)}`;
+  } else {
+    transaction.textContent = `Transaction · ${shortAddress(transactionReference)}`;
+  }
+  card.append(head, details, evidence, disclosure, transaction);
   return card;
 }
 
@@ -578,8 +594,15 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
+  const profileChain = profile?.source_wallet?.chain || "solana";
   profileNode.hidden = false;
   policyNode.hidden = true;
+  const shadowButton = document.getElementById("copyStartSetup");
+  shadowButton.disabled = profileChain !== "solana";
+  shadowButton.textContent = profileChain === "solana" ? "Shadow this wallet" : "Route proof pending";
+  shadowButton.title = profileChain === "solana"
+    ? "Create a prospective Raven Copy policy"
+    : "Robinhood shadow copying stays closed until exact entry and reverse-exit routing are connected.";
   renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
@@ -926,6 +949,8 @@ function screenerRequest() {
   const mechanical = document.getElementById("copyScreenMechanical").value;
   if (mechanical) clauses.push({ field: "mechanical_pattern_state", operator: "eq", value: mechanical });
   return {
+    chain: state.screener.chain,
+    network: "mainnet",
     filters: {
       active_within_hours: optionalNumber("copyScreenActive"),
       min_trade_count: optionalNumber("copyScreenTrades"),
@@ -947,6 +972,7 @@ function screenerRequest() {
 function syncScreenerUrl() {
   const url = new URL(location.href);
   const fields = {
+    chain: state.screener.chain === "solana" ? null : state.screener.chain,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -986,6 +1012,8 @@ function syncScreenerUrl() {
 
 function hydrateScreenerFromUrl() {
   const params = new URL(location.href).searchParams;
+  const chain = params.get("chain");
+  if (new Set(["solana", "robinhood"]).has(chain)) state.screener.chain = chain;
   const preset = params.get("screen");
   if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
   const mappings = {
@@ -1007,6 +1035,7 @@ function hydrateScreenerFromUrl() {
     input.value = value.slice(0, 64);
   }
   document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.screenPreset === state.screener.preset)));
+  document.querySelectorAll("[data-screen-chain]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.screenChain === state.screener.chain)));
 }
 
 async function loadStoredWallet(sourceWalletId, button) {
@@ -1032,7 +1061,7 @@ function savedResearchRow(save) {
   list.textContent = save.list_name;
   label.textContent = save.label;
   const short = shortAddress(save.source_wallet?.address);
-  address.textContent = save.label === short ? "Solana · exact wallet" : short;
+  address.textContent = save.label === short ? `${chainLabel(save.source_wallet?.chain)} · exact wallet` : `${short} · ${chainLabel(save.source_wallet?.chain)}`;
   identity.append(list, label, address);
   const actions = document.createElement("div");
   const open = document.createElement("button");
@@ -1091,7 +1120,7 @@ function screenerCard(wallet) {
   const thesis = wallet.research_thesis;
   stateLabel.textContent = thesis?.evidence_strength?.label || readable(wallet.source_performance?.state || "insufficient_evidence");
   address.textContent = shortAddress(wallet.source_wallet?.address);
-  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact Solana address`;
+  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact ${chainLabel(wallet.source_wallet?.chain)} address`;
   identity.append(stateLabel, address, observed);
   const follower = wallet.follower_reality || {};
   const followerLabel = Number(follower.outcome_checkpoint_count || 0) > 0
@@ -1158,18 +1187,24 @@ function screenerCard(wallet) {
 function renderScreener(payload) {
   const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
   state.screener = {
+    chain: payload.scope?.chain || state.screener.chain,
     page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
     total_pages: Number(payload.pagination?.total_pages || payload.total_pages || 0),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
     preset: state.screener.preset,
   };
+  const scopeLabel = chainLabel(state.screener.chain);
   setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
   setText("copyScreenerStatus", wallets.length
-    ? `Showing ${wallets.length} evidence-bound wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
-    : "No wallet Raven has reviewed matches these filters. Analyzing an exact public address can add it to the index.");
+    ? `Showing ${wallets.length} evidence-bound ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
+    : state.screener.chain === "robinhood"
+      ? "No indexed Robinhood wallet matches these filters yet. Raven will not pad the new chain index with guessed performance."
+      : "No indexed Solana wallet matches these filters. Direct lookup can add an exact public address.");
   const host = document.getElementById("copyScreenerResults");
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "robinhood"
+    ? "The bounded Robinhood index is still forming. Unobserved wallets and unavailable metrics are not converted into zeroes."
+    : "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1179,7 +1214,7 @@ function renderScreener(payload) {
 
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
-  setText("copyScreenerStatus", "Screening wallets Raven has reviewed…");
+  setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)} wallets Raven has reviewed…`);
   const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
   if (!result.response.ok) {
     setText("copyScreenerCount", "Unavailable");
@@ -1338,6 +1373,15 @@ document.querySelectorAll("[data-screen-preset]").forEach((button) => button.add
   document.querySelectorAll("[data-screen-preset]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenPreset === state.screener.preset)));
   if (state.screener.preset === "active_swing") document.getElementById("copyScreenActive").value = "168";
   state.screener.page = 1;
+  syncScreenerUrl();
+  await loadScreener();
+}));
+document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addEventListener("click", async () => {
+  const chain = button.dataset.screenChain;
+  if (!new Set(["solana", "robinhood"]).has(chain) || chain === state.screener.chain) return;
+  state.screener.chain = chain;
+  state.screener.page = 1;
+  document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));
   syncScreenerUrl();
   await loadScreener();
 }));
