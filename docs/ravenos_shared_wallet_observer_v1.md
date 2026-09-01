@@ -229,6 +229,16 @@ Every activation remains independent and off by default:
 
 The intake requires its own exact host, HMAC identity, rotation-ready key pair, and optional Access service identity. These controls are intentionally separate from the watched-wallet ingress credentials. No migration, flag, secret, ingress host, service unit, or provider subscription is activated by this milestone. Live copy, signing, broadcasting, custody, and fee collection remain unavailable.
 
+## Independent Nexus discovery-firehose receiver
+
+`scripts/run-constant-k-wallet-discovery-receiver.mjs` decouples broad candidate discovery from the manifest-bound exact observer lane. This matters because a high-throughput Nexus stream can expose economically shaped swap participants even when the provider has not yet acknowledged Raven's full exact-watch manifest. The discovery receiver therefore never fetches or claims the active watch universe and cannot create a watch, normalized trade, wallet return, Copy decision, position, or execution object.
+
+The receiver starts at the live tail on first activation. Every subsequent newline-complete batch is reduced locally to the existing reviewed-program and exact-signer-owned-economic-delta candidate schema. Only the reduced observations cross the authenticated discovery ingress. Raw Nexus frames, token amounts, subscriber identity, policies, follower counts, and pooled follower capital do not. Candidate observations still require independent Raven RPC hydration and the existing economic decoder before admission to history reconstruction or the screener.
+
+Its cursor is independent from the exact observer cursor. It advances only after every reduced candidate batch receives the existing matching HMAC-authenticated durable receipt. A refused or unavailable sink leaves the prior cursor intact so the same byte range is replayed through the idempotent ingress protocol. Malformed and oversized source rows are counted and committed as degraded input instead of becoming wallets. Health output contains aggregate throughput, reduction, ingress, continuity, and cursor state only.
+
+The new local gate is `RAVENOS_WALLET_DISCOVERY_FIREHOSE_RECEIVER_ENABLED=1`; it is off by default and is not configured in Wrangler. The Worker ingress and evaluator remain separately gated. The dormant process can be started through `npm run run:constant-k-wallet-discovery-receiver` after the migration owner provisions the dedicated ingress identity, local event path, state directory, and service supervision. Activating it still does not establish chain-wide coverage or exact watched-wallet monitoring. The latter continues to require the provider-side manifest acknowledgement enforced by `run-constant-k-wallet-observer-receiver.mjs`.
+
 ## Shared prospective copyability milestone
 
 Raven can now evaluate one admitted, prospectively observed source-wallet buy against the standard follower-size ladder of $25, $100, $500, $1,000, and $5,000. This is shared source-level research, not subscriber fanout. Each size receives its own exact current entry quote and reverse-USDC exit quote through the existing Raven Copy provider boundary. Asset identity, liquidity, detection delay, price impact, entry degradation, round-trip friction, policy outcome, provider failure, and a hypothetical Raven fee scenario remain explicit.

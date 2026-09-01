@@ -154,6 +154,18 @@ assert.equal(config.wallet_copy.constant_k_nexus_ingress_raw_provider_payload_al
 assert.equal(config.wallet_copy.constant_k_nexus_ingress_transaction_material_allowed, false);
 assert.equal(config.wallet_copy.constant_k_nexus_ingress_checkpoint_after_durable_ack, true);
 assert.equal(config.wallet_copy.constant_k_nexus_ingress_exact_manifest_required, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_receiver_implemented, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_receiver_active, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_initial_position, "tail");
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_maximum_bytes_per_cycle, 16 * 1024 * 1024);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_maximum_lines_per_cycle, 10_000);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_checkpoint_after_durable_ack, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_exact_watch_coverage_claimed, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_chain_wide_coverage_claimed, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_candidate_is_trade_claimed, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_independent_raven_hydration_required, true);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_raw_provider_payload_persisted, false);
+assert.equal(config.wallet_copy.constant_k_nexus_discovery_firehose_subscriber_identity_included, false);
 assert.equal(config.wallet_copy.deep_history_backfill_contract_implemented, true);
 assert.equal(config.wallet_copy.deep_history_backfill_active, false);
 assert.equal(config.wallet_copy.deep_history_shared_per_source_wallet, true);
@@ -284,7 +296,7 @@ const requiredScenarios = [
   "SEC-RSCH-001", "SEC-RSCH-002",
   "SEC-ENT-001", "SEC-ENT-002",
   "SEC-ALT-001", "SEC-ALT-002",
-  "SEC-COPY-001", "SEC-COPY-002",
+  "SEC-WOBS-003", "SEC-COPY-001", "SEC-COPY-002",
   "SEC-WAL-003", "SEC-WAL-004", "SEC-WAL-005", "SEC-WAL-006",
   "SEC-BIL-001", "SEC-BIL-002", "SEC-BIL-003", "SEC-ENUM-001",
   "SEC-EDGE-001", "SEC-XSS-001", "SEC-CSP-001", "SEC-LEAK-001",
@@ -371,6 +383,8 @@ assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_backfil
 assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_ingress\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_discovery_admission\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /constant_k_nexus_wallet_ingress_client\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /constant_k_nexus_wallet_discovery_receiver\.test\.mjs/);
+assert.equal(packageJson.scripts["run:constant-k-wallet-discovery-receiver"], "node scripts/run-constant-k-wallet-discovery-receiver.mjs");
 assert.equal(packageJson.scripts["validate:wallet-copy-live"], "node scripts/validate-wallet-copy-live.mjs");
 const walletCopyLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-copy-live.mjs"), "utf8");
 assert(walletCopyLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-copy live validator must identify its read-only authority");
@@ -385,6 +399,7 @@ const walletObserverIngress = readFileSync(join(root, "lib", "customer_trade", "
 const walletObserverIngressProtocol = readFileSync(join(root, "lib", "customer_trade", "source_wallet_ingress_protocol.mjs"), "utf8");
 const walletObserverIngressClient = readFileSync(join(root, "lib", "customer_trade", "constant_k_nexus_wallet_ingress_client.mjs"), "utf8");
 const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-observer-receiver.mjs"), "utf8");
+const walletDiscoveryReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-discovery-receiver.mjs"), "utf8");
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
 const walletDiscoveryAdmission = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_admission.mjs"), "utf8");
 const walletCopyability = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability.mjs"), "utf8");
@@ -408,6 +423,17 @@ assert(walletObserverIngressProtocol.includes("observer_ingress_transaction_mate
 assert(walletObserverReceiverDaemon.includes("RAVENOS_WALLET_OBSERVER_RECEIVER_ENABLED"), "receiver daemon must have a separate local activation gate");
 assert(walletObserverReceiverDaemon.includes("activeAck = normalizeSourceWalletWatchManifestAck"), "receiver daemon must require exact provider manifest acknowledgement");
 assert(walletObserverReceiverDaemon.indexOf("ingressSummary = await postConstantKNexusDeliveries") < walletObserverReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "receiver must post durable ingress before checkpoint persistence");
+assert(walletObserverReceiverDaemon.includes("process.argv.slice(2)"), "exact observer daemon must validate only user-supplied arguments");
+assert(walletDiscoveryReceiverDaemon.includes("RAVENOS_WALLET_DISCOVERY_FIREHOSE_RECEIVER_ENABLED"), "broad Nexus discovery receiver must have its own default-off gate");
+assert(walletDiscoveryReceiverDaemon.includes('initial_position: "tail"'), "broad Nexus discovery must start at the live tail");
+assert(walletDiscoveryReceiverDaemon.includes("watched_wallets: []"), "broad Nexus discovery must stay independent from exact-watch coverage");
+assert(walletDiscoveryReceiverDaemon.indexOf("const ingress = await postObservations") < walletDiscoveryReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "broad Nexus discovery must receive a durable ingress acknowledgement before checkpoint persistence");
+assert(walletDiscoveryReceiverDaemon.includes("exact_watch_coverage_claimed: false"), "broad discovery must not claim exact watched-wallet coverage");
+assert(walletDiscoveryReceiverDaemon.includes("chain_wide_coverage_claimed: false"), "broad discovery must not claim every Solana wallet");
+assert(walletDiscoveryReceiverDaemon.includes("raw_provider_payload_persisted: false"), "broad discovery must not persist raw Nexus rows");
+assert(walletDiscoveryReceiverDaemon.includes("subscriber_identity_included: false"), "broad discovery must not include subscriber identity");
+assert(walletDiscoveryReceiverDaemon.includes("signing: false") && walletDiscoveryReceiverDaemon.includes("broadcasting: false"), "broad discovery must not expose transaction authority");
+assert(walletDiscoveryReceiverDaemon.includes("process.argv.slice(2)"), "broad discovery daemon must validate only user-supplied arguments");
 assert(walletDiscoveryAdmission.includes("RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED"), "wallet discovery ingress must have an independent default-off gate");
 assert(walletDiscoveryIngress.includes("RAVENOS_WALLET_DISCOVERY_INGRESS_HOST"), "wallet discovery ingress must require an exact configured host");
 assert(walletDiscoveryAdmission.includes("RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED"), "wallet discovery evaluator must have an independent default-off gate");

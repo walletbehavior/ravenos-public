@@ -261,8 +261,9 @@ export async function runConstantKWalletObserverReceiverCycle(config, {
 
 async function main() {
   const config = settings(process.env);
-  const once = process.argv.includes("--once");
-  if (process.argv.some((argument) => argument !== "--once")) fail("constant_k_receiver_argument_invalid");
+  const argumentsList = process.argv.slice(2);
+  const once = argumentsList.includes("--once");
+  if (argumentsList.some((argument) => argument !== "--once")) fail("constant_k_receiver_argument_invalid");
   let stopped = false;
   let failures = 0;
   process.on("SIGTERM", () => { stopped = true; });
