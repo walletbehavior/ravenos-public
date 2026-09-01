@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -134,4 +135,9 @@ test("cache identity is scoped by hostname and immutable release", () => {
   const appHost = __testing.cacheDescriptor(new Request("https://app.ravenos.xyz/api/health"), ENV).key.url;
   assert.notEqual(base, nextRelease);
   assert.notEqual(base, appHost);
+});
+
+test("immutable release packaging carries the explicit activation flag", () => {
+  const source = readFileSync(new URL("../scripts/package-release.mjs", import.meta.url), "utf8");
+  assert.match(source, /RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED:\s*baseWrangler\.vars\?\.RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED/);
 });

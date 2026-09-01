@@ -119,6 +119,7 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
+    RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED: baseWrangler.vars?.RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED === "1" ? "1" : "0",
     RAVENOS_SHADOW_LEDGER_ENABLED: baseWrangler.vars?.RAVENOS_SHADOW_LEDGER_ENABLED === "1" ? "1" : "0",
     RAVENOS_AUTH_ORIGIN: customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz",
     RAVENOS_AUTH_REDIRECT_URI: `${customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz"}/api/v1/auth/callback`,
