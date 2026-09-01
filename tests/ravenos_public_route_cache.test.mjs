@@ -55,7 +55,7 @@ test("only anonymous queryless public GETs are cache eligible", () => {
   }), ENV), null);
 });
 
-test("a successful response is reused without parsing and keeps client headers", async () => {
+test("a successful response is reused from Cache API without parsing and keeps client headers", async () => {
   resetPublicRouteResponseCacheForTests();
   const cache = memoryCache();
   const waits = [];
@@ -77,8 +77,32 @@ test("a successful response is reused without parsing and keeps client headers",
   assert.equal(hit.headers.get("cache-control"), "no-store");
   assert.equal(hit.headers.get("x-ravenos-release-id"), ENV.RAVENOS_RELEASE_ID);
   assert.equal(hit.headers.get("x-content-type-options"), "nosniff");
-  assert.equal(hit.headers.get("x-ravenos-response-cache"), "isolate_hit");
+  assert.equal(hit.headers.get("x-ravenos-response-cache"), "edge_hit");
   assert.equal(hit.headers.has("x-ravenos-response-cache-stored-at"), false);
+});
+
+test("parallel reads clone only Cache API responses", async () => {
+  resetPublicRouteResponseCacheForTests();
+  const cache = memoryCache();
+  const waits = [];
+  const request = new Request("https://ravenos.xyz/api/health");
+  storePublicRouteResponseCache({
+    request,
+    env: ENV,
+    response: response(),
+    cache,
+    nowMs: NOW,
+    executionContext: { waitUntil: (work) => waits.push(work) },
+  });
+  await Promise.all(waits);
+  const hits = await Promise.all(Array.from({ length: 32 }, () => (
+    readPublicRouteResponseCache({ request, env: ENV, cache, nowMs: NOW + 5_000 })
+  )));
+  assert.deepEqual(await Promise.all(hits.map((hit) => hit.json())), Array.from(
+    { length: 32 },
+    () => ({ ok: true, marker: "public-safe" }),
+  ));
+  assert.ok(hits.every((hit) => hit.headers.get("x-ravenos-response-cache") === "edge_hit"));
 });
 
 test("another isolate can reuse the shared edge response", async () => {
