@@ -27,8 +27,14 @@ const state = {
   spotCohort: "all",
   spotAssetFilter: "all",
   spotMarketCapFilter: "all",
+  spotVolumeFilter: "all",
   spotLiquidityFilter: "all",
+  spotHolderFilter: "all",
+  spotTransactionFilter: "all",
+  spotFlowFilter: "all",
+  spotMoveFilter: "all",
   spotAgeFilter: "all",
+  spotRevivalOnly: false,
   spotBundleFilter: "all",
   spotRouteFilter: "all",
   spotChangedOnly: false,
@@ -735,7 +741,8 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
 }
 
 const DISCOVER_MARKET_FACT_TARGET_SECONDS = 120;
-const DISCOVER_CLASSIFIER_VERSION = "2026-08-28.2";
+const DISCOVER_CLASSIFIER_VERSION = "2026-09-01.1";
+const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v1";
 
 function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   const contract = row?.discovery?.facts?.freshness || {};
@@ -1000,6 +1007,10 @@ function validDiscoverRow(row) {
     || identity?.token_address !== text(row?.token_address, "")
     || !["speculative_or_unclassified", "major", "wrapped_major", "stable", "staking", "tokenized_asset"].includes(discovery?.asset_taxonomy?.value)
     || !["emerging_acceleration", "breakout_continuation", "absorption_accumulation", "resurrection_reclaim", "distribution_chase_risk", "majors_wrapped", "reference_assets"].includes(discovery?.opportunity_lane?.value)
+    || discovery?.revival_scan?.schema_version !== DISCOVER_REVIVAL_SCAN_SCHEMA
+    || typeof discovery?.revival_scan?.qualified !== "boolean"
+    || discovery?.revival_scan?.historical_series_claimed !== false
+    || discovery?.revival_scan?.theme_catalyst_identified !== false
     || discovery?.notability?.schema_version !== "ravenos.discover_notability.v1"
     || !["notable", "watch_only"].includes(discovery?.notability?.state)
     || typeof discovery?.notability?.qualified !== "boolean"
@@ -1093,13 +1104,19 @@ function updateSpotRefineSummary() {
     state.spotCohort !== "all",
     state.spotChangedOnly,
     state.spotMarketCapFilter !== "all",
+    state.spotVolumeFilter !== "all",
     state.spotLiquidityFilter !== "all",
+    state.spotHolderFilter !== "all",
+    state.spotTransactionFilter !== "all",
+    state.spotFlowFilter !== "all",
+    state.spotMoveFilter !== "all",
     state.spotAgeFilter !== "all",
+    state.spotRevivalOnly,
     state.spotBundleFilter !== "all",
     state.spotRouteFilter !== "all",
     state.spotAssetFilter !== "all",
   ].filter(Boolean).length;
-  const lane = opportunityLaneLabel(state.spotLane) || "Opportunities";
+  const lane = state.spotRevivalOnly ? "Old + moving" : opportunityLaneLabel(state.spotLane) || "Opportunities";
   summary.textContent = refinements ? `${lane} · ${refinements} more` : lane;
 }
 
@@ -1257,6 +1274,15 @@ function opportunityLaneMatches(row) {
   return lane === state.spotLane;
 }
 
+function revivalScanMatches(row) {
+  if (!state.spotRevivalOnly) return true;
+  const revival = row?.discovery?.revival_scan;
+  return revival?.schema_version === DISCOVER_REVIVAL_SCAN_SCHEMA
+    && revival.qualified === true
+    && revival.freshness === "current"
+    && revival.single_print_rejected === false;
+}
+
 function assetTaxonomyMatches(row) {
   return state.spotAssetFilter === "all"
     || text(row?.discovery?.asset_taxonomy?.value, "") === state.spotAssetFilter;
@@ -1270,23 +1296,93 @@ function numericBand(value, filter, bands) {
   return Boolean(range && amount >= range[0] && amount < range[1]);
 }
 
+function spotWindowFlow(row) {
+  const buys = spotMetric(row, "buys");
+  const sells = spotMetric(row, "sells");
+  if (buys === null || sells === null || buys < 0 || sells < 0) return { transactions: null, buyShare: null };
+  const transactions = buys + sells;
+  return {
+    transactions,
+    buyShare: transactions > 0 ? buys / transactions : null,
+  };
+}
+
 function advancedFiltersMatch(row) {
   const market = row?.market || {};
   if (!numericBand(marketCapValue(market), state.spotMarketCapFilter, {
+    under_5k: [0, 5_000],
+    "5k_10k": [5_000, 10_000],
+    under_10k: [0, 10_000],
+    "10k_25k": [10_000, 25_000],
+    "25k_50k": [25_000, 50_000],
+    "50k_100k": [50_000, 100_000],
+    "10k_100k": [10_000, 100_000],
     under_100k: [0, 100_000],
+    "100k_250k": [100_000, 250_000],
+    "250k_500k": [250_000, 500_000],
     "100k_500k": [100_000, 500_000],
+    "500k_1m": [500_000, 1_000_000],
+    "1m_2m": [1_000_000, 2_000_000],
     "500k_2m": [500_000, 2_000_000],
+    "2m_10m": [2_000_000, 10_000_000],
+    "10m_plus": [10_000_000, Number.POSITIVE_INFINITY],
+    "100k_plus": [100_000, Number.POSITIVE_INFINITY],
     "2m_plus": [2_000_000, Number.POSITIVE_INFINITY],
   })) return false;
+  if (!numericBand(spotMetric(row, "volume_usd"), state.spotVolumeFilter, {
+    under_1k: [0, 1_000],
+    "1k_5k": [1_000, 5_000],
+    "5k_25k": [5_000, 25_000],
+    "25k_100k": [25_000, 100_000],
+    "100k_plus": [100_000, Number.POSITIVE_INFINITY],
+  })) return false;
   if (!numericBand(market.liquidity_usd, state.spotLiquidityFilter, {
+    under_1k: [0, 1_000],
+    "1k_5k": [1_000, 5_000],
+    "5k_10k": [5_000, 10_000],
     under_10k: [0, 10_000],
     "10k_50k": [10_000, 50_000],
     "50k_250k": [50_000, 250_000],
     "250k_plus": [250_000, Number.POSITIVE_INFINITY],
   })) return false;
+  if (!numericBand(market.holder_count, state.spotHolderFilter, {
+    under_100: [0, 100],
+    "100_500": [100, 500],
+    "500_2k": [500, 2_000],
+    "2k_10k": [2_000, 10_000],
+    "10k_plus": [10_000, Number.POSITIVE_INFINITY],
+  })) return false;
+  const flow = spotWindowFlow(row);
+  if (!numericBand(flow.transactions, state.spotTransactionFilter, {
+    under_10: [0, 10],
+    "10_50": [10, 50],
+    "50_250": [50, 250],
+    "250_plus": [250, Number.POSITIVE_INFINITY],
+  })) return false;
+  if (state.spotFlowFilter !== "all") {
+    if (state.spotFlowFilter === "unavailable" && flow.buyShare !== null) return false;
+    if (state.spotFlowFilter === "buy_60" && !(flow.buyShare !== null && flow.buyShare >= 0.6)) return false;
+    if (state.spotFlowFilter === "buy_52" && !(flow.buyShare !== null && flow.buyShare >= 0.52)) return false;
+    if (state.spotFlowFilter === "balanced" && !(flow.buyShare !== null && flow.buyShare >= 0.48 && flow.buyShare <= 0.52)) return false;
+    if (state.spotFlowFilter === "sell_52" && !(flow.buyShare !== null && flow.buyShare <= 0.48)) return false;
+    if (state.spotFlowFilter === "sell_60" && !(flow.buyShare !== null && flow.buyShare <= 0.4)) return false;
+  }
+  const move = spotMetric(row, "price_change");
+  if (state.spotMoveFilter !== "all") {
+    if (state.spotMoveFilter === "unavailable" && move !== null) return false;
+    if (state.spotMoveFilter === "up_20" && !(move !== null && move >= 20)) return false;
+    if (state.spotMoveFilter === "up_5" && !(move !== null && move >= 5)) return false;
+    if (state.spotMoveFilter === "flat" && !(move !== null && move >= -5 && move <= 5)) return false;
+    if (state.spotMoveFilter === "down_5" && !(move !== null && move <= -5)) return false;
+    if (state.spotMoveFilter === "down_20" && !(move !== null && move <= -20)) return false;
+  }
   if (!numericBand(market.market_age_seconds, state.spotAgeFilter, {
     under_24h: [0, 86_400],
     "1d_14d": [86_400, 14 * 86_400],
+    "14d_90d": [14 * 86_400, 90 * 86_400],
+    "30d_plus": [30 * 86_400, Number.POSITIVE_INFINITY],
+    "90d_1y": [90 * 86_400, 365 * 86_400],
+    "1y_plus": [365 * 86_400, Number.POSITIVE_INFINITY],
     "14d_plus": [14 * 86_400, Number.POSITIVE_INFINITY],
   })) return false;
   const bundle = row?.discovery?.control_intelligence?.bundled_pct;
@@ -1326,6 +1422,7 @@ function spotRankedRows() {
       && (state.spotChain === "all" || chain === state.spotChain)
       && validDiscoverRow(row)
       && opportunityLaneMatches(row)
+      && revivalScanMatches(row)
       && cohortMatches(row)
       && advancedFiltersMatch(row)
       && (state.spotLane !== "opportunities" || currentFacts)
@@ -2021,6 +2118,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
       : state.spotFeedState === "refreshing";
     const emptyHeading = state.spotSort === "raven"
       ? "No current Raven reads"
+      : state.spotRevivalOnly ? "No old-token revivals"
       : `${chain} have no matching radar candidates`;
     append(copy, "h3", "", refreshing
       ? state.spotSort === "raven" ? "Raven is refreshing" : `${state.spotSort === "activity" ? "Activity" : "Velocity"} is refreshing`
@@ -2031,6 +2129,8 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
         : "Exact-pool update delayed."
       : state.spotSort === "raven"
         ? `No qualified read${state.spotChain === "all" ? "" : ` on ${spotChainLabel(state.spotChain)}`}.`
+      : state.spotRevivalOnly
+        ? "No old-token revival qualifies now."
       : state.spotLane === "opportunities"
         ? "No high-signal market now."
         : `No ${state.spotTimeframe} matches.`);
@@ -2116,6 +2216,26 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.querySelectorAll("[data-spot-market-cap]").forEach((button) => {
+    const active = button.dataset.spotMarketCap === state.spotMarketCapFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const marketCapSelect = document.getElementById("discoverMarketCapFilter");
+  if (marketCapSelect && [...marketCapSelect.options].some((option) => option.value === state.spotMarketCapFilter)) {
+    marketCapSelect.value = state.spotMarketCapFilter;
+  }
+  const revivalButton = document.getElementById("discoverRevivalScan");
+  if (revivalButton) revivalButton.setAttribute("aria-pressed", String(state.spotRevivalOnly));
+  for (const [id, metric] of [
+    ["discoverVolumeFilterLabel", "volume"],
+    ["discoverTransactionFilterLabel", "txns"],
+    ["discoverFlowFilterLabel", "flow"],
+    ["discoverMoveFilterLabel", "move"],
+  ]) {
+    const label = document.getElementById(id);
+    if (label) label.textContent = `${state.spotTimeframe} ${metric}`;
+  }
   updateSpotRefineSummary();
   const views = {
     velocity: {
@@ -3129,9 +3249,24 @@ function bind() {
     state.spotCohort = button.dataset.spotCohort;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
+  document.querySelectorAll("[data-spot-market-cap]").forEach((button) => button.addEventListener("click", () => {
+    state.spotMarketCapFilter = button.dataset.spotMarketCap;
+    if (state.spotMarketCapFilter !== "all") state.spotLane = "all";
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }));
+  document.getElementById("discoverRevivalScan")?.addEventListener("click", () => {
+    state.spotRevivalOnly = !state.spotRevivalOnly;
+    if (state.spotRevivalOnly) state.spotLane = "all";
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  });
   for (const [id, key] of [
     ["discoverMarketCapFilter", "spotMarketCapFilter"],
+    ["discoverVolumeFilter", "spotVolumeFilter"],
     ["discoverLiquidityFilter", "spotLiquidityFilter"],
+    ["discoverHolderFilter", "spotHolderFilter"],
+    ["discoverTransactionFilter", "spotTransactionFilter"],
+    ["discoverFlowFilter", "spotFlowFilter"],
+    ["discoverMoveFilter", "spotMoveFilter"],
     ["discoverAgeFilter", "spotAgeFilter"],
     ["discoverBundleFilter", "spotBundleFilter"],
     ["discoverRouteFilter", "spotRouteFilter"],
@@ -3204,6 +3339,15 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotLane: state.spotLane,
     spotCohort: state.spotCohort,
     spotAssetFilter: state.spotAssetFilter,
+    spotMarketCapFilter: state.spotMarketCapFilter,
+    spotVolumeFilter: state.spotVolumeFilter,
+    spotLiquidityFilter: state.spotLiquidityFilter,
+    spotHolderFilter: state.spotHolderFilter,
+    spotTransactionFilter: state.spotTransactionFilter,
+    spotFlowFilter: state.spotFlowFilter,
+    spotMoveFilter: state.spotMoveFilter,
+    spotAgeFilter: state.spotAgeFilter,
+    spotRevivalOnly: state.spotRevivalOnly,
     spotRadarState: state.spotRadarState,
     spotRavenHealth: { ...state.spotRavenHealth },
     pendingSpotOrder: state.spotPendingOrder ? [...state.spotPendingOrder] : null,

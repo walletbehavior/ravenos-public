@@ -205,13 +205,13 @@ test("Atlas search is the front door and selecting metadata hydrates only one ex
   await page.goto("/atlas/");
   await expect(page.locator(".atlas-posture")).toContainText("Cross-market risk posture");
   await expect(page.locator(".atlas-posture")).toContainText("Risk posture is forming");
-  await expect(page.locator(".atlas-posture")).toContainText("It does not substitute a proxy score");
+  await expect(page.locator(".atlas-posture")).toContainText("No proxy score");
   await expect(page.locator(".atlas-frame-tape")).toHaveCount(0);
   const breadthFrame = page.locator(".atlas-tv-breadth-frame");
   await expect(breadthFrame).toHaveAttribute("src", /^https:\/\/www\.tradingview-widget\.com\/embed-widget\/stock-heatmap\//);
   await expect(page.locator(".atlas-breadth-presentation")).toContainText("not an Atlas-derived breadth score");
   await expect(page.locator(".atlas-roadmap")).toContainText("Planned · not yet available");
-  await expect(page.locator(".atlas-roadmap")).toContainText("true filing marks on Raven charts");
+  await expect(page.locator(".atlas-roadmap")).toContainText("Native breadth + filing overlays");
   await expect(page.locator("#atlasContent")).not.toContainText(/bounded market frame|catalog-only|hydrates on selection/i);
   await expect(page.locator(".atlas-pulse-row")).toHaveCount(1);
   await page.locator("#atlasSearchInput").fill("SPY");

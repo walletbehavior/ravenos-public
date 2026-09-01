@@ -18,7 +18,7 @@
         <ul class="discover-first-visit-guide" id="discoverFirstVisitGuide">
           <li><strong>Start with why now</strong><span>The row leads with the measured change behind its rank.</span></li>
           <li><strong>Keep risk attached</strong><span>Freshness and available route evidence stay beside the setup.</span></li>
-          <li><strong>Exact identity persists</strong><span>Terminal, holders, trades, copy, and save stay on the same pool.</span></li>
+          <li><strong>Exact identity persists</strong><span>Terminal, holders, txns, copy, and save stay on the same pool.</span></li>
         </ul>
         <button class="discover-intro-toggle" id="discoverIntroToggle" type="button" aria-controls="discoverFirstVisitGuide" aria-expanded="true">Use compact workspace</button>
       </div>
@@ -128,6 +128,17 @@
           </div>
         </div>
       </header>
+      <div class="discover-market-scans" aria-label="Quick market scans">
+        <span>Cap</span>
+        <div role="group" aria-label="Market cap quick filter">
+          <button class="active" type="button" data-spot-market-cap="all" aria-pressed="true">All</button>
+          <button type="button" data-spot-market-cap="under_5k" aria-pressed="false">&lt;$5K</button>
+          <button type="button" data-spot-market-cap="under_10k" aria-pressed="false">&lt;$10K</button>
+          <button type="button" data-spot-market-cap="10k_100k" aria-pressed="false">$10–100K</button>
+          <button type="button" data-spot-market-cap="100k_plus" aria-pressed="false">$100K+</button>
+        </div>
+        <button class="discover-revival-scan" id="discoverRevivalScan" type="button" aria-pressed="false">Old + moving</button>
+      </div>
       <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
         <details class="discover-refine-markets" id="discoverRefineMarkets">
           <summary><span>Refine markets</span><strong id="discoverRefineSummary">Opportunities</strong></summary>
@@ -161,19 +172,87 @@
             <label>Market cap
               <select id="discoverMarketCapFilter">
                 <option value="all">All</option>
-                <option value="under_100k">Under $100K</option>
-                <option value="100k_500k">$100K–$500K</option>
-                <option value="500k_2m">$500K–$2M</option>
-                <option value="2m_plus">$2M+</option>
+                <option value="under_5k">Under $5K</option>
+                <option value="5k_10k">$5K–$10K</option>
+                <option value="under_10k">Under $10K</option>
+                <option value="10k_100k">$10K–$100K</option>
+                <option value="10k_25k">$10K–$25K</option>
+                <option value="25k_50k">$25K–$50K</option>
+                <option value="50k_100k">$50K–$100K</option>
+                <option value="100k_250k">$100K–$250K</option>
+                <option value="250k_500k">$250K–$500K</option>
+                <option value="500k_1m">$500K–$1M</option>
+                <option value="1m_2m">$1M–$2M</option>
+                <option value="2m_10m">$2M–$10M</option>
+                <option value="10m_plus">$10M+</option>
+                <option value="100k_plus">$100K+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label><span id="discoverVolumeFilterLabel">5m volume</span>
+              <select id="discoverVolumeFilter">
+                <option value="all">All</option>
+                <option value="under_1k">Under $1K</option>
+                <option value="1k_5k">$1K–$5K</option>
+                <option value="5k_25k">$5K–$25K</option>
+                <option value="25k_100k">$25K–$100K</option>
+                <option value="100k_plus">$100K+</option>
+                <option value="unavailable">Unavailable</option>
               </select>
             </label>
             <label>Liquidity
               <select id="discoverLiquidityFilter">
                 <option value="all">All</option>
-                <option value="under_10k">Under $10K</option>
+                <option value="under_1k">Under $1K</option>
+                <option value="1k_5k">$1K–$5K</option>
+                <option value="5k_10k">$5K–$10K</option>
                 <option value="10k_50k">$10K–$50K</option>
                 <option value="50k_250k">$50K–$250K</option>
                 <option value="250k_plus">$250K+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label>Holders
+              <select id="discoverHolderFilter">
+                <option value="all">All</option>
+                <option value="under_100">Under 100</option>
+                <option value="100_500">100–500</option>
+                <option value="500_2k">500–2K</option>
+                <option value="2k_10k">2K–10K</option>
+                <option value="10k_plus">10K+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label><span id="discoverTransactionFilterLabel">5m txns</span>
+              <select id="discoverTransactionFilter">
+                <option value="all">All</option>
+                <option value="under_10">Under 10</option>
+                <option value="10_50">10–50</option>
+                <option value="50_250">50–250</option>
+                <option value="250_plus">250+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label><span id="discoverFlowFilterLabel">5m flow</span>
+              <select id="discoverFlowFilter">
+                <option value="all">All</option>
+                <option value="buy_60">Buy ≥60%</option>
+                <option value="buy_52">Buy ≥52%</option>
+                <option value="balanced">Balanced</option>
+                <option value="sell_52">Sell ≥52%</option>
+                <option value="sell_60">Sell ≥60%</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label><span id="discoverMoveFilterLabel">5m move</span>
+              <select id="discoverMoveFilter">
+                <option value="all">All</option>
+                <option value="up_20">Up ≥20%</option>
+                <option value="up_5">Up ≥5%</option>
+                <option value="flat">−5% to +5%</option>
+                <option value="down_5">Down ≥5%</option>
+                <option value="down_20">Down ≥20%</option>
+                <option value="unavailable">Unavailable</option>
               </select>
             </label>
             <label>Pool age
@@ -181,7 +260,10 @@
                 <option value="all">All</option>
                 <option value="under_24h">Under 24h</option>
                 <option value="1d_14d">1–14d</option>
-                <option value="14d_plus">14d+</option>
+                <option value="14d_90d">14–90d</option>
+                <option value="30d_plus">30d+</option>
+                <option value="90d_1y">90d–1y</option>
+                <option value="1y_plus">1y+</option>
                 <option value="unavailable">Unavailable</option>
               </select>
             </label>

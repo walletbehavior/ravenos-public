@@ -692,7 +692,7 @@ function renderTape(rows = state.tapeRows) {
   if (!safeRows.length) {
     const empty = document.createElement("div");
     empty.className = "perps-empty";
-    empty.textContent = "Recent public trades unavailable.";
+    empty.textContent = "Recent public txns unavailable.";
     host.append(empty);
     setText("perpsTapeState", "Unavailable");
     return;
@@ -707,7 +707,7 @@ function renderTape(rows = state.tapeRows) {
     }
     host.append(line);
   }
-  setText("perpsTapeState", `${safeRows.length} public trades`);
+  setText("perpsTapeState", `${safeRows.length} public txns`);
 }
 
 function renderComparables(comparables = {}, plan = {}) {

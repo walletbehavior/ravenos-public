@@ -510,6 +510,34 @@
 .discover-token-chains button.active,
 .discover-token-sort button.active,
 .discover-timeframes button.active { background: rgba(166, 177, 190, .11); color: var(--ws-text); }
+.discover-market-scans {
+  min-width: 0;
+  min-height: 39px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 15px;
+  border-bottom: 1px solid var(--ws-border);
+  background: rgba(7, 11, 17, .58);
+}
+.discover-market-scans > span { color: var(--ws-dim); font: 750 7px var(--ws-mono); letter-spacing: .08em; text-transform: uppercase; }
+.discover-market-scans > div { min-width: 0; display: flex; align-items: center; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+.discover-market-scans > div::-webkit-scrollbar { display: none; }
+.discover-market-scans button {
+  min-height: 27px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ws-border);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: rgba(10, 15, 23, .82);
+  color: var(--ws-dim);
+  font: 740 7px var(--ws-mono);
+  white-space: nowrap;
+}
+.discover-market-scans button.active,
+.discover-market-scans button[aria-pressed="true"] { border-color: rgba(99, 197, 148, .48); background: rgba(99, 197, 148, .1); color: #93dcb9; }
+.discover-market-scans .discover-revival-scan[aria-pressed="true"] { border-color: rgba(229, 184, 92, .48); background: rgba(229, 184, 92, .09); color: #dfbf7a; }
 .discover-radar-filters {
   min-width: 0;
   display: flex;
@@ -629,9 +657,9 @@
   z-index: 8;
   top: calc(100% + 6px);
   right: 0;
-  width: min(620px, calc(100vw - 30px));
+  width: min(780px, calc(100vw - 30px));
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 11px;
   border: 1px solid var(--ws-border-strong);
@@ -1703,6 +1731,9 @@
   .discover-token-sort { min-width: 0; }
   .discover-token-sort button { min-width: 0; padding-inline: 9px; }
   .discover-timeframes button { min-width: 30px; min-height: 22px; padding-inline: 5px; }
+  .discover-market-scans { min-height: 38px; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 5px 8px; }
+  .discover-market-scans > span { display: none; }
+  .discover-market-scans button { min-height: 28px; padding-inline: 8px; }
   .discover-radar-filters { display: block; padding: 7px 8px; }
   .discover-refine-markets > summary { min-height: 38px; font-size: 9px; }
   .discover-refine-body { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: 7px; padding: 8px; }

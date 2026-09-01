@@ -219,7 +219,7 @@
 
         <section class="terminal-tape-panel">
           <header>
-            <div><span>Public venue flow</span><h2>Recent trades</h2></div>
+            <div><span>Public venue flow</span><h2>Recent txns</h2></div>
             <strong id="terminalTapeState">Connecting</strong>
           </header>
           <div class="terminal-tape-head"><span>Time</span><span>Price</span><span>Notional</span></div>
@@ -233,6 +233,11 @@
           <div class="terminal-alpha-stack" id="terminalAlphaStack"></div>
         </section>
 
+        <section class="terminal-raven-empty" id="terminalRavenEmptySection" tabindex="-1" hidden>
+          <header><div><span>Raven</span><h2>No current read</h2></div><strong>Forming</strong></header>
+          <p>Evidence is still forming.</p>
+        </section>
+
         <section class="terminal-spot-activity" id="terminalSpotActivitySection" tabindex="-1" hidden>
           <header>
             <div><span>Exact pool</span><h2>Txns & wallets</h2></div>
@@ -240,7 +245,7 @@
           </header>
           <nav class="terminal-activity-views" aria-label="Choose exact-pool activity view">
             <button type="button" data-spot-activity-view="trades" aria-controls="terminalSpotTradesView" aria-pressed="true">
-              <span>Live trades</span><small id="terminalActivityTradeCount">Current sample</small>
+              <span>Live txns</span><small id="terminalActivityTradeCount">Current sample</small>
             </button>
             <button type="button" data-spot-activity-view="wallets" aria-controls="terminalActiveTraders" aria-pressed="false">
               <span>Active wallets</span><small id="terminalActivityWalletCount">Returned sample</small>
@@ -597,6 +602,16 @@
             <button type="button" id="terminalSpotSell" data-spot-side="sell" aria-pressed="false">Sell</button>
           </div>
 
+          <div class="terminal-spot-asset-choice">
+            <span id="terminalSpotAssetPreferenceLabel">Pay</span>
+            <div role="group" aria-label="Funding or settlement asset">
+              <button type="button" class="active" data-spot-asset-preference="auto" aria-pressed="true">Auto</button>
+              <button type="button" data-spot-asset-preference="canonical_usdc" aria-pressed="false">USDC</button>
+              <button type="button" data-spot-asset-preference="native" aria-pressed="false" id="terminalSpotNativeAssetLabel">SOL</button>
+            </div>
+            <small id="terminalSpotAssetPreferenceState">→ USDC</small>
+          </div>
+
           <div class="terminal-preview-inputs terminal-spot-amount-row">
             <label>
               <span id="terminalSpotAmountLabel">Spend</span>
@@ -676,7 +691,7 @@
               </div>
 
               <details class="terminal-bracket terminal-quick-size-settings" id="terminalSpotQuickSizeSettings">
-                <summary><span>Customize USDC quick-buy sizes</span><strong>Saved on this device</strong></summary>
+                <summary><span id="terminalSpotQuickSizeLabel">Customize USDC sizes</span><strong>Saved here</strong></summary>
                 <div class="terminal-quick-size-editor" id="terminalSpotQuickSizeEditor">
                   <label><span>1</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="0" /></label>
                   <label><span>2</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="1" /></label>

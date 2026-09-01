@@ -157,6 +157,21 @@ test("sell percentages resolve only against a server balance snapshot", () => {
   assert.throws(() => createExactSolanaSpotIntent(input, server.market_authority), hasCode("spendable_token_balance_base_units_invalid"));
 });
 
+test("sell settlement can target native SOL without changing exact token sizing", () => {
+  const { input, server } = fixture();
+  input.side = "sell";
+  input.amount = { kind: "sell_percentage", percentage_bps: 5000 };
+  input.settlement = { kind: "native_sol" };
+  server.market_authority.spendable_token_balance_base_units = "100000000";
+  const intent = createExactSolanaSpotIntent(input, server.market_authority);
+  assert.equal(intent.economic_flow, "selected_token_to_native_sol");
+  assert.equal(intent.input_mint, TOKEN);
+  assert.equal(intent.output_mint, SOLANA_WRAPPED_NATIVE_MINT);
+  assert.equal(intent.settlement.kind, "native_sol");
+  assert.equal(intent.settlement.output_decimals, 9);
+  assert.equal(intent.amount.exact_input_amount_base_units, "50000000");
+});
+
 test("canonical USDC buys remain distinct from native SOL buys", () => {
   const { input, server } = fixture();
   input.amount = { kind: "canonical_usdc", display_amount: "500" };
@@ -186,6 +201,9 @@ test("client-supplied mint conversion and base-unit authority is rejected", () =
   assert.throws(() => createExactSolanaSpotIntent(input, server.market_authority), hasCode("client_authority_field_forbidden"));
   delete input.token_decimals;
   input.amount.base_units = "1";
+  assert.throws(() => createExactSolanaSpotIntent(input, server.market_authority), hasCode("client_authority_field_forbidden"));
+  delete input.amount.base_units;
+  input.settlement = { kind: "native_sol", mint: TOKEN };
   assert.throws(() => createExactSolanaSpotIntent(input, server.market_authority), hasCode("client_authority_field_forbidden"));
 });
 

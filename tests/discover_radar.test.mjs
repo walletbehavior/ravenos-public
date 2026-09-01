@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_MARKET_FACT_TARGET_SECONDS,
+  DISCOVER_REVIVAL_MIN_AGE_SECONDS,
+  DISCOVER_REVIVAL_SCAN_SCHEMA,
   buildDiscoverRadarProjection,
   mergeExactRadarRows,
   validateDiscoverRadarProjection,
@@ -319,6 +321,83 @@ test("a post-migration collapse with old-bundle selling and new low accumulation
   assert.equal(discovery.control_intelligence.new_bundle_accumulation.value, true);
   assert.match(discovery.decision_support.why_now, /rebuilding participation and price velocity/i);
   assert.match(discovery.decision_support.what_strengthens, /recorded low/i);
+});
+
+test("an old sub-5K market with multi-participant rate expansion qualifies for the revival scan", () => {
+  const row = pool({
+    pool_address: "0x0000000000000000000000000000000000000019",
+    market: {
+      market_cap_usd: 4_200,
+      liquidity_usd: 1_800,
+      market_age_seconds: 2 * 365 * 86_400,
+      price_change_5m_pct: 3.2,
+      price_change_1h_pct: 4.1,
+      volume_usd_5m: 900,
+      volume_usd_1h: 1_200,
+      buys_5m: 8,
+      sells_5m: 4,
+      buyers_5m: 6,
+      sellers_5m: 3,
+      buys_1h: 14,
+      sells_1h: 8,
+      buyers_1h: 10,
+      sellers_1h: 6,
+    },
+    registry: { observation_count: 1, first_seen_market_cap_usd: 4_000 },
+  });
+  const revival = build([row]).rows[0].discovery.revival_scan;
+  assert.equal(revival.schema_version, DISCOVER_REVIVAL_SCAN_SCHEMA);
+  assert.equal(revival.qualified, true);
+  assert.equal(revival.reason_code, "qualified");
+  assert.equal(revival.minimum_market_age_seconds, DISCOVER_REVIVAL_MIN_AGE_SECONDS);
+  assert.equal(revival.single_print_rejected, false);
+  assert.ok(revival.flow_signal_count >= 2);
+  assert.equal(revival.historical_series_claimed, false);
+  assert.equal(revival.theme_catalyst_identified, false);
+});
+
+test("one print cannot manufacture an old-token revival", () => {
+  const row = pool({
+    pool_address: "0x0000000000000000000000000000000000000020",
+    market: {
+      market_cap_usd: 8_500,
+      liquidity_usd: 2_400,
+      market_age_seconds: 400 * 86_400,
+      price_change_5m_pct: 20,
+      price_change_1h_pct: 20,
+      volume_usd_5m: 700,
+      volume_usd_1h: 700,
+      buys_5m: 1,
+      sells_5m: 0,
+      buyers_5m: 1,
+      sellers_5m: 0,
+      buys_1h: 1,
+      sells_1h: 0,
+      buyers_1h: 1,
+      sellers_1h: 0,
+    },
+  });
+  const revival = build([row]).rows[0].discovery.revival_scan;
+  assert.equal(revival.qualified, false);
+  assert.equal(revival.reason_code, "activity_too_thin");
+  assert.equal(revival.single_print_rejected, true);
+});
+
+test("microcap rankings keep sub-5K and 5K-to-10K markets in distinct peer cohorts", () => {
+  const rows = [
+    pool({
+      pool_address: "0x0000000000000000000000000000000000000021",
+      market: { market_cap_usd: 4_900, liquidity_usd: 900 },
+    }),
+    pool({
+      pool_address: "0x0000000000000000000000000000000000000022",
+      market: { market_cap_usd: 5_100, liquidity_usd: 900 },
+    }),
+  ];
+  const projection = build(rows);
+  assert.match(projection.rows[0].discovery.cohort_key, /:under_5k:under_1k:/);
+  assert.match(projection.rows[1].discovery.cohort_key, /:5k_10k:under_1k:/);
+  assert.notEqual(projection.rows[0].discovery.cohort_key, projection.rows[1].discovery.cohort_key);
 });
 
 test("a 25 percent move with distribution and thinning liquidity is capped and labeled as distribution", () => {

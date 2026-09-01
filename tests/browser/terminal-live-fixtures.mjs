@@ -799,7 +799,7 @@ export async function mockTerminalLiveApis(page, {
           candle_recency_state: quietExactPool ? "delayed" : "current",
           market_activity_state: quietExactPool ? "no_recent_trades" : "active",
           chart_state: quietExactPool ? "current_no_recent_trades" : "current",
-          operator_label: quietExactPool ? "No recent trades" : "Current",
+          operator_label: quietExactPool ? "No recent txns" : "Current",
           last_candle_age_seconds: quietExactPool ? 1_320 : 0,
         } : null,
         timeframe,
@@ -1057,7 +1057,12 @@ export async function mockTerminalLiveApis(page, {
     const now = Date.now();
     const sell = input.side === "sell";
     const percent = Number(input.sell_percent || 0);
-    const outputMint = spotQuoteOutputMint || (sell ? "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" : input.token_address);
+    const requestedPreference = sell ? input.settlement_preference : input.funding_preference;
+    const selectedPreference = requestedPreference === "native" ? "native" : "canonical_usdc";
+    const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const nativeMint = "So11111111111111111111111111111111111111112";
+    const inputMint = sell ? input.token_address : selectedPreference === "native" ? nativeMint : usdcMint;
+    const outputMint = spotQuoteOutputMint || (sell ? selectedPreference === "native" ? nativeMint : usdcMint : input.token_address);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1066,6 +1071,16 @@ export async function mockTerminalLiveApis(page, {
         schema_version: "ravenos.solana_spot_quote_review.v1",
         state: "quote_review_available",
         review_available: true,
+        asset_preference: {
+          schema_version: "ravenos.spot_asset_preference_selection.v1",
+          side: input.side,
+          requested: requestedPreference,
+          selected: selectedPreference,
+          selected_symbol: selectedPreference === "native" ? "SOL" : "USDC",
+          resolution: requestedPreference === "auto" ? "chain_local_canonical_usdc_baseline" : "user_selected",
+          cross_chain_funding_evaluated: false,
+          canonical_usdc_identity_verified: selectedPreference === "canonical_usdc",
+        },
         intent: {
           exact_market: {
             instrument_id: input.instrument_id,
@@ -1074,8 +1089,9 @@ export async function mockTerminalLiveApis(page, {
             quote_address: input.quote_address,
           },
           side: input.side,
+          input_mint: inputMint,
           output_mint: outputMint,
-          amount: { kind: sell ? "sell_percentage" : "native_sol", sell_percentage_bps: sell ? percent * 100 : null },
+          amount: { kind: sell ? "sell_percentage" : selectedPreference === "native" ? "native_sol" : "canonical_usdc", sell_percentage_bps: sell ? percent * 100 : null },
         },
         quote: {
           quote_id: `fixture-spot-${input.side}-${sell ? percent : input.display_amount}`,
@@ -1101,6 +1117,7 @@ export async function mockTerminalLiveApis(page, {
           schema_version: "ravenos.universal_shadow_execution.v1",
           mode: "shadow",
           route_state: "exit_verified",
+          source_valuation_route: selectedPreference === "native" ? { expires_at: new Date(now + spotExitQuoteTtlMs).toISOString() } : null,
           round_trip: {
             state: "friction_incomplete",
             expires_at: new Date(now + spotExitQuoteTtlMs).toISOString(),

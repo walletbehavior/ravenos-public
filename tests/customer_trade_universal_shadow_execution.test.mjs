@@ -18,6 +18,7 @@ const NOW = "2026-08-29T03:00:00.000Z";
 const EXPIRY = "2026-08-29T03:00:20.000Z";
 const TOKEN = "3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj";
 const SOURCE = `solana:mainnet:spl:${CanonicalUsdcRegistry.solana.address}`;
+const NATIVE = "solana:mainnet:native:SOL";
 const DESTINATION = `solana:mainnet:spl:${TOKEN}`;
 
 function request(amount = 500) {
@@ -71,6 +72,22 @@ test("a universal request uses exact destination identity and never a ticker as 
   assert.equal(value.submission_requested, false);
 });
 
+test("a native funding leg remains explicit while canonical USDC stays the economic accounting asset", () => {
+  const value = createUniversalQuoteRequest({
+    request_id: "request-native-sol",
+    requested_at: NOW,
+    source_amount_usdc: 50,
+    funding_selection: "chain_local_native",
+    funding_asset: { chain: "solana", network: "mainnet", address: "native", standard: "native", symbol: "SOL" },
+    destination_asset: { chain: "solana", network: "mainnet", address: TOKEN, standard: "spl", exact_market_id: "solana:pool:exact-bitcat-pool", symbol: "BITCAT" },
+  });
+  assert.equal(value.source_economic_asset, "canonical_usdc");
+  assert.equal(value.funding_selection, "chain_local_native");
+  assert.equal(value.funding_asset.address, "native");
+  assert.equal(value.funding_asset.standard, "native");
+  assert.equal(value.funding_asset.symbol, "SOL");
+});
+
 test("route selection is deterministic and provider ordering cannot choose the winner", () => {
   const expensive = route({ candidate_id: "aaa", minimum_output: 18_700, costs_usdc: { network: 1, bridge: 1, provider: 1, raven: 0 } });
   const efficient = route({ candidate_id: "zzz", minimum_output: 18_900, costs_usdc: { network: 0.2, bridge: 0, provider: 0, raven: 0 } });
@@ -107,6 +124,25 @@ test("round-trip proof uses executable reverse USDC, not marked price", () => {
   assert.equal(proof.current_executable_liquidation_usdc, 491.41);
   assert.equal(proof.marked_value_used_as_liquidation_value, false);
   assert.ok(proof.round_trip_friction_pct > 1.7 && proof.round_trip_friction_pct < 1.9);
+});
+
+test("native funding uses an executable source valuation and canonical USDC exit without pretending the assets match", () => {
+  const entry = route({ source_asset_id: NATIVE, expected_output: 2_500, minimum_output: 2_480 });
+  const exit = route({ candidate_id: "native-exit", source_asset_id: DESTINATION, destination_asset_id: SOURCE, expected_output: 49.1, minimum_output: 48.7, costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 } });
+  const valuation = route({ candidate_id: "native-valuation", source_asset_id: NATIVE, destination_asset_id: SOURCE, expected_output: 50, minimum_output: 49.8, costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 } });
+  const proof = createRoundTripProof({ spend_usdc: 50, entry, exit, source_valuation: valuation, observed_at: NOW });
+  assert.equal(proof.state, "friction_incomplete");
+  assert.equal(proof.exit_verified, true);
+  assert.equal(proof.physical_round_trip, false);
+  assert.equal(proof.economic_settlement_asset_id, SOURCE);
+  assert.equal(proof.current_executable_liquidation_usdc, 49.1);
+  assert.equal(proof.source_valuation_expected_usdc, 50);
+  assert.equal(proof.source_valuation_minimum_usdc, 49.8);
+  assert.ok(Math.abs(proof.quote_only_round_trip_loss_pct - 1.8) < 1e-9);
+  assert.throws(
+    () => createRoundTripProof({ spend_usdc: 50, entry, exit, observed_at: NOW }),
+    /round_trip_source_valuation_required/,
+  );
 });
 
 test("a verified exit with unpriced network cost remains non-executable shadow evidence", () => {

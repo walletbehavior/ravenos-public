@@ -198,7 +198,7 @@ function participationPayoffProjection() {
 test("Raven Lab gives aggregate behavior a distinct job without preserving the old evidence directory", async ({ page }) => {
   await page.goto("/intelligence/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h");
   await expect(page.getByRole("heading", { name: "Test the behavior behind a setup." })).toBeVisible();
-  await expect(page.locator(".intelligence-hub")).toContainText(/Discover finds the market.*Terminal explains the exact setup.*Raven Lab lets you test/s);
+  await expect(page.locator(".intelligence-hub")).toContainText(/Find the market.*Test the behavior.*Return to the chart/s);
   for (const [href, count] of [["/behavior/", 2], ["/perps/#perpsIntelligence", 1], ["/discover/", 1], ["/terminal/", 1]]) {
     await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(count);
   }

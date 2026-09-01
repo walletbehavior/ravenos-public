@@ -20,8 +20,10 @@ const SPOT_ACTIVITY_VIEWS = new Set(["trades", "wallets"]);
 const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const SPOT_TICKET_STORAGE_KEY = "ravenos.universal_shadow_ticket_preferences.v1";
 const DEFAULT_SPOT_BUY_SIZES = Object.freeze([10, 50, 100, 500]);
+const DEFAULT_SPOT_NATIVE_BUY_SIZES = Object.freeze([0.1, 0.5, 1, 2]);
 const SPOT_PLAN_SOURCES = new Set(["raven_exact_market", "user_preset", "custom"]);
 const SOLANA_CANONICAL_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_WRAPPED_NATIVE_MINT = "So11111111111111111111111111111111111111112";
 const SPOT_TRADE_REFRESH_MS = 5_000;
 const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
@@ -147,6 +149,17 @@ function boundedSpotBuySize(value) {
     : null;
 }
 
+function boundedSpotNativeBuySize(value) {
+  const amount = finite(value);
+  return amount !== null && amount >= 0.001 && amount <= 50
+    ? Number(amount.toFixed(4))
+    : null;
+}
+
+function spotAssetPreference(value) {
+  return new Set(["auto", "canonical_usdc", "native"]).has(value) ? value : "auto";
+}
+
 function boundedSpotPreference(value, fallback, { minimum, maximum } = {}) {
   const amount = finite(value);
   return amount !== null && amount >= minimum && amount <= maximum ? amount : fallback;
@@ -164,9 +177,16 @@ function loadSpotTicketPreferences() {
     ? stored.buy_sizes_usdc.slice(0, 4).map(boundedSpotBuySize)
     : [];
   while (buySizes.length < 4) buySizes.push(DEFAULT_SPOT_BUY_SIZES[buySizes.length]);
+  const nativeBuySizes = Array.isArray(stored?.buy_sizes_native)
+    ? stored.buy_sizes_native.slice(0, 4).map(boundedSpotNativeBuySize)
+    : [];
+  while (nativeBuySizes.length < 4) nativeBuySizes.push(DEFAULT_SPOT_NATIVE_BUY_SIZES[nativeBuySizes.length]);
   state.spotTicketPreferences = {
     schema_version: "ravenos.universal_shadow_ticket_preferences.v1",
     buy_sizes_usdc: buySizes.map((value, index) => value ?? DEFAULT_SPOT_BUY_SIZES[index]),
+    buy_sizes_native: nativeBuySizes.map((value, index) => value ?? DEFAULT_SPOT_NATIVE_BUY_SIZES[index]),
+    funding_preference: spotAssetPreference(stored?.funding_preference),
+    settlement_preference: spotAssetPreference(stored?.settlement_preference),
     take_profit_pct: boundedSpotPreference(stored?.take_profit_pct, 25, { minimum: 0.1, maximum: 1_000 }),
     stop_loss_pct: boundedSpotPreference(stored?.stop_loss_pct, 12, { minimum: 0.1, maximum: 99 }),
     slippage_bps: boundedSpotPreference(stored?.slippage_bps, 50, { minimum: 5, maximum: 300 }),
@@ -542,7 +562,7 @@ function renderTerminalTape(rows = state.tapeRows) {
     }
     host.append(line);
   }
-  setText("terminalTapeState", `${safeRows.length} public trades`);
+  setText("terminalTapeState", `${safeRows.length} public txns`);
 }
 
 function resetTerminalMarketFlow() {
@@ -660,7 +680,7 @@ function terminalPaneSurface(pane) {
     holders: "#terminalAnatomySection",
     trade: state.lane === "spot" ? "#terminalSpotTicketSection" : "#terminalTradeReviewSection",
     book: "#terminalMarketRail",
-    raven: "#terminalContextSection",
+    raven: "#terminalContextSection:not([hidden]), #terminalAlphaSection:not([hidden]), #terminalPlanSection:not([hidden]), #terminalRavenEmptySection:not([hidden])",
     account: "#terminalAccountDock",
   };
   return document.querySelector(targets[pane] || targets.chart);
@@ -1386,6 +1406,7 @@ function setAnatomyRows(rows = []) {
 function currentRavenPaneSurface() {
   const surfaces = [
     ["terminalContextSection", "Current", "positive"],
+    ["terminalAlphaSection", "Current", "positive"],
     ["terminalPlanSection", "Plan current", "positive"],
   ];
   return surfaces.find(([id]) => document.getElementById(id)?.hidden === false) || null;
@@ -1393,15 +1414,16 @@ function currentRavenPaneSurface() {
 
 function syncRavenPaneAvailability() {
   const availableSurface = currentRavenPaneSurface();
+  const emptySurface = document.getElementById("terminalRavenEmptySection");
   const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
-  if (ravenButton) ravenButton.disabled = !availableSurface;
+  if (emptySurface) emptySurface.hidden = Boolean(availableSurface);
+  if (ravenButton) ravenButton.disabled = false;
   setTerminalPaneStatus(
     "raven",
-    availableSurface?.[1] || "No current read",
+    availableSurface?.[1] || "Forming",
     availableSurface?.[2] || "neutral",
   );
-  if (!availableSurface && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven") setTerminalPane("chart");
-  return Boolean(availableSurface);
+  return true;
 }
 
 function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven Read" } = {}) {
@@ -2112,7 +2134,7 @@ function renderSourceDetails(workspace = state.workspace?.state || {}) {
   const candleFreshness = workspace?.candleFreshnessState || series.freshness_state || candleAudit.freshness_state || workspace?.state || "unavailable";
   const activity = workspace?.marketActivityState;
   const activityLabel = activity === "no_recent_trades"
-    ? "no recent trades"
+    ? "no recent txns"
     : activity === "activity_reported_chart_lagging"
       ? "chart catching up"
       : activity === "active"
@@ -4663,7 +4685,11 @@ function focusTerminalRaven() {
     ? document.getElementById("terminalContextSection")
     : document.getElementById("terminalAlphaSection")?.hidden === false
       ? document.getElementById("terminalAlphaSection")
-      : null;
+      : document.getElementById("terminalPlanSection")?.hidden === false
+        ? document.getElementById("terminalPlanSection")
+        : document.getElementById("terminalRavenEmptySection")?.hidden === false
+          ? document.getElementById("terminalRavenEmptySection")
+          : null;
   if (!target) return false;
   if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
@@ -5375,6 +5401,59 @@ function nativeCurrencyForChain(chain) {
   })[String(chain || "").toLowerCase()] || "NATIVE";
 }
 
+function activeSpotAssetPreference(side = state.spotTicketSide) {
+  const preferences = loadSpotTicketPreferences();
+  return side === "sell" ? preferences.settlement_preference : preferences.funding_preference;
+}
+
+function selectedSpotAssetKind(side = state.spotTicketSide) {
+  return activeSpotAssetPreference(side) === "native" ? "native" : "canonical_usdc";
+}
+
+function activeSpotBuySizeConfig() {
+  const native = selectedSpotAssetKind("buy") === "native";
+  const preferences = loadSpotTicketPreferences();
+  return {
+    key: native ? "buy_sizes_native" : "buy_sizes_usdc",
+    values: native ? preferences.buy_sizes_native : preferences.buy_sizes_usdc,
+    defaults: native ? DEFAULT_SPOT_NATIVE_BUY_SIZES : DEFAULT_SPOT_BUY_SIZES,
+    symbol: native ? nativeCurrencyForChain(currentProjectIdentity()?.chain) : "USDC",
+    native,
+  };
+}
+
+function syncSpotAssetPreferenceControls() {
+  const identity = currentProjectIdentity();
+  const nativeSymbol = nativeCurrencyForChain(identity?.chain);
+  const side = state.spotTicketSide === "sell" ? "sell" : "buy";
+  const preference = activeSpotAssetPreference(side);
+  const selectedKind = selectedSpotAssetKind(side);
+  setText("terminalSpotAssetPreferenceLabel", side === "buy" ? "Pay" : "Receive");
+  setText("terminalSpotNativeAssetLabel", nativeSymbol);
+  const preferenceState = document.getElementById("terminalSpotAssetPreferenceState");
+  if (preferenceState) preferenceState.hidden = preference !== "auto" || !spotTicketQualified();
+  setText("terminalSpotAssetPreferenceState", "→ USDC");
+  for (const button of document.querySelectorAll("[data-spot-asset-preference]")) {
+    const active = button.dataset.spotAssetPreference === preference;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.disabled = !spotTicketQualified();
+  }
+}
+
+function setSpotAssetPreference(preference) {
+  const next = spotAssetPreference(preference);
+  const key = state.spotTicketSide === "sell" ? "settlement_preference" : "funding_preference";
+  saveSpotTicketPreferences({ [key]: next });
+  setText("terminalSpotBalance", state.solanaWalletConnected ? "Read on quote" : "Not verified");
+  const input = document.getElementById("terminalSpotAmount");
+  if (input && state.spotTicketSide === "buy") input.value = String(activeSpotBuySizeConfig().values[1]);
+  syncSpotAssetPreferenceControls();
+  renderSpotQuickSizes();
+  syncSpotTicketControls();
+  clearSpotQuoteResult(`${next === "auto" ? "Auto" : next === "native" ? nativeCurrencyForChain(currentProjectIdentity()?.chain) : "USDC"} selected. Review a new route.`);
+}
+
 function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) {
   const connected = state.solanaWalletConnected && Boolean(state.solanaWalletAddress);
   for (const item of document.querySelectorAll("#terminalSpotExecutionRail [data-terminal-step]")) {
@@ -5431,13 +5510,14 @@ function syncSpotAdvancedSummary() {
 
 function renderSpotQuickSizes() {
   const preferences = loadSpotTicketPreferences();
+  const sizeConfig = activeSpotBuySizeConfig();
   const host = document.getElementById("terminalSpotBuyPresets");
   if (host) {
-    host.replaceChildren(...preferences.buy_sizes_usdc.map((amount) => {
+    host.replaceChildren(...sizeConfig.values.map((amount) => {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.spotBuyAmount = String(amount);
-      button.textContent = `$${amount}`;
+      button.textContent = sizeConfig.native ? `${amount} ${sizeConfig.symbol}` : `$${amount}`;
       button.addEventListener("click", () => {
         const input = document.getElementById("terminalSpotAmount");
         if (input) {
@@ -5453,8 +5533,12 @@ function renderSpotQuickSizes() {
   }
   for (const input of document.querySelectorAll("[data-spot-buy-size-index]")) {
     const index = Number(input.dataset.spotBuySizeIndex);
-    input.value = String(preferences.buy_sizes_usdc[index] ?? DEFAULT_SPOT_BUY_SIZES[index]);
+    input.value = String(sizeConfig.values[index] ?? sizeConfig.defaults[index]);
+    input.min = sizeConfig.native ? "0.001" : "1";
+    input.max = sizeConfig.native ? "50" : "100000";
+    input.step = sizeConfig.native ? "0.001" : "1";
   }
+  setText("terminalSpotQuickSizeLabel", `Customize ${sizeConfig.symbol} sizes`);
   const tp = document.getElementById("terminalSpotTakeProfitPct");
   const sl = document.getElementById("terminalSpotStopLossPct");
   const slippage = document.getElementById("terminalSpotSlippage");
@@ -5563,6 +5647,8 @@ function spotTicketSnapshot() {
     token_address: identity.tokenAddress,
     quote_address: identity.quoteAddress,
     side: state.spotTicketSide,
+    funding_preference: activeSpotAssetPreference("buy"),
+    settlement_preference: activeSpotAssetPreference("sell"),
     display_amount: state.spotSellPercent ? null : String(amount || ""),
     sell_percent: state.spotTicketSide === "sell" ? state.spotSellPercent : null,
     wallet_address: state.solanaWalletConnected ? state.solanaWalletAddress : null,
@@ -5632,13 +5718,25 @@ function spotQuoteResponseMatches(payload, snapshot) {
     && sameSelectedAddress("solana", exact.token_address, snapshot.token_address)
     && sameSelectedAddress("solana", exact.quote_address, snapshot.quote_address)
     && String(payload?.intent?.side || "").toLowerCase() === snapshot.side;
-  const expectedOutputMint = snapshot.side === "buy" ? snapshot.token_address : SOLANA_CANONICAL_USDC_MINT;
+  const requestedPreference = snapshot.side === "buy" ? snapshot.funding_preference : snapshot.settlement_preference;
+  const selectedKind = requestedPreference === "native" ? "native" : "canonical_usdc";
+  const preference = payload?.asset_preference || {};
+  const expectedOutputMint = snapshot.side === "buy"
+    ? snapshot.token_address
+    : selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT;
+  const expectedInputMint = snapshot.side === "buy"
+    ? selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT
+    : snapshot.token_address;
+  const inputMint = String(payload?.quote?.input_mint || payload?.intent?.input_mint || "");
   const outputMint = String(payload?.quote?.output_mint || payload?.intent?.output_mint || "");
   const fee = payload.fee_disclosure || payload.fee_policy || payload?.quote?.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
   const expiresAt = spotQuoteEffectiveExpiry(payload);
   return sameIdentity
+    && preference.requested === requestedPreference
+    && preference.selected === selectedKind
+    && sameSelectedAddress("solana", inputMint, expectedInputMint)
     && sameSelectedAddress("solana", outputMint, expectedOutputMint)
     && configuredFeeBps !== null
     && actualFeeBps !== null
@@ -5653,6 +5751,7 @@ function spotQuoteEffectiveExpiry(payload) {
     payload?.shadow_execution?.round_trip?.expires_at,
     payload?.shadow_execution?.entry_route?.expires_at,
     payload?.shadow_execution?.exit_route?.expires_at,
+    payload?.shadow_execution?.source_valuation_route?.expires_at,
   ].filter((value) => value !== null && value !== undefined && String(value).trim());
   if (!values.length) return Number.NaN;
   const parsed = values.map((value) => Date.parse(value));
@@ -5671,29 +5770,41 @@ function syncSpotTicketControls() {
   }
   const side = state.spotTicketSide === "sell" ? "sell" : "buy";
   const symbol = String(state.selected?.symbol || "TOKEN").toUpperCase();
+  const nativeSymbol = nativeCurrencyForChain(identity?.chain);
+  const assetPreference = activeSpotAssetPreference(side);
+  const selectedAssetKind = selectedSpotAssetKind(side);
+  const selectedAssetSymbol = selectedAssetKind === "native" ? nativeSymbol : "USDC";
   setText("terminalSpotTicketEyebrow", `${chainDisplayName(identity?.chain)} · ${qualified ? "route review" : "trading status"}`);
   if (section) section.dataset.adapterState = qualified ? "active" : "pending";
   const adapterNotice = document.getElementById("terminalSpotAdapterNotice");
   if (adapterNotice) adapterNotice.hidden = qualified;
   if (!qualified) {
-    setText("terminalSpotAdapterTitle", `${chainDisplayName(identity?.chain)} trading is next`);
-    setText("terminalSpotAdapterCopy", `RavenOS resolved this exact ${chainDisplayName(identity?.chain)} market without substitution. Charts, holders, links, and Raven context remain usable while its reviewed noncustodial quote adapter is completed.`);
+    setText("terminalSpotAdapterTitle", `${chainDisplayName(identity?.chain)} route pending`);
+    setText("terminalSpotAdapterCopy", "Charts and wallet data are live. Trading is not.");
   }
   const buyPresets = document.getElementById("terminalSpotBuyPresets");
   const sellPresets = document.getElementById("terminalSpotSellPresets");
   if (buyPresets) buyPresets.hidden = side !== "buy";
   if (sellPresets) sellPresets.hidden = side !== "sell";
   setText("terminalSpotTicketTitle", qualified
-    ? `${side === "buy" ? "Review buying" : "Review selling"} ${symbol} ${side === "buy" ? "with USDC" : "back to USDC"}`
+    ? side === "buy"
+      ? `Buy ${symbol} with ${assetPreference === "auto" ? "Auto" : selectedAssetSymbol}`
+      : `Sell ${symbol} to ${assetPreference === "auto" ? "Auto" : selectedAssetSymbol}`
     : `${chainDisplayName(identity?.chain)} trade adapter`);
   setText("terminalSpotAmountLabel", side === "buy" ? "Spend" : "Sell amount");
-  setText("terminalSpotAmountUnit", side === "buy" ? "USDC" : symbol);
-  setText("terminalSpotBalanceUnit", side === "buy" ? "USDC" : symbol);
+  setText("terminalSpotAmountUnit", side === "buy" ? selectedAssetSymbol : symbol);
+  setText("terminalSpotBalanceUnit", side === "buy" ? selectedAssetSymbol : symbol);
+  setText("terminalSpotQuoteOutputLabel", side === "buy" ? "Expected token" : `Expected ${selectedAssetSymbol}`);
+  const quoteStep = document.querySelector('#terminalSpotExecutionRail [data-terminal-step="quote"] strong');
+  const reviewStep = document.querySelector('#terminalSpotExecutionRail [data-terminal-step="review"] small');
+  if (quoteStep) quoteStep.textContent = side === "buy" ? "Buy quote" : "Sell quote";
+  if (reviewStep) reviewStep.textContent = side === "buy" ? "Back to USDC" : `To ${selectedAssetSymbol}`;
   const action = document.getElementById("terminalSpotQuoteAction");
   if (action) {
-    action.textContent = qualified ? side === "buy" ? "Review buy + exit" : "Review USDC exit" : `${chainDisplayName(identity?.chain)} route adapter pending`;
+    action.textContent = qualified ? side === "buy" ? "Review buy + exit" : `Review ${selectedAssetSymbol} exit` : `${chainDisplayName(identity?.chain)} route pending`;
     action.disabled = !qualified;
   }
+  syncSpotAssetPreferenceControls();
   for (const button of document.querySelectorAll("[data-spot-side]")) {
     const active = button.dataset.spotSide === side;
     button.classList.toggle("active", active);
@@ -5704,6 +5815,11 @@ function syncSpotTicketControls() {
   if (amountInput) {
     amountInput.disabled = !qualified || side === "sell";
     amountInput.placeholder = side === "sell" ? "Choose a wallet percentage below" : "";
+    if (side === "buy") {
+      amountInput.min = selectedAssetKind === "native" ? "0.001" : "1";
+      amountInput.max = selectedAssetKind === "native" ? "50" : "100000";
+      amountInput.step = selectedAssetKind === "native" ? "0.001" : "1";
+    }
   }
   const walletButton = document.getElementById("terminalSpotWalletConnect");
   if (walletButton) walletButton.disabled = !qualified;
@@ -5726,7 +5842,7 @@ function syncSpotTicketControls() {
   if (!qualified) {
     const adapterState = state.flags?.trade_adapter_states?.[identity?.chain] || "adapter_pending";
     setText("terminalSpotQuoteState", titleCase(adapterState, "Adapter pending"));
-    setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} market identity, charts, holders, and Raven context stay available. Its noncustodial quote adapter is not active yet, so no substitute chain or route is used.`);
+    setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} route unavailable.`);
     setText("terminalSpotActiveFee", "Shown when adapter qualifies");
     setText("terminalSpotProFee", "Pro discount preserved");
     setText("terminalSpotFeeCompact", "Pending");
@@ -5741,14 +5857,16 @@ function setSpotTicketSide(side) {
   const next = side === "sell" ? "sell" : "buy";
   state.spotTicketSide = next;
   state.spotSellPercent = null;
+  setText("terminalSpotBalance", state.solanaWalletConnected ? "Read on quote" : "Not verified");
   const advanced = document.getElementById("terminalSpotAdvanced");
   if (advanced && next === "sell") advanced.open = true;
   const input = document.getElementById("terminalSpotAmount");
   if (input) {
     input.disabled = next === "sell";
     input.placeholder = next === "sell" ? "Choose a wallet percentage below" : "";
-    input.value = next === "buy" ? String(loadSpotTicketPreferences().buy_sizes_usdc[1]) : "";
+    input.value = next === "buy" ? String(activeSpotBuySizeConfig().values[1]) : "";
   }
+  renderSpotQuickSizes();
   syncSpotTicketControls();
   clearSpotQuoteResult(`${next === "buy" ? "Buy" : "Sell"} selected. Review a new exact route.`);
 }
@@ -5812,6 +5930,7 @@ function spotQuoteReason(reason) {
     sell_balance_required: "Connect a wallet for percentage sizing or enter an exact token amount.",
     insufficient_balance: "That percentage or amount exceeds the current exact-token balance.",
     selected_mint_unavailable: "Token decimals could not be verified from the configured Solana RPC.",
+    native_source_valuation_unavailable: "SOL entry value could not be verified against USDC. No partial route was shown.",
     jito_not_available: "Jito routing is not available in quote/review mode.",
   };
   return messages[String(reason || "")] || "A current exact route is unavailable. Nothing was prepared.";
@@ -5878,7 +5997,9 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const outputMint = String(quote.output_mint || payload?.intent?.output_mint || "");
   const outputSymbol = sameSelectedAddress("solana", outputMint, SOLANA_CANONICAL_USDC_MINT)
     ? "USDC"
-    : String(state.selected?.symbol || "TOKEN");
+    : sameSelectedAddress("solana", outputMint, SOLANA_WRAPPED_NATIVE_MINT)
+      ? "SOL"
+      : String(state.selected?.symbol || "TOKEN");
   setText("terminalSpotQuoteOutput", displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol));
   setText("terminalSpotQuoteMinimum", `Minimum ${displayQuoteAmount(quote.minimum_output_display ?? quote.minimum_output ?? quote.minimum, outputSymbol)}`);
   setText("terminalSpotQuoteImpact", finite(quote.price_impact_bps) === null ? "Not reported" : `${Number(quote.price_impact_bps).toFixed(2)} bps`);
@@ -5900,7 +6021,10 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const exitValue = finite(roundTrip?.current_executable_liquidation_usdc);
   const friction = finite(roundTrip?.round_trip_friction_pct);
   const quoteOnlyLoss = finite(roundTrip?.quote_only_round_trip_loss_pct);
-  setText("terminalSpotQuoteExit", exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`);
+  const sellExit = state.spotTicketSide === "sell"
+    ? displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol)
+    : null;
+  setText("terminalSpotQuoteExit", sellExit || (exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`));
   setText("terminalSpotQuoteFrictionLabel", friction === null && quoteOnlyLoss !== null ? "Before network costs" : "Round-trip friction");
   setText("terminalSpotQuoteFriction", friction !== null
     ? `${friction.toFixed(2)}%`
@@ -5911,7 +6035,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   setSpotTicketExitSummary(
     roundTrip?.exit_verified || state.spotTicketSide === "sell" ? "current" : "unavailable",
     roundTrip?.exit_verified ? "Verified now" : state.spotTicketSide === "sell" ? "Current exit" : "Not verified",
-    roundTrip?.exit_verified ? "Entry + reverse route" : state.spotTicketSide === "sell" ? "Token back to USDC" : "Buy remains unavailable",
+    roundTrip?.exit_verified ? "Entry + USDC exit" : state.spotTicketSide === "sell" ? `Token → ${outputSymbol}` : "Buy remains unavailable",
   );
   const result = document.getElementById("terminalSpotQuoteResult");
   if (result) {
@@ -5920,14 +6044,15 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   }
   setText("terminalSpotQuoteState", "Current quote");
   setText("terminalSpotQuoteMessage", roundTrip?.exit_verified
-    ? "Entry and immediate reverse liquidation are verified against current quotes. Network cost remains separate when it cannot yet be priced. Nothing was constructed, signed, or sent."
+    ? "Entry + USDC exit verified. Review only."
     : state.spotTicketSide === "buy"
-      ? "An entry quote exists, but Raven could not prove the reverse USDC route. Shadow trade remains unavailable."
-      : "This current token-to-USDC exit route is review-only. Nothing was constructed, signed, or sent.");
+      ? "USDC exit unresolved. Buy unavailable."
+      : `Current ${outputSymbol} exit. Review only.`);
   const balance = payload.balance || {};
   if (balance.available === true) {
     const balanceAmount = balance.amount && typeof balance.amount === "object" ? balance.amount.display : balance.display ?? balance.amount;
     setText("terminalSpotBalance", balanceAmount);
+    setText("terminalSpotBalanceUnit", balance.amount?.symbol || document.getElementById("terminalSpotBalanceUnit")?.textContent);
   }
   updateSpotExecutionRail({ quoted: true, exitVerified: roundTrip?.exit_verified === true || state.spotTicketSide === "sell" });
   scheduleSpotQuoteExpiry(payload);
@@ -7347,6 +7472,9 @@ function bindControls() {
   for (const button of document.querySelectorAll("[data-spot-side]")) {
     button.addEventListener("click", () => setSpotTicketSide(button.dataset.spotSide));
   }
+  for (const button of document.querySelectorAll("[data-spot-asset-preference]")) {
+    button.addEventListener("click", () => setSpotAssetPreference(button.dataset.spotAssetPreference));
+  }
   for (const button of document.querySelectorAll("[data-spot-sell-pct]")) {
     button.addEventListener("click", () => {
       if (!state.solanaWalletConnected) return;
@@ -7368,11 +7496,11 @@ function bindControls() {
   }
   for (const input of document.querySelectorAll("[data-spot-buy-size-index]")) {
     input.addEventListener("change", () => {
-      const preferences = loadSpotTicketPreferences();
-      const next = [...preferences.buy_sizes_usdc];
+      const sizeConfig = activeSpotBuySizeConfig();
+      const next = [...sizeConfig.values];
       const index = Number(input.dataset.spotBuySizeIndex);
-      next[index] = boundedSpotBuySize(input.value) ?? next[index];
-      saveSpotTicketPreferences({ buy_sizes_usdc: next });
+      next[index] = (sizeConfig.native ? boundedSpotNativeBuySize(input.value) : boundedSpotBuySize(input.value)) ?? next[index];
+      saveSpotTicketPreferences({ [sizeConfig.key]: next });
       renderSpotQuickSizes();
       clearSpotQuoteResult("Quick-buy sizes updated on this device.");
     });
@@ -7688,6 +7816,8 @@ async function boot() {
       spotQuoteCurrent: spotQuoteStillCurrent(),
       spotQuoteFollowing: state.spotQuoteFollow,
       spotPlanSource: state.spotTicketPlanSource,
+      spotFundingPreference: activeSpotAssetPreference("buy"),
+      spotSettlementPreference: activeSpotAssetPreference("sell"),
       spotWalletConnected: state.solanaWalletConnected,
       signingAvailable: false,
       submissionAvailable: false,

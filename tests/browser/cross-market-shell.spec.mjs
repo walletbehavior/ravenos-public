@@ -1235,6 +1235,114 @@ test("Discover keeps ordinary provider activity out of the default shortlist but
   await expect(row).toContainText("+0.80%");
 });
 
+test("Discover scans sub-5K and sub-10K markets and rejects one-print revival noise", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const microcap = ({
+    symbol,
+    suffix,
+    marketCap,
+    ageDays,
+    holderCount,
+    liquidity,
+    volume5m,
+    buys5m,
+    sells5m,
+    move5m,
+    singlePrint = false,
+  }) => {
+    const row = structuredClone(evmPulseRows[0]);
+    row.public_attention_id = `market:base:0x${suffix.padStart(40, "0")}`;
+    row.instrument_id = `base:pool:0x${suffix.padStart(40, "0")}`;
+    row.pool_address = `0x${suffix.padStart(40, "0")}`;
+    row.token_address = `0x${`${Number(suffix) + 100}`.padStart(40, "0")}`;
+    row.symbol = symbol;
+    row.name = symbol;
+    row.market = {
+      ...row.market,
+      price_usd: 0.0000042,
+      market_cap_usd: marketCap,
+      holder_count: holderCount,
+      liquidity_usd: liquidity,
+      market_age_seconds: ageDays * 86_400,
+      price_change_5m_pct: singlePrint ? 20 : move5m,
+      price_change_1h_pct: singlePrint ? 20 : move5m + 2,
+      volume_usd_5m: singlePrint ? 700 : volume5m,
+      volume_usd_1h: singlePrint ? 700 : 1_200,
+      buys_5m: singlePrint ? 1 : buys5m,
+      sells_5m: singlePrint ? 0 : sells5m,
+      buyers_5m: singlePrint ? 1 : Math.max(2, buys5m - 1),
+      sellers_5m: singlePrint ? 0 : Math.max(1, sells5m - 1),
+      buys_1h: singlePrint ? 1 : 14,
+      sells_1h: singlePrint ? 0 : 8,
+      buyers_1h: singlePrint ? 1 : 10,
+      sellers_1h: singlePrint ? 0 : 6,
+    };
+    return row;
+  };
+  const rows = [
+    microcap({ symbol: "OLD5", suffix: "71", marketCap: 4_200, ageDays: 730, holderCount: 80, liquidity: 800, volume5m: 900, buys5m: 3, sells5m: 2, move5m: 3.2 }),
+    microcap({ symbol: "OLD8", suffix: "72", marketCap: 8_200, ageDays: 420, holderCount: 350, liquidity: 1_800, volume5m: 3_000, buys5m: 5, sells5m: 5, move5m: 22 }),
+    microcap({ symbol: "YOUNG4", suffix: "73", marketCap: 4_600, ageDays: 5, holderCount: 40, liquidity: 600, volume5m: 500, buys5m: 4, sells5m: 2, move5m: 4 }),
+    microcap({ symbol: "PRINT9", suffix: "74", marketCap: 9_200, ageDays: 500, holderCount: 20, liquidity: 500, volume5m: 700, buys5m: 1, sells5m: 0, move5m: 20, singlePrint: true }),
+  ];
+  await mockWorkspaceApis(page, { pulseRowsOverride: rows });
+  await page.goto("/discover/");
+
+  await page.locator("[data-spot-market-cap='under_5k']").click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotLane)).toBe("all");
+  await expect(page.locator(".discover-token-row")).toHaveCount(2);
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("OLD5");
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("YOUNG4");
+
+  await page.locator("[data-spot-market-cap='under_10k']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(4);
+  await page.locator("#discoverRevivalScan").click();
+  await expect(page.locator("#discoverRevivalScan")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".discover-token-row")).toHaveCount(2);
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("OLD5");
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("OLD8");
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText("YOUNG4");
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText("PRINT9");
+
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("#discoverHolderFilter").selectOption("under_100");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD5");
+  await page.locator("#discoverHolderFilter").selectOption("all");
+
+  await page.locator("#discoverVolumeFilter").selectOption("under_1k");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD5");
+  await page.locator("#discoverVolumeFilter").selectOption("all");
+
+  await page.locator("#discoverLiquidityFilter").selectOption("under_1k");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD5");
+  await page.locator("#discoverLiquidityFilter").selectOption("all");
+
+  await page.locator("#discoverTransactionFilter").selectOption("under_10");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD5");
+  await page.locator("#discoverTransactionFilter").selectOption("all");
+
+  await page.locator("#discoverFlowFilter").selectOption("balanced");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD8");
+  await page.locator("#discoverFlowFilter").selectOption("all");
+
+  await page.locator("#discoverMoveFilter").selectOption("up_20");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD8");
+  await page.locator("#discoverMoveFilter").selectOption("all");
+
+  await page.locator("#discoverMarketCapFilter").selectOption("5k_10k");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator(".discover-token-row")).toContainText("OLD8");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotMarketCapFilter)).toBe("5k_10k");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotRevivalOnly)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("Discover never presents a retained exact-market snapshot as a live opportunity", async ({ page }) => {
   const nowMs = Date.now();
   const generatedAt = new Date(nowMs).toISOString();
@@ -1437,7 +1545,7 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
   await row.click();
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1m" });
   await expect(page.locator("#terminalPickerMeta")).toContainText("Robinhood Chain · uniswap");
-  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `robinhood:pool:${robinhoodPulsePool}`);
+  await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `robinhood:pool:${robinhoodPulsePool.toLowerCase()}`);
   await expect(page.locator("#terminalLaunchBadge")).toHaveText("Found in Velocity");
   expect(await page.locator("#terminalChart canvas").count()).toBeGreaterThan(0);
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());

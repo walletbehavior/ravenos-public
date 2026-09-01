@@ -2736,22 +2736,18 @@ function pulseTransactionMetrics(attributes = {}, providerWindow = "") {
 function marketPulseRead({ duration, movement, buys, sells, volumeUsd }) {
   const parts = [];
   if (movement !== null) {
-    const direction = movement > 0.05 ? "up" : movement < -0.05 ? "down" : "nearly flat";
-    parts.push(direction === "nearly flat"
-      ? `Price is nearly flat over ${duration}`
-      : `Price is ${direction} ${Math.abs(movement).toFixed(Math.abs(movement) < 0.1 ? 3 : 2)}% over ${duration}`);
+    const precision = Math.abs(movement) < 0.1 ? 3 : 2;
+    parts.push(`${movement > 0 ? "+" : ""}${movement.toFixed(precision)}%`);
   }
   if (buys !== null && sells !== null) {
-    if (buys >= sells * 1.35 && buys - sells >= 5) parts.push(`buy flow leads ${buys} to ${sells}`);
-    else if (sells >= buys * 1.35 && sells - buys >= 5) parts.push(`sell flow leads ${sells} to ${buys}`);
-    else parts.push(`${buys + sells} trades are balanced`);
+    parts.push(`${buys} buy · ${sells} sell`);
   }
   if (volumeUsd !== null) {
     const formatted = new Intl.NumberFormat("en-US", {
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(volumeUsd);
-    parts.push(`$${formatted} volume`);
+    parts.push(`$${formatted} vol`);
   }
   if (!parts.length) return `Current ${duration} pool activity is available.`;
   return `${parts.join(" · ")}.`;
@@ -3053,7 +3049,7 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   const rows = tokens
     .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt }))
     .filter(Boolean)
-    .slice(0, 10);
+    .slice(0, 20);
   cacheSet(jupiterVelocityCache, cacheKey, rows, 30_000);
   return rows;
 }
@@ -3412,7 +3408,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       if (!normalized || deduped.has(normalized.instrument_id)) continue;
       deduped.add(normalized.instrument_id);
       rows.push(normalized);
-      if (rows.length >= 8) break;
+      if (rows.length >= 20) break;
     }
     if (!rows.length) throw new Error("coingecko_trending_rows_unavailable");
     return { chain, rows };
@@ -4719,7 +4715,7 @@ async function terminalChartPayload({
         if (marketHealth.chart_state === "current_no_recent_trades") {
           payload.freshness_state = "live";
           payload.stale = false;
-          payload.coverage = "Current · no recent trades";
+          payload.coverage = "Current · no recent txns";
         } else if (marketHealth.chart_state === "delayed") {
           payload.freshness_state = "delayed";
           payload.stale = true;
@@ -6223,12 +6219,30 @@ function spotQuotePreviewRuntime(env = {}) {
 
 function spotQuotePreviewError(code) {
   const clean = String(code || "spot_quote_unavailable");
+  if (clean === "native_source_valuation_unavailable") return { status: 503, error: clean };
   if (/timeout/.test(clean)) return { status: 504, error: "quote_provider_timeout" };
   if (/429|rate_limited|backpressure/.test(clean)) return { status: 429, error: "quote_provider_rate_limited" };
-  if (/market|identity|address|amount|percentage|slippage|priority|plan|client_authority|side|wallet|balance|mint|scope|chain|instrument/.test(clean)) {
+  if (/market|identity|address|amount|percentage|slippage|priority|plan|client_authority|side|wallet|balance|mint|scope|chain|instrument|funding|settlement/.test(clean)) {
     return { status: 400, error: clean === "spendable_token_balance_base_units_invalid" ? "sell_balance_required" : clean };
   }
   return { status: 503, error: "quote_provider_unavailable" };
+}
+
+function resolveSpotAssetPreference(body = {}, side = "buy") {
+  const field = side === "sell" ? "settlement_preference" : "funding_preference";
+  const requested = String(body?.[field] || "auto").trim().toLowerCase();
+  if (!new Set(["auto", "canonical_usdc", "native"]).has(requested)) throw new Error(`${field}_invalid`);
+  const selected = requested === "native" ? "native" : "canonical_usdc";
+  return Object.freeze({
+    schema_version: "ravenos.spot_asset_preference_selection.v1",
+    side,
+    requested,
+    selected,
+    selected_symbol: selected === "native" ? "SOL" : "USDC",
+    resolution: requested === "auto" ? "chain_local_canonical_usdc_baseline" : "user_selected",
+    cross_chain_funding_evaluated: false,
+    canonical_usdc_identity_verified: selected === "canonical_usdc",
+  });
 }
 
 async function recordShadowRouteObservation(env, executionContext, input) {
@@ -6371,6 +6385,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
 
       const side = String(body?.side || "").trim().toLowerCase();
       if (!new Set(["buy", "sell"]).has(side)) throw new Error("side_invalid");
+      const assetPreference = resolveSpotAssetPreference(body, side);
       const walletAddress = body?.wallet_address == null ? null : String(body.wallet_address).trim();
       if (walletAddress && !SOLANA_ADDRESS_RE.test(walletAddress)) throw new Error("wallet_address_invalid");
       const supplyResult = await runProviderOperation({
@@ -6402,6 +6417,21 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           source: "current_exact_mint_balance",
           persisted: false,
         };
+      } else if (walletAddress && assetPreference.selected === "native") {
+        const balanceResult = await runProviderOperation({
+          component: "solana_spot_quote_preview",
+          operation_key: `native-balance:${walletAddress}`,
+          fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getBalance", [walletAddress, { commitment: "confirmed" }]),
+        }).catch(() => null);
+        const lamports = String(balanceResult?.value ?? "");
+        if (/^\d+$/.test(lamports)) {
+          balanceProjection = {
+            available: true,
+            amount: { display: displayBaseUnits(lamports, 9), symbol: "SOL" },
+            source: "current_chain_local_native_balance",
+            persisted: false,
+          };
+        }
       } else if (walletAddress) {
         const balanceResult = await runProviderOperation({
           component: "solana_spot_quote_preview",
@@ -6428,8 +6458,14 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
         exact_market: { instrument_id: instrumentId, pool_address: poolAddress, token_address: tokenAddress, quote_address: quoteAddress },
         side,
         amount: side === "buy"
-          ? { kind: "canonical_usdc", display_amount: decimalText(body?.display_amount, 6) }
+          ? {
+              kind: assetPreference.selected === "native" ? "native_sol" : "canonical_usdc",
+              display_amount: decimalText(body?.display_amount, assetPreference.selected === "native" ? 9 : 6),
+            }
           : { kind: "sell_percentage", percentage_bps: Math.round((sellPercent || 0) * 100) },
+        settlement: side === "sell"
+          ? { kind: assetPreference.selected === "native" ? "native_sol" : "canonical_usdc" }
+          : { kind: "selected_token" },
         advanced_controls: {
           slippage_bps: body?.slippage_bps,
           priority: body?.priority?.mode === "capped"
@@ -6488,24 +6524,56 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
       };
       let shadowExecution = null;
       if (side === "buy") {
-        const reverseResult = await runProviderOperation({
-          component: "solana_spot_quote_preview",
-          operation_key: `${tokenAddress}:${SOLANA_CANONICAL_USDC_MINT}:${String(provider.outAmount)}:${validatedControls.slippage_bps}:reverse`,
-          fn: () => fetchJupiterExactSpotQuote({
-            env,
-            inputMint: tokenAddress,
-            outputMint: SOLANA_CANONICAL_USDC_MINT,
-            amountBaseUnits: String(provider.outAmount),
-            slippageBps: validatedControls.slippage_bps,
-          }),
-        }).catch(() => null);
-        const sourceAssetId = `solana:mainnet:spl:${SOLANA_CANONICAL_USDC_MINT}`;
+        const nativeFunding = intent.amount.kind === "native_sol";
+        const [reverseResult, sourceValuationResult] = await Promise.all([
+          runProviderOperation({
+            component: "solana_spot_quote_preview",
+            operation_key: `${tokenAddress}:${SOLANA_CANONICAL_USDC_MINT}:${String(provider.outAmount)}:${validatedControls.slippage_bps}:reverse`,
+            fn: () => fetchJupiterExactSpotQuote({
+              env,
+              inputMint: tokenAddress,
+              outputMint: SOLANA_CANONICAL_USDC_MINT,
+              amountBaseUnits: String(provider.outAmount),
+              slippageBps: validatedControls.slippage_bps,
+            }),
+          }).catch(() => null),
+          nativeFunding
+            ? runProviderOperation({
+                component: "solana_spot_quote_preview",
+                operation_key: `${SOLANA_WRAPPED_NATIVE_MINT}:${SOLANA_CANONICAL_USDC_MINT}:${intent.amount.exact_input_amount_base_units}:${validatedControls.slippage_bps}:source-valuation`,
+                fn: () => fetchJupiterExactSpotQuote({
+                  env,
+                  inputMint: SOLANA_WRAPPED_NATIVE_MINT,
+                  outputMint: SOLANA_CANONICAL_USDC_MINT,
+                  amountBaseUnits: intent.amount.exact_input_amount_base_units,
+                  slippageBps: validatedControls.slippage_bps,
+                }),
+              }).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        if (nativeFunding && !sourceValuationResult?.payload) throw new Error("native_source_valuation_unavailable");
+        const sourceAssetId = nativeFunding
+          ? "solana:mainnet:native:SOL"
+          : `solana:mainnet:spl:${SOLANA_CANONICAL_USDC_MINT}`;
+        const wrappedNativeAssetId = `solana:mainnet:spl:${SOLANA_WRAPPED_NATIVE_MINT}`;
+        const settlementAssetId = `solana:mainnet:spl:${SOLANA_CANONICAL_USDC_MINT}`;
         const destinationAssetId = `solana:mainnet:spl:${tokenAddress}`;
         const requestId = publicQuote.quote_id;
+        const sourceAmountUsdc = nativeFunding
+          ? Number(displayBaseUnits(sourceValuationResult.payload.outAmount, 6))
+          : Number(intent.amount.display_amount);
         const universalRequest = createUniversalQuoteRequest({
           request_id: requestId,
           requested_at: providerResult.requested_at || requestedAt,
-          source_amount_usdc: Number(intent.amount.display_amount),
+          source_amount_usdc: sourceAmountUsdc,
+          funding_selection: nativeFunding ? "chain_local_native" : "chain_local_canonical_usdc",
+          funding_asset: {
+            chain: "solana",
+            network: "mainnet",
+            address: nativeFunding ? "native" : intent.input_mint,
+            standard: nativeFunding ? "native" : "spl",
+            symbol: nativeFunding ? "SOL" : "USDC",
+          },
           destination_asset: {
             chain: "solana",
             network: "mainnet",
@@ -6533,7 +6601,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           transaction_count: 1,
           trust_dependencies: ["jupiter", "solana_rpc"],
           venues: publicQuote.venues,
-          intermediate_asset_ids: [],
+          intermediate_asset_ids: nativeFunding ? [wrappedNativeAssetId] : [],
           created_at: providerResult.quoted_at,
           expires_at: providerResult.expires_at,
         });
@@ -6546,7 +6614,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
               source_chain: "solana",
               destination_chain: "solana",
               source_asset_id: destinationAssetId,
-              destination_asset_id: sourceAssetId,
+              destination_asset_id: settlementAssetId,
               expected_output: Number(displayBaseUnits(exitProvider.outAmount, 6)),
               minimum_output: Number(displayBaseUnits(exitProvider.otherAmountThreshold, 6)),
               costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
@@ -6555,7 +6623,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
               transaction_count: 1,
               trust_dependencies: ["jupiter", "solana_rpc"],
               venues: [...new Set(reverseResult.route_rows.map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
-              intermediate_asset_ids: [],
+              intermediate_asset_ids: [wrappedNativeAssetId],
               created_at: reverseResult.quoted_at,
               expires_at: reverseResult.expires_at,
             })
@@ -6566,7 +6634,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
               source_chain: "solana",
               destination_chain: "solana",
               source_asset_id: destinationAssetId,
-              destination_asset_id: sourceAssetId,
+              destination_asset_id: settlementAssetId,
               costs_usdc: { network: null, bridge: null, provider: null, raven: 0 },
               transaction_count: 0,
               trust_dependencies: ["jupiter", "solana_rpc"],
@@ -6576,12 +6644,39 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
               expires_at: providerResult.expires_at,
               refusal_reasons: ["reverse_quote_unavailable"],
             });
+        const sourceValuationCandidate = sourceValuationResult?.payload
+          ? normalizeUniversalRouteCandidate({
+              candidate_id: `${requestId}:source-valuation:jupiter`,
+              provider: "jupiter",
+              state: "route_available",
+              source_chain: "solana",
+              destination_chain: "solana",
+              source_asset_id: sourceAssetId,
+              destination_asset_id: settlementAssetId,
+              expected_output: Number(displayBaseUnits(sourceValuationResult.payload.outAmount, 6)),
+              minimum_output: Number(displayBaseUnits(sourceValuationResult.payload.otherAmountThreshold, 6)),
+              costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
+              price_impact_bps: Math.max(0, Math.min(10_000, Math.round((optionalFiniteNumber(sourceValuationResult.payload.priceImpactPct) || 0) * 100))),
+              estimated_settlement_ms: null,
+              transaction_count: 1,
+              trust_dependencies: ["jupiter", "solana_rpc"],
+              venues: [...new Set(sourceValuationResult.route_rows.map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
+              intermediate_asset_ids: [],
+              created_at: sourceValuationResult.quoted_at,
+              expires_at: sourceValuationResult.expires_at,
+            })
+          : null;
         const selection = selectUniversalRouteCandidate([entryCandidate], universalRequest.policy);
+        const roundTripObservedAt = [providerResult.received_at, reverseResult?.received_at, sourceValuationResult?.received_at]
+          .filter(Boolean)
+          .sort((left, right) => Date.parse(left) - Date.parse(right))
+          .at(-1);
         const proof = createRoundTripProof({
           spend_usdc: universalRequest.source_amount_usdc,
           entry: entryCandidate,
           exit: exitCandidate,
-          observed_at: reverseResult?.received_at || providerResult.received_at,
+          source_valuation: sourceValuationCandidate,
+          observed_at: roundTripObservedAt,
         });
         shadowExecution = createUniversalShadowExecution({
           request: universalRequest,
@@ -6589,8 +6684,9 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           selected: selection,
           entry: entryCandidate,
           exit: exitCandidate,
+          source_valuation: sourceValuationCandidate,
           proof,
-          observed_at: reverseResult?.received_at || providerResult.received_at,
+          observed_at: roundTripObservedAt,
         });
       }
       const freeFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
@@ -6632,6 +6728,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
       return terminalJson(context, {
         ok: true,
         ...review,
+        asset_preference: assetPreference,
         balance: balanceProjection,
         research_plan_reference: ravenReference,
         fee_policy: {

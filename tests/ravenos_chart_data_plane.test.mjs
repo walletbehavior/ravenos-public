@@ -1878,7 +1878,7 @@ test("current exact-pool delivery labels an unchanged quiet market separately fr
     assert.equal(payload.candle_freshness_state, "delayed");
     assert.equal(payload.market_activity_state, "no_recent_trades");
     assert.equal(payload.market_health.chart_state, "current_no_recent_trades");
-    assert.equal(payload.market_health.operator_label, "No recent trades");
+    assert.equal(payload.market_health.operator_label, "No recent txns");
     assert.equal(payload.freshness_state, "live");
     assert.equal(payload.stale, false);
     assert.equal(payload.market_anatomy.provider_freshness_state, "current");

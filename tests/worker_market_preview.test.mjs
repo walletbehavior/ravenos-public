@@ -398,20 +398,24 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     if (url.hostname === "solana-display.invalid") {
       const rpc = JSON.parse(String(init.body || "{}"));
       if (rpc.method === "getTokenSupply") return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: { amount: "100000000000000", decimals: 5 } } });
+      if (rpc.method === "getBalance") return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: 2_500_000_000 } });
+      if (rpc.method === "getTokenAccountsByOwner") return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: [{ account: { data: { parsed: { info: { tokenAmount: { amount: "100000000", decimals: 5 } } } } } }] } });
       return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: [] } });
     }
     if (url.hostname === "api.jup.ag") {
-      const reverse = url.searchParams.get("inputMint") === token;
+      const inputMint = url.searchParams.get("inputMint");
+      const outputMint = url.searchParams.get("outputMint");
+      const reverse = inputMint === token && outputMint === usdc;
+      const nativeExit = inputMint === token && outputMint === quote;
+      const nativeValuation = inputMint === quote && outputMint === usdc;
       const now = new Date();
-      const inputMint = reverse ? token : usdc;
-      const outputMint = reverse ? usdc : token;
       return jsonResponse({
-        quoteId: reverse ? "reverse-proof" : "entry-proof",
+        quoteId: reverse ? "reverse-proof" : nativeExit ? "native-exit" : nativeValuation ? "native-valuation" : "entry-proof",
         inputMint,
         outputMint,
         inAmount: url.searchParams.get("amount"),
-        outAmount: reverse ? "487610000" : "100000000000",
-        otherAmountThreshold: reverse ? "480000000" : "99000000000",
+        outAmount: reverse ? "487610000" : nativeExit ? "420000000" : nativeValuation ? "75000000" : "100000000000",
+        otherAmountThreshold: reverse ? "480000000" : nativeExit ? "415000000" : nativeValuation ? "74000000" : "99000000000",
         priceImpactPct: reverse ? "0.007" : "0.006",
         quoteTimestamp: now.toISOString(),
         expireAt: new Date(now.getTime() + (reverse ? reverseQuoteTtlMs : 20_000)).toISOString(),
@@ -471,6 +475,51 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(body.fee_policy.actual_fee_bps, 0);
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);
+
+    const nativeRequest = { ...requestBody, funding_preference: "native", display_amount: "0.5" };
+    const nativeResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(nativeRequest),
+    }), environment);
+    const nativeBody = await nativeResponse.json();
+    assert.equal(nativeResponse.status, 200, JSON.stringify(nativeBody));
+    assert.equal(nativeBody.asset_preference.requested, "native");
+    assert.equal(nativeBody.asset_preference.selected, "native");
+    assert.equal(nativeBody.intent.economic_flow, "native_sol_to_selected_token");
+    assert.equal(nativeBody.intent.amount.exact_input_amount_base_units, "500000000");
+    assert.equal(nativeBody.intent.input_mint, quote);
+    assert.equal(nativeBody.shadow_execution.request.source_amount_usdc, 75);
+    assert.equal(nativeBody.shadow_execution.request.funding_selection, "chain_local_native");
+    assert.equal(nativeBody.shadow_execution.request.funding_asset.address, "native");
+    assert.equal(nativeBody.shadow_execution.request.funding_asset.standard, "native");
+    assert.equal(nativeBody.shadow_execution.entry_route.source_asset_id, "solana:mainnet:native:SOL");
+    assert.deepEqual(nativeBody.shadow_execution.entry_route.intermediate_asset_ids, [`solana:mainnet:spl:${quote}`]);
+    assert.equal(nativeBody.shadow_execution.source_valuation_route.expected_output, 75);
+    assert.equal(nativeBody.shadow_execution.round_trip.physical_round_trip, false);
+    assert.equal(nativeBody.shadow_execution.round_trip.exit_verified, true);
+    assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 5);
+
+    const nativeSellRequest = {
+      ...requestBody,
+      side: "sell",
+      display_amount: null,
+      sell_percent: 25,
+      wallet_address: "Stake11111111111111111111111111111111111111",
+      settlement_preference: "native",
+    };
+    const nativeSellResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(nativeSellRequest),
+    }), environment);
+    const nativeSellBody = await nativeSellResponse.json();
+    assert.equal(nativeSellResponse.status, 200, JSON.stringify(nativeSellBody));
+    assert.equal(nativeSellBody.intent.economic_flow, "selected_token_to_native_sol");
+    assert.equal(nativeSellBody.intent.output_mint, quote);
+    assert.equal(nativeSellBody.quote.expected_output_display, "0.42");
+    assert.equal(nativeSellBody.balance.amount.display, "1000");
+    assert.equal(nativeSellBody.shadow_execution, null);
 
     reverseQuoteTtlMs = 5_000;
     const shorterExitResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {

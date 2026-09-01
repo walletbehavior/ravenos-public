@@ -1645,8 +1645,10 @@ export class PriceWorkspace {
       if (
         !Number.isFinite(latestCandleTime)
         || bucket < latestCandleTime
-        || bucket > latestCandleTime + bucketSeconds * 2
       ) continue;
+      // A current exact-pool trade may form the live bucket even when the slower
+      // candle provider is several buckets behind. Identity and age gates above
+      // remain mandatory, and the candle stays attributed to the trade tape.
       this.exactPoolTape.seen.set(trade.id, true);
       if (this.exactPoolTape.seen.size > 2_048) this.exactPoolTape.seen.delete(this.exactPoolTape.seen.keys().next().value);
       const current = this.exactPoolTape.buckets.get(bucket) || {

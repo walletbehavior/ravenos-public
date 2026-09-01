@@ -20,8 +20,12 @@ const SPOT_ACTIVITY_VIEWS = new Set(["trades", "wallets"]);
 const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const SPOT_TICKET_STORAGE_KEY = "ravenos.universal_shadow_ticket_preferences.v1";
 const DEFAULT_SPOT_BUY_SIZES = Object.freeze([10, 50, 100, 500]);
+const DEFAULT_SPOT_NATIVE_BUY_SIZES = Object.freeze([0.1, 0.5, 1, 2]);
 const SPOT_PLAN_SOURCES = new Set(["raven_exact_market", "user_preset", "custom"]);
 const SOLANA_CANONICAL_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_WRAPPED_NATIVE_MINT = "So11111111111111111111111111111111111111112";
+const SPOT_TRADE_REFRESH_MS = 5_000;
+const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
   lane: "perps",
   markets: [],
@@ -145,6 +149,17 @@ function boundedSpotBuySize(value) {
     : null;
 }
 
+function boundedSpotNativeBuySize(value) {
+  const amount = finite(value);
+  return amount !== null && amount >= 0.001 && amount <= 50
+    ? Number(amount.toFixed(4))
+    : null;
+}
+
+function spotAssetPreference(value) {
+  return new Set(["auto", "canonical_usdc", "native"]).has(value) ? value : "auto";
+}
+
 function boundedSpotPreference(value, fallback, { minimum, maximum } = {}) {
   const amount = finite(value);
   return amount !== null && amount >= minimum && amount <= maximum ? amount : fallback;
@@ -162,9 +177,16 @@ function loadSpotTicketPreferences() {
     ? stored.buy_sizes_usdc.slice(0, 4).map(boundedSpotBuySize)
     : [];
   while (buySizes.length < 4) buySizes.push(DEFAULT_SPOT_BUY_SIZES[buySizes.length]);
+  const nativeBuySizes = Array.isArray(stored?.buy_sizes_native)
+    ? stored.buy_sizes_native.slice(0, 4).map(boundedSpotNativeBuySize)
+    : [];
+  while (nativeBuySizes.length < 4) nativeBuySizes.push(DEFAULT_SPOT_NATIVE_BUY_SIZES[nativeBuySizes.length]);
   state.spotTicketPreferences = {
     schema_version: "ravenos.universal_shadow_ticket_preferences.v1",
     buy_sizes_usdc: buySizes.map((value, index) => value ?? DEFAULT_SPOT_BUY_SIZES[index]),
+    buy_sizes_native: nativeBuySizes.map((value, index) => value ?? DEFAULT_SPOT_NATIVE_BUY_SIZES[index]),
+    funding_preference: spotAssetPreference(stored?.funding_preference),
+    settlement_preference: spotAssetPreference(stored?.settlement_preference),
     take_profit_pct: boundedSpotPreference(stored?.take_profit_pct, 25, { minimum: 0.1, maximum: 1_000 }),
     stop_loss_pct: boundedSpotPreference(stored?.stop_loss_pct, 12, { minimum: 0.1, maximum: 99 }),
     slippage_bps: boundedSpotPreference(stored?.slippage_bps, 50, { minimum: 5, maximum: 300 }),
@@ -540,7 +562,7 @@ function renderTerminalTape(rows = state.tapeRows) {
     }
     host.append(line);
   }
-  setText("terminalTapeState", `${safeRows.length} public trades`);
+  setText("terminalTapeState", `${safeRows.length} public txns`);
 }
 
 function resetTerminalMarketFlow() {
@@ -658,7 +680,7 @@ function terminalPaneSurface(pane) {
     holders: "#terminalAnatomySection",
     trade: state.lane === "spot" ? "#terminalSpotTicketSection" : "#terminalTradeReviewSection",
     book: "#terminalMarketRail",
-    raven: "#terminalContextSection",
+    raven: "#terminalContextSection:not([hidden]), #terminalAlphaSection:not([hidden]), #terminalPlanSection:not([hidden]), #terminalRavenEmptySection:not([hidden])",
     account: "#terminalAccountDock",
   };
   return document.querySelector(targets[pane] || targets.chart);
@@ -1384,6 +1406,7 @@ function setAnatomyRows(rows = []) {
 function currentRavenPaneSurface() {
   const surfaces = [
     ["terminalContextSection", "Current", "positive"],
+    ["terminalAlphaSection", "Current", "positive"],
     ["terminalPlanSection", "Plan current", "positive"],
   ];
   return surfaces.find(([id]) => document.getElementById(id)?.hidden === false) || null;
@@ -1391,15 +1414,16 @@ function currentRavenPaneSurface() {
 
 function syncRavenPaneAvailability() {
   const availableSurface = currentRavenPaneSurface();
+  const emptySurface = document.getElementById("terminalRavenEmptySection");
   const ravenButton = document.querySelector('[data-terminal-pane-button="raven"]');
-  if (ravenButton) ravenButton.disabled = !availableSurface;
+  if (emptySurface) emptySurface.hidden = Boolean(availableSurface);
+  if (ravenButton) ravenButton.disabled = false;
   setTerminalPaneStatus(
     "raven",
-    availableSurface?.[1] || "No current read",
+    availableSurface?.[1] || "Forming",
     availableSurface?.[2] || "neutral",
   );
-  if (!availableSurface && document.querySelector(".terminal-live")?.dataset.terminalPane === "raven") setTerminalPane("chart");
-  return Boolean(availableSurface);
+  return true;
 }
 
 function setContextControlsVisible(visible, { kind = "Raven", trigger = "Raven Read" } = {}) {
@@ -2110,7 +2134,7 @@ function renderSourceDetails(workspace = state.workspace?.state || {}) {
   const candleFreshness = workspace?.candleFreshnessState || series.freshness_state || candleAudit.freshness_state || workspace?.state || "unavailable";
   const activity = workspace?.marketActivityState;
   const activityLabel = activity === "no_recent_trades"
-    ? "no recent trades"
+    ? "no recent txns"
     : activity === "activity_reported_chart_lagging"
       ? "chart catching up"
       : activity === "active"
@@ -2514,23 +2538,44 @@ async function copyProjectContract() {
 }
 
 const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_DISPLAY_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const HOLDER_CHAINS = new Set(["solana", "robinhood", "base", "bsc", "ethereum"]);
+const HOLDER_EXPLORERS = Object.freeze({
+  solana: "https://solscan.io/account/",
+  robinhood: "https://robinhoodchain.blockscout.com/address/",
+  base: "https://basescan.org/address/",
+  bsc: "https://bscscan.com/address/",
+  ethereum: "https://etherscan.io/address/",
+});
 const MARKET_CONTROL_RISK_SCHEMA = "ravenos.market_control_risk.v1";
 const MARKET_CONTROL_RISK_LEVELS = new Set(["forming", "measured_low", "watch", "elevated", "high", "severe"]);
 const MARKET_CONTROL_RISK_SEVERITIES = new Set(["info", "positive", "elevated", "high", "critical"]);
 
 function currentHolderIdentity() {
-  if (state.lane !== "spot" || String(state.selected?.chainId || "").toLowerCase() !== "solana") return null;
+  const chain = String(state.selected?.chainId || "").toLowerCase();
+  if (state.lane !== "spot" || !HOLDER_CHAINS.has(chain)) return null;
   const poolAddress = String(state.selected?.pairAddress || "").trim();
   const tokenAddress = String(state.selected?.tokenAddress || "").trim();
   const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
-  if (!poolAddress || !tokenAddress) return null;
+  const pattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
+  // Preserve the existing Solana selection contract; the Worker validates its
+  // addresses before returning holder evidence. Newly added EVM identities are
+  // address-strict in the browser as well as at the Worker boundary.
+  if (!poolAddress || !tokenAddress || (chain !== "solana" && (!pattern.test(poolAddress) || !pattern.test(tokenAddress) || (quoteAddress && !pattern.test(quoteAddress))))) return null;
+  const normalize = (value) => chain === "solana" ? value : value.toLowerCase();
   return {
-    key: `solana:${poolAddress}:${tokenAddress}`,
-    chain: "solana",
-    pool_address: poolAddress,
-    token_address: tokenAddress,
-    quote_address: quoteAddress,
+    key: `${chain}:${normalize(poolAddress)}:${normalize(tokenAddress)}`,
+    chain,
+    pool_address: normalize(poolAddress),
+    token_address: normalize(tokenAddress),
+    quote_address: quoteAddress ? normalize(quoteAddress) : "",
   };
+}
+
+function holderExplorerUrl(chain, address) {
+  const base = HOLDER_EXPLORERS[String(chain || "").toLowerCase()];
+  const pattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
+  return base && pattern.test(String(address || "")) ? `${base}${address}` : null;
 }
 
 function compactHolderAddress(value) {
@@ -2548,8 +2593,10 @@ function holderBalanceLabel(value) {
 }
 
 function verifiedHolderProjection(payload, identity) {
+  const chain = String(identity?.chain || "").toLowerCase();
   const complete = payload?.coverage?.complete_holder_census;
   const totalOwners = Number(payload?.coverage?.total_owner_rows);
+  const maximumSourceAccounts = Number(payload?.coverage?.maximum_source_accounts);
   const largestWalletPct = finite(payload?.summary?.largest_non_pool_wallet_supply_pct);
   const top3WalletPct = finite(payload?.summary?.top_3_wallet_supply_pct);
   const top10WalletPct = finite(payload?.summary?.top_10_wallet_supply_pct);
@@ -2558,27 +2605,29 @@ function verifiedHolderProjection(payload, identity) {
     || payload?.safe_public !== true
     || payload?.schema_version !== "ravenos.onchain_holder_list.v2"
     || payload?.state !== "available"
-    || payload?.identity?.chain !== "solana"
-    || payload.identity.pool_address !== identity.pool_address
-    || payload.identity.token_address !== identity.token_address
+    || String(payload?.identity?.chain || "").toLowerCase() !== chain
+    || !sameSelectedAddress(chain, payload.identity.pool_address, identity.pool_address)
+    || !sameSelectedAddress(chain, payload.identity.token_address, identity.token_address)
     || !Array.isArray(payload.holders)
     || payload.holders.length > 100
     || ![true, false].includes(complete)
     || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
-    || (!complete && payload.holders.length > 20)
+    || (!complete && (!Number.isInteger(maximumSourceAccounts) || maximumSourceAccounts < payload.holders.length || maximumSourceAccounts > (chain === "solana" ? 20 : 50)))
     || [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
     || largestWalletPct > top3WalletPct
     || top3WalletPct > top10WalletPct
   ) return null;
+  const addressPattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
   const holders = payload.holders.filter((row) => (
     Number.isInteger(row?.rank)
     && row.rank >= 1
-    && SOLANA_DISPLAY_ADDRESS_RE.test(String(row?.holder_address || ""))
+    && addressPattern.test(String(row?.holder_address || ""))
     && typeof row?.balance === "string"
     && finite(row?.supply_share_pct) !== null
     && finite(row.supply_share_pct) >= 0
     && finite(row.supply_share_pct) <= 100
-    && ["owner", "token_account", "exact_pool_account"].includes(row?.classification)
+    && ["owner", "contract", "token_account", "exact_pool_account"].includes(row?.classification)
+    && holderExplorerUrl(chain, row.holder_address) === row.explorer_url
   ));
   if (holders.length !== payload.holders.length) return null;
   return { ...payload, holders };
@@ -2826,7 +2875,7 @@ function renderVerifiedHolderConcentration(payload) {
   const freshness = Number.isFinite(observedMs)
     ? ` · updated ${durationLabel(Math.max(0, Math.round((Date.now() - observedMs) / 1_000)))}`
     : "";
-  setText("terminalHolderMapState", `${complete ? "Complete owner census" : "Largest-account scan"}${freshness}`);
+  setText("terminalHolderMapState", `${complete ? "Complete census" : "Indexed holders"}${freshness}`);
   return true;
 }
 
@@ -2867,7 +2916,7 @@ function renderHolderCheck(payload) {
   setText("terminalHolderTop3", profilePercent(top3));
   setText("terminalHolderCheckTop10", profilePercent(top10));
   setText("terminalHolderOwnerCount", holderCount === null ? "Partial scan" : compact(holderCount));
-  setText("terminalHolderOwnerScope", payload.coverage?.complete_holder_census === true ? "Owner-aggregated census" : "Largest-account scan");
+  setText("terminalHolderOwnerScope", payload.coverage?.complete_holder_census === true ? "Complete census" : "Indexed snapshot");
   setText("terminalHolderTrend", trend ? percent(trend.change) : "Not measured");
   setText("terminalHolderTrendScope", trend ? `${trend.window} · exact token holder count` : "Wallet balance history not inferred");
   const observedMs = Date.parse(String(payload.observed_at || ""));
@@ -2882,17 +2931,19 @@ function holderTradeEvidence(payload) {
   const holderIdentity = currentHolderIdentity();
   const trades = state.spotTradeCache.get(projectIdentity?.key)?.payload;
   if (!projectIdentity || !holderIdentity || !trades) return null;
+  const normalize = (value) => holderIdentity.chain === "solana" ? String(value || "").trim() : String(value || "").trim().toLowerCase();
   const holders = new Map((Array.isArray(payload?.holders) ? payload.holders : [])
     .filter((row) => row.excluded_from_wallet_concentration !== true)
-    .map((row) => [row.holder_address, row]));
+    .map((row) => [normalize(row.holder_address), row]));
   const byHolder = new Map();
   for (const trade of trades.trades) {
-    if (!trade.trader_address || !holders.has(trade.trader_address)) continue;
-    const current = byHolder.get(trade.trader_address) || { tradeCount: 0, buyUsd: 0, sellUsd: 0 };
+    const address = normalize(trade.trader_address);
+    if (!address || !holders.has(address)) continue;
+    const current = byHolder.get(address) || { tradeCount: 0, buyUsd: 0, sellUsd: 0 };
     current.tradeCount += 1;
     if (trade.side === "buy") current.buyUsd += Number(trade.volume_usd) || 0;
     else current.sellUsd += Number(trade.volume_usd) || 0;
-    byHolder.set(trade.trader_address, current);
+    byHolder.set(address, current);
   }
   const totals = [...byHolder.values()].reduce((result, row) => ({
     tradeCount: result.tradeCount + row.tradeCount,
@@ -2925,9 +2976,10 @@ function renderHolderTradeActivity(payload) {
 function holderRowsForFilter(payload, filter = state.holderListFilter) {
   const rows = Array.isArray(payload?.holders) ? payload.holders : [];
   const activeAddresses = holderTradeEvidence(payload)?.byHolder || new Map();
+  const normalize = (value) => payload?.identity?.chain === "solana" ? String(value || "") : String(value || "").toLowerCase();
   if (filter === "wallets") return rows.filter((row) => row.excluded_from_wallet_concentration !== true);
   if (filter === "large") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && finite(row.supply_share_pct) >= 1);
-  if (filter === "active") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && activeAddresses.has(row.holder_address));
+  if (filter === "active") return rows.filter((row) => row.excluded_from_wallet_concentration !== true && activeAddresses.has(normalize(row.holder_address)));
   if (filter === "pool") return rows.filter((row) => row.classification === "exact_pool_account");
   return rows;
 }
@@ -2968,15 +3020,18 @@ function renderHolderListProjection(payload) {
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
     const address = document.createElement("a");
-    address.href = `https://solscan.io/account/${row.holder_address}`;
+    address.href = holderExplorerUrl(payload.identity.chain, row.holder_address);
     address.target = "_blank";
     address.rel = "noopener noreferrer nofollow";
     address.textContent = compactHolderAddress(row.holder_address);
     address.title = row.holder_address;
     const classification = document.createElement("small");
-    const holderActivity = holderActivityByAddress.get(row.holder_address);
+    const holderKey = payload.identity.chain === "solana" ? row.holder_address : row.holder_address.toLowerCase();
+    const holderActivity = holderActivityByAddress.get(holderKey);
     const classificationLabel = row.classification === "exact_pool_account"
       ? "Exact pool account · excluded from wallet concentration"
+      : row.classification === "contract"
+        ? "Contract account"
       : row.classification === "owner"
         ? row.token_account_count > 1 ? `${row.token_account_count} top token accounts · same owner` : "On-chain owner"
         : "Token account · owner unresolved";
@@ -3030,15 +3085,16 @@ function renderHolderListProjection(payload) {
     : "No returned holder matches this filter.");
   host.scrollTop = Math.min(previousScrollTop, Math.max(0, host.scrollHeight - host.clientHeight));
   const complete = payload.coverage.complete_holder_census === true;
-  const totalOwners = complete ? Number(payload.coverage.total_owner_rows) : null;
+  const indexedOwners = Number(payload.coverage.total_owner_rows);
+  const totalOwners = Number.isInteger(indexedOwners) && indexedOwners >= payload.holders.length ? indexedOwners : null;
   const filterLabel = { wallets: "wallets", large: "1%+ wallets", active: "active holders", pool: "pool accounts" }[state.holderListFilter];
   setText("terminalHolderListState", filterLabel
     ? `${visibleRows.length} ${filterLabel}`
-    : complete ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
+    : totalOwners !== null ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
   const observed = timestamp(payload.observed_at);
   setText("terminalHolderListNote", complete
-    ? `Complete current census · ${compact(payload.coverage.scanned_source_accounts)} token accounts grouped into ${compact(totalOwners)} owners · showing the top ${payload.holders.length} · ${observed}.`
-    : `Largest 20 token accounts, grouped by owner when available · full census unavailable · ${observed}.`);
+    ? `${compact(totalOwners)} owners · top ${payload.holders.length} · ${observed}.`
+    : `${payload.holders.length} indexed holders${totalOwners !== null ? ` of ${compact(totalOwners)}` : ""} · ${observed}.`);
   renderVerifiedHolderConcentration(payload);
   renderHolderCheck(payload);
   renderHolderTradeActivity(payload);
@@ -3067,14 +3123,14 @@ function renderHolderListSurface() {
   else if (state.holderListLoadingKey === identity.key) {
     document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "Loading");
-    setText("terminalHolderListNote", "Reading current on-chain holder accounts for this exact token.");
+    setText("terminalHolderListNote", "Loading current holders.");
     renderHolderListMessage("Loading top holders…");
     renderMarketControlRisk(null, { loading: true });
   } else {
     document.getElementById("terminalHolderCheck").hidden = true;
     setText("terminalHolderListState", "View list");
-    setText("terminalHolderListNote", "Ranked on-chain owners for this exact token.");
-    renderHolderListMessage("Open this section to load the current holder list.");
+    setText("terminalHolderListNote", "Current holders for this token.");
+    renderHolderListMessage("Open to load holders.");
     renderMarketControlRisk(null, { loading: false });
   }
   if (changed && details.open && !cached) void loadHolderList();
@@ -3103,8 +3159,9 @@ async function loadHolderList() {
     const verified = response.ok ? verifiedHolderProjection(payload, identity) : null;
     if (!verified) {
       setText("terminalHolderListState", "Unavailable");
-      setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
-      renderHolderListMessage("The exact holder list could not be verified, so RavenOS did not show partial or substituted accounts.");
+      const providerMissing = ["holder_source_disabled", "holder_source_misconfigured"].includes(payload?.error);
+      setText("terminalHolderListNote", providerMissing ? "Holder index not connected." : "Holders unavailable for this market.");
+      renderHolderListMessage(providerMissing ? "Holder index not connected." : "No unverified or substitute wallets shown.");
       renderMarketControlRisk(null, { unavailable: true });
       return;
     }
@@ -3114,8 +3171,8 @@ async function loadHolderList() {
   } catch {
     if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
     setText("terminalHolderListState", "Unavailable");
-    setText("terminalHolderListNote", "Top holders aren’t available for this market yet.");
-    renderHolderListMessage("The exact holder list could not be loaded. No substitute market was used.");
+    setText("terminalHolderListNote", "Holders unavailable for this market.");
+    renderHolderListMessage("No substitute wallets shown.");
     renderMarketControlRisk(null, { unavailable: true });
   } finally {
     if (state.holderListLoadingKey === identity.key) state.holderListLoadingKey = "";
@@ -3123,7 +3180,7 @@ async function loadHolderList() {
 }
 
 const SPOT_TRADE_SCHEMA = "ravenos.onchain_pool_trades.v1";
-const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io"]);
+const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io", "robinhoodchain.blockscout.com"]);
 
 function clearSpotTradeRefresh() {
   clearTimeout(state.spotTradeRefreshTimer);
@@ -3139,7 +3196,7 @@ function spotTradeSurfaceActive() {
 function scheduleSpotTradeRefresh() {
   clearSpotTradeRefresh();
   if (!spotTradeSurfaceActive()) return;
-  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), 12_000);
+  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), SPOT_TRADE_REFRESH_MS);
 }
 
 function safeSpotTradeLink(value) {
@@ -3249,7 +3306,7 @@ function filteredSpotTrades(payload) {
     || row.side === state.spotTradeFilter
     || (state.spotTradeFilter === "large" && row.sample_size_tier === "largest_10_pct")
     || (state.spotTradeFilter === "repeat" && repeatAddresses.has(row.trader_address))
-  ));
+  )).slice(0, SPOT_TRADE_RENDER_LIMIT);
 }
 
 function appendSpotTradeLink(host, { href, label, title = "" } = {}) {
@@ -3449,7 +3506,7 @@ function renderSpotTradeProjection(payload) {
   }
   renderSpotTradeSummary(payload);
   renderSpotTradeRows(payload);
-  renderActiveTraders(payload);
+  if (state.spotActivityView === "wallets") renderActiveTraders(payload);
   setText("terminalActivityTradeCount", `${payload.trades.length} swaps`);
   setText("terminalActivityWalletCount", `${payload.active_traders.length} wallet${payload.active_traders.length === 1 ? "" : "s"}`);
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
@@ -3465,8 +3522,10 @@ function renderSpotTradeProjection(payload) {
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
   }
+  const holderSurface = document.getElementById("terminalHolderList");
+  const holderPaneActive = !terminalUsesPaneNavigation() || document.querySelector(".terminal-live")?.dataset.terminalPane === "holders";
   const holders = state.holderListCache.get(currentHolderIdentity()?.key);
-  if (holders) renderHolderListProjection(holders);
+  if (holders && holderSurface?.open && holderPaneActive) renderHolderListProjection(holders);
 }
 
 function renderSpotTradeSurface() {
@@ -3496,9 +3555,9 @@ function renderSpotTradeSurface() {
 
 async function loadSpotTrades({ force = false } = {}) {
   const identity = currentProjectIdentity();
-  if (!identity || (state.spotTradeLoadingKey === identity.key && !force)) return;
+  if (!identity || state.spotTradeLoadingKey === identity.key) return;
   const cached = state.spotTradeCache.get(identity.key);
-  if (!force && cached?.payload && Date.now() - cached.loadedAt < 10_000) {
+  if (!force && cached?.payload && Date.now() - cached.loadedAt < SPOT_TRADE_REFRESH_MS) {
     renderSpotTradeProjection(cached.payload);
     scheduleSpotTradeRefresh();
     return;
@@ -4626,7 +4685,11 @@ function focusTerminalRaven() {
     ? document.getElementById("terminalContextSection")
     : document.getElementById("terminalAlphaSection")?.hidden === false
       ? document.getElementById("terminalAlphaSection")
-      : null;
+      : document.getElementById("terminalPlanSection")?.hidden === false
+        ? document.getElementById("terminalPlanSection")
+        : document.getElementById("terminalRavenEmptySection")?.hidden === false
+          ? document.getElementById("terminalRavenEmptySection")
+          : null;
   if (!target) return false;
   if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
@@ -5338,6 +5401,59 @@ function nativeCurrencyForChain(chain) {
   })[String(chain || "").toLowerCase()] || "NATIVE";
 }
 
+function activeSpotAssetPreference(side = state.spotTicketSide) {
+  const preferences = loadSpotTicketPreferences();
+  return side === "sell" ? preferences.settlement_preference : preferences.funding_preference;
+}
+
+function selectedSpotAssetKind(side = state.spotTicketSide) {
+  return activeSpotAssetPreference(side) === "native" ? "native" : "canonical_usdc";
+}
+
+function activeSpotBuySizeConfig() {
+  const native = selectedSpotAssetKind("buy") === "native";
+  const preferences = loadSpotTicketPreferences();
+  return {
+    key: native ? "buy_sizes_native" : "buy_sizes_usdc",
+    values: native ? preferences.buy_sizes_native : preferences.buy_sizes_usdc,
+    defaults: native ? DEFAULT_SPOT_NATIVE_BUY_SIZES : DEFAULT_SPOT_BUY_SIZES,
+    symbol: native ? nativeCurrencyForChain(currentProjectIdentity()?.chain) : "USDC",
+    native,
+  };
+}
+
+function syncSpotAssetPreferenceControls() {
+  const identity = currentProjectIdentity();
+  const nativeSymbol = nativeCurrencyForChain(identity?.chain);
+  const side = state.spotTicketSide === "sell" ? "sell" : "buy";
+  const preference = activeSpotAssetPreference(side);
+  const selectedKind = selectedSpotAssetKind(side);
+  setText("terminalSpotAssetPreferenceLabel", side === "buy" ? "Pay" : "Receive");
+  setText("terminalSpotNativeAssetLabel", nativeSymbol);
+  const preferenceState = document.getElementById("terminalSpotAssetPreferenceState");
+  if (preferenceState) preferenceState.hidden = preference !== "auto" || !spotTicketQualified();
+  setText("terminalSpotAssetPreferenceState", "→ USDC");
+  for (const button of document.querySelectorAll("[data-spot-asset-preference]")) {
+    const active = button.dataset.spotAssetPreference === preference;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.disabled = !spotTicketQualified();
+  }
+}
+
+function setSpotAssetPreference(preference) {
+  const next = spotAssetPreference(preference);
+  const key = state.spotTicketSide === "sell" ? "settlement_preference" : "funding_preference";
+  saveSpotTicketPreferences({ [key]: next });
+  setText("terminalSpotBalance", state.solanaWalletConnected ? "Read on quote" : "Not verified");
+  const input = document.getElementById("terminalSpotAmount");
+  if (input && state.spotTicketSide === "buy") input.value = String(activeSpotBuySizeConfig().values[1]);
+  syncSpotAssetPreferenceControls();
+  renderSpotQuickSizes();
+  syncSpotTicketControls();
+  clearSpotQuoteResult(`${next === "auto" ? "Auto" : next === "native" ? nativeCurrencyForChain(currentProjectIdentity()?.chain) : "USDC"} selected. Review a new route.`);
+}
+
 function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) {
   const connected = state.solanaWalletConnected && Boolean(state.solanaWalletAddress);
   for (const item of document.querySelectorAll("#terminalSpotExecutionRail [data-terminal-step]")) {
@@ -5394,13 +5510,14 @@ function syncSpotAdvancedSummary() {
 
 function renderSpotQuickSizes() {
   const preferences = loadSpotTicketPreferences();
+  const sizeConfig = activeSpotBuySizeConfig();
   const host = document.getElementById("terminalSpotBuyPresets");
   if (host) {
-    host.replaceChildren(...preferences.buy_sizes_usdc.map((amount) => {
+    host.replaceChildren(...sizeConfig.values.map((amount) => {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.spotBuyAmount = String(amount);
-      button.textContent = `$${amount}`;
+      button.textContent = sizeConfig.native ? `${amount} ${sizeConfig.symbol}` : `$${amount}`;
       button.addEventListener("click", () => {
         const input = document.getElementById("terminalSpotAmount");
         if (input) {
@@ -5416,8 +5533,12 @@ function renderSpotQuickSizes() {
   }
   for (const input of document.querySelectorAll("[data-spot-buy-size-index]")) {
     const index = Number(input.dataset.spotBuySizeIndex);
-    input.value = String(preferences.buy_sizes_usdc[index] ?? DEFAULT_SPOT_BUY_SIZES[index]);
+    input.value = String(sizeConfig.values[index] ?? sizeConfig.defaults[index]);
+    input.min = sizeConfig.native ? "0.001" : "1";
+    input.max = sizeConfig.native ? "50" : "100000";
+    input.step = sizeConfig.native ? "0.001" : "1";
   }
+  setText("terminalSpotQuickSizeLabel", `Customize ${sizeConfig.symbol} sizes`);
   const tp = document.getElementById("terminalSpotTakeProfitPct");
   const sl = document.getElementById("terminalSpotStopLossPct");
   const slippage = document.getElementById("terminalSpotSlippage");
@@ -5526,6 +5647,8 @@ function spotTicketSnapshot() {
     token_address: identity.tokenAddress,
     quote_address: identity.quoteAddress,
     side: state.spotTicketSide,
+    funding_preference: activeSpotAssetPreference("buy"),
+    settlement_preference: activeSpotAssetPreference("sell"),
     display_amount: state.spotSellPercent ? null : String(amount || ""),
     sell_percent: state.spotTicketSide === "sell" ? state.spotSellPercent : null,
     wallet_address: state.solanaWalletConnected ? state.solanaWalletAddress : null,
@@ -5595,13 +5718,25 @@ function spotQuoteResponseMatches(payload, snapshot) {
     && sameSelectedAddress("solana", exact.token_address, snapshot.token_address)
     && sameSelectedAddress("solana", exact.quote_address, snapshot.quote_address)
     && String(payload?.intent?.side || "").toLowerCase() === snapshot.side;
-  const expectedOutputMint = snapshot.side === "buy" ? snapshot.token_address : SOLANA_CANONICAL_USDC_MINT;
+  const requestedPreference = snapshot.side === "buy" ? snapshot.funding_preference : snapshot.settlement_preference;
+  const selectedKind = requestedPreference === "native" ? "native" : "canonical_usdc";
+  const preference = payload?.asset_preference || {};
+  const expectedOutputMint = snapshot.side === "buy"
+    ? snapshot.token_address
+    : selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT;
+  const expectedInputMint = snapshot.side === "buy"
+    ? selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT
+    : snapshot.token_address;
+  const inputMint = String(payload?.quote?.input_mint || payload?.intent?.input_mint || "");
   const outputMint = String(payload?.quote?.output_mint || payload?.intent?.output_mint || "");
   const fee = payload.fee_disclosure || payload.fee_policy || payload?.quote?.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
   const expiresAt = spotQuoteEffectiveExpiry(payload);
   return sameIdentity
+    && preference.requested === requestedPreference
+    && preference.selected === selectedKind
+    && sameSelectedAddress("solana", inputMint, expectedInputMint)
     && sameSelectedAddress("solana", outputMint, expectedOutputMint)
     && configuredFeeBps !== null
     && actualFeeBps !== null
@@ -5616,6 +5751,7 @@ function spotQuoteEffectiveExpiry(payload) {
     payload?.shadow_execution?.round_trip?.expires_at,
     payload?.shadow_execution?.entry_route?.expires_at,
     payload?.shadow_execution?.exit_route?.expires_at,
+    payload?.shadow_execution?.source_valuation_route?.expires_at,
   ].filter((value) => value !== null && value !== undefined && String(value).trim());
   if (!values.length) return Number.NaN;
   const parsed = values.map((value) => Date.parse(value));
@@ -5634,29 +5770,41 @@ function syncSpotTicketControls() {
   }
   const side = state.spotTicketSide === "sell" ? "sell" : "buy";
   const symbol = String(state.selected?.symbol || "TOKEN").toUpperCase();
+  const nativeSymbol = nativeCurrencyForChain(identity?.chain);
+  const assetPreference = activeSpotAssetPreference(side);
+  const selectedAssetKind = selectedSpotAssetKind(side);
+  const selectedAssetSymbol = selectedAssetKind === "native" ? nativeSymbol : "USDC";
   setText("terminalSpotTicketEyebrow", `${chainDisplayName(identity?.chain)} · ${qualified ? "route review" : "trading status"}`);
   if (section) section.dataset.adapterState = qualified ? "active" : "pending";
   const adapterNotice = document.getElementById("terminalSpotAdapterNotice");
   if (adapterNotice) adapterNotice.hidden = qualified;
   if (!qualified) {
-    setText("terminalSpotAdapterTitle", `${chainDisplayName(identity?.chain)} trading is next`);
-    setText("terminalSpotAdapterCopy", `RavenOS resolved this exact ${chainDisplayName(identity?.chain)} market without substitution. Charts, holders, links, and Raven context remain usable while its reviewed noncustodial quote adapter is completed.`);
+    setText("terminalSpotAdapterTitle", `${chainDisplayName(identity?.chain)} route pending`);
+    setText("terminalSpotAdapterCopy", "Charts and wallet data are live. Trading is not.");
   }
   const buyPresets = document.getElementById("terminalSpotBuyPresets");
   const sellPresets = document.getElementById("terminalSpotSellPresets");
   if (buyPresets) buyPresets.hidden = side !== "buy";
   if (sellPresets) sellPresets.hidden = side !== "sell";
   setText("terminalSpotTicketTitle", qualified
-    ? `${side === "buy" ? "Review buying" : "Review selling"} ${symbol} ${side === "buy" ? "with USDC" : "back to USDC"}`
+    ? side === "buy"
+      ? `Buy ${symbol} with ${assetPreference === "auto" ? "Auto" : selectedAssetSymbol}`
+      : `Sell ${symbol} to ${assetPreference === "auto" ? "Auto" : selectedAssetSymbol}`
     : `${chainDisplayName(identity?.chain)} trade adapter`);
   setText("terminalSpotAmountLabel", side === "buy" ? "Spend" : "Sell amount");
-  setText("terminalSpotAmountUnit", side === "buy" ? "USDC" : symbol);
-  setText("terminalSpotBalanceUnit", side === "buy" ? "USDC" : symbol);
+  setText("terminalSpotAmountUnit", side === "buy" ? selectedAssetSymbol : symbol);
+  setText("terminalSpotBalanceUnit", side === "buy" ? selectedAssetSymbol : symbol);
+  setText("terminalSpotQuoteOutputLabel", side === "buy" ? "Expected token" : `Expected ${selectedAssetSymbol}`);
+  const quoteStep = document.querySelector('#terminalSpotExecutionRail [data-terminal-step="quote"] strong');
+  const reviewStep = document.querySelector('#terminalSpotExecutionRail [data-terminal-step="review"] small');
+  if (quoteStep) quoteStep.textContent = side === "buy" ? "Buy quote" : "Sell quote";
+  if (reviewStep) reviewStep.textContent = side === "buy" ? "Back to USDC" : `To ${selectedAssetSymbol}`;
   const action = document.getElementById("terminalSpotQuoteAction");
   if (action) {
-    action.textContent = qualified ? side === "buy" ? "Review buy + exit" : "Review USDC exit" : `${chainDisplayName(identity?.chain)} route adapter pending`;
+    action.textContent = qualified ? side === "buy" ? "Review buy + exit" : `Review ${selectedAssetSymbol} exit` : `${chainDisplayName(identity?.chain)} route pending`;
     action.disabled = !qualified;
   }
+  syncSpotAssetPreferenceControls();
   for (const button of document.querySelectorAll("[data-spot-side]")) {
     const active = button.dataset.spotSide === side;
     button.classList.toggle("active", active);
@@ -5667,6 +5815,11 @@ function syncSpotTicketControls() {
   if (amountInput) {
     amountInput.disabled = !qualified || side === "sell";
     amountInput.placeholder = side === "sell" ? "Choose a wallet percentage below" : "";
+    if (side === "buy") {
+      amountInput.min = selectedAssetKind === "native" ? "0.001" : "1";
+      amountInput.max = selectedAssetKind === "native" ? "50" : "100000";
+      amountInput.step = selectedAssetKind === "native" ? "0.001" : "1";
+    }
   }
   const walletButton = document.getElementById("terminalSpotWalletConnect");
   if (walletButton) walletButton.disabled = !qualified;
@@ -5689,7 +5842,7 @@ function syncSpotTicketControls() {
   if (!qualified) {
     const adapterState = state.flags?.trade_adapter_states?.[identity?.chain] || "adapter_pending";
     setText("terminalSpotQuoteState", titleCase(adapterState, "Adapter pending"));
-    setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} market identity, charts, holders, and Raven context stay available. Its noncustodial quote adapter is not active yet, so no substitute chain or route is used.`);
+    setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} route unavailable.`);
     setText("terminalSpotActiveFee", "Shown when adapter qualifies");
     setText("terminalSpotProFee", "Pro discount preserved");
     setText("terminalSpotFeeCompact", "Pending");
@@ -5704,14 +5857,16 @@ function setSpotTicketSide(side) {
   const next = side === "sell" ? "sell" : "buy";
   state.spotTicketSide = next;
   state.spotSellPercent = null;
+  setText("terminalSpotBalance", state.solanaWalletConnected ? "Read on quote" : "Not verified");
   const advanced = document.getElementById("terminalSpotAdvanced");
   if (advanced && next === "sell") advanced.open = true;
   const input = document.getElementById("terminalSpotAmount");
   if (input) {
     input.disabled = next === "sell";
     input.placeholder = next === "sell" ? "Choose a wallet percentage below" : "";
-    input.value = next === "buy" ? String(loadSpotTicketPreferences().buy_sizes_usdc[1]) : "";
+    input.value = next === "buy" ? String(activeSpotBuySizeConfig().values[1]) : "";
   }
+  renderSpotQuickSizes();
   syncSpotTicketControls();
   clearSpotQuoteResult(`${next === "buy" ? "Buy" : "Sell"} selected. Review a new exact route.`);
 }
@@ -5775,6 +5930,7 @@ function spotQuoteReason(reason) {
     sell_balance_required: "Connect a wallet for percentage sizing or enter an exact token amount.",
     insufficient_balance: "That percentage or amount exceeds the current exact-token balance.",
     selected_mint_unavailable: "Token decimals could not be verified from the configured Solana RPC.",
+    native_source_valuation_unavailable: "SOL entry value could not be verified against USDC. No partial route was shown.",
     jito_not_available: "Jito routing is not available in quote/review mode.",
   };
   return messages[String(reason || "")] || "A current exact route is unavailable. Nothing was prepared.";
@@ -5841,7 +5997,9 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const outputMint = String(quote.output_mint || payload?.intent?.output_mint || "");
   const outputSymbol = sameSelectedAddress("solana", outputMint, SOLANA_CANONICAL_USDC_MINT)
     ? "USDC"
-    : String(state.selected?.symbol || "TOKEN");
+    : sameSelectedAddress("solana", outputMint, SOLANA_WRAPPED_NATIVE_MINT)
+      ? "SOL"
+      : String(state.selected?.symbol || "TOKEN");
   setText("terminalSpotQuoteOutput", displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol));
   setText("terminalSpotQuoteMinimum", `Minimum ${displayQuoteAmount(quote.minimum_output_display ?? quote.minimum_output ?? quote.minimum, outputSymbol)}`);
   setText("terminalSpotQuoteImpact", finite(quote.price_impact_bps) === null ? "Not reported" : `${Number(quote.price_impact_bps).toFixed(2)} bps`);
@@ -5863,7 +6021,10 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const exitValue = finite(roundTrip?.current_executable_liquidation_usdc);
   const friction = finite(roundTrip?.round_trip_friction_pct);
   const quoteOnlyLoss = finite(roundTrip?.quote_only_round_trip_loss_pct);
-  setText("terminalSpotQuoteExit", exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`);
+  const sellExit = state.spotTicketSide === "sell"
+    ? displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol)
+    : null;
+  setText("terminalSpotQuoteExit", sellExit || (exitValue === null ? "Not resolved" : `$${exitValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`));
   setText("terminalSpotQuoteFrictionLabel", friction === null && quoteOnlyLoss !== null ? "Before network costs" : "Round-trip friction");
   setText("terminalSpotQuoteFriction", friction !== null
     ? `${friction.toFixed(2)}%`
@@ -5874,7 +6035,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   setSpotTicketExitSummary(
     roundTrip?.exit_verified || state.spotTicketSide === "sell" ? "current" : "unavailable",
     roundTrip?.exit_verified ? "Verified now" : state.spotTicketSide === "sell" ? "Current exit" : "Not verified",
-    roundTrip?.exit_verified ? "Entry + reverse route" : state.spotTicketSide === "sell" ? "Token back to USDC" : "Buy remains unavailable",
+    roundTrip?.exit_verified ? "Entry + USDC exit" : state.spotTicketSide === "sell" ? `Token → ${outputSymbol}` : "Buy remains unavailable",
   );
   const result = document.getElementById("terminalSpotQuoteResult");
   if (result) {
@@ -5883,14 +6044,15 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   }
   setText("terminalSpotQuoteState", "Current quote");
   setText("terminalSpotQuoteMessage", roundTrip?.exit_verified
-    ? "Entry and immediate reverse liquidation are verified against current quotes. Network cost remains separate when it cannot yet be priced. Nothing was constructed, signed, or sent."
+    ? "Entry + USDC exit verified. Review only."
     : state.spotTicketSide === "buy"
-      ? "An entry quote exists, but Raven could not prove the reverse USDC route. Shadow trade remains unavailable."
-      : "This current token-to-USDC exit route is review-only. Nothing was constructed, signed, or sent.");
+      ? "USDC exit unresolved. Buy unavailable."
+      : `Current ${outputSymbol} exit. Review only.`);
   const balance = payload.balance || {};
   if (balance.available === true) {
     const balanceAmount = balance.amount && typeof balance.amount === "object" ? balance.amount.display : balance.display ?? balance.amount;
     setText("terminalSpotBalance", balanceAmount);
+    setText("terminalSpotBalanceUnit", balance.amount?.symbol || document.getElementById("terminalSpotBalanceUnit")?.textContent);
   }
   updateSpotExecutionRail({ quoted: true, exitVerified: roundTrip?.exit_verified === true || state.spotTicketSide === "sell" });
   scheduleSpotQuoteExpiry(payload);
@@ -6640,7 +6802,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   renderSpotFacts(row);
   renderSpotTradeSurface();
   if (spotTradeSurfaceActive()) void loadSpotTrades();
-  if (String(row.chainId || "").toLowerCase() === "solana") void loadHolderList();
+  if (HOLDER_CHAINS.has(String(row.chainId || "").toLowerCase())) void loadHolderList();
   setText("terminalChartTitle", `${row.symbol || "UNKNOWN"}/${row.quoteSymbol || "QUOTE"} · ${state.timeframe}`);
   setText("terminalChartStatus", "Loading this pool’s price history.");
   const chartCapability = spotChartCapability(row, state.timeframe);
@@ -7310,6 +7472,9 @@ function bindControls() {
   for (const button of document.querySelectorAll("[data-spot-side]")) {
     button.addEventListener("click", () => setSpotTicketSide(button.dataset.spotSide));
   }
+  for (const button of document.querySelectorAll("[data-spot-asset-preference]")) {
+    button.addEventListener("click", () => setSpotAssetPreference(button.dataset.spotAssetPreference));
+  }
   for (const button of document.querySelectorAll("[data-spot-sell-pct]")) {
     button.addEventListener("click", () => {
       if (!state.solanaWalletConnected) return;
@@ -7331,11 +7496,11 @@ function bindControls() {
   }
   for (const input of document.querySelectorAll("[data-spot-buy-size-index]")) {
     input.addEventListener("change", () => {
-      const preferences = loadSpotTicketPreferences();
-      const next = [...preferences.buy_sizes_usdc];
+      const sizeConfig = activeSpotBuySizeConfig();
+      const next = [...sizeConfig.values];
       const index = Number(input.dataset.spotBuySizeIndex);
-      next[index] = boundedSpotBuySize(input.value) ?? next[index];
-      saveSpotTicketPreferences({ buy_sizes_usdc: next });
+      next[index] = (sizeConfig.native ? boundedSpotNativeBuySize(input.value) : boundedSpotBuySize(input.value)) ?? next[index];
+      saveSpotTicketPreferences({ [sizeConfig.key]: next });
       renderSpotQuickSizes();
       clearSpotQuoteResult("Quick-buy sizes updated on this device.");
     });
@@ -7590,6 +7755,7 @@ async function boot() {
       instrumentId: state.workspace?.state?.instrument?.canonical_id || null,
       timeframe: state.timeframe,
       candleCount: state.workspace?.state?.candles?.length || 0,
+      lastCandleTime: finite(state.workspace?.state?.candles?.at(-1)?.time),
       lastCandleClose: finite(state.workspace?.state?.candles?.at(-1)?.close),
       livePriceSource: state.workspace?.state?.marketState?.live_price_source || null,
       chartState: state.workspace?.state?.state || "unavailable",
@@ -7650,6 +7816,8 @@ async function boot() {
       spotQuoteCurrent: spotQuoteStillCurrent(),
       spotQuoteFollowing: state.spotQuoteFollow,
       spotPlanSource: state.spotTicketPlanSource,
+      spotFundingPreference: activeSpotAssetPreference("buy"),
+      spotSettlementPreference: activeSpotAssetPreference("sell"),
       spotWalletConnected: state.solanaWalletConnected,
       signingAvailable: false,
       submissionAvailable: false,

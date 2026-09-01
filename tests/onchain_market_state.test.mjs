@@ -26,7 +26,7 @@ test("current provider delivery is not conflated with the newest candle timestam
   assert.equal(result.candle_recency_state, "delayed");
   assert.equal(result.market_activity_state, "no_recent_trades");
   assert.equal(result.chart_state, "current_no_recent_trades");
-  assert.equal(result.operator_label, "No recent trades");
+  assert.equal(result.operator_label, "No recent txns");
 });
 
 test("a changed exact-market snapshot exposes chart lag instead of claiming quiet trading", () => {
@@ -56,5 +56,5 @@ test("a pool with no reported transactions is labeled inactive rather than globa
   });
   assert.equal(result.market_activity_state, "no_recent_trades");
   assert.equal(result.chart_state, "current_no_recent_trades");
-  assert.equal(result.operator_label, "No recent trades");
+  assert.equal(result.operator_label, "No recent txns");
 });

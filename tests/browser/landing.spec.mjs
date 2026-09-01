@@ -142,6 +142,10 @@ test("landing page demonstrates the current exact RavenOS product rather than a 
   await mockLanding(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /See the move.*Understand the behavior/i })).toBeVisible();
+  await expect(page.locator(".landing-hero-copy > p")).toHaveText("Live markets, wallet behavior, and risk in one view.");
+  await expect(page.locator(".landing-hero-copy > p")).not.toContainText("—");
+  await expect(page.getByRole("link", { name: /Login \/ connect wallet/i })).toHaveAttribute("href", "/account/");
+  await expect(page.getByRole("link", { name: "Explore markets", exact: true })).toHaveAttribute("href", "/discover/");
   await expect(page.locator("#landingOriginState")).toHaveText("Current opportunities");
   await expect(page.locator("#landingOpportunityCount")).toHaveText("1 current markets");
   await expect(page.locator("#landingInstrument")).toHaveText("SOL-PERP");

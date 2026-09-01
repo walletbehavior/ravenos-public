@@ -91,7 +91,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalBookState")).toContainText("4 × 4");
   await expect(page.locator("#terminalBookBidShare")).toContainText("Bid 56%");
   await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
-  await expect(page.locator("#terminalTapeState")).toHaveText("4 public trades");
+  await expect(page.locator("#terminalTapeState")).toHaveText("4 public txns");
   await expect(page.locator("#terminalMarketRail")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect.poll(() => page.locator("#terminalTradeReviewSection").evaluate((node) => getComputedStyle(node).order)).toBe("1");
@@ -1498,6 +1498,57 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   });
 });
 
+test("Solana spot ticket binds Auto, USDC, and native SOL preferences to the exact shadow quote", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    window.__SOLANA_SIGN_CALLS__ = 0;
+    const publicKey = { toString: () => "Stake11111111111111111111111111111111111111" };
+    window.phantom = {
+      solana: {
+        publicKey,
+        connect: async () => ({ publicKey }),
+        signTransaction: async () => {
+          window.__SOLANA_SIGN_CALLS__ += 1;
+          throw new Error("signing_must_not_be_called");
+        },
+      },
+    };
+  });
+  const fixtures = await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator('[data-spot-asset-preference="auto"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalSpotAssetPreferenceState")).toHaveText("→ USDC");
+  await expect(page.locator("#terminalSpotAmountUnit")).toHaveText("USDC");
+
+  await page.locator('[data-spot-asset-preference="native"]').click();
+  await expect(page.locator("#terminalSpotAmountUnit")).toHaveText("SOL");
+  await expect(page.locator("#terminalSpotAssetPreferenceState")).toBeHidden();
+  await expect(page.locator('[data-spot-buy-amount="0.5"]')).toHaveText("0.5 SOL");
+  await page.locator('[data-spot-buy-amount="0.5"]').click();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Current quote");
+  await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
+  expect(fixtures.spotQuoteCalls.at(-1)).toMatchObject({
+    side: "buy",
+    funding_preference: "native",
+    display_amount: "0.5",
+  });
+
+  await page.locator("#terminalSpotSell").click();
+  await expect(page.locator("#terminalSpotAssetPreferenceLabel")).toHaveText("Receive");
+  await page.locator('[data-spot-asset-preference="native"]').click();
+  await page.locator("#terminalSpotWalletConnect").click();
+  await page.locator('[data-spot-sell-pct="25"]').click();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 SOL");
+  await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("0.42 SOL");
+  expect(fixtures.spotQuoteCalls.at(-1)).toMatchObject({ side: "sell", settlement_preference: "native", sell_percent: 25 });
+  expect(await page.evaluate(() => window.__SOLANA_SIGN_CALLS__)).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("spot chart exposes the top-level read-only wallet connection before opening the ticket", async ({ page }) => {
   await page.addInitScript(() => {
     window.__SOLANA_CONNECT_CALLS__ = 0;
@@ -1601,8 +1652,12 @@ test("all-chain spot ticket fails closed with an honest adapter state instead of
   await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
   await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "pending");
   await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("BNB Chain trade adapter");
-  await expect(page.locator("#terminalSpotAdapterTitle")).toHaveText("BNB Chain trading is next");
-  await expect(page.locator("#terminalSpotAdapterCopy")).toContainText("without substitution");
+  await expect(page.locator("#terminalSpotAdapterTitle")).toHaveText("BNB Chain route pending");
+  await expect(page.locator("#terminalSpotAdapterCopy")).toHaveText("Charts and wallet data are live. Trading is not.");
+  await expect(page.locator("#terminalSpotNativeAssetLabel")).toHaveText("BNB");
+  await expect(page.locator('[data-spot-asset-preference="auto"]')).toBeDisabled();
+  await expect(page.locator('[data-spot-asset-preference="canonical_usdc"]')).toBeDisabled();
+  await expect(page.locator('[data-spot-asset-preference="native"]')).toBeDisabled();
   await expect(page.locator("#terminalBoundary strong")).toHaveText("Trading coming later");
   await expect(page.locator("#terminalSpotQuoteAction")).toBeHidden();
   await expect(page.locator("#terminalSpotWallet")).toBeHidden();
@@ -1757,7 +1812,7 @@ test("severe risk survives an early holder response and clears only for the next
   await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeVisible();
 });
 
-test("spot markets without matching Raven evidence keep useful anatomy and omit empty intelligence", async ({ page }) => {
+test("spot markets without matching Raven evidence keep useful anatomy and an actionable Raven state", async ({ page }) => {
   await mockTerminalLiveApis(page, { spotRavenContext: false });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
@@ -1767,9 +1822,13 @@ test("spot markets without matching Raven evidence keep useful anatomy and omit 
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalReadTrigger")).toBeHidden();
-  await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeDisabled();
-  await expect(page.locator('[data-terminal-pane-button="raven"]')).toHaveAttribute("data-status", "No current read");
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeEnabled();
+  await expect(page.locator('[data-terminal-pane-button="raven"]')).toHaveAttribute("data-status", "Forming");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
+  await expect(page.locator("#terminalRavenEmptySection")).toBeVisible();
+  await expect(page.locator("#terminalRavenEmptySection")).toContainText("Evidence is still forming.");
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomy1")).toContainText("4.2M");
   await expect(page.locator("#terminalAnatomy5Label")).toHaveText("Holders");
@@ -1785,11 +1844,11 @@ test("a quiet exact pool stays current without presenting an old candle as a sit
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
 
-  await expect(page.locator("#terminalMarketFreshness")).toHaveText("No recent trades");
+  await expect(page.locator("#terminalMarketFreshness")).toHaveText("No recent txns");
   await expect(page.locator("#terminalSourceFreshness")).toContainText("Provider current");
   await expect(page.locator("#terminalSourceFreshness")).toContainText("Delayed candles");
-  await expect(page.locator("#terminalSourceFreshness")).toContainText("no recent trades");
-  await expect(page.locator("#rosFreshness strong")).toHaveText("No recent trades");
+  await expect(page.locator("#terminalSourceFreshness")).toContainText("no recent txns");
+  await expect(page.locator("#rosFreshness strong")).toHaveText("No recent txns");
   await expect(page.locator("#terminalBoundary strong")).toHaveText("Trading coming later");
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().planPreviewAvailable)).toBe(false);
