@@ -381,9 +381,12 @@ test("inspect queues one shared deep-history job and source detail reports its h
   const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
   let job = null;
   let enqueueCount = 0;
+  let enqueueInput = null;
   const backfillStore = {
-    async enqueueJob({ address }) {
+    async enqueueJob(input) {
       enqueueCount += 1;
+      enqueueInput = input;
+      const { address } = input;
       job ||= createSourceWalletBackfillJob({ address, requested_at: new Date(NOW * 1_000).toISOString() });
       return job;
     },
@@ -406,8 +409,47 @@ test("inspect queues one shared deep-history job and source detail reports its h
   assert.equal(detailPayload.prospective_copyability.state, "insufficient_evidence");
   assert.equal(detailPayload.provider_request_performed, false);
   assert.equal(enqueueCount, 1);
+  assert.equal(enqueueInput.demand_class, "interactive_lookup");
+  assert.equal("user_id" in enqueueInput, false);
   assert.equal(resolveWalletCopyActivation(activeEnv).deep_history, true);
   assert.equal(resolveWalletCopyActivation(activeEnv).live_copy, false);
+});
+
+test("lookup, saved research, and copy watches upgrade one shared history job through public demand classes", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const enqueueInputs = [];
+  const backfillStore = {
+    async enqueueJob(input) {
+      enqueueInputs.push(input);
+      return createSourceWalletBackfillJob({
+        address: input.address,
+        demand_class: input.demand_class,
+        requested_at: new Date(input.now).toISOString(),
+      });
+    },
+  };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1", RAVENOS_WALLET_BACKFILL_ENABLED: "1" });
+  const d = { ...deps(store, provider), sourceWalletBackfillStore: backfillStore };
+  const inspected = await json(await routeCustomerWalletCopy(
+    request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }),
+    activeEnv,
+    d,
+  ));
+  await routeCustomerWalletCopy(request("/api/v1/wallet-copy/saved-wallets", {
+    method: "POST",
+    body: { source_wallet_id: inspected.source_wallet_id, list_name: "Priority", label: "Research first" },
+  }), activeEnv, d);
+  await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", {
+    method: "POST",
+    body: { address: WALLET, label: "Shadow priority", policy: { sizing: { fixed_usdc: 100 } } },
+  }), activeEnv, d);
+  assert.deepEqual(enqueueInputs.map((input) => input.demand_class), [
+    "interactive_lookup",
+    "saved_research",
+    "customer_watch",
+  ]);
+  assert.equal(enqueueInputs.every((input) => !("user_id" in input) && !("watch_id" in input)), true);
 });
 
 test("shared D1 event ingestion batches deep-history writes without changing event idempotency", async () => {

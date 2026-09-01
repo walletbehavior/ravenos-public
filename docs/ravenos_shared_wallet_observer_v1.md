@@ -263,4 +263,6 @@ This closes the intended shared pipeline:
 
 `Nexus candidate → Raven hydration → bounded backfill/profile → research cohort → prospective observer → five-size entry/exit evidence → screener and wallet profile`
 
+The bounded-backfill stage now has demand-aware scheduling through migration `0020_source_wallet_backfill_priority.sql`. A customer watch outranks a saved wallet, which outranks an interactive lookup, verified Nexus research, and bulk indexed research. Repeated demand upgrades the existing shared job rather than cloning it, and higher Nexus evidence can improve research order within its lane. Cursor progress and retry cooldowns are never reset by a priority upgrade; subscriber identity never enters the queue.
+
 The cohort is independently dormant behind `RAVENOS_WALLET_RESEARCH_COHORT_ENABLED`. Admission also requires the discovery and backfill gates; manifest inclusion also requires the observer-ingress gates. The flag is absent from Wrangler. No migration, service, manifest change, observer activation, live copy, signing, broadcasting, custody, or fee collection is performed by this milestone.

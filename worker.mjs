@@ -9245,19 +9245,19 @@ export default {
               if (inserted.includes(event.event_id)) {
                 await persistSourceWalletProfile(walletStore, candidate.source_wallet_id, seconds);
               }
+              const researchAdmission = createSourceWalletResearchCohortAdmission({
+                candidate,
+                admitted_at: new Date(Number(now)).toISOString(),
+              });
               const backfill = await backfillStore.enqueueJob({
                 address: candidate.source_wallet.address,
                 provider: "configured_solana_rpc",
+                demand_class: "nexus_research",
+                evidence_priority: researchAdmission.priority_score,
                 now: Number(now),
               });
               const researchCohort = researchCohortActivation.admission
-                ? await walletStore.admitSourceWalletResearchCohort(
-                    createSourceWalletResearchCohortAdmission({
-                      candidate,
-                      admitted_at: new Date(Number(now)).toISOString(),
-                    }),
-                    seconds,
-                  )
+                ? await walletStore.admitSourceWalletResearchCohort(researchAdmission, seconds)
                 : null;
               return {
                 source_wallet_id: candidate.source_wallet_id,

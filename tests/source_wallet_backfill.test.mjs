@@ -7,6 +7,7 @@ import bs58 from "bs58";
 import {
   SOURCE_WALLET_BACKFILL_JOB_SCHEMA,
   SOURCE_WALLET_BACKFILL_RUN_SCHEMA,
+  SourceWalletBackfillDemandPriorities,
   SourceWalletBackfillLimits,
   createD1SourceWalletBackfillStore,
   createSourceWalletBackfillJob,
@@ -111,7 +112,33 @@ test("backfill job identity is exact, shared, and contains no execution authorit
   assert.match(job.job_id, /^swb_[a-f0-9]{40}$/);
   assert.equal(job.source_wallet.address, WALLET);
   assert.equal(job.state, "queued");
+  assert.equal(job.demand_class, "indexed_research");
+  assert.equal(job.demand_priority, SourceWalletBackfillDemandPriorities.indexed_research);
+  assert.equal(job.evidence_priority, 0);
   assert.equal(job.execution_boundary.broadcasting, false);
+});
+
+test("backfill demand lanes are deterministic, bounded, and contain no subscriber identity", () => {
+  const job = createSourceWalletBackfillJob({
+    address: WALLET,
+    demand_class: "nexus_research",
+    evidence_priority: 927,
+    requested_at: NOW,
+  });
+  assert.equal(job.demand_class, "nexus_research");
+  assert.equal(job.demand_priority, 200);
+  assert.equal(job.evidence_priority, 927);
+  assert.equal(job.last_demand_at, NOW);
+  assert.equal("user_id" in job, false);
+  assert.equal("watch_id" in job, false);
+  assert.throws(
+    () => createSourceWalletBackfillJob({ address: WALLET, demand_class: "paid_whale", requested_at: NOW }),
+    /source_wallet_backfill_demand_class_invalid/,
+  );
+  assert.throws(
+    () => createSourceWalletBackfillJob({ address: WALLET, evidence_priority: 1_001, requested_at: NOW }),
+    /source_wallet_backfill_evidence_priority_invalid/,
+  );
 });
 
 test("resumable backfill advances complete pages and marks true provider exhaustion", async () => {
@@ -215,6 +242,22 @@ test("backfill migration is shared, append-only, bounded, and contains no custom
   assert.doesNotMatch(statements, /raw_provider_payload\s+(?:TEXT|BLOB)/i);
 });
 
+test("backfill priority migration ranks shared demand without copying subscriber or execution state", () => {
+  const sql = readFileSync("customer-migrations/0020_source_wallet_backfill_priority.sql", "utf8");
+  assert.match(sql, /ADD COLUMN demand_class TEXT NOT NULL DEFAULT 'indexed_research'/i);
+  assert.match(sql, /'customer_watch'[\s\S]*'saved_research'[\s\S]*'interactive_lookup'[\s\S]*'nexus_research'[\s\S]*'indexed_research'/i);
+  assert.match(sql, /ADD COLUMN evidence_priority INTEGER NOT NULL DEFAULT 0/i);
+  assert.match(sql, /demand_priority DESC,[\s\S]*evidence_priority DESC,[\s\S]*next_attempt_at/i);
+  assert.match(sql, /ravenos_customer_wallet_research_saves/i);
+  assert.match(sql, /ravenos_customer_wallet_copy_watches/i);
+  assert.match(sql, /CREATE TRIGGER ravenos_source_wallet_backfill_demand_insert_guard/i);
+  assert.match(sql, /CREATE TRIGGER ravenos_source_wallet_backfill_demand_update_guard/i);
+  assert.match(sql, /source_wallet_backfill_demand_priority_mismatch/i);
+  const statements = sql.replace(/--.*$/gm, "");
+  assert.doesNotMatch(statements, /\buser_id\b|\bwatch_id\b|policy_json|private_key|seed_phrase|signer_material|serialized_transaction|transaction_hash/i);
+  assert.doesNotMatch(statements, /cursor_before\s*=|next_attempt_at\s*=/i);
+});
+
 test("D1 store shares one resumable job per source wallet and preserves its lease", async () => {
   let row = null;
   const sqlSeen = [];
@@ -223,6 +266,20 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
     prepare(sql) {
       sqlSeen.push(sql);
       return {
+        async all() {
+          if (/GROUP BY state, demand_class/i.test(sql) && row) {
+            return { results: [{
+              state: row.state,
+              demand_class: row.demand_class,
+              demand_priority: row.demand_priority,
+              highest_evidence_priority: row.evidence_priority,
+              count: 1,
+              oldest_updated_at: row.updated_at,
+              oldest_due_at: row.next_attempt_at,
+            }] };
+          }
+          return { results: [] };
+        },
         bind(...bindings) {
           return {
             async first() {
@@ -232,7 +289,7 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
               return null;
             },
             async all() {
-              if (/SELECT job_id FROM ravenos_source_wallet_backfill_jobs/i.test(sql) && row?.state === "queued") {
+              if (/(?:SELECT job_id FROM|SELECT j\.job_id[\s\S]*FROM) ravenos_source_wallet_backfill_jobs/i.test(sql) && row?.state === "queued") {
                 return { results: [{ job_id: row.job_id }] };
               }
               return { results: [] };
@@ -240,7 +297,18 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
             async run() {
               if (/INSERT OR IGNORE INTO ravenos_source_wallet_backfill_jobs/i.test(sql)) {
                 if (!row) {
-                  const [jobId, sourceId, provider, nextAttemptAt, createdAt, updatedAt] = bindings;
+                  const [
+                    jobId,
+                    sourceId,
+                    provider,
+                    demandClass,
+                    demandPriority,
+                    evidencePriority,
+                    lastDemandAt,
+                    nextAttemptAt,
+                    createdAt,
+                    updatedAt,
+                  ] = bindings;
                   row = {
                     job_id: jobId,
                     source_wallet_id: sourceId,
@@ -253,6 +321,10 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
                     decode_failures: 0,
                     history_exhausted: 0,
                     attempt_count: 0,
+                    demand_class: demandClass,
+                    demand_priority: demandPriority,
+                    evidence_priority: evidencePriority,
+                    last_demand_at: lastDemandAt,
                     next_attempt_at: nextAttemptAt,
                     lease_token: null,
                     lease_expires_at: null,
@@ -263,6 +335,18 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
                   return { meta: { changes: 1 } };
                 }
                 return { meta: { changes: 0 } };
+              }
+              if (/demand_class = CASE WHEN demand_priority < \?/i.test(sql)) {
+                const [demandPriority, demandClass, maximumDemandPriority, evidencePriority, lastDemandAt, jobId] = bindings;
+                if (row?.job_id !== jobId) return { meta: { changes: 0 } };
+                row = {
+                  ...row,
+                  demand_class: row.demand_priority < demandPriority ? demandClass : row.demand_class,
+                  demand_priority: Math.max(row.demand_priority, maximumDemandPriority),
+                  evidence_priority: Math.max(row.evidence_priority, evidencePriority),
+                  last_demand_at: Math.max(row.last_demand_at, lastDemandAt),
+                };
+                return { meta: { changes: 1 } };
               }
               if (/state = 'leased', lease_token = \?/i.test(sql)) {
                 const [leaseToken, leaseExpiresAt, updatedAt, jobId] = bindings;
@@ -310,9 +394,9 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
     },
   });
   const now = Date.parse(NOW);
-  const first = await store.enqueueJob({ address: WALLET, now });
-  const duplicate = await store.enqueueJob({ address: WALLET, now: now + 1_000 });
-  assert.equal(first.job_id, duplicate.job_id);
+  const first = await store.enqueueJob({ address: WALLET, demand_class: "nexus_research", evidence_priority: 720, now });
+  assert.equal(first.demand_class, "nexus_research");
+  assert.equal(first.demand_priority, 200);
   const [leased] = await store.leaseJobs({ worker_id: "backfill_fixture", now, limit: 1, lease_seconds: 180 });
   assert.equal(leased.state, "leased");
   assert.match(leased.lease_token, /^backfill_fixture:/);
@@ -331,6 +415,32 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
   assert.equal(advanced.cursor_before, signature(1));
   assert.equal(advanced.lease_token, null);
   assert.equal(advanced.attempt_count, 0);
+  const duplicate = await store.enqueueJob({ address: WALLET, demand_class: "customer_watch", evidence_priority: 0, now: now + 1_000 });
+  assert.equal(first.job_id, duplicate.job_id);
+  assert.equal(duplicate.demand_class, "customer_watch");
+  assert.equal(duplicate.demand_priority, 500);
+  assert.equal(duplicate.evidence_priority, 720);
+  assert.equal(duplicate.cursor_before, signature(1));
+  assert.equal(duplicate.page_count, 1);
+  assert.equal(duplicate.updated_at, advanced.updated_at);
+  assert.equal(duplicate.last_demand_at, new Date(now + 1_000).toISOString());
+  const [refreshCandidate] = await store.listProfileRefreshCandidates(1);
+  assert.equal(refreshCandidate.job_id, first.job_id);
+  const health = await store.health({ now: now + 1_000 });
+  assert.deepEqual(health.queue.map((lane) => ({
+    demand_class: lane.demand_class,
+    demand_priority: lane.demand_priority,
+    highest_evidence_priority: lane.highest_evidence_priority,
+    count: lane.count,
+  })), [{
+    demand_class: "customer_watch",
+    demand_priority: 500,
+    highest_evidence_priority: 720,
+    count: 1,
+  }]);
+  assert.equal(health.subscriber_identity_included, false);
   assert.equal(recorded.length, 0);
+  assert.match(sqlSeen.join("\n"), /ORDER BY demand_priority DESC, evidence_priority DESC, next_attempt_at ASC/i);
+  assert.match(sqlSeen.join("\n"), /ORDER BY j\.demand_priority DESC, j\.evidence_priority DESC, j\.updated_at ASC/i);
   assert.doesNotMatch(sqlSeen.join("\n"), /SELECT\s+.*\buser_id\b|policy_json|private_key|transaction_hash/i);
 });
