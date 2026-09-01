@@ -3317,9 +3317,10 @@ function renderHolderListProjection(payload) {
     ? `${visibleRows.length} ${filterLabel}`
     : totalOwners !== null ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
   const observed = timestamp(payload.observed_at);
+  const source = customerFacingText(payload?.source?.label, "On-chain source");
   setText("terminalHolderListNote", complete
-    ? `${compact(totalOwners)} owners · top ${payload.holders.length} · ${observed}.`
-    : `${payload.holders.length} indexed holders${totalOwners !== null ? ` of ${compact(totalOwners)}` : ""} · ${observed}.`);
+    ? `${compact(totalOwners)} owners · ${source} · ${observed}.`
+    : `${payload.holders.length} indexed${totalOwners !== null ? ` of ${compact(totalOwners)}` : ""} · ${source} · ${observed}.`);
   renderVerifiedHolderConcentration(payload);
   renderHolderCheck(payload);
   renderHolderTradeActivity(payload);
@@ -3380,8 +3381,18 @@ async function loadHolderList() {
   if (identity.quote_address) params.set("quote_address", identity.quote_address);
   try {
     const { response, payload } = await fetchJson(`/api/onchain/holders?${params.toString()}`);
-    if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
     const verified = response.ok ? verifiedHolderProjection(payload, identity) : null;
+    // A market can finish resolving while this request is in flight. The
+    // response is still valid for the exact identity that requested it, so
+    // retain verified evidence even when a newer selection owns the screen.
+    // Rendering remains restricted to the current exact identity below.
+    if (verified) {
+      state.holderListCache.set(identity.key, verified);
+      if (state.holderListCache.size > 24) state.holderListCache.delete(state.holderListCache.keys().next().value);
+      if (currentHolderIdentity()?.key === identity.key) renderHolderListProjection(verified);
+      return;
+    }
+    if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
     if (!verified) {
       setText("terminalHolderListState", "Unavailable");
       const providerMissing = ["holder_source_disabled", "holder_source_misconfigured"].includes(payload?.error);
@@ -3390,9 +3401,6 @@ async function loadHolderList() {
       renderMarketControlRisk(null, { unavailable: true });
       return;
     }
-    state.holderListCache.set(identity.key, verified);
-    if (state.holderListCache.size > 24) state.holderListCache.delete(state.holderListCache.keys().next().value);
-    renderHolderListProjection(verified);
   } catch {
     if (generation !== state.holderListGeneration || currentHolderIdentity()?.key !== identity.key) return;
     setText("terminalHolderListState", "Unavailable");
@@ -3401,6 +3409,17 @@ async function loadHolderList() {
     renderMarketControlRisk(null, { unavailable: true });
   } finally {
     if (state.holderListLoadingKey === identity.key) state.holderListLoadingKey = "";
+    const current = currentHolderIdentity();
+    const details = document.getElementById("terminalHolderList");
+    const holderPaneActive = !terminalUsesPaneNavigation()
+      || document.querySelector(".terminal-live")?.dataset.terminalPane === "holders";
+    if (
+      current
+      && current.key !== identity.key
+      && details?.open
+      && holderPaneActive
+      && !state.holderListCache.has(current.key)
+    ) queueMicrotask(() => void loadHolderList());
   }
 }
 

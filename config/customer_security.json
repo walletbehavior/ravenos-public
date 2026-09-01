@@ -419,6 +419,7 @@
     "validated_methods": [
       "getAccountInfo",
       "getTokenSupply",
+      "getTokenAccounts",
       "getProgramAccounts",
       "getTokenLargestAccounts",
       "getMultipleAccounts",

@@ -1138,6 +1138,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeHidden();
   await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
+  await expect(page.locator("#terminalHolderList > summary")).toContainText("On-chain holders");
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect.poll(() => tradeCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
@@ -1146,6 +1147,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalHolderListRows .terminal-holder-copy").first().locator(".terminal-copy-glyph")).toHaveCount(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-copy").first()).toHaveAttribute("aria-label", "Copy holder 1 address");
   await expect(page.locator("#terminalHolderListState")).toContainText("100 of 4.85K owners");
+  await expect(page.locator("#terminalHolderListNote")).toContainText("Solana on-chain accounts");
   await expect(page.locator("#terminalHolderCheck")).toBeVisible();
   await expect(page.locator("#terminalHolderCheck")).toContainText("Raven holder check");
   await expect(page.locator("#terminalHolderLargest")).toHaveText("12.3%");
@@ -1206,6 +1208,7 @@ test("Robinhood exact-token holders render from a bounded indexed snapshot", asy
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(3);
   await expect(page.locator("#terminalHolderListState")).toContainText("3 of 314 owners");
+  await expect(page.locator("#terminalHolderListNote")).toContainText("Blockscout indexed holders");
   await expect(page.locator("#terminalHolderMapState")).toContainText("Indexed holders");
   await expect(page.locator('#terminalHolderListRows [data-classification="contract"]')).toContainText("Contract account");
   await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");

@@ -19,6 +19,7 @@ const ACCOUNT_B = "SysvarC1ock11111111111111111111111111111111";
 const ACCOUNT_C = "Vote111111111111111111111111111111111111111";
 const OWNER_A = "Stake11111111111111111111111111111111111111";
 const FULL_POOL = "11111111111111111111111111111111";
+const INDEXED_POOL = "Config1111111111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 function response(payload, status = 200) {
@@ -56,9 +57,9 @@ function holderEnv() {
   };
 }
 
-function programAccount(pubkey, owner, amount) {
+function programAccount(pubkey, owner, amount, mint = TOKEN) {
   const bytes = Buffer.alloc(72);
-  Buffer.from(bs58.decode(TOKEN)).copy(bytes, 0);
+  Buffer.from(bs58.decode(mint)).copy(bytes, 0);
   Buffer.from(bs58.decode(owner)).copy(bytes, 32);
   bytes.writeBigUInt64LE(BigInt(amount), 64);
   return { pubkey, account: { owner: TOKEN_PROGRAM, data: [bytes.toString("base64"), "base64"] } };
@@ -90,7 +91,91 @@ test("public holder runtime is separately activated and never falls back to a pr
   assert.equal(OnchainHolderProjectionContract.private_rpc_fallback_allowed, false);
   assert.equal(OnchainHolderProjectionContract.maximum_holder_rows, 100);
   assert.equal(OnchainHolderProjectionContract.maximum_census_source_accounts, 25_000);
+  assert.equal(OnchainHolderProjectionContract.indexed_token_account_page_size, 1_000);
   assert.equal(OnchainHolderProjectionContract.complete_holder_census_available, true);
+});
+
+test("indexed exact-mint token accounts are the primary bounded Solana holder census", async () => {
+  const calls = [];
+  const fetchImpl = async (input, init = {}) => {
+    assert.equal(String(input), "https://solana-display.invalid/rpc");
+    const request = JSON.parse(init.body);
+    calls.push(request);
+    if (request.method === "getAccountInfo") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 100 }, value: { owner: TOKEN_PROGRAM, data: mintAccountData() } } });
+    }
+    if (request.method === "getTokenSupply") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 101 }, value: { amount: "1000", decimals: 0, uiAmountString: "1000" } } });
+    }
+    if (request.method === "getTokenAccounts") {
+      assert.equal(request.params.mintAddress, TOKEN);
+      assert.equal(request.params.limit, 1_000);
+      assert.deepEqual(request.params.options, { showZeroBalance: false });
+      if (!request.params.cursor) {
+        return response({ jsonrpc: "2.0", id: 1, result: {
+          total: 3,
+          limit: 1_000,
+          cursor: "cursor-two",
+          last_indexed_slot: 102,
+          token_accounts: [programAccount(ACCOUNT_A, OWNER_A, 400), programAccount(ACCOUNT_B, OWNER_A, 300)],
+        } });
+      }
+      assert.equal(request.params.cursor, "cursor-two");
+      return response({ jsonrpc: "2.0", id: 1, result: {
+        total: 3,
+        limit: 1_000,
+        cursor: null,
+        last_indexed_slot: 103,
+        token_accounts: [programAccount(ACCOUNT_C, INDEXED_POOL, 200)],
+      } });
+    }
+    throw new Error(`unexpected rpc method ${request.method}`);
+  };
+
+  const projection = await buildPublicSolanaHolderProjection({
+    env: holderEnv(),
+    identity: { chain: "solana", pool_address: INDEXED_POOL, token_address: TOKEN, quote_token_address: QUOTE },
+    fetch_impl: fetchImpl,
+    now: () => new Date("2026-09-01T22:00:00.000Z"),
+  });
+  assert.equal(projection.coverage.complete_holder_census, true);
+  assert.equal(projection.coverage.page_count, 2);
+  assert.equal(projection.coverage.scanned_source_accounts, 3);
+  assert.equal(projection.summary.holder_count, 2);
+  assert.equal(projection.holders[0].holder_address, OWNER_A);
+  assert.equal(projection.holders[0].balance, "700");
+  assert.equal(projection.holders[1].classification, "exact_pool_account");
+  assert.equal(projection.source.method, "indexed_token_accounts");
+  assert.equal(calls.some((call) => call.method === "getProgramAccounts"), false);
+  assert.equal(calls.some((call) => call.method === "getTokenLargestAccounts"), false);
+  assert.equal(JSON.stringify(projection).includes("cursor-two"), false);
+});
+
+test("indexed holder identity contradictions fail closed instead of dropping to a substitute scan", async () => {
+  const fetchImpl = async (_input, init = {}) => {
+    const request = JSON.parse(init.body);
+    if (request.method === "getAccountInfo") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 110 }, value: { owner: TOKEN_PROGRAM, data: mintAccountData() } } });
+    }
+    if (request.method === "getTokenSupply") {
+      return response({ jsonrpc: "2.0", id: 1, result: { context: { slot: 111 }, value: { amount: "1000", decimals: 0, uiAmountString: "1000" } } });
+    }
+    if (request.method === "getTokenAccounts") {
+      return response({ jsonrpc: "2.0", id: 1, result: {
+        total: 1,
+        cursor: null,
+        last_indexed_slot: 112,
+        token_accounts: [programAccount(ACCOUNT_A, OWNER_A, 400, QUOTE)],
+      } });
+    }
+    throw new Error(`unexpected fallback ${request.method}`);
+  };
+
+  await assert.rejects(() => buildPublicSolanaHolderProjection({
+    env: holderEnv(),
+    identity: { chain: "solana", pool_address: "SysvarS1otHashes111111111111111111111111111", token_address: TOKEN, quote_token_address: QUOTE },
+    fetch_impl: fetchImpl,
+  }), (error) => error.code === "holder_rpc_identity_mismatch" && error.status === 409);
 });
 
 test("indexed holder projection completes provider pagination and aggregates every nonzero account by owner", async () => {

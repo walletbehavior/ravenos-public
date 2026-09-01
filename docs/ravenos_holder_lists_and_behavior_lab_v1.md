@@ -62,11 +62,11 @@ Solana requires:
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED=1`
 - `RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL=<dedicated HTTPS endpoint>`
 
-The production release enables the first control and requires the second as a server-only Cloudflare secret. Raven's existing paid Solana Alchemy endpoint was structurally validated against the exact BITCAT mint using `getAccountInfo`, `getTokenSupply`, and the exact-mint `getProgramAccounts` scan. No endpoint or key entered a public response or release artifact.
+The production release enables the first control and requires the second as a server-only Cloudflare secret. Raven's existing paid Solana Alchemy endpoint is queried first through the paginated exact-mint `getTokenAccounts` index, bounded to 25 pages and 25,000 source accounts. The standard exact-mint `getProgramAccounts` scan and largest-account RPC remain fail-closed fallbacks. No endpoint, cursor, or key enters a public response or release artifact.
 
 The route does not implicitly fall back to `RAVENOS_SOLANA_RPC_URL`. This prevents an environment mistake from silently placing public-product load on an unrelated private RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
 
-EVM holders remain disabled until both are configured:
+EVM holders remain disabled until both are configured and a real Robinhood Chain token request passes staging validation:
 
 - `RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED=1`
 - `BLOCKSCOUT_API_KEY=<server-only key>`
