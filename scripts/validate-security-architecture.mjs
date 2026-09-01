@@ -140,6 +140,20 @@ assert.equal(config.wallet_copy.constant_k_nexus_watch_manifest_contract_impleme
 assert.equal(config.wallet_copy.constant_k_nexus_maximum_wallet_universe, 25_000);
 assert.equal(config.wallet_copy.constant_k_nexus_watch_manifest_active, false);
 assert.equal(config.wallet_copy.constant_k_nexus_persistent_receiver_active, false);
+assert.equal(config.wallet_copy.constant_k_nexus_authenticated_ingress_implemented, true);
+assert.equal(config.wallet_copy.constant_k_nexus_authenticated_ingress_active, false);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_exact_host_required, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_hmac_required, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_hmac_rotation_supported, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_access_service_token_supported, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_maximum_clock_skew_seconds, 90);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_maximum_deliveries_per_batch, 50);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_manifest_cache_seconds, 5);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_append_only_receipts, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_raw_provider_payload_allowed, false);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_transaction_material_allowed, false);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_checkpoint_after_durable_ack, true);
+assert.equal(config.wallet_copy.constant_k_nexus_ingress_exact_manifest_required, true);
 assert.equal(config.wallet_copy.deep_history_backfill_contract_implemented, true);
 assert.equal(config.wallet_copy.deep_history_backfill_active, false);
 assert.equal(config.wallet_copy.deep_history_shared_per_source_wallet, true);
@@ -319,6 +333,8 @@ assert.match(packageJson.scripts["test:contracts"] || "", /solana_wallet_intelli
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_trade_wallet_copy\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_wallet_copy\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_backfill\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /source_wallet_ingress\.test\.mjs/);
+assert.match(packageJson.scripts["test:contracts"] || "", /constant_k_nexus_wallet_ingress_client\.test\.mjs/);
 assert.equal(packageJson.scripts["validate:wallet-copy-live"], "node scripts/validate-wallet-copy-live.mjs");
 const walletCopyLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-copy-live.mjs"), "utf8");
 assert(walletCopyLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-copy live validator must identify its read-only authority");
@@ -329,13 +345,28 @@ for (const forbiddenWalletCopyAuthority of ["sendRawTransaction", "sendTransacti
 assert.equal(packageJson.scripts["validate:wallet-observer-live"], "node scripts/validate-wallet-observer-live.mjs");
 const walletObserverLiveValidator = readFileSync(join(root, "scripts", "validate-wallet-observer-live.mjs"), "utf8");
 const walletObserverTransports = readFileSync(join(root, "lib", "customer_trade", "source_wallet_transports.mjs"), "utf8");
+const walletObserverIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_ingress.mjs"), "utf8");
+const walletObserverIngressProtocol = readFileSync(join(root, "lib", "customer_trade", "source_wallet_ingress_protocol.mjs"), "utf8");
+const walletObserverIngressClient = readFileSync(join(root, "lib", "customer_trade", "constant_k_nexus_wallet_ingress_client.mjs"), "utf8");
+const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-observer-receiver.mjs"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
 assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
 assert(walletObserverTransports.includes('transport: "shredstream"') || walletObserverTransports.includes('"shredstream"'), "private shred adapter contract is missing");
 assert(walletObserverTransports.includes("provider_catch_up_bound_exceeded"), "wallet observer must fail closed on a bounded catch-up gap");
+assert(walletObserverIngress.includes("RAVENOS_WALLET_OBSERVER_INGRESS_ENABLED"), "wallet ingress must have an independent default-off activation gate");
+assert(walletObserverIngress.includes("RAVENOS_WALLET_OBSERVER_INGRESS_HOST"), "wallet ingress must require an exact configured host");
+assert(walletObserverIngressProtocol.includes("globalThis.crypto.subtle.verify"), "wallet ingress HMAC must use Web Crypto verification");
+assert(walletObserverIngressProtocol.includes("observer_ingress_transaction_material_forbidden"), "wallet ingress must reject normalized transaction material");
+assert(walletObserverReceiverDaemon.includes("RAVENOS_WALLET_OBSERVER_RECEIVER_ENABLED"), "receiver daemon must have a separate local activation gate");
+assert(walletObserverReceiverDaemon.includes("activeAck = normalizeSourceWalletWatchManifestAck"), "receiver daemon must require exact provider manifest acknowledgement");
+assert(walletObserverReceiverDaemon.indexOf("ingressSummary = await postConstantKNexusDeliveries") < walletObserverReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "receiver must post durable ingress before checkpoint persistence");
 for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
   assert(!walletObserverLiveValidator.includes(forbiddenWalletObserverAuthority), `wallet-observer live validator contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletObserverTransports.includes(forbiddenWalletObserverAuthority), `wallet-observer transport contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletObserverIngress.includes(forbiddenWalletObserverAuthority), `wallet-observer ingress contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletObserverIngressProtocol.includes(forbiddenWalletObserverAuthority), `wallet-observer ingress protocol contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletObserverIngressClient.includes(forbiddenWalletObserverAuthority), `wallet-observer ingress client contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletObserverReceiverDaemon.includes(forbiddenWalletObserverAuthority), `wallet-observer receiver daemon contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
 }
 
 console.log(JSON.stringify({

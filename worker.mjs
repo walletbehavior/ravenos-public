@@ -173,6 +173,12 @@ import {
   runSourceWalletObserverBatch,
 } from "./lib/customer_trade/source_wallet_observer.mjs";
 import {
+  SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE,
+  SOURCE_WALLET_INGRESS_MANIFEST_ROUTE,
+  createD1SourceWalletIngressStore,
+  routeSourceWalletIngress,
+} from "./lib/customer_trade/source_wallet_ingress.mjs";
+import {
   createD1SourceWalletBackfillStore,
   resolveSourceWalletBackfillActivation,
   runSourceWalletBackfillBatch,
@@ -291,9 +297,11 @@ function authenticatedAppBoundary(request) {
     || url.pathname.startsWith(`${CUSTOMER_MONITOR_ALERTS_ROUTE}/`);
   const walletCopyApi = url.pathname === CUSTOMER_WALLET_COPY_ROUTE
     || url.pathname.startsWith(`${CUSTOMER_WALLET_COPY_ROUTE}/`);
+  const walletObserverIngressApi = url.pathname === SOURCE_WALLET_INGRESS_MANIFEST_ROUTE
+    || url.pathname === SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE;
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -8528,6 +8536,16 @@ async function handleChain(request, env, slug) {
 
 async function routeApi(request, env, executionContext = null) {
   const url = new URL(request.url);
+  if ([SOURCE_WALLET_INGRESS_MANIFEST_ROUTE, SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE].includes(url.pathname)) {
+    const customerDbAvailable = Boolean(env?.RAVENOS_CUSTOMER_DB?.prepare);
+    const walletIngressResponse = await routeSourceWalletIngress(request, env, {
+      observerStore: customerDbAvailable ? createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB) : null,
+      ingressStore: customerDbAvailable ? createD1SourceWalletIngressStore(env.RAVENOS_CUSTOMER_DB) : null,
+      walletStore: customerDbAvailable ? createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB) : null,
+      manifestCacheKey: env?.RAVENOS_CUSTOMER_DB || null,
+    });
+    if (walletIngressResponse) return walletIngressResponse;
+  }
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
   const entitlementResponse = await routeCustomerEntitlements(request, env, {

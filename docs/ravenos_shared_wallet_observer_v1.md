@@ -151,7 +151,7 @@ Large watch universes are dynamically chunked against the existing 1,000-referen
 
 Restart, partial-line, rotation, gap, truncation, malformed-line, sink-failure, checkpoint, manifest-mismatch, large-universe, privacy, and raw-payload exclusion paths are covered in `tests/constant_k_nexus_wallet_receiver.test.mjs` and `tests/source_wallet_watch_manifest.test.mjs`.
 
-This is still a dormant contract, not a running daemon. The remaining activation step is one private Netcup service that supplies the exact Raven watch universe and binds the receiver to the existing D1 observer ingest—not a second queue. It must:
+At this milestone the receiver was still a dormant contract, not a running daemon. Activation required one private Netcup service that supplied the exact Raven watch universe and bound the receiver to the existing D1 observer ingest—not a second queue. It had to:
 
 1. load the unique Raven watch universe through the completed D1 projection;
 2. activate and acknowledge the completed deterministic Constant-K manifest;
@@ -159,10 +159,38 @@ This is still a dormant contract, not a running daemon. The remaining activation
 4. bind the completed rotation-safe receiver to the existing durable observer sink;
 5. record provider receipt before optional hydration;
 6. reconnect with bounded backoff and a confirmed-RPC catch-up cursor;
-7. never expose the ingest surface publicly;
-7. report provider health, stream lag, queue depth, and lease recovery;
-8. run a deliberately mixed shadow cohort before any speed or copyability claim.
+7. never expose the ingest surface without the dedicated host, Access, and HMAC controls;
+8. report provider health, stream lag, queue depth, and lease recovery;
+9. run a deliberately mixed shadow cohort before any speed or copyability claim.
 
 The receiver and evaluator flags remain dormant until migration `0010`, private watch-universe delivery, finality/catch-up behavior, and operator recovery have been staged together. Live copy, signing, broadcasting, custody, and fee collection remain unavailable regardless of receiver state.
 
 The first empirical gate remains at least seven days across high-frequency, swing, deep-liquidity, low-liquidity, concentrated-profit, and frequently refused wallets.
+
+## Authenticated Nexus ingress milestone
+
+The remaining machine-to-machine boundary is now implemented but deliberately inactive. `GET /api/internal/v1/wallet-observer/watch-manifest` returns the exact current public-wallet universe only after the dedicated ingress host, coordinated intelligence flag, HMAC key, freshness window, and optional Cloudflare Access service identity all pass. `POST /api/internal/v1/wallet-observer/deliveries` accepts only provider-neutral `constant_k_nexus` / `geyser_grpc` delivery envelopes from that exact acknowledged manifest.
+
+The boundary does not accept a normalized trade, raw provider response, account list, balance delta, transaction material, subscriber identity, policy, signer, or transaction construction. RavenOS hydrates the signature through its own confirmed RPC and performs the economic decode after durable ingress. This prevents a provider label from becoming a Raven trade classification.
+
+Each POST uses a versioned HMAC canonical request containing method, exact path, timestamp, request ID, and SHA-256 body hash. Requests expire after 90 seconds. The receiver supports current and previous key IDs for rotation, can require a separate Cloudflare Access service client, rejects query strings, requires a configured exact host, and behaves as a missing route when disabled or reached on another host.
+
+Migration `0013_source_wallet_ingress.sql` adds append-only batch receipts containing only body/manifest hashes, key ID, aggregate counts, and timing. An identical replay returns its prior receipt without touching the queue. Reusing a batch ID with different bytes is refused. If a process stops after some idempotent deliveries but before its receipt, retrying the whole batch is safe.
+
+`scripts/run-constant-k-wallet-observer-receiver.mjs` is the dormant receiver daemon. It:
+
+1. fetches the exact HMAC-authenticated Raven watch manifest;
+2. refuses to read Nexus until a local provider acknowledgement matches its hash, wallet count, and shard count;
+3. tails only newline-complete Constant-K compact journal rows through the rotation-safe receiver;
+4. reduces them to exact watched-signer signature deliveries;
+5. posts batches of at most 50 envelopes to the existing D1 observer sink;
+6. advances its local file checkpoint only after every HTTP batch returns a matching durable receipt;
+7. writes a sanitized health document with counts and hashes, never addresses, signatures, secrets, policies, or provider payloads.
+
+No service unit, secret, ingress host, Access policy, D1 migration, manifest acknowledgement, or feature flag is activated by this milestone. Required server gates remain off by default:
+
+- `RAVENOS_WALLET_OBSERVER_INGRESS_ENABLED`
+- `RAVENOS_WALLET_INTELLIGENCE_ENABLED`
+- `RAVENOS_WALLET_OBSERVER_ENABLED`
+
+The receiver has an additional local hard gate, `RAVENOS_WALLET_OBSERVER_RECEIVER_ENABLED=1`. Activation requires a dedicated Constant-K subscription that actually acknowledges the Raven wallet manifest. The existing bounded Raven research identity filter must not be relabeled as 25,000-wallet RavenOS coverage.
