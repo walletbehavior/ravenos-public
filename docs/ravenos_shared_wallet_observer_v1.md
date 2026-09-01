@@ -118,9 +118,30 @@ On 2026-08-30, Raven sampled five public wallets from a current exact-pool trade
 
 The public RPC rate-limited two of twelve transaction hydrations. This is retained as provider failure evidence rather than dropped from the denominator, and it validates why the production observer needs the paid provider and fallback path. Chain-to-poll age is intentionally not reported as detection latency because the command was a manual historical catch-up, not a continuous listener. No speed claim is supported yet. The sanitized result is `artifacts/ravenos_wallet_observer_live_validation_2026-08-30.json`.
 
-## Next adapter milestone
+## Constant-K Nexus adapter
 
-When the Constant-K endpoint and credentials are available, connect one private Netcup receiver to the completed adapter contract. It must:
+The provider-specific private adapter is now implemented in `lib/customer_trade/constant_k_nexus_wallet_transport.mjs`. It consumes Raven's compact Constant-K transaction frames, requires the exact watched wallet to be a transaction signer, preserves Raven's first sidecar receipt time, and emits only the bounded provider-neutral signature reference. Slot frames, unrelated messages, off-universe accounts, malformed identities, duplicate deliveries, wrong-provider rows, future timestamps, and oversized frames cannot become wallet events.
+
+The adapter deliberately discards accounts, token deltas, matched-identity sets, filter names, and any other raw provider content before queue ingestion. A processed Constant-K observation remains processed evidence; confirmed or finalized hydration must upgrade it. The adapter never treats a captured signature as a trade, a buy signal, an executable route, or a copyable result.
+
+`scripts/validate-constant-k-wallet-observer-live.mjs` is the bounded operator harness. It reads a private local tail, selects a small public source-wallet cohort, reduces the stream to exact references, hydrates a bounded subset through the configured confirmed RPC, economically decodes those transactions, and returns only hashed identities plus aggregate health and latency evidence. It does not persist a watch, delivery, decision, position, provider payload, or transaction.
+
+The first authorized read-only Nexus probe ran on RS4000 on 2026-09-01:
+
+- 2,779 valid Constant-K transaction frames and 931 slot frames were inspected;
+- five exact public source wallets produced 163 watched-signer references;
+- no provider mismatch, malformed row, duplicate reference, overflow, rejection, or ingest failure occurred;
+- 32/32 selected references hydrated through confirmed RPC;
+- the decoder kept transfers, sells, internal movement, and two observed `SWAP_BUY` signals distinct;
+- chain-block-time-to-Raven-receipt measured 1,109 ms p50 and 1,568 ms p95, subject to Solana block time's one-second precision;
+- confirmed RPC hydration measured 36 ms p50 and 125 ms p95;
+- economic normalization measured 0 ms p50 and 1 ms p95 with millisecond timer resolution.
+
+This proves the private transport and economic-decoding boundary. It does not support an Odin-level speed claim or a copyability claim. The sanitized evidence is `artifacts/ravenos_constant_k_wallet_observer_live_validation_2026-09-01.json`.
+
+## Continuous receiver milestone
+
+The next activation step is one private Netcup receiver using this completed adapter contract. It must:
 
 1. load the unique Raven watch universe;
 2. subscribe once per public source wallet;
@@ -130,5 +151,7 @@ When the Constant-K endpoint and credentials are available, connect one private 
 6. never expose the ingest surface publicly;
 7. report provider health, stream lag, queue depth, and lease recovery;
 8. run a deliberately mixed shadow cohort before any speed or copyability claim.
+
+The receiver and evaluator flags remain dormant until migration `0010`, private watch-universe delivery, finality/catch-up behavior, and operator recovery have been staged together. Live copy, signing, broadcasting, custody, and fee collection remain unavailable regardless of receiver state.
 
 The first empirical gate remains at least seven days across high-frequency, swing, deep-liquidity, low-liquidity, concentrated-profit, and frequently refused wallets.

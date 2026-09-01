@@ -1,0 +1,81 @@
+{
+  "schema_version": "ravenos.constant_k_wallet_observer_live_validation.v1",
+  "generated_at": "2026-09-01T05:05:40.250Z",
+  "mode": "authorized_read_only_nexus_capture_probe",
+  "persistence": false,
+  "provider": "constant_k_nexus",
+  "transport": "geyser_grpc",
+  "public_references_hashed": true,
+  "source_capture": {
+    "lines_read": 3710,
+    "parse_failures": 0,
+    "transaction_rows": 2779,
+    "slot_rows": 931,
+    "valid_transaction_rows": 2779,
+    "provider_mismatch_rows": 0,
+    "invalid_rows": 0,
+    "exact_watched_signer_references": 163,
+    "duplicate_references": 0,
+    "reference_overflow": false
+  },
+  "observer_transport": {
+    "state": "current",
+    "unique_wallets": 5,
+    "references_received": 163,
+    "deliveries_ingested_in_memory": 163,
+    "references_rejected": 0,
+    "ingest_failures": 0
+  },
+  "confirmed_hydration": {
+    "requested": 32,
+    "succeeded": 32,
+    "failed": 0,
+    "classifications": {
+      "INTERNAL_ACCOUNT_MOVEMENT": 2,
+      "SWAP_BUY": 2,
+      "SWAP_SELL": 10,
+      "TRANSFER_IN": 18
+    },
+    "eligible_buy_signals": 2
+  },
+  "latency": {
+    "chain_to_raven_receipt_second_resolution": {
+      "samples": 32,
+      "p50_ms": 1109,
+      "p90_ms": 1556,
+      "p95_ms": 1568,
+      "p99_ms": 1732
+    },
+    "confirmed_rpc_hydration": {
+      "samples": 32,
+      "p50_ms": 36,
+      "p90_ms": 119,
+      "p95_ms": 125,
+      "p99_ms": 146
+    },
+    "economic_normalization": {
+      "samples": 32,
+      "p50_ms": 0,
+      "p90_ms": 1,
+      "p95_ms": 1,
+      "p99_ms": 2
+    }
+  },
+  "interpretation": {
+    "prospective_stream_receipt_preserved": true,
+    "chain_time_precision": "solana_block_time_second_resolution",
+    "speed_claim_supported": false,
+    "copyability_claim_supported": false,
+    "reason": "This bounded operator probe proves Nexus capture and exact economic decoding, but does not yet provide the required mixed seven-day prospective cohort.",
+    "next_evidence": "Run the private receiver continuously, retain refusals and finality upgrades, and reach at least 100 prospective decisions across a deliberately mixed cohort."
+  },
+  "execution_boundary": {
+    "signing_available": false,
+    "submission_available": false,
+    "broadcasting_available": false,
+    "transaction_material_returned": false,
+    "custody_available": false,
+    "live_copy_available": false,
+    "fee_collection_available": false
+  }
+}
