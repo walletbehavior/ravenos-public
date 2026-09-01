@@ -166,16 +166,73 @@ function decision(state = "EXIT_UNAVAILABLE") {
   };
 }
 
+function exitDecision(state = "SHADOW_EXIT_EXECUTABLE") {
+  return {
+    schema_version: "ravenos.shadow_copy_exit_decision.v1",
+    exit_decision_id: "sce_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    watch_id: WATCH_ID,
+    source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
+    source_event_id: "swe_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    asset: { mint: TOKEN, decimals: 6, amount_base_units: "4000000" },
+    source_sell: {
+      quantity_base_units: "4000000",
+      balance_before_base_units: "10000000",
+      balance_after_base_units: "6000000",
+      fraction_bps: 4000,
+      fraction_evidence_available: true,
+      fraction_basis: "transaction_touched_source_accounts",
+      wallet_total_balance_claimed: false,
+    },
+    mapped_follower_exit: {
+      position_count: 1,
+      quantity_base_units: "32500000000",
+      gross_expected_usdc: 41.3,
+      minimum_expected_usdc: 40.9,
+    },
+    position_allocations: [{
+      position_id: "scp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      quantity_base_units: "32500000000",
+      position_quantity_before_base_units: "81250000000",
+      position_quantity_after_base_units: "48750000000",
+      source_sell_fraction_bps: 4000,
+      gross_expected_exit_usdc: 41.3,
+      minimum_expected_exit_usdc: 40.9,
+      applied: state === "SHADOW_EXIT_EXECUTABLE",
+    }],
+    hypothetical_raven_fee: { scenario_bps: 10, fee_usdc: 0.04, collected: false },
+    decision: {
+      state,
+      reason_code: state === "SHADOW_EXIT_EXECUTABLE" ? "mapped_source_exit_quote_available" : "follower_exit_quote_unavailable",
+      follower_position_changed: state === "SHADOW_EXIT_EXECUTABLE",
+      pre_subscription_inventory_treated_as_zero_cost: false,
+      refusal_is_zero_return: false,
+    },
+    timing: {
+      source_chain_event_at: "2026-08-29T12:05:00.000Z",
+      raven_received_at: "2026-08-29T12:05:00.870Z",
+      policy_decided_at: "2026-08-29T12:05:01.200Z",
+      detection_delay_ms: 870,
+    },
+    execution_boundary: { mode: "shadow", transaction_hash: null, signing_available: false, broadcasting_available: false, fee_collection_available: false },
+  };
+}
+
 function position() {
   return {
     schema_version: "ravenos.shadow_copy_position.v1",
     position_id: "scp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     watch_id: WATCH_ID,
     source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
-    destination_asset: { mint: TOKEN },
+    destination_asset: { mint: TOKEN, decimals: 6 },
     expected_quantity: 81_250,
+    expected_quantity_base_units: "81250000000",
+    minimum_quantity_base_units: "81000000000",
+    remaining_quantity_base_units: "48750000000",
+    exited_quantity_base_units: "32500000000",
     entry_cost_usdc: 100,
-    state: "SHADOW_OPEN",
+    state: "SHADOW_PARTIAL_EXIT",
+    exit_count: 1,
+    gross_realized_exit_usdc: 41.3,
     opened_at: "2026-08-29T12:00:03.000Z",
     live_assets_held: false,
     transaction_hash: null,
@@ -250,7 +307,8 @@ async function install(page, shared, { authenticated = true, entitled = true } =
     }
     if (url.pathname.endsWith("/decisions") && request.method() === "GET") {
       const sampleCount = shared.decision ? 1 : 0;
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.decision ? "available" : "empty", decisions: shared.decision ? [shared.decision] : [], copyability: shared.watch ? [{ watch_id: WATCH_ID, snapshot: { state: "insufficient_evidence", score: null, prospective_sample_count: sampleCount, components: { policy_pass_pct: 0, entry_executable_pct: 100, exit_executable_pct: 0, median_entry_degradation_bps: 42 } }, by_size: [25, 100, 500, 1000, 5000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: size === 100 ? sampleCount : 0, components: {} })) }] : [] }) });
+      const exitCount = shared.exitDecision ? 1 : 0;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: sampleCount || exitCount ? "available" : "empty", decisions: shared.decision ? [shared.decision] : [], exit_decisions: shared.exitDecision ? [shared.exitDecision] : [], copyability: shared.watch ? [{ watch_id: WATCH_ID, snapshot: { state: "insufficient_evidence", score: null, prospective_sample_count: sampleCount, components: { policy_pass_pct: 0, entry_executable_pct: 100, exit_executable_pct: 0, median_entry_degradation_bps: 42 } }, by_size: [25, 100, 500, 1000, 5000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: size === 100 ? sampleCount : 0, components: {} })) }] : [] }) });
     }
     if (url.pathname.endsWith("/positions") && request.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.position ? "available" : "empty", positions: shared.position ? [shared.position] : [] }) });
@@ -393,7 +451,7 @@ test("mobile shadow feed keeps refusals visible, separates positions, and never 
   await page.setViewportSize({ width: 390, height: 844 });
   const hostileWatch = watch(true);
   hostileWatch.label = '<img src=x onerror="window.__copyExecuted=true">Momentum source';
-  const shared = { watch: hostileWatch, decision: decision(), position: position(), requests: [] };
+  const shared = { watch: hostileWatch, decision: decision(), exitDecision: exitDecision(), position: position(), requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
   await page.getByRole("tab", { name: /Shadow feed/ }).click();
@@ -402,10 +460,16 @@ test("mobile shadow feed keeps refusals visible, separates positions, and never 
   await expect(page.getByText("Current exit")).toBeVisible();
   await expect(page.getByText("Unavailable", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("$0.00", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Source sell · Shadow Exit Executable", { exact: true })).toBeVisible();
+  await expect(page.getByText("40.00%", { exact: true })).toBeVisible();
+  await expect(page.getByText("32500 4M7YQq…ePoaBn", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 Raven lot mapped · no funds moved", { exact: true })).toBeVisible();
   await captureVisual(page, "wallet-copy-mobile-shadow-390");
   await page.getByRole("tab", { name: /Positions/ }).click();
-  await expect(page.getByText("Shadow Open")).toBeVisible();
-  await expect(page.getByText("No funds moved")).toBeVisible();
+  await expect(page.getByText("Shadow Partial Exit")).toBeVisible();
+  await expect(page.getByText("48750 4M7YQq…ePoaBn", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyPositions").getByText("$41", { exact: true })).toBeVisible();
+  await expect(page.getByText("No funds moved", { exact: true })).toBeVisible();
   const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")]
     .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
     .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));

@@ -86,6 +86,19 @@ function normalizedEvent(overrides = {}) {
   return normalizeSolanaWalletTransaction(transactionInput(overrides));
 }
 
+function normalizedSellEvent() {
+  const input = transactionInput({ signature: "s".repeat(88), slot: 992 });
+  input.transaction.meta.preTokenBalances = [
+    { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "75000000", decimals: 6 } },
+    { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: "10000000", decimals: 6 } },
+  ];
+  input.transaction.meta.postTokenBalances = [
+    { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "87000000", decimals: 6 } },
+    { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: "6000000", decimals: 6 } },
+  ];
+  return normalizeSolanaWalletTransaction(input);
+}
+
 function delivery({
   wallet = WALLET,
   signature = "a".repeat(88),
@@ -374,6 +387,87 @@ test("shared fanout quotes each exact size once and records one decision per pri
   assert.equal(decisions.size, 5);
   assert.equal(advanced.size, 5);
   assert.equal(positions.size, 5);
+});
+
+test("Nexus sell fanout shares exact exit quotes and maps only follower-owned lots", async () => {
+  const event = normalizedSellEvent();
+  const sourceId = delivery().source_wallet_id;
+  const rows = [39_500_000, 39_500_000, 100_000_000].map((quantity, index) => ({
+    watch_id: `wcw_${String(index + 50).padStart(40, "0")}`,
+    user_id: `usr_${String(index + 50).padStart(32, "0")}`,
+    source_wallet_id: sourceId,
+    address: WALLET,
+    observation_state: "current",
+    last_observed_at: Math.floor(NOW / 1_000),
+    last_signature: "z".repeat(88),
+    label: `Exit ${index + 1}`,
+    state: "active",
+    copy_mode: "RAVEN_COPY",
+    policy_json: JSON.stringify(createRavenCopyPolicy({ sizing: { fixed_usdc: index === 2 ? 250 : 100 } })),
+    backfill_complete: 1,
+    cursor_signature: "b".repeat(88),
+    cursor_slot: 991,
+    revision: 1,
+    created_at: Math.floor(NOW / 1_000) - 60,
+    updated_at: Math.floor(NOW / 1_000) - 60,
+    mapped_quantity: quantity,
+  }));
+  const recorded = new Map();
+  const advanced = new Set();
+  const store = {
+    async listActiveWatchesForSource() { throw new Error("buy_lane_not_expected"); },
+    async listActiveWatchesForExitSource() { return rows.filter((row) => !recorded.has(row.watch_id)); },
+    async countPendingExitWatchesForSource() { return rows.filter((row) => !recorded.has(row.watch_id)).length; },
+    async listMappedPositionsForWatch(_userId, watchId) {
+      const row = rows.find((candidate) => candidate.watch_id === watchId);
+      return [{
+        schema_version: "ravenos.shadow_copy_position.v1",
+        position_id: `scp_${watchId.slice(4)}`,
+        watch_id: watchId,
+        source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
+        source_event_id: `swe_${"b".repeat(40)}`,
+        opening_decision_id: `scd_${"c".repeat(40)}`,
+        destination_asset: { mint: TOKEN, decimals: 6, standard: "spl" },
+        expected_quantity: row.mapped_quantity / 1_000_000,
+        expected_quantity_base_units: String(row.mapped_quantity),
+        minimum_quantity_base_units: String(row.mapped_quantity),
+        remaining_quantity_base_units: String(row.mapped_quantity),
+        exited_quantity_base_units: "0",
+        entry_cost_usdc: row.mapped_quantity === 100_000_000 ? 250 : 100,
+        state: "SHADOW_OPEN",
+        opened_at: "2026-08-30T19:59:00.000Z",
+        source_strategy_attribution_preserved: true,
+        live_assets_held: false,
+        transaction_hash: null,
+      }];
+    },
+    async recordExitDecision(_userId, decision) { recorded.set(decision.watch_id, decision); return true; },
+    async advanceObservedWatchCursor(watchId) { advanced.add(watchId); return true; },
+  };
+  let quoteCalls = 0;
+  const provider = {
+    async quoteCopyExit({ quantity_base_units: quantityBaseUnits }) {
+      quoteCalls += 1;
+      const now = "2026-08-30T20:00:02.000Z";
+      const gross = Number(quantityBaseUnits) / 1_000_000;
+      return {
+        asset_evidence: { identity_resolved: true, token_standard: "spl", token_standard_resolved: true, sell_simulation_state: "passed" },
+        exit: { state: "available", quote_id: `exit_${quantityBaseUnits}`, provider: "fixture", requested_at: now, quoted_at: now, received_at: now, expires_at: "2026-08-30T20:00:22.000Z", expected_output: gross, minimum_output: gross * 0.99, expected_output_base_units: String(Math.trunc(gross * 1_000_000)), minimum_output_base_units: String(Math.trunc(gross * 990_000)), exact_asset_identity: true },
+      };
+    },
+  };
+  const result = await fanOutObservedWalletEvent({ event, source_wallet_id: sourceId, store, provider, now: Math.floor(NOW / 1_000) });
+  assert.equal(result.complete, true);
+  assert.equal(result.subscriber_policy_count, 3);
+  assert.equal(result.decision_count, 3);
+  assert.equal(result.position_exit_count, 3);
+  assert.equal(result.quote_variant_count, 2);
+  assert.equal(quoteCalls, 2);
+  assert.equal(recorded.size, 3);
+  assert.equal(advanced.size, 3);
+  assert.deepEqual([...recorded.values()].map((row) => row.mapped_follower_exit.quantity_base_units), ["15800000", "15800000", "40000000"]);
+  assert.ok([...recorded.values()].every((row) => row.decision.state === "SHADOW_EXIT_EXECUTABLE"));
+  assert.ok([...recorded.values()].every((row) => row.execution_boundary.transaction_hash === null));
 });
 
 test("shared fanout bounds quote variants and reports remaining policies for retry", async () => {

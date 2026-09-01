@@ -246,9 +246,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-empty { min-height: 180px; display: grid; place-content: center; justify-items: center; gap: 7px; padding: 28px; background: var(--copy-panel); text-align: center; }
 .copy-empty strong { font-size: 15px; }
 .copy-empty p { max-width: 560px; margin: 0; color: var(--copy-muted); font-size: 10px; line-height: 1.5; }
-[data-decision-state="SHADOW_EXECUTABLE"] .copy-card-main > span { color: var(--copy-green); }
-[data-decision-state="ENTRY_UNAVAILABLE"] .copy-card-main > span, [data-decision-state="EXIT_UNAVAILABLE"] .copy-card-main > span, [data-decision-state="PROVIDER_UNAVAILABLE"] .copy-card-main > span { color: var(--copy-red); }
-[data-decision-state="POLICY_REJECTED"] .copy-card-main > span, [data-decision-state="FRICTION_TOO_HIGH"] .copy-card-main > span, [data-decision-state="LIQUIDITY_TOO_LOW"] .copy-card-main > span { color: var(--copy-amber); }
+[data-decision-state="SHADOW_EXECUTABLE"] .copy-card-main > span, [data-decision-state="SHADOW_EXIT_EXECUTABLE"] .copy-card-main > span { color: var(--copy-green); }
+[data-decision-state="ENTRY_UNAVAILABLE"] .copy-card-main > span, [data-decision-state="EXIT_UNAVAILABLE"] .copy-card-main > span, [data-decision-state="PROVIDER_UNAVAILABLE"] .copy-card-main > span, [data-decision-state="SIMULATION_FAILED"] .copy-card-main > span { color: var(--copy-red); }
+[data-decision-state="POLICY_REJECTED"] .copy-card-main > span, [data-decision-state="FRICTION_TOO_HIGH"] .copy-card-main > span, [data-decision-state="LIQUIDITY_TOO_LOW"] .copy-card-main > span, [data-decision-state="IGNORED_PRE_SUBSCRIPTION_INVENTORY"] .copy-card-main > span { color: var(--copy-amber); }
 
 .copy-boundary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 30px clamp(0px, 3vw, 44px) 0; border: 1px solid var(--copy-line-strong); background: var(--copy-line); }
 .copy-boundary > div { min-width: 0; display: grid; gap: 6px; padding: 15px; background: #080e16; }

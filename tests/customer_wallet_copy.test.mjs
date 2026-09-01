@@ -9,6 +9,7 @@ import {
   normalizeSolanaWalletTransaction,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
 import { createSourceWalletBackfillJob } from "../lib/customer_trade/source_wallet_backfill.mjs";
+import { applyShadowCopyExitHistory } from "../lib/customer_trade/wallet_copy.mjs";
 import {
   CustomerWalletCopyContract,
   createD1CustomerWalletCopyStore,
@@ -58,6 +59,42 @@ function walletEvent({ signature = "a".repeat(88), slot = 100, blockTime = NOW -
   });
 }
 
+function walletSellEvent({ signature = "s".repeat(88), slot = 102, blockTime = NOW - 1, sold = 4_000_000, before = 10_000_000 } = {}) {
+  const received = new Date((blockTime * 1_000) + 1_000).toISOString();
+  return normalizeSolanaWalletTransaction({
+    wallet_address: WALLET,
+    signature,
+    transaction: {
+      slot,
+      blockTime,
+      transaction: { message: { accountKeys: [{ pubkey: WALLET, signer: true }], instructions: [{ programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" }] } },
+      meta: {
+        err: null,
+        fee: 5_000,
+        preBalances: [999_995_000],
+        postBalances: [999_990_000],
+        preTokenBalances: [
+          { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "75000000", decimals: 6 } },
+          { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: String(before), decimals: 6 } },
+        ],
+        postTokenBalances: [
+          { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "87000000", decimals: 6 } },
+          { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: String(before - sold), decimals: 6 } },
+        ],
+        innerInstructions: [],
+        logMessages: ["Program log: Instruction: Route"],
+      },
+    },
+    provider: "fixture_nexus_hydration",
+    finality: "confirmed",
+    observation_mode: "prospective",
+    received_at: received,
+    decode_started_at: received,
+    decoded_at: received,
+    observed_at: received,
+  });
+}
+
 function env(overrides = {}) {
   return {
     RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: "1",
@@ -93,6 +130,7 @@ function memoryStore() {
   const researchSaves = new Map();
   const watches = new Map();
   const decisions = [];
+  const exitDecisions = [];
   const positions = [];
   const sourceRow = (id) => sources.get(id);
   const watchRow = (row) => ({ ...row, ...(sourceRow(row.source_wallet_id) || {}) });
@@ -103,6 +141,7 @@ function memoryStore() {
     researchSaves,
     watches,
     decisions,
+    exitDecisions,
     positions,
     async upsertSourceWallet({ source_wallet_id, address, now, state }) {
       const existing = sources.get(source_wallet_id) || {};
@@ -188,8 +227,23 @@ function memoryStore() {
     async deleteWatch(userId, watchId) { return watches.get(watchId)?.user_id === userId && watches.delete(watchId) ? 1 : 0; },
     async recordDecision(userId, decision) { if (!decisions.some((row) => row.decision_id === decision.decision_id)) decisions.push({ ...decision, _owner: userId }); return true; },
     async recordPosition(userId, position) { if (!positions.some((row) => row.position_id === position.position_id)) positions.push({ ...position, _owner: userId }); return true; },
+    async listMappedPositionsForWatch(userId, watchId, assetMint) {
+      const exits = exitDecisions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => row);
+      return positions.filter((row) => row._owner === userId && row.watch_id === watchId && row.destination_asset.mint === assetMint)
+        .map(({ _owner, ...row }) => applyShadowCopyExitHistory(row, exits))
+        .filter((row) => row.state !== "SHADOW_CLOSED");
+    },
+    async recordExitDecision(userId, decision) {
+      if (exitDecisions.some((row) => row.exit_decision_id === decision.exit_decision_id)) return false;
+      exitDecisions.push({ ...decision, _owner: userId });
+      return true;
+    },
     async listDecisions(userId) { return decisions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => row); },
-    async listPositions(userId) { return positions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => row); },
+    async listExitDecisions(userId) { return exitDecisions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => row); },
+    async listPositions(userId) {
+      const exits = exitDecisions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => row);
+      return positions.filter((row) => row._owner === userId).map(({ _owner, ...row }) => applyShadowCopyExitHistory(row, exits));
+    },
   };
 }
 
@@ -241,6 +295,7 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   const sql = readFileSync("customer-migrations/0007_customer_wallet_copy.sql", "utf8");
   const screenerSql = readFileSync("customer-migrations/0008_customer_wallet_screener.sql", "utf8");
   const depthSql = readFileSync("customer-migrations/0009_customer_wallet_screener_depth.sql", "utf8");
+  const exitsSql = readFileSync("customer-migrations/0012_shadow_copy_source_exits.sql", "utf8");
   assert.match(sql, /'wallet\.copy'/);
   assert.match(sql, /CREATE TABLE ravenos_source_wallets/i);
   assert.match(sql, /UNIQUE \(chain, network, address\)/i);
@@ -266,6 +321,13 @@ test("wallet-copy migration shares source evidence, isolates subscribers, and pr
   assert.match(depthSql, /list_name TEXT NOT NULL COLLATE NOCASE/i);
   assert.match(depthSql, /UNIQUE \(user_id, source_wallet_id, list_name\)/i);
   assert.doesNotMatch(depthSql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
+  assert.match(exitsSql, /CREATE TABLE ravenos_customer_shadow_copy_exit_decisions/i);
+  assert.match(exitsSql, /IGNORED_PRE_SUBSCRIPTION_INVENTORY/i);
+  assert.match(exitsSql, /CREATE TABLE ravenos_customer_shadow_copy_exit_allocations/i);
+  assert.match(exitsSql, /CREATE TRIGGER ravenos_shadow_copy_exit_decisions_append_only/i);
+  assert.match(exitsSql, /live_execution_authorized INTEGER NOT NULL DEFAULT 0 CHECK \(live_execution_authorized = 0\)/i);
+  assert.match(exitsSql, /transaction_hash TEXT CHECK \(transaction_hash IS NULL\)/i);
+  assert.doesNotMatch(exitsSql, /private_key|seed_phrase|signer_material|raw_provider_payload/i);
 });
 
 test("authenticated Pro route rejects cross-origin and unentitled access", async () => {
@@ -491,4 +553,109 @@ test("first refresh establishes a baseline and only a later source trade can pro
   assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).prospective_sample_count, 0);
   assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).score, null);
   assert.equal(refresh, 1);
+});
+
+test("manual fallback maps a later source sell to the Raven-created position", async () => {
+  const baseline = walletEvent({ signature: "b".repeat(88), slot: 100, blockTime: NOW - 10, mode: "historical_backfill" });
+  const prospective = walletEvent({ signature: "c".repeat(88), slot: 101, blockTime: NOW - 2, mode: "prospective" });
+  const sell = walletSellEvent();
+  let refresh = 0;
+  const provider = {
+    async loadHistory({ observation_mode }) {
+      if (observation_mode === "historical_backfill") return { events: [baseline] };
+      refresh += 1;
+      return refresh === 1 ? { events: [prospective, baseline] } : { events: [sell, prospective, baseline] };
+    },
+    async quoteCopySignal() {
+      return {
+        source_notional_usdc: 25,
+        source_notional_basis: "source_wallet_canonical_usdc_delta",
+        liquidity_usd: 250_000,
+        asset_evidence: { identity_resolved: true, token_standard: "spl", token_standard_resolved: true, sell_simulation_state: "passed", reverse_sell_quote_state: "available", freeze_authority_present: false, mint_authority_present: false, transfer_fee_detected: false },
+        entry: { state: "available", quote_id: "entry", provider: "jupiter", requested_at: "2026-08-29T12:00:01.000Z", quoted_at: "2026-08-29T12:00:01.100Z", received_at: "2026-08-29T12:00:01.200Z", expires_at: "2026-08-29T12:00:16.100Z", expected_output: 39.5, minimum_output: 39.1, expected_output_base_units: "39500000", minimum_output_base_units: "39100000", price_impact_bps: 50, latency_ms: 200, exact_asset_identity: true },
+        exit: { state: "available", quote_id: "exit", provider: "jupiter", requested_at: "2026-08-29T12:00:01.200Z", quoted_at: "2026-08-29T12:00:01.300Z", received_at: "2026-08-29T12:00:01.400Z", expires_at: "2026-08-29T12:00:16.300Z", expected_output: 97.5, minimum_output: 97, expected_output_base_units: "97500000", minimum_output_base_units: "97000000", price_impact_bps: 55, latency_ms: 200, exact_asset_identity: true },
+      };
+    },
+    async quoteCopyExit({ quantity_base_units }) {
+      assert.equal(quantity_base_units, "15800000");
+      return {
+        asset_evidence: { identity_resolved: true, token_standard: "spl", token_standard_resolved: true, sell_simulation_state: "passed", reverse_sell_quote_state: "available", freeze_authority_present: false, mint_authority_present: false, transfer_fee_detected: false },
+        exit: { state: "available", quote_id: "mapped_exit", provider: "jupiter", requested_at: "2026-08-29T12:00:02.100Z", quoted_at: "2026-08-29T12:00:02.200Z", received_at: "2026-08-29T12:00:02.300Z", expires_at: "2026-08-29T12:00:17.200Z", expected_output: 41.3, minimum_output: 40.9, expected_output_base_units: "41300000", minimum_output_base_units: "40900000", price_impact_bps: 45, latency_ms: 200, exact_asset_identity: true },
+      };
+    },
+  };
+  const store = memoryStore();
+  const d = deps(store, provider);
+  const created = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", {
+    method: "POST",
+    body: { address: WALLET, label: "Mapped exits", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 10 } },
+  }), env(), d));
+  const path = `/api/v1/wallet-copy/watches/${created.watch.watch_id}/refresh`;
+  await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
+  await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
+  const third = await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
+  const thirdPayload = await json(third);
+  assert.equal(third.status, 200);
+  assert.equal(thirdPayload.decisions.length, 0);
+  assert.equal(thirdPayload.exit_decisions.length, 1);
+  assert.equal(thirdPayload.exit_decisions[0].decision.state, "SHADOW_EXIT_EXECUTABLE");
+  assert.equal(thirdPayload.exit_decisions[0].source_sell.fraction_bps, 4_000);
+  assert.equal(store.exitDecisions.length, 1);
+
+  const positionPayload = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/positions"), env(), d));
+  assert.equal(positionPayload.positions[0].state, "SHADOW_PARTIAL_EXIT");
+  assert.equal(positionPayload.positions[0].remaining_quantity_base_units, "23700000");
+  assert.equal(positionPayload.live_assets_held, false);
+
+  const decisionPayload = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/decisions"), env(), d));
+  assert.equal(decisionPayload.exit_decisions[0].decision.reason_code, "mapped_source_exit_quote_available");
+});
+
+test("manual fallback retains a signal backlog instead of advancing past unprocessed trades", async () => {
+  const baseline = walletEvent({ signature: "b".repeat(88), slot: 100, blockTime: NOW - 10, mode: "historical_backfill" });
+  const prospective = [
+    walletEvent({ signature: "c".repeat(88), slot: 101, mode: "prospective" }),
+    walletEvent({ signature: "d".repeat(88), slot: 102, mode: "prospective" }),
+    walletEvent({ signature: "e".repeat(88), slot: 103, mode: "prospective" }),
+    walletEvent({ signature: "f".repeat(88), slot: 104, mode: "prospective" }),
+    walletEvent({ signature: "g".repeat(88), slot: 105, mode: "prospective" }),
+  ];
+  const provider = {
+    async loadHistory({ observation_mode }) {
+      return observation_mode === "historical_backfill"
+        ? { events: [baseline] }
+        : { events: [...prospective].reverse().concat(baseline) };
+    },
+    async quoteCopySignal() {
+      const quoted = "2026-08-29T12:00:03.000Z";
+      return {
+        source_notional_usdc: 25,
+        source_notional_basis: "source_wallet_canonical_usdc_delta",
+        liquidity_usd: 250_000,
+        asset_evidence: { identity_resolved: true, token_standard: "spl", token_standard_resolved: true, sell_simulation_state: "passed", reverse_sell_quote_state: "available" },
+        entry: { state: "available", provider: "fixture", requested_at: quoted, quoted_at: quoted, received_at: quoted, expires_at: "2026-08-29T12:00:18.000Z", expected_output: 39.5, minimum_output: 39.1, expected_output_base_units: "39500000", minimum_output_base_units: "39100000", exact_asset_identity: true },
+        exit: { state: "available", provider: "fixture", requested_at: quoted, quoted_at: quoted, received_at: quoted, expires_at: "2026-08-29T12:00:18.000Z", expected_output: 97.5, minimum_output: 97, expected_output_base_units: "97500000", minimum_output_base_units: "97000000", exact_asset_identity: true },
+      };
+    },
+  };
+  const store = memoryStore();
+  const d = deps(store, provider);
+  const created = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", {
+    method: "POST",
+    body: { address: WALLET, label: "Backlog proof", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 10 } },
+  }), env(), d));
+  const path = `/api/v1/wallet-copy/watches/${created.watch.watch_id}/refresh`;
+  await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
+
+  const first = await json(await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d));
+  assert.equal(first.decisions.length, 3);
+  assert.equal(first.prospective_signals_deferred, 2);
+  assert.equal(store.watches.get(created.watch.watch_id).cursor_slot, 103);
+
+  const second = await json(await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d));
+  assert.equal(second.decisions.length, 2);
+  assert.equal(second.prospective_signals_deferred, 0);
+  assert.equal(store.watches.get(created.watch.watch_id).cursor_slot, 105);
+  assert.equal(store.decisions.length, 5);
+  assert.equal(store.positions.length, 5);
 });

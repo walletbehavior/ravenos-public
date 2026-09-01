@@ -88,14 +88,32 @@ test("a Jupiter canonical-USDC buy becomes one exact, prospective copy signal", 
   assert.equal(event.schema_version, SOLANA_WALLET_EVENT_SCHEMA);
   assert.equal(event.classification.kind, "SWAP_BUY");
   assert.equal(event.copy_signal.eligible_buy_signal, true);
+  assert.equal(event.copy_signal.eligible_sell_signal, false);
   assert.equal(event.economic.source_asset.mint, SOLANA_CANONICAL_USDC_MINT);
   assert.equal(event.economic.destination_asset.mint, TOKEN);
+  assert.equal(event.economic.destination_asset.balance_before_base_units, "0");
+  assert.equal(event.economic.destination_asset.balance_after_base_units, "10000000");
   assert.equal(event.economic.destination_asset.standard, "spl_or_token_2022_unresolved");
   assert.equal(event.timing.detection_delay_ms, 2_000);
   assert.equal(event.wallet_state.canonical_usdc_balance_base_units, "75000000");
   assert.equal(event.wallet_state.current_balance_claimed, false);
   assert.equal(event.execution_boundary, undefined);
   assert.equal(event.privacy.subscriber_identity_included, false);
+});
+
+test("an exact token sale preserves the source-wallet fraction needed for mapped exits", () => {
+  const event = normalize(transaction({
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 75_000_000, 6), balance(WALLET, TOKEN, 10_000_000, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 87_000_000, 6), balance(WALLET, TOKEN, 6_000_000, 6)],
+  }), "z");
+  assert.equal(event.classification.kind, "SWAP_SELL");
+  assert.equal(event.copy_signal.eligible_buy_signal, false);
+  assert.equal(event.copy_signal.eligible_sell_signal, true);
+  assert.equal(event.copy_signal.exact_source_asset.mint, TOKEN);
+  assert.equal(event.copy_signal.exact_source_asset.amount_base_units, "4000000");
+  assert.equal(event.copy_signal.exact_source_asset.balance_before_base_units, "10000000");
+  assert.equal(event.copy_signal.exact_source_asset.balance_after_base_units, "6000000");
+  assert.equal(event.copy_signal.reason, "observed_source_wallet_sell");
 });
 
 test("opposing transfers without swap-route evidence remain ambiguous", () => {

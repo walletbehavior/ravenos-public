@@ -20,6 +20,7 @@ const state = {
   events: [],
   watches: [],
   decisions: [],
+  exit_decisions: [],
   positions: [],
   copyability: [],
   saved: [],
@@ -488,7 +489,7 @@ function watchCard(watch) {
       return;
     }
     await loadWorkspace();
-    if ((result.payload.decisions || []).length) switchView("feed");
+    if ((result.payload.decisions || []).length || (result.payload.exit_decisions || []).length) switchView("feed");
   });
   remove.addEventListener("click", async () => {
     remove.disabled = true;
@@ -533,6 +534,48 @@ function decisionCard(decision) {
   return card;
 }
 
+function exitDecisionCard(decision) {
+  const card = document.createElement("article");
+  card.className = "copy-card";
+  card.dataset.decisionState = decision.decision.state;
+  const main = document.createElement("div");
+  main.className = "copy-card-main";
+  const stateLabel = document.createElement("span");
+  const title = document.createElement("strong");
+  const detail = document.createElement("p");
+  stateLabel.textContent = `Source sell · ${readable(decision.decision.state)}`;
+  title.textContent = shortAddress(decision.asset?.mint);
+  detail.textContent = readable(decision.decision.reason_code);
+  main.append(stateLabel, title, detail);
+  const mappedAmount = exactAssetAmount({
+    ...decision.asset,
+    amount_base_units: decision.mapped_follower_exit?.quantity_base_units,
+  });
+  const facts = document.createElement("dl");
+  facts.append(
+    fact("Source time", when(decision.timing?.source_chain_event_at)),
+    fact("Detection", duration(decision.timing?.detection_delay_ms)),
+    fact("Observed sold", bpsAsPercent(decision.source_sell?.fraction_bps)),
+    fact("Mapped exit", mappedAmount),
+    fact("Expected USDC", money(decision.mapped_follower_exit?.gross_expected_usdc)),
+    fact("Minimum USDC", money(decision.mapped_follower_exit?.minimum_expected_usdc)),
+  );
+  const actions = document.createElement("div");
+  actions.className = "copy-watch-actions";
+  const evidence = document.createElement("button");
+  evidence.type = "button";
+  const count = Number(decision.mapped_follower_exit?.position_count || 0);
+  evidence.textContent = count
+    ? `${count} Raven lot${count === 1 ? "" : "s"} mapped · no funds moved`
+    : "No Raven-created lot changed";
+  evidence.title = decision.hypothetical_raven_fee?.fee_usdc === null
+    ? "No fee was calculated or collected."
+    : `Hypothetical Raven fee ${money(decision.hypothetical_raven_fee.fee_usdc)}. Nothing was collected.`;
+  actions.append(evidence);
+  card.append(main, facts, actions);
+  return card;
+}
+
 function positionCard(position) {
   const card = document.createElement("article");
   card.className = "copy-card";
@@ -546,9 +589,15 @@ function positionCard(position) {
   detail.textContent = `Source ${shortAddress(position.source_wallet?.address)}`;
   main.append(stateLabel, title, detail);
   const facts = document.createElement("dl");
+  const remaining = exactAssetAmount({
+    ...position.destination_asset,
+    amount_base_units: position.remaining_quantity_base_units,
+  });
   facts.append(
     fact("Entry cost", money(position.entry_cost_usdc)),
-    fact("Expected quantity", position.expected_quantity),
+    fact("Remaining", remaining),
+    fact("Source exits", position.exit_count ?? 0),
+    fact("Realized exit", money(position.gross_realized_exit_usdc)),
     fact("Opened", when(position.opened_at)),
   );
   card.append(main, facts);
@@ -808,13 +857,17 @@ async function loadScreener() {
 
 function renderCollections() {
   setText("copyWatchCount", state.watches.length);
-  setText("copyDecisionCount", state.decisions.length);
+  const feed = [
+    ...state.decisions.map((row) => ({ row, card: decisionCard, at: row.timing?.policy_decided_at })),
+    ...state.exit_decisions.map((row) => ({ row, card: exitDecisionCard, at: row.timing?.policy_decided_at })),
+  ].sort((left, right) => Date.parse(right.at || 0) - Date.parse(left.at || 0));
+  setText("copyDecisionCount", feed.length);
   setText("copyPositionCount", state.positions.length);
   const watches = document.getElementById("copyWatches");
   const decisions = document.getElementById("copyDecisions");
   const positions = document.getElementById("copyPositions");
   watches.replaceChildren(...(state.watches.length ? state.watches.map(watchCard) : [empty("No wallets shadowed yet", "Inspect a public Solana wallet, review the evidence, and choose the order Raven should test.")]));
-  decisions.replaceChildren(...(state.decisions.length ? state.decisions.map(decisionCard) : [empty("No shadow decisions yet", "Run the first check, then check again after the source wallet makes a new trade.")]));
+  decisions.replaceChildren(...(feed.length ? feed.map((item) => item.card(item.row)) : [empty("No shadow decisions yet", "Raven will keep approved buys, skipped buys, mapped sells, and unavailable exits in one complete record.")]));
   positions.replaceChildren(...(state.positions.length ? state.positions.map(positionCard) : [empty("No shadow positions", "Only a new source buy that passes entry, exit, liquidity, speed, and your rules can appear here.")]));
 }
 
@@ -826,6 +879,7 @@ async function loadWorkspace() {
   ]);
   state.watches = watches.response.ok ? watches.payload.watches || [] : [];
   state.decisions = decisions.response.ok ? decisions.payload.decisions || [] : [];
+  state.exit_decisions = decisions.response.ok ? decisions.payload.exit_decisions || [] : [];
   state.positions = positions.response.ok ? positions.payload.positions || [] : [];
   state.copyability = decisions.response.ok ? decisions.payload.copyability || [] : [];
   renderCollections();

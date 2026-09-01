@@ -1,7 +1,7 @@
 # RavenOS Pro Wallet Intelligence and Raven Copy v1
 
 Status: local, dormant, migration-safe vertical slice
-Reviewed: 2026-08-29
+Reviewed: 2026-09-01
 Production activation: not approved
 
 ## Product boundary
@@ -39,12 +39,18 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 8. Raven checks exact mint identity, token program, quote age, latency, liquidity, price impact, round-trip friction, funding assumption, and user policy.
 9. Raven records either `SHADOW_EXECUTABLE` or a named refusal. Refusals are retained and are not counted as zero-return trades.
 10. Only `SHADOW_EXECUTABLE` creates a shadow position. It has no transaction hash and holds no live assets.
+11. A later exact source-wallet sell is mapped only to Raven-created lots belonging to the same source wallet, watch, and mint. Raven never adopts source inventory that predates the watch.
+12. A partial source sell proposes the same transaction-observed fraction against each mapped follower lot. The fraction is based only on source token accounts touched by that transaction and is never labeled as the wallet’s complete token balance. One current read-only token-to-canonical-USDC quote is shared for each exact policy and mapped quantity; unavailable or stale routes remain visible refusals and leave the lot unchanged.
+13. A complete source sell closes only the remaining mapped quantity. Current position state is derived from append-only allocation evidence as `SHADOW_OPEN`, `SHADOW_PARTIAL_EXIT`, or `SHADOW_CLOSED`.
+14. Source-sell evidence remains hypothetical: no live asset is held, no fee is collected, and no transaction is constructed, signed, or broadcast.
 
 ## Storage and mutability
 
-Migration `0007_customer_wallet_copy.sql` adds a single `wallet.copy` capability to the existing grant registry. It also adds shared source wallets, append-only normalized events, append-only finality observations, append-only profile snapshots, owner-bound watches, append-only shadow decisions, shadow positions, and future checkpoint storage. Migration `0008_customer_wallet_screener.sql` adds a rebuildable current-profile projection for bounded filtering and deterministic sorting; the append-only profile snapshots remain the historical source of truth. Migration `0011_source_wallet_backfill.sql` adds one resumable job per exact source wallet plus append-only page and run evidence. Backfill reuses the same normalized event ledger and does not store raw RPC responses or hydrated transaction material.
+Migration `0007_customer_wallet_copy.sql` adds a single `wallet.copy` capability to the existing grant registry. It also adds shared source wallets, append-only normalized events, append-only finality observations, append-only profile snapshots, owner-bound watches, append-only shadow decisions, shadow positions, and future checkpoint storage. Migration `0008_customer_wallet_screener.sql` adds a rebuildable current-profile projection for bounded filtering and deterministic sorting; the append-only profile snapshots remain the historical source of truth. Migration `0011_source_wallet_backfill.sql` adds one resumable job per exact source wallet plus append-only page and run evidence. Backfill reuses the same normalized event ledger and does not store raw RPC responses or hydrated transaction material. Migration `0012_shadow_copy_source_exits.sql` adds append-only source-sell decisions and exact per-position allocation evidence. It cannot hold live assets, collect fees, or retain a transaction hash.
 
 Economic events are idempotent by wallet, signature, and decode version. Processed, confirmed, and finalized observations are recorded separately so a finality upgrade does not create a second trade. Corrections require a new decode version or superseding evidence; historical decisions retain their policy and quote evidence.
+
+Current position derivation is bounded at 2,000 Raven-created lots and 2,000 retained source-exit decisions per position view. Hitting either bound fails closed instead of silently omitting older exits or presenting an incorrect remaining balance.
 
 Customer deletion cascades private watches and customer shadow state. Public-chain source evidence has an independent retention policy. Raw provider payloads, signer material, transaction construction material, private keys, and subscriber identities are excluded.
 
@@ -81,7 +87,7 @@ Raven’s intended advantage is not a larger headline P&L. It is the explicit sp
 
 Before activating continuous observation on the new RavenOS machine, validate D1 migration and backup retention, staged-origin authorization, provider subrequest budgets, queue backpressure, event lag, RPC costs, storage growth, and restart recovery. Measure p50, p90, p95, and p99 from chain event through receipt, decode, entry quote, reverse-exit proof, and decision.
 
-The dedicated RS2000 staging host now carries the dormant shared-observer contract and durable queue described in `ravenos_shared_wallet_observer_v1.md`. Manual refresh remains the only active customer workflow until the staging migration, private transport adapter, queue telemetry, and controlled cohort are verified. No public scheduler or stream is activated by this code.
+The migrated RS2000 host carries the dormant shared-observer contract and durable queue described in `ravenos_shared_wallet_observer_v1.md`, while Constant-K Nexus supplies the Solana transport foundation. Manual refresh remains the only active customer workflow until migrations `0010`–`0012`, private transport telemetry, queue behavior, and a controlled cohort are explicitly activated and verified. No public scheduler or stream is activated by this code.
 
 Operators can validate one public source-wallet buy against real read-only chain and quote evidence with `npm run validate:wallet-copy-live -- --wallet <address> --source-signature <signature>`. The validator reads only the allowlisted Solana RPC and Jupiter credentials from the configured parent environment, persists nothing, hashes the public wallet and signature in its report, rejects transaction material, and has no construction, signing, submission, broadcast, or fee-collection path.
 
@@ -99,6 +105,6 @@ The same event was probed again after 642.939 seconds. Its entry and reverse-exi
 
 The current screener covers only exact public wallets already requested or observed by Raven. It supports retained activity, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. Deep history is bounded at 10,000 signatures, and each current profile snapshot openly discloses its 2,000-event analysis ceiling. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
 
-The following are not claimed by v1: chain-wide wallet coverage, unbounded lifetime history, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, an activated continuous provider connection, automatic alerts, complete source-sell position mapping, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
+The following are not claimed by v1: chain-wide wallet coverage, unbounded lifetime history, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, an activated continuous provider connection, automatic alerts, checkpoint servicing beyond retained exit evidence, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
 
-The shared Solana observer contract, durable queue, Constant-K Nexus transport, exact 25,000-wallet manifest, retry/restart semantics, latency ledger, and deep-history backfill are implemented but dormant. The next move is one controlled public-wallet cohort measuring detection, decoding, quote/exit proof, reconstruction coverage, storage growth, and provider cost before Raven publishes any speed or follower-capture claim.
+The shared Solana observer contract, durable queue, Constant-K Nexus transport, exact 25,000-wallet manifest, retry/restart semantics, latency ledger, deep-history backfill, and source-sell lot mapping are implemented but dormant. The next move is one controlled public-wallet cohort measuring detection, decoding, entry/exit proof, partial-exit mapping, reconstruction coverage, storage growth, and provider cost before Raven publishes any speed or follower-capture claim.

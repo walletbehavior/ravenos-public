@@ -5162,6 +5162,8 @@ function copyQuoteEvidence(providerResult, { decimals, exactAssetIdentity }) {
     expires_at: providerResult.expires_at,
     expected_output: Number(displayBaseUnits(payload.outAmount, decimals)),
     minimum_output: Number(displayBaseUnits(payload.otherAmountThreshold, decimals)),
+    expected_output_base_units: String(payload.outAmount || ""),
+    minimum_output_base_units: String(payload.otherAmountThreshold || ""),
     price_impact_bps: Number.isFinite(priceImpact) ? Math.max(0, Math.min(10_000, Math.round(priceImpact * 100))) : null,
     latency_ms: Math.max(0, Date.parse(providerResult.received_at) - Date.parse(providerResult.requested_at)),
     venues: [...new Set((providerResult.route_rows || []).map((row) => String(row.label || "").trim()).filter(Boolean))].slice(0, 8),
@@ -5169,26 +5171,22 @@ function copyQuoteEvidence(providerResult, { decimals, exactAssetIdentity }) {
   };
 }
 
-async function quoteSolanaWalletCopySignal(env, { event, policy }) {
-  const runtime = spotQuotePreviewRuntime(env);
-  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
-  const destination = event?.economic?.destination_asset;
-  const tokenMint = String(destination?.mint || "");
+async function solanaWalletCopyAssetEvidence(env, rpcUrl, tokenMint, expectedDecimals) {
   if (!SOLANA_ADDRESS_RE.test(tokenMint)) throw new Error("wallet_copy_asset_identity_unavailable");
   const [supplyResult, mintAccount] = await Promise.all([
     runProviderOperation({
       component: "solana_rpc",
       operation_key: `wallet-copy-supply:${tokenMint}`,
-      fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getTokenSupply", [tokenMint, { commitment: "confirmed" }]),
+      fn: () => boundedSolanaTradeRpc(rpcUrl, "getTokenSupply", [tokenMint, { commitment: "confirmed" }]),
     }),
     runProviderOperation({
       component: "solana_rpc",
       operation_key: `wallet-copy-mint:${tokenMint}`,
-      fn: () => boundedSolanaTradeRpc(runtime.rpc_url, "getAccountInfo", [tokenMint, { commitment: "confirmed", encoding: "jsonParsed" }]),
+      fn: () => boundedSolanaTradeRpc(rpcUrl, "getAccountInfo", [tokenMint, { commitment: "confirmed", encoding: "jsonParsed" }]),
     }),
   ]);
   const tokenDecimals = Number(supplyResult?.value?.decimals);
-  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 18 || tokenDecimals !== Number(destination.decimals)) {
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 18 || tokenDecimals !== Number(expectedDecimals)) {
     throw new Error("wallet_copy_asset_decimals_unavailable");
   }
   const tokenProgram = String(mintAccount?.value?.owner || "");
@@ -5203,6 +5201,28 @@ async function quoteSolanaWalletCopySignal(env, { event, policy }) {
   const transferFeeDetected = tokenStandard === "spl_token_2022"
     ? extensions.some((row) => /transferfee/i.test(String(row?.extension || row?.type || "")))
     : false;
+  return {
+    tokenDecimals,
+    asset_evidence: {
+      identity_resolved: true,
+      token_standard: tokenStandard,
+      token_standard_resolved: true,
+      sell_simulation_state: "not_requested",
+      reverse_sell_quote_state: "available",
+      freeze_authority_present: Object.hasOwn(parsedMint, "freezeAuthority") ? parsedMint.freezeAuthority !== null : null,
+      mint_authority_present: Object.hasOwn(parsedMint, "mintAuthority") ? parsedMint.mintAuthority !== null : null,
+      transfer_fee_detected: transferFeeDetected,
+    },
+  };
+}
+
+async function quoteSolanaWalletCopySignal(env, { event, policy }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
+  const destination = event?.economic?.destination_asset;
+  const tokenMint = String(destination?.mint || "");
+  const token = await solanaWalletCopyAssetEvidence(env, runtime.rpc_url, tokenMint, destination?.decimals);
+  const tokenDecimals = token.tokenDecimals;
   const inputBaseUnits = usdcDisplayToBaseUnits(policy.sizing.fixed_usdc);
   const entry = await runProviderOperation({
     component: "jupiter_direct_quote",
@@ -5257,17 +5277,33 @@ async function quoteSolanaWalletCopySignal(env, { event, policy }) {
     source_notional_usdc: sourceNotionalUsdc,
     source_notional_basis: sourceNotionalBasis,
     liquidity_usd: liquidityUsd,
-    asset_evidence: {
-      identity_resolved: true,
-      token_standard: tokenStandard,
-      token_standard_resolved: true,
-      sell_simulation_state: "not_requested",
-      reverse_sell_quote_state: "available",
-      freeze_authority_present: Object.hasOwn(parsedMint, "freezeAuthority") ? parsedMint.freezeAuthority !== null : null,
-      mint_authority_present: Object.hasOwn(parsedMint, "mintAuthority") ? parsedMint.mintAuthority !== null : null,
-      transfer_fee_detected: transferFeeDetected,
-    },
+    asset_evidence: token.asset_evidence,
     entry: copyQuoteEvidence(entry, { decimals: tokenDecimals, exactAssetIdentity: true }),
+    exit: copyQuoteEvidence(exit, { decimals: 6, exactAssetIdentity: true }),
+  };
+}
+
+async function quoteSolanaWalletCopyExit(env, { event, quantity_base_units: quantityBaseUnits }) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
+  const source = event?.economic?.source_asset;
+  const tokenMint = String(source?.mint || "");
+  const amount = String(quantityBaseUnits || "");
+  if (!/^[1-9]\d{0,79}$/.test(amount)) throw new Error("wallet_copy_exit_quantity_invalid");
+  const token = await solanaWalletCopyAssetEvidence(env, runtime.rpc_url, tokenMint, source?.decimals);
+  const exit = await runProviderOperation({
+    component: "jupiter_direct_quote",
+    operation_key: `wallet-copy-mapped-exit:${tokenMint}:${amount}`,
+    fn: () => fetchJupiterExactSpotQuote({
+      env,
+      inputMint: tokenMint,
+      outputMint: SOLANA_CANONICAL_USDC_MINT,
+      amountBaseUnits: amount,
+      slippageBps: 50,
+    }),
+  });
+  return {
+    asset_evidence: token.asset_evidence,
     exit: copyQuoteEvidence(exit, { decimals: 6, exactAssetIdentity: true }),
   };
 }
@@ -8513,6 +8549,7 @@ async function routeApi(request, env, executionContext = null) {
     walletProvider: {
       loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
       quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
+      quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
     },
   };
   const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
@@ -8890,6 +8927,7 @@ export default {
           const walletProvider = {
             quoteCopySignalCacheKey: ({ event, policy }) => `${event.event_id}:${policy.sizing.fixed_usdc}:50`,
             quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
+            quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
           };
           return runSourceWalletObserverBatch(observerStore, {
             hydrateDelivery: (delivery) => hydrateSourceWalletObserverDelivery(env, delivery),

@@ -12,7 +12,9 @@ import {
   RavenCopyStandardOrderSizesUsdc,
   buildCopyabilityBySize,
   buildCopyabilitySnapshot,
+  applyShadowCopyExitHistory,
   createRavenCopyDecision,
+  createRavenCopyExitDecision,
   createRavenCopyPolicy,
   createShadowCopyPosition,
 } from "../lib/customer_trade/wallet_copy.mjs";
@@ -49,6 +51,41 @@ function sourceBuy() {
         postTokenBalances: [
           { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "75000000", decimals: 6 } },
           { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: "10000000", decimals: 6 } },
+        ],
+        innerInstructions: [],
+        logMessages: ["Program log: Instruction: Route"],
+      },
+    },
+  });
+}
+
+function sourceSell({ sold = 4_000_000, before = 10_000_000, receivedUsdc = 12_000_000, suffix = "t" } = {}) {
+  return normalizeSolanaWalletTransaction({
+    wallet_address: WALLET,
+    signature: suffix.repeat(88),
+    finality: "confirmed",
+    provider: "fixture_nexus_hydration",
+    observation_mode: "prospective",
+    received_at: "2026-08-29T12:05:01.000Z",
+    decode_started_at: "2026-08-29T12:05:01.000Z",
+    decoded_at: "2026-08-29T12:05:01.050Z",
+    observed_at: "2026-08-29T12:05:01.050Z",
+    transaction: {
+      slot: 124,
+      blockTime: BLOCK_SECONDS + 300,
+      transaction: { message: { accountKeys: [{ pubkey: WALLET, signer: true }], instructions: [{ programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" }] } },
+      meta: {
+        err: null,
+        fee: 5_000,
+        preBalances: [999_995_000],
+        postBalances: [999_990_000],
+        preTokenBalances: [
+          { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: "75000000", decimals: 6 } },
+          { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: String(before), decimals: 6 } },
+        ],
+        postTokenBalances: [
+          { owner: WALLET, mint: SOLANA_CANONICAL_USDC_MINT, uiTokenAmount: { amount: String(75_000_000 + receivedUsdc), decimals: 6 } },
+          { owner: WALLET, mint: TOKEN, uiTokenAmount: { amount: String(before - sold), decimals: 6 } },
         ],
         innerInstructions: [],
         logMessages: ["Program log: Instruction: Route"],
@@ -102,6 +139,8 @@ function evidence(overrides = {}) {
       expires_at: "2026-08-29T12:00:16.200Z",
       expected_output: 39.5,
       minimum_output: 39.1,
+      expected_output_base_units: "39500000",
+      minimum_output_base_units: "39100000",
       price_impact_bps: 50,
       latency_ms: 150,
       venues: ["Jupiter"],
@@ -117,6 +156,8 @@ function evidence(overrides = {}) {
       expires_at: "2026-08-29T12:00:16.350Z",
       expected_output: 97.5,
       minimum_output: 97,
+      expected_output_base_units: "97500000",
+      minimum_output_base_units: "97000000",
       price_impact_bps: 55,
       latency_ms: 150,
       venues: ["Jupiter"],
@@ -152,6 +193,147 @@ test("a fresh exact entry plus reverse exit produces an appendable shadow decisi
   assert.equal(position.live_assets_held, false);
   assert.equal(position.transaction_hash, null);
   assert.equal(position.source_strategy_attribution_preserved, true);
+  assert.equal(position.expected_quantity_base_units, "39500000");
+  assert.equal(position.remaining_quantity_base_units, "39500000");
+});
+
+test("source partial sells map only to Raven-created lots and close proportionally", () => {
+  const buyDecision = createRavenCopyDecision(evidence(), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const opened = createShadowCopyPosition(buyDecision);
+  const partial = createRavenCopyExitDecision({
+    watch_id: opened.watch_id,
+    source_event: sourceSell(),
+    policy: buyDecision.policy,
+    positions: [opened],
+    asset_evidence: evidence().asset_evidence,
+    exit: {
+      state: "available",
+      quote_id: "mapped_exit_partial",
+      provider: "jupiter",
+      requested_at: "2026-08-29T12:05:01.100Z",
+      quoted_at: "2026-08-29T12:05:01.200Z",
+      received_at: "2026-08-29T12:05:01.300Z",
+      expires_at: "2026-08-29T12:05:16.200Z",
+      expected_output: 41.3,
+      minimum_output: 40.9,
+      expected_output_base_units: "41300000",
+      minimum_output_base_units: "40900000",
+      price_impact_bps: 45,
+      latency_ms: 200,
+      exact_asset_identity: true,
+    },
+  }, { now: Date.parse("2026-08-29T12:05:01.500Z") });
+  assert.equal(partial.decision.state, "SHADOW_EXIT_EXECUTABLE");
+  assert.equal(partial.source_sell.fraction_bps, 4_000);
+  assert.equal(partial.source_sell.fraction_basis, "transaction_touched_source_accounts");
+  assert.equal(partial.source_sell.wallet_total_balance_claimed, false);
+  assert.equal(partial.mapped_follower_exit.position_count, 1);
+  assert.equal(partial.mapped_follower_exit.quantity_base_units, "15800000");
+  assert.equal(partial.position_allocations[0].position_quantity_after_base_units, "23700000");
+  assert.equal(partial.position_allocations[0].applied, true);
+  assert.equal(partial.execution_boundary.broadcasting_available, false);
+  assert.equal(partial.hypothetical_raven_fee.collected, false);
+
+  const partiallyExited = applyShadowCopyExitHistory(opened, [partial]);
+  assert.equal(partiallyExited.state, "SHADOW_PARTIAL_EXIT");
+  assert.equal(partiallyExited.remaining_quantity_base_units, "23700000");
+  assert.equal(partiallyExited.exited_quantity_base_units, "15800000");
+  assert.equal(partiallyExited.source_exit_event_ids.length, 1);
+
+  const finalExit = createRavenCopyExitDecision({
+    watch_id: opened.watch_id,
+    source_event: sourceSell({ sold: 6_000_000, before: 6_000_000, receivedUsdc: 18_000_000, suffix: "u" }),
+    policy: buyDecision.policy,
+    positions: [partiallyExited],
+    asset_evidence: evidence().asset_evidence,
+    exit: {
+      state: "available",
+      quote_id: "mapped_exit_final",
+      provider: "jupiter",
+      requested_at: "2026-08-29T12:05:01.100Z",
+      quoted_at: "2026-08-29T12:05:01.200Z",
+      received_at: "2026-08-29T12:05:01.300Z",
+      expires_at: "2026-08-29T12:05:16.200Z",
+      expected_output: 62,
+      minimum_output: 61.4,
+      expected_output_base_units: "62000000",
+      minimum_output_base_units: "61400000",
+      price_impact_bps: 55,
+      latency_ms: 200,
+      exact_asset_identity: true,
+    },
+  }, { now: Date.parse("2026-08-29T12:05:01.500Z") });
+  const closed = applyShadowCopyExitHistory(opened, [partial, finalExit]);
+  assert.equal(finalExit.source_sell.fraction_bps, 10_000);
+  assert.equal(finalExit.mapped_follower_exit.quantity_base_units, "23700000");
+  assert.equal(closed.state, "SHADOW_CLOSED");
+  assert.equal(closed.remaining_quantity_base_units, "0");
+  assert.equal(closed.exited_quantity_base_units, "39500000");
+  assert.equal(closed.exit_count, 2);
+  assert.equal(closed.live_assets_held, false);
+});
+
+test("source sells of pre-subscription inventory are visible skips, never fabricated losses", () => {
+  const exit = createRavenCopyExitDecision({
+    watch_id: `wcw_${"a".repeat(40)}`,
+    source_event: sourceSell(),
+    policy: policy(),
+    positions: [],
+    asset_evidence: evidence().asset_evidence,
+    exit: { state: "unavailable", provider: "jupiter", reason: "not_requested_without_mapped_position" },
+  }, { now: Date.parse("2026-08-29T12:05:01.500Z") });
+  assert.equal(exit.decision.state, "IGNORED_PRE_SUBSCRIPTION_INVENTORY");
+  assert.equal(exit.decision.reason_code, "no_raven_mapped_position");
+  assert.equal(exit.decision.pre_subscription_inventory_treated_as_zero_cost, false);
+  assert.equal(exit.decision.refusal_is_zero_return, false);
+  assert.equal(exit.position_allocations.length, 0);
+});
+
+test("unavailable source exits remain explicit and do not mutate mapped lots", () => {
+  const buyDecision = createRavenCopyDecision(evidence(), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const opened = createShadowCopyPosition(buyDecision);
+  const unavailable = createRavenCopyExitDecision({
+    watch_id: opened.watch_id,
+    source_event: sourceSell(),
+    policy: buyDecision.policy,
+    positions: [opened],
+    asset_evidence: evidence().asset_evidence,
+    exit: { state: "unavailable", provider: "jupiter", reason: "no_current_sell_route", exact_asset_identity: true },
+  }, { now: Date.parse("2026-08-29T12:05:01.500Z") });
+  assert.equal(unavailable.decision.state, "EXIT_UNAVAILABLE");
+  assert.equal(unavailable.position_allocations[0].applied, false);
+  const unchanged = applyShadowCopyExitHistory(opened, [unavailable]);
+  assert.equal(unchanged.state, "SHADOW_OPEN");
+  assert.equal(unchanged.remaining_quantity_base_units, "39500000");
+  assert.equal(unchanged.exit_count, 0);
+});
+
+test("disabled source-sell mirroring is a policy refusal even when sell-fraction evidence is incomplete", () => {
+  const buyDecision = createRavenCopyDecision(evidence(), { now: Date.parse("2026-08-29T12:00:01.500Z") });
+  const opened = createShadowCopyPosition(buyDecision);
+  const observed = sourceSell();
+  const incomplete = {
+    ...observed,
+    economic: {
+      ...observed.economic,
+      source_asset: {
+        ...observed.economic.source_asset,
+        balance_before_base_units: null,
+        balance_after_base_units: null,
+      },
+    },
+  };
+  const refused = createRavenCopyExitDecision({
+    watch_id: opened.watch_id,
+    source_event: incomplete,
+    policy: policy({ exits: { mirror_source_sells: false } }),
+    positions: [opened],
+    asset_evidence: evidence().asset_evidence,
+    exit: { state: "unavailable", provider: "jupiter", reason: "not_requested_by_policy" },
+  }, { now: Date.parse("2026-08-29T12:05:01.500Z") });
+  assert.equal(refused.decision.state, "POLICY_REJECTED");
+  assert.equal(refused.decision.reason_code, "source_sell_mirroring_disabled");
+  assert.equal(refused.position_allocations.length, 0);
 });
 
 test("lease retries retain one decision identity while preserving the first exact quote as evidence", () => {
