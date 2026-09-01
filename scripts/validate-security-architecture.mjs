@@ -309,6 +309,27 @@ assert.equal(config.operator_solana_canary.browser_signing_available, false);
 assert.equal(config.operator_solana_canary.customer_submission_available, false);
 assert.equal(config.operator_solana_canary.operator_submission_available, false);
 assert.equal(config.operator_solana_canary.production_activation_completed, false);
+assert.equal(config.customer_live_execution_canary.implementation_status, "local_candidate_not_deployed");
+assert.equal(config.customer_live_execution_canary.authenticated_origin_only, true);
+assert.equal(config.customer_live_execution_canary.csrf_required_for_mutations, true);
+assert.equal(config.customer_live_execution_canary.explicit_user_allowlist_required, true);
+assert.equal(config.customer_live_execution_canary.wildcard_allowlist_for_initial_canary, false);
+assert.equal(config.customer_live_execution_canary.hyperliquid_wallet_signing_available, true);
+assert.equal(config.customer_live_execution_canary.hyperliquid_wallet_submission_available, true);
+assert.equal(config.customer_live_execution_canary.solana_wallet_submission_available, false);
+assert.equal(config.customer_live_execution_canary.raven_signing_available, false);
+assert.equal(config.customer_live_execution_canary.raven_private_keys_available, false);
+assert.equal(config.customer_live_execution_canary.custody_available, false);
+assert.equal(config.customer_live_execution_canary.arbitrary_submission_available, false);
+assert.equal(config.customer_live_execution_canary.fee_policy_server_owned, true);
+assert.equal(config.customer_live_execution_canary.fee_recipient_server_owned, true);
+assert.equal(config.customer_live_execution_canary.hyperliquid_builder_fee_maximum_bps, 10);
+assert.equal(config.customer_live_execution_canary.builder_fee_user_approval_required, true);
+assert.equal(config.customer_live_execution_canary.builder_fee_approval_separate_from_order, true);
+assert.equal(config.customer_live_execution_canary.private_keys_or_signatures_persisted, false);
+assert.equal(config.customer_live_execution_canary.append_only_execution_evidence, true);
+assert.equal(config.customer_live_execution_canary.all_activation_controls_default_off, true);
+assert.equal(config.customer_live_execution_canary.production_activation_completed, false);
 
 for (const documentPath of config.required_documents || []) {
   const absolute = join(root, documentPath);
@@ -364,6 +385,10 @@ for (const reason of ["legacy_customer_access_quarantined", "legacy_billing_quar
 }
 const operatorCanary = readFileSync(join(root, "lib/customer_trade/operator_solana_canary.mjs"), "utf8");
 const operatorCanaryCli = readFileSync(join(root, "scripts/run-solana-canary-dry-run.mjs"), "utf8");
+const customerLiveGate = readFileSync(join(root, "lib/customer_trade/live_execution_gate.mjs"), "utf8");
+const hyperliquidLiveExecution = readFileSync(join(root, "lib/customer_trade/hyperliquid_live_execution.mjs"), "utf8");
+const walletExecutionEntry = readFileSync(join(root, "client/ravenos-wallet-execution-entry.js"), "utf8");
+const customerLiveMigration = readFileSync(join(root, "customer-migrations/0024_customer_live_execution.sql"), "utf8");
 assert.match(operatorCanary, /submission:\s*false/);
 assert.match(operatorCanary, /signing_for_simulation:\s*false/);
 assert.match(operatorCanary, /signing_material_not_accepted_by_preflight/);
@@ -371,6 +396,20 @@ assert.match(operatorCanary, /sigVerify:\s*false/);
 assert.match(operatorCanary, /SOLANA_MAINNET_GENESIS_HASH/);
 assert.doesNotMatch(operatorCanary, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
 assert.doesNotMatch(operatorCanaryCli, /\/swap\/v2\/execute|sendRawTransaction|sendTransaction|broadcastTransaction/);
+assert.match(customerLiveGate, /RAVENOS_CUSTOMER_TRADE_LIVE_USERS/);
+assert.match(customerLiveGate, /RAVENOS_CUSTOMER_TRADE_KILL_SWITCH/);
+assert.match(customerLiveGate, /hyperliquid_wallet_submission:\s*true/);
+assert.match(customerLiveGate, /solana_signed_transaction_submission:\s*false/);
+assert.match(customerLiveGate, /raven_private_key_access:\s*false/);
+assert.match(hyperliquidLiveExecution, /builder_fee_parameter_mismatch/);
+assert.match(hyperliquidLiveExecution, /fee_recipient: recipient/);
+assert.match(hyperliquidLiveExecution, /action_hash: hash\(action\)/);
+assert.match(walletExecutionEntry, /approveHyperliquidBuilderFee/);
+assert.match(walletExecutionEntry, /executeHyperliquidTicket/);
+assert.doesNotMatch(walletExecutionEntry, /privateKey|seedPhrase|mnemonic/);
+assert.match(customerLiveMigration, /ravenos_customer_live_execution_events_append_only/);
+assert.match(customerLiveMigration, /observed_raven_fee_usdc/);
+assert.doesNotMatch(customerLiveMigration, /private_key|seed_phrase|signature\s+TEXT/i);
 assert.match(worker, /function customerAccountsEnabled\(\)\s*{\s*return false;\s*}/);
 assert.match(worker, /function customerBillingEnabled\(\)\s*{\s*return false;\s*}/);
 const identity = readFileSync(join(root, "lib/customer_identity.mjs"), "utf8");
@@ -393,6 +432,7 @@ for (const activationFlag of [
   ...config.entitlement_foundation.activation_controls,
   ...config.raven_monitor.activation_controls,
   ...config.wallet_copy.activation_controls,
+  ...config.customer_live_execution_canary.activation_controls,
 ]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }

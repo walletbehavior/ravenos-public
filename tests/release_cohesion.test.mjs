@@ -156,7 +156,7 @@ test("an incoherent release fails closed before intelligence routes execute", as
   assert.ok(payload.reasons.includes("worker_version_tag_mismatch"));
 });
 
-test("coherent HTML revalidates while fingerprinted assets are immutable", async () => {
+test("public HTML revalidates, authenticated terminal HTML does not cache, and fingerprinted assets are immutable", async () => {
   const base = fixtures();
   const html = "<!doctype html><html><body>release</body></html>";
   const script = "export const release = true;";
@@ -164,13 +164,16 @@ test("coherent HTML revalidates while fingerprinted assets are immutable", async
     "/ravenos_release.json": base.release,
     "/ravenos_build.json": base.build,
     "/ravenos_deploy_manifest.json": base.deploy,
+    "/discover/": new Response(html, { headers: { "content-type": "text/html" } }),
     "/terminal/": new Response(html, { headers: { "content-type": "text/html" } }),
     "/assets/app.0123456789abcdef.js": new Response(script, { headers: { "content-type": "text/javascript" } }),
   });
   const env = { ...releaseEnv(), CF_VERSION_METADATA: base.version, ASSETS: binding };
-  const page = await worker.fetch(new Request("https://preview.example/terminal/"), env);
+  const page = await worker.fetch(new Request("https://preview.example/discover/"), env);
+  const terminal = await worker.fetch(new Request("https://preview.example/terminal/"), env);
   const asset = await worker.fetch(new Request("https://preview.example/assets/app.0123456789abcdef.js"), env);
   assert.equal(page.headers.get("cache-control"), "public, max-age=0, must-revalidate");
+  assert.equal(terminal.headers.get("cache-control"), "no-store, max-age=0");
   assert.equal(asset.headers.get("cache-control"), "public, max-age=31536000, immutable");
 });
 

@@ -290,18 +290,20 @@ test("Terminal connects and locally disconnects a browser-wallet address without
   expect(disconnected.publicAccountObserved).toBe(false);
 });
 
-test("mobile Terminal uses focused Chart, Trade, Book, Raven, and Account panes without horizontal overflow", async ({ page }) => {
+test("mobile Terminal keeps the Txns label across perp pane changes without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await expect(page.locator('[data-terminal-pane-button="chart"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Trade", "Raven", "Account"]);
   await expect(page.locator("#terminalChart")).toBeVisible();
   await expect(page.locator("#terminalMarketRail")).toBeHidden();
   await expect(page.locator(".terminal-intelligence")).toBeHidden();
 
   await page.locator('[data-terminal-pane-button="book"]').click();
+  await expect(page.locator('[data-terminal-pane-button="book"]')).toHaveText("Txns");
   await expect(page.locator("#terminalMarketRail")).toBeVisible();
   await expect(page.locator("#terminalBook .terminal-book-row")).toHaveCount(8);
   await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
@@ -1200,6 +1202,7 @@ test("Robinhood exact-token holders render from a bounded indexed snapshot", asy
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1h" });
 
   await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(3);
   await expect(page.locator("#terminalHolderListState")).toContainText("3 of 314 owners");

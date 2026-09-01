@@ -728,8 +728,12 @@ function bindAuthForms() {
 }
 
 async function initialize() {
-  const requestedIntent = new URLSearchParams(location.search).get("intent");
+  const query = new URLSearchParams(location.search);
+  const requestedIntent = query.get("intent");
   if (requestedIntent === "sign_in") state.intent = "sign_in";
+  const requestedReturnTo = String(query.get("return_to") || "");
+  const safeReturnTo = /^\/terminal\/(?:\?[^#]*)?$/.test(requestedReturnTo) ? requestedReturnTo : "/account/";
+  document.querySelectorAll('.account-auth-actions input[name="return_to"]').forEach((input) => { input.value = safeReturnTo; });
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
   document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));

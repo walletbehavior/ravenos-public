@@ -862,6 +862,18 @@ button, input, select { font: inherit; }
 .terminal-execution-rail li[data-state="complete"] > span { border-color: rgba(63, 185, 130, .55); background: rgba(63, 185, 130, .13); color: #8bdab2; }
 .terminal-execution-rail li[data-state="current"] { background: rgba(143, 164, 186, .08); }
 .terminal-execution-rail li[aria-disabled="true"] { opacity: .45; }
+.terminal-live-execution { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(63, 185, 130, .38); background: rgba(63, 185, 130, .055); }
+.terminal-live-execution[hidden] { display: none; }
+.terminal-live-execution > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.terminal-live-execution > header span { color: var(--terminal-soft); font: 750 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
+.terminal-live-execution > header strong { color: #8bdab2; font-size: 9px; text-transform: uppercase; }
+.terminal-live-execution-order { display: grid; gap: 3px; padding: 8px; border: 1px solid var(--terminal-line); background: #090e15; }
+.terminal-live-execution-order strong { color: var(--terminal-text); font-size: 11px; }
+.terminal-live-execution-order small,
+.terminal-live-execution > p { margin: 0; color: var(--terminal-soft); font-size: 9px; line-height: 1.35; }
+.terminal-live-execution-link { display: grid; min-height: 38px; place-items: center; border: 1px solid rgba(63, 185, 130, .55); color: #8bdab2; font-size: 11px; font-weight: 750; text-decoration: none; }
+.terminal-live-execution[data-state="error"] { border-color: rgba(223, 87, 109, .42); background: rgba(223, 87, 109, .055); }
+.terminal-live-execution[data-state="error"] > header strong { color: #ed879b; }
 .terminal-ticket-account { margin-top: 8px; border: 1px solid rgba(63, 185, 130, .24); background: rgba(63, 185, 130, .055); }
 .terminal-ticket-account[hidden] { display: none; }
 .terminal-ticket-account > header { min-height: 29px; align-items: center; padding: 5px 7px; border-bottom: 1px solid rgba(63, 185, 130, .17); }
@@ -1702,7 +1714,7 @@ button, input, select { font: inherit; }
   .terminal-spot-ticket > .terminal-preview-action,
   .terminal-spot-ticket > .terminal-quote-follow,
   .terminal-spot-advanced > summary { min-height: 44px; }
-  .terminal-spot-ticket > .terminal-preview-action { font-size: 12px; }
+  .terminal-spot-ticket > .terminal-preview-action { min-height: 45px; font-size: 12px; }
   .terminal-spot-decision-strip > button,
   .terminal-spot-decision-strip > div { min-height: 58px; padding: 8px 7px; }
   .terminal-spot-decision-strip strong { font-size: 11px; }

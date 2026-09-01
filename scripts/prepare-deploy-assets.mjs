@@ -52,6 +52,7 @@ const runtimeAssets = [
   "ravenos-price-workspace.js",
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
+  "ravenos-wallet-execution.js",
   "ravenos-workspace.css",
   "ravenos-discover.css",
   "ravenos-discover-intelligence.js",

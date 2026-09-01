@@ -144,8 +144,8 @@
       <button type="button" data-terminal-pane-button="chart" data-status="Current" aria-pressed="true">Chart</button>
       <button type="button" data-terminal-pane-button="activity" data-status="Load" data-spot-only aria-pressed="false" hidden>Txns</button>
       <button type="button" data-terminal-pane-button="holders" data-status="Checking" data-spot-only aria-pressed="false" hidden>Holders</button>
+      <button type="button" data-terminal-pane-button="book" data-status="Depth" data-perp-only aria-pressed="false">Txns</button>
       <button type="button" data-terminal-pane-button="trade" data-status="Preview" aria-pressed="false" hidden>Trade</button>
-      <button type="button" data-terminal-pane-button="book" data-status="Depth" data-perp-only aria-pressed="false">Book</button>
       <button type="button" data-terminal-pane-button="raven" data-status="Checking" aria-pressed="false">Raven</button>
       <button type="button" data-terminal-pane-button="account" data-status="Address" data-perp-only aria-pressed="false">Account</button>
     </nav>
@@ -573,6 +573,16 @@
             </dl>
             <p id="terminalScenarioNote">Current public snapshot.</p>
           </div>
+          <section class="terminal-live-execution" id="terminalLiveExecution" data-state="unavailable" hidden>
+            <header><span>Live order</span><strong id="terminalLiveExecutionState">Unavailable</strong></header>
+            <div class="terminal-live-execution-order" id="terminalLiveExecutionOrder" hidden>
+              <strong id="terminalLiveExecutionSummary">Wallet confirmation required</strong>
+              <small id="terminalLiveExecutionDetail"></small>
+            </div>
+            <button class="terminal-preview-action" id="terminalLiveExecutionAction" type="button" hidden>Prepare live order</button>
+            <a class="terminal-live-execution-link" id="terminalLiveExecutionLink" hidden>Sign in to trade</a>
+            <p id="terminalLiveExecutionMessage">Connect the trading wallet and review the current account impact.</p>
+          </section>
           <p class="terminal-preview-message" id="terminalPreviewMessage">Review current book.</p>
           <div class="terminal-preview-boundary">
             <strong>Plan only</strong>

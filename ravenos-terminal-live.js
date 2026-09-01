@@ -96,6 +96,13 @@ const state = {
   spotQuoteFollow: false,
   solanaWalletAddress: null,
   solanaWalletConnected: false,
+  liveAuth: null,
+  liveSession: null,
+  liveBuilderApproval: null,
+  liveTicket: null,
+  liveExecutionPending: false,
+  liveExecutionResult: null,
+  walletExecutionBundle: null,
 };
 
 function renderLaunchBadge() {
@@ -784,11 +791,19 @@ function updateTerminalPaneAvailability() {
   if (holdersButton) holdersButton.hidden = !spot;
   const activityButton = document.querySelector('[data-terminal-pane-button="activity"]');
   const spotActivityAvailable = spot && Boolean(currentProjectIdentity());
-  if (activityButton) activityButton.hidden = !spotActivityAvailable;
+  if (activityButton) {
+    // The spot-market activity surface is always Txns. Do not reuse the
+    // Hyperliquid order-book label when pane state changes on mobile.
+    activityButton.textContent = "Txns";
+    activityButton.hidden = !spotActivityAvailable;
+  }
   const activitySection = document.getElementById("terminalSpotActivitySection");
   if (activitySection) activitySection.hidden = !spotActivityAvailable;
   const bookButton = document.querySelector('[data-terminal-pane-button="book"]');
-  if (bookButton) bookButton.hidden = !perps;
+  if (bookButton) {
+    bookButton.textContent = "Txns";
+    bookButton.hidden = !perps;
+  }
   const tradeSection = document.getElementById("terminalTradeReviewSection");
   const spotTradeSection = document.getElementById("terminalSpotTicketSection");
   const tradeButton = document.querySelector('[data-terminal-pane-button="trade"]');
@@ -874,13 +889,223 @@ function syncWalletControls() {
 }
 
 function updateWalletShellCapability() {
+  const hyperliquidLive = state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true;
   window.RavenOSShell?.setCapabilities?.({
     wallet: state.walletTransportConnected && state.walletAddress
-      ? `${shortAccountAddress(state.walletAddress)} · public view`
+      ? `${shortAccountAddress(state.walletAddress)} · ${hyperliquidLive ? "live confirmation" : "public view"}`
       : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
-    signing: "Sign off",
-    broadcast: "Broadcast off",
+    signing: hyperliquidLive ? "Wallet confirms" : "Sign off",
+    broadcast: hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
   });
+}
+
+function authenticatedTerminalOrigin() {
+  return location.hostname.toLowerCase() === "app.ravenos.xyz";
+}
+
+function liveTerminalHref() {
+  const target = new URL(location.href);
+  target.protocol = "https:";
+  target.host = "app.ravenos.xyz";
+  return target.toString();
+}
+
+function terminalSignInHref() {
+  const target = new URL("/account/", location.origin);
+  target.searchParams.set("intent", "sign_in");
+  target.searchParams.set("return_to", `${location.pathname}${location.search}`);
+  return target.toString();
+}
+
+function clearLiveExecutionTicket(message = "") {
+  state.liveBuilderApproval = null;
+  state.liveTicket = null;
+  state.liveExecutionResult = null;
+  if (message) setText("terminalLiveExecutionMessage", message);
+  renderLiveExecution();
+}
+
+function currentPerpScenarioReady() {
+  const blockers = Array.isArray(state.orderPlan?.review?.blockers)
+    ? state.orderPlan.review.blockers.filter((reason) => reason !== "venue_margin_settings_change_required")
+    : [];
+  return state.orderPlan?.ok === true
+    && Boolean(state.orderPlan?.account_context)
+    && new Set(["account_scenario_available", "account_scenario_blocked"]).has(state.orderPlan?.state)
+    && state.orderPlanType !== "trigger"
+    && !state.orderPlan?.risk_bracket?.configured
+    && blockers.length === 0
+    && Date.parse(state.orderPlan?.expires_at || "") > Date.now() + 1_000;
+}
+
+function renderLiveExecution() {
+  const host = document.getElementById("terminalLiveExecution");
+  const action = document.getElementById("terminalLiveExecutionAction");
+  const link = document.getElementById("terminalLiveExecutionLink");
+  const order = document.getElementById("terminalLiveExecutionOrder");
+  if (!host || !action || !link || !order) return;
+  const perps = state.lane === "perps" && String(state.selected?.instrument_id || "").startsWith("hyperliquid:perp:");
+  host.hidden = !perps;
+  if (!perps) return;
+  action.hidden = true;
+  link.hidden = true;
+  order.hidden = true;
+  host.dataset.state = "unavailable";
+  const publicCapability = state.flags?.live_execution;
+  if (!authenticatedTerminalOrigin()) {
+    setText("terminalLiveExecutionState", publicCapability?.code_ready ? "Secure workspace" : "Not live");
+    link.hidden = false;
+    link.href = liveTerminalHref();
+    link.textContent = "Sign in / trade live";
+    setText("terminalLiveExecutionMessage", "Wallet-signed orders open in the secure workspace.");
+    return;
+  }
+  if (state.liveAuth?.authenticated !== true) {
+    setText("terminalLiveExecutionState", "Sign in");
+    link.hidden = false;
+    link.href = terminalSignInHref();
+    link.textContent = "Sign in to trade";
+    setText("terminalLiveExecutionMessage", "Account sign-in and wallet confirmation are separate.");
+    return;
+  }
+  const gate = state.liveSession?.gate;
+  if (gate?.chains?.hyperliquid?.available_to_principal !== true) {
+    setText("terminalLiveExecutionState", gate?.configured ? "Canary only" : "Locked");
+    setText("terminalLiveExecutionMessage", gate?.configured
+      ? "This account is not in the live canary."
+      : "Live execution is not activated.");
+    updateWalletShellCapability();
+    return;
+  }
+  host.dataset.state = state.liveExecutionResult?.ok === false ? "error" : "ready";
+  if (state.liveExecutionPending) {
+    setText("terminalLiveExecutionState", "Working");
+    setText("terminalLiveExecutionMessage", "Keep this tab open and confirm only the order shown in your wallet.");
+    return;
+  }
+  if (state.liveExecutionResult?.ok === true) {
+    setText("terminalLiveExecutionState", state.liveExecutionResult.reconciliation?.state === "provider_confirmed" ? "Confirmed" : "Submitted");
+    setText("terminalLiveExecutionMessage", state.liveExecutionResult.reconciliation?.state === "provider_confirmed"
+      ? "Hyperliquid confirmed the exact order."
+      : "The wallet reported the order; provider reconciliation is still indeterminate.");
+    return;
+  }
+  if (state.liveExecutionResult?.ok === false) {
+    state.liveTicket = null;
+    setText("terminalLiveExecutionState", "Not sent");
+    setText("terminalLiveExecutionMessage", String(state.liveExecutionResult.error || "The wallet canceled or the current ticket expired.").replaceAll("_", " "));
+    action.hidden = false;
+    if (!state.walletTransportConnected || !state.walletAddress) {
+      action.textContent = "Reconnect wallet";
+      action.dataset.liveAction = "connect";
+    } else if (currentPerpScenarioReady()) {
+      action.textContent = "Prepare again";
+      action.dataset.liveAction = "prepare";
+    } else {
+      action.textContent = "Review again";
+      action.dataset.liveAction = "review";
+    }
+    return;
+  }
+  if (!state.walletTransportConnected || !state.walletAddress) {
+    setText("terminalLiveExecutionState", "Connect wallet");
+    action.hidden = false;
+    action.textContent = "Connect trading wallet";
+    action.dataset.liveAction = "connect";
+    setText("terminalLiveExecutionMessage", "The wallet signs. Raven never receives the key.");
+    return;
+  }
+  if (!currentPerpScenarioReady()) {
+    setText("terminalLiveExecutionState", "Review first");
+    action.hidden = false;
+    action.textContent = "Review current order";
+    action.dataset.liveAction = "review";
+    setText("terminalLiveExecutionMessage", state.orderPlanType === "trigger" || state.orderPlan?.risk_bracket?.configured
+      ? "Live v1 supports market or limit entries without attached brackets."
+      : "Refresh the exact market and account check.");
+    return;
+  }
+  if (state.liveBuilderApproval && Date.parse(state.liveBuilderApproval.expires_at || "") <= Date.now() + 500) {
+    state.liveBuilderApproval = null;
+  }
+  if (state.liveBuilderApproval) {
+    const fee = state.liveBuilderApproval.fee || {};
+    setText("terminalLiveExecutionState", "Fee approval");
+    setText("terminalLiveExecutionSummary", `Raven fee ${fee.fee_percent || ""} · ${fee.fee_token || "USDC"}`);
+    setText("terminalLiveExecutionDetail", "One-time Hyperliquid cap · revocable in Hyperliquid");
+    order.hidden = false;
+    action.hidden = false;
+    action.textContent = `Approve ${fee.fee_percent || "Raven fee"}`;
+    action.dataset.liveAction = "approve_fee";
+    setText("terminalLiveExecutionMessage", "This approval allows only the shown per-order builder fee. It grants no withdrawal or arbitrary-order access.");
+    return;
+  }
+  if (!state.liveTicket || Date.parse(state.liveTicket.expires_at || "") <= Date.now() + 500) {
+    state.liveTicket = null;
+    setText("terminalLiveExecutionState", "Ready");
+    action.hidden = false;
+    action.textContent = "Prepare live order";
+    action.dataset.liveAction = "prepare";
+    const fee = state.liveSession?.hyperliquid_fee;
+    setText("terminalLiveExecutionMessage", fee?.enabled
+      ? `Raven will recheck the market. Fee ${fee.fee_percent} in USDC.`
+      : "Raven will recheck the market and issue a short-lived ticket.");
+    return;
+  }
+  const reviewed = state.liveTicket.reviewed_order || {};
+  setText("terminalLiveExecutionState", "Wallet confirmation");
+  setText("terminalLiveExecutionSummary", `${String(reviewed.side || "").toUpperCase()} ${state.liveTicket.instrument?.exact_market_id} · ${Number(reviewed.notional_usdc).toLocaleString("en-US")} USDC`);
+  const ticketFee = state.liveTicket.fee || {};
+  const feeDetail = ticketFee.raven_fee_enabled
+    ? ` · Raven ${(Number(ticketFee.raven_fee_bps) / 100).toFixed(2)}% ≈ ${Number(ticketFee.estimated_raven_fee_usdc).toFixed(2)} USDC`
+    : " · Raven fee 0";
+  setText("terminalLiveExecutionDetail", `${reviewed.base_size} @ ${reviewed.limit_or_guard_price} max · ${reviewed.leverage}× ${reviewed.margin_mode}${feeDetail}${state.liveTicket.pre_actions?.update_leverage?.required ? " · settings confirmation first" : ""}`);
+  order.hidden = false;
+  action.hidden = false;
+  action.textContent = `Place ${reviewed.side} · wallet confirms`;
+  action.dataset.liveAction = "execute";
+  setText("terminalLiveExecutionMessage", `Expires ${new Intl.DateTimeFormat("en", { minute: "numeric", second: "2-digit" }).format(new Date(state.liveTicket.expires_at))}. Wallet signs the exact order.`);
+  updateWalletShellCapability();
+}
+
+async function loadLiveExecutionSession() {
+  if (!authenticatedTerminalOrigin()) {
+    renderLiveExecution();
+    return;
+  }
+  try {
+    const auth = await fetchJson("/api/v1/auth/session");
+    state.liveAuth = auth.response.ok && auth.payload?.authenticated === true ? auth.payload : { authenticated: false };
+    if (state.liveAuth.authenticated !== true) {
+      state.liveSession = null;
+      updateQuoteBoundary();
+      return;
+    }
+    const live = await fetchJson("/api/trade/live/session");
+    state.liveSession = live.response.ok ? live.payload : null;
+  } catch {
+    state.liveAuth = { authenticated: false };
+    state.liveSession = null;
+  }
+  updateQuoteBoundary();
+}
+
+async function ensureWalletExecutionBundle() {
+  if (globalThis.RavenOSWalletExecution) return globalThis.RavenOSWalletExecution;
+  if (!state.walletExecutionBundle) {
+    state.walletExecutionBundle = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/ravenos-wallet-execution.js";
+      script.async = true;
+      script.onload = () => globalThis.RavenOSWalletExecution ? resolve(globalThis.RavenOSWalletExecution) : reject(new Error("wallet_execution_bundle_invalid"));
+      script.onerror = () => reject(new Error("wallet_execution_bundle_unavailable"));
+      document.head.append(script);
+    }).catch((error) => {
+      state.walletExecutionBundle = null;
+      throw error;
+    });
+  }
+  return state.walletExecutionBundle;
 }
 
 function renderEmptyTerminalAccount() {
@@ -6132,27 +6357,29 @@ function updateQuoteBoundary() {
     state.orderPlanExpiryTimer = null;
   }
   const routeReviewEnabled = customerQuoteEnabled || spotRouteReviewEnabled;
+  const liveHyperliquid = state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true;
   setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : routeReviewEnabled ? "Review only" : "Read only");
   setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : routeReviewEnabled ? "Read-only route review" : "Trade preview not enabled");
   setText("terminalQuoteNote", orderPlanEnabled
-    ? "Preview only. Nothing can be signed or sent."
+    ? liveHyperliquid ? "Review first. The connected wallet signs every live order." : "Preview only. Nothing can be signed or sent."
     : routeReviewEnabled
       ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
   const boundary = document.getElementById("terminalBoundary");
   if (boundary) {
     boundary.querySelector("strong").textContent = orderPlanEnabled
-      ? "Trade preview available"
+      ? liveHyperliquid ? "Wallet trading enabled" : "Trade preview available"
       : routeReviewEnabled
         ? "Route review available"
         : "Trading coming later";
     boundary.querySelector("small").textContent = orderPlanEnabled || routeReviewEnabled
-      ? "Preview only. No order can be signed or sent."
+      ? liveHyperliquid ? "Review → wallet confirm → venue reconciliation" : "Preview only. No order can be signed or sent."
       : "Trading is not enabled. No order can be signed or sent.";
   }
   if (orderPlanEnabled) syncMarketPreviewControls();
   updateTerminalPaneAvailability();
   renderTradeConsequences();
+  renderLiveExecution();
 }
 
 function syncMarketPreviewControls() {
@@ -6296,6 +6523,9 @@ function formatBaseSize(value) {
 function clearMarketPreviewResult(message = "Review exact entry semantics and optional risk levels against the current book.") {
   state.marketPreview = null;
   state.orderPlan = null;
+  state.liveTicket = null;
+  state.liveBuilderApproval = null;
+  state.liveExecutionResult = null;
   clearTimeout(state.marketPreviewExpiryTimer);
   clearTimeout(state.orderPlanExpiryTimer);
   state.marketPreviewExpiryTimer = null;
@@ -6315,6 +6545,7 @@ function clearMarketPreviewResult(message = "Review exact entry semantics and op
     status.textContent = message;
     delete status.dataset.state;
   }
+  renderLiveExecution();
 }
 
 function setPreviewMetric(cellId, labelId, valueId, label, value, show = hasOperatorValue(value)) {
@@ -6381,6 +6612,9 @@ function renderOrderPlan(plan) {
       message.dataset.state = "error";
     }
     setText("terminalQuoteState", "Refresh");
+    state.liveTicket = null;
+    state.liveBuilderApproval = null;
+    renderLiveExecution();
     return;
   }
   const intent = plan.intent || {};
@@ -6467,7 +6701,38 @@ function renderOrderPlan(plan) {
     if (result) result.dataset.state = "expired";
     setText("terminalQuoteState", "Refresh");
     setText("terminalPreviewTiming", "Plan review expired · refresh against the current book");
+    state.liveTicket = null;
+    state.liveBuilderApproval = null;
+    renderLiveExecution();
   }, remaining + 50);
+  renderLiveExecution();
+}
+
+function currentOrderPlanRequest() {
+  const accountScenario = state.accountSnapshot?.ok === true
+    && state.flags?.account_scenario_available === true
+    && Array.isArray(state.flags?.account_scenario_venues)
+    && state.flags.account_scenario_venues.includes("hyperliquid");
+  const price = finite(document.getElementById("terminalPreviewPrice")?.value);
+  return {
+    accountScenario,
+    body: {
+      ...(accountScenario ? { address: state.accountSnapshot.account.address } : {}),
+      instrument_id: state.selected?.instrument_id,
+      side: state.marketPreviewSide,
+      order_type: state.orderPlanType,
+      notional_usdc: finite(document.getElementById("terminalPreviewNotional")?.value),
+      leverage: finite(document.getElementById("terminalPreviewLeverage")?.value),
+      limit_price: state.orderPlanType === "limit" ? price : null,
+      trigger_price: state.orderPlanType === "trigger" ? price : null,
+      time_in_force: state.orderPlanType === "limit" ? String(document.getElementById("terminalPreviewTif")?.value || "gtc") : null,
+      take_profit_price: finite(document.getElementById("terminalPreviewTakeProfit")?.value),
+      stop_loss_price: finite(document.getElementById("terminalPreviewStopLoss")?.value),
+      margin_mode: String(document.getElementById("terminalPreviewMarginMode")?.value || "cross"),
+      reduce_only: document.getElementById("terminalPreviewReduceOnly")?.checked === true,
+      max_impact_bps: finite(document.getElementById("terminalPreviewImpactLimit")?.value) || 100,
+    },
+  };
 }
 
 async function requestOrderPlan({ automatic = false } = {}) {
@@ -6476,21 +6741,13 @@ async function requestOrderPlan({ automatic = false } = {}) {
     || !state.selected?.instrument_id
     || state.flags?.order_plan_available !== true
   ) return;
-  const notional = finite(document.getElementById("terminalPreviewNotional")?.value);
-  const leverage = finite(document.getElementById("terminalPreviewLeverage")?.value);
-  const price = finite(document.getElementById("terminalPreviewPrice")?.value);
-  const takeProfit = finite(document.getElementById("terminalPreviewTakeProfit")?.value);
-  const stopLoss = finite(document.getElementById("terminalPreviewStopLoss")?.value);
-  const timeInForce = String(document.getElementById("terminalPreviewTif")?.value || "gtc");
-  const marginMode = String(document.getElementById("terminalPreviewMarginMode")?.value || "cross");
-  const reduceOnly = document.getElementById("terminalPreviewReduceOnly")?.checked === true;
-  const maxImpactBps = finite(document.getElementById("terminalPreviewImpactLimit")?.value) || 100;
   const action = document.getElementById("terminalPreviewAction");
-  const accountScenario = state.accountSnapshot?.ok === true
-    && state.flags?.account_scenario_available === true
-    && Array.isArray(state.flags?.account_scenario_venues)
-    && state.flags.account_scenario_venues.includes("hyperliquid");
+  const { accountScenario, body } = currentOrderPlanRequest();
   const generation = ++state.orderPlanGeneration;
+  state.liveTicket = null;
+  state.liveBuilderApproval = null;
+  state.liveExecutionResult = null;
+  renderLiveExecution();
   if (action) {
     action.disabled = true;
     action.textContent = automatic
@@ -6502,22 +6759,7 @@ async function requestOrderPlan({ automatic = false } = {}) {
     const { payload } = await fetchJson(accountScenario ? "/api/trade/account-scenario" : "/api/trade/order-plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...(accountScenario ? { address: state.accountSnapshot.account.address } : {}),
-        instrument_id: state.selected.instrument_id,
-        side: state.marketPreviewSide,
-        order_type: state.orderPlanType,
-        notional_usdc: notional,
-        leverage,
-        limit_price: state.orderPlanType === "limit" ? price : null,
-        trigger_price: state.orderPlanType === "trigger" ? price : null,
-        time_in_force: state.orderPlanType === "limit" ? timeInForce : null,
-        take_profit_price: takeProfit,
-        stop_loss_price: stopLoss,
-        margin_mode: marginMode,
-        reduce_only: reduceOnly,
-        max_impact_bps: maxImpactBps,
-      }),
+      body: JSON.stringify(body),
     });
     if (generation !== state.orderPlanGeneration) return;
     renderOrderPlan(payload);
@@ -6533,6 +6775,129 @@ async function requestOrderPlan({ automatic = false } = {}) {
   }
 }
 
+function liveExecutionRequestHeaders() {
+  const csrf = String(state.liveAuth?.csrf_token || "");
+  if (!csrf) throw new Error("csrf_token_unavailable");
+  return { "content-type": "application/json", "x-ravenos-csrf": csrf };
+}
+
+function liveTicketMatchesCurrentPlan(ticket) {
+  const request = currentOrderPlanRequest().body;
+  const reviewed = ticket?.reviewed_order || {};
+  return ticket?.wallet_address?.toLowerCase() === state.walletAddress?.toLowerCase()
+    && ticket?.instrument?.instrument_id === state.selected?.instrument_id
+    && reviewed.side === request.side
+    && reviewed.order_type === request.order_type
+    && Math.abs(Number(reviewed.notional_usdc) - Number(request.notional_usdc)) < 0.000001
+    && Number(reviewed.leverage) === Number(request.leverage)
+    && reviewed.margin_mode === request.margin_mode
+    && reviewed.reduce_only === request.reduce_only
+    && Date.parse(ticket.expires_at || "") > Date.now() + 500;
+}
+
+async function prepareHyperliquidLiveOrder() {
+  if (!currentPerpScenarioReady() || !state.walletAddress) return renderLiveExecution();
+  state.liveExecutionPending = true;
+  state.liveExecutionResult = null;
+  renderLiveExecution();
+  try {
+    const { body } = currentOrderPlanRequest();
+    const { response, payload } = await fetchJson("/api/trade/live/hyperliquid/prepare", {
+      method: "POST",
+      headers: liveExecutionRequestHeaders(),
+      body: JSON.stringify({ ...body, address: state.walletAddress, wallet_address: state.walletAddress }),
+    });
+    if (response.status === 409 && payload?.error === "builder_fee_approval_required" && payload?.builder_approval) {
+      state.liveBuilderApproval = payload.builder_approval;
+      state.liveTicket = null;
+      return;
+    }
+    if (!response.ok || !payload?.ok || !liveTicketMatchesCurrentPlan(payload.ticket)) {
+      throw new Error(payload?.error || "live_ticket_does_not_match_current_order");
+    }
+    state.liveBuilderApproval = null;
+    state.liveTicket = payload.ticket;
+  } catch (error) {
+    state.liveTicket = null;
+    state.liveExecutionResult = { ok: false, error: String(error?.code || error?.message || "live_order_prepare_failed") };
+  } finally {
+    state.liveExecutionPending = false;
+    renderLiveExecution();
+  }
+}
+
+async function approveHyperliquidBuilderFee() {
+  const approval = state.liveBuilderApproval;
+  if (!approval || Date.parse(approval.expires_at || "") <= Date.now() + 500) {
+    state.liveBuilderApproval = null;
+    state.liveExecutionResult = { ok: false, error: "builder_fee_approval_expired" };
+    renderLiveExecution();
+    return;
+  }
+  state.liveExecutionPending = true;
+  state.liveExecutionResult = null;
+  renderLiveExecution();
+  try {
+    const execution = await ensureWalletExecutionBundle();
+    await execution.approveHyperliquidBuilderFee({
+      approval,
+      provider: browserWalletProvider(),
+      address: state.walletAddress,
+    });
+    state.liveBuilderApproval = null;
+    state.liveExecutionPending = false;
+    await prepareHyperliquidLiveOrder();
+  } catch (error) {
+    state.liveExecutionResult = { ok: false, error: String(error?.shortMessage || error?.code || error?.message || "builder_fee_approval_failed") };
+    state.liveExecutionPending = false;
+    renderLiveExecution();
+  }
+}
+
+async function executeHyperliquidLiveOrder() {
+  const ticket = state.liveTicket;
+  if (!ticket || !liveTicketMatchesCurrentPlan(ticket)) {
+    state.liveTicket = null;
+    state.liveExecutionResult = { ok: false, error: "live_ticket_expired" };
+    renderLiveExecution();
+    return;
+  }
+  state.liveExecutionPending = true;
+  state.liveExecutionResult = null;
+  renderLiveExecution();
+  try {
+    const execution = await ensureWalletExecutionBundle();
+    const clientReport = await execution.executeHyperliquidTicket({
+      ticket,
+      provider: browserWalletProvider(),
+      address: state.walletAddress,
+    });
+    const { response, payload } = await fetchJson("/api/trade/live/hyperliquid/report", {
+      method: "POST",
+      headers: liveExecutionRequestHeaders(),
+      body: JSON.stringify(clientReport),
+    });
+    if (!response.ok || !payload?.ok) throw new Error(payload?.error || "live_order_reconciliation_failed");
+    state.liveExecutionResult = payload;
+    state.liveTicket = null;
+    if (state.walletAddress) await loadTerminalAccount(state.walletAddress, { walletTransport: true });
+  } catch (error) {
+    state.liveExecutionResult = { ok: false, error: String(error?.shortMessage || error?.code || error?.message || "live_order_not_sent") };
+  } finally {
+    state.liveExecutionPending = false;
+    renderLiveExecution();
+  }
+}
+
+async function handleLiveExecutionAction() {
+  const action = document.getElementById("terminalLiveExecutionAction")?.dataset.liveAction;
+  if (action === "connect") return useBrowserWalletAddress();
+  if (action === "review") return requestOrderPlan();
+  if (action === "prepare") return prepareHyperliquidLiveOrder();
+  if (action === "approve_fee") return approveHyperliquidBuilderFee();
+  if (action === "execute") return executeHyperliquidLiveOrder();
+}
+
 async function loadTradeFlags() {
   try {
     const { response, payload } = await fetchJson("/api/trade/flags");
@@ -6541,6 +6906,7 @@ async function loadTradeFlags() {
     state.flags = null;
   }
   updateQuoteBoundary();
+  await loadLiveExecutionSession();
 }
 
 function perpChartRequest(row, timeframe = state.timeframe) {
@@ -7418,6 +7784,7 @@ function bindControls() {
     button.addEventListener("click", () => setOrderPlanType(button.dataset.orderType, { refresh: true }));
   }
   document.getElementById("terminalPreviewAction")?.addEventListener("click", () => requestOrderPlan());
+  document.getElementById("terminalLiveExecutionAction")?.addEventListener("click", () => void handleLiveExecutionAction());
   document.getElementById("terminalPreviewNotional")?.addEventListener("input", () => clearMarketPreviewResult("Size changed. Preview again against the current book."));
   document.getElementById("terminalPreviewNotional")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void requestOrderPlan();
@@ -7819,6 +8186,11 @@ async function boot() {
       spotFundingPreference: activeSpotAssetPreference("buy"),
       spotSettlementPreference: activeSpotAssetPreference("sell"),
       spotWalletConnected: state.solanaWalletConnected,
+      liveExecutionConfigured: state.liveSession?.gate?.configured === true,
+      liveHyperliquidAvailable: state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true,
+      liveSolanaAvailable: false,
+      liveExecutionTicketState: state.liveTicket?.state || "unavailable",
+      liveExecutionResultState: state.liveExecutionResult?.reconciliation?.state || state.liveExecutionResult?.client_report?.state || "unavailable",
       signingAvailable: false,
       submissionAvailable: false,
       diagnostics: state.workspace?.diagnostics?.() || null,

@@ -136,7 +136,18 @@ import {
   buildDiscoverRadarProjection,
   validateDiscoverRadarProjection,
 } from "./lib/discover_radar.mjs";
-import { routeCustomerIdentity } from "./lib/customer_identity.mjs";
+import { authorizeCustomerApiRequest, routeCustomerIdentity } from "./lib/customer_identity.mjs";
+import {
+  customerLiveExecutionRefusal,
+  publicCustomerLiveExecutionCapabilities,
+  resolveCustomerLiveExecutionGate,
+} from "./lib/customer_trade/live_execution_gate.mjs";
+import {
+  createD1CustomerLiveExecutionStore,
+  createHyperliquidBuilderApproval,
+  createHyperliquidLiveTicket,
+  normalizeHyperliquidClientExecutionReport,
+} from "./lib/customer_trade/hyperliquid_live_execution.mjs";
 import {
   CUSTOMER_RESEARCH_STATE_ROUTE,
   routeCustomerResearchState,
@@ -234,6 +245,19 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
+  "/ravenos-terminal-live.css",
+  "/ravenos-terminal-live.js",
+  "/ravenos-price-workspace.css",
+  "/ravenos-price-workspace.js",
+  "/ravenos-chart-data-plane.js",
+  "/ravenos-context-store.js",
+  "/ravenos-intelligence-contract.js",
+  "/ravenos-tradingview-adapter.js",
+  "/raven-price-chart.js",
+  "/raven-chart-overlays.js",
+  "/raven-reads.js",
+  "/ravenos-wallet-execution.js",
+  "/vendor/lightweight-charts.standalone.production.js",
 ]);
 const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "",
@@ -254,7 +278,6 @@ const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "privacy",
   "replay",
   "research",
-  "terminal",
   "terms",
 ]);
 const SAVED_MONITOR_HANDOFF_FIELDS = new Set([
@@ -301,6 +324,7 @@ function authenticatedAppBoundary(request) {
   if (url.hostname.toLowerCase() !== AUTHENTICATED_APP_HOST) return null;
   const readRequest = request.method === "GET" || request.method === "HEAD";
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
+  const terminalPath = url.pathname === "/terminal" || url.pathname === "/terminal/" || url.pathname === "/terminal/index.html";
   const proIntelligencePath = url.pathname === "/account/intelligence"
     || url.pathname === "/account/intelligence/"
     || url.pathname === "/account/intelligence/index.html";
@@ -328,9 +352,38 @@ function authenticatedAppBoundary(request) {
     || url.pathname.startsWith(`${CUSTOMER_WALLET_COPY_ROUTE}/`);
   const walletObserverIngressApi = url.pathname === SOURCE_WALLET_INGRESS_MANIFEST_ROUTE
     || url.pathname === SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE;
+  const liveExecutionApi = url.pathname === "/api/trade/live/session"
+    || url.pathname.startsWith("/api/trade/live/");
+  const terminalReadApi = readRequest && (
+    new Set([
+      "/api/atlas",
+      "/api/hyperliquid/perps",
+      "/api/instruments/search",
+      "/api/opportunity",
+      "/api/perps",
+      "/api/perps/instrument",
+      "/api/terminal",
+      "/api/terminal/chart",
+      "/api/trade/flags",
+      "/api/trade/shadow-readiness",
+      "/api/dexscreener/pair",
+      "/api/dexscreener/search",
+      "/api/onchain/holders",
+      "/api/onchain/trades",
+    ]).has(url.pathname)
+    || url.pathname.startsWith("/api/chains/")
+  );
+  const terminalReviewApi = request.method === "POST" && new Set([
+    "/api/trade/account-history",
+    "/api/trade/account-scenario",
+    "/api/trade/account-snapshot",
+    "/api/trade/market-preview",
+    "/api/trade/order-plan",
+    "/api/trade/spot-quote-preview",
+  ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -498,6 +551,9 @@ function attachReleaseHeaders(response, releaseState, pathname = "") {
     || pathname === "/account/intelligence/"
     || pathname === "/account/intelligence"
     || pathname.endsWith("/account/intelligence/index.html")
+    || pathname === "/terminal/"
+    || pathname === "/terminal"
+    || pathname.endsWith("/terminal/index.html")
     || pathname === "/monitor/"
     || pathname === "/monitor"
     || pathname.endsWith("/monitor/index.html")
@@ -6815,6 +6871,7 @@ function handleTradeFlags(env = {}) {
     account_history_types: ["orders"],
     signing_available: false,
     submission_available: false,
+    live_execution: publicCustomerLiveExecutionCapabilities(env),
     spot_quote_preview_available: spotRuntime.available,
     spot_quote_preview_chains: spotRuntime.active_chains,
     trade_adapter_states: spotRuntime.adapter_states,
@@ -6830,6 +6887,305 @@ function handleTradeFlags(env = {}) {
     fees_enabled: false,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
+}
+
+function liveExecutionResponse(payload, authorization = null, init = {}) {
+  const headers = new Headers(authorization?.response_headers || undefined);
+  headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("cache-control", "private, no-store");
+  return new Response(JSON.stringify(payload), { status: init.status || 200, headers });
+}
+
+function boundedLiveNotional(env = {}) {
+  const configured = Number(env.RAVENOS_CUSTOMER_TRADE_MAX_NOTIONAL_USDC);
+  return Number.isFinite(configured) ? Math.max(10, Math.min(10_000, configured)) : 500;
+}
+
+function hyperliquidBuilderFeePolicy(env = {}) {
+  const tier = String(env.RAVENOS_HYPERLIQUID_BUILDER_FEE_TIER || "free").trim().toLowerCase();
+  return feePolicyFor({
+    provider: "hyperliquid",
+    trade_type: "perpetual",
+    access_tier: tier === "pro" ? "pro" : "free",
+    fee_token: "USDC",
+    fee_recipient: String(env.RAVENOS_HYPERLIQUID_BUILDER_ADDRESS || "").trim(),
+    enabled: String(env.RAVENOS_HYPERLIQUID_BUILDER_FEE_ENABLE || "") === "1",
+  });
+}
+
+async function currentHyperliquidBuilderApproval(walletAddress, feePolicy) {
+  if (feePolicy?.enabled !== true) return 0;
+  const value = await hyperliquidInfo({
+    type: "maxBuilderFee",
+    user: walletAddress,
+    builder: feePolicy.fee_recipient,
+  }, { maxBytes: 16 * 1024, timeoutMs: 4_000 });
+  const approved = Number(value);
+  if (!Number.isSafeInteger(approved) || approved < 0 || approved > 100) {
+    throw Object.assign(new Error("builder_fee_approval_state_invalid"), { code: "builder_fee_approval_state_invalid" });
+  }
+  return approved;
+}
+
+async function loadCurrentHyperliquidAccountScenario(body = {}) {
+  const address = normalizeHyperliquidAddress(body?.address);
+  const instrumentId = String(body?.instrument_id || "").trim();
+  const match = instrumentId.match(/^hyperliquid:perp:([A-Z0-9][A-Z0-9._:-]{0,31})$/);
+  if (!address) throw Object.assign(new Error("account_identity_mismatch"), { code: "account_identity_mismatch", status: 400 });
+  if (!match) throw Object.assign(new Error("exact_instrument_identity_mismatch"), { code: "exact_instrument_identity_mismatch", status: 400 });
+  const [instrument, snapshot, fees] = await runProviderOperation({
+    component: "hyperliquid_live_prepare",
+    operation_key: `${address}:${match[1]}`,
+    fn: () => Promise.all([
+      hyperliquidInstrument(match[1]),
+      hyperliquidAccountSnapshot(address),
+      hyperliquidUserFees(address),
+    ]),
+  });
+  if (!instrument?.ok || !instrument?.market || !instrument?.book) {
+    throw Object.assign(new Error("current_exact_book_unavailable"), { code: "current_exact_book_unavailable", status: 503 });
+  }
+  const plan = createHyperliquidOrderPlan({
+    ...body,
+    instrument_id: instrumentId,
+    book: instrument.book,
+    market: instrument.market,
+  });
+  const scenario = createHyperliquidAccountScenario({
+    address,
+    margin_mode: body?.margin_mode,
+    reduce_only: body?.reduce_only === true,
+    plan,
+    snapshot,
+    fees,
+  });
+  return { address, instrument, snapshot, fees, plan, scenario };
+}
+
+async function handleTradeLiveSession(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: false });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const feePolicy = hyperliquidBuilderFeePolicy(env);
+  return liveExecutionResponse({
+    ok: true,
+    gate,
+    maximum_notional_usdc: boundedLiveNotional(env),
+    hyperliquid_fee: {
+      enabled: feePolicy.enabled,
+      configuration_ready: feePolicy.configuration_ready,
+      fee_bps: feePolicy.fee_bps,
+      configured_fee_bps: feePolicy.configured_fee_bps,
+      fee_percent: `${(feePolicy.configured_fee_bps / 100).toFixed(2)}%`,
+      fee_token: "USDC",
+      collection_method: feePolicy.enabled ? "hyperliquid_builder_code" : "none",
+      venue_approval_required: feePolicy.venue_user_approval_required === true,
+      unavailable_reason: feePolicy.unavailable_reason,
+    },
+    execution_boundary: {
+      wallet_signature_required: true,
+      server_signing: false,
+      custody: false,
+      arbitrary_submission: false,
+    },
+  }, authorization);
+}
+
+async function handleTradeLiveHyperliquidPrepare(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "hyperliquid");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal, gate }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 16 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, {
+      status: error?.code === "request_too_large" ? 413 : error?.code === "unsupported_content_type" ? 415 : 400,
+    });
+  }
+  const walletAddress = normalizeHyperliquidAddress(body?.wallet_address);
+  if (!walletAddress || walletAddress !== normalizeHyperliquidAddress(body?.address)) {
+    return liveExecutionResponse({ ok: false, error: "wallet_account_identity_mismatch" }, authorization, { status: 400 });
+  }
+  try {
+    const current = await loadCurrentHyperliquidAccountScenario(body);
+    const requestedFeeEnable = String(env.RAVENOS_HYPERLIQUID_BUILDER_FEE_ENABLE || "") === "1";
+    const feePolicy = hyperliquidBuilderFeePolicy(env);
+    if (requestedFeeEnable && feePolicy.enabled !== true) {
+      throw Object.assign(new Error("builder_fee_configuration_unavailable"), {
+        code: "builder_fee_configuration_unavailable",
+        details: { reason: feePolicy.unavailable_reason },
+      });
+    }
+    const approvedFeeParameterValue = await currentHyperliquidBuilderApproval(walletAddress, feePolicy);
+    if (feePolicy.enabled && approvedFeeParameterValue < feePolicy.fee_parameter_value) {
+      const builderApproval = createHyperliquidBuilderApproval({
+        wallet_address: walletAddress,
+        fee_policy: feePolicy,
+        approved_fee_parameter_value: approvedFeeParameterValue,
+      });
+      return liveExecutionResponse({
+        ok: false,
+        error: "builder_fee_approval_required",
+        builder_approval: builderApproval,
+      }, authorization, { status: 409 });
+    }
+    const ticket = createHyperliquidLiveTicket({
+      scenario: current.scenario,
+      market: current.instrument.market,
+      wallet_address: walletAddress,
+      maximum_notional_usdc: boundedLiveNotional(env),
+      max_impact_bps: body?.max_impact_bps,
+      fee_policy: feePolicy,
+      approved_fee_parameter_value: approvedFeeParameterValue,
+    });
+    await createD1CustomerLiveExecutionStore(env.RAVENOS_CUSTOMER_DB).createTicket({
+      ticket,
+      user_id: authorization.principal.user_id,
+      now_seconds: authorization.now,
+    });
+    return liveExecutionResponse({ ok: true, ticket }, authorization);
+  } catch (error) {
+    const code = String(error?.code || error?.message || "hyperliquid_live_prepare_unavailable");
+    const clientError = /(?:invalid|mismatch|blocked|expired|unsupported|out_of_bounds|required|stale)$/.test(code)
+      || code.startsWith("live_")
+      || code.startsWith("account_")
+      || code.startsWith("exact_");
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: clientError ? 409 : 503 });
+  }
+}
+
+function normalizeHyperliquidOrderObservation(payload, ticket, oid) {
+  if (!payload || typeof payload !== "object" || payload.status === "unknownOid") {
+    return { state: "indeterminate", evidence: { provider: "hyperliquid", order_id: oid, status: "unknown_order_id" } };
+  }
+  const order = payload.order?.order || payload.order || {};
+  const coin = String(order.coin || "").toUpperCase();
+  if (coin && coin !== String(ticket.instrument?.exact_market_id || "").toUpperCase()) {
+    return { state: "indeterminate", evidence: { provider: "hyperliquid", order_id: oid, status: "instrument_mismatch" } };
+  }
+  const status = String(payload.order?.status || payload.status || "observed").slice(0, 80);
+  const rejected = /reject|cancel/i.test(status);
+  return {
+    state: rejected ? "provider_rejected" : "provider_confirmed",
+    evidence: {
+      provider: "hyperliquid",
+      order_id: oid,
+      exact_market_id: coin || ticket.instrument?.exact_market_id,
+      status,
+      status_timestamp: Number(payload.order?.statusTimestamp) || null,
+    },
+  };
+}
+
+async function observeHyperliquidBuilderFee(ticket, walletAddress, oid, orderObservation) {
+  const fee = ticket?.fee || {};
+  if (fee.raven_fee_enabled !== true) {
+    return { state: "disabled", observed_raven_fee_usdc: null, fee_token: null };
+  }
+  if (orderObservation?.state === "provider_rejected") {
+    return { state: "failed", observed_raven_fee_usdc: 0, fee_token: "USDC", reason: "order_not_filled" };
+  }
+  if (!Number.isSafeInteger(Number(oid))) {
+    return { state: "indeterminate", observed_raven_fee_usdc: null, fee_token: "USDC", reason: "order_id_unavailable" };
+  }
+  try {
+    const fills = await hyperliquidInfo(
+      { type: "userFills", user: walletAddress, aggregateByTime: true },
+      { maxBytes: 1024 * 1024, timeoutMs: 4_000 },
+    );
+    const fill = (Array.isArray(fills) ? fills : []).find((row) => Number(row?.oid) === Number(oid));
+    if (!fill) {
+      return {
+        state: orderObservation?.state === "provider_confirmed" ? "expected" : "indeterminate",
+        observed_raven_fee_usdc: null,
+        fee_token: "USDC",
+        reason: "matching_fill_not_observed_yet",
+      };
+    }
+    const builderFee = Number(fill.builderFee);
+    const feeToken = String(fill.feeToken || "").trim().toUpperCase();
+    if (!Number.isFinite(builderFee) || builderFee < 0 || feeToken !== "USDC") {
+      return {
+        state: "indeterminate",
+        observed_raven_fee_usdc: null,
+        fee_token: feeToken || null,
+        reason: "builder_fee_evidence_invalid",
+      };
+    }
+    return {
+      state: "observed",
+      observed_raven_fee_usdc: Number(builderFee.toFixed(8)),
+      fee_token: "USDC",
+      provider_fill_id: Number.isSafeInteger(Number(fill.tid)) ? Number(fill.tid) : null,
+      provider_order_id: Number(oid),
+    };
+  } catch {
+    return {
+      state: "indeterminate",
+      observed_raven_fee_usdc: null,
+      fee_token: "USDC",
+      reason: "builder_fee_observation_unavailable",
+    };
+  }
+}
+
+async function handleTradeLiveHyperliquidReport(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "hyperliquid");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 24 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  const store = createD1CustomerLiveExecutionStore(env.RAVENOS_CUSTOMER_DB);
+  try {
+    const stored = await store.findTicket(body?.ticket_id, authorization.principal.user_id);
+    if (!stored?.prepared) return liveExecutionResponse({ ok: false, error: "execution_ticket_not_found" }, authorization, { status: 404 });
+    const record = normalizeHyperliquidClientExecutionReport(body, stored.prepared);
+    await store.recordClientReport({ record, user_id: authorization.principal.user_id, now_seconds: authorization.now });
+    let reconciliation = { state: "indeterminate", evidence: { reason: "provider_order_id_unavailable" } };
+    if (record.provider_order_id !== null) {
+      const observation = await hyperliquidInfo({
+        type: "orderStatus",
+        user: record.wallet_address,
+        oid: record.provider_order_id,
+      }, { maxBytes: 128 * 1024, timeoutMs: 4_000 });
+      reconciliation = normalizeHyperliquidOrderObservation(observation, stored.prepared, record.provider_order_id);
+    }
+    reconciliation = {
+      ...reconciliation,
+      evidence: {
+        ...reconciliation.evidence,
+        fee_collection: await observeHyperliquidBuilderFee(
+          stored.prepared,
+          record.wallet_address,
+          record.provider_order_id,
+          reconciliation,
+        ),
+      },
+    };
+    await store.reconcile({
+      execution_id: record.ticket_id,
+      user_id: authorization.principal.user_id,
+      state: reconciliation.state,
+      evidence: reconciliation.evidence,
+      now_seconds: authorization.now,
+    });
+    return liveExecutionResponse({ ok: true, client_report: record, reconciliation }, authorization);
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: String(error?.code || error?.message || "live_execution_report_unavailable") }, authorization, { status: 409 });
+  }
 }
 
 async function handleTradeAccountSnapshot(request, env = {}) {
@@ -8780,6 +9136,9 @@ async function routeApi(request, env, executionContext = null) {
   }
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
+  if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
+  if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
   const entitlementResponse = await routeCustomerEntitlements(request, env, {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });

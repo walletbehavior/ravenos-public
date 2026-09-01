@@ -136,6 +136,29 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.operator_solana_canary.customer_submission_available, false);
   assert.equal(security.operator_solana_canary.operator_submission_available, false);
   assert.equal(security.operator_solana_canary.production_activation_completed, false);
+  assert.equal(security.customer_live_execution_canary.implementation_status, "local_candidate_not_deployed");
+  assert.equal(security.customer_live_execution_canary.surface, "https://app.ravenos.xyz/terminal/");
+  assert.equal(security.customer_live_execution_canary.authenticated_origin_only, true);
+  assert.equal(security.customer_live_execution_canary.csrf_required_for_mutations, true);
+  assert.equal(security.customer_live_execution_canary.recent_authentication_required, true);
+  assert.equal(security.customer_live_execution_canary.explicit_user_allowlist_required, true);
+  assert.equal(security.customer_live_execution_canary.wildcard_allowlist_for_initial_canary, false);
+  assert.equal(security.customer_live_execution_canary.hyperliquid_wallet_signing_available, true);
+  assert.equal(security.customer_live_execution_canary.hyperliquid_wallet_submission_available, true);
+  assert.equal(security.customer_live_execution_canary.solana_wallet_submission_available, false);
+  assert.equal(security.customer_live_execution_canary.raven_signing_available, false);
+  assert.equal(security.customer_live_execution_canary.raven_private_keys_available, false);
+  assert.equal(security.customer_live_execution_canary.custody_available, false);
+  assert.equal(security.customer_live_execution_canary.arbitrary_submission_available, false);
+  assert.equal(security.customer_live_execution_canary.fee_policy_server_owned, true);
+  assert.equal(security.customer_live_execution_canary.fee_recipient_server_owned, true);
+  assert.equal(security.customer_live_execution_canary.hyperliquid_builder_fee_maximum_bps, 10);
+  assert.equal(security.customer_live_execution_canary.builder_fee_user_approval_required, true);
+  assert.equal(security.customer_live_execution_canary.builder_fee_approval_separate_from_order, true);
+  assert.equal(security.customer_live_execution_canary.private_keys_or_signatures_persisted, false);
+  assert.equal(security.customer_live_execution_canary.append_only_execution_evidence, true);
+  assert.equal(security.customer_live_execution_canary.all_activation_controls_default_off, true);
+  assert.equal(security.customer_live_execution_canary.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("operator_canary_submission"));
 });
 
@@ -367,13 +390,13 @@ test("the authenticated hostname exposes only approved account, Saved Monitor, a
   assert(!previewText.includes("must-not-echo"));
 
   const terminal = await worker.fetch(new Request("https://app.ravenos.xyz/terminal/?code=must-not-cross-origins"), env);
-  assert.equal(terminal.status, 308);
-  assert.equal(terminal.headers.get("location"), "https://ravenos.xyz/terminal/");
-  assert(!terminal.headers.get("location").includes("must-not-cross-origins"));
+  assert.equal(terminal.status, 200);
+  assert.equal(terminal.headers.get("location"), null);
+  assert.match(terminal.headers.get("content-security-policy") || "", /default-src 'self'/);
 
-  const marketApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/hyperliquid/perps?token=must-not-echo"), env);
-  assert.equal(marketApi.status, 404);
-  assert.equal(await marketApi.text(), "Not found");
+  const marketApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/trade/flags?token=must-not-echo"), env);
+  assert.equal(marketApi.status, 200);
+  assert.equal((await marketApi.text()).includes("must-not-echo"), false);
 
   const unknown = await worker.fetch(new Request("https://app.ravenos.xyz/provider/callback?code=must-not-echo"), env);
   assert.equal(unknown.status, 404);
