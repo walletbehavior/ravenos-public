@@ -830,17 +830,24 @@ function browserWalletAddress(accounts = []) {
 }
 
 function syncWalletControls() {
-  const available = Boolean(browserWalletProvider());
-  const connected = state.walletTransportConnected && Boolean(state.walletAddress);
+  const evmAvailable = Boolean(browserWalletProvider());
+  const evmConnected = state.walletTransportConnected && Boolean(state.walletAddress);
+  const spotConnected = state.solanaWalletConnected && Boolean(state.solanaWalletAddress);
   for (const id of ["terminalWalletConnect", "terminalUseWallet"]) {
     const button = document.getElementById(id);
     if (!button) continue;
-    button.hidden = !available || (id === "terminalWalletConnect" && state.lane !== "perps");
+    const topLevel = id === "terminalWalletConnect";
+    const connected = topLevel && state.lane === "spot" ? spotConnected : evmConnected;
+    button.hidden = topLevel
+      ? state.flags?.browser_wallet_connection_available === false
+      : !evmAvailable;
     button.textContent = connected ? "Disconnect view" : "Connect wallet";
     button.dataset.connected = String(connected);
     button.setAttribute("aria-label", connected
-      ? "Disconnect the wallet address from this local public account view"
-      : "Connect a browser wallet address for Hyperliquid public account context");
+      ? "Clear the wallet address from this tab"
+      : state.lane === "spot"
+        ? "Connect a Solana wallet address read only"
+        : "Connect an EVM wallet address read only");
   }
 }
 
@@ -1262,7 +1269,13 @@ async function loadTerminalAccount(addressInput, { walletTransport = false } = {
 async function useBrowserWalletAddress() {
   const status = document.getElementById("terminalAccountStatus");
   const wallet = browserWalletProvider();
-  if (!wallet) return;
+  if (!wallet) {
+    if (status) {
+      status.dataset.tone = "error";
+      status.textContent = "EVM wallet not detected.";
+    }
+    return;
+  }
   if (state.walletTransportConnected) {
     clearConnectedWalletView();
     return;
@@ -1288,6 +1301,16 @@ async function useBrowserWalletAddress() {
       status.textContent = "Wallet connection was canceled or no EVM address was returned. A public address can still be loaded manually.";
     }
   }
+}
+
+async function connectTerminalWallet() {
+  if (state.lane === "spot") {
+    setTerminalPane("trade");
+    await connectSolanaWalletReadOnly();
+    return;
+  }
+  setTerminalPane("account");
+  await useBrowserWalletAddress();
 }
 
 function initializeWalletAddressControl() {
@@ -3468,7 +3491,7 @@ function renderSpotTradeSurface() {
     : "Open Active wallets to load the current exact-pool sample.");
   renderSpotTradeMessage(state.spotTradeLoadingKey === identity.key
     ? "Loading recent exact-pool swaps…"
-    : "Open Trades to load current exact-pool activity.");
+    : "Open Txns to load exact-pool activity.");
 }
 
 async function loadSpotTrades({ force = false } = {}) {
@@ -5699,6 +5722,7 @@ async function connectSolanaWalletReadOnly() {
   if (!provider) {
     setText("terminalSpotWalletState", "Wallet unavailable");
     if (note) note.textContent = "Install or open a Solana browser wallet. Buy quotes remain available; percentage sells require a current exact-mint balance.";
+    syncWalletControls();
     return;
   }
   if (state.solanaWalletConnected) {
@@ -5710,6 +5734,7 @@ async function connectSolanaWalletReadOnly() {
     const button = document.getElementById("terminalSpotWalletConnect");
     if (button) button.textContent = "Connect";
     syncSpotTicketControls();
+    syncWalletControls();
     clearSpotQuoteResult("Wallet view disconnected. Existing quote review was cleared.");
     return;
   }
@@ -5726,6 +5751,7 @@ async function connectSolanaWalletReadOnly() {
     const button = document.getElementById("terminalSpotWalletConnect");
     if (button) button.textContent = "Clear";
     syncSpotTicketControls();
+    syncWalletControls();
     clearSpotQuoteResult("Wallet address connected. Review a current exact route.");
   } catch {
     state.solanaWalletConnected = false;
@@ -5733,6 +5759,7 @@ async function connectSolanaWalletReadOnly() {
     setText("terminalSpotWalletState", "Connection canceled");
     setText("terminalSpotWalletNote", "No address or permission was retained. Buy quotes remain available; percentage sells require a current exact-mint balance.");
     syncSpotTicketControls();
+    syncWalletControls();
   }
 }
 
@@ -7255,7 +7282,7 @@ function bindControls() {
     void loadTerminalAccount(document.getElementById("terminalAccountAddress")?.value);
   });
   document.getElementById("terminalUseWallet")?.addEventListener("click", () => void useBrowserWalletAddress());
-  document.getElementById("terminalWalletConnect")?.addEventListener("click", () => void useBrowserWalletAddress());
+  document.getElementById("terminalWalletConnect")?.addEventListener("click", () => void connectTerminalWallet());
   document.getElementById("terminalSpotRiskSummary")?.addEventListener("click", inspectSpotRisk);
   document.getElementById("terminalSpotWalletConnect")?.addEventListener("click", () => void connectSolanaWalletReadOnly());
   document.getElementById("terminalSpotQuoteAction")?.addEventListener("click", () => void requestSpotQuote());

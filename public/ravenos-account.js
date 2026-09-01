@@ -12,7 +12,15 @@ const governorAnalyze = document.getElementById("accountGovernorAnalyze");
 const governorResults = document.getElementById("accountGovernorResults");
 const proPanel = document.getElementById("accountProPanel");
 const proCapabilities = document.getElementById("accountProCapabilities");
-const state = { config: null, session: null, csrf: "", intent: "sign_up", previewWallets: [], entitlements: null };
+const state = {
+  config: null,
+  session: null,
+  csrf: "",
+  intent: "sign_up",
+  previewWallets: [],
+  entitlements: null,
+  browserWallet: { chain: null, address: null, provider: null, listenersBound: false },
+};
 
 const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
@@ -83,6 +91,118 @@ function readableState(value) {
 function setText(id, value) {
   const node = document.getElementById(id);
   if (node) node.textContent = value;
+}
+
+function shortWalletAddress(value) {
+  const address = String(value || "");
+  return address.length > 16 ? `${address.slice(0, 7)}…${address.slice(-5)}` : address;
+}
+
+function solanaWalletProvider() {
+  const candidates = [
+    ["Phantom", globalThis.phantom?.solana],
+    ["Solflare", globalThis.solflare],
+    ["Backpack", globalThis.backpack?.solana],
+    ["Solana", globalThis.solana],
+  ];
+  const [name, provider] = candidates.find(([, candidate]) => typeof candidate?.connect === "function") || [];
+  return provider ? { name, provider } : null;
+}
+
+function evmWalletProvider() {
+  return typeof globalThis.ethereum?.request === "function"
+    ? { name: "EVM", provider: globalThis.ethereum }
+    : null;
+}
+
+function solanaAddress(value) {
+  const address = String(value?.toBase58?.() || value?.toString?.() || value || "").trim();
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? address : null;
+}
+
+function evmAddress(accounts) {
+  return Array.isArray(accounts)
+    ? accounts.find((value) => /^0x[a-fA-F0-9]{40}$/.test(String(value || ""))) || null
+    : null;
+}
+
+function renderBrowserWallet(message = "") {
+  const wallet = state.browserWallet;
+  const connected = Boolean(wallet.address);
+  setText("accountWalletConnectionTitle", connected ? shortWalletAddress(wallet.address) : "No wallet connected");
+  setText("accountWalletConnectionDetail", connected ? `${wallet.chain} · this tab only` : "Address only. No signing.");
+  setText("accountWalletConnectionState", connected ? "Connected" : "Read only");
+  setText("accountWalletOwnershipState", connected ? "Not proven" : "Not linked");
+  setText("accountWalletConnectStatus", message);
+  const solana = document.getElementById("accountConnectSolana");
+  const evm = document.getElementById("accountConnectEvm");
+  const clear = document.getElementById("accountDisconnectWallet");
+  if (solana) solana.dataset.connected = String(wallet.chain === "Solana" && connected);
+  if (evm) evm.dataset.connected = String(wallet.chain === "EVM" && connected);
+  if (clear) clear.hidden = !connected;
+}
+
+function clearBrowserWallet(message = "Cleared. Nothing retained.") {
+  state.browserWallet = { chain: null, address: null, provider: null, listenersBound: false };
+  const status = document.getElementById("accountWalletConnectStatus");
+  if (status) status.dataset.tone = "";
+  renderBrowserWallet(message);
+}
+
+function bindBrowserWalletEvents(chain, provider) {
+  if (state.browserWallet.listenersBound || typeof provider?.on !== "function") return;
+  state.browserWallet.listenersBound = true;
+  if (chain === "EVM") {
+    provider.on("accountsChanged", (accounts) => {
+      if (state.browserWallet.chain !== "EVM" || state.browserWallet.provider !== provider) return;
+      const address = evmAddress(accounts);
+      if (!address) return clearBrowserWallet("Wallet disconnected.");
+      state.browserWallet.address = address;
+      renderBrowserWallet("Address updated.");
+    });
+    provider.on?.("disconnect", () => {
+      if (state.browserWallet.chain === "EVM") clearBrowserWallet("Wallet disconnected.");
+    });
+  } else {
+    provider.on("accountChanged", (publicKey) => {
+      if (state.browserWallet.chain !== "Solana" || state.browserWallet.provider !== provider) return;
+      const address = solanaAddress(publicKey);
+      if (!address) return clearBrowserWallet("Wallet disconnected.");
+      state.browserWallet.address = address;
+      renderBrowserWallet("Address updated.");
+    });
+    provider.on?.("disconnect", () => {
+      if (state.browserWallet.chain === "Solana") clearBrowserWallet("Wallet disconnected.");
+    });
+  }
+}
+
+async function connectBrowserWallet(chain) {
+  const status = document.getElementById("accountWalletConnectStatus");
+  if (status) status.dataset.tone = "";
+  const selected = chain === "Solana" ? solanaWalletProvider() : evmWalletProvider();
+  if (!selected) {
+    if (status) status.dataset.tone = "error";
+    return renderBrowserWallet(`${chain} wallet not detected.`);
+  }
+  renderBrowserWallet("Connecting…");
+  try {
+    let address = null;
+    if (chain === "Solana") {
+      const result = await selected.provider.connect();
+      address = solanaAddress(result?.publicKey || selected.provider.publicKey);
+    } else {
+      address = evmAddress(await selected.provider.request({ method: "eth_requestAccounts" }));
+    }
+    if (!address) throw new Error("wallet_address_unavailable");
+    state.browserWallet = { chain, address, provider: selected.provider, listenersBound: false };
+    bindBrowserWalletEvents(chain, selected.provider);
+    renderBrowserWallet(`${selected.name} connected · no signature`);
+  } catch {
+    if (status) status.dataset.tone = "error";
+    clearBrowserWallet("Connection canceled.");
+    if (status) status.dataset.tone = "error";
+  }
 }
 
 function proCapabilityNode(capability, projectionPayload = null) {
@@ -456,10 +576,12 @@ async function loadPortfolioPreviewCapability() {
     governorPanel.dataset.previewState = "available";
     setText("accountGovernorState", "Ready");
     setText("accountPortfolioAnalysisState", "Read only");
-    setText("accountWalletConnectionTitle", `${state.previewWallets.length} read-only wallet${state.previewWallets.length === 1 ? "" : "s"} available`);
-    setText("accountWalletConnectionDetail", "Select an available wallet to inspect. This does not link the wallet or allow transactions.");
-    setText("accountWalletConnectionState", "View only");
-    setText("accountWalletOwnershipState", "Not proven");
+    if (!state.browserWallet.address) {
+      setText("accountWalletConnectionTitle", `${state.previewWallets.length} saved wallet${state.previewWallets.length === 1 ? "" : "s"}`);
+      setText("accountWalletConnectionDetail", "Public portfolio view available.");
+      setText("accountWalletConnectionState", "View only");
+      setText("accountWalletOwnershipState", "Not proven");
+    }
     setText("accountGovernorStatus", "Select a wallet to inspect current public account data. RavenOS does not save portfolio history.");
   } catch {
     governorPanel.dataset.previewState = "unavailable";
@@ -531,6 +653,7 @@ function renderAuthenticated(payload) {
   document.getElementById("accountDisplayName").textContent = name;
   document.getElementById("accountEmail").textContent = payload.account?.email || "";
   document.getElementById("accountProfileMark").textContent = initial(name);
+  renderBrowserWallet();
   window.dispatchEvent(new CustomEvent("ravenos:accountstate", { detail: { authenticated: true, display_name: name } }));
   loadSessions();
   loadProIntelligenceCapabilities();
@@ -609,6 +732,9 @@ async function initialize() {
   if (requestedIntent === "sign_in") state.intent = "sign_in";
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
+  document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));
+  document.getElementById("accountConnectEvm").addEventListener("click", () => connectBrowserWallet("EVM"));
+  document.getElementById("accountDisconnectWallet").addEventListener("click", () => clearBrowserWallet());
   governorAnalyze.addEventListener("click", analyzePortfolioPreview);
   bindAuthForms();
   setIntent(state.intent);
@@ -638,6 +764,9 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
   schemaVersion: "ravenos.account_surface.v1",
   walletConnectionIsAuthentication: false,
   walletLinkingAvailable: false,
+  browserWalletConnectionAvailable: true,
+  walletConnectionScope: "public_address_observation_only",
+  walletConnectionPersisted: false,
   portfolioPreviewReadOnly: true,
   arbitraryPortfolioAddressInput: false,
   portfolioHistoryPersisted: false,

@@ -82,6 +82,13 @@
 .account-connection-stage strong { font-size: 11px; }
 .account-connection-stage p { color: var(--ws-muted); font-size: 9px; line-height: 1.55; }
 .account-connection-stage > span:last-child { color: var(--ws-warning); font: 700 8px var(--ws-mono); text-transform: uppercase; }
+.account-wallet-actions { display: flex !important; flex-wrap: wrap; gap: 6px !important; margin-top: 3px; }
+.account-wallet-actions button { min-height: 32px; border: 1px solid var(--ws-border); border-radius: 5px; background: #0a1019; color: var(--ws-muted); padding: 0 12px; cursor: pointer; font: 750 8px var(--ws-mono); text-transform: uppercase; }
+.account-wallet-actions button:hover,
+.account-wallet-actions button:focus-visible { border-color: rgba(72, 194, 137, .55); color: var(--ws-accent); }
+.account-wallet-actions button[data-connected="true"] { border-color: rgba(72, 194, 137, .55); background: rgba(44, 139, 91, .14); color: #80d3aa; }
+.account-wallet-status { min-height: 1em; color: var(--ws-dim); font: 7px/1.4 var(--ws-mono); }
+.account-wallet-status[data-tone="error"] { color: #e18491; }
 .account-pro-panel[data-pro-state="available"] > header > strong { color: var(--ws-positive); }
 .account-pro-panel[data-pro-state="unavailable"] > header > strong { color: var(--ws-warning); }
 .account-pro-intro { display: grid; gap: 6px; padding: 16px 14px; border-bottom: 1px solid var(--ws-border); }

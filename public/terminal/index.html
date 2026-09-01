@@ -23,7 +23,7 @@
       <div class="terminal-boundary" id="terminalBoundary" data-state="loading">
         <span>Trading</span>
         <strong>Preview only</strong>
-        <small>Trading is not enabled. No order can be signed or sent.</small>
+        <small>Preview only. No signing.</small>
       </div>
     </header>
 
@@ -70,7 +70,6 @@
       <nav class="terminal-project-research" aria-label="Quick checks for this exact token">
         <div class="terminal-project-research-head">
           <span>Quick checks</span>
-          <small>Every view stays bound to this exact pool.</small>
         </div>
         <div class="terminal-project-research-grid">
           <button type="button" data-project-research-action="risk"><span>Safety check</span><small id="terminalProjectRiskState">Review</small></button>
@@ -81,11 +80,11 @@
       </nav>
       <section class="terminal-project-description">
         <span>About</span>
-        <p id="terminalProjectDescription">No project description is listed for this exact token.</p>
-        <small>Project-supplied information—not a Raven assessment. Verify the contract and every destination.</small>
+        <p id="terminalProjectDescription">No project description.</p>
+        <small>Project supplied. Verify links.</small>
       </section>
       <nav class="terminal-profile-links terminal-project-link-grid" id="terminalProfileLinks" aria-label="Listed project links"></nav>
-      <p class="terminal-project-empty" id="terminalProjectLinksEmpty">No website or social links are listed for this token.</p>
+      <p class="terminal-project-empty" id="terminalProjectLinksEmpty">No links listed.</p>
       <div class="terminal-project-actions" aria-label="Exact token actions">
         <a id="terminalProjectSearchX" target="_blank" rel="noopener noreferrer nofollow">Search CA on X</a>
         <a id="terminalProjectExplorer" target="_blank" rel="noopener noreferrer nofollow" hidden>Open explorer</a>
@@ -104,7 +103,6 @@
     <details class="terminal-chain-coverage" id="terminalChainCoverage">
       <summary><span>Markets by chain</span><strong id="terminalChainCoverageSummary">See where charts and trade previews are available</strong></summary>
       <div class="terminal-chain-coverage-grid" id="terminalChainCoverageGrid"></div>
-      <p>RavenOS keeps each pool separate. A chart may be available before trading is enabled on that chain.</p>
     </details>
 
     <section class="terminal-market-head" aria-label="Selected market facts">
@@ -144,7 +142,7 @@
         <div id="terminalQuickLinks" aria-label="Listed project links"></div>
       </div>
       <button type="button" data-terminal-pane-button="chart" data-status="Current" aria-pressed="true">Chart</button>
-      <button type="button" data-terminal-pane-button="activity" data-status="Load" data-spot-only aria-pressed="false" hidden>Trades</button>
+      <button type="button" data-terminal-pane-button="activity" data-status="Load" data-spot-only aria-pressed="false" hidden>Txns</button>
       <button type="button" data-terminal-pane-button="holders" data-status="Checking" data-spot-only aria-pressed="false" hidden>Holders</button>
       <button type="button" data-terminal-pane-button="trade" data-status="Preview" aria-pressed="false" hidden>Trade</button>
       <button type="button" data-terminal-pane-button="book" data-status="Depth" data-perp-only aria-pressed="false">Book</button>
@@ -163,7 +161,7 @@
         <header>
           <div><span>Price history</span><h2 id="terminalChartTitle">SOL-PERP · 1h</h2></div>
           <div class="terminal-chart-source">
-            <p id="terminalChartStatus">Requesting current candles.</p>
+            <p id="terminalChartStatus">Loading candles…</p>
             <details id="terminalSourceDetail">
               <summary id="terminalSourceSummary">Source details</summary>
               <dl>
@@ -181,7 +179,7 @@
             <div>
               <span>Raven plan</span>
               <strong id="terminalChartPlanSummary">Entry + TP + Risk</strong>
-              <small><b id="terminalChartRavenLayerCount">0 Raven layers active</b> · Research only · not financial advice</small>
+              <small><b id="terminalChartRavenLayerCount">0 Raven layers</b> · Not financial advice</small>
             </div>
             <div class="terminal-chart-plan-actions">
               <button type="button" id="terminalChartPlanInspect" aria-expanded="false">Inspect</button>
@@ -263,14 +261,14 @@
               <button type="button" data-spot-trade-filter="repeat" aria-pressed="false">Repeat</button>
             </div>
             <div class="terminal-spot-trade-head" aria-hidden="true"><span>Time</span><span>Side</span><span>USD</span><span>Price</span><span>Wallet</span></div>
-            <div class="terminal-spot-trade-rows" id="terminalSpotTradeRows" aria-live="polite"><p>Loading recent exact-pool swaps…</p></div>
+            <div class="terminal-spot-trade-rows" id="terminalSpotTradeRows" aria-live="polite"><p>Loading…</p></div>
           </div>
           <section class="terminal-active-traders" id="terminalActiveTraders" aria-labelledby="terminalActiveWalletTitle" hidden>
             <header>
               <div><span>Returned exact-pool sample</span><h3 id="terminalActiveWalletTitle">Active wallets</h3></div>
               <strong id="terminalActiveTraderState">Loading</strong>
             </header>
-            <p id="terminalActiveTraderNote">Wallet activity is limited to this exact pool’s returned 24-hour sample.</p>
+            <p id="terminalActiveTraderNote">Exact-pool sample.</p>
             <div class="terminal-active-wallet-filters" role="group" aria-label="Filter active wallets">
               <button type="button" data-active-wallet-filter="all" aria-pressed="true">All <span id="terminalActiveWalletAllCount">0</span></button>
               <button type="button" data-active-wallet-filter="repeat" aria-pressed="false">Repeat <span id="terminalActiveWalletRepeatCount">0</span></button>
@@ -278,7 +276,7 @@
               <button type="button" data-active-wallet-filter="sell" aria-pressed="false">Sell-heavy <span id="terminalActiveWalletSellCount">0</span></button>
               <button type="button" data-active-wallet-filter="holders" aria-pressed="false" hidden>Listed holders <span id="terminalActiveWalletHolderCount">0</span></button>
             </div>
-            <div class="terminal-active-trader-rows" id="terminalActiveTraderRows" aria-live="polite"><p>Loading active wallets…</p></div>
+            <div class="terminal-active-trader-rows" id="terminalActiveTraderRows" aria-live="polite"><p>Loading…</p></div>
           </section>
           <footer>
             <span id="terminalSpotTradeCoverage">Bounded exact-pool activity</span>
@@ -309,14 +307,13 @@
               <button type="button" id="terminalHolderTradesAction">Active wallets</button>
               <button type="button" id="terminalHolderLinksAction">Links &amp; CA</button>
             </div>
-            <p>Current on-chain owners are grouped across token accounts. Wallet labels, related wallets, bundle membership, and wallet-by-wallet balance changes are not inferred.</p>
           </section>
           <div class="terminal-risk-screen" id="terminalRiskScreen" tabindex="-1" hidden>
             <div class="terminal-risk-head">
               <div><span>Raven risk screen</span><h3 id="terminalRiskTitle">Checking this exact market</h3></div>
               <strong id="terminalRiskLevel">Checking</strong>
             </div>
-            <p id="terminalRiskSummary">Checking ownership, token controls, and route risk for this exact market.</p>
+            <p id="terminalRiskSummary">Checking risk…</p>
             <div class="terminal-risk-columns">
               <section id="terminalRiskFactorsSection" hidden><h4>Risk factors</h4><ul id="terminalRiskFactors"></ul></section>
               <section id="terminalRiskChecksSection" hidden><h4>Checks passed</h4><ul id="terminalRiskChecks"></ul></section>
@@ -325,7 +322,7 @@
               <summary><span>Not measured yet</span><strong id="terminalRiskUnknownCount"></strong></summary>
               <ul id="terminalRiskUnknowns"></ul>
             </details>
-            <small>This is a pre-trade evidence check, not a scam verdict or rug probability. Unmeasured risks can still matter.</small>
+            <small>Evidence check, not verdict.</small>
           </div>
           <dl class="terminal-anatomy-grid">
             <div hidden><dt id="terminalAnatomy1Label"></dt><dd id="terminalAnatomy1"></dd></div>
@@ -351,7 +348,6 @@
           </div>
           <details class="terminal-holder-list" id="terminalHolderList" hidden>
             <summary><span>Top holders</span><strong id="terminalHolderListState">View list</strong></summary>
-            <p id="terminalHolderListNote">Ranked on-chain owners for this exact token.</p>
             <div class="terminal-holder-filters" id="terminalHolderFilters" role="group" aria-label="Filter top holders">
               <button type="button" data-holder-filter="all" aria-pressed="true">All</button>
               <button type="button" data-holder-filter="wallets" aria-pressed="false">Wallets</button>
@@ -386,10 +382,9 @@
           <div class="terminal-context-risk-guard" id="terminalContextRiskGuard" hidden>
             <span>Risk overrides setup</span>
             <strong>Behavior observed; Raven plan paused</strong>
-            <p>Verified ownership or market-integrity risk is more important than this directional read.</p>
             <button type="button" id="terminalContextRiskReview">Review exact risk</button>
           </div>
-          <p id="terminalReadSummary">Current market facts and Raven's read are checked separately.</p>
+          <p id="terminalReadSummary">Facts ≠ Raven read.</p>
           <div class="terminal-why"><span id="terminalWhyLabel">Current read</span><strong id="terminalWhy">No verified context yet.</strong></div>
           <dl class="terminal-context-grid">
             <div hidden><dt id="terminalBehaviorLabel">Setup</dt><dd id="terminalBehavior"></dd></div>
@@ -427,10 +422,10 @@
           </dl>
           <label class="terminal-plan-toggle">
             <input id="terminalPlanToggle" type="checkbox" />
-            <span><strong id="terminalPlanToggleLabel">Show on chart</strong><small id="terminalPlanToggleHint">Add these current-evidence levels to the chart.</small></span>
+            <span><strong id="terminalPlanToggleLabel">Show on chart</strong><small id="terminalPlanToggleHint"></small></span>
           </label>
           <button class="terminal-plan-load" id="terminalPlanLoad" type="button">Load levels into trade ticket</button>
-          <p id="terminalPlanDisclaimer">Based on completed paths for this market. Research only—not personalized targets, stops, or orders. Not financial advice.</p>
+          <p id="terminalPlanDisclaimer">Research only. Not financial advice.</p>
         </section>
 
         <section id="terminalComparableSection" hidden>
@@ -442,7 +437,7 @@
             <div><dt>Favorable excursion</dt><dd id="terminalComparableFavorable">--</dd></div>
             <div><dt>Adverse excursion</dt><dd id="terminalComparableAdverse">--</dd></div>
           </dl>
-          <p id="terminalComparableNote">No exact historical sample is available yet.</p>
+          <p id="terminalComparableNote">No completed samples.</p>
         </section>
 
         <section class="terminal-order-preview" id="terminalTradeReviewSection" hidden>
@@ -516,7 +511,7 @@
             </label>
             <label class="terminal-reduce-only">
               <input id="terminalPreviewReduceOnly" type="checkbox" />
-              <span><strong>Reduce only</strong><small>Reject a plan that would add or flip exposure.</small></span>
+              <span><strong>Reduce only</strong></span>
             </label>
           </div>
           <div class="terminal-preview-inputs terminal-conditional-inputs">
@@ -571,9 +566,9 @@
               <div><dt>Withdrawable after</dt><dd id="terminalScenarioCheck">--</dd></div>
               <div><dt>Venue settings</dt><dd id="terminalScenarioSettings">--</dd></div>
             </dl>
-            <p id="terminalScenarioNote">Modeled from a current public account snapshot.</p>
+            <p id="terminalScenarioNote">Current public snapshot.</p>
           </div>
-          <p class="terminal-preview-message" id="terminalPreviewMessage">Review exact entry semantics and optional risk levels against the current book.</p>
+          <p class="terminal-preview-message" id="terminalPreviewMessage">Review current book.</p>
           <div class="terminal-preview-boundary">
             <strong>Plan only</strong>
             <span id="terminalQuoteNote">Preview only. Nothing can be signed or sent.</span>
@@ -625,19 +620,19 @@
             <button type="button" id="terminalSpotRiskSummary" data-state="forming">
               <span>Market risk</span>
               <strong id="terminalSpotRiskCompact">Checking</strong>
-              <small id="terminalSpotRiskCompactNote">Exact holder and control checks</small>
+              <small id="terminalSpotRiskCompactNote">Holder + control checks</small>
             </button>
             <div id="terminalSpotExitSummary" data-state="idle">
               <span>Exit check</span>
               <strong id="terminalSpotExitCompact">Not reviewed</strong>
-              <small id="terminalSpotExitCompactNote">Request a current route</small>
+              <small id="terminalSpotExitCompactNote">Request route</small>
             </div>
           </div>
 
           <div class="terminal-spot-fee-compact" id="terminalSpotFeeSummary">
             <span>Raven fee</span>
             <strong id="terminalSpotFeeCompact">1.00%</strong>
-            <small id="terminalSpotFeeCompactNote">Pro 0.70% · exact cost shown in review</small>
+            <small id="terminalSpotFeeCompactNote">Pro 0.70% · shown in review</small>
           </div>
 
           <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Review buy + exit</button>
@@ -660,7 +655,7 @@
               <div><dt id="terminalSpotQuoteFrictionLabel">Round-trip friction</dt><dd id="terminalSpotQuoteFriction">--</dd></div>
               <div><dt>Exit proof</dt><dd id="terminalSpotQuoteExitState">--</dd></div>
             </dl>
-            <p id="terminalSpotQuoteTiming">Request a current exact-token route.</p>
+            <p id="terminalSpotQuoteTiming">Request route.</p>
           </div>
 
           <ol class="terminal-execution-rail" id="terminalSpotExecutionRail" aria-label="Trade readiness">
@@ -670,13 +665,13 @@
             <li data-terminal-step="sign" aria-disabled="true"><span>4</span><strong>Sign</strong><small>Locked</small></li>
             <li data-terminal-step="send" aria-disabled="true"><span>5</span><strong>Send</strong><small>Locked</small></li>
           </ol>
-          <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Select a size and review a current route. Nothing will be submitted.</p>
+          <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Review only. No submission.</p>
 
           <details class="terminal-bracket terminal-spot-advanced" id="terminalSpotAdvanced">
             <summary><span>Plans, wallet &amp; routing</span><strong id="terminalSpotAdvancedState">Preset · 0.50% slippage</strong></summary>
             <div class="terminal-spot-advanced-body">
               <div class="terminal-spot-wallet" id="terminalSpotWallet">
-                <div><span>Read-only wallet</span><strong id="terminalSpotWalletState">Not connected</strong><small id="terminalSpotWalletNote">Connect only to verify chain-local USDC or token balance. RavenOS will not request a signature.</small></div>
+                <div><span>Read-only wallet</span><strong id="terminalSpotWalletState">Not connected</strong><small id="terminalSpotWalletNote">Balance check only. No signature.</small></div>
                 <button type="button" id="terminalSpotWalletConnect">Connect</button>
               </div>
 
@@ -697,7 +692,7 @@
                   <button type="button" class="active" data-spot-plan-source="user_preset" aria-pressed="true">My preset</button>
                   <button type="button" data-spot-plan-source="custom" aria-pressed="false">Custom</button>
                 </div>
-                <p id="terminalSpotPlanSourceNote">Your preset stays separate from Raven research.</p>
+                <p id="terminalSpotPlanSourceNote">Preset ≠ Raven plan.</p>
               </div>
 
               <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotPresetInputs">
@@ -753,7 +748,7 @@
                   <div class="terminal-jito-state">
                     <span>Jito protection</span>
                     <strong>Not available yet</strong>
-                    <small>Shown here for route planning; it will remain off until tip recipients, caps, simulation, and sending are independently reviewed.</small>
+                    <small>Off pending review.</small>
                   </div>
                 </div>
               </details>
@@ -761,7 +756,7 @@
               <div class="terminal-fee-disclosure" id="terminalSpotFeeDisclosure">
                 <div><span>Raven fee</span><strong id="terminalSpotActiveFee">Free · 1.00%</strong></div>
                 <div><span>Pro rate</span><strong id="terminalSpotProFee">0.70% · 30% lower</strong></div>
-                <small id="terminalSpotFeeNote">The configured fee is disclosed before signing. No fee is charged in quote/review mode.</small>
+                <small id="terminalSpotFeeNote">Disclosed before signing. No review fee.</small>
               </div>
 
               <div class="terminal-preview-boundary">
@@ -784,7 +779,7 @@
               <button type="submit">Load account</button>
             </div>
           </form>
-          <small id="terminalAccountStatus" aria-live="polite">Public observation only · address stays in this tab</small>
+          <small id="terminalAccountStatus" aria-live="polite">Public read only</small>
         </header>
         <nav class="terminal-account-tabs" id="terminalAccountTabs" aria-label="Account ledger" role="tablist">
           <button type="button" data-account-tab="positions" role="tab" aria-selected="true">Positions <span id="terminalAccountPositionsCount" hidden></span></button>

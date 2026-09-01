@@ -270,13 +270,13 @@ function renderWalletActivity(activity, { append = false } = {}) {
   filterNode.value = filter;
   filterNode.disabled = false;
   const host = document.getElementById("copyRecentEvents");
-  host.replaceChildren(...(merged.length ? merged.map(eventCard) : [empty("No matching activity", "Nothing in Raven’s retained evidence matches this filter. Unavailable events are not converted into zero activity.")]));
+  host.replaceChildren(...(merged.length ? merged.map(eventCard) : [empty("No matching activity", "Unavailable ≠ zero.")]));
   const total = state.activity.matching_event_count;
   setText("copyEventCount", `${merged.length.toLocaleString()} of ${total.toLocaleString()} retained`);
   setText("copyActivityStatus", state.activity.has_more
-    ? "Older retained evidence is available. Loading it does not make another Solana provider request."
+    ? "Older evidence available."
     : total
-      ? "End of the retained Raven index for this filter. This is not a lifetime-history claim."
+      ? "End of retained index."
       : "No retained evidence matches this filter.");
   const more = document.getElementById("copyActivityMore");
   more.hidden = !state.activity.has_more;
@@ -294,7 +294,7 @@ async function loadWalletActivity({ append = false } = {}) {
   const more = document.getElementById("copyActivityMore");
   more.disabled = true;
   more.textContent = append ? "Loading…" : "Filtering…";
-  setText("copyActivityStatus", append ? "Loading the next retained page…" : "Filtering retained wallet evidence…");
+  setText("copyActivityStatus", append ? "Loading older…" : "Filtering…");
   const params = new URLSearchParams({ filter, limit: "12" });
   if (cursor) params.set("cursor", cursor);
   const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}/events?${params}`);
@@ -303,7 +303,7 @@ async function loadWalletActivity({ append = false } = {}) {
     filterNode.disabled = false;
     more.disabled = false;
     more.textContent = "Try again";
-    setText("copyActivityStatus", "Raven could not read this retained page. No missing activity was treated as zero.");
+    setText("copyActivityStatus", "Page unavailable. Missing ≠ zero.");
     return;
   }
   renderWalletActivity(result.payload, { append });
@@ -368,8 +368,8 @@ function renderFollowerReality() {
     setText("copyPlaybookState", status);
     setText("copyPlaybookHeadline", headline);
     setText("copyPlaybookSummary", Number.isFinite(referencePass)
-      ? `${pct(referencePass)} of ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")} routes passed policy across ${playbook.prospective_signal_count || 0} observed wallet buys.`
-      : `${playbook.prospective_signal_count || 0} wallet buys tested. A pattern requires ${playbook.minimum_prospective_sample_count || 20} observations per size.`);
+      ? `${pct(referencePass)} pass · ${playbook.prospective_signal_count || 0} buys · ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}`
+      : `${playbook.prospective_signal_count || 0} buys · ${playbook.minimum_prospective_sample_count || 20} needed per size`);
 
     if (Number.isFinite(majoritySize) && majoritySize > 0) {
       const range = Number.isFinite(smallestSize) && smallestSize > 0 && smallestSize !== majoritySize
@@ -377,11 +377,11 @@ function renderFollowerReality() {
         : money(majoritySize).replace(".00", "");
       setText("copyPlaybookSize", `${range} majority-pass`);
       setText("copyPlaybookSizeDetail", Number.isFinite(firstWeakSize) && firstWeakSize > 0
-        ? `${money(firstWeakSize).replace(".00", "")} fell to ${pct(sizeWindow.policy_pass_pct_at_first_below_majority_size)}. Exact isolated quotes.`
-        : `${pct(sizeWindow.policy_pass_pct_at_largest_majority_size)} passed at the upper tested size. Exact isolated quotes.`);
+        ? `${money(firstWeakSize).replace(".00", "")} · ${pct(sizeWindow.policy_pass_pct_at_first_below_majority_size)} pass`
+        : `${pct(sizeWindow.policy_pass_pct_at_largest_majority_size)} pass · exact quotes`);
     } else {
       setText("copyPlaybookSize", playbook.state === "forming" ? "Threshold forming" : "No majority-pass size");
-      setText("copyPlaybookSizeDetail", `${sizeWindow.evidence_qualified_size_count || 0} of 5 sizes have enough prospective evidence.`);
+      setText("copyPlaybookSizeDetail", `${sizeWindow.evidence_qualified_size_count || 0}/5 sizes qualified`);
     }
 
     if (marketFit.state === "available") {
@@ -391,10 +391,10 @@ function renderFollowerReality() {
           ? " liquidity"
           : " pair age";
       setText("copyPlaybookMarket", `${marketFit.bucket_label}${marketSuffix}`);
-      setText("copyPlaybookMarketDetail", `${pct(marketFit.policy_pass_pct)} passed · ${marketFit.prospective_sample_count || 0} signals at ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}.`);
+      setText("copyPlaybookMarketDetail", `${pct(marketFit.policy_pass_pct)} pass · ${marketFit.prospective_sample_count || 0} signals · ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}`);
     } else {
       setText("copyPlaybookMarket", marketFit.state === "forming" ? "Segment evidence forming" : "Not sampled");
-      setText("copyPlaybookMarketDetail", `A segment needs ${playbook.minimum_prospective_sample_count || 20} prospective signals before it is surfaced.`);
+      setText("copyPlaybookMarketDetail", `${playbook.minimum_prospective_sample_count || 20} signals needed`);
     }
 
     if (Number(persistence.checkpoint_count || 0) > 0 && Number.isFinite(Number(persistence.route_persistence_pct))) {
@@ -407,7 +407,7 @@ function renderFollowerReality() {
       setText("copyPlaybookPersistenceDetail", `${persistence.checkpoint_count} exact-quantity checks${followerReturn}${persistence.state === "forming" ? " · forming" : ""}.`);
     } else {
       setText("copyPlaybookPersistence", "Not sampled");
-      setText("copyPlaybookPersistenceDetail", "The +1h reverse route has not been serviced yet.");
+      setText("copyPlaybookPersistenceDetail", "+1h exit check pending.");
     }
 
     if (constraint.state === "observed" && constraint.reason_code) {
@@ -416,10 +416,10 @@ function renderFollowerReality() {
         ? null
         : Number(constraint.pct_of_signals);
       const constraintSize = Number(constraint.order_size_usdc);
-      setText("copyPlaybookConstraintDetail", `${constraint.observation_count || 0} observations${Number.isFinite(constraintSize) && constraintSize > 0 ? ` at ${money(constraintSize).replace(".00", "")}` : ""}${Number.isFinite(constraintPct) ? ` · ${pct(constraintPct)} of signals` : ""}. Refusals remain in the sample.`);
+      setText("copyPlaybookConstraintDetail", `${constraint.observation_count || 0} observations${Number.isFinite(constraintSize) && constraintSize > 0 ? ` · ${money(constraintSize).replace(".00", "")}` : ""}${Number.isFinite(constraintPct) ? ` · ${pct(constraintPct)}` : ""}`);
     } else {
       setText("copyPlaybookConstraint", constraint.state === "insufficient_evidence" ? "Not sampled" : "No dominant blocker");
-      setText("copyPlaybookConstraintDetail", "No refusal category currently dominates the retained evidence.");
+      setText("copyPlaybookConstraintDetail", "No dominant refusal.");
     }
     playbookNode.dataset.playbookState = playbook.state;
   }
@@ -476,7 +476,7 @@ function renderFollowerReality() {
   if (sharedAvailable && refusal) {
     setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
     setText("copyRefusalHeadline", readable(refusal.reason_code));
-    setText("copyRefusalDetail", `${refusal.count} of ${overall?.prospective_sample_count || 0} prospective routes · ${pct(refusal.pct_of_signals)} of signals. Refusals remain visible and are never recorded as zero-return trades.`);
+    setText("copyRefusalDetail", `${refusal.count}/${overall?.prospective_sample_count || 0} routes · ${pct(refusal.pct_of_signals)} · refusals retained`);
   }
   const sizeStressNode = document.getElementById("copySizeStress");
   sizeStressNode.hidden = !sharedAvailable || !sizeStress || sizeStress.state === "insufficient_evidence";
@@ -493,7 +493,7 @@ function renderFollowerReality() {
             ? "Non-linear route evidence"
             : "Size evidence forming";
     setText("copySizeStressHeadline", headline);
-    setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals tested at all five sizes. Isolated route quotes—not a simultaneous-follower fill promise.`);
+    setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals · five sizes · isolated quotes`);
     sizeStressNode.dataset.stressState = sizeStress.state;
   }
   const crowdingNode = document.getElementById("copyCrowdingStress");
@@ -506,7 +506,7 @@ function renderFollowerReality() {
     const blocker = crowding.dominant_constraint?.reason_code
       ? ` · blocker: ${readable(crowding.dominant_constraint.reason_code)}`
       : "";
-    setText("copyCrowdingStressDetail", `${crowding.eligible_signal_sample_count || 0} privacy-qualified signals${blocker}. Demand stays private; no allocation or fill promise.`);
+    setText("copyCrowdingStressDetail", `${crowding.eligible_signal_sample_count || 0} signals${blocker} · demand private`);
     crowdingNode.dataset.crowdingState = crowding.state;
   }
   const marketFit = document.getElementById("copyMarketFit");
@@ -515,7 +515,7 @@ function renderFollowerReality() {
     : [];
   marketFit.hidden = !sharedAvailable || !marketDimensions.length;
   if (sharedAvailable && marketDimensions.length) {
-    setText("copyMarketFitScope", `Prospective ${money(marketRegimes.reference_order_size_usdc || 100).replace(".00", "")} routes · ${marketRegimes.minimum_prospective_sample_count || 20} signals before a segment is evidence-qualified`);
+    setText("copyMarketFitScope", `${money(marketRegimes.reference_order_size_usdc || 100).replace(".00", "")} routes · ${marketRegimes.minimum_prospective_sample_count || 20} signals to qualify`);
     document.getElementById("copyMarketFitGrid").replaceChildren(...marketDimensions.map((dimension) => {
       const bucket = dimension.representative_bucket;
       const card = document.createElement("article");
@@ -533,10 +533,8 @@ function renderFollowerReality() {
   }
   const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
   setText("copyFollowerLimit", sharedAvailable
-    ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.${Number(outcomeReference?.checkpoint_count || 0) > 0 ? " Later outcomes are exact-quantity liquidation quotes, not fills or the source wallet's realized P&L." : ""}${Number(marketContext?.context_observation_count || 0) > 0 ? " Market context is the highest-liquidity exact-token pair Raven saw near detection, not proof of the source wallet's pool or fill." : ""}`
-    : overall?.prospective_sample_count
-      ? "Your private shadow tests include approved, skipped, unavailable, and unresolved trades. Historical source returns are never substituted."
-      : "Historical source returns never become hypothetical follower fills or copyability.");
+    ? `Pre-positioned Solana USDC${feeScenarios.length ? ` · fees ${feeScenarios.map((value) => `${value} bps`).join("/")}` : ""} · source ≠ follower`
+    : "Source ≠ follower. Unavailable stays unavailable.");
 }
 
 function renderDeepHistory(history) {
@@ -551,15 +549,15 @@ function renderDeepHistory(history) {
     ? 100
     : Math.min(99, (signatures / maximum) * 100);
   const labels = {
-    queued: ["Deep history queued", "Raven will rebuild older activity once and reuse it for every researcher and follower."],
-    leased: ["Indexing older activity", "A bounded provider page is being normalized into Raven's shared wallet evidence."],
-    retry_wait: ["History retry queued", "The current page did not complete cleanly, so Raven kept the cursor in place and will retry it."],
-    complete: ["Provider history exhausted", "The indexed provider window reached its oldest available page. Raven still does not call this verified lifetime history."],
-    bounded_partial: ["10,000-signature window indexed", "The safety ceiling was reached. Older activity may exist and remains outside this profile."],
-    dead_letter: ["History needs operator review", "Raven stopped at an invalid or repeatedly unavailable page instead of skipping over an evidence gap."],
-    unavailable: ["Deep history unavailable", "Immediate evidence remains visible, but no deeper completeness claim is being made."],
+    queued: ["Deep history queued", "Shared backfill pending."],
+    leased: ["Indexing older activity", "Normalizing provider evidence."],
+    retry_wait: ["History retry queued", "Cursor preserved."],
+    complete: ["Provider history exhausted", "Oldest available page reached."],
+    bounded_partial: ["10,000-signature window indexed", "Older activity may exist."],
+    dead_letter: ["History needs operator review", "Evidence gap preserved."],
+    unavailable: ["Deep history unavailable", "Current evidence remains visible."],
   };
-  const [headline, detail] = labels[history.state] || ["History state forming", "Raven is preserving the current evidence boundary."];
+  const [headline, detail] = labels[history.state] || ["History state forming", "Evidence boundary preserved."];
   setText("copyDeepHistoryHeadline", headline);
   setText("copyDeepHistoryDetail", detail);
   const progressNode = document.getElementById("copyDeepHistoryProgress");
@@ -601,12 +599,12 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   shadowButton.disabled = profileChain !== "solana";
   shadowButton.textContent = profileChain === "solana" ? "Shadow this wallet" : "Route proof pending";
   shadowButton.title = profileChain === "solana"
-    ? "Create a prospective Raven Copy policy"
-    : "Robinhood shadow copying stays closed until exact entry and reverse-exit routing are connected.";
+    ? "Create a Raven Copy policy"
+    : "Exact entry + exit routing required.";
   renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
-  setText("copyProfileCoverage", `${profile.coverage.transactions_observed} transactions · ${profile.coverage.trade_events} trade events · ${profile.coverage.known_cost_basis_pct === null ? "cost basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% known cost basis`} · ${historyLabel}`);
+  setText("copyProfileCoverage", `${profile.coverage.transactions_observed} tx · ${profile.coverage.trade_events} trades · ${profile.coverage.known_cost_basis_pct === null ? "basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% basis`} · ${historyLabel}`);
   const thesis = profile.research_thesis;
   const thesisNode = document.getElementById("copyProfileThesis");
   thesisNode.hidden = !thesis;
@@ -614,10 +612,10 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     thesisNode.dataset.thesisState = text(thesis.state, "insufficient_evidence");
     setText("copyThesisState", thesis.evidence_strength?.label || readable(thesis.state));
     setText("copyThesisHeadline", thesis.headline || "Source record still forming");
-    setText("copyThesisSummary", thesis.summary || "Raven needs more known-cost closes before characterizing this wallet.");
-    document.getElementById("copyThesisStrengths").replaceChildren(...findingItems(thesis.strengths, "No durable source strength is established yet."));
-    document.getElementById("copyThesisWatchouts").replaceChildren(...findingItems(thesis.watchouts, "No additional watch-out is supported by the retained evidence."));
-    document.getElementById("copyThesisNext").replaceChildren(...findingItems(thesis.next_evidence, "Continue prospective observation without rewriting prior evidence."));
+    setText("copyThesisSummary", thesis.summary || "More known-cost closes needed.");
+    document.getElementById("copyThesisStrengths").replaceChildren(...findingItems(thesis.strengths, "No durable edge yet."));
+    document.getElementById("copyThesisWatchouts").replaceChildren(...findingItems(thesis.watchouts, "No additional watch-out."));
+    document.getElementById("copyThesisNext").replaceChildren(...findingItems(thesis.next_evidence, "Keep observing."));
   }
   const performance = profile.source_performance;
   setText("copySourcePnl", realizedPerformance(performance));
@@ -687,8 +685,8 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Full confidence", pct(quality.full_data_confidence_pct)),
   );
   setText("copyEvidenceLimit", quality.analysis_truncated
-    ? `Raven indexed more history than this snapshot can safely analyze at once. These metrics use the most recent ${compactNumber(quality.analysis_events)} normalized events; older evidence remains retained. Full confidence still requires contemporaneous price and liquidity evidence.`
-    : "Full confidence remains unavailable without contemporaneous historical price and liquidity evidence.");
+    ? `${compactNumber(quality.analysis_events)} recent events analyzed · older evidence retained`
+    : "Full confidence needs historical price + liquidity.");
   const capital = profile.capital_observations || {};
   const openPositions = Array.isArray(profile.positions?.known_cost_open_positions) ? profile.positions.known_cost_open_positions : [];
   document.getElementById("copyCapitalMetrics").replaceChildren(
@@ -708,7 +706,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     detail.textContent = `${position.lot_count} known-cost lot${position.lot_count === 1 ? "" : "s"} · ${decimal(position.remaining_cost)} ${String(position.basis || "").toUpperCase()} · mark unavailable`;
     row.append(identity, detail);
     return row;
-  }) : [empty("No known-cost open positions", "Unknown inventory is not converted into a zero-cost position or a marked gain.")]));
+  }) : [empty("No known-cost open positions", "Unknown inventory excluded.")]));
   renderFollowerReality();
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
   if (!fromPoll || !state.events.length) {
@@ -839,7 +837,7 @@ function decisionCard(decision) {
   const evidence = document.createElement("button");
   evidence.type = "button";
   evidence.textContent = `Hypothetical Raven fee · ${bpsAsPercent(decision.hypothetical_raven_fee.scenario_bps)}`;
-  evidence.title = "Hypothetical only. No fee was charged or collected.";
+  evidence.title = "Not collected.";
   actions.append(evidence);
   card.append(main, facts, actions);
   return card;
@@ -880,8 +878,8 @@ function exitDecisionCard(decision) {
     ? `${count} Raven lot${count === 1 ? "" : "s"} mapped · no funds moved`
     : "No Raven-created lot changed";
   evidence.title = decision.hypothetical_raven_fee?.fee_usdc === null
-    ? "No fee was calculated or collected."
-    : `Hypothetical Raven fee ${money(decision.hypothetical_raven_fee.fee_usdc)}. Nothing was collected.`;
+    ? "No fee calculated."
+    : `Hypothetical fee ${money(decision.hypothetical_raven_fee.fee_usdc)} · not collected.`;
   actions.append(evidence);
   card.append(main, facts, actions);
   return card;
@@ -1085,7 +1083,7 @@ function renderSavedResearch() {
   const host = document.getElementById("copySavedWallets");
   if (!state.saved.length) {
     const message = document.createElement("p");
-    message.textContent = "No saved research wallets yet. Saving does not start monitoring or copying.";
+    message.textContent = "No saved wallets.";
     host.replaceChildren(message);
     return;
   }
@@ -1197,14 +1195,14 @@ function renderScreener(payload) {
   const scopeLabel = chainLabel(state.screener.chain);
   setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
   setText("copyScreenerStatus", wallets.length
-    ? `Showing ${wallets.length} evidence-bound ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"}. Source performance and follower reality remain separate.`
+    ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · source ≠ follower`
     : state.screener.chain === "robinhood"
-      ? "No indexed Robinhood wallet matches these filters yet. Raven will not pad the new chain index with guessed performance."
-      : "No indexed Solana wallet matches these filters. Direct lookup can add an exact public address.");
+      ? "No indexed Robinhood match."
+      : "No indexed Solana match.");
   const host = document.getElementById("copyScreenerResults");
   host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "robinhood"
-    ? "The bounded Robinhood index is still forming. Unobserved wallets and unavailable metrics are not converted into zeroes."
-    : "Loosen the filters or inspect an exact public Solana address. Raven will not pad the results with guessed performance.")]));
+    ? "Index forming. Unavailable ≠ zero."
+    : "Adjust filters or inspect an address.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1214,12 +1212,12 @@ function renderScreener(payload) {
 
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
-  setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)} wallets Raven has reviewed…`);
+  setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)}…`);
   const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
   if (!result.response.ok) {
     setText("copyScreenerCount", "Unavailable");
-    setText("copyScreenerStatus", "Wallet screening is unavailable right now. Exact-address inspection remains available.");
-    document.getElementById("copyScreenerResults").replaceChildren(empty("Wallet screening unavailable", "Analyze an exact public address or try the screener again. Raven will not show stale results as current."));
+    setText("copyScreenerStatus", "Screener unavailable. Address lookup remains available.");
+    document.getElementById("copyScreenerResults").replaceChildren(empty("Screener unavailable", "Try again or inspect an address."));
     document.getElementById("copyScreenerPages").hidden = true;
     return;
   }
@@ -1237,9 +1235,9 @@ function renderCollections() {
   const watches = document.getElementById("copyWatches");
   const decisions = document.getElementById("copyDecisions");
   const positions = document.getElementById("copyPositions");
-  watches.replaceChildren(...(state.watches.length ? state.watches.map(watchCard) : [empty("No wallets shadowed yet", "Inspect a public Solana wallet, review the evidence, and choose the order Raven should test.")]));
-  decisions.replaceChildren(...(feed.length ? feed.map((item) => item.card(item.row)) : [empty("No shadow decisions yet", "Raven will keep approved buys, skipped buys, mapped sells, and unavailable exits in one complete record.")]));
-  positions.replaceChildren(...(state.positions.length ? state.positions.map(positionCard) : [empty("No shadow positions", "Only a new source buy that passes entry, exit, liquidity, speed, and your rules can appear here.")]));
+  watches.replaceChildren(...(state.watches.length ? state.watches.map(watchCard) : [empty("No wallets shadowed", "Inspect a wallet to begin.")]));
+  decisions.replaceChildren(...(feed.length ? feed.map((item) => item.card(item.row)) : [empty("No shadow decisions", "Approvals and refusals appear here.")]));
+  positions.replaceChildren(...(state.positions.length ? state.positions.map(positionCard) : [empty("No shadow positions", "Qualified buys appear here.")]));
 }
 
 async function loadWorkspace() {
@@ -1269,15 +1267,15 @@ async function inspectWalletAddress(address, button) {
   policyNode.hidden = true;
   button.disabled = true;
   button.textContent = "Analyzing…";
-  setText("copySearchStatus", "Reviewing recent public activity and rebuilding the wallet’s trades…");
+  setText("copySearchStatus", "Reconstructing trades…");
   const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address }) });
   button.disabled = false;
   button.textContent = "Analyze wallet";
   if (!result.response.ok) {
-    setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "No usable public history was available for this wallet." : "Raven could not inspect this wallet right now. Nothing was inferred.");
+    setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
     return;
   }
-  setText("copySearchStatus", "Analysis ready. Review the wallet’s results before starting a shadow test.");
+  setText("copySearchStatus", "Analysis ready.");
   renderProfile(result.payload);
 }
 
@@ -1291,14 +1289,14 @@ async function savePolicy(event) {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true;
-  setText("copyPolicyStatus", "Saving your private shadow policy…");
+  setText("copyPolicyStatus", "Saving policy…");
   const result = await api(`${API}/watches`, {
     method: "POST",
     body: JSON.stringify({ address: state.address, label: document.getElementById("copyPolicyLabel").value, policy: policyPayload() }),
   });
   button.disabled = false;
   if (!result.response.ok) {
-    setText("copyPolicyStatus", "This policy could not be saved. Review the values and try again.");
+    setText("copyPolicyStatus", "Policy not saved. Check values.");
     return;
   }
   policyNode.hidden = true;
@@ -1325,7 +1323,7 @@ async function boot() {
     page.dataset.copyState = "unavailable";
     unavailable.hidden = false;
     setText("copyWorkspaceState", "Private beta");
-    setText("copyUnavailableReason", summary.response.status === 403 ? "Raven Copy is part of RavenOS Pro and is not enabled for this account." : "Wallet intelligence is being held until its operating controls are ready. Discover and Terminal remain available.");
+    setText("copyUnavailableReason", summary.response.status === 403 ? "Raven Copy requires Pro access." : "Wallet intelligence unavailable.");
     return;
   }
   state.activation = summary.payload.activation || {};
@@ -1333,8 +1331,8 @@ async function boot() {
   workspace.hidden = false;
   setText("copyWorkspaceState", state.activation.continuous_observer ? "Nexus Shadow ready" : "Shadow workspace ready");
   setText("copyWatchingDescription", state.activation.continuous_observer
-    ? "Nexus watches each exact source once, then Raven evaluates every private policy against the same prospective event. Manual checks remain available as a fallback."
-    : "Checks are manual during this private beta. The first check learns where the wallet stands; later checks evaluate only genuinely new trades.");
+    ? "Nexus observer active."
+    : "Manual checks in preview.");
   setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : "Live copy off");
   await loadWorkspace();
   if (state.activation.wallet_screener) {

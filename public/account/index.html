@@ -15,7 +15,6 @@
       <div>
         <span class="workspace-question">Your RavenOS account</span>
         <h1>One account for your entire desk.</h1>
-        <p>Sync saved markets and chart setups across devices, manage sign-ins, and keep wallet access and trading approval separate.</p>
       </div>
       <div class="account-head-status" aria-live="polite">
         <span class="account-state-dot"></span>
@@ -28,7 +27,7 @@
         <div class="account-auth-copy">
           <span class="workspace-label">RavenOS account</span>
           <h2>Secure sign-in.<br />You stay in control.</h2>
-          <p>Use Google, or continue with a verified email, one-time code, or password. RavenOS never receives your Google password and never asks for a seed phrase or wallet private key.</p>
+          <p>Google or email. Never share wallet keys.</p>
         </div>
 
         <div class="account-mode-switch" role="tablist" aria-label="Account action">
@@ -50,14 +49,14 @@
             <input type="hidden" name="return_to" value="/account/" />
             <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email, password, or code</span><span aria-hidden="true">→</span></button>
           </form>
-          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Signing in does not connect a wallet or approve a trade.</p>
+          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">No wallet connection.</p>
           <p class="account-auth-legal">By continuing, you agree to the <a href="https://ravenos.xyz/terms/">Terms</a> and acknowledge the <a href="https://ravenos.xyz/privacy/">Privacy Policy</a>.</p>
         </div>
 
         <section class="account-activation" id="accountActivation" hidden>
           <span class="workspace-label">Account setup</span>
           <strong>Account sign-up is temporarily unavailable.</strong>
-          <p>You can still use public market intelligence while account access is restored.</p>
+          <p>Public research remains available.</p>
           <a href="/discover/">Continue to Discover →</a>
         </section>
       </div>
@@ -65,14 +64,13 @@
       <aside class="account-trust-rail">
         <span class="workspace-label">What the account secures</span>
         <div class="account-capability-list">
-          <article><span>01</span><div><strong>Persistent identity</strong><p>Your RavenOS identity is independent of any browser, wallet address, venue, or broker account.</p></div></article>
-          <article><span>02</span><div><strong>Revocable sessions</strong><p>Review active devices, sign out this browser, or revoke another recent session from one security desk.</p></div></article>
-          <article><span>03</span><div><strong>Separate controls</strong><p>Saved markets work after sign-in. Wallet connections and trade approval remain separate actions.</p></div></article>
+          <article><span>01</span><div><strong>Persistent identity</strong></div></article>
+          <article><span>02</span><div><strong>Revocable sessions</strong></div></article>
+          <article><span>03</span><div><strong>Separate controls</strong></div></article>
         </div>
         <div class="account-separation-note">
           <span>Good to know</span>
           <strong>Signing in is not trading.</strong>
-          <p>Account identity, wallet ownership, paid access, and transaction approval remain four distinct permissions.</p>
         </div>
       </aside>
     </section>
@@ -94,8 +92,17 @@
           <header><div><span class="workspace-label">Connections</span><h3>Wallets and venues</h3></div><strong>Separate permission</strong></header>
           <div class="account-connection-stage" id="accountWalletConnectionStage">
             <span class="account-provider-mark">W</span>
-            <div><strong id="accountWalletConnectionTitle">No wallets linked yet</strong><p id="accountWalletConnectionDetail">Phantom, MetaMask, and compatible wallets will be linked here using a fresh ownership proof. A wallet connection will never silently become a transaction approval.</p></div>
-            <span id="accountWalletConnectionState">Coming later</span>
+            <div>
+              <strong id="accountWalletConnectionTitle">No wallet connected</strong>
+              <p id="accountWalletConnectionDetail">Address only. No signing.</p>
+              <div class="account-wallet-actions">
+                <button id="accountConnectSolana" type="button">Solana</button>
+                <button id="accountConnectEvm" type="button">EVM</button>
+                <button id="accountDisconnectWallet" type="button" hidden>Clear</button>
+              </div>
+              <span class="account-wallet-status" id="accountWalletConnectStatus" aria-live="polite"></span>
+            </div>
+            <span id="accountWalletConnectionState">Read only</span>
           </div>
         </section>
 
@@ -106,7 +113,7 @@
           </header>
           <div class="account-pro-intro">
             <strong>Your account only opens the features available to you.</strong>
-            <p id="accountProStatus" aria-live="polite">Checking Pro access for this account.</p>
+            <p id="accountProStatus" aria-live="polite">Checking Pro…</p>
             <a class="account-pro-workspace-link" href="/account/intelligence/">Open Pro Intelligence workspace <span aria-hidden="true">→</span></a>
             <a class="account-pro-workspace-link" href="/account/copy/">Open Wallet Intelligence &amp; Raven Copy <span aria-hidden="true">→</span></a>
           </div>
@@ -114,7 +121,6 @@
           <footer class="account-pro-boundary">
             <span>Atlas availability</span>
             <strong>Planned · not yet available.</strong>
-            <p>Signing in never reveals restricted market data or connects a broker or wallet.</p>
           </footer>
         </section>
 
@@ -126,7 +132,7 @@
           <div class="account-governor-gate" id="accountGovernorGate">
             <div>
               <strong>Understand exposure without allowing trades.</strong>
-              <p id="accountGovernorStatus" aria-live="polite">Checking whether this account can open a Solana portfolio view.</p>
+              <p id="accountGovernorStatus" aria-live="polite">Checking Solana access…</p>
             </div>
             <div class="account-governor-controls" id="accountGovernorControls" hidden>
               <label for="accountGovernorWallet">Selected wallet</label>

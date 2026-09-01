@@ -16,7 +16,7 @@
       <div><span>Raven read</span><strong id="perpsContextState">Checking</strong></div>
       <div><span>Prior Raven event</span><strong id="perpsDeliveryState">Checking</strong></div>
       <div><span>Updated</span><strong id="perpsObservedAt">Awaiting timestamp</strong></div>
-      <p id="perpsContinuityMessage">Reading current Hyperliquid price, positioning, depth, and tape.</p>
+      <p id="perpsContinuityMessage">Loading market…</p>
     </section>
 
     <header class="perps-market-head">
@@ -55,7 +55,7 @@
         <section class="perps-rail-section perps-raven-panel" data-perps-pane="raven">
           <header><div><span>Live exact-market read</span><h2 id="perpsReadHeadline">Raven read forming</h2></div><span id="perpsEvidenceState">Comparing current evidence</span></header>
           <div class="perps-raven-read" id="perpsRavenRead">
-            <p id="perpsReadSummary">Reading current Hyperliquid price, funding, open interest, visible depth, and recent trade flow.</p>
+            <p id="perpsReadSummary">Loading Raven read…</p>
             <div class="perps-why"><span>What Raven sees now</span><strong id="perpsWhy">Current exact-market inputs are being joined.</strong></div>
             <dl class="perps-path-grid">
               <div><dt>Setup</dt><dd id="perpsPathFamily">--</dd></div>
@@ -86,7 +86,7 @@
 
     <section class="perps-intelligence" id="perpsIntelligence" aria-labelledby="perpsIntelligenceTitle">
       <header class="perps-intelligence-head">
-        <div><span>Raven Lab · Perpetuals</span><h2 id="perpsIntelligenceTitle">Perps positioning</h2><p>See what matters now across funding, crowding, tradeability, and measured follow-through.</p></div>
+        <div><span>Raven Lab · Perpetuals</span><h2 id="perpsIntelligenceTitle">Perps positioning</h2></div>
         <div><strong id="perpsIntelligenceState" data-state="unavailable">Checking current data</strong><small id="perpsIntelligenceObserved">Update time pending</small></div>
       </header>
       <div class="perps-intelligence-tabs" role="tablist" aria-label="Perps Intelligence view">
@@ -102,7 +102,7 @@
       <div class="perps-intelligence-panel" id="perpsIntelLiquidity" role="tabpanel" aria-labelledby="perpsIntelTabLiquidity" data-perps-intel-panel="liquidity" hidden></div>
       <div class="perps-intelligence-panel" id="perpsIntelOutcomes" role="tabpanel" aria-labelledby="perpsIntelTabOutcomes" data-perps-intel-panel="outcomes" hidden></div>
       <section class="perps-pro-boundary" id="perpsProBoundary" aria-label="Pro perps comparison" hidden>
-        <div><span>Go deeper</span><strong>Compare more perps in Pro</strong><p>Explore more markets and regimes while keeping raw samples, freshness, and tradeability attached.</p></div>
+        <div><span>Go deeper</span><strong>Compare more perps</strong></div>
         <ul>
           <li>More crowding comparisons</li>
           <li>Spread and depth across markets</li>
@@ -124,7 +124,7 @@
           <div><span>Median adverse excursion</span><strong id="perpsMedianAdverse">--</strong></div>
           <div><span>Ended positive</span><strong id="perpsPositiveRate">--</strong></div>
         </div>
-        <p id="perpsComparableNote">No completed exact-market Raven observations are available yet.</p>
+        <p id="perpsComparableNote">No completed samples.</p>
       </article>
 
       <article id="perpsPlanPanel">
@@ -135,7 +135,7 @@
           <div><span>Review horizon</span><strong id="perpsPlanHorizon">--</strong></div>
           <div><span>Evidence sample</span><strong id="perpsPlanSample">0</strong></div>
         </div>
-        <p id="perpsPlanNote">Research only. This preview cannot place an entry, target, stop, or order.</p>
+        <p id="perpsPlanNote">Research only. No orders.</p>
       </article>
 
       <article class="perps-proof-panel">
@@ -146,7 +146,6 @@
           <div><dt>Raven read</dt><dd id="perpsProofContext">Live input check pending</dd></div>
           <div><dt>Execution</dt><dd>Signing, submission, and position monitoring off</dd></div>
         </dl>
-        <p>Wallet identities and proprietary Raven parameters are not shown.</p>
         <span data-ravenos-build-id hidden>pending</span>
       </article>
     </section>

@@ -624,13 +624,13 @@ function opportunityTraderRead(row = {}) {
   const pressure = text(row.pressure_state, "").toLowerCase();
   const move = finite(row.market_snapshot?.day_change_pct);
   if (pressure.includes("mixed") || pressure.includes("choppy")) {
-    if (move !== null && move >= 2) return `Price is up ${percent(move)}, but pressure is still mixed; waiting for follow-through.`;
-    if (move !== null && move <= -2) return `Price is down ${Math.abs(move).toFixed(2)}%, but pressure is still mixed; direction remains choppy and unconfirmed.`;
-    return "Long and short pressure remain mixed; the market is choppy and still needs confirmation.";
+    if (move !== null && move >= 2) return `${percent(move)} · mixed pressure.`;
+    if (move !== null && move <= -2) return `${percent(move)} · mixed pressure.`;
+    return "Mixed pressure.";
   }
-  if (pressure.includes("long crowding")) return "Long positioning looks crowded; watching for either a clean breakout or a fade.";
-  if (pressure.includes("short crowding")) return "Short positioning looks crowded; watching for either a clean breakdown or a squeeze.";
-  return "A current market change is visible, but direction still needs confirmation.";
+  if (pressure.includes("long crowding")) return "Longs crowded.";
+  if (pressure.includes("short crowding")) return "Shorts crowded.";
+  return "Direction unconfirmed.";
 }
 
 function comparableSupport(row = {}) {
@@ -1471,7 +1471,7 @@ function spotFirstObservationHeadline(row, risks = []) {
 }
 
 function spotDecisionHeadline(row, { current = true, velocityState = "forming", activityState = "forming", primary = "forming", risks = [] } = {}) {
-  if (!current) return "Price, move, risk, and rank are withheld until this exact pool refreshes.";
+  if (!current) return "Refreshing exact pool…";
   const discovery = row?.discovery || {};
   const raven = discovery.raven_evidence_state || {};
   const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
@@ -1583,7 +1583,7 @@ function renderScoreEvidence(host, label, score) {
   const heading = append(section, "div", "discover-score-evidence-head", "");
   append(heading, "strong", "", scoreLabel(score, label));
   if (usableRadarScore(score) !== null && score?.grade) append(heading, "span", "", `Grade ${score.grade}`);
-  append(section, "p", "", "Ranking score only—not confidence, win probability, expected return, or a trading signal.");
+  append(section, "p", "", "Rank, not probability.");
   const components = append(section, "dl", "", "");
   components.textContent = "";
   for (const component of Array.isArray(score?.components) ? score.components : []) {
@@ -1624,7 +1624,7 @@ function renderSpotEvidence(shell, row) {
   if (!factFreshness.current) {
     const notice = append(body, "section", "discover-token-evidence-narrative", "");
     append(notice, "h4", "", "Live quote refreshing");
-    append(notice, "p", "", `This exact pool remains in history, but its old quote, move, risk, and rank are not shown as current. Last exact update ${spotMarketFactAgeLabel(row)}.`);
+    append(notice, "p", "", `Last update ${spotMarketFactAgeLabel(row)}.`);
   }
   const inspect = append(body, "section", "discover-token-inspect", "");
   const inspectCopy = append(inspect, "div", "discover-token-inspect-copy", "");
@@ -1637,7 +1637,7 @@ function renderSpotEvidence(shell, row) {
     : "The current market snapshot is refreshing.");
   const inspectActions = append(inspect, "div", "discover-token-inspect-actions", "");
   const rowAnchor = shell.querySelector(".discover-token-row");
-  for (const [panel, label] of [["chart", "Chart"], ["activity", "Trades"], ["holders", "Holders"]]) {
+  for (const [panel, label] of [["chart", "Chart"], ["activity", "Txns"], ["holders", "Holders"]]) {
     const action = append(inspectActions, "a", "discover-token-inspect-action", label);
     action.dataset.discoverTerminalPanel = panel;
     action.setAttribute("aria-label", `Open ${text(row.symbol)} ${label.toLowerCase()} in Terminal`);
@@ -1727,7 +1727,7 @@ function renderSpotEvidence(shell, row) {
   } else {
     append(ravenSection, "p", "", factFreshness.current
       ? text(raven?.why_not_available, "No current read exists for this exact market yet.")
-      : "A current exact-pool quote is required before this read can be presented as actionable.");
+      : "Current quote required.");
   }
   const risks = rowRiskValues(row);
   append(body, "small", "discover-token-evidence-footer", [
@@ -1775,7 +1775,7 @@ function updateSpotTokenRow(anchor, row, index) {
   const announcedLabel = state.spotSort === "activity" ? "Activity strength" : state.spotSort === "raven" ? "Raven evidence" : "Velocity strength";
   anchor.setAttribute("aria-label", factFreshness.current
     ? `${text(row.symbol)} exact market in Terminal. ${state.spotSort === "raven" ? "Current Raven read." : scoreLabel(announcedScore, announcedLabel).replace("/99", " out of 99")}. ${text(discovery.sample_evidence?.label, "Sample unavailable")}.`
-    : `${text(row.symbol)} retained exact market. Current quote and ranking are refreshing. Last exact update ${spotMarketFactAgeLabel(row)}.`);
+    : `${text(row.symbol)} refreshing. Last update ${spotMarketFactAgeLabel(row)}.`);
   anchor.replaceChildren();
   configureSpotLink(anchor, row);
 
@@ -2027,13 +2027,14 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
       : emptyHeading);
     append(copy, "p", "", refreshing
       ? state.spotSort === "raven"
-        ? "New Raven token reads are temporarily delayed. Velocity and Activity remain available."
-        : "The latest exact-pool update is delayed. RavenOS will retry automatically."
+        ? "Raven reads delayed."
+        : "Exact-pool update delayed."
       : state.spotSort === "raven"
-        ? `No exact market currently shows a strong enough behavioral change${state.spotChain === "all" ? " for this view" : ` on ${spotChainLabel(state.spotChain)}`}. Raven keeps watching around the clock and will publish the next meaningful read automatically; Velocity and Activity remain available.`
+        ? `No qualified read${state.spotChain === "all" ? "" : ` on ${spotChainLabel(state.spotChain)}`}.`
       : state.spotLane === "opportunities"
-        ? "No exact market clears the current high-signal gate. Everything retains the broader radar without relabeling ordinary activity as an opportunity. Unavailable measurements were not treated as zero."
-        : `No exact market matches the current ${state.spotTimeframe}, lifecycle, and evidence filters. Unavailable measurements were not treated as zero.`);
+        ? "No high-signal market now."
+        : `No ${state.spotTimeframe} matches.`);
+    append(copy, "small", "", refreshing ? "Retrying automatically." : "Unavailable ≠ zero.");
     const actions = append(copy, "div", "discover-token-empty-actions", "");
     if (state.spotLane === "opportunities") {
       const everything = append(actions, "button", "", "Open everything");
@@ -2119,24 +2120,24 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const views = {
     velocity: {
       title: "Velocity radar",
-      summary: "Exact pools ranked by measured acceleration, flow alignment, liquidity, persistence, and chase risk.",
+      summary: "Exact pools, ranked now.",
       column: "Velocity ranking",
     },
     raven: {
       title: "Raven token reads",
-      summary: "Only exact pools Raven observed directly, with a timestamp and traceable market identity, appear here.",
+      summary: "Observed exact pools.",
       column: "Raven evidence",
     },
     activity: {
       title: "Activity acceleration",
-      summary: "Exact pools ranked by change in transaction rate, unique participation, volume, liquidity, and buy/sell flow—not raw activity alone.",
+      summary: "Participation + flow rank.",
       column: "Flow-quality ranking",
     },
   };
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
-    ? `High-signal exact pools only: at least 5% in 5m, 10% in 1h, 25% in 24h, a meaningful participation or lifecycle change, or exact Raven evidence. Selected-window moves rank first; important longer-window changes remain available below them. ${view.summary}`
+    ? `High signal only. ${view.summary}`
     : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
@@ -2370,7 +2371,7 @@ function applyFilter() {
   perpPulse.hidden = !["signals", "perpetual"].includes(active);
   opportunityLayout.dataset.side = perpPulse.hidden ? "hidden" : "visible";
   const streamCopy = {
-    signals: ["Raven", "Raven signals", "Evidence-ranked setups with secondary observations separated from the primary queue."],
+    signals: ["Raven", "Raven signals", "Ranked setups."],
     perpetual: ["Perpetuals", "Perp opportunities", "Raven setups beside the current Hyperliquid market tape."],
     equity: ["Atlas", "Listed-market context", "Exact stocks and ETFs with deeper research available in Atlas."],
   }[active] || ["Raven", "Current opportunities", "What changed, why it matters, and the market behind the read."];
@@ -2421,7 +2422,7 @@ function applyFilter() {
       ? "No active setups clear Raven's lifecycle gate"
       : active === "spot" ? "No spot movement meets the current filter" : "No current markets meet this filter");
     append(inner, "p", "", onlyHeldBack
-      ? "Watch-only, low-confidence, and invalidated reads stay below the live queue; they remain available for review."
+      ? "Secondary reads."
       : active === "spot"
         ? "Search any token or contract to inspect its exact supported markets."
         : "Try another market class or search for an exact instrument.");
@@ -2987,13 +2988,13 @@ async function refresh({ manual = false } = {}) {
       state.atlasRows = [];
       state.atlasContext = null;
       setState("discoverAtlasState", "delayed", "Refreshing");
-      atlasFailure = "Broader-market context is temporarily delayed. Crypto market views remain available.";
+      atlasFailure = "Atlas delayed.";
     }
   } else {
     state.atlasRows = [];
     state.atlasContext = null;
     setState("discoverAtlasState", "delayed", "Refreshing");
-    atlasFailure = "Broader-market context is temporarily delayed. Crypto market views remain available.";
+    atlasFailure = "Atlas delayed.";
   }
 
   renderDeskBrief({
@@ -3043,7 +3044,7 @@ async function refresh({ manual = false } = {}) {
       confidence: { label: "source bound" },
       evidenceQuality: { state: ravenRows.length ? "current" : "atlas_context", lineageComplete: true },
       freshness: { state: "live", observedAt: generatedAt },
-      nextExpectedTransition: "Open an exact market to inspect its available Raven and Atlas context.",
+      nextExpectedTransition: "Inspect exact market.",
     });
   } else if (tokenRows.length) {
     state.rows.clear();
@@ -3051,7 +3052,7 @@ async function refresh({ manual = false } = {}) {
     document.getElementById("discoverRowCount").textContent = tokenRows.length.toLocaleString();
     renderOpportunityState({
       heading: "No additional setups are current",
-      detail: "Current token movement remains available above. Historical Raven reads are not shown as current.",
+      detail: "Token movement remains current.",
     });
   } else {
     state.rows.clear();
@@ -3059,7 +3060,7 @@ async function refresh({ manual = false } = {}) {
     document.getElementById("discoverRowCount").textContent = "0";
     renderOpportunityState({
       heading: "No current opportunities can be shown",
-      detail: "Raven and Atlas did not return a current market read. Live venue activity may still be available.",
+      detail: "No current Raven or Atlas read.",
     });
   }
 

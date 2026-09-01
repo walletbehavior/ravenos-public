@@ -118,10 +118,80 @@ test("authenticated account desk renders profile and revocable session inventory
   await expect(page.locator(".account-session-row")).toHaveCount(2);
   await expect(page.getByText("Safari on macOS · This session")).toBeVisible();
   await expect(page.getByText("Chrome on Windows")).toBeVisible();
-  await expect(page.getByText("No wallets linked yet")).toBeVisible();
+  await expect(page.getByText("No wallet connected")).toBeVisible();
   await expect(page.locator(".account-dashboard-rail")).toContainText(/Signing[\s\S]*Disabled/);
   await expect(page.locator("#rosProfileTrigger")).toHaveText("R");
   await expect(page.locator("#rosProfileTrigger")).toHaveAttribute("data-account-state", "authenticated");
+});
+
+test("signed-in users can connect Solana or EVM addresses read only without signatures or persistence", async ({ page, baseURL }) => {
+  const solanaAddress = "Stake11111111111111111111111111111111111111";
+  const evmAddress = "0x1111111111111111111111111111111111111111";
+  await page.addInitScript(({ solanaAddress, evmAddress }) => {
+    globalThis.__ACCOUNT_WALLET_CALLS__ = [];
+    const publicKey = { toString: () => solanaAddress };
+    globalThis.phantom = {
+      solana: {
+        publicKey,
+        connect: async () => {
+          globalThis.__ACCOUNT_WALLET_CALLS__.push("solana:connect");
+          return { publicKey };
+        },
+        signMessage: async () => {
+          globalThis.__ACCOUNT_WALLET_CALLS__.push("solana:signMessage");
+          throw new Error("must_not_sign");
+        },
+      },
+    };
+    globalThis.ethereum = {
+      request: async ({ method }) => {
+        globalThis.__ACCOUNT_WALLET_CALLS__.push(`evm:${method}`);
+        return method === "eth_requestAccounts" ? [evmAddress] : [];
+      },
+    };
+  }, { solanaAddress, evmAddress });
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      authenticated: true,
+      account: { display_name: "Raven Trader", email: "raven@example.com" },
+      session: { session_public_id: "sespub_current", current: true, authentication_strength: "managed" },
+      csrf_token: "csrf_browser_fixture",
+      wallet_links: [],
+      wallet_linking_available: false,
+      execution_boundary: { signing_available: false, submission_available: false },
+    }),
+  }));
+  await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, csrf_token: "csrf_browser_fixture", sessions: [] }) }));
+  await page.route("**/api/v1/entitlements", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+  await page.route("**/api/v1/portfolio/preview", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+  await page.goto("/account/");
+
+  await page.getByRole("button", { name: "Solana", exact: true }).click();
+  await expect(page.locator("#accountWalletConnectionState")).toHaveText("Connected");
+  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("Stake11…11111");
+  await expect(page.locator("#accountWalletConnectStatus")).toHaveText("Phantom connected · no signature");
+  await expect(page.locator("#accountConnectSolana")).toHaveAttribute("data-connected", "true");
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("No wallet connected");
+  await page.getByRole("button", { name: "EVM", exact: true }).click();
+  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("0x11111…11111");
+  await expect(page.locator("#accountWalletConnectStatus")).toHaveText("EVM connected · no signature");
+
+  expect(await page.evaluate(() => globalThis.__ACCOUNT_WALLET_CALLS__)).toEqual(["solana:connect", "evm:eth_requestAccounts"]);
+  const persisted = await page.evaluate((addresses) => JSON.stringify({ ...localStorage, ...sessionStorage }).includes(addresses[0]) || JSON.stringify({ ...localStorage, ...sessionStorage }).includes(addresses[1]), [solanaAddress, evmAddress]);
+  expect(persisted).toBe(false);
+  expect(await page.evaluate(() => window.__RAVENOS_ACCOUNT__)).toMatchObject({
+    browserWalletConnectionAvailable: true,
+    walletConnectionScope: "public_address_observation_only",
+    walletConnectionPersisted: false,
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
 });
 
 test("account page has strict CSP and no cacheable authenticated HTML", async ({ page }) => {

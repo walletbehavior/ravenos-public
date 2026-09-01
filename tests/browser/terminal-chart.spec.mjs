@@ -836,7 +836,7 @@ test("verified exact-pool swaps advance the forming candle and headline price be
   expect(current.geometry?.loaded_bars).toBeGreaterThan(0);
 });
 
-test("mobile Chart keeps the exact-pool tape active without opening Trades", async ({ page }) => {
+test("mobile Chart keeps the exact-pool tape active without opening Txns", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.55, spotChartCurrent: true });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
@@ -919,12 +919,10 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalRiskFactors")).toContainText("Holder concentration watch");
   await expect(page.locator("#terminalRiskChecks")).toContainText("Low listed-developer balance");
   await expect(page.locator("#terminalRiskChecks")).toContainText("independent on-chain balance check");
-  await expect(page.locator("#terminalRiskScreen")).toContainText("not a scam verdict or rug probability");
+  await expect(page.locator("#terminalRiskScreen")).toContainText("Evidence check, not verdict.");
   await page.locator("#terminalHolderList > summary").click();
   expect(holderCalls).toHaveLength(1);
   await expect(page.locator("#terminalHolderListState")).toContainText("2 of 4.85K owners");
-  await expect(page.locator("#terminalHolderListNote")).toContainText("Complete current census");
-  await expect(page.locator("#terminalHolderListNote")).toContainText("4.86K token accounts grouped into 4.85K owners");
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
   await expect(page.locator("#terminalHolderListRows")).toContainText(/#1.*123\.457M.*12\.3%/s);
   await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
@@ -1103,7 +1101,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=holders");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Trade", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
   expect(new URL(page.url()).searchParams.get("panel")).toBe("holders");
@@ -1140,7 +1138,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await page.locator('[data-holder-filter="all"]').click();
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
   await expect(page.locator("#terminalHolderCheck")).not.toContainText(/smart money|whale/i);
-  await expect(page.locator("#terminalHolderCheck")).toContainText("bundle membership, and wallet-by-wallet balance changes are not inferred");
+  await expect(page.locator("#terminalHolderCheck")).toContainText("Exact pool excluded");
   await page.locator("#terminalProjectLinksTrigger").click();
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -1170,7 +1168,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   const { tradeCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Trades", "Holders", "Trade", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
   await expect.poll(() => tradeCalls.length).toBe(1);
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
@@ -1421,6 +1419,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Choose sell size");
   await page.locator("#terminalSpotWalletConnect").click();
   await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
+  await expect(page.locator("#terminalWalletConnect")).toHaveText("Disconnect view");
   await page.locator('[data-spot-sell-pct="25"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 USDC");
@@ -1444,6 +1443,38 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
     signingAvailable: false,
     submissionAvailable: false,
   });
+});
+
+test("spot chart exposes the top-level read-only wallet connection before opening the ticket", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__SOLANA_CONNECT_CALLS__ = 0;
+    window.__SOLANA_SIGN_CALLS__ = 0;
+    const publicKey = { toString: () => "Stake11111111111111111111111111111111111111" };
+    window.phantom = {
+      solana: {
+        publicKey,
+        connect: async () => {
+          window.__SOLANA_CONNECT_CALLS__ += 1;
+          return { publicKey };
+        },
+        signTransaction: async () => {
+          window.__SOLANA_SIGN_CALLS__ += 1;
+          throw new Error("signing_must_not_be_called");
+        },
+      },
+    };
+  });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  const connect = page.locator("#terminalWalletConnect");
+  await expect(connect).toBeVisible();
+  await connect.click();
+  await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
+  await expect(connect).toHaveText("Disconnect view");
+  expect(await page.evaluate(() => window.__SOLANA_CONNECT_CALLS__)).toBe(1);
+  expect(await page.evaluate(() => window.__SOLANA_SIGN_CALLS__)).toBe(0);
 });
 
 test("spot route expiry fails closed and cannot leave the quote rail complete", async ({ page }) => {
@@ -1648,7 +1679,7 @@ test("severe exact-market risk interrupts the chart and removes Raven action pro
   await page.locator("#terminalRiskInterruptReview").click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
-  await expect(page.locator("#terminalRiskScreen")).toContainText("not a scam verdict or rug probability");
+  await expect(page.locator("#terminalRiskScreen")).toContainText("Evidence check, not verdict.");
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalContextRiskGuard")).toBeVisible();
   await expect(page.locator("#terminalContextRiskGuard")).toContainText("Behavior observed; Raven plan paused");

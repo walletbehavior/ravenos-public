@@ -151,7 +151,7 @@ test("the quick guide and FAQ explain the customer workflow without release or e
   await expect(page.locator("body")).toContainText("Research only · Not financial advice");
   const guide = await visibleBodyText(page);
   expect(guide).toMatch(/Velocity.*Raven.*Activity/s);
-  expect(guide).toMatch(/Chart.*Trades.*Holders.*Raven/s);
+  expect(guide).toMatch(/Chart.*Txns.*Holders.*Raven/s);
   expect(guide).not.toMatch(/Current intelligence connected|Exact identity enforced|Signing and submission off|Public artifact verified|Tradier, then future brokers|provider path|implementation|projection contract/i);
 
   await page.goto("/faq/");
@@ -161,7 +161,7 @@ test("the quick guide and FAQ explain the customer workflow without release or e
 
   await page.goto("/");
   await expect(page.locator(".landing-footer")).toContainText("Not financial advice");
-  await expect(page.locator('.landing-footer a[href="/docs/"]')).toHaveText("Quick guide");
+  await expect(page.locator('.landing-footer a[href="/docs/"]')).toHaveText("Guide");
 });
 
 test("/opportunity/ renders current exact markets without engineering inventory", async ({ page }) => {
@@ -225,7 +225,7 @@ test("account status exposes the real activation gate without synthetic identity
   await expect(page.locator('script[src*="ravenos-access"]')).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal], [data-access-check]")).toHaveCount(0);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/public market intelligence while account access is restored/i);
+  expect(text).toMatch(/Public research remains available/i);
   expect(text).toMatch(/Signing in is not trading/i);
   expect(text).not.toMatch(/\$149|\$999|upgrade to pro|connect wallet to unlock|founder token balance/i);
 });
@@ -242,8 +242,8 @@ test("plans page presents the published tiers without activating checkout", asyn
   await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/Paid checkout and self-serve enrollment are not open yet/i);
-  expect(text).toMatch(/Research only · Not financial advice/i);
+  expect(text).toMatch(/Paid enrollment opens later/i);
+  expect(text).toMatch(/Research only\. Not financial advice/i);
   expect(text).not.toMatch(/buy pro|start monthly|start annual|token threshold|activation gate|projection contract|operator grant/i);
 });
 
@@ -357,11 +357,11 @@ test("/atlas/ explains an outage without inventing unsupported research", async 
   }));
   await page.goto("/atlas/");
   await expect(page.locator("h1")).toContainText(/one market, resolved in context/i);
-  await expect(page.locator("main")).toContainText(/Follow the issuer behind the move/i);
+  await expect(page.locator("main")).toContainText(/Issuer context/i);
   const body = await visibleBodyText(page);
   expect(body).not.toMatch(/Company events|Broker execution|Not projected/i);
   expect(body).not.toMatch(/bounded market frame|catalog-only|hydrates on selection/i);
-  expect(body).toMatch(/Follow the issuer behind the move/i);
+  expect(body).toMatch(/Issuer context/i);
   expect(body).not.toMatch(/Market pulse unavailable/i);
   expect(body).not.toMatch(/Use Atlas as a regime router|placeholder company|sample options chain/i);
 });

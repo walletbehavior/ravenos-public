@@ -24,12 +24,12 @@
       <div>
         <span class="monitor-kicker">Saved markets</span>
         <h1>Your exact markets,<br />right where you left them.</h1>
-        <p>Save an exact token pool or market with the chart setup you use. Reopen the same market on any signed-in device—RavenOS never swaps it for a similarly named one.</p>
+        <p>Save exact markets across devices.</p>
       </div>
       <aside class="monitor-boundary">
         <span>Private by default</span>
         <strong>You stay in control</strong>
-        <p>Only the market identity and chart settings you choose are saved. Saving a market never connects a wallet or places a trade.</p>
+        <p>Market + chart settings only. No trades.</p>
       </aside>
     </header>
 
@@ -37,7 +37,7 @@
       <div>
         <span class="monitor-kicker">Sign in required</span>
         <h2>Continue to your saved markets.</h2>
-        <p>Sign in to sync your saved markets and chart setups across your devices.</p>
+        <p>Sign in to sync.</p>
       </div>
       <div class="monitor-auth-actions" id="monitorAuthActions" hidden>
         <form data-monitor-auth="google">
@@ -52,9 +52,9 @@
           <input type="hidden" name="return_to" value="/monitor/" />
           <button type="submit"><span>R</span><strong>Email, password, or code</strong><span aria-hidden="true">→</span></button>
         </form>
-        <p id="monitorAuthStatus" aria-live="polite">Signing in here does not connect a wallet.</p>
+        <p id="monitorAuthStatus" aria-live="polite">No wallet connection.</p>
       </div>
-      <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>Sign-in for saved markets is temporarily unavailable. You can keep using Discover and Terminal while we restore it.</p>
+      <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>Sign-in unavailable.</p>
     </section>
 
     <section class="monitor-workspace" id="monitorWorkspace" hidden>
@@ -69,7 +69,7 @@
           <div><span>Panel</span><strong id="monitorPendingPanel"></strong></div>
         </div>
         <footer>
-          <p id="monitorPendingMessage">RavenOS will confirm this exact market and chart setup before saving.</p>
+          <p id="monitorPendingMessage">Confirming exact market…</p>
           <button id="monitorSave" type="button">Save exact market</button>
           <button id="monitorUnwatch" class="secondary" type="button" hidden>Remove saved market</button>
         </footer>
@@ -90,7 +90,6 @@
         </header>
         <div class="monitor-alert-boundary" id="monitorAlertBoundary">
           <strong>Meaningful changes, not constant noise</strong>
-          <p>When Raven alerts are available, they appear here with what changed and a direct link back to the exact market.</p>
         </div>
         <div class="monitor-notifications" id="monitorNotifications"></div>
       </section>
@@ -100,7 +99,7 @@
       <form method="dialog">
         <span class="monitor-kicker">Can’t be undone</span>
         <h2 id="monitorDeleteTitle">Delete all saved markets?</h2>
-        <p>This removes every saved market and chart setup from your RavenOS account. Your account and public market data are unchanged.</p>
+        <p>Deletes all saved markets and chart settings.</p>
         <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAllConfirm" class="danger" value="confirm" type="button">Delete saved markets</button></div>
       </form>
     </dialog>
@@ -109,7 +108,7 @@
       <form method="dialog">
         <span class="monitor-kicker">Can’t be undone</span>
         <h2 id="monitorAlertDeleteTitle">Delete all Raven alerts?</h2>
-        <p>This removes every alert and notification from this account. Saved markets and chart setups remain.</p>
+        <p>Deletes alerts only.</p>
         <div><button value="cancel" type="submit">Cancel</button><button id="monitorDeleteAlertStateConfirm" class="danger" value="confirm" type="button">Delete alerts</button></div>
       </form>
     </dialog>

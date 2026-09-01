@@ -364,7 +364,7 @@ function marketFrameSummary(projection) {
   ].filter(Boolean);
   return parts.length
     ? `${parts.join(", ")}.`
-    : "Atlas is waiting for enough verified public data to call risk-on or risk-off. It does not substitute a proxy score.";
+    : "Verified data forming. No proxy score.";
 }
 
 function marketReturn(value) {
@@ -427,14 +427,14 @@ function renderBreadthPresentation(host) {
   const head = append(section, "header", "workspace-section-head");
   const copy = append(head, "div");
   append(copy, "span", "workspace-label", "Equity participation");
-  append(copy, "h2", "", "See where participation is broad or narrow");
-  append(copy, "p", "", "A TradingView S&P 500 heatmap provides visual breadth context while Atlas's own quantified breadth assessment remains in development.");
+  append(copy, "h2", "", "Market breadth");
+  append(copy, "p", "", "TradingView heatmap.");
   const badge = append(head, "span", "atlas-breadth-badge", "TradingView presentation");
   const frameHost = append(section, "div", "atlas-breadth-host");
   const mounted = mountTradingViewBreadth(frameHost);
   if (!mounted) {
     frameHost.replaceChildren();
-    stateNode(frameHost, "Breadth view unavailable", "The TradingView presentation could not be mounted. Atlas did not create a replacement score.");
+    stateNode(frameHost, "Breadth unavailable", "No replacement score.");
   }
   const footer = append(section, "footer", "atlas-breadth-meta");
   append(footer, "span", "", "Visual context only · not an Atlas-derived breadth score");
@@ -442,7 +442,7 @@ function renderBreadthPresentation(host) {
   link.href = "https://www.tradingview.com/heatmap/stock/";
   link.target = "_blank";
   link.rel = "noopener nofollow";
-  append(footer, "small", "", "Displayed inside TradingView's isolated frame; values are not copied into RavenOS.");
+  append(footer, "small", "", "External frame.");
 }
 
 function featuredValue(row) {
@@ -458,8 +458,7 @@ function renderFeatured(host, featured) {
   const head = append(shell, "header", "workspace-section-head");
   const copy = append(head, "div");
   append(copy, "span", "workspace-label", "Market map");
-  append(copy, "h2", "", "Explore the broader market");
-  append(copy, "p", "", "Open a market for its chart, events, options, filings, and cross-market context.");
+  append(copy, "h2", "", "Market map");
   const nav = append(shell, "div", "atlas-section-tabs");
   nav.setAttribute("role", "tablist");
   const board = append(shell, "div", "atlas-pulse-board");
@@ -505,8 +504,8 @@ function renderAtlasRoadmap(host) {
   const section = append(host, "section", "atlas-roadmap");
   const copy = append(section, "div");
   append(copy, "span", "workspace-label", "Atlas Pro roadmap");
-  append(copy, "h2", "", "Deeper intelligence when the data rights are ready");
-  append(copy, "p", "", "Planned paid capabilities include Raven-native breadth, true filing marks on Raven charts, richer filing comparisons, and portfolio-aware research.");
+  append(copy, "h2", "", "Pro roadmap");
+  append(copy, "p", "", "Native breadth + filing overlays.");
   const state = append(section, "span", "atlas-roadmap-state", "Planned · not yet available");
   state.dataset.state = "forming";
 }
@@ -517,7 +516,7 @@ function renderLanding() {
   state.entity = null;
   setHeader({
     title: "One market, resolved in context.",
-    summary: "Search markets, rates, energy, companies, options, and filings from one research desk.",
+    summary: "Markets, macro, filings.",
   });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
@@ -527,8 +526,8 @@ function renderLanding() {
   const sec = append(host, "section", "atlas-sec-entry");
   const secCopy = append(sec, "div");
   append(secCopy, "span", "workspace-label", "SEC context");
-  append(secCopy, "h2", "", "Follow the issuer behind the move");
-  append(secCopy, "p", "", "Search a company, ticker, or CIK to inspect recent filings and reported insider activity. Filing time and transaction time remain separate.");
+  append(secCopy, "h2", "", "Issuer context");
+  append(secCopy, "p", "", "Filings + Form 4.");
   const trigger = append(sec, "button", "workspace-secondary-action", "Search SEC issuers");
   trigger.type = "button";
   trigger.addEventListener("click", () => {
@@ -649,7 +648,7 @@ function renderChartResearchNav(host, payload) {
   const copy = append(head, "div");
   append(copy, "span", "workspace-label", "Chart intelligence");
   append(copy, "strong", "", "Research this move");
-  append(head, "small", "", "Jump from price structure to source evidence for this exact instrument.");
+  append(head, "small", "", "Price → source evidence.");
   const links = append(rail, "div", "atlas-chart-research-links");
   for (const action of actions) {
     const button = append(links, "button", "", "");
@@ -687,7 +686,7 @@ function drawChartFilingEvents(host, rows, payload) {
   if (!sorted.length) {
     const empty = append(host, "div", "atlas-filing-event-empty");
     append(empty, "strong", "", "No recent filing events returned");
-    append(empty, "span", "", "Atlas did not infer an event or substitute another issuer.");
+    append(empty, "span", "", "No substitute issuer.");
     return;
   }
   const track = append(host, "div", "atlas-filing-event-track");
@@ -720,7 +719,7 @@ function renderChartFilingRail(host, payload) {
   const copy = append(head, "div");
   append(copy, "span", "workspace-label", "SEC filing events");
   append(copy, "strong", "", `What was filed around ${payload.entity.symbol}`);
-  append(head, "small", "", "Chronological event rail · not plotted to TradingView's time axis");
+  append(head, "small", "", "Chronological · separate axis");
   const body = append(section, "div", "atlas-filing-event-body");
   const cached = state.filingRailCache.get(payload.entity.entity_id);
   if (cached) {
@@ -729,7 +728,7 @@ function renderChartFilingRail(host, payload) {
   }
   const loading = append(body, "div", "atlas-filing-event-empty");
   append(loading, "strong", "", "Checking recent SEC filings");
-  append(loading, "span", "", "Exact issuer only; no filing content is being summarized.");
+  append(loading, "span", "", "Exact issuer only.");
   clearFilingRailRequest();
   const controller = new AbortController();
   state.filingRailController = controller;

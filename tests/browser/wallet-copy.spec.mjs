@@ -567,7 +567,7 @@ test("signed-out and unentitled visitors receive an honest private-workspace bou
   await privatePage.goto("/account/copy/");
   await expect(privatePage.locator(".copy-page")).toHaveAttribute("data-copy-state", "unavailable");
   await expect(privatePage.getByRole("heading", { name: "Raven Copy is not open for this account yet." })).toBeVisible();
-  await expect(privatePage.getByText("Raven Copy is part of RavenOS Pro and is not enabled for this account.")).toBeVisible();
+  await expect(privatePage.getByText("Raven Copy requires Pro access.")).toBeVisible();
 });
 
 test("Pro user inspects source evidence, saves a private policy, and establishes a non-executable baseline", async ({ page }) => {
@@ -586,7 +586,7 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await expect(page.getByText("Transfer In")).toBeVisible();
   await page.getByRole("button", { name: "Shadow this wallet" }).click();
   await page.getByRole("button", { name: "Start shadowing" }).click();
-  await expect(page.getByRole("heading", { name: "Wallets you are shadowing" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shadowed wallets" })).toBeVisible();
   await expect(page.getByText("First check needed")).toBeVisible();
   await expect(page.locator(".copy-card img, .copy-card script")).toHaveCount(0);
   expect(await page.evaluate(() => window.__copyExecuted === true)).toBe(false);
@@ -611,7 +611,7 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find reconstructable edge." })).toBeVisible();
   await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
   await expect(page.getByText(/Watch: Only 71.4% of observed trade cost basis is known/)).toBeVisible();
   await expect(page.getByText("Follower $100", { exact: true })).toBeVisible();
@@ -640,25 +640,24 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.locator("#copyFollowerHeadline")).toHaveText("24 wallet trades · 120 exact follower routes · 18 +1h outcomes");
   await expect(page.locator("#copyPlaybookState")).toHaveText("Size-sensitive");
   await expect(page.locator("#copyPlaybookHeadline")).toHaveText("Routes weaken above $500");
-  await expect(page.locator("#copyPlaybookSummary")).toContainText("66.67% of $100 routes passed policy");
+  await expect(page.locator("#copyPlaybookSummary")).toContainText("66.67% pass · 24 buys · $100");
   await expect(page.locator("#copyPlaybookSize")).toHaveText("$25–$500 majority-pass");
   await expect(page.locator("#copyPlaybookMarket")).toHaveText("$200K–$750K cap");
   await expect(page.locator("#copyPlaybookPersistence")).toHaveText("83.33% still routable");
   await expect(page.locator("#copyPlaybookConstraint")).toHaveText("Reverse Exit Unavailable");
-  await expect(page.locator("#copyPlaybook")).toContainText("not financial advice or a position-size recommendation");
+  await expect(page.locator("#copyPlaybook")).toContainText("Not financial advice");
   await expect(page.locator("#copyFollowerMetrics").getByText("Route still available · +1h", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerMetrics").getByText("+4.82%", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerMetrics").getByText("58.40%", { exact: true })).toBeVisible();
   await expect(page.locator("#copyCapacityRail").getByText("24 routes · 18 +1h", { exact: true }).first()).toBeVisible();
   await expect(page.locator("#copyRefusalLabel")).toHaveText("Leading blocker · $100");
   await expect(page.locator("#copyRefusalHeadline")).toHaveText("Reverse Exit Unavailable");
-  await expect(page.locator("#copyRefusalDetail")).toContainText("5 of 24 prospective routes");
+  await expect(page.locator("#copyRefusalDetail")).toContainText("5/24 routes");
   await expect(page.locator("#copySizeStressHeadline")).toHaveText("Majority drops at $1,000");
-  await expect(page.locator("#copySizeStressDetail")).toContainText("24/24 signals tested at all five sizes");
-  await expect(page.locator("#copySizeStressDetail")).toContainText("not a simultaneous-follower fill promise");
+  await expect(page.locator("#copySizeStressDetail")).toContainText("24/24 signals · five sizes · isolated quotes");
   await expect(page.locator("#copyCrowdingStressHeadline")).toHaveText("71% held under load");
-  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("24 privacy-qualified signals");
-  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("no allocation or fill promise");
+  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("24 signals");
+  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("demand private");
   await expect(page.locator("#copyMarketFit").getByText("Where the route survives", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$200K–$750K", { exact: true })).toBeVisible();
   await expect(page.locator("#copyMarketFit").getByText("$100K–$500K", { exact: true })).toBeVisible();
@@ -673,7 +672,7 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await page.getByLabel("Wallet activity filter").selectOption("unresolved");
   await expect(page.locator("#copyEventCount")).toHaveText("1 of 1 retained");
   await expect(page.getByText("Ambiguous", { exact: true })).toBeVisible();
-  await expect(page.getByText("End of the retained Raven index for this filter. This is not a lifetime-history claim.")).toBeVisible();
+  await expect(page.getByText("End of retained index.")).toBeVisible();
   await expect(page.getByRole("link", { name: /View transaction/ })).toHaveAttribute("href", /solscan\.io\/tx\//);
   await captureVisual(page, "wallet-intelligence-profile-desktop-1440");
   const detailRequest = shared.requests.find((row) => row.path === `/api/v1/wallet-copy/wallets/${SOURCE_ID}`);
@@ -694,8 +693,8 @@ test("wallet screener switches to a bounded Robinhood index without turning unav
   await page.goto("/account/copy/");
   await page.getByRole("button", { name: "Robinhood", exact: true }).click();
   await expect(page.locator("#copyScreenerCount")).toHaveText("0 indexed");
-  await expect(page.locator("#copyScreenerStatus")).toContainText("will not pad the new chain index with guessed performance");
-  await expect(page.getByText("Unobserved wallets and unavailable metrics are not converted into zeroes.")).toBeVisible();
+  await expect(page.locator("#copyScreenerStatus")).toContainText("No indexed Robinhood match.");
+  await expect(page.getByText("Index forming. Unavailable ≠ zero.")).toBeVisible();
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "robinhood", network: "mainnet" });
   expect(new URL(page.url()).searchParams.get("chain")).toBe("robinhood");
@@ -706,7 +705,7 @@ test("mobile wallet screener keeps filters, source evidence, and analysis contro
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find reconstructable edge." })).toBeVisible();
   await page.getByLabel("Sort").selectOption("trade_count_desc");
   await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page.getByRole("button", { name: "Open analysis" })).toBeVisible();
@@ -731,7 +730,7 @@ test("wallet handoff pre-fills and inspects the exact public address after Pro a
   await install(page, shared);
   await page.goto(`/account/copy/?wallet=${WALLET}`);
   await expect(page.getByLabel("Paste an address")).toHaveValue(WALLET);
-  await expect(page.getByText("Analysis ready. Review the wallet’s results before starting a shadow test.")).toBeVisible();
+  await expect(page.getByText("Analysis ready.")).toBeVisible();
   const inspectRequest = shared.requests.find((row) => row.path.endsWith("/inspect"));
   expect(JSON.parse(inspectRequest.body).address).toBe(WALLET);
 });
@@ -764,6 +763,6 @@ test("mobile shadow feed keeps refusals visible, separates positions, and never 
     .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));
   expect(overflow).toEqual([]);
   expect(await page.evaluate(() => window.__copyExecuted === true)).toBe(false);
-  await expect(page.locator(".copy-boundary").getByText("Not enabled", { exact: true })).toBeVisible();
+  await expect(page.locator(".copy-boundary").getByText("Disabled", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /start live|copy now|execute/i })).toHaveCount(0);
 });
