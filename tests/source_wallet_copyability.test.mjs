@@ -16,8 +16,10 @@ import {
 } from "../lib/customer_trade/wallet_copy.mjs";
 import {
   SOURCE_WALLET_DETECTION_MARKET_CONTEXT_SCHEMA,
+  SOURCE_WALLET_COPY_PLAYBOOK_SCHEMA,
   SOURCE_WALLET_COPYABILITY_OBSERVATION_SCHEMA,
   buildSourceWalletCopyabilityMatrix,
+  buildSourceWalletCopyPlaybook,
   createSourceWalletCopyabilityObservation,
   createSourceWalletCopyabilityPolicy,
   createSourceWalletCopyabilityPolicyReference,
@@ -244,6 +246,16 @@ test("copyability scores form independently at each follower order size", () => 
         source_event: event,
         policy,
         ...quoteEvidence(size, String(signal)),
+        market_context: {
+          token_mint: TOKEN,
+          observed_at: new Date(NOW).toISOString(),
+          provider: "dexscreener",
+          pair_address: PAIR_A,
+          venue: "raydium",
+          liquidity_usd: 125_000,
+          market_cap_usd: 650_000,
+          pair_age_seconds: 7_200,
+        },
       }, { now: NOW }));
     }
   }
@@ -267,6 +279,17 @@ test("copyability scores form independently at each follower order size", () => 
   assert.equal(matrix.size_stress.concurrent_follower_demand_measured, false);
   assert.equal(matrix.size_stress.liquidity_capacity_claimed, false);
   assert.ok(matrix.size_stress.by_size.every((row) => row.median_entry_price_impact_bps === 25));
+  assert.equal(matrix.copy_playbook.schema_version, SOURCE_WALLET_COPY_PLAYBOOK_SCHEMA);
+  assert.equal(matrix.copy_playbook.state, "available");
+  assert.equal(matrix.copy_playbook.headline_code, "ROUTES_SURVIVE_THROUGH_LARGEST_TESTED");
+  assert.equal(matrix.copy_playbook.size_window.largest_contiguous_majority_pass_size_usdc, 5_000);
+  assert.equal(matrix.copy_playbook.size_window.position_size_recommendation, false);
+  assert.equal(matrix.copy_playbook.strongest_observed_market_fit.dimension, "liquidity_usd");
+  assert.equal(matrix.copy_playbook.strongest_observed_market_fit.bucket_label, "$100K–$500K");
+  assert.equal(matrix.copy_playbook.route_persistence.state, "insufficient_evidence");
+  assert.equal(matrix.copy_playbook.leading_constraint.state, "none_observed");
+  assert.equal(matrix.copy_playbook.financial_advice, false);
+  assert.equal(matrix.copy_playbook.execution_boundary.live_copy, false);
   assert.equal(matrix.historical_estimates_included, false);
   assert.equal(matrix.source_performance_used_as_follower_performance, false);
   assert.equal(matrix.unavailable_decisions_dropped, false);
@@ -294,6 +317,76 @@ test("route-size stress identifies where exact follower quotes stop passing poli
   assert.equal(matrix.size_stress.by_size.find((row) => row.order_size_usdc === 1_000).median_entry_price_impact_bps, 600);
   assert.equal(matrix.size_stress.batched_execution_assumed, false);
   assert.equal(matrix.size_stress.isolated_quotes_presented_as_concurrent_fills, false);
+  assert.equal(matrix.copy_playbook.state, "available");
+  assert.equal(matrix.copy_playbook.headline_code, "ROUTES_WEAKEN_ABOVE_SIZE");
+  assert.equal(matrix.copy_playbook.size_window.largest_contiguous_majority_pass_size_usdc, 500);
+  assert.equal(matrix.copy_playbook.size_window.first_below_majority_size_usdc, 1_000);
+  assert.equal(matrix.copy_playbook.size_window.isolated_exact_route_quotes_only, true);
+  assert.equal(matrix.copy_playbook.leading_constraint.scope, "first_below_majority_size_exact_routes");
+  assert.equal(matrix.copy_playbook.leading_constraint.order_size_usdc, 1_000);
+  assert.equal(matrix.copy_playbook.leading_constraint.reason_code, "price_impact_exceeds_policy");
+});
+
+test("copy playbook combines route persistence and privacy-qualified constraints without making an execution recommendation", () => {
+  const playbook = buildSourceWalletCopyPlaybook({
+    prospective_signal_count: 24,
+    snapshot: {
+      prospective_sample_count: 24,
+      components: { policy_pass_pct: 66.67 },
+      dominant_refusal: null,
+    },
+    by_size: RavenCopyStandardOrderSizesUsdc.map((size) => ({
+      order_size_usdc: size,
+      prospective_sample_count: 24,
+      components: { policy_pass_pct: size <= 500 ? 66.67 : 41.67 },
+    })),
+    size_stress: {
+      state: "size_sensitive",
+      largest_contiguous_size_with_majority_policy_pass_usdc: 500,
+      first_qualified_size_below_majority_policy_pass_usdc: 1_000,
+    },
+    market_regimes: {
+      strongest_observed_policy_fit: {
+        dimension: "market_cap_usd",
+        dimension_label: "Detected market cap",
+        bucket_id: "200k_750k",
+        bucket_label: "$200K–$750K",
+        prospective_sample_count: 24,
+        policy_pass_pct: 70.83,
+        dominant_refusal: null,
+      },
+      dimensions: [{ context_observation_count: 24 }],
+    },
+    prospective_outcomes: {
+      reference: {
+        order_size_usdc: 100,
+        horizon_seconds: 3_600,
+        checkpoint_count: 18,
+        route_persistence_pct: 83.33,
+        median_follower_return_pct: 4.82,
+        follower_capture_sample_count: 11,
+        median_follower_capture_ratio_pct: 58.4,
+      },
+    },
+    crowding: {
+      dominant_constraint: {
+        reason_code: "round_trip_friction_exceeds_policy",
+        signal_count: 5,
+        pct_of_eligible_signals: 20.83,
+      },
+    },
+  });
+  assert.equal(playbook.state, "available");
+  assert.equal(playbook.headline_code, "ROUTES_WEAKEN_ABOVE_SIZE");
+  assert.equal(playbook.strongest_observed_market_fit.bucket_label, "$200K–$750K");
+  assert.equal(playbook.route_persistence.state, "forming");
+  assert.equal(playbook.route_persistence.route_persistence_pct, 83.33);
+  assert.equal(playbook.leading_constraint.scope, "privacy_qualified_aggregate_route_stress");
+  assert.equal(playbook.leading_constraint.reason_code, "round_trip_friction_exceeds_policy");
+  assert.equal(playbook.size_window.position_size_recommendation, false);
+  assert.equal(playbook.financial_advice, false);
+  assert.equal(playbook.execution_boundary.signing, false);
+  assert.equal(playbook.execution_boundary.transaction_hash, null);
 });
 
 test("detection-time market context is counted once per source signal, not once per follower size", () => {

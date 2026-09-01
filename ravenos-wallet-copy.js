@@ -310,8 +310,103 @@ function renderFollowerReality() {
   const sizeStress = shared?.size_stress || null;
   const crowding = shared?.crowding || null;
   const marketRegimes = shared?.market_regimes || null;
+  const playbook = shared?.copy_playbook || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
+  const playbookNode = document.getElementById("copyPlaybook");
+  playbookNode.hidden = !playbook;
+  if (playbook) {
+    const sizeWindow = playbook.size_window || {};
+    const marketFit = playbook.strongest_observed_market_fit || {};
+    const persistence = playbook.route_persistence || {};
+    const constraint = playbook.leading_constraint || {};
+    const code = String(playbook.headline_code || "NEEDS_MORE_ROUTE_SAMPLES");
+    const majoritySize = Number(sizeWindow.largest_contiguous_majority_pass_size_usdc);
+    const firstWeakSize = Number(sizeWindow.first_below_majority_size_usdc);
+    const smallestSize = Number(sizeWindow.smallest_sampled_size_usdc);
+    const status = playbook.state === "constrained"
+      ? "Constrained"
+      : playbook.state === "available"
+        ? code === "ROUTES_WEAKEN_ABOVE_SIZE"
+          ? "Size-sensitive"
+          : code === "ROUTE_EVIDENCE_MIXED"
+            ? "Mixed evidence"
+            : "Observed fit"
+        : playbook.state === "forming"
+          ? "Evidence forming"
+          : "No sample";
+    const headline = code === "ROUTES_WEAKEN_ABOVE_SIZE"
+      ? `Routes weaken above ${money(majoritySize).replace(".00", "")}`
+      : code === "CONSTRAINED_AT_SMALLEST_TESTED"
+        ? `Even ${money(firstWeakSize || smallestSize).replace(".00", "")} misses most policy checks`
+        : code === "ROUTE_EVIDENCE_MIXED"
+          ? "Route quality changes unevenly with size"
+          : code === "ROUTES_SURVIVE_THROUGH_LARGEST_TESTED"
+            ? `Routes held through ${money(majoritySize).replace(".00", "")}`
+            : code === "NO_PROSPECTIVE_EVIDENCE"
+              ? "No prospective routes yet"
+              : "More route samples needed";
+    const referencePass = playbook.reference_policy_pass_pct === null || playbook.reference_policy_pass_pct === undefined
+      ? null
+      : Number(playbook.reference_policy_pass_pct);
+    setText("copyPlaybookState", status);
+    setText("copyPlaybookHeadline", headline);
+    setText("copyPlaybookSummary", Number.isFinite(referencePass)
+      ? `${pct(referencePass)} of ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")} routes passed policy across ${playbook.prospective_signal_count || 0} observed wallet buys.`
+      : `${playbook.prospective_signal_count || 0} wallet buys tested. A pattern requires ${playbook.minimum_prospective_sample_count || 20} observations per size.`);
+
+    if (Number.isFinite(majoritySize) && majoritySize > 0) {
+      const range = Number.isFinite(smallestSize) && smallestSize > 0 && smallestSize !== majoritySize
+        ? `${money(smallestSize).replace(".00", "")}–${money(majoritySize).replace(".00", "")}`
+        : money(majoritySize).replace(".00", "");
+      setText("copyPlaybookSize", `${range} majority-pass`);
+      setText("copyPlaybookSizeDetail", Number.isFinite(firstWeakSize) && firstWeakSize > 0
+        ? `${money(firstWeakSize).replace(".00", "")} fell to ${pct(sizeWindow.policy_pass_pct_at_first_below_majority_size)}. Exact isolated quotes.`
+        : `${pct(sizeWindow.policy_pass_pct_at_largest_majority_size)} passed at the upper tested size. Exact isolated quotes.`);
+    } else {
+      setText("copyPlaybookSize", playbook.state === "forming" ? "Threshold forming" : "No majority-pass size");
+      setText("copyPlaybookSizeDetail", `${sizeWindow.evidence_qualified_size_count || 0} of 5 sizes have enough prospective evidence.`);
+    }
+
+    if (marketFit.state === "available") {
+      const marketSuffix = marketFit.dimension === "market_cap_usd"
+        ? " cap"
+        : marketFit.dimension === "liquidity_usd"
+          ? " liquidity"
+          : " pair age";
+      setText("copyPlaybookMarket", `${marketFit.bucket_label}${marketSuffix}`);
+      setText("copyPlaybookMarketDetail", `${pct(marketFit.policy_pass_pct)} passed · ${marketFit.prospective_sample_count || 0} signals at ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}.`);
+    } else {
+      setText("copyPlaybookMarket", marketFit.state === "forming" ? "Segment evidence forming" : "Not sampled");
+      setText("copyPlaybookMarketDetail", `A segment needs ${playbook.minimum_prospective_sample_count || 20} prospective signals before it is surfaced.`);
+    }
+
+    if (Number(persistence.checkpoint_count || 0) > 0 && Number.isFinite(Number(persistence.route_persistence_pct))) {
+      setText("copyPlaybookPersistence", `${pct(persistence.route_persistence_pct)} still routable`);
+      const followerReturn = persistence.median_follower_return_pct !== null
+        && persistence.median_follower_return_pct !== undefined
+        && Number.isFinite(Number(persistence.median_follower_return_pct))
+        ? ` · median ${signedPct(persistence.median_follower_return_pct)}`
+        : "";
+      setText("copyPlaybookPersistenceDetail", `${persistence.checkpoint_count} exact-quantity checks${followerReturn}${persistence.state === "forming" ? " · forming" : ""}.`);
+    } else {
+      setText("copyPlaybookPersistence", "Not sampled");
+      setText("copyPlaybookPersistenceDetail", "The +1h reverse route has not been serviced yet.");
+    }
+
+    if (constraint.state === "observed" && constraint.reason_code) {
+      setText("copyPlaybookConstraint", readable(constraint.reason_code));
+      const constraintPct = constraint.pct_of_signals === null || constraint.pct_of_signals === undefined
+        ? null
+        : Number(constraint.pct_of_signals);
+      const constraintSize = Number(constraint.order_size_usdc);
+      setText("copyPlaybookConstraintDetail", `${constraint.observation_count || 0} observations${Number.isFinite(constraintSize) && constraintSize > 0 ? ` at ${money(constraintSize).replace(".00", "")}` : ""}${Number.isFinite(constraintPct) ? ` · ${pct(constraintPct)} of signals` : ""}. Refusals remain in the sample.`);
+    } else {
+      setText("copyPlaybookConstraint", constraint.state === "insufficient_evidence" ? "Not sampled" : "No dominant blocker");
+      setText("copyPlaybookConstraintDetail", "No refusal category currently dominates the retained evidence.");
+    }
+    playbookNode.dataset.playbookState = playbook.state;
+  }
   setText("copyFollowerHeadline", sharedAvailable
     ? `${Number(shared.prospective_signal_count || 0)} wallet trade${Number(shared.prospective_signal_count || 0) === 1 ? "" : "s"} · ${Number(shared.probe_observation_count || 0)} exact follower routes${Number(outcomeReference?.checkpoint_count || 0) ? ` · ${Number(outcomeReference.checkpoint_count)} +1h outcomes` : ""}`
     : overall?.prospective_sample_count

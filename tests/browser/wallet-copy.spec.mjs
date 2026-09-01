@@ -189,7 +189,7 @@ function prospectiveCopyability() {
       state: "forming",
       score: null,
       prospective_sample_count: 24,
-      components: { policy_pass_pct: size <= 100 ? 66.67 : 54.17 },
+      components: { policy_pass_pct: size <= 500 ? 66.67 : 41.67 },
     })),
     copy_diagnosis: {
       state: "available",
@@ -247,6 +247,57 @@ function prospectiveCopyability() {
         median_follower_capture_ratio_pct: 58.4,
       },
       by_size: sizes.map((size) => ({ order_size_usdc: size, horizon_seconds: 3_600, checkpoint_count: 18 })),
+    },
+    copy_playbook: {
+      schema_version: "ravenos.source_wallet_copy_playbook.v1",
+      playbook_version: 1,
+      state: "available",
+      headline_code: "ROUTES_WEAKEN_ABOVE_SIZE",
+      prospective_signal_count: 24,
+      minimum_prospective_sample_count: 20,
+      reference_order_size_usdc: 100,
+      reference_policy_pass_pct: 66.67,
+      size_window: {
+        state: "size_sensitive",
+        smallest_sampled_size_usdc: 25,
+        largest_sampled_size_usdc: 5_000,
+        evidence_qualified_size_count: 5,
+        largest_contiguous_majority_pass_size_usdc: 500,
+        policy_pass_pct_at_largest_majority_size: 66.67,
+        first_below_majority_size_usdc: 1_000,
+        policy_pass_pct_at_first_below_majority_size: 41.67,
+        isolated_exact_route_quotes_only: true,
+        position_size_recommendation: false,
+      },
+      strongest_observed_market_fit: {
+        state: "available",
+        dimension: "market_cap_usd",
+        dimension_label: "Detected market cap",
+        bucket_id: "200k_750k",
+        bucket_label: "$200K–$750K",
+        prospective_sample_count: 24,
+        policy_pass_pct: 70.83,
+        dominant_refusal: null,
+      },
+      route_persistence: {
+        state: "forming",
+        order_size_usdc: 100,
+        horizon_seconds: 3_600,
+        checkpoint_count: 18,
+        route_persistence_pct: 83.33,
+        median_follower_return_pct: 4.82,
+        follower_capture_sample_count: 11,
+        median_follower_capture_ratio_pct: 58.4,
+      },
+      leading_constraint: {
+        state: "observed",
+        scope: "reference_order_exact_routes",
+        reason_code: "reverse_exit_unavailable",
+        observation_count: 5,
+        pct_of_signals: 20.83,
+      },
+      financial_advice: false,
+      execution_boundary: { research_summary_only: true, live_copy: false, signing: false, broadcasting: false, custody: false, fee_collection: false, transaction_hash: null },
     },
     detection_market_context: {
       context_observation_count: 24,
@@ -585,6 +636,14 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.getByText("How much Raven knows", { exact: true })).toBeVisible();
   await expect(page.getByText("Last observed, never implied current", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerHeadline")).toHaveText("24 wallet trades · 120 exact follower routes · 18 +1h outcomes");
+  await expect(page.locator("#copyPlaybookState")).toHaveText("Size-sensitive");
+  await expect(page.locator("#copyPlaybookHeadline")).toHaveText("Routes weaken above $500");
+  await expect(page.locator("#copyPlaybookSummary")).toContainText("66.67% of $100 routes passed policy");
+  await expect(page.locator("#copyPlaybookSize")).toHaveText("$25–$500 majority-pass");
+  await expect(page.locator("#copyPlaybookMarket")).toHaveText("$200K–$750K cap");
+  await expect(page.locator("#copyPlaybookPersistence")).toHaveText("83.33% still routable");
+  await expect(page.locator("#copyPlaybookConstraint")).toHaveText("Reverse Exit Unavailable");
+  await expect(page.locator("#copyPlaybook")).toContainText("not financial advice or a position-size recommendation");
   await expect(page.locator("#copyFollowerMetrics").getByText("Route still available · +1h", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerMetrics").getByText("+4.82%", { exact: true })).toBeVisible();
   await expect(page.locator("#copyFollowerMetrics").getByText("58.40%", { exact: true })).toBeVisible();
