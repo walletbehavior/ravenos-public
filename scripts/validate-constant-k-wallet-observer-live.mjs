@@ -9,6 +9,7 @@ import {
   normalizeSolanaWalletAddress,
   normalizeSolanaWalletTransaction,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
+import { SOLANA_REVIEWED_SWAP_PROGRAM_IDS } from "../lib/customer_trade/solana_program_registry.mjs";
 import { runConstantKNexusWalletStreamBatch } from "../lib/customer_trade/constant_k_nexus_wallet_transport.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -18,15 +19,7 @@ const DEFAULT_TAIL_BYTES = 8 * 1024 * 1024;
 const MAX_EVENTS = 50_000;
 const MAX_WALLETS = 25;
 const MAX_HYDRATIONS = 32;
-const KNOWN_SWAP_PROGRAMS = new Set([
-  "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-  "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB",
-  "675kPX9MHTjS2zt1qfr1NYHuzeKDq1Z4mYqPJ1L5S9LC",
-  "CPMMoo8L3F4NbTegBCKVNnYhW3T6HhK7V9rD7NmQ1Fj",
-  "CAMMCzo5YL8w4VFF8KVHrK22GGUQpB4c4jUxQ3YMpiZ",
-  "whirLbMiicVdio4qvUfM5KAg6CtR9bV11MZWdN5L8z1",
-  "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
-]);
+const KNOWN_SWAP_PROGRAMS = new Set(SOLANA_REVIEWED_SWAP_PROGRAM_IDS);
 
 function clean(value, maximum = 200) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, maximum);

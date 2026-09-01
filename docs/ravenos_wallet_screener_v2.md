@@ -1,7 +1,7 @@
 # RavenOS Pro Wallet Screener v2
 
-Status: local, dormant, migration-gated
-Reviewed: 2026-08-30
+Status: post-migration staging candidate, dormant by default
+Reviewed: 2026-09-01
 Entitlement: existing RavenOS Pro (`wallet.copy`)
 Live execution changed: no
 
@@ -9,7 +9,7 @@ Live execution changed: no
 
 This milestone makes the existing authenticated Wallet Intelligence surface independently useful for research. It does not add a second subscription, another wallet database, another quote engine, live copying, transaction construction, signing, broadcasting, custody, or fee collection.
 
-The universe is explicitly `raven_indexed_solana_wallets`: exact public addresses that Raven has requested or observed. It is not presented as every Solana wallet. An interactive lookup still returns a fast 24-transaction evidence window, then a shared resumable backfill can index up to 10,000 signatures for that exact source wallet in 100-signature pages. The job is shared across every researcher and follower, retries an incomplete page without advancing its cursor, and becomes `complete` only after provider exhaustion. A 10,000-signature ceiling is labeled `bounded_partial`; neither state is presented as verified lifetime history without a separately reconciled current head.
+The universe is explicitly `raven_indexed_solana_wallets`: exact public addresses that Raven has requested, observed, or admitted after independent hydration from a qualified provider candidate. It is not presented as every Solana wallet. An interactive lookup still returns a fast 24-transaction evidence window, then a shared resumable backfill can index up to 10,000 signatures for that exact source wallet in 100-signature pages. The job is shared across every researcher and follower, retries an incomplete page without advancing its cursor, and becomes `complete` only after provider exhaustion. A 10,000-signature ceiling is labeled `bounded_partial`; neither state is presented as verified lifetime history without a separately reconciled current head.
 
 ## Competitive evidence matrix
 
@@ -91,6 +91,14 @@ Migration `0011_source_wallet_backfill.sql` adds one durable job per exact sourc
 
 The Worker integration is present but activation remains off behind `RAVENOS_WALLET_BACKFILL_ENABLED` plus the existing wallet-intelligence controls. Each scheduled invocation is intentionally budgeted to four wallets and one 100-signature page per wallet; normalized event writes use bounded batches instead of hundreds of sequential database round trips. Nexus remains the fast prospective observation lane; bounded RPC backfill reconstructs historical evidence. Profile snapshots currently analyze at most the most recent 2,000 retained normalized events and disclose when the larger indexed history exceeds that analysis window.
 
+## Nexus discovery feeder
+
+Raven now has a provider-neutral discovery kernel for proposing additional public-wallet candidates from compact Constant-K Nexus economics. The provider candidate lane is deliberately separate from the exact watched-wallet observer lane. It requires exact reviewed swap-program identity, a required signer, complete signer-owned token economics, and either opposing non-zero deltas or a reviewed Pump buy observation. It applies transparent `single_observation`, `recurring`, and `high_signal` evidence tiers based on observation and distinct-mint counts; it does not use an opaque wallet score.
+
+`recurring` means eligible for Raven's bounded independent hydration and history reconstruction, not admitted, profitable, or copyable. Provider observations never become P&L or Copy signals directly. Unknown, incomplete, unrouteable, and unavailable evidence remain distinct.
+
+The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously unwatched candidates, 37 recurring candidates, and three high-signal candidates from 14,213 complete Nexus frames with zero parse failures. This is evidence that the existing feed can expand Raven's research universe economically. It is not evidence of chain-wide coverage or candidate quality because the active Constant-K research filter remains bounded to 208 identity accounts. The sanitized aggregate is retained at `artifacts/ravenos_constant_k_wallet_discovery_live_validation_2026-09-01.json`.
+
 ## Deferred, not approximated
 
 - chain-wide wallet coverage and unbounded lifetime backfill;
@@ -102,6 +110,7 @@ The Worker integration is present but activation remains off behind `RAVENOS_WAL
 - EVM wallets;
 - copyability, follower P&L or capture ratios without prospective Raven Copy evidence;
 - an active continuous provider connection before the private staging adapter and cohort prove reliability;
+- automatic admission of provider candidates before Raven hydration, economic normalization, and bounded history reconstruction;
 - live copying, signing, broadcasting, custody and actual fee collection.
 
 The shared observer, Constant-K Nexus adapter, restart-safe receiver, 25,000-wallet exact manifest contract, and resumable history backfill are implemented as dormant contracts: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining activation work is a controlled cohort with queue, latency, provider-cost, storage-growth, and reconstruction-coverage measurement.

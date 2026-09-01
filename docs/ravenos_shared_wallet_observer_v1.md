@@ -194,3 +194,20 @@ No service unit, secret, ingress host, Access policy, D1 migration, manifest ack
 - `RAVENOS_WALLET_OBSERVER_ENABLED`
 
 The receiver has an additional local hard gate, `RAVENOS_WALLET_OBSERVER_RECEIVER_ENABLED=1`. Activation requires a dedicated Constant-K subscription that actually acknowledges the Raven wallet manifest. The existing bounded Raven research identity filter must not be relabeled as 25,000-wallet RavenOS coverage.
+
+## Nexus wallet-universe discovery milestone
+
+The compact Constant-K stream can also propose public-wallet research candidates outside Raven's exact watch manifest. `constant_k_nexus_wallet_discovery.mjs` provides a separate read-only discovery boundary rather than weakening the exact observer contract. A candidate observation requires all of the following:
+
+- a successful, non-vote Constant-K transaction frame;
+- an exact required signer with complete signer-owned token-balance economics;
+- an exact reviewed mainnet swap program identity;
+- either opposing non-zero token deltas or a reviewed Pump bonding-curve buy instruction with a positive signer-owned token delta.
+
+This is candidate evidence, not a normalized trade. It never becomes source P&L, follower P&L, a profitable-wallet label, copyability, a watch, or an execution decision. A recurring candidate only becomes eligible for independent Raven hydration and bounded history reconstruction. Admission to ranked research still requires Raven-confirmed transaction evidence and the existing accounting pipeline.
+
+Wallet reconstruction, Nexus discovery, the operator validation harness, and Solana preflight now share `solana_program_registry.mjs`. This corrected previously copied or mistyped Raydium AMM v4, Raydium CPMM, Raydium CLMM, and Orca identifiers and added reviewed Raydium router/stable, Meteora DLMM, Pump bonding-curve, and Pump AMM identities. Exact program identity is centralized so a transcription error cannot silently turn a valid economic swap into a transfer or ambiguous event. The operator canary retains its intentionally narrower allowlist.
+
+An authorized read-only 64 MiB Nexus sample on 2026-09-01 inspected 14,213 newline-complete frames with zero parse failures. It found 275 qualifying observations across 196 previously unwatched public-wallet candidates, including 37 recurring candidates and three candidates with at least five qualifying observations. The leading candidate had 19 exact swap-shape observations across four distinct mints. Already matched Raven signers were excluded. The sanitized result is `artifacts/ravenos_constant_k_wallet_discovery_live_validation_2026-09-01.json` and contains hashes and aggregate evidence only—no addresses, signatures, subscriber identity, raw provider payload, persistence, or execution authority.
+
+The current Constant-K service still uses a bounded 208-account Raven research identity filter. These off-universe candidates are therefore useful proof that Nexus can expand Raven's research frontier, not a chain-wide Solana coverage claim. The next gate is an authenticated candidate intake whose recurring observations are independently hydrated and normalized before any durable backfill admission. Live copy, signing, broadcasting, custody, and fee collection remain unavailable.

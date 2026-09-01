@@ -1,0 +1,449 @@
+{
+  "schema_version": "ravenos.constant_k_nexus_wallet_discovery_live_validation.v1",
+  "generated_at": "2026-09-01T07:39:04.000Z",
+  "mode": "authorized_read_only_nexus_discovery_probe",
+  "persistence": false,
+  "source_capture": {
+    "bytes_read": 67108864,
+    "lines_read": 14213,
+    "parse_failures": 0,
+    "matched_wallet_count": 34,
+    "addresses_included": false,
+    "signatures_included": false
+  },
+  "discovery": {
+    "schema_version": "ravenos.constant_k_nexus_wallet_discovery_summary.v1",
+    "generated_at": "2026-09-01T07:39:04.000Z",
+    "provider": "constant_k_nexus",
+    "transport": "geyser_grpc",
+    "state": "current",
+    "counts": {
+      "event_rows": 14213,
+      "transaction_rows": 10973,
+      "invalid_rows": 0,
+      "wrong_provider_rows": 0,
+      "failed_or_vote_rows": 0,
+      "no_reviewed_route_rows": 9665,
+      "incomplete_economics_rows": 736,
+      "watched_signer_observations": 297,
+      "duplicate_observations": 0,
+      "candidate_observations": 275,
+      "unique_candidates": 196,
+      "recurring_candidates": 37,
+      "high_signal_candidates": 3
+    },
+    "leading_candidates": [
+      {
+        "candidate_id": "swc_ab81d6ebe402c605c213a361f6ed7a7474e06679",
+        "evidence_tier": "high_signal",
+        "qualification_observation_count": 19,
+        "exact_swap_shape_observation_count": 19,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 4,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_6d08ad568d444f1b072c66b39844ad06ed720261",
+        "evidence_tier": "high_signal",
+        "qualification_observation_count": 10,
+        "exact_swap_shape_observation_count": 10,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_482154bd82895797b46ce72396ddd5a5157b79d6",
+        "evidence_tier": "high_signal",
+        "qualification_observation_count": 5,
+        "exact_swap_shape_observation_count": 5,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_bac03e84ef6d64374c22ed6da92056348a219165",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 4,
+        "exact_swap_shape_observation_count": 4,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 4,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_5e635f632d8a3efaefa96375419379e70b0c5d62",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 4,
+        "exact_swap_shape_observation_count": 4,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_760727bdffc94ea92a3183a58b8f44b24dee0331",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 4,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_51cdd80128894f085d03e2210c8089552bbcb9d7",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_c0d692bbfcbde35efb5ab2882f28ed3ed2efb86a",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_cf8f4b3d344a9d2bae7669eb365e01edfb5d7e4e",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_e410bfbb98d124963112aef6b908882f6987b3dd",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_d4a59a6437c844ca78cd652ae94fd2702ba2f752",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_c0d8e69d55f0457ad16df932a141b873ce7d5a21",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "orca_whirlpool"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_8c332387b017d7ec0f3348f7f067637f346cb49d",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_bc187d59bbac0a43beedd095a161965b3bfa710e",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_49ec4e1e1c9ae2503bc9744f58b7dd5c1238a5f5",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 3,
+        "exact_swap_shape_observation_count": 3,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_b94302684531ea762bf7cf6242f1b977e1bf235e",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_110266908fc107231a09ac6fd2f78bb83b33f128",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_20b98cca657b4d1e8a0840235cad673ee07f84a0",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_578247315c8f88dd8a7aa2ad7856b2e74f92037d",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_27c16691a1e5b531ef73ff5fb2afd6411c1b6010",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_ba63ac90023e33a70d9e53c483e5f8c13888d07f",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_a73e345039a6e5637ed6687b9fea6852d4b2e486",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_22cb119a2fd1fcf6232463d6f51d35736c9a1e4e",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_9be723c2f27f30bc1afbbf4c37473b03bc83021d",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 3,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      },
+      {
+        "candidate_id": "swc_abce8f7dbf80cb504f5cfe86b9e42b7219fefd0d",
+        "evidence_tier": "recurring",
+        "qualification_observation_count": 2,
+        "exact_swap_shape_observation_count": 2,
+        "reviewed_buy_instruction_observation_count": 0,
+        "active_day_count": 1,
+        "distinct_mint_count": 2,
+        "route_program_keys": [
+          "jupiter_v6"
+        ],
+        "eligible_for_bounded_history_backfill": true,
+        "address_included": false,
+        "signature_included": false
+      }
+    ],
+    "privacy": {
+      "addresses_included": false,
+      "signatures_included": false,
+      "raw_provider_payload_included": false,
+      "subscriber_identity_included": false
+    },
+    "claim_boundary": {
+      "provider_candidate_is_normalized_trade": false,
+      "provider_candidate_is_profitable_wallet": false,
+      "provider_candidate_is_copyable_wallet": false,
+      "backfill_eligibility_is_admission": false
+    },
+    "execution_boundary": {
+      "signing": false,
+      "submission": false,
+      "broadcasting": false,
+      "custody": false,
+      "live_copy": false,
+      "fee_collection": false
+    }
+  },
+  "interpretation": {
+    "broader_wallet_universe_available": true,
+    "recurring_candidate_count": 37,
+    "high_signal_candidate_count": 3,
+    "profitability_claim_supported": false,
+    "copyability_claim_supported": false,
+    "next_evidence": "Hydrate candidates independently through Raven RPC, normalize exact economic events, and reconstruct bounded history before admission to ranked research."
+  },
+  "execution_boundary": {
+    "signing": false,
+    "submission": false,
+    "broadcasting": false,
+    "custody": false,
+    "live_copy": false,
+    "fee_collection": false
+  }
+}

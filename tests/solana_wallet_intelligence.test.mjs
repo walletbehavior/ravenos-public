@@ -10,6 +10,12 @@ import {
   normalizeSolanaWalletAddress,
   normalizeSolanaWalletTransaction,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
+import {
+  SOLANA_PROGRAM_IDS,
+  SOLANA_REVIEWED_SWAP_PROGRAM_IDS,
+  identifySolanaSwapPrograms,
+  isReviewedSolanaSwapProgram,
+} from "../lib/customer_trade/solana_program_registry.mjs";
 
 const WALLET = bs58.encode(Buffer.alloc(32, 7));
 const TOKEN = bs58.encode(Buffer.alloc(32, 9));
@@ -138,6 +144,38 @@ test("an exact PumpSwap program invocation qualifies opposing economic deltas as
   assert.equal(event.route_evidence.swap_route_observed, true);
   assert.equal(event.classification.kind, "SWAP_BUY");
   assert.equal(event.copy_signal.eligible_buy_signal, true);
+});
+
+test("one reviewed mainnet registry drives wallet swap identity without accepting old mistyped variants", () => {
+  const reviewed = [
+    SOLANA_PROGRAM_IDS.raydium_amm_v4,
+    SOLANA_PROGRAM_IDS.raydium_cpmm,
+    SOLANA_PROGRAM_IDS.raydium_clmm,
+    SOLANA_PROGRAM_IDS.orca_whirlpool,
+    SOLANA_PROGRAM_IDS.meteora_dlmm,
+    SOLANA_PROGRAM_IDS.pump_bonding_curve,
+    SOLANA_PROGRAM_IDS.pump_amm,
+  ];
+  assert.equal(new Set(SOLANA_REVIEWED_SWAP_PROGRAM_IDS).size, SOLANA_REVIEWED_SWAP_PROGRAM_IDS.length);
+  for (const [index, programId] of reviewed.entries()) {
+    assert.equal(isReviewedSolanaSwapProgram(programId), true);
+    const event = normalize(transaction({
+      pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 10_000_000, 6), balance(WALLET, TOKEN, 0, 6)],
+      post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 5_000_000, 6), balance(WALLET, TOKEN, 1_000_000, 6)],
+      logs: [],
+      programId,
+    }), String.fromCharCode(65 + index));
+    assert.equal(event.route_evidence.swap_route_observed, true, programId);
+    assert.equal(event.classification.kind, "SWAP_BUY", programId);
+  }
+  const suspectVariants = [
+    "675kPX9MHTjS2zt1qfr1NYHuzeKDq1Z4mYqPJ1L5S9LC",
+    "CPMMoo8L3F4NbTegBCKVNnYhW3T6HhK7V9rD7NmQ1Fj",
+    "CAMMCzo5YL8w4VFF8KVHrK22GGUQpB4c4jUxQ3YMpiZ",
+    "whirLbMiicVdio4qvUfM5KAg6CtR9bV11MZWdN5L8z1",
+  ];
+  assert.deepEqual(identifySolanaSwapPrograms([...reviewed, reviewed[0]]).map((row) => row.program_id).sort(), [...reviewed].sort());
+  for (const programId of suspectVariants) assert.equal(isReviewedSolanaSwapProgram(programId), false, programId);
 });
 
 test("transfers, airdrops, failed transactions, split routes, and Token-2022 stay distinct", () => {
