@@ -13,7 +13,9 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import {
   fetchConstantKNexusWatchManifest,
   postConstantKNexusDeliveries,
+  postConstantKNexusWalletDiscoveryObservations,
 } from "../lib/customer_trade/constant_k_nexus_wallet_ingress_client.mjs";
+import { discoverConstantKNexusWalletCandidates } from "../lib/customer_trade/constant_k_nexus_wallet_discovery.mjs";
 import {
   normalizeConstantKNexusReceiverCheckpoint,
   readConstantKNexusEventFileBatch,
@@ -78,6 +80,11 @@ function atomicJson(path, value) {
 function settings(env = process.env) {
   if (String(env.RAVENOS_WALLET_OBSERVER_RECEIVER_ENABLED || "") !== "1") fail("constant_k_receiver_daemon_disabled");
   const stateDirectory = exactAbsolutePath(env.RAVENOS_WALLET_OBSERVER_STATE_DIR || "/var/lib/ravenos-wallet-observer", "constant_k_receiver_state_directory_invalid");
+  const discoveryEnabled = String(env.RAVENOS_WALLET_DISCOVERY_RECEIVER_ENABLED || "") === "1";
+  const discoveryOrigin = String(env.RAVENOS_WALLET_DISCOVERY_INGRESS_ORIGIN || "").trim();
+  const discoveryKeyId = String(env.RAVENOS_WALLET_DISCOVERY_INGRESS_KEY_ID || "").trim();
+  const discoverySecret = String(env.RAVENOS_WALLET_DISCOVERY_INGRESS_HMAC_SECRET || "");
+  if (discoveryEnabled && (!discoveryOrigin || !discoveryKeyId || !discoverySecret)) fail("constant_k_discovery_receiver_credentials_invalid");
   return Object.freeze({
     state_directory: stateDirectory,
     event_path: exactAbsolutePath(env.RAVENOS_CONSTANT_K_EVENT_PATH, "constant_k_receiver_event_path_invalid"),
@@ -103,12 +110,22 @@ function settings(env = process.env) {
       access_client_id: String(env.RAVENOS_WALLET_OBSERVER_INGRESS_ACCESS_CLIENT_ID || "").trim(),
       access_client_secret: String(env.RAVENOS_WALLET_OBSERVER_INGRESS_ACCESS_CLIENT_SECRET || "").trim(),
     }),
+    discovery: Object.freeze({
+      enabled: discoveryEnabled,
+      ingress_origin: discoveryOrigin,
+      credentials: Object.freeze({
+        key_id: discoveryKeyId,
+        secret: discoverySecret,
+        access_client_id: String(env.RAVENOS_WALLET_DISCOVERY_INGRESS_ACCESS_CLIENT_ID || "").trim(),
+        access_client_secret: String(env.RAVENOS_WALLET_DISCOVERY_INGRESS_ACCESS_CLIENT_SECRET || "").trim(),
+      }),
+    }),
     poll_interval_ms: boundedInteger(env.RAVENOS_CONSTANT_K_RECEIVER_POLL_INTERVAL_MS, 500, 100, 30_000, "constant_k_receiver_poll_interval_invalid"),
     maximum_backoff_ms: boundedInteger(env.RAVENOS_CONSTANT_K_RECEIVER_MAXIMUM_BACKOFF_MS, 30_000, 1_000, 300_000, "constant_k_receiver_backoff_invalid"),
   });
 }
 
-function sanitizedRun(run, ingress) {
+function sanitizedRun(run, ingress, discovery) {
   return Object.freeze({
     schema_version: RECEIVER_DAEMON_SCHEMA,
     observed_at: new Date().toISOString(),
@@ -120,6 +137,7 @@ function sanitizedRun(run, ingress) {
     transport: run.receiver?.transport || null,
     checkpoint: run.receiver?.checkpoint || null,
     ingress,
+    discovery,
     execution_boundary: {
       signing: false,
       submission: false,
@@ -146,7 +164,19 @@ export async function runConstantKWalletObserverReceiverCycle(config, {
   });
   const watches = currentManifest.shards.flatMap((shard) => shard.addresses);
   let pendingDeliveries = [];
+  let pendingEvents = [];
   let ingressSummary = Object.freeze({ batches: 0, deliveries: 0, inserted: 0, duplicates: 0 });
+  let discoverySummary = Object.freeze({
+    enabled: config.discovery?.enabled === true,
+    batches: 0,
+    observations: 0,
+    inserted: 0,
+    duplicates: 0,
+    eligible_candidates: 0,
+    unique_candidates_seen: 0,
+    profitability_claim_supported: false,
+    copyability_claim_supported: false,
+  });
   let activeAck = null;
   const pipeline = await runConstantKNexusWalletPipelineCycle({
     async load_watch_universe() { return watches; },
@@ -164,11 +194,13 @@ export async function runConstantKWalletObserverReceiverCycle(config, {
       return raw ? normalizeConstantKNexusReceiverCheckpoint(raw) : null;
     },
     async read_batch({ checkpoint }) {
-      return readConstantKNexusEventFileBatch({
+      const batch = readConstantKNexusEventFileBatch({
         event_path: config.event_path,
         checkpoint,
         initial_position: "tail",
       });
+      pendingEvents = batch.events;
+      return batch;
     },
     async ingest_delivery(delivery) {
       pendingDeliveries.push(delivery);
@@ -187,8 +219,32 @@ export async function runConstantKWalletObserverReceiverCycle(config, {
           now: cycleDate,
         });
       }
+      if (config.discovery?.enabled === true && pendingEvents.length) {
+        const discovery = discoverConstantKNexusWalletCandidates({
+          events: pendingEvents,
+          watched_wallets: watches,
+          now: () => cycleDate,
+        });
+        const posted = await postConstantKNexusWalletDiscoveryObservations({
+          ingress_origin: config.discovery.ingress_origin,
+          credentials: config.discovery.credentials,
+          observations: discovery.observations,
+          receiver_checkpoint: nextCheckpoint,
+          fetch_impl: fetchImpl,
+          sent_at: cycleDate.toISOString(),
+          now: cycleDate,
+        });
+        discoverySummary = Object.freeze({
+          enabled: true,
+          ...posted,
+          unique_candidates_seen: discovery.counts.unique_candidates,
+          profitability_claim_supported: false,
+          copyability_claim_supported: false,
+        });
+      }
       atomicJson(config.checkpoint_path, nextCheckpoint);
       pendingDeliveries = [];
+      pendingEvents = [];
     },
     now: () => cycleDate,
   });
@@ -198,7 +254,7 @@ export async function runConstantKWalletObserverReceiverCycle(config, {
     inserted: ingressSummary.inserted,
     duplicates: ingressSummary.duplicates,
     receipt_ids_included: false,
-  });
+  }, discoverySummary);
   atomicJson(config.health_path, output);
   return output;
 }

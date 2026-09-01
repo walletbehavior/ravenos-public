@@ -179,6 +179,15 @@ import {
   routeSourceWalletIngress,
 } from "./lib/customer_trade/source_wallet_ingress.mjs";
 import {
+  SOURCE_WALLET_DISCOVERY_INGRESS_ROUTE,
+  routeSourceWalletDiscoveryIngress,
+} from "./lib/customer_trade/source_wallet_discovery_ingress.mjs";
+import {
+  createD1SourceWalletDiscoveryStore,
+  resolveSourceWalletDiscoveryAdmissionActivation,
+  runSourceWalletDiscoveryAdmissionBatch,
+} from "./lib/customer_trade/source_wallet_discovery_admission.mjs";
+import {
   createD1SourceWalletBackfillStore,
   resolveSourceWalletBackfillActivation,
   runSourceWalletBackfillBatch,
@@ -5122,6 +5131,40 @@ async function hydrateSourceWalletBackfillTransaction(env, { signature_record: s
   return transaction;
 }
 
+async function hydrateSourceWalletDiscoveryCandidate(env, { candidate, observation }) {
+  const receivedAt = new Date().toISOString();
+  const decodeStartedAt = new Date().toISOString();
+  const transaction = await hydrateSourceWalletBackfillTransaction(env, {
+    signature_record: {
+      signature: observation.signature,
+      slot: observation.slot,
+      blockTime: null,
+      confirmationStatus: "confirmed",
+      err: null,
+    },
+    commitment: "confirmed",
+  });
+  const decodedAt = new Date().toISOString();
+  return normalizeSolanaWalletTransaction({
+    wallet_address: candidate.source_wallet.address,
+    signature_record: {
+      signature: observation.signature,
+      slot: observation.slot,
+      blockTime: null,
+      confirmationStatus: "confirmed",
+      err: null,
+    },
+    transaction,
+    provider: "configured_solana_rpc_hydration",
+    finality: "confirmed",
+    observation_mode: "prospective",
+    observed_at: decodedAt,
+    received_at: receivedAt,
+    decode_started_at: decodeStartedAt,
+    decoded_at: decodedAt,
+  });
+}
+
 async function hydrateSourceWalletObserverDelivery(env, delivery) {
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_observer_solana_rpc_unavailable");
@@ -8536,6 +8579,12 @@ async function handleChain(request, env, slug) {
 
 async function routeApi(request, env, executionContext = null) {
   const url = new URL(request.url);
+  if (url.pathname === SOURCE_WALLET_DISCOVERY_INGRESS_ROUTE) {
+    const discoveryIngressResponse = await routeSourceWalletDiscoveryIngress(request, env, {
+      store: env?.RAVENOS_CUSTOMER_DB?.prepare ? createD1SourceWalletDiscoveryStore(env.RAVENOS_CUSTOMER_DB) : null,
+    });
+    if (discoveryIngressResponse) return discoveryIngressResponse;
+  }
   if ([SOURCE_WALLET_INGRESS_MANIFEST_ROUTE, SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE].includes(url.pathname)) {
     const customerDbAvailable = Boolean(env?.RAVENOS_CUSTOMER_DB?.prepare);
     const walletIngressResponse = await routeSourceWalletIngress(request, env, {
@@ -9007,7 +9056,53 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
-    const work = Promise.allSettled([monitorWork, shadowWork, observerWork, backfillWork]);
+    const discoveryActivation = resolveSourceWalletDiscoveryAdmissionActivation(env || {});
+    const discoveryWork = discoveryActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (() => {
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const backfillStore = createD1SourceWalletBackfillStore(env.RAVENOS_CUSTOMER_DB, {
+            record_events: (sourceId, events, now) => walletStore.recordEvents(sourceId, events, now),
+          });
+          const discoveryStore = createD1SourceWalletDiscoveryStore(env.RAVENOS_CUSTOMER_DB);
+          return runSourceWalletDiscoveryAdmissionBatch(discoveryStore, {
+            hydrateCandidate: (input) => hydrateSourceWalletDiscoveryCandidate(env, input),
+            admitCandidate: async ({ candidate, event, now }) => {
+              const seconds = Math.floor(Number(now) / 1_000);
+              await walletStore.upsertSourceWallet({
+                source_wallet_id: candidate.source_wallet_id,
+                address: candidate.source_wallet.address,
+                state: "requested",
+                provider_scope: "constant_k_nexus_discovery",
+                now: seconds,
+              });
+              const inserted = await walletStore.recordEvents(candidate.source_wallet_id, [event], seconds);
+              await walletStore.updateSourceCursor(candidate.source_wallet_id, {
+                state: "current",
+                last_observed_at: seconds,
+                last_signature: event.chain_evidence.signature,
+                now: seconds,
+              });
+              if (inserted.includes(event.event_id)) {
+                await persistSourceWalletProfile(walletStore, candidate.source_wallet_id, seconds);
+              }
+              const backfill = await backfillStore.enqueueJob({
+                address: candidate.source_wallet.address,
+                provider: "configured_solana_rpc",
+                now: Number(now),
+              });
+              return {
+                source_wallet_id: candidate.source_wallet_id,
+                event_inserted: inserted.includes(event.event_id),
+                backfill: { state: backfill?.state || "unavailable" },
+              };
+            },
+          }, {
+            worker_id: `discovery_worker_${Date.now().toString(36)}`,
+            maximum_jobs: 4,
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
+    const work = Promise.allSettled([monitorWork, shadowWork, observerWork, backfillWork, discoveryWork]);
     if (context?.waitUntil) context.waitUntil(work);
     else await work;
   },

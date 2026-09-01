@@ -210,4 +210,21 @@ Wallet reconstruction, Nexus discovery, the operator validation harness, and Sol
 
 An authorized read-only 64 MiB Nexus sample on 2026-09-01 inspected 14,213 newline-complete frames with zero parse failures. It found 275 qualifying observations across 196 previously unwatched public-wallet candidates, including 37 recurring candidates and three candidates with at least five qualifying observations. The leading candidate had 19 exact swap-shape observations across four distinct mints. Already matched Raven signers were excluded. The sanitized result is `artifacts/ravenos_constant_k_wallet_discovery_live_validation_2026-09-01.json` and contains hashes and aggregate evidence only—no addresses, signatures, subscriber identity, raw provider payload, persistence, or execution authority.
 
-The current Constant-K service still uses a bounded 208-account Raven research identity filter. These off-universe candidates are therefore useful proof that Nexus can expand Raven's research frontier, not a chain-wide Solana coverage claim. The next gate is an authenticated candidate intake whose recurring observations are independently hydrated and normalized before any durable backfill admission. Live copy, signing, broadcasting, custody, and fee collection remain unavailable.
+The current Constant-K service still uses a bounded 208-account Raven research identity filter. These off-universe candidates are therefore useful proof that Nexus can expand Raven's research frontier, not a chain-wide Solana coverage claim.
+
+## Durable candidate admission milestone
+
+The authenticated intake and independent-admission gate are now implemented as dormant staging code. The same rotation-safe Nexus cursor can feed both the exact watched-wallet lane and the off-universe candidate lane, but it advances only after both sinks return matching durable receipts. If either sink fails, the precise frame range is replayed. Replay receipts are reported as replay work rather than inflated new inserts, and an interrupted pre-receipt write repairs the candidate projection from append-only evidence.
+
+Migration `0014_source_wallet_discovery.sql` adds a research-frontier projection plus append-only candidate observations, independent Raven hydration evidence, and replay receipts. The candidate payload is deliberately reduced: public wallet, signature, slot, reviewed program identity, mint identities, timestamps, and categorical evidence only. It cannot contain amounts, raw provider payloads, subscriber or policy identity, transaction material, signer material, or execution authority.
+
+A candidate becomes hydration-eligible after two qualifying observations. Raven then fetches the exact transaction through its configured Solana RPC, performs the existing economic normalization, and admits the address to the existing source-wallet/backfill system only when Raven itself reconstructs a supported swap with route evidence. A transfer, airdrop, ambiguous event, unavailable transaction, or provider timeout remains explicit non-trade/retry evidence and cannot create P&L, a screener rank, a watch, or a Copy decision.
+
+Every activation remains independent and off by default:
+
+- Worker intake: `RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED`
+- Worker evaluator: `RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED`
+- Nexus receiver candidate posting: `RAVENOS_WALLET_DISCOVERY_RECEIVER_ENABLED`
+- The existing wallet-intelligence and bounded-backfill controls must also be active before evaluation can run.
+
+The intake requires its own exact host, HMAC identity, rotation-ready key pair, and optional Access service identity. These controls are intentionally separate from the watched-wallet ingress credentials. No migration, flag, secret, ingress host, service unit, or provider subscription is activated by this milestone. Live copy, signing, broadcasting, custody, and fee collection remain unavailable.

@@ -97,6 +97,10 @@ Raven now has a provider-neutral discovery kernel for proposing additional publi
 
 `recurring` means eligible for Raven's bounded independent hydration and history reconstruction, not admitted, profitable, or copyable. Provider observations never become P&L or Copy signals directly. Unknown, incomplete, unrouteable, and unavailable evidence remain distinct.
 
+The durable feeder now has a separate authenticated candidate endpoint and append-only evidence ledger. A recurring candidate is hydrated from Raven's configured Solana RPC and must independently normalize as a supported trade with exact route evidence before it is admitted to the existing source-wallet and resumable-backfill pipeline. Non-trades and unavailable hydration remain visible refusals; they are not discarded or translated into zero-return wallets. The shared Nexus cursor advances only after watched-wallet and discovery receipts both succeed, so a partial outage cannot create a silent discovery gap.
+
+Migration `0014_source_wallet_discovery.sql` and the three coordinated discovery flags remain unapplied/off. The new tables contain no subscriber relationship, copy policy, signing material, transaction construction, custody, or fee-collection authority.
+
 The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously unwatched candidates, 37 recurring candidates, and three high-signal candidates from 14,213 complete Nexus frames with zero parse failures. This is evidence that the existing feed can expand Raven's research universe economically. It is not evidence of chain-wide coverage or candidate quality because the active Constant-K research filter remains bounded to 208 identity accounts. The sanitized aggregate is retained at `artifacts/ravenos_constant_k_wallet_discovery_live_validation_2026-09-01.json`.
 
 ## Deferred, not approximated
@@ -110,7 +114,7 @@ The first authorized read-only 64 MiB sample on 2026-09-01 found 196 previously 
 - EVM wallets;
 - copyability, follower P&L or capture ratios without prospective Raven Copy evidence;
 - an active continuous provider connection before the private staging adapter and cohort prove reliability;
-- automatic admission of provider candidates before Raven hydration, economic normalization, and bounded history reconstruction;
+- automatic admission of provider candidates without Raven hydration, economic normalization, and bounded history reconstruction;
 - live copying, signing, broadcasting, custody and actual fee collection.
 
-The shared observer, Constant-K Nexus adapter, restart-safe receiver, 25,000-wallet exact manifest contract, and resumable history backfill are implemented as dormant contracts: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining activation work is a controlled cohort with queue, latency, provider-cost, storage-growth, and reconstruction-coverage measurement.
+The shared observer, Constant-K Nexus adapter, restart-safe dual-sink receiver, authenticated candidate intake, independent Raven admission gate, 25,000-wallet exact manifest contract, and resumable history backfill are implemented as dormant contracts: observe each unique public wallet once, normalize each source event once, then fan out private policies and research projections without subscriber-proportional RPC duplication. The remaining activation work is a controlled cohort with queue, latency, provider-cost, storage-growth, false-candidate rate, and reconstruction-coverage measurement.
