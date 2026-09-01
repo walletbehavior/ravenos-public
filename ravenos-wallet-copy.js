@@ -14,6 +14,7 @@ const state = {
   address: "",
   source_wallet_id: null,
   profile: null,
+  prospective_copyability: null,
   deep_history: null,
   deep_poll_token: 0,
   deep_poll_attempts: 0,
@@ -292,12 +293,17 @@ function activeCopyability() {
 }
 
 function renderFollowerReality() {
-  const record = activeCopyability();
+  const personal = activeCopyability();
+  const shared = state.prospective_copyability;
+  const sharedAvailable = Number(shared?.probe_observation_count || 0) > 0;
+  const record = sharedAvailable ? shared : personal;
   const overall = record?.snapshot || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
-  setText("copyFollowerHeadline", overall?.prospective_sample_count
-    ? `${overall.prospective_sample_count} new-trade test${overall.prospective_sample_count === 1 ? "" : "s"} · ${overall.state === "available" ? `copyability ${overall.score}/100` : "score forming"}`
-    : "Copy evidence starts after you shadow");
+  setText("copyFollowerHeadline", sharedAvailable
+    ? `${Number(shared.prospective_signal_count || 0)} wallet trade${Number(shared.prospective_signal_count || 0) === 1 ? "" : "s"} · ${Number(shared.probe_observation_count || 0)} exact follower routes`
+    : overall?.prospective_sample_count
+      ? `${overall.prospective_sample_count} private policy test${overall.prospective_sample_count === 1 ? "" : "s"} · ${overall.state === "available" ? `copyability ${overall.score}/100` : "score forming"}`
+      : "Prospective copy evidence is still forming");
   const metrics = document.getElementById("copyFollowerMetrics");
   metrics.replaceChildren(
     fact("Executable copies", overall?.components?.policy_pass_pct === null || overall?.components?.policy_pass_pct === undefined ? "Not sampled" : pct(overall.components.policy_pass_pct)),
@@ -312,14 +318,23 @@ function renderFollowerReality() {
     const result = document.createElement("strong");
     const sample = document.createElement("small");
     size.textContent = money(row.order_size_usdc).replace(".00", "");
-    result.textContent = row.state === "available" && row.score !== null ? `${row.score}/100` : "Not sampled";
-    sample.textContent = `${Number(row.prospective_sample_count || 0)} decision${Number(row.prospective_sample_count || 0) === 1 ? "" : "s"}`;
+    const sampled = Number(row.prospective_sample_count || 0);
+    const pass = row.components?.policy_pass_pct;
+    result.textContent = row.state === "available" && row.score !== null
+      ? `${row.score}/100`
+      : sampled && pass !== null && pass !== undefined
+        ? `${Number(pass).toFixed(0)}% pass`
+        : "Not sampled";
+    sample.textContent = `${sampled} route${sampled === 1 ? "" : "s"}`;
     item.append(size, result, sample);
     return item;
   }));
-  setText("copyFollowerLimit", overall?.prospective_sample_count
-    ? "Shadow tests include approved, skipped, unavailable, and unresolved trades. Historical source returns are never substituted."
-    : "Historical source returns never become hypothetical follower fills.");
+  const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
+  setText("copyFollowerLimit", sharedAvailable
+    ? `Shared tests assume pre-positioned Solana USDC${feeScenarios.length ? ` and ${feeScenarios.map((value) => `${value} bps`).join(" / ")} hypothetical Raven fees` : ""}. Approved, refused, unavailable, and unresolved routes all stay in the denominator.`
+    : overall?.prospective_sample_count
+      ? "Your private shadow tests include approved, skipped, unavailable, and unresolved trades. Historical source returns are never substituted."
+      : "Historical source returns never become hypothetical follower fills or copyability.");
 }
 
 function renderDeepHistory(history) {
@@ -373,6 +388,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     state.deep_poll_attempts = 0;
   }
   state.profile = payload.profile;
+  state.prospective_copyability = payload.prospective_copyability || null;
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
@@ -976,6 +992,7 @@ async function inspectWalletAddress(address, button) {
   state.address = String(address || "").trim();
   state.source_wallet_id = null;
   state.profile = null;
+  state.prospective_copyability = null;
   state.deep_history = null;
   state.events = [];
   state.activity = { filter: "all", next_cursor: null, has_more: false, matching_event_count: 0, loading: false };

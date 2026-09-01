@@ -228,3 +228,15 @@ Every activation remains independent and off by default:
 - The existing wallet-intelligence and bounded-backfill controls must also be active before evaluation can run.
 
 The intake requires its own exact host, HMAC identity, rotation-ready key pair, and optional Access service identity. These controls are intentionally separate from the watched-wallet ingress credentials. No migration, flag, secret, ingress host, service unit, or provider subscription is activated by this milestone. Live copy, signing, broadcasting, custody, and fee collection remain unavailable.
+
+## Shared prospective copyability milestone
+
+Raven can now evaluate one admitted, prospectively observed source-wallet buy against the standard follower-size ladder of $25, $100, $500, $1,000, and $5,000. This is shared source-level research, not subscriber fanout. Each size receives its own exact current entry quote and reverse-USDC exit quote through the existing Raven Copy provider boundary. Asset identity, liquidity, detection delay, price impact, entry degradation, round-trip friction, policy outcome, provider failure, and a hypothetical Raven fee scenario remain explicit.
+
+Migration `0015_source_wallet_copyability.sql` adds an append-only observation ledger keyed by source event, exact order size, hypothetical fee scenario, and versioned research policy. Rows contain no user ID or watch ID, never create a shadow position, and cannot contain transaction material or a transaction hash. Approved, refused, unavailable, stale, and indeterminate probes all remain in the denominator. Historical source returns are never substituted for prospective follower evidence.
+
+The five-size matrix is deliberately economical: shared token-standard, mint-authority, source-notional, and liquidity context is loaded once per source event, while only the size-dependent entry and reverse-exit routes vary. A later customer policy may reuse this research for screening, but exact user-size quotes remain mandatory for any future live execution.
+
+The Raven Pro wallet profile can consume this shared matrix before a subscriber shadows the wallet. It shows sample counts and policy-pass rates immediately, but publishes a 0–100 Copyability score for an order size only after at least 20 prospective observations with sufficient entry and exit evidence. The reference headline uses $100 evidence and the full five-size capacity rail remains visible.
+
+This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migration `0015`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.

@@ -369,6 +369,10 @@ test("inspect builds evidence-bound source performance without creating a watch"
   assert.equal(payload.profile.source_wallet.address, WALLET);
   assert.equal(payload.profile.coverage.transactions_observed, 1);
   assert.equal(payload.profile.source_performance.realized_pnl_usdc, null);
+  assert.equal(payload.prospective_copyability.schema_version, "ravenos.source_wallet_copyability_matrix.v1");
+  assert.equal(payload.prospective_copyability.state, "insufficient_evidence");
+  assert.equal(payload.prospective_copyability.prospective_signal_count, 0);
+  assert.equal(payload.prospective_copyability.probe_observation_count, 0);
   assert.equal(store.watches.size, 0);
 });
 
@@ -398,6 +402,8 @@ test("inspect queues one shared deep-history job and source detail reports its h
   const detail = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspectedPayload.source_wallet_id}`), activeEnv, d);
   const detailPayload = await json(detail);
   assert.equal(detailPayload.deep_history.state, "queued");
+  assert.equal(detailPayload.prospective_copyability.schema_version, "ravenos.source_wallet_copyability_matrix.v1");
+  assert.equal(detailPayload.prospective_copyability.state, "insufficient_evidence");
   assert.equal(detailPayload.provider_request_performed, false);
   assert.equal(enqueueCount, 1);
   assert.equal(resolveWalletCopyActivation(activeEnv).deep_history, true);

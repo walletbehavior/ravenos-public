@@ -173,6 +173,10 @@ import {
   runSourceWalletObserverBatch,
 } from "./lib/customer_trade/source_wallet_observer.mjs";
 import {
+  evaluateSourceWalletCopyabilityMatrix,
+  resolveSourceWalletCopyabilityActivation,
+} from "./lib/customer_trade/source_wallet_copyability.mjs";
+import {
   SOURCE_WALLET_INGRESS_DELIVERIES_ROUTE,
   SOURCE_WALLET_INGRESS_MANIFEST_ROUTE,
   createD1SourceWalletIngressStore,
@@ -5267,37 +5271,12 @@ async function solanaWalletCopyAssetEvidence(env, rpcUrl, tokenMint, expectedDec
   };
 }
 
-async function quoteSolanaWalletCopySignal(env, { event, policy }) {
+async function loadSolanaWalletCopySignalContext(env, event) {
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
   const destination = event?.economic?.destination_asset;
   const tokenMint = String(destination?.mint || "");
   const token = await solanaWalletCopyAssetEvidence(env, runtime.rpc_url, tokenMint, destination?.decimals);
-  const tokenDecimals = token.tokenDecimals;
-  const inputBaseUnits = usdcDisplayToBaseUnits(policy.sizing.fixed_usdc);
-  const entry = await runProviderOperation({
-    component: "jupiter_direct_quote",
-    operation_key: `wallet-copy-entry:${tokenMint}:${inputBaseUnits}`,
-    fn: () => fetchJupiterExactSpotQuote({
-      env,
-      inputMint: SOLANA_CANONICAL_USDC_MINT,
-      outputMint: tokenMint,
-      amountBaseUnits: inputBaseUnits,
-      slippageBps: 50,
-    }),
-  });
-  const exitInput = String(entry.payload.outAmount || "");
-  const exit = await runProviderOperation({
-    component: "jupiter_direct_quote",
-    operation_key: `wallet-copy-exit:${tokenMint}:${exitInput}`,
-    fn: () => fetchJupiterExactSpotQuote({
-      env,
-      inputMint: tokenMint,
-      outputMint: SOLANA_CANONICAL_USDC_MINT,
-      amountBaseUnits: exitInput,
-      slippageBps: 50,
-    }),
-  });
   let sourceNotionalUsdc = null;
   let sourceNotionalBasis = "unavailable";
   const source = event.economic.source_asset;
@@ -5325,11 +5304,77 @@ async function quoteSolanaWalletCopySignal(env, { event, policy }) {
   const exactMarkets = exactTokenDexResults(markets, tokenMint, { caseSensitive: true });
   const liquidityUsd = exactMarkets.length ? optionalFiniteNumber(exactMarkets[0].liquidityUsd) : null;
   return {
+    token_mint: tokenMint,
+    token_decimals: token.tokenDecimals,
     source_notional_usdc: sourceNotionalUsdc,
     source_notional_basis: sourceNotionalBasis,
     liquidity_usd: liquidityUsd,
     asset_evidence: token.asset_evidence,
-    entry: copyQuoteEvidence(entry, { decimals: tokenDecimals, exactAssetIdentity: true }),
+  };
+}
+
+async function quoteSolanaWalletCopySignal(env, { event, policy, shared_context: sharedContext = null }) {
+  const context = await (sharedContext || loadSolanaWalletCopySignalContext(env, event));
+  let entry;
+  try {
+    const inputBaseUnits = usdcDisplayToBaseUnits(policy.sizing.fixed_usdc);
+    entry = await runProviderOperation({
+      component: "jupiter_direct_quote",
+      operation_key: `wallet-copy-entry:${context.token_mint}:${inputBaseUnits}`,
+      fn: () => fetchJupiterExactSpotQuote({
+        env,
+        inputMint: SOLANA_CANONICAL_USDC_MINT,
+        outputMint: context.token_mint,
+        amountBaseUnits: inputBaseUnits,
+        slippageBps: 50,
+      }),
+    });
+  } catch (error) {
+    if (error && typeof error === "object") {
+      error.copyability_evidence = {
+        source_notional_usdc: context.source_notional_usdc,
+        source_notional_basis: context.source_notional_basis,
+        liquidity_usd: context.liquidity_usd,
+        asset_evidence: context.asset_evidence,
+      };
+    }
+    throw error;
+  }
+  const exitInput = String(entry.payload.outAmount || "");
+  let exit;
+  try {
+    exit = await runProviderOperation({
+      component: "jupiter_direct_quote",
+      operation_key: `wallet-copy-exit:${context.token_mint}:${exitInput}`,
+      fn: () => fetchJupiterExactSpotQuote({
+        env,
+        inputMint: context.token_mint,
+        outputMint: SOLANA_CANONICAL_USDC_MINT,
+        amountBaseUnits: exitInput,
+        slippageBps: 50,
+      }),
+    });
+  } catch (error) {
+    return {
+      source_notional_usdc: context.source_notional_usdc,
+      source_notional_basis: context.source_notional_basis,
+      liquidity_usd: context.liquidity_usd,
+      asset_evidence: context.asset_evidence,
+      entry: copyQuoteEvidence(entry, { decimals: context.token_decimals, exactAssetIdentity: true }),
+      exit: {
+        state: "provider_unavailable",
+        provider: "jupiter",
+        reason: "reverse_exit_provider_unavailable",
+        exact_asset_identity: true,
+      },
+    };
+  }
+  return {
+    source_notional_usdc: context.source_notional_usdc,
+    source_notional_basis: context.source_notional_basis,
+    liquidity_usd: context.liquidity_usd,
+    asset_evidence: context.asset_evidence,
+    entry: copyQuoteEvidence(entry, { decimals: context.token_decimals, exactAssetIdentity: true }),
     exit: copyQuoteEvidence(exit, { decimals: 6, exactAssetIdentity: true }),
   };
 }
@@ -8987,13 +9032,22 @@ export default {
         })
       : Promise.resolve({ state: "disabled" });
     const observerActivation = resolveSourceWalletObserverActivation(env || {});
+    const copyabilityActivation = resolveSourceWalletCopyabilityActivation(env || {});
     const observerWork = observerActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
       ? (() => {
           const observerStore = createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB);
           const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const copySignalContextCache = new Map();
           const walletProvider = {
             quoteCopySignalCacheKey: ({ event, policy }) => `${event.event_id}:${policy.sizing.fixed_usdc}:50`,
-            quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
+            quoteCopySignal: (input) => {
+              let sharedContext = copySignalContextCache.get(input.event.event_id);
+              if (!sharedContext) {
+                sharedContext = loadSolanaWalletCopySignalContext(env, input.event);
+                copySignalContextCache.set(input.event.event_id, sharedContext);
+              }
+              return quoteSolanaWalletCopySignal(env, { ...input, shared_context: sharedContext });
+            },
             quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
           };
           return runSourceWalletObserverBatch(observerStore, {
@@ -9012,13 +9066,42 @@ export default {
               }
               return { inserted: inserted.includes(event.event_id) };
             },
-            fanOut: ({ event, delivery }) => fanOutObservedWalletEvent({
-              event,
-              source_wallet_id: delivery.source_wallet_id,
-              store: walletStore,
-              provider: walletProvider,
-              now: Math.floor(Date.now() / 1_000),
-            }),
+            fanOut: async ({ event, delivery }) => {
+              const now = Math.floor(Date.now() / 1_000);
+              const shared = copyabilityActivation.evaluator
+                ? await evaluateSourceWalletCopyabilityMatrix({
+                    event,
+                    source_wallet_id: delivery.source_wallet_id,
+                    store: walletStore,
+                    provider: walletProvider,
+                    now,
+                    fee_bps: env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10,
+                  })
+                : {
+                    complete: true,
+                    probe_count: 0,
+                    observation_count: 0,
+                    duplicate_count: 0,
+                    quote_variant_count: 0,
+                    decision_completed_at: new Date(now * 1_000).toISOString(),
+                  };
+              const subscriber = await fanOutObservedWalletEvent({
+                event,
+                source_wallet_id: delivery.source_wallet_id,
+                store: walletStore,
+                provider: walletProvider,
+                now,
+              });
+              return {
+                ...subscriber,
+                complete: shared.complete !== false && subscriber.complete !== false,
+                quote_variant_count: Number(shared.quote_variant_count || 0) + Number(subscriber.quote_variant_count || 0),
+                copyability_probe_count: Number(shared.probe_count || 0),
+                copyability_observation_count: Number(shared.observation_count || 0),
+                copyability_duplicate_count: Number(shared.duplicate_count || 0),
+                decision_completed_at: subscriber.decision_completed_at || shared.decision_completed_at,
+              };
+            },
           }, {
             worker_id: `observer_worker_${Date.now().toString(36)}`,
             batch_size: 10,

@@ -352,6 +352,7 @@ const walletObserverIngressClient = readFileSync(join(root, "lib", "customer_tra
 const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-constant-k-wallet-observer-receiver.mjs"), "utf8");
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
 const walletDiscoveryAdmission = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_admission.mjs"), "utf8");
+const walletCopyability = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability.mjs"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
 assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
 assert(walletObserverTransports.includes('transport: "shredstream"') || walletObserverTransports.includes('"shredstream"'), "private shred adapter contract is missing");
@@ -367,10 +368,16 @@ assert(walletDiscoveryAdmission.includes("RAVENOS_WALLET_DISCOVERY_INGRESS_ENABL
 assert(walletDiscoveryIngress.includes("RAVENOS_WALLET_DISCOVERY_INGRESS_HOST"), "wallet discovery ingress must require an exact configured host");
 assert(walletDiscoveryAdmission.includes("RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED"), "wallet discovery evaluator must have an independent default-off gate");
 assert(walletDiscoveryAdmission.includes("event.route_evidence?.swap_route_observed === true"), "wallet discovery admission must require Raven-confirmed route evidence");
+assert(walletCopyability.includes("RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED"), "shared copyability probes must have an independent default-off gate");
+assert(walletCopyability.includes("source_performance_substituted: false"), "shared copyability probes must not substitute source returns for follower evidence");
+assert(walletCopyability.includes("subscriber_identity_included: false"), "shared copyability observations must exclude subscriber identity");
+assert(walletCopyability.includes("shadow_position_created: false"), "shared copyability probes must not create customer positions");
+assert(walletCopyability.includes("broadcasting: false"), "shared copyability probes must not expose broadcast authority");
 assert(walletObserverReceiverDaemon.indexOf("posted = await postConstantKNexusWalletDiscoveryObservations") < walletObserverReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "receiver must durably post discovery evidence before checkpoint persistence");
 for (const discoveryFlag of ["RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED", "RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED"]) {
   assert(!wrangler.includes(discoveryFlag), `wallet discovery activation flag must not be configured in Wrangler: ${discoveryFlag}`);
 }
+assert(!wrangler.includes("RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED"), "shared copyability activation flag must not be configured in Wrangler");
 for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
   assert(!walletObserverLiveValidator.includes(forbiddenWalletObserverAuthority), `wallet-observer live validator contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletObserverTransports.includes(forbiddenWalletObserverAuthority), `wallet-observer transport contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
@@ -380,6 +387,7 @@ for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTrans
   assert(!walletObserverReceiverDaemon.includes(forbiddenWalletObserverAuthority), `wallet-observer receiver daemon contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletDiscoveryIngress.includes(forbiddenWalletObserverAuthority), `wallet-discovery ingress contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletDiscoveryAdmission.includes(forbiddenWalletObserverAuthority), `wallet-discovery admission contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletCopyability.includes(forbiddenWalletObserverAuthority), `wallet-copyability probe contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
 }
 
 console.log(JSON.stringify({
