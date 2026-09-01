@@ -418,6 +418,9 @@ assert(walletCopyability.includes("broadcasting: false"), "shared copyability pr
 assert(walletCopyability.includes("exact_source_pool_claimed: false"), "detection-time market context must not claim the source pool");
 assert(walletCopyability.includes("pair_age_used_as_token_age: false"), "selected pair age must not become token age");
 assert(walletCopyability.includes("current_market_context_substituted_for_source_fill: false"), "current market context must not become source fill evidence");
+assert(walletCopyability.includes('schema_version: "ravenos.source_wallet_copyability_market_regimes.v1"'), "prospective copyability must expose market-regime evidence");
+assert(walletCopyability.includes("token_age_claimed: false"), "selected-pair age must not become a token-age claim in market regimes");
+assert(walletCopyability.includes("historical_entry_context_claimed: false"), "prospective market regimes must not become historical-entry claims");
 assert(walletCopyabilityCheckpoints.includes("RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED"), "follower outcome checkpoints must have an independent default-off gate");
 assert(walletCopyabilityCheckpoints.includes("actual_source_exit_claimed: false"), "source opportunity checkpoints must not claim an actual source exit");
 assert(walletCopyabilityCheckpoints.includes("realized_source_pnl_claimed: false"), "source opportunity checkpoints must not claim realized source P&L");

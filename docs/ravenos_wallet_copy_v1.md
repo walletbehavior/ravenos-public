@@ -83,7 +83,7 @@ Sources reviewed:
 
 GMGN’s publicly visible navigation and wallet-discovery surfaces emphasize immediate address search, categorized wallet lists, monitoring, copy controls, and low-friction movement from discovery into action. Authentication limited deeper verification during this review. No claim about GMGN’s fill quality, scoring accuracy, or internal implementation is treated as verified.
 
-Raven’s intended advantage is not a larger headline P&L. It is the explicit split between source performance and follower reality, the reverse-exit requirement, visible reason-level refusal evidence, policy-specific shadow outcomes, and prospective copyability by order size. The profile identifies the leading blocker at the reference size and reports majority-pass size observations without presenting them as proven liquidity capacity.
+Raven’s intended advantage is not a larger headline P&L. It is the explicit split between source performance and follower reality, the reverse-exit requirement, visible reason-level refusal evidence, policy-specific shadow outcomes, and prospective copyability by order size. The profile identifies the leading blocker at the reference size, reports majority-pass size observations without presenting them as proven liquidity capacity, and shows where follower routes actually survive across detected market-cap, liquidity, and selected-pair-age regimes.
 
 ## Migration gate
 

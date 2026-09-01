@@ -307,6 +307,7 @@ function renderFollowerReality() {
   const marketContext = shared?.detection_market_context || null;
   const outcomes = shared?.prospective_outcomes || null;
   const diagnosis = shared?.copy_diagnosis || null;
+  const marketRegimes = shared?.market_regimes || null;
   const outcomeReference = outcomes?.reference || null;
   const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
   setText("copyFollowerHeadline", sharedAvailable
@@ -363,6 +364,28 @@ function renderFollowerReality() {
     setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
     setText("copyRefusalHeadline", readable(refusal.reason_code));
     setText("copyRefusalDetail", `${refusal.count} of ${overall?.prospective_sample_count || 0} prospective routes · ${pct(refusal.pct_of_signals)} of signals. Refusals remain visible and are never recorded as zero-return trades.`);
+  }
+  const marketFit = document.getElementById("copyMarketFit");
+  const marketDimensions = Array.isArray(marketRegimes?.dimensions)
+    ? marketRegimes.dimensions.filter((row) => row?.representative_bucket)
+    : [];
+  marketFit.hidden = !sharedAvailable || !marketDimensions.length;
+  if (sharedAvailable && marketDimensions.length) {
+    setText("copyMarketFitScope", `Prospective ${money(marketRegimes.reference_order_size_usdc || 100).replace(".00", "")} routes · ${marketRegimes.minimum_prospective_sample_count || 20} signals before a segment is evidence-qualified`);
+    document.getElementById("copyMarketFitGrid").replaceChildren(...marketDimensions.map((dimension) => {
+      const bucket = dimension.representative_bucket;
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const headline = document.createElement("strong");
+      const detail = document.createElement("p");
+      label.textContent = dimension.label;
+      headline.textContent = bucket.bucket_label;
+      const pass = bucket.policy_pass_pct === null || bucket.policy_pass_pct === undefined ? "pass rate forming" : `${pct(bucket.policy_pass_pct)} passed`;
+      const blocker = bucket.dominant_refusal ? ` · blocker: ${readable(bucket.dominant_refusal.reason_code)}` : "";
+      detail.textContent = `${bucket.prospective_sample_count} signal${bucket.prospective_sample_count === 1 ? "" : "s"} · ${pass}${blocker}`;
+      card.append(label, headline, detail);
+      return card;
+    }));
   }
   const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
   setText("copyFollowerLimit", sharedAvailable

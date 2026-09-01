@@ -320,6 +320,19 @@ test("detection-time market context is counted once per source signal, not once 
   assert.equal(context.pair_age_used_as_token_age, false);
   assert.equal(context.current_market_context_substituted_for_source_fill, false);
   assert.ok(observations.every((row) => row.market_context.schema_version === SOURCE_WALLET_DETECTION_MARKET_CONTEXT_SCHEMA));
+  const regimes = matrix.market_regimes;
+  assert.equal(regimes.state, "forming");
+  assert.equal(regimes.reference_signal_count, 2);
+  assert.equal(regimes.exact_source_pool_claimed, false);
+  assert.equal(regimes.token_age_claimed, false);
+  const cap = regimes.dimensions.find((row) => row.dimension === "market_cap_usd");
+  assert.equal(cap.context_coverage_pct, 100);
+  assert.equal(cap.buckets.find((row) => row.bucket_id === "under_200k").prospective_sample_count, 1);
+  assert.equal(cap.buckets.find((row) => row.bucket_id === "200k_750k").prospective_sample_count, 1);
+  const liquidity = regimes.dimensions.find((row) => row.dimension === "liquidity_usd");
+  assert.equal(liquidity.representative_bucket.bucket_id, "under_25k");
+  const pairAge = regimes.dimensions.find((row) => row.dimension === "pair_age_seconds");
+  assert.equal(pairAge.buckets.find((row) => row.bucket_id === "under_5m").prospective_sample_count, 2);
 });
 
 test("fee scenarios remain separate and never double-count one source signal", () => {
@@ -420,6 +433,7 @@ test("the rebuildable screener projection stores only the current shared policy 
   assert.ok(serialized);
   assert.equal(JSON.parse(serialized).detection_market_context.context_observation_count, 1);
   assert.equal(JSON.parse(serialized).prospective_outcomes.checkpoint_count, 0);
+  assert.ok(Buffer.byteLength(serialized, "utf8") <= 65_536);
   assert.equal(serialized.includes("user_id"), false);
   assert.equal(serialized.includes("watch_id"), false);
 });

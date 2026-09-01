@@ -227,6 +227,32 @@ function prospectiveCopyability() {
       median_detected_market_cap_usd: 750_000,
       median_detected_liquidity_usd: 125_000,
     },
+    market_regimes: {
+      schema_version: "ravenos.source_wallet_copyability_market_regimes.v1",
+      state: "available",
+      reference_order_size_usdc: 100,
+      reference_signal_count: 24,
+      minimum_prospective_sample_count: 20,
+      dimensions: [
+        {
+          dimension: "market_cap_usd",
+          label: "Detected market cap",
+          representative_bucket: { bucket_id: "200k_750k", bucket_label: "$200K–$750K", prospective_sample_count: 24, policy_pass_pct: 66.67, dominant_refusal: null },
+        },
+        {
+          dimension: "liquidity_usd",
+          label: "Detected liquidity",
+          representative_bucket: { bucket_id: "100k_500k", bucket_label: "$100K–$500K", prospective_sample_count: 24, policy_pass_pct: 66.67, dominant_refusal: null },
+        },
+        {
+          dimension: "pair_age_seconds",
+          label: "Selected pair age",
+          representative_bucket: { bucket_id: "1h_24h", bucket_label: "1h–24h", prospective_sample_count: 24, policy_pass_pct: 66.67, dominant_refusal: null },
+        },
+      ],
+      exact_source_pool_claimed: false,
+      token_age_claimed: false,
+    },
     hypothetical_raven_fee_scenarios_bps: [10],
   };
 }
@@ -540,6 +566,10 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.locator("#copyRefusalLabel")).toHaveText("Leading blocker · $100");
   await expect(page.locator("#copyRefusalHeadline")).toHaveText("Reverse Exit Unavailable");
   await expect(page.locator("#copyRefusalDetail")).toContainText("5 of 24 prospective routes");
+  await expect(page.locator("#copyMarketFit").getByText("Where the route survives", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyMarketFit").getByText("$200K–$750K", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyMarketFit").getByText("$100K–$500K", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyMarketFit").getByText("1h–24h", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save wallet" })).toBeVisible();
   await expect(page.locator("#copyEventCount")).toHaveText("2 of 26 retained");
   await page.getByRole("button", { name: "Load older" }).click();
