@@ -239,4 +239,20 @@ The five-size matrix is deliberately economical: shared token-standard, mint-aut
 
 The Raven Pro wallet profile can consume this shared matrix before a subscriber shadows the wallet. It shows sample counts and policy-pass rates immediately, but publishes a 0–100 Copyability score for an order size only after at least 20 prospective observations with sufficient entry and exit evidence. The reference headline uses $100 evidence and the full five-size capacity rail remains visible.
 
-This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migration `0015`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
+Migration `0017_source_wallet_copyability_projection.sql` adds a rebuildable current projection for the Pro screener. It lets traders filter and sort by prospective sample size, entry availability, verified-exit rate, policy-pass rate, round-trip friction, and mature $100 Copyability without rescanning every append-only route observation on each request. Current scores are bound to an exact versioned policy-matrix hash; superseded policy observations remain in history but are never mixed into the current score.
+
+This evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`. It additionally requires the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015` and `0017`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
+
+## Nexus research-cohort milestone
+
+The discovery-to-copyability loop is now closed without making every provider candidate look like a trader. A wallet still needs recurring reduced Nexus evidence, independent Raven transaction hydration, an economically normalized swap with route evidence, and admission into the existing bounded backfill system. Only then can Raven add it to a shared prospective research cohort.
+
+Migration `0016_source_wallet_research_cohort.sql` adds bounded operational membership for those verified public wallets. Membership is not a profitability, smart-money, or copyability label. The append-only discovery observations and hydration rows remain the admission evidence; the cohort row only determines which verified wallets deserve continuing observation.
+
+The exact manifest always reserves capacity for active customer watches and saved research wallets first. Remaining capacity may be filled by at most 20,000 active research-cohort wallets, ranked by transparent recurrence and mint-breadth evidence. The overall Constant-K manifest remains under its existing 25,000-wallet hard ceiling and still contains no user IDs, policies, follower counts, balances, or execution material.
+
+This closes the intended shared pipeline:
+
+`Nexus candidate → Raven hydration → bounded backfill/profile → research cohort → prospective observer → five-size entry/exit evidence → screener and wallet profile`
+
+The cohort is independently dormant behind `RAVENOS_WALLET_RESEARCH_COHORT_ENABLED`. Admission also requires the discovery and backfill gates; manifest inclusion also requires the observer-ingress gates. The flag is absent from Wrangler. No migration, service, manifest change, observer activation, live copy, signing, broadcasting, custody, or fee collection is performed by this milestone.

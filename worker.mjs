@@ -197,6 +197,10 @@ import {
   runSourceWalletBackfillBatch,
   sourceWalletBackfillHistoryEvidence,
 } from "./lib/customer_trade/source_wallet_backfill.mjs";
+import {
+  createSourceWalletResearchCohortAdmission,
+  resolveSourceWalletResearchCohortActivation,
+} from "./lib/customer_trade/source_wallet_research_cohort.mjs";
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
@@ -9140,6 +9144,7 @@ export default {
         })()
       : Promise.resolve({ state: "disabled" });
     const discoveryActivation = resolveSourceWalletDiscoveryAdmissionActivation(env || {});
+    const researchCohortActivation = resolveSourceWalletResearchCohortActivation(env || {});
     const discoveryWork = discoveryActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
       ? (() => {
           const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
@@ -9173,10 +9178,24 @@ export default {
                 provider: "configured_solana_rpc",
                 now: Number(now),
               });
+              const researchCohort = researchCohortActivation.admission
+                ? await walletStore.admitSourceWalletResearchCohort(
+                    createSourceWalletResearchCohortAdmission({
+                      candidate,
+                      admitted_at: new Date(Number(now)).toISOString(),
+                    }),
+                    seconds,
+                  )
+                : null;
               return {
                 source_wallet_id: candidate.source_wallet_id,
                 event_inserted: inserted.includes(event.event_id),
                 backfill: { state: backfill?.state || "unavailable" },
+                research_cohort: researchCohort ? {
+                  state: researchCohort.state,
+                  evidence_tier: researchCohort.evidence_tier,
+                  priority_score: Number(researchCohort.priority_score),
+                } : { state: "disabled" },
               };
             },
           }, {

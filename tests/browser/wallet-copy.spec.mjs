@@ -410,7 +410,7 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.getByRole("heading", { name: "Find wallets with reconstructable edge." })).toBeVisible();
   await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
   await expect(page.getByText(/Watch: Only 71.4% of observed trade cost basis is known/)).toBeVisible();
-  await expect(page.getByText("Follower", { exact: true })).toBeVisible();
+  await expect(page.getByText("Follower $100", { exact: true })).toBeVisible();
   await expect(page.getByText("Not sampled", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("#copySavedWallets").getByText("7KxQmT…MpfHrt", { exact: true })).toBeVisible();

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs";
+
 import {
   WALLET_SCREENER_SCHEMA,
   WalletScreenerLimits,
@@ -13,6 +15,7 @@ import {
   projectWalletScreenerRow,
 } from "../lib/customer_trade/wallet_screener.mjs";
 import { buildWalletResearchThesis } from "../lib/customer_trade/wallet_research_thesis.mjs";
+import { createSourceWalletCopyabilityPolicyReference } from "../lib/customer_trade/source_wallet_copyability.mjs";
 
 const NOW = "2026-08-29T18:00:00.000Z";
 const ADDRESS = "11111111111111111111111111111111";
@@ -144,6 +147,7 @@ test("composable clauses and transparent presets normalize without accepting SQL
 test("request validation rejects unknown controls, unallowlisted sorts, and unbounded values", () => {
   assert.deepEqual(WalletScreenerPerformanceStates, ["any", "available", "partial", "insufficient_evidence"]);
   assert.ok(WalletScreenerSorts.includes("realized_pnl_usdc_desc"));
+  assert.ok(WalletScreenerSorts.includes("copyability_score_desc"));
   assert.throws(() => normalizeWalletScreenerRequest({ claim_all_wallets: true }, { now: NOW }), /wallet_screener_request_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { mystery: 1 } }, { now: NOW }), /wallet_screener_filters_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ sort: "address_desc" }, { now: NOW }), /wallet_screener_sort_invalid/);
@@ -155,6 +159,53 @@ test("request validation rejects unknown controls, unallowlisted sorts, and unbo
   assert.throws(() => normalizeWalletScreenerRequest({ page: 26 }, { now: NOW }), /wallet_screener_page_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ page_size: 31 }, { now: NOW }), /wallet_screener_page_size_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({}, { now: "not-a-time" }), /wallet_screener_now_invalid/);
+});
+
+test("prospective follower evidence is an internal-policy-bound, composable screener dimension", () => {
+  const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
+  const query = normalizeWalletScreenerRequest({
+    clauses: [
+      { field: "copyability_sample_count", operator: "gte", value: 20 },
+      { field: "exit_executable_pct", operator: "gte", value: 80 },
+      { field: "policy_pass_pct", operator: "gte", value: 60 },
+      { field: "median_round_trip_friction_pct", operator: "lte", value: 5 },
+    ],
+    sort: "copyability_score_desc",
+  }, { now: NOW, copyability_reference: reference });
+  assert.equal(query.follower_reality_reference.matrix_policy_hash, reference.matrix_policy_hash);
+  assert.equal(query.follower_reality_reference.reference_order_size_usdc, 100);
+  assert.equal(query.clauses.length, 4);
+  assert.equal(query.sort, "copyability_score_desc");
+});
+
+test("D1 screening joins one exact fee and policy projection with deterministic binding order", async () => {
+  const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
+  const query = normalizeWalletScreenerRequest({
+    clauses: [{ field: "copyability_sample_count", operator: "gte", value: 20 }],
+    sort: "policy_pass_desc",
+    page_size: 12,
+  }, { now: NOW, copyability_reference: reference });
+  const calls = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...bindings) {
+          calls.push({ sql, bindings });
+          return {
+            async first() { return { count: 0 }; },
+            async all() { return { results: [] }; },
+          };
+        },
+      };
+    },
+  };
+  const result = await createD1CustomerWalletCopyStore(db).screenSourceWallets(query);
+  assert.deepEqual(result, { rows: [], total: 0 });
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /LEFT JOIN ravenos_source_wallet_copyability_current cp/i);
+  assert.match(calls[1].sql, /cp\.policy_pass_pct IS NULL ASC/i);
+  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, 20]);
+  assert.deepEqual(calls[1].bindings, [10, reference.matrix_policy_hash, 20, 12, 0]);
 });
 
 test("row projection exposes exact identity and source evidence without inventing follower results", () => {
@@ -247,6 +298,34 @@ test("research thesis distinguishes one-hit risk, mixed settlement bases, thin e
   assert.equal(thin.claim_boundary.calibrated_alpha_claimed, false);
 });
 
+test("screener rows expose prospective $100 follower reality without converting it into source performance", () => {
+  const projected = projectWalletScreenerRow(row({
+    copyability_state: "available",
+    copyability_score: 81,
+    copyability_sample_count: 24,
+    prospective_signal_count: 24,
+    entry_executable_pct: 91.67,
+    exit_executable_pct: 87.5,
+    policy_pass_pct: 66.67,
+    median_entry_degradation_bps: 42,
+    median_round_trip_friction_pct: 2.41,
+    copyability_fee_bps: 10,
+    copyability_last_observed_at: Math.floor(Date.parse("2026-08-29T17:58:00.000Z") / 1_000),
+  }));
+  assert.equal(projected.follower_reality.state, "available");
+  assert.equal(projected.follower_reality.copyability_score, 81);
+  assert.equal(projected.follower_reality.prospective_sample_size, 24);
+  assert.equal(projected.follower_reality.exit_verified_rate_pct, 87.5);
+  assert.equal(projected.follower_reality.policy_pass_rate_pct, 66.67);
+  assert.equal(projected.follower_reality.median_entry_degradation_pct, 0.42);
+  assert.equal(projected.follower_reality.median_round_trip_friction_pct, 2.41);
+  assert.equal(projected.follower_reality.hypothetical_raven_fee_bps, 10);
+  assert.equal(projected.source_performance.realized_pnl.usdc, 4812.25);
+  assert.equal(projected.follower_reality.source_performance_used_as_follower_performance, false);
+  assert.equal(projected.follower_reality.unavailable_decisions_dropped, false);
+  assert.equal(projected.why_surfaced[1].code, "prospective_follower_evidence");
+});
+
 test("projection fails closed on identity and never turns malformed or missing metrics into zero", () => {
   assert.equal(projectWalletScreenerRow(row({ source_wallet_id: "sw_sol_not_exact" })), null);
   assert.equal(projectWalletScreenerRow(row({ address: "not-a-solana-address" })), null);
@@ -288,7 +367,7 @@ test("response is bounded, paginated, honest about universe coverage, and exclud
   assert.equal(response.pagination.has_next, true);
   assert.equal(response.scope.claim, "bounded_raven_index_only");
   assert.equal(response.scope.comprehensive_chain_index, false);
-  assert.deepEqual(response.presets.map((preset) => preset.id), ["evidence_first", "consistent_winners", "broad_edge", "active_swing", "fast_systematic"]);
+  assert.deepEqual(response.presets.map((preset) => preset.id), ["evidence_first", "consistent_winners", "broad_edge", "active_swing", "fast_systematic", "follower_tested"]);
   assert.match(response.limitations[0], /not every wallet on Solana/i);
   assert.equal(Object.isFrozen(response.rows), true);
 });

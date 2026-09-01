@@ -142,6 +142,8 @@ test("ingress activation remains dormant unless intelligence and observer gates 
     configured: false,
     manifest: false,
     ingest: false,
+    research_cohort_requested: false,
+    research_cohort_manifest: false,
     signing: false,
     submission: false,
     broadcasting: false,
@@ -152,6 +154,7 @@ test("ingress activation remains dormant unless intelligence and observer gates 
   assert.equal(resolveSourceWalletIngressActivation(activeEnv()).ingest, true);
   assert.equal(resolveSourceWalletIngressActivation(activeEnv({ RAVENOS_WALLET_OBSERVER_ENABLED: "0" })).manifest, true);
   assert.equal(resolveSourceWalletIngressActivation(activeEnv({ RAVENOS_WALLET_OBSERVER_ENABLED: "0" })).ingest, false);
+  assert.equal(resolveSourceWalletIngressActivation(activeEnv({ RAVENOS_WALLET_RESEARCH_COHORT_ENABLED: "1" })).research_cohort_manifest, true);
 });
 
 test("disabled and wrong-host ingress stays indistinguishable from a missing route", async () => {

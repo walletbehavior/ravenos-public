@@ -183,6 +183,18 @@ assert.equal(config.wallet_copy.signer_material_persisted, false);
 assert.equal(config.wallet_copy.transaction_material_persisted, false);
 assert.equal(config.wallet_copy.source_and_follower_performance_separate, true);
 assert.equal(config.wallet_copy.historical_and_prospective_evidence_separate, true);
+assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projection_implemented, true);
+assert.equal(config.wallet_copy.shared_prospective_copyability_screener_projection_active, false);
+assert.equal(config.wallet_copy.shared_prospective_copyability_superseded_policies_mixed, false);
+assert.equal(config.wallet_copy.shared_prospective_copyability_screener_reference_size_usdc, 100);
+assert.equal(config.wallet_copy.nexus_research_cohort_implemented, true);
+assert.equal(config.wallet_copy.nexus_research_cohort_active, false);
+assert.equal(config.wallet_copy.nexus_research_cohort_maximum_wallets, 20_000);
+assert.equal(config.wallet_copy.nexus_research_cohort_user_watches_prioritized, true);
+assert.equal(config.wallet_copy.nexus_research_cohort_independent_trade_hydration_required, true);
+assert.equal(config.wallet_copy.nexus_research_cohort_subscriber_identity_included, false);
+assert.equal(config.wallet_copy.nexus_research_cohort_profitability_claimed, false);
+assert.equal(config.wallet_copy.nexus_research_cohort_copyability_claimed, false);
 assert.equal(config.wallet_copy.live_copy_source_level_disabled, true);
 assert.equal(config.wallet_copy.signing_source_level_disabled, true);
 assert.equal(config.wallet_copy.broadcasting_source_level_disabled, true);
@@ -353,6 +365,7 @@ const walletObserverReceiverDaemon = readFileSync(join(root, "scripts", "run-con
 const walletDiscoveryIngress = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_ingress.mjs"), "utf8");
 const walletDiscoveryAdmission = readFileSync(join(root, "lib", "customer_trade", "source_wallet_discovery_admission.mjs"), "utf8");
 const walletCopyability = readFileSync(join(root, "lib", "customer_trade", "source_wallet_copyability.mjs"), "utf8");
+const walletResearchCohort = readFileSync(join(root, "lib", "customer_trade", "source_wallet_research_cohort.mjs"), "utf8");
 assert(walletObserverLiveValidator.includes('mode: "authorized_read_only_manual_probe"'), "wallet-observer validator must identify its read-only authority");
 assert(walletObserverLiveValidator.includes("prospective_detection_latency_measured: false"), "RPC catch-up must not be presented as prospective speed evidence");
 assert(walletObserverTransports.includes('transport: "shredstream"') || walletObserverTransports.includes('"shredstream"'), "private shred adapter contract is missing");
@@ -373,11 +386,16 @@ assert(walletCopyability.includes("source_performance_substituted: false"), "sha
 assert(walletCopyability.includes("subscriber_identity_included: false"), "shared copyability observations must exclude subscriber identity");
 assert(walletCopyability.includes("shadow_position_created: false"), "shared copyability probes must not create customer positions");
 assert(walletCopyability.includes("broadcasting: false"), "shared copyability probes must not expose broadcast authority");
+assert(walletResearchCohort.includes("RAVENOS_WALLET_RESEARCH_COHORT_ENABLED"), "research cohort must have an independent default-off gate");
+assert(walletResearchCohort.includes("maximum_research_wallets: 20_000"), "research cohort must remain below the observer manifest ceiling");
+assert(walletResearchCohort.includes("subscriber_identity_included: false"), "research cohort must not contain subscriber identity");
+assert(walletResearchCohort.includes("copyable_wallet_claimed: false"), "cohort membership must not claim copyability");
 assert(walletObserverReceiverDaemon.indexOf("posted = await postConstantKNexusWalletDiscoveryObservations") < walletObserverReceiverDaemon.indexOf("atomicJson(config.checkpoint_path"), "receiver must durably post discovery evidence before checkpoint persistence");
 for (const discoveryFlag of ["RAVENOS_WALLET_DISCOVERY_INGRESS_ENABLED", "RAVENOS_WALLET_DISCOVERY_EVALUATOR_ENABLED"]) {
   assert(!wrangler.includes(discoveryFlag), `wallet discovery activation flag must not be configured in Wrangler: ${discoveryFlag}`);
 }
 assert(!wrangler.includes("RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED"), "shared copyability activation flag must not be configured in Wrangler");
+assert(!wrangler.includes("RAVENOS_WALLET_RESEARCH_COHORT_ENABLED"), "research cohort activation flag must not be configured in Wrangler");
 for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTransaction", "signTransaction", "privateKey", "seedPhrase"]) {
   assert(!walletObserverLiveValidator.includes(forbiddenWalletObserverAuthority), `wallet-observer live validator contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletObserverTransports.includes(forbiddenWalletObserverAuthority), `wallet-observer transport contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
@@ -388,6 +406,7 @@ for (const forbiddenWalletObserverAuthority of ["sendRawTransaction", "sendTrans
   assert(!walletDiscoveryIngress.includes(forbiddenWalletObserverAuthority), `wallet-discovery ingress contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletDiscoveryAdmission.includes(forbiddenWalletObserverAuthority), `wallet-discovery admission contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
   assert(!walletCopyability.includes(forbiddenWalletObserverAuthority), `wallet-copyability probe contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
+  assert(!walletResearchCohort.includes(forbiddenWalletObserverAuthority), `wallet research cohort contains forbidden authority: ${forbiddenWalletObserverAuthority}`);
 }
 
 console.log(JSON.stringify({

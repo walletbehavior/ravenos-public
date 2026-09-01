@@ -719,6 +719,10 @@ function screenerRequest() {
   clause("profit_factor", "gte", "copyScreenProfitFactor");
   clause("top_1_profit_concentration_pct", "lte", "copyScreenTopOne");
   clause("reconstruction_confidence_pct", "gte", "copyScreenReconstruction");
+  clause("copyability_sample_count", "gte", "copyScreenCopySample");
+  clause("exit_executable_pct", "gte", "copyScreenExitRate");
+  clause("policy_pass_pct", "gte", "copyScreenPassRate");
+  clause("median_round_trip_friction_pct", "lte", "copyScreenFriction");
   const holdMinimum = optionalNumber("copyScreenHoldMin");
   const holdMaximum = optionalNumber("copyScreenHoldMax");
   if (holdMinimum !== null && holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "between", value: [holdMinimum, holdMaximum] });
@@ -764,6 +768,10 @@ function syncScreenerUrl() {
     hold_min: document.getElementById("copyScreenHoldMin").value,
     hold_max: document.getElementById("copyScreenHoldMax").value,
     pattern: document.getElementById("copyScreenMechanical").value,
+    copy_sample: document.getElementById("copyScreenCopySample").value,
+    exit_rate: document.getElementById("copyScreenExitRate").value,
+    pass_rate: document.getElementById("copyScreenPassRate").value,
+    friction: document.getElementById("copyScreenFriction").value,
   };
   for (const [key, value] of Object.entries(fields)) {
     if (value === null || value === undefined || value === "" || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
@@ -781,6 +789,7 @@ function hydrateScreenerFromUrl() {
     evidence: "copyScreenEvidence", sort: "copyScreenSort", closed: "copyScreenClosed", win: "copyScreenWin",
     roi: "copyScreenRoi", pf: "copyScreenProfitFactor", top1: "copyScreenTopOne", recon: "copyScreenReconstruction",
     hold_min: "copyScreenHoldMin", hold_max: "copyScreenHoldMax", pattern: "copyScreenMechanical",
+    copy_sample: "copyScreenCopySample", exit_rate: "copyScreenExitRate", pass_rate: "copyScreenPassRate", friction: "copyScreenFriction",
   };
   for (const [parameter, id] of Object.entries(mappings)) {
     const value = params.get(parameter);
@@ -876,6 +885,12 @@ function screenerCard(wallet) {
   address.textContent = shortAddress(wallet.source_wallet?.address);
   observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact Solana address`;
   identity.append(stateLabel, address, observed);
+  const follower = wallet.follower_reality || {};
+  const followerLabel = follower.state === "not_sampled"
+    ? "Not sampled"
+    : follower.copyability_score !== null && follower.copyability_score !== undefined
+      ? `${follower.copyability_score}/100 · ${follower.prospective_sample_size || 0} tests`
+      : `${follower.prospective_sample_size || 0} tests · ${follower.policy_pass_rate_pct === null || follower.policy_pass_rate_pct === undefined ? "pass forming" : `${pct(follower.policy_pass_rate_pct)} pass`}`;
   const metrics = document.createElement("dl");
   metrics.append(
     fact("Realized", realizedPerformance({
@@ -889,7 +904,7 @@ function screenerCard(wallet) {
     fact("Trades", wallet.behavior?.trade_count ?? 0),
     fact("Median hold", humanDuration(wallet.behavior?.median_hold_seconds)),
     fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
-    fact("Follower", wallet.follower_reality?.state === "not_sampled" ? "Not sampled" : readable(wallet.follower_reality?.state)),
+    fact("Follower $100", followerLabel),
   );
   const why = document.createElement("div");
   why.className = "copy-screener-thesis";

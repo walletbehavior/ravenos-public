@@ -5,6 +5,8 @@ import test from "node:test";
 
 import bs58 from "bs58";
 
+import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs";
+
 import {
   SOLANA_CANONICAL_USDC_MINT,
   normalizeSolanaWalletTransaction,
@@ -17,6 +19,7 @@ import {
   buildSourceWalletCopyabilityMatrix,
   createSourceWalletCopyabilityObservation,
   createSourceWalletCopyabilityPolicy,
+  createSourceWalletCopyabilityPolicyReference,
   evaluateSourceWalletCopyabilityMatrix,
   resolveSourceWalletCopyabilityActivation,
 } from "../lib/customer_trade/source_wallet_copyability.mjs";
@@ -173,6 +176,7 @@ test("one source trade produces one shared evidence row per standard follower si
   assert.equal(first.probe_count, 5);
   assert.equal(first.observation_count, 5);
   assert.equal(first.quote_variant_count, 5);
+  assert.equal(first.projection_refreshed, false);
   assert.equal(quoteCalls, 5);
   assert.deepEqual([...store.observations.values()].map((row) => row.standard_order_size_usdc).sort((left, right) => left - right), RavenCopyStandardOrderSizesUsdc);
   for (const observation of store.observations.values()) {
@@ -278,8 +282,71 @@ test("fee scenarios remain separate and never double-count one source signal", (
   assert.ok(matrix.fee_scenarios.every((scenario) => scenario.probe_observation_count === 5));
 });
 
+test("current matrices never mix superseded research-policy observations into a score", () => {
+  const event = sourceBuy();
+  const current = createSourceWalletCopyabilityObservation({
+    source_wallet_id: SOURCE_ID,
+    source_event: event,
+    policy: createSourceWalletCopyabilityPolicy(100, { fee_bps: 10 }),
+    ...quoteEvidence(100, "current"),
+  }, { now: NOW });
+  const superseded = JSON.parse(JSON.stringify(current));
+  superseded.observation_id = `swcp_${"f".repeat(40)}`;
+  superseded.policy_hash = "e".repeat(40);
+  superseded.matrix_policy_hash = "d".repeat(40);
+  const matrix = buildSourceWalletCopyabilityMatrix([superseded, current], { generated_at: "2026-09-01T13:00:00.000Z" });
+  assert.equal(matrix.prospective_signal_count, 1);
+  assert.equal(matrix.probe_observation_count, 1);
+  assert.equal(matrix.fee_scenarios[0].superseded_policy_observation_count, 1);
+  assert.equal(matrix.snapshot.prospective_sample_count, 1);
+});
+
+test("the rebuildable screener projection stores only the current shared policy cohort", async () => {
+  const event = sourceBuy();
+  const observations = RavenCopyStandardOrderSizesUsdc.map((size) => createSourceWalletCopyabilityObservation({
+    source_wallet_id: SOURCE_ID,
+    source_event: event,
+    policy: createSourceWalletCopyabilityPolicy(size, { fee_bps: 10 }),
+    ...quoteEvidence(size, "projection"),
+  }, { now: NOW }));
+  const writes = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...bindings) {
+          return {
+            async all() {
+              assert.match(sql, /FROM ravenos_source_wallet_copyability_observations/i);
+              return { results: observations.map((observation) => ({ observation_json: JSON.stringify(observation) })) };
+            },
+            async run() {
+              writes.push({ sql, bindings });
+              return { meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  };
+  const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
+  const matrix = await createD1CustomerWalletCopyStore(db).refreshSourceCopyabilityProjection(SOURCE_ID, {
+    fee_bps: 10,
+    policy_reference: reference,
+    now: Math.floor(NOW / 1_000),
+  });
+  assert.equal(matrix.reference_matrix_policy_hash, reference.matrix_policy_hash);
+  assert.equal(matrix.prospective_signal_count, 1);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].sql, /INSERT INTO ravenos_source_wallet_copyability_current/i);
+  const serialized = writes[0].bindings.find((value) => typeof value === "string" && value.includes('"schema_version":"ravenos.source_wallet_copyability_matrix.v1"'));
+  assert.ok(serialized);
+  assert.equal(serialized.includes("user_id"), false);
+  assert.equal(serialized.includes("watch_id"), false);
+});
+
 test("copyability migration is append-only, subscriber-free, and has no live authority", () => {
   const sql = readFileSync(new URL("../customer-migrations/0015_source_wallet_copyability.sql", import.meta.url), "utf8");
+  const projectionSql = readFileSync(new URL("../customer-migrations/0017_source_wallet_copyability_projection.sql", import.meta.url), "utf8");
   assert.match(sql, /ravenos_source_wallet_copyability_observations/);
   assert.match(sql, /source_wallet_copyability_observation_append_only/);
   assert.match(sql, /subscriber_identity_included/);
@@ -287,4 +354,9 @@ test("copyability migration is append-only, subscriber-free, and has no live aut
   assert.match(sql, /shadow_position_created/);
   assert.match(sql, /transaction_hash[^\n]+IS NULL/);
   assert.doesNotMatch(sql, /private_key|seed_phrase|signer_key/i);
+  assert.match(projectionSql, /CREATE TABLE ravenos_source_wallet_copyability_current/i);
+  assert.match(projectionSql, /source_performance_used_as_follower_performance/i);
+  assert.match(projectionSql, /unavailable_decisions_dropped/i);
+  assert.match(projectionSql, /reference_score/i);
+  assert.doesNotMatch(projectionSql, /private_key|seed_phrase|signer_key|user_id/i);
 });
