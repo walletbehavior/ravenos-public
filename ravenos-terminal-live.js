@@ -83,6 +83,7 @@ const state = {
   spotWalletFilter: "all",
   spotTradeRefreshTimer: null,
   spotCurrentPrice: null,
+  spotValuationReference: null,
   projectProfile: null,
   spotTicketSide: "buy",
   spotTicketPlanSource: "user_preset",
@@ -263,6 +264,39 @@ const SPOT_CURRENT_PRICE_SOURCE_PRIORITY = Object.freeze({
   exact_pool_trade_tape: 3,
 });
 
+function seedSelectedSpotValuation(row = {}) {
+  const identity = currentProjectIdentity();
+  const referencePrice = finite(row.priceUsd);
+  const marketCap = finite(row.marketCap);
+  const fdv = finite(row.fdv);
+  if (!identity || referencePrice === null || referencePrice <= 0 || ![marketCap, fdv].some((value) => value !== null && value > 0)) {
+    state.spotValuationReference = null;
+    return null;
+  }
+  state.spotValuationReference = {
+    identityKey: identity.key,
+    referencePrice,
+    marketCap: marketCap !== null && marketCap > 0 ? marketCap : null,
+    fdv: fdv !== null && fdv > 0 ? fdv : null,
+  };
+  return state.spotValuationReference;
+}
+
+function currentSpotValuation(price) {
+  const identity = currentProjectIdentity();
+  const reference = state.spotValuationReference;
+  const currentPrice = finite(price);
+  if (!identity || reference?.identityKey !== identity.key || currentPrice === null || currentPrice <= 0) return null;
+  const multiplier = currentPrice / reference.referencePrice;
+  if (!Number.isFinite(multiplier) || multiplier <= 0) return null;
+  const scale = (value) => {
+    const source = finite(value);
+    const result = source === null ? null : source * multiplier;
+    return result !== null && Number.isFinite(result) && result > 0 && result <= 1_000_000_000_000_000 ? result : null;
+  };
+  return { marketCap: scale(reference.marketCap), fdv: scale(reference.fdv) };
+}
+
 function reconcileSelectedSpotPrice(update = {}) {
   const selected = currentProjectIdentity();
   const chain = String(update.chain || "").trim().toLowerCase();
@@ -304,8 +338,20 @@ function reconcileSelectedSpotPrice(update = {}) {
     observedMs: candidateObservedMs,
     source,
   };
-  state.selected = { ...state.selected, priceUsd: price, lastUpdated: state.spotCurrentPrice.observedAt };
+  const valuation = currentSpotValuation(price);
+  state.selected = {
+    ...state.selected,
+    priceUsd: price,
+    lastUpdated: state.spotCurrentPrice.observedAt,
+    marketCap: valuation?.marketCap ?? state.selected?.marketCap ?? null,
+    fdv: valuation?.fdv ?? state.selected?.fdv ?? null,
+  };
   setLastMetric(price);
+  setMarketMetric(
+    2,
+    valuation?.marketCap !== null && valuation?.marketCap !== undefined ? "Market cap" : "FDV",
+    compact(valuation?.marketCap ?? valuation?.fdv ?? state.selected?.marketCap ?? state.selected?.fdv, { currency: true }),
+  );
   return true;
 }
 
@@ -4325,8 +4371,9 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     const shortFlow = buys5m !== null && sells5m !== null
       ? `${compact(buys5m)} buy · ${compact(sells5m)} sell${traders5m === null ? "" : ` · ${compact(traders5m)} traders`}`
       : null;
-    const marketCap = finite(anatomy.market_cap_usd ?? state.selected?.marketCap);
-    const fdv = finite(anatomy.fully_diluted_value_usd ?? state.selected?.fdv);
+    const liveValuation = currentSpotValuation(state.spotCurrentPrice?.price);
+    const marketCap = liveValuation?.marketCap ?? finite(anatomy.market_cap_usd ?? state.selected?.marketCap);
+    const fdv = liveValuation?.fdv ?? finite(anatomy.fully_diluted_value_usd ?? state.selected?.fdv);
     const routeState = String(anatomy.route?.state || "").toLowerCase();
     const buys24h = finite(anatomy.buys_24h ?? state.selected?.buys24h);
     const sells24h = finite(anatomy.sells_24h ?? state.selected?.sells24h);
@@ -7454,6 +7501,8 @@ function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   }
   ++state.selectionGeneration;
   state.selected = null;
+  state.spotCurrentPrice = null;
+  state.spotValuationReference = null;
   clearExternalChart();
   document.getElementById("venueSelect").replaceChildren(new Option("Select exact pool", "unavailable"));
   renderSpotFacts(null);
@@ -7570,6 +7619,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   renderLaunchBadge();
   state.spotCurrentPrice = null;
   state.selected = row;
+  seedSelectedSpotValuation(row);
   setActiveMarketControlRisk(null);
   state.context = null;
   state.opportunityEvidence = null;

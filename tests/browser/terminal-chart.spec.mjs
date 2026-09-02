@@ -1248,9 +1248,9 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
 });
 
-test("Robinhood exact-token holders render from a bounded indexed snapshot", async ({ page }) => {
+test("Robinhood exact-token holders and valuation follow the live exact-pool tape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0003219 });
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0006438 });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
@@ -1275,9 +1275,11 @@ test("Robinhood exact-token holders render from a bounded indexed snapshot", asy
   expect(holderCalls[0].poolAddress).toHaveLength(66);
   expect(tradeCalls[0].poolAddress).toBe(ROBINHOOD_POOL);
   const current = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.());
-  expect(current.currentPrice).toBe(0.0003219);
-  expect(current.lastCandleClose).toBe(0.0003219);
-  await expect(page.locator("#terminalLast")).toContainText("0.0003219");
+  expect(current.currentPrice).toBe(0.0006438);
+  expect(current.lastCandleClose).toBe(0.0006438);
+  await expect(page.locator("#terminalLast")).toContainText("0.0006438");
+  await expect(page.locator("#terminalMetric2")).toHaveText("$643.8K");
+  await expect(page.locator("#terminalAnatomy2")).toHaveText("$643.8K");
 });
 
 test("Robinhood bytes32 pools do not loosen token-address identity checks", async ({ page }) => {
