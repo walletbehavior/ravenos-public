@@ -403,6 +403,10 @@ test("the authenticated hostname exposes only approved account, Saved Monitor, a
   assert.equal(terminal.headers.get("location"), null);
   assert.match(terminal.headers.get("content-security-policy") || "", /default-src 'self'/);
 
+  const ravenLab = await worker.fetch(new Request("https://app.ravenos.xyz/intelligence/?code=must-not-cross-origins"), env);
+  assert.equal(ravenLab.status, 308);
+  assert.equal(ravenLab.headers.get("location"), "https://ravenos.xyz/intelligence/");
+
   const marketApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/trade/flags?token=must-not-echo"), env);
   assert.equal(marketApi.status, 200);
   assert.equal((await marketApi.text()).includes("must-not-echo"), false);

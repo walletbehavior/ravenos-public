@@ -1557,6 +1557,8 @@ export class PriceWorkspace {
       timeframe: String(timeframe || "1h"),
       seen: new Map(),
       buckets: new Map(),
+      currentPrice: null,
+      currentObservedMs: null,
       lastTradeAt: null,
       applied: 0,
       rejected: 0,
@@ -1636,7 +1638,6 @@ export class PriceWorkspace {
       })
       .sort((left, right) => left.observedMs - right.observedMs);
     const affectedBuckets = new Set();
-    let latestAccepted = null;
     let applied = 0;
     for (const trade of candidates) {
       if (this.exactPoolTape.seen.has(trade.id)) continue;
@@ -1672,7 +1673,6 @@ export class PriceWorkspace {
       current.low = Math.min(current.low, trade.price);
       this.exactPoolTape.buckets.set(bucket, current);
       affectedBuckets.add(bucket);
-      latestAccepted = !latestAccepted || trade.observedMs >= latestAccepted.observedMs ? trade : latestAccepted;
       applied += 1;
     }
     while (this.exactPoolTape.buckets.size > 4) this.exactPoolTape.buckets.delete(this.exactPoolTape.buckets.keys().next().value);
@@ -1690,45 +1690,64 @@ export class PriceWorkspace {
         source: "exact_pool_trade_tape",
       });
     }
-    if (!applied || !latestAccepted) {
-      const latestKnown = [...this.exactPoolTape.buckets.values()]
-        .sort((left, right) => right.lastTime - left.lastTime)[0] || null;
+    const latestKnown = [...this.exactPoolTape.buckets.values()]
+      .sort((left, right) => right.lastTime - left.lastTime)[0] || null;
+    if (!applied || !latestKnown) {
       return {
         accepted: true,
         applied: 0,
         duplicate_only: true,
         lastPrice: latestKnown?.lastPrice ?? null,
         observedAt: latestKnown ? new Date(latestKnown.lastTime).toISOString() : null,
+        instrumentId,
       };
     }
     this.exactPoolTape.applied += applied;
-    this.exactPoolTape.lastTradeAt = latestAccepted.observedAt;
+    const currentAdvanced = !Number.isFinite(this.exactPoolTape.currentObservedMs)
+      || latestKnown.lastTime > this.exactPoolTape.currentObservedMs;
+    if (currentAdvanced) {
+      this.exactPoolTape.currentPrice = latestKnown.lastPrice;
+      this.exactPoolTape.currentObservedMs = latestKnown.lastTime;
+    }
+    const currentPrice = this.exactPoolTape.currentPrice;
+    const currentObservedMs = this.exactPoolTape.currentObservedMs;
+    const currentObservedAt = Number.isFinite(currentObservedMs) ? new Date(currentObservedMs).toISOString() : null;
+    this.exactPoolTape.lastTradeAt = currentObservedAt;
     this.state.marketState = {
       ...this.state.marketState,
-      last: latestAccepted.price,
-      observed_at: latestAccepted.observedAt,
+      last: currentPrice,
+      observed_at: currentObservedAt,
       live_price_source: "exact_pool_trade_tape",
     };
-    this.state.observedAt = latestAccepted.observedAt;
-    this.state.lastCandleAt = latestAccepted.observedAt;
-    this.state.lastCandleAgeSeconds = Math.max(0, Math.round((nowMs - latestAccepted.observedMs) / 1_000));
+    this.state.observedAt = currentObservedAt;
+    this.state.lastCandleAt = currentObservedAt;
+    this.state.lastCandleAgeSeconds = Math.max(0, Math.round((nowMs - currentObservedMs) / 1_000));
     this.state.marketActivityState = "active";
     this.schedulePaint();
-    document.dispatchEvent(new CustomEvent("ravenos:charttape", {
-      detail: {
-        instrument_id: instrumentId,
-        timeframe,
-        applied,
-        last_price: latestAccepted.price,
-        observed_at: latestAccepted.observedAt,
-        source: "exact_pool_trade_tape",
-      },
-    }));
+    if (currentAdvanced) {
+      document.dispatchEvent(new CustomEvent("ravenos:charttape", {
+        detail: {
+          instrument_id: instrumentId,
+          market_identity: this.state.marketIdentity,
+          chain: this.state.instrument?.chain || null,
+          pool_address: this.state.instrument?.pool_address || null,
+          token_address: this.state.instrument?.token_address || null,
+          quote_token_address: projection.identity.quote_token_address,
+          timeframe,
+          applied,
+          last_price: currentPrice,
+          observed_at: currentObservedAt,
+          source: "exact_pool_trade_tape",
+        },
+      }));
+    }
     return {
       accepted: true,
       applied,
-      lastPrice: latestAccepted.price,
-      observedAt: latestAccepted.observedAt,
+      currentAdvanced,
+      instrumentId,
+      lastPrice: currentPrice,
+      observedAt: currentObservedAt,
     };
   }
 
@@ -1805,6 +1824,7 @@ export class PriceWorkspace {
         rejected_projections: this.exactPoolTape?.rejected || 0,
         tracked_buckets: this.exactPoolTape?.buckets?.size || 0,
         last_trade_at: this.exactPoolTape?.lastTradeAt || null,
+        current_price: this.exactPoolTape?.currentPrice ?? null,
       },
       chart: this.chartHandle?.measure?.() || null,
     };

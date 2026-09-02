@@ -133,8 +133,9 @@ test("Discover says first-observation uncertainty once and keeps the reason mark
   await page.goto("/discover/");
 
   const summary = page.locator(".discover-token-row").first().locator(".discover-token-raven");
-  await expect(summary.locator(":scope > span").first()).toHaveText("New observation");
-  await expect(summary.locator(":scope > strong")).toHaveText("+12.80% over 5m on $1.8M volume; follow-through unconfirmed.");
+  await expect(summary.locator(":scope > span").first()).toHaveText("Forming");
+  await expect(summary.locator(":scope > strong")).toHaveCount(0);
+  await expect(summary).not.toContainText(/12\.80%|\$1\.8M|follow-through unconfirmed/i);
   await expect(summary).not.toContainText(/open chart to confirm|velocity forming|insufficient history|first market update|waiting for another/i);
   await expect(summary.locator(".discover-token-decision-strip")).toContainText("Thin liquidity vs value");
   await expect(summary.locator(".discover-token-decision-strip")).toContainText("Quote");

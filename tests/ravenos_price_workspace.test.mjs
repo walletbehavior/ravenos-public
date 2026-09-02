@@ -91,7 +91,10 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.doesNotMatch(terminal, /ravenos-terminal-trade|ravenos-access/);
   assert.match(terminalRuntime, /ingestExactPoolTrades/);
   assert.match(terminalRuntime, /\["chart", "activity", "trade"\]\.includes/);
-  assert.match(terminalRuntime, /setLastMetric\(livePrice\)/);
+  assert.match(terminalRuntime, /reconcileSelectedSpotPrice/);
+  assert.match(terminalRuntime, /ravenos:charttape/);
+  assert.match(terminalRuntime, /const EVM_POOL_ID_RE = \/\^0x\(\?:\[a-fA-F0-9\]\{40\}\|\[a-fA-F0-9\]\{64\}\)\$\//);
+  assert.doesNotMatch(terminalRuntime, /tapeUpdate\?\.lastPrice \?\? latestTrade/);
   assert.match(terminalRuntime, /const SPOT_TRADE_REFRESH_MS = 5_000/);
   assert.match(terminalRuntime, /const SPOT_TRADE_RENDER_LIMIT = 60/);
 });

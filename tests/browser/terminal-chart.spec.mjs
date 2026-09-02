@@ -841,6 +841,54 @@ test("verified exact-pool swaps advance the forming candle and headline price be
   expect(current.geometry?.loaded_bars).toBeGreaterThan(0);
 });
 
+test("a late older exact-pool swap cannot roll the chart or header price backward", async ({ page }) => {
+  const { tradeCalls } = await mockTerminalLiveApis(page, {
+    spotTradePrice: 1.55,
+    spotLateOlderPrice: 9.99,
+    spotChartCurrent: true,
+  });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1m" });
+
+  await expect.poll(() => tradeCalls.length, { timeout: 12_000 }).toBeGreaterThan(1);
+  await expect(page.locator("#terminalLast")).toContainText("1.55");
+  const before = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.());
+  expect(before.currentPrice).toBe(1.55);
+  expect(before.lastCandleClose).toBe(1.55);
+  expect(before.diagnostics?.exact_pool_tape?.current_price).toBe(1.55);
+
+  await page.evaluate(() => {
+    const terminal = window.__RAVENOS_TERMINAL__?.getState?.();
+    document.dispatchEvent(new CustomEvent("ravenos:charttape", {
+      detail: {
+        instrument_id: terminal.instrumentId,
+        chain: "solana",
+        pool_address: "different-pool-address",
+        token_address: "fixture-token-address",
+        quote_token_address: "fixture-quote-address",
+        last_price: 77,
+        observed_at: new Date().toISOString(),
+      },
+    }));
+    document.dispatchEvent(new CustomEvent("ravenos:charttape", {
+      detail: {
+        instrument_id: terminal.instrumentId,
+        chain: "solana",
+        pool_address: "fixture-pair-address",
+        token_address: "fixture-token-address",
+        quote_token_address: "fixture-quote-address",
+        last_price: 88,
+        observed_at: new Date(Date.parse(terminal.currentPriceObservedAt) - 1_000).toISOString(),
+      },
+    }));
+  });
+  await expect(page.locator("#terminalLast")).toContainText("1.55");
+  const after = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.());
+  expect(after.currentPrice).toBe(1.55);
+  expect(after.lastCandleClose).toBe(1.55);
+  expect(after.currentPriceIdentityKey).toContain("solana:fixture-pair-address");
+});
+
 test("the latest exact-pool transaction forms a current candle when OHLC is several buckets behind", async ({ page }) => {
   const { tradeCalls } = await mockTerminalLiveApis(page, { spotTradePrice: 1.77 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&timeframe=1m");
@@ -1202,7 +1250,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
 
 test("Robinhood exact-token holders render from a bounded indexed snapshot", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { holderCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0003219 });
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0003219 });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
@@ -1211,16 +1259,36 @@ test("Robinhood exact-token holders render from a bounded indexed snapshot", asy
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
   await expect.poll(() => holderCalls.length).toBe(1);
+  await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0)).toBeGreaterThan(0);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(3);
   await expect(page.locator("#terminalHolderListState")).toContainText("3 of 314 owners");
   await expect(page.locator("#terminalHolderListNote")).toContainText("Blockscout indexed holders");
-  await expect(page.locator("#terminalHolderMapState")).toContainText("Indexed holders");
   await expect(page.locator('#terminalHolderListRows [data-classification="contract"]')).toContainText("Contract account");
-  await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
+  await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toHaveCount(0);
+  await expect(page.locator("#terminalHolderMapState")).toHaveText("Pool exclusion unresolved");
+  await expect(page.locator("#terminalHolderTop10Cell")).toBeHidden();
   await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /robinhoodchain\.blockscout\.com\/address\/0x/);
   expect(holderCalls[0]).toEqual({ poolAddress: ROBINHOOD_POOL, tokenAddress: ROBINHOOD_CONTRACT, quoteAddress: ROBINHOOD_QUOTE });
-  await expect(page.locator("#terminalRiskScreen")).toContainText("Holder concentration watch");
   await expect(page.locator("#terminalRiskScreen")).not.toContainText(/Mint authority disabled|Freeze authority disabled/);
+  expect(ROBINHOOD_POOL).toMatch(/^0x[a-f0-9]{64}$/);
+  expect(holderCalls[0].poolAddress).toHaveLength(66);
+  expect(tradeCalls[0].poolAddress).toBe(ROBINHOOD_POOL);
+  const current = await page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.());
+  expect(current.currentPrice).toBe(0.0003219);
+  expect(current.lastCandleClose).toBe(0.0003219);
+  await expect(page.locator("#terminalLast")).toContainText("0.0003219");
+});
+
+test("Robinhood bytes32 pools do not loosen token-address identity checks", async ({ page }) => {
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page);
+  const invalidToken = `0x${"1".repeat(64)}`;
+  await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${encodeURIComponent(invalidToken)}&quote_address=${encodeURIComponent(ROBINHOOD_QUOTE)}`);
+
+  await expect(page.locator("#terminalCapabilityLabel")).toContainText("Exact selection unavailable");
+  await expect(page.locator("#terminalChartStatus")).toContainText("malformed");
+  expect(holderCalls).toHaveLength(0);
+  expect(tradeCalls).toHaveLength(0);
 });
 
 test("recent exact-pool swaps and repeat activity have a dedicated honest mobile pane", async ({ page }) => {

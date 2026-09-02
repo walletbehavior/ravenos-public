@@ -294,6 +294,7 @@ const PUBLIC_APP_REDIRECT_ROUTES = new Set([
   "discover",
   "docs",
   "faq",
+  "intelligence",
   "memory",
   "opportunity",
   "outcomes",
@@ -447,6 +448,10 @@ const LISTED_MARKET_PUBLIC_DISPLAY_ALLOWED = false;
 const DEFAULT_RAVENOS_SPOT_CHART_ORIGIN_URL = "https://ravenos-public-origin.ravenos.xyz/public/ravenos/chart.json";
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+// Exact market identity is not always an account address: Uniswap v4 exposes
+// a bytes32 pool id. Only pool parameters may use this wider shape; token,
+// quote, wallet and collector identities stay strict 20-byte addresses.
+const EVM_POOL_ID_RE = /^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
 const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon", "avalanche"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
@@ -9657,7 +9662,8 @@ async function routeApi(request, env, executionContext = null) {
     const quoteAddress = String(url.searchParams.get("quote_address") || "").trim();
     try {
       const addressPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_ADDRESS_RE;
-      if (!ONCHAIN_PULSE_NETWORKS[chain] || !addressPattern.test(pairAddress) || !addressPattern.test(tokenAddress) || (quoteAddress && !addressPattern.test(quoteAddress))) {
+      const poolPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_POOL_ID_RE;
+      if (!ONCHAIN_PULSE_NETWORKS[chain] || !poolPattern.test(pairAddress) || !addressPattern.test(tokenAddress) || (quoteAddress && !addressPattern.test(quoteAddress))) {
         const invalid = new Error("holder_identity_invalid");
         invalid.code = "holder_identity_invalid";
         invalid.status = 400;
@@ -9763,10 +9769,11 @@ async function routeApi(request, env, executionContext = null) {
     const quoteAddress = String(url.searchParams.get("quote_address") || "").trim();
     const identity = { chain, pool_address: pairAddress, token_address: tokenAddress, quote_token_address: quoteAddress };
     const addressPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_ADDRESS_RE;
+    const poolPattern = chain === "solana" ? SOLANA_ADDRESS_RE : EVM_POOL_ID_RE;
     if (
       [...url.searchParams.keys()].some((key) => !allowedParameters.has(key))
       || !ONCHAIN_PULSE_NETWORKS[chain]
-      || !addressPattern.test(pairAddress)
+      || !poolPattern.test(pairAddress)
       || !addressPattern.test(tokenAddress)
       || !addressPattern.test(quoteAddress)
     ) {

@@ -195,14 +195,15 @@ function participationPayoffProjection() {
   };
 }
 
-test("Raven Lab gives aggregate behavior a distinct job without preserving the old evidence directory", async ({ page }) => {
+test("Raven Lab is a concise public preview with a clear Pro handoff", async ({ page }) => {
   await page.goto("/intelligence/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h");
-  await expect(page.getByRole("heading", { name: "Test the behavior behind a setup." })).toBeVisible();
-  await expect(page.locator(".intelligence-hub")).toContainText(/Find the market.*Test the behavior.*Return to the chart/s);
-  for (const [href, count] of [["/behavior/", 2], ["/perps/#perpsIntelligence", 1], ["/discover/", 1], ["/terminal/", 1]]) {
+  await expect(page.getByRole("heading", { name: "Test market behavior." })).toBeVisible();
+  await expect(page.locator(".intelligence-hub")).toContainText(/Public preview.*Pro adds depth.*Token cohorts.*Perps positioning.*Replay · Pro/s);
+  await expect(page.getByRole("link", { name: "Open Pro Lab" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/intelligence/");
+  for (const [href, count] of [["/behavior/", 2], ["/perps/#perpsIntelligence", 1]]) {
     await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(count);
   }
-  for (const href of ["/outcomes/", "/replay/", "/claims/", "/memory/", "/research/", "/chains/solana/", "/chains/base/", "/chains/ethereum/"]) {
+  for (const href of ["/discover/", "/terminal/", "/outcomes/", "/replay/", "/claims/", "/memory/", "/research/", "/chains/solana/", "/chains/base/", "/chains/ethereum/"]) {
     await expect(page.locator(`.intelligence-hub a[data-ros-base-href="${href}"]`)).toHaveCount(0);
   }
   await expect(page.locator('.ros-workspace-nav a[data-ros-nav="intelligence"]')).toHaveClass(/active/);
@@ -216,7 +217,7 @@ test("Raven Lab gives aggregate behavior a distinct job without preserving the o
   await expect(page.locator('#rosUtilityContent a[href="/intelligence/"]')).toContainText("Raven Lab");
   await expect(page.locator('#rosUtilityContent a[href="/behavior/"]')).toHaveCount(0);
   await expect(page.locator('#rosUtilityContent a[href="/perps/#perpsIntelligence"]')).toHaveCount(0);
-  await expect(page.locator("#rosUtilityContent")).toContainText("Behavior cohorts, perps, replay, and measured outcomes");
+  await expect(page.locator("#rosUtilityContent")).toContainText("Behavior and perps context");
   await expect(page.locator('#rosUtilityDrawer > header a[href="/terms/"]')).toContainText("Not financial advice");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);

@@ -17,6 +17,7 @@ const TX_A = `0x${"a".repeat(64)}`;
 const TX_B = `0x${"b".repeat(64)}`;
 const TX_C = `0x${"c".repeat(64)}`;
 const NOW = new Date("2026-08-28T12:00:00.000Z");
+const ROBINHOOD_V4_POOL = "0x0646357e2ed21b9964f09616152fda33433965b58c830e8d52b8f31b3b616102";
 
 function providerTrade({ id, hash, trader, at, side, volume, amount = 1_000 } = {}) {
   const buy = side === "buy";
@@ -97,6 +98,54 @@ test("trade projection drops wrong-token, future, malformed-address, and duplica
   assert.equal(JSON.stringify(projection).includes("future"), false);
 });
 
+test("Robinhood v4 accepts a bytes32 exact-pool ID without widening token or trader addresses", () => {
+  const robinhoodPayload = payload();
+  const projection = buildPublicOnchainTradeProjection({
+    identity: {
+      chain: "robinhood",
+      pool_address: ROBINHOOD_V4_POOL,
+      token_address: TOKEN,
+      quote_token_address: QUOTE,
+    },
+    provider_payload: robinhoodPayload,
+    now: () => NOW,
+  });
+
+  assert.equal(projection.ok, true);
+  assert.equal(projection.identity.pool_address, ROBINHOOD_V4_POOL);
+  assert.equal(projection.identity.instrument_id, `robinhood:pool:${ROBINHOOD_V4_POOL}`);
+  assert.equal(projection.trades.length, 3);
+  assert.equal(projection.trades[0].trader_address, TRADER_A);
+  assert.equal(projection.trades[0].transaction_explorer_url, `https://robinhoodchain.blockscout.com/tx/${TX_A}`);
+  assert.equal(OnchainTradeProjectionContract.evm_pool_identity, "20_byte_address_or_32_byte_pool_id");
+  assert.equal(OnchainTradeProjectionContract.evm_token_and_actor_identity, "20_byte_address_only");
+
+  assert.throws(() => buildPublicOnchainTradeProjection({
+    identity: {
+      chain: "robinhood",
+      pool_address: ROBINHOOD_V4_POOL,
+      token_address: ROBINHOOD_V4_POOL,
+      quote_token_address: QUOTE,
+    },
+    provider_payload: robinhoodPayload,
+    now: () => NOW,
+  }), /onchain_trade_identity_invalid/);
+
+  const malformedTraderPayload = payload();
+  malformedTraderPayload.data[0].attributes.tx_from_address = ROBINHOOD_V4_POOL;
+  const malformedTraderProjection = buildPublicOnchainTradeProjection({
+    identity: {
+      chain: "robinhood",
+      pool_address: ROBINHOOD_V4_POOL,
+      token_address: TOKEN,
+      quote_token_address: QUOTE,
+    },
+    provider_payload: malformedTraderPayload,
+    now: () => NOW,
+  });
+  assert.equal(malformedTraderProjection.trades[0].trader_address, null);
+});
+
 test("Worker trade route verifies exact CoinGecko pool identity and never returns raw provider fields", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
@@ -146,6 +195,48 @@ test("Worker trade route verifies exact CoinGecko pool identity and never return
 
     const invalid = await worker.fetch(new Request(`https://ravenos.xyz/api/onchain/trades?chain=base&pair_address=${POOL}&token_address=${TOKEN}&quote_address=${QUOTE}&limit=9999`), {});
     assert.equal(invalid.status, 400);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Worker trade route preserves a Robinhood v4 bytes32 exact-pool identity", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes(`/networks/robinhood/pools/${ROBINHOOD_V4_POOL}?include=`)) {
+      return new Response(JSON.stringify({
+        data: {
+          id: `robinhood_${ROBINHOOD_V4_POOL}`,
+          type: "pool",
+          attributes: { address: ROBINHOOD_V4_POOL },
+          relationships: {
+            base_token: { data: { id: `robinhood_${TOKEN}` } },
+            quote_token: { data: { id: `robinhood_${QUOTE}` } },
+          },
+        },
+        included: [
+          { id: `robinhood_${TOKEN}`, type: "token", attributes: { address: TOKEN, decimals: 18 } },
+          { id: `robinhood_${QUOTE}`, type: "token", attributes: { address: QUOTE, decimals: 18 } },
+        ],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes(`/networks/robinhood/pools/${ROBINHOOD_V4_POOL}/trades?token=base`)) {
+      return new Response(JSON.stringify(payload(new Date())), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`unexpected request ${url}`);
+  };
+  try {
+    const response = await worker.fetch(new Request(`https://ravenos.xyz/api/onchain/trades?chain=robinhood&pair_address=${ROBINHOOD_V4_POOL}&token_address=${TOKEN}&quote_address=${QUOTE}`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: "server-only-test-key",
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.identity.pool_address, ROBINHOOD_V4_POOL);
+    assert.equal(body.trades.length, 3);
   } finally {
     globalThis.fetch = originalFetch;
   }

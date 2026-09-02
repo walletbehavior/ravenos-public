@@ -9,7 +9,9 @@ import {
 import worker from "../worker.mjs";
 
 const POOL = "0x1111111111111111111111111111111111111111";
+const V4_POOL_ID = "0xc6146d37610c4f2857e8ae3fdd605f17a9f0bcfe9dd31710e16d53545bd392d4";
 const TOKEN = "0x2222222222222222222222222222222222222222";
+const V4_TOKEN = "0x4444444444444444444444444444444444444444";
 const QUOTE = "0x3333333333333333333333333333333333333333";
 const OWNER = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CONTRACT = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -110,6 +112,28 @@ test("EVM holder projection rejects provider token identity mismatch", async () 
   }), (error) => error.code === "holder_provider_identity_mismatch" && error.status === 409);
 });
 
+test("Robinhood holder projection accepts a typed Uniswap v4 bytes32 pool id without loosening token identities", async () => {
+  const projection = await buildPublicEvmHolderProjection({
+    env: env(),
+    identity: { chain: "robinhood", pool_address: V4_POOL_ID, token_address: TOKEN, quote_token_address: QUOTE },
+    fetch_impl: providerFetchFor("robinhood"),
+    now: () => new Date("2026-09-01T15:00:00.000Z"),
+  });
+  assert.equal(projection.identity.pool_address, V4_POOL_ID);
+  assert.equal(projection.identity.token_address, TOKEN);
+  assert.equal(projection.coverage.pool_account_exclusion_state, "unresolved_pool_id");
+  assert.equal(projection.summary.top_10_supply_pct, 90);
+  assert.equal(projection.summary.largest_non_pool_wallet_supply_pct, null);
+  assert.equal(projection.summary.top_3_wallet_supply_pct, null);
+  assert.equal(projection.summary.top_10_wallet_supply_pct, null);
+  assert.equal(projection.holders.some((row) => row.classification === "exact_pool_account"), false);
+  await assert.rejects(() => buildPublicEvmHolderProjection({
+    env: env(),
+    identity: { chain: "robinhood", pool_address: V4_POOL_ID, token_address: V4_POOL_ID, quote_token_address: QUOTE },
+    fetch_impl: providerFetchFor("robinhood"),
+  }), (error) => error.code === "holder_identity_invalid" && error.status === 400);
+});
+
 test("Worker resolves an exact Robinhood pool before returning its holder projection", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -141,6 +165,53 @@ test("Worker resolves an exact Robinhood pool before returning its holder projec
     assert.equal(payload.risk_screen.identity.token_address, TOKEN);
     assert.equal(payload.risk_screen.metrics.top_10_wallet_supply_pct, 60);
     assert.equal(payload.risk_screen.measured_facts.find((row) => row.id === "top_10_wallet_concentration")?.source, "Blockscout indexed holders");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker preserves a Robinhood v4 pool id while resolving holders by the exact ERC-20 token", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "api.dexscreener.com" && url.pathname.includes(`/latest/dex/pairs/robinhood/${V4_POOL_ID}`)) {
+      return response({ pairs: [{
+        chainId: "robinhood",
+        dexId: "uniswap",
+        pairAddress: V4_POOL_ID,
+        baseToken: { address: V4_TOKEN, name: "V4 Test", symbol: "V4" },
+        quoteToken: { address: QUOTE, name: "Wrapped ETH", symbol: "WETH" },
+        priceUsd: "2",
+        liquidity: { usd: 100_000 },
+        volume: { h24: 50_000 },
+        txns: { h24: { buys: 20, sells: 15 } },
+      }] });
+    }
+    if (url.hostname === "api.dexpaprika.com") return response({ tokens: [], pools: [] });
+    if (url.hostname === "api.blockscout.com") {
+      assert.match(url.pathname, new RegExp(`^/4663/api/v2/tokens/${V4_TOKEN}`));
+      if (url.pathname.endsWith("/holders")) {
+        return response({ items: [{ value: "400000", address: { hash: OWNER, is_contract: false } }] });
+      }
+      return response({
+        address_hash: V4_TOKEN,
+        decimals: "2",
+        total_supply: "1000000",
+        holders_count: "14",
+        type: "ERC-20",
+      });
+    }
+    throw new Error(`unexpected provider request ${url.origin}${url.pathname}`);
+  };
+  try {
+    const result = await worker.fetch(new Request(`https://ravenos.xyz/api/onchain/holders?chain=robinhood&pair_address=${V4_POOL_ID}&token_address=${V4_TOKEN}&quote_address=${QUOTE}`), env());
+    const payload = await result.json();
+    assert.equal(result.status, 200);
+    assert.equal(payload.identity.pool_address, V4_POOL_ID);
+    assert.equal(payload.identity.token_address, V4_TOKEN);
+    assert.equal(payload.coverage.pool_account_exclusion_state, "unresolved_pool_id");
+    assert.equal(payload.holders.length, 1);
+    assert.equal(payload.risk_screen.metrics.top_10_wallet_supply_pct, null);
   } finally {
     globalThis.fetch = previousFetch;
   }

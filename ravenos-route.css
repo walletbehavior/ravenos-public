@@ -884,6 +884,11 @@ button, input, select { font: inherit; }
 .intelligence-hub-hero > div { max-width: 860px; }
 .intelligence-hub-hero h1 { margin: 16px 0 10px; font-size: clamp(30px, 4.2vw, 58px); line-height: .98; letter-spacing: -.045em; }
 .intelligence-hub-hero p { margin: 0; color: #aeb8c0; font-size: 13px; line-height: 1.6; }
+.intelligence-hub-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.intelligence-hub-actions a { min-height: 36px; display: inline-flex; align-items: center; padding: 0 13px; border: 1px solid var(--route-line-strong); color: #e7edf0; font: 800 9px var(--route-mono); text-transform: uppercase; }
+.intelligence-hub-actions a:first-child { border-color: rgba(74, 215, 154, .5); background: rgba(74, 215, 154, .1); color: #8be1b5; }
+.intelligence-hub-actions a:hover,
+.intelligence-hub-actions a:focus-visible { background: #11181d; }
 .intelligence-hub-hero aside { display: grid; gap: 1px; background: var(--route-line); }
 .intelligence-hub-hero aside span { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #0b0f12; color: var(--route-muted); font: 750 9px var(--route-mono); text-transform: uppercase; }
 .intelligence-hub-hero aside i { width: 7px; height: 7px; border-radius: 50%; background: var(--route-soft); }

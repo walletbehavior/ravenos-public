@@ -47,7 +47,8 @@ function bullishSpotCandles(asset, timeframe = "1h") {
 }
 
 export const ROBINHOOD_CONTRACT = "0x230442c8133a9efb4c278b3723043444749ca08b";
-export const ROBINHOOD_POOL = "0x602633428507bbaa848e6d0c3127cda15eeae6a9";
+// Robinhood Chain v4 pools are bytes32 pool IDs, not 20-byte account addresses.
+export const ROBINHOOD_POOL = "0x602633428507bbaa848e6d0c3127cda15eeae6a9000000000000000000000000";
 export const ROBINHOOD_QUOTE = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
 export const BNB_MEMESTOCK_CONTRACT = "0x6ff45323817d1d53bbb8a8dfba9245ae74057777";
 export const BNB_MEMESTOCK_POOL = "0x7bdc9582aca6ca25e5db1f2c8e59003b880672cb";
@@ -440,6 +441,7 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayTimeframe = null,
   chartEnrichmentDelayMs = 0,
   spotTradePrice = null,
+  spotLateOlderPrice = null,
   spotChartCurrent = false,
   spotQuotePreview = false,
   spotQuoteTtlMs = 20_000,
@@ -511,10 +513,14 @@ export async function mockTerminalLiveApis(page, {
     }[chain];
     const evmOwner = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const evmContract = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const evmOtherOwner = "0xdddddddddddddddddddddddddddddddddddddddd";
+    const unresolvedPoolId = evm && /^0x[a-f0-9]{64}$/i.test(String(poolAddress || ""));
     const holderEvidenceSource = evm ? "Blockscout indexed holders" : "Solana on-chain accounts";
     const baseHolderRows = evm ? [
       { rank: 1, holder_address: evmOwner, token_account_address: evmOwner, token_account_count: 1, balance: "123456789.25", supply_share_pct: 12.345, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: `${evmExplorer}${evmOwner}` },
-      { rank: 2, holder_address: poolAddress, token_account_address: poolAddress, token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "exact_pool_account", excluded_from_wallet_concentration: true, explorer_url: `${evmExplorer}${poolAddress}` },
+      unresolvedPoolId
+        ? { rank: 2, holder_address: evmOtherOwner, token_account_address: evmOtherOwner, token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: `${evmExplorer}${evmOtherOwner}` }
+        : { rank: 2, holder_address: poolAddress, token_account_address: poolAddress, token_account_count: 1, balance: "85000000", supply_share_pct: 8.5, classification: "exact_pool_account", excluded_from_wallet_concentration: true, explorer_url: `${evmExplorer}${poolAddress}` },
       { rank: 3, holder_address: evmContract, token_account_address: evmContract, token_account_count: 1, balance: "42000000", supply_share_pct: 4.2, classification: "contract", excluded_from_wallet_concentration: false, explorer_url: `${evmExplorer}${evmContract}` },
     ] : [
       { rank: 1, holder_address: "Stake11111111111111111111111111111111111111", token_account_address: "SysvarRent111111111111111111111111111111111", token_account_count: 2, balance: "123456789.25", supply_share_pct: 12.345, classification: "owner", excluded_from_wallet_concentration: false, explorer_url: "https://solscan.io/account/Stake11111111111111111111111111111111111111" },
@@ -525,11 +531,11 @@ export async function mockTerminalLiveApis(page, {
       rank: index + 1,
       balance: String(Math.round(123_456_789.25 / (index + 1))),
       supply_share_pct: Number(Math.max(0.001, 12.345 / (index + 1)).toFixed(6)),
-      classification: index === 1 ? "exact_pool_account" : (evm && index === 2 ? "contract" : "owner"),
-      excluded_from_wallet_concentration: index === 1,
+      classification: index === 1 && !unresolvedPoolId ? "exact_pool_account" : (evm && index === 2 ? "contract" : "owner"),
+      excluded_from_wallet_concentration: index === 1 && !unresolvedPoolId,
     }));
     const actionBlockingRisk = ["high", "severe"].includes(holderRiskLevel);
-    const holderRiskFactors = actionBlockingRisk ? [
+    const holderRiskFactors = unresolvedPoolId ? [] : actionBlockingRisk ? [
       { id: "exact_pool_liquidity_effectively_gone", label: "Exact-pool liquidity effectively gone", detail: "The latest exact-pool observation reports no usable USD liquidity.", severity: "critical", dimension: "market_integrity", source: "Exact pool market observation", observed_at: new Date().toISOString() },
       { id: "developer_supply_critical", label: "Developer controls most supply", detail: "The provider-listed developer address holds 96.6% of supply after an independent on-chain balance check.", severity: "critical", dimension: "control", source: holderEvidenceSource, observed_at: new Date().toISOString() },
       { id: "top_10_wallet_concentration_critical", label: "Top wallets dominate supply", detail: "The top 10 non-pool wallets hold 98.6% of supply.", severity: "critical", dimension: "control", source: holderEvidenceSource, observed_at: new Date().toISOString() },
@@ -548,9 +554,9 @@ export async function mockTerminalLiveApis(page, {
         observed_at: new Date().toISOString(),
         slot: evm ? null : 42,
         coverage: evm
-          ? { scope: "provider_ranked_top_holders", scan_state: "indexed_partial", maximum_source_accounts: 50, scanned_source_accounts: holderRows.length, returned_owner_rows: holderRows.length, total_owner_rows: 314, complete_holder_census: false, owners_aggregated_across_all_accounts: true }
+          ? { scope: "provider_ranked_top_holders", scan_state: "indexed_partial", maximum_source_accounts: 50, scanned_source_accounts: holderRows.length, returned_owner_rows: holderRows.length, total_owner_rows: 314, complete_holder_census: false, owners_aggregated_across_all_accounts: true, pool_account_exclusion_state: unresolvedPoolId ? "unresolved_pool_id" : "resolved_contract_address" }
           : { scope: "all_nonzero_token_accounts", scan_state: "complete", maximum_source_accounts: 25_000, scanned_source_accounts: 4_856, returned_owner_rows: holderRows.length, total_owner_rows: 4_850, complete_holder_census: true, owners_aggregated_across_all_accounts: true, page_count: 5, slot_min: 40, slot_max: 42 },
-        summary: { holder_count: evm ? 314 : 4_850, token_account_count: evm ? null : 4_856, top_10_supply_pct: 29.9, top_20_supply_pct: 42.4, top_50_supply_pct: 56.1, top_100_supply_pct: evm ? null : 64.8, largest_non_pool_wallet_supply_pct: 12.345, top_3_wallet_supply_pct: 18.5175, top_10_wallet_supply_pct: 26.2 },
+        summary: { holder_count: evm ? 314 : 4_850, token_account_count: evm ? null : 4_856, top_10_supply_pct: 29.9, top_20_supply_pct: 42.4, top_50_supply_pct: 56.1, top_100_supply_pct: evm ? null : 64.8, largest_non_pool_wallet_supply_pct: unresolvedPoolId ? null : 12.345, top_3_wallet_supply_pct: unresolvedPoolId ? null : 18.5175, top_10_wallet_supply_pct: unresolvedPoolId ? null : 26.2 },
         token_controls: evm
           ? { source: "blockscout_token_index", state: "unavailable", token_standard: "ERC-20", mint_authority: "unknown", freeze_authority: "unknown" }
           : { source: "solana_mint_account", state: "available", mint_authority: "disabled", freeze_authority: "disabled" },
@@ -564,7 +570,9 @@ export async function mockTerminalLiveApis(page, {
           observed_at: new Date().toISOString(),
           level: holderRiskLevel,
           title: actionBlockingRisk ? `${holderRiskLevel === "severe" ? "Severe" : "High"} control risk` : "Risk watch",
-          summary: actionBlockingRisk
+          summary: unresolvedPoolId
+            ? "Pool-excluded wallet concentration is unresolved for this v4 market."
+            : actionBlockingRisk
             ? "Usable liquidity has disappeared while developer and top-wallet supply control remain extreme. Review the exact evidence before using any setup."
             : "Holder concentration warrants review. Measured top-10 wallet concentration is 26.2% after excluding the exact pool.",
           risk_factors: holderRiskFactors,
@@ -575,9 +583,9 @@ export async function mockTerminalLiveApis(page, {
           ],
           measured_facts: [],
           unmeasured: ["Bundled-launch concentration", "Insider and sniper classification", "Liquidity ownership, lock, and burn provenance"],
-          metrics: { top_3_wallet_supply_pct: actionBlockingRisk ? 98.1 : 18.5175, top_10_wallet_supply_pct: actionBlockingRisk ? 98.6 : 26.2, largest_non_pool_wallet_supply_pct: actionBlockingRisk ? 96.6 : 12.345, developer_supply_pct: actionBlockingRisk ? 96.6 : 1.74, volume_to_valuation_multiple: 5.3, pool_age_ms: 15_552_000_000 },
+          metrics: { top_3_wallet_supply_pct: unresolvedPoolId ? null : actionBlockingRisk ? 98.1 : 18.5175, top_10_wallet_supply_pct: unresolvedPoolId ? null : actionBlockingRisk ? 98.6 : 26.2, largest_non_pool_wallet_supply_pct: unresolvedPoolId ? null : actionBlockingRisk ? 96.6 : 12.345, developer_supply_pct: actionBlockingRisk ? 96.6 : 1.74, volume_to_valuation_multiple: 5.3, pool_age_ms: 15_552_000_000 },
           coverage: { measured_check_count: actionBlockingRisk ? 5 : 4, risk_factor_count: holderRiskFactors.length, mitigating_check_count: evm ? 0 : actionBlockingRisk ? 2 : 3, unmeasured_count: 3, complete: false },
-          interpretation: { technical_control_screen: true, scam_or_rug_determination: false, numeric_probability: false, safe_controls_mean_safe_token: false, holder_distribution_state: actionBlockingRisk ? "highly_concentrated" : "concentrated" },
+          interpretation: { technical_control_screen: true, scam_or_rug_determination: false, numeric_probability: false, safe_controls_mean_safe_token: false, holder_distribution_state: unresolvedPoolId ? "unresolved" : actionBlockingRisk ? "highly_concentrated" : "concentrated" },
         },
         source: evm
           ? { label: "Blockscout indexed holders", network: chain, method: "indexed_top_holders", raw_provider_included: false }
@@ -593,6 +601,7 @@ export async function mockTerminalLiveApis(page, {
     const tokenAddress = url.searchParams.get("token_address");
     const quoteAddress = url.searchParams.get("quote_address");
     tradeCalls.push({ chain, poolAddress, tokenAddress, quoteAddress });
+    const tradeRequestNumber = tradeCalls.length;
     const observedAt = new Date();
     const evm = chain !== "solana";
     const evmExplorer = {
@@ -618,10 +627,14 @@ export async function mockTerminalLiveApis(page, {
         ? `0x${(index + 1).toString(16).padStart(64, "0")}`
         : `${"3".repeat(80)}${String(index + 1).padStart(4, "3")}`;
       return {
-        event_id: `fixture-swap-${index + 1}`,
+        event_id: spotLateOlderPrice !== null && tradeRequestNumber > 1 && index === 2
+          ? `fixture-late-swap-${tradeRequestNumber}`
+          : `fixture-swap-${index + 1}`,
         observed_at: new Date(observedAt.getTime() - index * 20_000).toISOString(),
         side,
-        price_usd: effectiveSpotTradePrice + index / 100_000,
+        price_usd: spotLateOlderPrice !== null && tradeRequestNumber > 1 && index === 2
+          ? Number(spotLateOlderPrice)
+          : effectiveSpotTradePrice + index / 100_000,
         token_amount: volume / effectiveSpotTradePrice,
         quote_amount: volume,
         volume_usd: volume,

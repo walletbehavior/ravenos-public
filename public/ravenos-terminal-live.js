@@ -82,6 +82,7 @@ const state = {
   spotActivityView: "trades",
   spotWalletFilter: "all",
   spotTradeRefreshTimer: null,
+  spotCurrentPrice: null,
   projectProfile: null,
   spotTicketSide: "buy",
   spotTicketPlanSource: "user_preset",
@@ -254,6 +255,58 @@ function setLastMetric(value) {
   setText("terminalLast", show ? label : "");
   const cell = document.getElementById("terminalLastMetric");
   if (cell) cell.hidden = !show;
+}
+
+const SPOT_CURRENT_PRICE_SOURCE_PRIORITY = Object.freeze({
+  pair_snapshot: 1,
+  chart_candle: 2,
+  exact_pool_trade_tape: 3,
+});
+
+function reconcileSelectedSpotPrice(update = {}) {
+  const selected = currentProjectIdentity();
+  const chain = String(update.chain || "").trim().toLowerCase();
+  const poolAddress = String(update.pool_address || "").trim();
+  const tokenAddress = String(update.token_address || "").trim();
+  const quoteAddress = String(update.quote_token_address || "").trim();
+  const price = finite(update.price ?? update.last_price ?? update.last);
+  const source = String(update.source || "").trim();
+  const observedAt = String(update.observed_at || update.observedAt || "").trim();
+  const observedMs = Date.parse(observedAt);
+  if (
+    !selected
+    || chain !== selected.chain
+    || !sameSelectedAddress(chain, poolAddress, selected.poolAddress)
+    || !sameSelectedAddress(chain, tokenAddress, selected.tokenAddress)
+    || (selected.quoteAddress && !sameSelectedAddress(chain, quoteAddress, selected.quoteAddress))
+    || price === null
+    || price <= 0
+    || price > 1_000_000_000_000
+    || !Object.hasOwn(SPOT_CURRENT_PRICE_SOURCE_PRIORITY, source)
+    || (!Number.isFinite(observedMs) && source !== "pair_snapshot")
+    || (Number.isFinite(observedMs) && observedMs > Date.now() + 30_000)
+  ) return false;
+  const candidateObservedMs = Number.isFinite(observedMs) ? observedMs : Number.NEGATIVE_INFINITY;
+  const current = state.spotCurrentPrice?.identityKey === selected.key ? state.spotCurrentPrice : null;
+  const currentPriority = SPOT_CURRENT_PRICE_SOURCE_PRIORITY[current?.source] || 0;
+  const candidatePriority = SPOT_CURRENT_PRICE_SOURCE_PRIORITY[source];
+  if (
+    current
+    && (
+      candidateObservedMs < current.observedMs
+      || (candidateObservedMs === current.observedMs && candidatePriority < currentPriority)
+    )
+  ) return false;
+  state.spotCurrentPrice = {
+    identityKey: selected.key,
+    price,
+    observedAt: Number.isFinite(observedMs) ? new Date(observedMs).toISOString() : null,
+    observedMs: candidateObservedMs,
+    source,
+  };
+  state.selected = { ...state.selected, priceUsd: price, lastUpdated: state.spotCurrentPrice.observedAt };
+  setLastMetric(price);
+  return true;
 }
 
 function setMarketMetric(index, label, value, { show = hasOperatorValue(value) } = {}) {
@@ -2584,6 +2637,14 @@ function currentProjectIdentity() {
   const tokenAddress = String(state.selected?.tokenAddress || "").trim();
   const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
   if (!chain || !poolAddress || !tokenAddress) return null;
+  if (
+    chain !== "solana"
+    && (
+      !EVM_POOL_ID_RE.test(poolAddress)
+      || !EVM_DISPLAY_ADDRESS_RE.test(tokenAddress)
+      || (quoteAddress && !EVM_DISPLAY_ADDRESS_RE.test(quoteAddress))
+    )
+  ) return null;
   const normalizeAddress = (value) => chain === "solana" ? value : value.toLowerCase();
   return {
     key: `${chain}:${normalizeAddress(poolAddress)}:${normalizeAddress(tokenAddress)}:${normalizeAddress(quoteAddress)}`,
@@ -2920,6 +2981,7 @@ async function copyProjectContract() {
 
 const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_DISPLAY_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const EVM_POOL_ID_RE = /^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
 const HOLDER_CHAINS = new Set(["solana", "robinhood", "base", "bsc", "ethereum"]);
 const HOLDER_INITIAL_ROW_COUNT = 20;
 const HOLDER_EXPLORERS = Object.freeze({
@@ -2939,11 +3001,12 @@ function currentHolderIdentity() {
   const poolAddress = String(state.selected?.pairAddress || "").trim();
   const tokenAddress = String(state.selected?.tokenAddress || "").trim();
   const quoteAddress = String(state.selected?.quoteTokenAddress || "").trim();
-  const pattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
+  const poolPattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_POOL_ID_RE;
+  const tokenPattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
   // Preserve the existing Solana selection contract; the Worker validates its
   // addresses before returning holder evidence. Newly added EVM identities are
   // address-strict in the browser as well as at the Worker boundary.
-  if (!poolAddress || !tokenAddress || (chain !== "solana" && (!pattern.test(poolAddress) || !pattern.test(tokenAddress) || (quoteAddress && !pattern.test(quoteAddress))))) return null;
+  if (!poolAddress || !tokenAddress || (chain !== "solana" && (!poolPattern.test(poolAddress) || !tokenPattern.test(tokenAddress) || (quoteAddress && !tokenPattern.test(quoteAddress))))) return null;
   const normalize = (value) => chain === "solana" ? value : value.toLowerCase();
   return {
     key: `${chain}:${normalize(poolAddress)}:${normalize(tokenAddress)}`,
@@ -2982,6 +3045,7 @@ function verifiedHolderProjection(payload, identity) {
   const largestWalletPct = finite(payload?.summary?.largest_non_pool_wallet_supply_pct);
   const top3WalletPct = finite(payload?.summary?.top_3_wallet_supply_pct);
   const top10WalletPct = finite(payload?.summary?.top_10_wallet_supply_pct);
+  const poolExclusionUnresolved = payload?.coverage?.pool_account_exclusion_state === "unresolved_pool_id";
   if (
     payload?.ok !== true
     || payload?.safe_public !== true
@@ -2995,9 +3059,12 @@ function verifiedHolderProjection(payload, identity) {
     || ![true, false].includes(complete)
     || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
     || (!complete && (!Number.isInteger(maximumSourceAccounts) || maximumSourceAccounts < payload.holders.length || maximumSourceAccounts > (chain === "solana" ? 20 : 50)))
-    || [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
-    || largestWalletPct > top3WalletPct
-    || top3WalletPct > top10WalletPct
+    || (poolExclusionUnresolved
+      ? [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value !== null)
+        || payload.holders.some((row) => row?.excluded_from_wallet_concentration === true || row?.classification === "exact_pool_account")
+      : [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
+        || largestWalletPct > top3WalletPct
+        || top3WalletPct > top10WalletPct)
   ) return null;
   const addressPattern = chain === "solana" ? SOLANA_DISPLAY_ADDRESS_RE : EVM_DISPLAY_ADDRESS_RE;
   const holders = payload.holders.filter((row) => (
@@ -3231,7 +3298,21 @@ function renderVerifiedHolderConcentration(payload) {
   const root = document.getElementById("terminalHolderMap");
   const bar = document.getElementById("terminalHolderBar");
   const top10 = finite(payload?.summary?.top_10_wallet_supply_pct);
-  if (!root || !bar || top10 === null || top10 < 0 || top10 > 100) return false;
+  if (!root || !bar) return false;
+  if (top10 === null || top10 < 0 || top10 > 100) {
+    root.hidden = false;
+    setText("terminalHolderMapLabel", "Wallet concentration");
+    setText("terminalHolderMapState", payload?.coverage?.pool_account_exclusion_state === "unresolved_pool_id"
+      ? "Pool exclusion unresolved"
+      : "Unavailable");
+    for (const id of ["terminalHolderTop10Cell", "terminalHolderNext10Cell", "terminalHolderNext20Cell", "terminalHolderRestCell"]) {
+      const cell = document.getElementById(id);
+      if (cell) cell.hidden = true;
+    }
+    bar.replaceChildren();
+    bar.setAttribute("aria-label", "Pool-excluded wallet concentration is unresolved for this market.");
+    return false;
+  }
   const rest = Math.max(0, 100 - top10);
   root.hidden = false;
   setText("terminalHolderMapLabel", "Wallet concentration · pool excluded");
@@ -3914,22 +3995,10 @@ function renderActiveTraders(payload) {
 
 function renderSpotTradeProjection(payload) {
   const tapeUpdate = state.workspace?.ingestExactPoolTrades?.(payload);
-  const now = Date.now();
-  const latestTrade = payload?.freshness?.state === "live"
-    ? [...(Array.isArray(payload?.trades) ? payload.trades : [])]
-      .filter((row) => {
-        const price = finite(row?.price_usd);
-        const age = now - Date.parse(String(row?.observed_at || ""));
-        return price !== null && price > 0 && price <= 1_000_000_000_000 && age >= -30_000 && age <= 120_000;
-      })
-      .sort((left, right) => Date.parse(String(right.observed_at)) - Date.parse(String(left.observed_at)))[0]
-    : null;
-  const livePrice = finite(tapeUpdate?.lastPrice ?? latestTrade?.price_usd);
-  if (livePrice !== null) {
-    const observedAt = tapeUpdate?.observedAt || latestTrade?.observed_at || payload.observed_at;
-    state.selected = { ...state.selected, priceUsd: livePrice, lastUpdated: observedAt };
-    setLastMetric(livePrice);
-  }
+  // The workspace owns the exact-pool clock and emits the one canonical price
+  // event used by both the forming candle and the header. A rejected or older
+  // tape response must never update the header independently.
+  if (tapeUpdate?.accepted !== true) setText("terminalSpotActivityState", "Refreshing");
   renderSpotTradeSummary(payload);
   renderSpotTradeRows(payload);
   if (state.spotActivityView === "wallets") renderActiveTraders(payload);
@@ -4695,7 +4764,20 @@ function renderSpotFacts(row = state.selected) {
   if (pickerMeta) pickerMeta.title = row ? `${String(row.chainId || "").toLowerCase()}:pool:${row.pairAddress}` : "";
   setText("terminalVenueLabel", row ? `${chainDisplayName(row.chainId)} · ${row.dexId || "pool"}` : "Unresolved");
   setText("terminalCapabilityLabel", row ? `Spot · ${row.quoteSymbol || "quote"} quote · ${chartRequestSupported ? "exact pool" : "chart unavailable"}` : "Search any supported market");
-  setLastMetric(row?.priceUsd);
+  if (row && !chartRequestSupported) {
+    reconcileSelectedSpotPrice({
+      chain: row.chainId,
+      pool_address: row.pairAddress,
+      token_address: row.tokenAddress,
+      quote_token_address: row.quoteTokenAddress,
+      price: row.priceUsd,
+      observed_at: row.lastUpdated,
+      source: "pair_snapshot",
+    });
+  } else {
+    state.spotCurrentPrice = null;
+    setLastMetric(null);
+  }
   setMarketMetric(2, finite(row?.marketCap) !== null ? "Market cap" : "FDV", compact(row?.marketCap ?? row?.fdv, { currency: true }));
   setMarketMetric(3, "Liquidity", compact(row?.liquidityUsd, { currency: true }));
   setMarketMetric(4, "24h volume", compact(row?.volume24h, { currency: true }));
@@ -7486,6 +7568,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   const generation = ++state.selectionGeneration;
   state.lane = "spot";
   renderLaunchBadge();
+  state.spotCurrentPrice = null;
   state.selected = row;
   setActiveMarketControlRisk(null);
   state.context = null;
@@ -7519,6 +7602,17 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   const opportunityPromise = fetchExactOpportunityEvidence(instrumentId);
   const [chartState, opportunityResult] = await Promise.all([chartPromise, opportunityPromise]);
   if (generation !== state.selectionGeneration) return;
+  if (!chartState?.candles?.length) {
+    reconcileSelectedSpotPrice({
+      chain: row.chainId,
+      pool_address: row.pairAddress,
+      token_address: row.tokenAddress,
+      quote_token_address: row.quoteTokenAddress,
+      price: row.priceUsd,
+      observed_at: row.lastUpdated,
+      source: "pair_snapshot",
+    });
+  }
   const cachedTape = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
   if (cachedTape) renderSpotTradeProjection(cachedTape);
   setText("terminalChartStatus", chartState?.candles?.length
@@ -7884,6 +7978,15 @@ function parsePoolIdentity(value = "") {
   return null;
 }
 
+function exactPoolRequestIdentityValid(identity, { tokenAddress = "", quoteAddress = "" } = {}) {
+  const chain = String(identity?.chainId || "").toLowerCase();
+  if (!chain || !identity?.pairAddress) return false;
+  if (chain === "solana") return true;
+  return EVM_POOL_ID_RE.test(String(identity.pairAddress))
+    && (!tokenAddress || EVM_DISPLAY_ADDRESS_RE.test(String(tokenAddress)))
+    && (!quoteAddress || EVM_DISPLAY_ADDRESS_RE.test(String(quoteAddress)));
+}
+
 function explicitUnavailableSubject({ instrumentId = "", asset = "", lane = "perps" } = {}) {
   const pool = parsePoolIdentity(instrumentId);
   if (pool || lane === "spot") {
@@ -7993,7 +8096,7 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
 
 async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "", quoteAddress = "" } = {}) {
   const identity = parsePoolIdentity(instrumentId);
-  if (!identity) {
+  if (!identity || !exactPoolRequestIdentityValid(identity, { tokenAddress, quoteAddress })) {
     await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The requested exact-pool identity is malformed." });
     return;
   }
@@ -8318,6 +8421,19 @@ function renderWorkspaceState(workspace = {}) {
 function bindWorkspaceEvents() {
   document.addEventListener("ravenos:priceworkspace", (event) => {
     if (event.detail?.instrument?.canonical_id !== state.workspace?.state?.instrument?.canonical_id && event.detail?.state !== "loading") return;
+    if (state.lane === "spot" && event.detail?.instrument?.identity_scope === "exact_pool") {
+      const instrument = event.detail.instrument;
+      const candle = Array.isArray(event.detail?.candles) ? event.detail.candles.at(-1) : null;
+      reconcileSelectedSpotPrice({
+        chain: instrument.chain,
+        pool_address: instrument.pool_address,
+        token_address: instrument.token_address,
+        quote_token_address: state.selected?.quoteTokenAddress,
+        price: candle?.close,
+        observed_at: Number.isFinite(Number(candle?.time)) ? new Date(Number(candle.time) * 1_000).toISOString() : null,
+        source: "chart_candle",
+      });
+    }
     renderWorkspaceState(event.detail);
     if (state.lane === "perps" && event.detail?.orderBook) renderTerminalBook(event.detail.orderBook);
   });
@@ -8333,6 +8449,19 @@ function bindWorkspaceEvents() {
       if (event.detail?.orderBook) renderTerminalBook(event.detail.orderBook);
       renderPerpFacts();
     }
+  });
+  document.addEventListener("ravenos:charttape", (event) => {
+    if (state.lane !== "spot") return;
+    if (event.detail?.instrument_id !== state.workspace?.state?.instrument?.canonical_id) return;
+    reconcileSelectedSpotPrice({
+      chain: event.detail?.chain,
+      pool_address: event.detail?.pool_address,
+      token_address: event.detail?.token_address,
+      quote_token_address: event.detail?.quote_token_address,
+      price: event.detail?.last_price,
+      observed_at: event.detail?.observed_at,
+      source: "exact_pool_trade_tape",
+    });
   });
   document.addEventListener("ravenos:chartevent", (event) => {
     if (state.lane !== "perps") return;
@@ -8463,6 +8592,10 @@ async function boot() {
       lastCandleTime: finite(state.workspace?.state?.candles?.at(-1)?.time),
       lastCandleClose: finite(state.workspace?.state?.candles?.at(-1)?.close),
       livePriceSource: state.workspace?.state?.marketState?.live_price_source || null,
+      currentPrice: state.lane === "spot" ? state.spotCurrentPrice?.price ?? null : finite(state.workspace?.state?.marketState?.last),
+      currentPriceObservedAt: state.lane === "spot" ? state.spotCurrentPrice?.observedAt || null : state.workspace?.state?.observedAt || null,
+      currentPriceIdentityKey: state.lane === "spot" ? state.spotCurrentPrice?.identityKey || null : state.selected?.instrument_id || null,
+      currentPriceSource: state.lane === "spot" ? state.spotCurrentPrice?.source || null : state.workspace?.state?.marketState?.live_price_source || null,
       chartState: state.workspace?.state?.state || "unavailable",
       connectionState: state.workspace?.state?.connectionState || "disconnected",
       candleSource: state.workspace?.state?.candleSeries?.provider || null,
