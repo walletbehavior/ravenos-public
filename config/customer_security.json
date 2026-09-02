@@ -397,6 +397,7 @@
     "evm_maximum_public_owner_rows": 50,
     "evm_real_token_staging_validation_completed": true,
     "evm_candidate_ready_for_activation": true,
+    "evm_release_activation_enabled": true,
     "evm_v4_pool_custody_exclusion_unresolved": true,
     "evm_production_activation_completed": false,
     "maximum_public_owner_rows": 100,

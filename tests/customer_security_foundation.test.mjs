@@ -96,6 +96,7 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.public_holder_lists.evm_complete_holder_census_claimed, false);
   assert.equal(security.public_holder_lists.evm_real_token_staging_validation_completed, true);
   assert.equal(security.public_holder_lists.evm_candidate_ready_for_activation, true);
+  assert.equal(security.public_holder_lists.evm_release_activation_enabled, true);
   assert.equal(security.public_holder_lists.evm_v4_pool_custody_exclusion_unresolved, true);
   assert.equal(security.public_holder_lists.evm_production_activation_completed, false);
   assert.equal(security.public_holder_lists.maximum_public_owner_rows, 100);

@@ -22,7 +22,8 @@ const baseWrangler = JSON.parse(readFileSync(join(repoRoot, "wrangler.jsonc"), "
 const releaseConfig = JSON.parse(readFileSync(join(repoRoot, "config/release.json"), "utf8"));
 const customerSecurity = JSON.parse(readFileSync(join(repoRoot, "config/customer_security.json"), "utf8"));
 const publicHolderListsActive = customerSecurity.public_holder_lists?.production_activation_completed === true;
-const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_production_activation_completed === true;
+const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_candidate_ready_for_activation === true
+  && customerSecurity.public_holder_lists?.evm_release_activation_enabled === true;
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -143,6 +144,7 @@ const packageManifest = {
   artifact_content_sha256: deploy.artifact_content_sha256,
   public_origin_contract_version: release.public_origin_contract_version,
   onchain_chart_provider: releaseConfig.onchain_chart_provider,
+  public_evm_holder_lists_enabled: publicEvmHolderListsActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [

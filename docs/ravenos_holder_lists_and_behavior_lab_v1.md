@@ -66,7 +66,7 @@ The production release enables the first control and requires the second as a se
 
 The route does not implicitly fall back to `RAVENOS_SOLANA_RPC_URL`. This prevents an environment mistake from silently placing public-product load on an unrelated private RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
 
-The real-token Robinhood Chain provider canary has passed. EVM holders remain disabled in production until the server-only key is bound to the Worker and the release flag is explicitly enabled:
+The real-token Robinhood Chain provider canary has passed and the next immutable release enables the EVM holder route. Production remains unchanged until that exact release is verified with the server-only key and explicitly promoted:
 
 - `RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED=1`
 - `BLOCKSCOUT_API_KEY=<server-only key>`

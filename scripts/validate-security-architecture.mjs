@@ -269,6 +269,7 @@ assert.equal(config.public_holder_lists.evm_complete_holder_census_claimed, fals
 assert.equal(config.public_holder_lists.evm_maximum_public_owner_rows, 50);
 assert.equal(config.public_holder_lists.evm_real_token_staging_validation_completed, true);
 assert.equal(config.public_holder_lists.evm_candidate_ready_for_activation, true);
+assert.equal(config.public_holder_lists.evm_release_activation_enabled, true);
 assert.equal(config.public_holder_lists.evm_v4_pool_custody_exclusion_unresolved, true);
 assert.equal(config.public_holder_lists.evm_production_activation_completed, false);
 assert.equal(config.public_holder_lists.maximum_public_owner_rows, 100);
