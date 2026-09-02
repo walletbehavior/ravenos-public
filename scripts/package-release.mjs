@@ -155,6 +155,13 @@ const packageManifest = {
     ...(customerSecurity.customer_capabilities_enabled === true
       ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
       : []),
+    ...(customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready"
+      ? [
+          "RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE",
+          "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
+          "RAVENOS_EVM_FEE_COLLECTOR_ADDRESS",
+        ]
+      : []),
   ],
   promotion_requires_explicit_authorization: true,
   rebuild_after_staging_permitted: false,

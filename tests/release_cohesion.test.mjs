@@ -208,6 +208,9 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED/);
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);
+  assert.match(source, /RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE/);
+  assert.match(source, /RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS/);
+  assert.match(source, /RAVENOS_EVM_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /triggers: baseWrangler\.triggers/);
   assert.match(source, /cron_schedules/);
   assert.match(source, /ONCHAIN_CHART_PROVIDER_SECRET/);
