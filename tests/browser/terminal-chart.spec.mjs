@@ -1250,7 +1250,11 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
 
 test("Robinhood exact-token holders and valuation follow the live exact-pool tape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 3, spotTradePrice: 0.0006438 });
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, {
+    holderRowCount: 3,
+    spotTradePrice: 0.0006438,
+    spotTradeDelayMs: 1_000,
+  });
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");

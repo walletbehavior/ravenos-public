@@ -441,6 +441,7 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayTimeframe = null,
   chartEnrichmentDelayMs = 0,
   spotTradePrice = null,
+  spotTradeDelayMs = 0,
   spotLateOlderPrice = null,
   spotChartCurrent = false,
   spotQuotePreview = false,
@@ -594,7 +595,7 @@ export async function mockTerminalLiveApis(page, {
       }),
     });
   });
-  await page.route("**/api/onchain/trades**", (route) => {
+  await page.route("**/api/onchain/trades**", async (route) => {
     const url = new URL(route.request().url());
     const chain = url.searchParams.get("chain") || "solana";
     const poolAddress = url.searchParams.get("pair_address");
@@ -602,6 +603,7 @@ export async function mockTerminalLiveApis(page, {
     const quoteAddress = url.searchParams.get("quote_address");
     tradeCalls.push({ chain, poolAddress, tokenAddress, quoteAddress });
     const tradeRequestNumber = tradeCalls.length;
+    if (spotTradeDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, spotTradeDelayMs));
     const observedAt = new Date();
     const evm = chain !== "solana";
     const evmExplorer = {

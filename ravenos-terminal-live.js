@@ -352,6 +352,14 @@ function reconcileSelectedSpotPrice(update = {}) {
     valuation?.marketCap !== null && valuation?.marketCap !== undefined ? "Market cap" : "FDV",
     compact(valuation?.marketCap ?? valuation?.fdv ?? state.selected?.marketCap ?? state.selected?.fdv, { currency: true }),
   );
+  setText(
+    "terminalAnatomy2Label",
+    valuation?.marketCap !== null && valuation?.marketCap !== undefined ? "Market cap" : "FDV",
+  );
+  setText(
+    "terminalAnatomy2",
+    compact(valuation?.marketCap ?? valuation?.fdv ?? state.selected?.marketCap ?? state.selected?.fdv, { currency: true }),
+  );
   return true;
 }
 
