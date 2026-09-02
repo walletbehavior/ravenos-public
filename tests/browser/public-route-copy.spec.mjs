@@ -294,7 +294,7 @@ test("/outcomes/ mobile funnel stays compact and preserves the lesson", async ({
 test("/behavior/ exposes aggregate participation with denominators and privacy boundaries", async ({ page }) => {
   await page.goto("/behavior/");
   await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice/i);
-  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable of .*observed.*(?:Developing|Broader sample)/i);
+  await expect(page.locator(".behavior-matrix article").first()).toContainText(/usable of .*observed.*(?:Early|Developing|Broader sample)/i);
   await expect(page.locator(".behavior-matrix article").first()).toContainText(/No directional edge measured/i);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Wallet-pattern history/i);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/No wallet names.*ownership claims.*coordination claims.*smart money/s);

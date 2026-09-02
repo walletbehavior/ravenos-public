@@ -95,7 +95,7 @@ export function customerFacingText(value, fallback = "") {
     .replace(/^Raven froze a crowding fade observation while long crowding watch was present\.?$/i, "Long positioning looks crowded; watching for a fade unless price confirms the move.")
     .replace(/^Raven froze a crowding fade observation while short crowding watch was present\.?$/i, "Short positioning looks crowded; watching for a squeeze unless price confirms the move lower.")
     .replace(
-      /^Raven froze an? (.+?) observation while (.+?) was present\.?$/i,
+      /^Raven (?:froze|observed)\s+(?:an?\s+)?(.+?)(?:\s+observation)?\s+while\s+(.+?)\s+was present\.?$/i,
       (_match, behavior, context) => {
         const cleanBehavior = String(behavior || "").trim();
         const cleanContext = String(context || "").trim().replace(/\s+visible$/i, "");
@@ -103,7 +103,7 @@ export function customerFacingText(value, fallback = "") {
         return cleanContext ? `${subject} appeared while ${cleanContext} was in place.` : `${subject} appeared.`;
       },
     )
-    .replace(/\bRaven froze\b/gi, "Raven observed")
+    .replace(/\bRaven (?:froze|observed)\b/gi, "Recorded")
     .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
     .replace(/\bfrozen observation\b/gi, "timestamped observation")
     .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")

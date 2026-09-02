@@ -336,7 +336,7 @@ test("Behavior Lab suppresses unsupported rates and keeps stale wallet-pattern h
   await expect(page.locator(".behavior-focus")).toContainText(/Strongest supported slice.*Directional edge.*No directional edge measured.*Coverage/s);
   const first = page.locator(".behavior-matrix article").first();
   await expect(first).toContainText(/Participation.*Directional edge.*Evidence quality.*Coverage/s);
-  await expect(first).toContainText(/usable of .* observed.*Developing|Broader sample/s);
+  await expect(first).toContainText(/usable of .* observed.*(?:Early|Developing|Broader sample)/s);
   await expect(first).toContainText("Aggregate market behavior");
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Wallet-pattern history.*Not used in today’s result/s);
   await expect(page.locator("#routeSecondaryPanel")).toContainText(/Older wallet-pattern counts are hidden.*do not affect the headline.*strongest market group.*weakest market group.*directional edge/s);

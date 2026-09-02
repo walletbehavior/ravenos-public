@@ -154,10 +154,10 @@ function traderText(value, fallback = FORMING_TEXT) {
     .replace(/^Research sample forming; latest completed cohort remains visible when available\.?$/i, "Research evidence is still forming; the latest completed cohort remains visible when available.")
     .replace(/^Raven preserved an independently admitted decision-time market observation\.?$/i, "Independent evidence confirmed a new market behavior at this exact instrument.")
     .replace(
-      /^Raven froze an? (.+?) observation while (.+?) was present\.?$/i,
+      /^Raven (?:froze|observed)\s+(?:an?\s+)?(.+?)(?:\s+observation)?\s+while\s+(.+?)\s+was present\.?$/i,
       (_match, behavior, context) => `${titleCase(behavior)} appeared while ${String(context || "").trim().replace(/\s+visible$/i, "")} was in place.`,
     )
-    .replace(/\bRaven froze\b/gi, "Raven observed")
+    .replace(/\bRaven (?:froze|observed)\b/gi, "Recorded")
     .replace(/\bfrozen decision observation\b/gi, "timestamped market observation")
     .replace(/\bfrozen observation\b/gi, "timestamped observation")
     .replace(/\bindependently admitted decision-time market observation\b/gi, "independently confirmed market behavior")
