@@ -621,7 +621,7 @@ function utilityMarkup(kind, context) {
     <section>
       <span>Research workspaces</span>
       <nav class="ros-more-links" aria-label="Research workspaces">
-        <a href="/intelligence/"><strong>Raven Lab</strong><span>Behavior cohorts, perps, replay, and measured outcomes</span></a>
+        <a href="/intelligence/"><strong>Raven Lab</strong><span>Behavior and perps context</span></a>
         <a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a>
       </nav>
     </section>

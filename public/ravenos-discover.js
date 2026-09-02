@@ -1551,20 +1551,8 @@ function renderTokenStat(host, label, value) {
 }
 
 function spotFirstObservationHeadline(row, risks = []) {
-  const discovery = row?.discovery || {};
-  const trigger = discovery.notability?.primary_trigger;
-  const window = ["5m", "1h", "24h"].includes(text(trigger?.window, ""))
-    ? text(trigger.window)
-    : state.spotTimeframe;
-  const movement = trigger?.kind === "material_price_move"
-    ? finite(trigger.value_pct)
-    : spotMetric(row, "price_change", window);
-  const move = movement === null ? "" : `${percent(movement)} over ${window}`;
-  const volume = spotMetric(row, "volume_usd", window);
-  if (move && volume !== null) return `${move} on ${compact(volume, { currency: true })} volume; follow-through unconfirmed.`;
-  if (move) return `${move}; follow-through unconfirmed.`;
-  if (risks.length) return `${riskLabel(risks[0])}; follow-through unconfirmed.`;
-  return "Follow-through is not established yet.";
+  if (risks.length) return riskLabel(risks[0]);
+  return "Awaiting follow-through";
 }
 
 function spotDecisionHeadline(row, { current = true, velocityState = "forming", activityState = "forming", primary = "forming", risks = [] } = {}) {
@@ -1960,15 +1948,15 @@ function updateSpotTokenRow(anchor, row, index) {
   } else if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
     append(raven, "span", "", firstObservation
-      ? "New observation"
+      ? "Forming"
       : velocityScore?.availability !== "available" || velocityState === "insufficient_history"
         ? "Building history"
         : [label, title(velocityState)].filter(Boolean).join(" · "));
-    append(raven, "strong", "", decisionHeadline);
+    if (!firstObservation) append(raven, "strong", "", decisionHeadline);
   } else if (state.spotSort === "activity") {
     const buyShare = discovery.measurements?.buy_share?.availability === "available" ? finite(discovery.measurements.buy_share.value) : null;
     append(raven, "span", "", firstObservation
-      ? "New observation"
+      ? "Forming"
       : activityScore?.availability !== "available" || activityState === "insufficient_history"
         ? "Building history"
         : [
@@ -1976,7 +1964,7 @@ function updateSpotTokenRow(anchor, row, index) {
           title(activityState),
           buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`,
         ].filter(Boolean).join(" · "));
-    append(raven, "strong", "", decisionHeadline);
+    if (!firstObservation) append(raven, "strong", "", decisionHeadline);
   } else {
     const ravenEvidence = discovery.raven_evidence_state;
     const ravenState = {
