@@ -263,9 +263,13 @@ assert.equal(config.public_holder_lists.implementation_status, "production_provi
 assert.equal(config.public_holder_lists.free_tier_capability, true);
 assert.equal(config.public_holder_lists.exact_pool_and_mint_identity_required, true);
 assert.deepEqual(config.public_holder_lists.supported_chains, ["solana", "robinhood", "base", "bsc", "ethereum"]);
+assert.equal(config.public_holder_lists.evm_implementation_status, "production_provider_validated_activation_pending");
 assert.equal(config.public_holder_lists.evm_provider, "blockscout");
 assert.equal(config.public_holder_lists.evm_complete_holder_census_claimed, false);
 assert.equal(config.public_holder_lists.evm_maximum_public_owner_rows, 50);
+assert.equal(config.public_holder_lists.evm_real_token_staging_validation_completed, true);
+assert.equal(config.public_holder_lists.evm_candidate_ready_for_activation, true);
+assert.equal(config.public_holder_lists.evm_v4_pool_custody_exclusion_unresolved, true);
 assert.equal(config.public_holder_lists.evm_production_activation_completed, false);
 assert.equal(config.public_holder_lists.maximum_public_owner_rows, 100);
 assert.equal(config.public_holder_lists.maximum_census_source_token_accounts, 25_000);

@@ -21,7 +21,7 @@ Required query fields:
 
 The Worker first re-resolves the exact pool and token orientation. It fails closed when the pool, selected mint, or quote identity differs. Symbols never select a holder list.
 
-The response is `ravenos.onchain_holder_list.v2`. Solana resolves the Token or Token-2022 program and aggregates token accounts into owners. Robinhood, Base, BNB Chain, and Ethereum use Blockscout's exact-contract holder index and return up to 50 current holders. Both paths calculate supply shares from integer base units and exclude only an exact pool-address match.
+The response is `ravenos.onchain_holder_list.v2`. Solana resolves the Token or Token-2022 program and aggregates token accounts into owners. Robinhood, Base, BNB Chain, and Ethereum use Blockscout's exact-contract holder index and return up to 50 current holders. Both paths calculate supply shares from integer base units. A 20-byte pool contract can be excluded only by an exact address match. A Uniswap v4 `bytes32` pool ID is not a custody address, so RavenOS leaves pool-custody exclusion and pool-excluded wallet concentration unresolved instead of guessing a PoolManager account.
 
 The scan is bounded to 25 provider pages and 25,000 source token accounts. `complete_holder_census` is true only when provider pagination ends inside those bounds. If a complete scan cannot be proven, RavenOS discards the partial ranking and returns the independently verified largest-20 view instead. It never presents a partial account scan as a complete or globally ranked census.
 
@@ -66,7 +66,7 @@ The production release enables the first control and requires the second as a se
 
 The route does not implicitly fall back to `RAVENOS_SOLANA_RPC_URL`. This prevents an environment mistake from silently placing public-product load on an unrelated private RPC. The configured endpoint must be HTTPS and cannot target local or private-network addresses.
 
-EVM holders remain disabled until both are configured and a real Robinhood Chain token request passes staging validation:
+The real-token Robinhood Chain provider canary has passed. EVM holders remain disabled in production until the server-only key is bound to the Worker and the release flag is explicitly enabled:
 
 - `RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED=1`
 - `BLOCKSCOUT_API_KEY=<server-only key>`
