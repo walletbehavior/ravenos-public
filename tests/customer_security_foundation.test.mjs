@@ -136,7 +136,7 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.operator_solana_canary.customer_submission_available, false);
   assert.equal(security.operator_solana_canary.operator_submission_available, false);
   assert.equal(security.operator_solana_canary.production_activation_completed, false);
-  assert.equal(security.customer_live_execution_canary.implementation_status, "local_candidate_not_deployed");
+  assert.equal(security.customer_live_execution_canary.implementation_status, "owner_canary_code_ready");
   assert.equal(security.customer_live_execution_canary.surface, "https://app.ravenos.xyz/terminal/");
   assert.equal(security.customer_live_execution_canary.authenticated_origin_only, true);
   assert.equal(security.customer_live_execution_canary.csrf_required_for_mutations, true);
@@ -145,7 +145,16 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.wildcard_allowlist_for_initial_canary, false);
   assert.equal(security.customer_live_execution_canary.hyperliquid_wallet_signing_available, true);
   assert.equal(security.customer_live_execution_canary.hyperliquid_wallet_submission_available, true);
-  assert.equal(security.customer_live_execution_canary.solana_wallet_submission_available, false);
+  assert.equal(security.customer_live_execution_canary.solana_wallet_signing_available, true);
+  assert.equal(security.customer_live_execution_canary.solana_wallet_submission_available, true);
+  assert.equal(security.customer_live_execution_canary.solana_exact_transaction_review_required, true);
+  assert.equal(security.customer_live_execution_canary.solana_unsigned_simulation_required, true);
+  assert.equal(security.customer_live_execution_canary.solana_onchain_economic_reconciliation_required, true);
+  assert.equal(security.customer_live_execution_canary.solana_live_raven_fee_bps, 0);
+  assert.equal(security.customer_live_execution_canary.solana_fee_collection_available, false);
+  assert.equal(security.customer_live_execution_canary.evm_live_raven_fee_bps, 0);
+  assert.equal(security.customer_live_execution_canary.evm_fee_collection_available, false);
+  assert.equal(security.customer_live_execution_canary.evm_fee_accounting_chain_local, true);
   assert.equal(security.customer_live_execution_canary.raven_signing_available, false);
   assert.equal(security.customer_live_execution_canary.raven_private_keys_available, false);
   assert.equal(security.customer_live_execution_canary.custody_available, false);

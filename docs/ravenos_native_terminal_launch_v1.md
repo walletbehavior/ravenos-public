@@ -1,6 +1,30 @@
 # RavenOS native terminal launch v1
 
-Status: Hyperliquid market preview, exact order plan, public account desk, and account-informed scenario slices implemented; customer execution remains disabled.
+Status: market review is public; wallet-signed Hyperliquid and Solana execution is restricted to an authenticated owner canary. Raven signing, custody, arbitrary submission, and agentic live execution remain disabled.
+
+## Owner-canary execution boundary
+
+The authenticated workspace may expose a manual trade only when the global kill switch is clear, the signed-in user is explicitly allowlisted, the venue lane is enabled, and recent authentication is present. The connected wallet signs every order or transaction. RavenOS has no customer key and cannot originate a different action.
+
+Hyperliquid uses a short-lived, exact-market order ticket and direct wallet submission. Solana uses a current exact-pool Jupiter order, decodes the v0 transaction, resolves lookup tables, loads writable-account state, simulates without a signature, proves bounded wallet deltas, returns that exact unsigned transaction to the browser, verifies the resulting wallet signature over the unchanged message, submits it once, and reconciles the economic result against Solana RPC.
+
+The Solana canary supports native SOL or canonical Solana USDC funding and native SOL or canonical USDC settlement. Autonomous bridging is not included. A balance on another chain is not available Solana capital.
+
+Raven's live Solana execution fee is 0 bps. A public chain-local collector may be configured for readiness, but no fee instruction or transfer is inserted until a separately reviewed provider-native collection method is activated.
+
+One public EVM collector may be configured across supported EVM networks because the address format is shared, while each network's receipts and balances remain separately reconciled. EVM trading and fee collection are not activated by configuring that address.
+
+Activation is controlled by:
+
+- `RAVENOS_CUSTOMER_TRADE_LIVE_ENABLE`
+- `RAVENOS_CUSTOMER_TRADE_KILL_SWITCH`
+- `RAVENOS_CUSTOMER_TRADE_LIVE_USERS`
+- `RAVENOS_CUSTOMER_TRADE_HYPERLIQUID_LIVE_ENABLE`
+- `RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE`
+- `RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS` (public address only; collection remains disabled)
+- `RAVENOS_EVM_FEE_COLLECTOR_ADDRESS` (public address only; chain-local accounting; collection remains disabled)
+
+The initial canary must not use a wildcard user allowlist.
 
 ## Product boundary
 
@@ -131,21 +155,21 @@ The viewer may supply a Hyperliquid public address and inspect current venue equ
 - A browser wallet may supply only its public address; `walletTransportConnected` is distinct from verified or linked ownership.
 - Produces an immutable scenario binding but no venue-setting action, prepared order, wallet confirmation, signature, submission, cancellation, or monitoring.
 
-### 2. Authenticated account-aware review — not implemented
+### 2. Authenticated account-aware review — owner canary
 
-Requires the customer identity and session security foundation, verified Hyperliquid account proof, current margin and position state, account-specific fees, margin-mode selection, and recent reauthentication.
+Uses the customer identity and session security foundation, a current wallet-selected public account, current margin and position state, account-specific fees, margin-mode selection, and recent reauthentication.
 
-### 3. Prepared order — not implemented
+### 3. Prepared order — owner canary
 
-Requires an immutable review packet binding the account, exact instrument, direction, size, leverage, order type, price protections, fees, expiry, and payload hash. Any material change invalidates review.
+Uses an immutable, short-lived review packet binding the account, exact instrument, direction, size, price protections, fees, expiry, and payload hash. Any material change invalidates review.
 
-### 4. Wallet confirmation — not authorized
+### 4. Wallet confirmation — owner canary
 
-Requires a decoded order preview, payload equality verification, explicit user confirmation in the wallet or venue signing surface, and an independent transaction-security review.
+Requires a decoded action or transaction, equality verification, and explicit confirmation in the wallet. Raven never signs.
 
-### 5. Submission and reconciliation — not authorized
+### 5. Submission and reconciliation — owner canary
 
-Requires at-most-once submission, idempotency, acknowledgement/fill separation, order-status monitoring, fill reconciliation, resulting position reconciliation, incident controls, and an explicit owner authorization milestone.
+Uses one-shot tickets, append-only evidence, provider acknowledgement, and venue reconciliation. Ambiguous results remain indeterminate and explicitly tell the user not to retry until wallet and venue state are checked.
 
 ## Solana exact-pool research strategy — current
 
@@ -153,9 +177,9 @@ Velocity, Raven, and activity rows open the selected exact-pool Terminal instead
 
 The ladder adapts its target spacing and scale-out weights to chart structure, structural risk, RSI, recent volume, buy-side share, trader participation, holder change, liquidity, market cap, pool age, holder concentration, developer holdings, and token-control risk. It is omitted when those gates are not satisfied. It cannot populate a spot order, prepare a swap, sign, or submit.
 
-## Next venue
+## Solana native route
 
-Solana spot is the second intended native route. It must retain exact pool identity and model the full economic intent from USDC to the selected asset and back to USDC. Intermediate hops and native gas assets must remain visible in review without becoming the user’s accidental settlement result. Public signing remains disabled until the same account, wallet-proof, intent-binding, simulation, idempotency, and reconciliation gates pass.
+Solana spot retains exact pool identity and models the economic intent from canonical USDC or SOL to the selected asset, with a current reverse route to canonical USDC required before a buy can be prepared. Intermediate route legs and native costs remain review evidence. The wallet signs the exact reviewed transaction; the server neither accepts nor stores signing material.
 
 ## Implementation evidence
 
@@ -164,6 +188,10 @@ Solana spot is the second intended native route. It must retain exact pool ident
 - `lib/customer_trade/hyperliquid_account_snapshot.mjs`
 - `lib/customer_trade/hyperliquid_account_scenario.mjs`
 - `lib/customer_trade/hyperliquid_account_history.mjs`
+- `lib/customer_trade/live_execution_gate.mjs`
+- `lib/customer_trade/hyperliquid_live_execution.mjs`
+- `lib/customer_trade/operator_solana_canary.mjs`
+- `lib/customer_trade/solana_live_execution.mjs`
 - `lib/customer_trade/execution_readiness.mjs`
 - `lib/cross_market/trade_intent.mjs`
 - `worker.mjs` at `POST /api/trade/market-preview`
@@ -178,5 +206,8 @@ Solana spot is the second intended native route. It must retain exact pool ident
 - `tests/hyperliquid_account_snapshot.test.mjs`
 - `tests/hyperliquid_account_scenario.test.mjs`
 - `tests/hyperliquid_account_history.test.mjs`
+- `tests/hyperliquid_live_execution.test.mjs`
+- `tests/operator_solana_canary.test.mjs`
+- `tests/solana_live_execution.test.mjs`
 - `tests/worker_market_preview.test.mjs`
 - `tests/browser/terminal-chart.spec.mjs`

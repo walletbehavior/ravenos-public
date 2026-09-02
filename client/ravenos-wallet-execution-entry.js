@@ -1,4 +1,5 @@
 import { ExchangeClient, HttpTransport } from "@nktkas/hyperliquid";
+import { VersionedTransaction } from "@solana/web3.js";
 import { createWalletClient, custom, getAddress } from "viem";
 
 function executionError(code) {
@@ -17,6 +18,26 @@ async function sha256(value) {
   const bytes = new TextEncoder().encode(JSON.stringify(canonicalize(value)));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Bytes(value) {
+  const digest = await crypto.subtle.digest("SHA-256", value);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function base64Bytes(value) {
+  const text = String(value || "").trim();
+  if (!text || text.length > 4_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) throw executionError("solana_transaction_base64_invalid");
+  const binary = atob(text);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  if (!bytes.length || bytes.length > 1_232) throw executionError("solana_transaction_size_invalid");
+  return bytes;
+}
+
+function bytesBase64(value) {
+  let binary = "";
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 async function validatedHyperliquidWallet(provider, expectedAddress) {
@@ -105,7 +126,43 @@ async function approveHyperliquidBuilderFee({ approval, provider, address }) {
   });
 }
 
+async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, address }) {
+  if (ticket?.schema_version !== "ravenos.solana_live_ticket.v1") throw executionError("live_ticket_schema_invalid");
+  if (Date.parse(ticket.expires_at || "") <= Date.now() + 500) throw executionError("live_ticket_expired");
+  if (String(ticket.wallet_address || "") !== String(address || "")) throw executionError("wallet_account_identity_mismatch");
+  if (ticket.execution_boundary?.server_signing !== false
+    || ticket.execution_boundary?.custody !== false
+    || ticket.execution_boundary?.exact_reviewed_transaction_only !== true) {
+    throw executionError("live_ticket_boundary_invalid");
+  }
+  if (!provider?.signTransaction || !provider?.publicKey) throw executionError("solana_wallet_signing_unavailable");
+  if (String(provider.publicKey) !== String(address)) throw executionError("wallet_account_identity_mismatch");
+  const transaction = VersionedTransaction.deserialize(base64Bytes(unsignedTransactionBase64));
+  if (transaction.signatures.length !== 1) throw executionError("solana_signer_set_invalid");
+  if (transaction.message.staticAccountKeys[0]?.toBase58() !== String(address)) throw executionError("solana_fee_payer_mismatch");
+  const messageBytes = transaction.message.serialize();
+  if (await sha256Bytes(messageBytes) !== ticket.transaction?.message_hash) throw executionError("solana_transaction_message_mismatch");
+  if (await sha256Bytes(transaction.serialize()) !== ticket.transaction?.unsigned_transaction_hash) {
+    throw executionError("solana_unsigned_transaction_hash_mismatch");
+  }
+  const signed = await provider.signTransaction(transaction);
+  if (!signed?.message || !Array.isArray(signed?.signatures) || typeof signed?.serialize !== "function") {
+    throw executionError("solana_wallet_signature_response_invalid");
+  }
+  if (await sha256Bytes(signed.message.serialize()) !== ticket.transaction?.message_hash) {
+    throw executionError("solana_wallet_changed_transaction");
+  }
+  if (signed.signatures.length !== 1 || !signed.signatures[0].some((byte) => byte !== 0)) {
+    throw executionError("solana_wallet_signature_missing");
+  }
+  return Object.freeze({
+    ticket_id: ticket.ticket_id,
+    signed_transaction_base64: bytesBase64(signed.serialize()),
+  });
+}
+
 globalThis.RavenOSWalletExecution = Object.freeze({
   approveHyperliquidBuilderFee,
   executeHyperliquidTicket,
+  signSolanaTicket,
 });

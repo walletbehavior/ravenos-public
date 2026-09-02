@@ -1,0 +1,3 @@
+# Generated browser bundles can contain dependency-owned multiline string literals.
+ravenos-wallet-execution.js -whitespace
+public/ravenos-wallet-execution.js -whitespace

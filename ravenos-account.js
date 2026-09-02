@@ -26,6 +26,7 @@ const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
   "intelligence.participant_advanced": Object.freeze({ label: "Behavior Lab", route: "/api/v1/intelligence/participants" }),
   "wallet.copy": Object.freeze({ label: "Wallet Intelligence & Raven Copy", route: "/api/v1/wallet-copy" }),
+  "agents.paper": Object.freeze({ label: "Agent Workspace", route: "/api/v1/agents/workspace" }),
 });
 
 async function getJson(url, init = {}) {
@@ -222,16 +223,19 @@ function proCapabilityNode(capability, projectionPayload = null) {
   const detail = document.createElement("p");
   if (!capability.available || !projectionPayload?.ok) {
     detail.textContent = capability.state === "expired"
-      ? "Your Pro access has expired. Advanced intelligence is unavailable."
+      ? "Pro access expired."
       : capability.state === "revoked"
-        ? "Your Pro access has been removed. Advanced intelligence is unavailable."
+        ? "Pro access removed."
         : capability.state === "suspended"
-          ? "Your Pro access is paused. Advanced intelligence is unavailable."
-          : "Pro access isn’t available for this account yet. Public Intelligence still works.";
+          ? "Pro access paused."
+          : "Not enabled for this account.";
   } else if (capability.capability === "wallet.copy") {
     detail.textContent = projectionPayload.activation?.shadow_copy
       ? "Inspect public Solana wallets, keep source returns separate from follower reality, and record prospective shadow decisions."
       : "Wallet inspection is ready; prospective shadow decisions are still closed.";
+  } else if (capability.capability === "agents.paper") {
+    const agents = Array.isArray(projectionPayload.agents) ? projectionPayload.agents : [];
+    detail.textContent = `${agents.length} paper agent${agents.length === 1 ? "" : "s"} · policy and reconciliation ready`;
   } else if (capability.capability === "intelligence.perps_advanced") {
     const advanced = projectionPayload.projection?.advanced || {};
     const freshness = projectionPayload.projection?.provenance?.freshness?.state || "unavailable";
@@ -244,8 +248,12 @@ function proCapabilityNode(capability, projectionPayload = null) {
 
   const boundary = document.createElement("small");
   boundary.textContent = capability.available && projectionPayload?.ok
-    ? capability.capability === "wallet.copy" ? "Private policies · public-chain sources · no live trades" : "Private to this session · read-only aggregate intelligence"
-    : "No checkout or restricted data";
+    ? capability.capability === "wallet.copy"
+      ? "Private policies · no live trades"
+      : capability.capability === "agents.paper"
+        ? "Paper only · live automation off"
+        : "Private · read only"
+    : "No restricted data";
   row.append(heading, detail, boundary);
   return row;
 }

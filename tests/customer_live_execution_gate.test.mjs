@@ -25,19 +25,19 @@ function enabledEnv(overrides = {}) {
   };
 }
 
-test("source authority permits only the implemented wallet-owned Hyperliquid lane", () => {
+test("source authority permits only implemented wallet-owned venue lanes", () => {
   const gate = resolveCustomerLiveExecutionGate({}, null, { nowSeconds: NOW });
   assert.equal(gate.source_ready, true);
   assert.equal(gate.chains.hyperliquid.source_ready, true);
-  assert.equal(gate.chains.solana.source_ready, false);
-  assert.equal(CustomerLiveExecutionAuthorization.solana_signed_transaction_submission, false);
+  assert.equal(gate.chains.solana.source_ready, true);
+  assert.equal(CustomerLiveExecutionAuthorization.solana_signed_transaction_submission, true);
   assert.equal(CustomerLiveExecutionAuthorization.raven_signing, false);
   assert.equal(CustomerLiveExecutionAuthorization.raven_private_key_access, false);
   assert.equal(CustomerLiveExecutionAuthorization.custody, false);
   assert.equal(CustomerLiveExecutionAuthorization.arbitrary_transaction_submission, false);
 });
 
-test("allowlisted recently authenticated user can reach only the enabled Hyperliquid canary", () => {
+test("allowlisted recently authenticated user can reach each explicitly enabled wallet canary", () => {
   const gate = resolveCustomerLiveExecutionGate(enabledEnv({
     RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE: "1",
   }), principal(), { nowSeconds: NOW });
@@ -45,10 +45,10 @@ test("allowlisted recently authenticated user can reach only the enabled Hyperli
   assert.equal(gate.canary_only, true);
   assert.equal(gate.principal_allowed, true);
   assert.equal(gate.chains.hyperliquid.available_to_principal, true);
-  assert.equal(gate.chains.solana.enabled, false);
-  assert.equal(gate.chains.solana.available_to_principal, false);
+  assert.equal(gate.chains.solana.enabled, true);
+  assert.equal(gate.chains.solana.available_to_principal, true);
   assert.equal(customerLiveExecutionRefusal(gate, "hyperliquid"), null);
-  assert.equal(customerLiveExecutionRefusal(gate, "solana"), "solana_live_execution_source_boundary_closed");
+  assert.equal(customerLiveExecutionRefusal(gate, "solana"), null);
 });
 
 test("kill switch, allowlist, and recent authentication independently fail closed", () => {
@@ -68,6 +68,6 @@ test("public projection exposes capability state without exposing the canary use
   assert.equal(projection.configured, true);
   assert.equal(projection.public_available, false);
   assert.equal(projection.chains.hyperliquid.source_ready, true);
-  assert.equal(projection.chains.solana.source_ready, false);
+  assert.equal(projection.chains.solana.source_ready, true);
   assert.equal(JSON.stringify(projection).includes(USER), false);
 });

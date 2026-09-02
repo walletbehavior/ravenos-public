@@ -55,8 +55,9 @@ test("dormant Pro foundation is explicit, non-commercial, and does not request a
   await page.goto("/account/");
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "unavailable");
   await expect(page.locator("#accountProState")).toHaveText("Unavailable");
-  await expect(page.locator(".account-pro-capability")).toHaveCount(3);
+  await expect(page.locator(".account-pro-capability")).toHaveCount(4);
   await expect(page.locator(".account-pro-capability").nth(2)).toContainText("Wallet Intelligence & Raven Copy");
+  await expect(page.locator(".account-pro-capability").nth(3)).toContainText("Agent Workspace");
   await expect(page.locator("#accountProStatus")).toContainText("Pro access isn’t available");
   await expect(page.getByText("Planned · not yet available.")).toBeVisible();
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
@@ -64,7 +65,7 @@ test("dormant Pro foundation is explicit, non-commercial, and does not request a
   expect(advancedRequests).toBe(0);
 });
 
-test("authorized Perps and Participant projections render only bounded aggregate summaries", async ({ page, baseURL }) => {
+test("authorized Pro projections include the paper Agent Workspace", async ({ page, baseURL }) => {
   await authenticatedAccount(page, baseURL);
   const requested = [];
   await page.route("**/api/v1/entitlements", (route) => route.fulfill({
@@ -79,6 +80,7 @@ test("authorized Perps and Participant projections render only bounded aggregate
       capabilities: [
         capability("intelligence.perps_advanced", "active", true),
         capability("intelligence.participant_advanced", "active", true),
+        capability("agents.paper", "active", true),
       ],
     }),
   }));
@@ -111,17 +113,33 @@ test("authorized Perps and Participant projections render only bounded aggregate
       }),
     });
   });
+  await page.route("**/api/v1/agents/workspace", (route) => {
+    requested.push("agents");
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify({
+        ok: true,
+        environment: "paper",
+        live_execution_enabled: false,
+        agents: [{ agent_id: "agent_fixture_1", lifecycle_state: "paper" }],
+      }),
+    });
+  });
 
   await page.goto("/account/");
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "available");
-  await expect(page.locator("#accountProState")).toHaveText("2 available");
-  await expect(page.locator(".account-pro-capability[data-state=active]")).toHaveCount(2);
+  await expect(page.locator("#accountProState")).toHaveText("3 available");
+  await expect(page.locator(".account-pro-capability[data-state=active]")).toHaveCount(3);
   await expect(page.locator(".account-pro-capability").nth(0)).toContainText("12 positioning markets · 8 pressure markets");
   await expect(page.locator(".account-pro-capability").nth(1)).toContainText("96 aggregate conditions");
+  await expect(page.locator(".account-pro-capability").nth(3)).toContainText("1 paper agent · policy and reconciliation ready");
+  await expect(page.locator(".account-pro-capability").nth(3)).toContainText("Paper only · live automation off");
   await expect(page.locator("#accountProStatus")).toContainText("read-only");
   await expect(page.locator("#accountProPanel img")).toHaveCount(0);
   expect(await page.evaluate(() => window.__entitlementExecuted === true)).toBe(false);
-  expect(requested.sort()).toEqual(["participants", "perps"]);
+  expect(requested.sort()).toEqual(["agents", "participants", "perps"]);
 });
 
 test("expired and suspended capability states stay denied and usable on mobile", async ({ page, baseURL }) => {
@@ -149,8 +167,8 @@ test("expired and suspended capability states stay denied and usable on mobile",
 
   await page.goto("/account/");
   await expect(page.locator("#accountProPanel")).toHaveAttribute("data-pro-state", "unavailable");
-  await expect(page.locator(".account-pro-capability[data-state=expired]")).toContainText("Pro access has expired");
-  await expect(page.locator(".account-pro-capability[data-state=suspended]")).toContainText("Pro access is paused");
+  await expect(page.locator(".account-pro-capability[data-state=expired]")).toContainText("Pro access expired");
+  await expect(page.locator(".account-pro-capability[data-state=suspended]")).toContainText("Pro access paused");
   expect(advancedRequests).toBe(0);
   const dimensions = await page.locator("#accountProPanel").evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);

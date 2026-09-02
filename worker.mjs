@@ -156,6 +156,14 @@ import {
   createHyperliquidLiveTicket,
   normalizeHyperliquidClientExecutionReport,
 } from "./lib/customer_trade/hyperliquid_live_execution.mjs";
+import { runCustomerSolanaLivePreflight } from "./lib/customer_trade/operator_solana_canary.mjs";
+import {
+  createD1SolanaLiveExecutionStore,
+  createSolanaLiveTicket,
+  executeJupiterSignedTransaction,
+  reconcileSolanaExecution,
+  verifySolanaSignedTransaction,
+} from "./lib/customer_trade/solana_live_execution.mjs";
 import {
   CUSTOMER_RESEARCH_STATE_ROUTE,
   routeCustomerResearchState,
@@ -6982,6 +6990,183 @@ function hyperliquidBuilderFeePolicy(env = {}) {
   });
 }
 
+function solanaFeeCollectorStatus(env = {}) {
+  const address = String(env.RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS || "").trim();
+  return Object.freeze({
+    configured: SOLANA_ADDRESS_RE.test(address),
+    fee_enabled: false,
+    actual_fee_bps: 0,
+    collection_method: "none",
+  });
+}
+
+function evmFeeCollectorStatus(env = {}) {
+  const address = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim();
+  return Object.freeze({
+    configured: EVM_ADDRESS_RE.test(address) && !/^0x0{40}$/i.test(address),
+    chain_local_accounting_required: true,
+    fee_enabled: false,
+    actual_fee_bps: 0,
+    collection_method: "none",
+  });
+}
+
+function exactSolanaTerminalUrl({ poolAddress, tokenAddress, quoteAddress }) {
+  const url = new URL("https://ravenos.xyz/terminal/");
+  url.searchParams.set("chain", "solana");
+  url.searchParams.set("market", "spot");
+  url.searchParams.set("instrument_scope", "exact_pool");
+  url.searchParams.set("instrument_id", `solana:pool:${poolAddress}`);
+  url.searchParams.set("pair_address", poolAddress);
+  url.searchParams.set("token_address", tokenAddress);
+  url.searchParams.set("quote_address", quoteAddress);
+  return url.toString();
+}
+
+async function loadCurrentSolanaLivePreparation(body = {}, env = {}) {
+  const runtime = spotQuotePreviewRuntime(env);
+  if (!runtime.available) throw Object.assign(new Error("solana_live_rpc_unavailable"), { code: "solana_live_rpc_unavailable" });
+  const poolAddress = String(body?.pool_address || "").trim();
+  const tokenAddress = String(body?.token_address || "").trim();
+  const quoteAddress = String(body?.quote_address || "").trim();
+  const instrumentId = String(body?.instrument_id || "").trim();
+  const walletAddress = String(body?.wallet_address || "").trim();
+  if (String(body?.chain || "").trim().toLowerCase() !== "solana"
+    || String(body?.identity_scope || "").trim().toLowerCase() !== "exact_pool"
+    || !SOLANA_ADDRESS_RE.test(poolAddress)
+    || !SOLANA_ADDRESS_RE.test(tokenAddress)
+    || !SOLANA_ADDRESS_RE.test(quoteAddress)
+    || !SOLANA_ADDRESS_RE.test(walletAddress)
+    || instrumentId !== `solana:pool:${poolAddress}`) {
+    throw Object.assign(new Error("exact_market_identity_mismatch"), { code: "exact_market_identity_mismatch" });
+  }
+  const side = String(body?.side || "").trim().toLowerCase();
+  if (!new Set(["buy", "sell"]).has(side)) throw Object.assign(new Error("side_invalid"), { code: "side_invalid" });
+  const exactRows = await pairDex("solana", poolAddress, tokenAddress);
+  const exact = exactRows.find((row) => (
+    sameOnchainAddress("solana", row?.pairAddress, poolAddress)
+    && sameOnchainAddress("solana", row?.tokenAddress, tokenAddress)
+    && sameOnchainAddress("solana", row?.quoteTokenAddress, quoteAddress)
+  ));
+  if (!exact) throw Object.assign(new Error("exact_market_unavailable"), { code: "exact_market_unavailable" });
+  const supplyResult = await boundedSolanaTradeRpc(runtime.rpc_url, "getTokenSupply", [tokenAddress, { commitment: "confirmed" }]);
+  const tokenDecimals = Number(supplyResult?.value?.decimals);
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 18) {
+    throw Object.assign(new Error("selected_mint_unavailable"), { code: "selected_mint_unavailable" });
+  }
+  const assetPreference = resolveSpotAssetPreference(body, side);
+  let spendableTokenBalance = null;
+  if (side === "sell") {
+    const balanceResult = await boundedSolanaTradeRpc(runtime.rpc_url, "getTokenAccountsByOwner", [
+      walletAddress,
+      { mint: tokenAddress },
+      { encoding: "jsonParsed", commitment: "confirmed" },
+    ]);
+    spendableTokenBalance = tokenAmountBaseUnitsFromAccounts(balanceResult);
+    if (BigInt(spendableTokenBalance) <= 0n) throw Object.assign(new Error("insufficient_balance"), { code: "insufficient_balance" });
+  }
+  const contractInput = {
+    exact_market: { instrument_id: instrumentId, pool_address: poolAddress, token_address: tokenAddress, quote_address: quoteAddress },
+    side,
+    amount: side === "buy"
+      ? {
+          kind: assetPreference.selected === "native" ? "native_sol" : "canonical_usdc",
+          display_amount: decimalText(body?.display_amount, assetPreference.selected === "native" ? 9 : 6),
+        }
+      : { kind: "sell_percentage", percentage_bps: Math.round((optionalFiniteNumber(body?.sell_percent) || 0) * 100) },
+    settlement: side === "sell"
+      ? { kind: assetPreference.selected === "native" ? "native_sol" : "canonical_usdc" }
+      : { kind: "selected_token" },
+    advanced_controls: {
+      slippage_bps: body?.slippage_bps,
+      priority: body?.priority?.mode === "capped"
+        ? { mode: "capped", max_lamports: body?.priority?.maximum_lamports }
+        : { mode: "standard" },
+      jito: false,
+    },
+    plan: serverSpotPlanInput(body, exact),
+  };
+  const marketAuthority = {
+    instrument_id: instrumentId,
+    identity_scope: "exact_pool",
+    chain: "solana",
+    pool_address: poolAddress,
+    token_address: tokenAddress,
+    quote_address: quoteAddress,
+    venue: String(exact.dexId || "unknown"),
+    symbol: String(exact.symbol || ""),
+    quote_symbol: String(exact.quoteSymbol || "SOL"),
+    token_decimals: tokenDecimals,
+    native_decimals: 9,
+    ...(side === "sell" ? { spendable_token_balance_base_units: spendableTokenBalance } : {}),
+  };
+  const controls = createSolanaSpotAdvancedControls(contractInput.advanced_controls);
+  const intent = createExactSolanaSpotIntent(contractInput, marketAuthority);
+  let notionalUsdc;
+  if (side === "buy" && intent.input_mint === SOLANA_CANONICAL_USDC_MINT) {
+    notionalUsdc = Number(intent.amount.display_amount);
+  } else {
+    const valuation = await fetchJupiterExactSpotQuote({
+      env,
+      inputMint: intent.input_mint,
+      outputMint: SOLANA_CANONICAL_USDC_MINT,
+      amountBaseUnits: intent.amount.exact_input_amount_base_units,
+      slippageBps: controls.slippage_bps,
+    });
+    notionalUsdc = Number(displayBaseUnits(valuation.payload.outAmount, 6));
+  }
+  if (!Number.isFinite(notionalUsdc) || notionalUsdc < 1 || notionalUsdc > boundedLiveNotional(env)) {
+    throw Object.assign(new Error("live_notional_out_of_bounds"), { code: "live_notional_out_of_bounds" });
+  }
+  const preflight = await runCustomerSolanaLivePreflight({
+    terminal_url: exactSolanaTerminalUrl({ poolAddress, tokenAddress, quoteAddress }),
+    wallet_address: walletAddress,
+    wallet_role: "customer",
+    side,
+    funding_kind: intent.amount.kind,
+    settlement_kind: intent.settlement.kind,
+    amount_base_units: intent.amount.exact_input_amount_base_units,
+    slippage_bps: controls.slippage_bps,
+    priority_fee_lamports: controls.priority.requested_max_lamports ?? controls.priority.enforced_max_lamports,
+  }, {
+    rpc_url: runtime.rpc_url,
+    jupiter_api_key: String(env.JUPITER_API_KEY || ""),
+    timeout_ms: 8_000,
+  });
+  if (!preflight.ok || preflight.safety_blocking_reasons?.length) {
+    throw Object.assign(new Error("solana_live_preflight_blocked"), {
+      code: "solana_live_preflight_blocked",
+      details: { reasons: preflight.safety_blocking_reasons || [] },
+    });
+  }
+  let exitProof = null;
+  if (side === "buy") {
+    const reverse = await fetchJupiterExactSpotQuote({
+      env,
+      inputMint: tokenAddress,
+      outputMint: SOLANA_CANONICAL_USDC_MINT,
+      amountBaseUnits: preflight.quote.expected_output_amount_base_units,
+      slippageBps: controls.slippage_bps,
+    });
+    exitProof = {
+      verified: true,
+      settlement_mint: SOLANA_CANONICAL_USDC_MINT,
+      expected_usdc_base_units: String(reverse.payload.outAmount),
+      minimum_usdc_base_units: String(reverse.payload.otherAmountThreshold),
+      observed_at: reverse.received_at,
+      expires_at: reverse.expires_at,
+      provider: "jupiter",
+    };
+  }
+  return createSolanaLiveTicket({
+    preflight,
+    notional_usdc: notionalUsdc,
+    maximum_notional_usdc: boundedLiveNotional(env),
+    exit_proof: exitProof,
+    fee_collector_configured: solanaFeeCollectorStatus(env).configured,
+  });
+}
+
 async function currentHyperliquidBuilderApproval(walletAddress, feePolicy) {
   if (feePolicy?.enabled !== true) return 0;
   const value = await hyperliquidInfo({
@@ -7036,6 +7221,8 @@ async function handleTradeLiveSession(request, env = {}) {
   if (authorization.response) return authorization.response;
   const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
   const feePolicy = hyperliquidBuilderFeePolicy(env);
+  const solanaFee = solanaFeeCollectorStatus(env);
+  const evmFee = evmFeeCollectorStatus(env);
   return liveExecutionResponse({
     ok: true,
     gate,
@@ -7051,6 +7238,25 @@ async function handleTradeLiveSession(request, env = {}) {
       venue_approval_required: feePolicy.venue_user_approval_required === true,
       unavailable_reason: feePolicy.unavailable_reason,
     },
+    solana_fee: {
+      enabled: false,
+      configuration_ready: solanaFee.configured,
+      fee_bps: 0,
+      configured_fee_bps: feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false }).configured_fee_bps,
+      fee_token: "USDC",
+      collection_method: "none",
+      unavailable_reason: solanaFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
+    },
+    evm_fee: {
+      enabled: false,
+      configuration_ready: evmFee.configured,
+      fee_bps: 0,
+      configured_fee_bps: 0,
+      fee_token: "USDC",
+      collection_method: "none",
+      chain_local_accounting_required: evmFee.chain_local_accounting_required,
+      unavailable_reason: evmFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
+    },
     execution_boundary: {
       wallet_signature_required: true,
       server_signing: false,
@@ -7058,6 +7264,117 @@ async function handleTradeLiveSession(request, env = {}) {
       arbitrary_submission: false,
     },
   }, authorization);
+}
+
+async function handleTradeLiveSolanaPrepare(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "solana");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal, gate }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 16 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  try {
+    const prepared = await loadCurrentSolanaLivePreparation(body, env);
+    await createD1SolanaLiveExecutionStore(env.RAVENOS_CUSTOMER_DB).createTicket({
+      ticket: prepared.ticket,
+      user_id: authorization.principal.user_id,
+      now_seconds: authorization.now,
+    });
+    return liveExecutionResponse({ ok: true, ...prepared }, authorization);
+  } catch (error) {
+    const code = String(error?.code || error?.message || "solana_live_prepare_unavailable");
+    const clientError = /(?:invalid|mismatch|blocked|expired|out_of_bounds|required|insufficient|unavailable)$/.test(code);
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: clientError ? 409 : 503 });
+  }
+}
+
+async function handleTradeLiveSolanaExecute(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "solana");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 8 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  const store = createD1SolanaLiveExecutionStore(env.RAVENOS_CUSTOMER_DB);
+  let stored;
+  let verification;
+  try {
+    stored = await store.findTicket(body?.ticket_id, authorization.principal.user_id);
+    if (!stored?.prepared) return liveExecutionResponse({ ok: false, error: "execution_ticket_not_found" }, authorization, { status: 404 });
+    verification = verifySolanaSignedTransaction(body, stored.prepared);
+    await store.claimSubmission({
+      execution_id: stored.prepared.ticket_id,
+      user_id: authorization.principal.user_id,
+      verification,
+      now_seconds: authorization.now,
+    });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: String(error?.code || error?.message || "solana_signed_transaction_rejected") }, authorization, { status: 409 });
+  }
+  let providerObservation = null;
+  try {
+    providerObservation = await executeJupiterSignedTransaction({ ticket: stored.prepared, verified: verification }, {
+      jupiter_api_key: String(env.JUPITER_API_KEY || ""),
+      timeout_ms: 8_000,
+    });
+    const reconciliation = await reconcileSolanaExecution({ ticket: stored.prepared, provider_observation: providerObservation }, {
+      rpc_url: spotQuotePreviewRuntime(env).rpc_url,
+      timeout_ms: 6_000,
+    });
+    await store.finalize({
+      execution_id: stored.prepared.ticket_id,
+      user_id: authorization.principal.user_id,
+      reconciliation,
+      now_seconds: Math.floor(Date.now() / 1000),
+    });
+    const ok = reconciliation.state !== "provider_rejected";
+    return liveExecutionResponse({
+      ok,
+      schema_version: "ravenos.solana_live_execution_response.v1",
+      ticket_id: stored.prepared.ticket_id,
+      provider: providerObservation,
+      reconciliation,
+      execution_boundary: stored.prepared.execution_boundary,
+    }, authorization, { status: ok ? reconciliation.state === "provider_confirmed" ? 200 : 202 : 409 });
+  } catch (error) {
+    const reconciliation = {
+      state: "indeterminate",
+      signature: providerObservation?.signature || null,
+      evidence: {
+        reason: String(error?.code || error?.message || "submission_result_indeterminate"),
+        provider_observation: providerObservation,
+      },
+    };
+    await store.finalize({
+      execution_id: stored.prepared.ticket_id,
+      user_id: authorization.principal.user_id,
+      reconciliation,
+      now_seconds: Math.floor(Date.now() / 1000),
+    });
+    return liveExecutionResponse({
+      ok: true,
+      schema_version: "ravenos.solana_live_execution_response.v1",
+      ticket_id: stored.prepared.ticket_id,
+      reconciliation,
+      warning: "Do not retry until wallet and chain state are checked.",
+    }, authorization, { status: 202 });
+  }
 }
 
 async function handleTradeLiveHyperliquidPrepare(request, env = {}) {
@@ -9208,6 +9525,8 @@ async function routeApi(request, env, executionContext = null) {
   if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
+  if (url.pathname === "/api/trade/live/solana/prepare" && request.method === "POST") return handleTradeLiveSolanaPrepare(request, env);
+  if (url.pathname === "/api/trade/live/solana/execute" && request.method === "POST") return handleTradeLiveSolanaExecute(request, env);
   const entitlementResponse = await routeCustomerEntitlements(request, env, {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });

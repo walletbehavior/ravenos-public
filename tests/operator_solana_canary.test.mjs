@@ -8,9 +8,12 @@ import {
   OperatorCanaryExecutionAuthorization,
   OperatorSolanaCanaryLimits,
   SOLANA_CANARY_REVIEWED_PROGRAMS,
+  SOLANA_CUSTOMER_LIVE_PREFLIGHT_SCHEMA,
   SOLANA_MAINNET_GENESIS_HASH,
+  SOLANA_USDC_MINT,
   SOLANA_WRAPPED_MINT,
   parseExactSolanaTerminalContext,
+  runCustomerSolanaLivePreflight,
   runOperatorSolanaCanaryPreflight,
 } from "../lib/customer_trade/operator_solana_canary.mjs";
 
@@ -134,6 +137,8 @@ function response(payload, status = 200) {
 
 function runtime({
   side = "buy",
+  fundingKind = "native_sol",
+  settlementKind = "native_sol",
   router = "metis",
   program = JUPITER_PROGRAM,
   invokedProgram = program,
@@ -149,6 +154,8 @@ function runtime({
   postWrappedBalance = null,
   preWrappedAccountLamports = 3_000_000,
   postWrappedAccountLamports = 2_039_280,
+  preUsdcBalance = null,
+  postUsdcBalance = null,
   priceImpact = 0.1,
   signatureFee = 5_000,
   priorityFee = 1_000,
@@ -164,14 +171,25 @@ function runtime({
   const wallet = bs58.encode(key(11));
   const context = exactContext();
   const hasWrappedState = preWrappedBalance !== null || postWrappedBalance !== null;
-  const resolvedDynamicCount = hasWrappedState ? Math.max(dynamicCount, 2) : dynamicCount;
+  const usesUsdc = (side === "buy" ? fundingKind : settlementKind) === "canonical_usdc";
+  const resolvedDynamicCount = Math.max(dynamicCount, 1 + Number(hasWrappedState) + Number(usesUsdc));
   const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount);
-  const inputMint = side === "buy" ? SOLANA_WRAPPED_MINT : context.token;
-  const outputMint = side === "buy" ? context.token : SOLANA_WRAPPED_MINT;
+  const inputMint = side === "buy"
+    ? fundingKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT
+    : context.token;
+  const outputMint = side === "buy"
+    ? context.token
+    : settlementKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT;
   const selectedPreAmount = preTokenBalance ?? (side === "buy" ? 0 : 1_000_000);
   const selectedPostAmount = postTokenBalance ?? (side === "buy" ? 420_000 : 0);
   const authoritativePreWalletBalance = preWalletBalance ?? walletBalance;
-  const simulatedWalletBalance = postWalletBalance ?? (side === "buy" ? 98_994_000 : 100_404_000);
+  const simulatedWalletBalance = postWalletBalance ?? (
+    side === "buy"
+      ? fundingKind === "native_sol" ? 98_994_000 : 99_994_000
+      : settlementKind === "native_sol" ? 100_404_000 : 99_994_000
+  );
+  const authoritativePreUsdcBalance = preUsdcBalance ?? (side === "buy" ? 2_000_000 : 0);
+  const simulatedPostUsdcBalance = postUsdcBalance ?? (side === "buy" ? 1_000_000 : 420_000);
   const fetchImpl = async (url, init = {}) => {
     const target = new URL(String(url));
     if (target.hostname === "ravenos.xyz") {
@@ -290,7 +308,8 @@ function runtime({
           ...(hasWrappedState
             ? [preWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, preWrappedBalance, preWrappedAccountLamports)]
             : []),
-          ...transaction.dynamicAddresses.slice(hasWrappedState ? 2 : 1).map(() => null),
+          ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, authoritativePreUsdcBalance)] : []),
+          ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc)).map(() => null),
         ],
       } });
     }
@@ -321,7 +340,8 @@ function runtime({
             ...(hasWrappedState
               ? [postWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, postWrappedBalance, postWrappedAccountLamports)]
               : []),
-            ...transaction.dynamicAddresses.slice(hasWrappedState ? 2 : 1).map(() => null),
+            ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, simulatedPostUsdcBalance)] : []),
+            ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc)).map(() => null),
           ],
           innerInstructions: [{ index: 0, instructions: [] }],
           replacementBlockhash: null,
@@ -330,7 +350,7 @@ function runtime({
     }
     throw new Error(`unexpected_rpc_method:${request.method}`);
   };
-  return { context, fetchImpl, wallet, side };
+  return { context, fetchImpl, wallet, side, fundingKind, settlementKind };
 }
 
 function requestFor(fixture, overrides = {}) {
@@ -392,6 +412,46 @@ test("operator preflight binds exact pool and mint, resolves a v0 lookup table, 
   assert.equal(Object.hasOwn(result.transaction_review, "transaction"), false);
   assert.equal(OperatorCanaryExecutionAuthorization.signing_for_simulation, false);
   assert.equal(OperatorCanaryExecutionAuthorization.submission, false);
+});
+
+test("customer preflight returns only the exact reviewed unsigned transaction and supports native or canonical USDC", async () => {
+  const native = runtime();
+  const nativeResult = await runCustomerSolanaLivePreflight(requestFor(native, {
+    wallet_role: "customer",
+    funding_kind: "native_sol",
+    settlement_kind: "native_sol",
+  }), {
+    rpc_url: "https://rpc.example",
+    jupiter_api_key: "fixture-key",
+    fetch_impl: native.fetchImpl,
+    now: () => Date.parse("2026-08-27T15:00:00Z"),
+  });
+  assert.equal(nativeResult.schema_version, SOLANA_CUSTOMER_LIVE_PREFLIGHT_SCHEMA);
+  assert.equal(nativeResult.state, "customer_unsigned_transaction_reviewed");
+  assert.equal(nativeResult.intent.funding_kind, "native_sol");
+  assert.equal(nativeResult.transaction_review.raw_transaction_returned, true);
+  assert.equal(typeof nativeResult.unsigned_transaction_base64, "string");
+  assert(nativeResult.unsigned_transaction_base64.length > 0);
+  assert.deepEqual(nativeResult.boundary_blocking_reasons, []);
+  assert.equal(nativeResult.execution_boundary.browser_signing_available, true);
+  assert.equal(nativeResult.execution_boundary.operator_submission_available, false);
+
+  const usdc = runtime({ fundingKind: "canonical_usdc" });
+  const usdcResult = await runCustomerSolanaLivePreflight(requestFor(usdc, {
+    wallet_role: "customer",
+    funding_kind: "canonical_usdc",
+    settlement_kind: "canonical_usdc",
+  }), {
+    rpc_url: "https://rpc.example",
+    jupiter_api_key: "fixture-key",
+    fetch_impl: usdc.fetchImpl,
+    now: () => Date.parse("2026-08-27T15:00:00Z"),
+  });
+  assert.equal(usdcResult.ok, true);
+  assert.equal(usdcResult.intent.input_mint, SOLANA_USDC_MINT);
+  assert.equal(usdcResult.simulation.canonical_usdc_balance_evidence.direction, "debit");
+  assert.equal(usdcResult.simulation.canonical_usdc_balance_evidence.delta_amount_base_units, "1000000");
+  assert.equal(usdcResult.simulation.native_balance_evidence.direction, "network_fee_only");
 });
 
 test("unknown programs and failed simulations fail closed while signing material is rejected before network access", async () => {

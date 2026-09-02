@@ -662,9 +662,10 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket > .terminal-preview-action { order: 8; }
 .terminal-spot-ticket > .terminal-quote-follow { order: 9; }
 .terminal-spot-ticket > .terminal-preview-result { order: 10; }
-.terminal-spot-ticket > .terminal-execution-rail { order: 11; }
-.terminal-spot-ticket > .terminal-preview-message { order: 12; }
-.terminal-spot-ticket > .terminal-spot-advanced { order: 13; }
+.terminal-spot-ticket > .terminal-spot-live-execution { order: 11; margin-top: 8px; }
+.terminal-spot-ticket > .terminal-execution-rail { order: 12; }
+.terminal-spot-ticket > .terminal-preview-message { order: 13; }
+.terminal-spot-ticket > .terminal-spot-advanced { order: 14; }
 @media (min-width: 821px) {
   .terminal-live[data-terminal-lane="spot"] .terminal-workspace {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 410px);
@@ -741,6 +742,7 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-fee-disclosure,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-action,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-result,
+.terminal-spot-ticket[data-adapter-state="pending"] .terminal-spot-live-execution,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-execution-rail,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-message,
 .terminal-spot-ticket[data-adapter-state="pending"] .terminal-preview-boundary { display: none !important; }
@@ -1724,8 +1726,8 @@ button, input, select { font: inherit; }
   .terminal-spot-decision-strip strong { font-size: 11px; }
   .terminal-spot-decision-strip small { font-size: 8px; }
   .terminal-spot-ticket > .terminal-execution-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="sign"],
-  .terminal-spot-ticket > .terminal-execution-rail [data-terminal-step="send"] { display: none; }
+  .terminal-spot-ticket:not([data-live-enabled="true"]) > .terminal-execution-rail [data-terminal-step="sign"],
+  .terminal-spot-ticket:not([data-live-enabled="true"]) > .terminal-execution-rail [data-terminal-step="send"] { display: none; }
   .terminal-live[data-terminal-pane="chart"] .terminal-market-rail,
   .terminal-live[data-terminal-pane="chart"] .terminal-intelligence,
   .terminal-live[data-terminal-pane="chart"] .terminal-account-dock,

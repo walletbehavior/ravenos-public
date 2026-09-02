@@ -685,6 +685,17 @@
             <p id="terminalSpotQuoteTiming">Request route.</p>
           </div>
 
+          <section class="terminal-live-execution terminal-spot-live-execution" id="terminalSpotLiveExecution" data-state="unavailable" hidden>
+            <header><span>Wallet trade</span><strong id="terminalSpotLiveState">Unavailable</strong></header>
+            <div class="terminal-live-execution-order" id="terminalSpotLiveOrder" hidden>
+              <strong id="terminalSpotLiveSummary">Exact transaction review</strong>
+              <small id="terminalSpotLiveDetail"></small>
+            </div>
+            <button class="terminal-preview-action" id="terminalSpotLiveAction" type="button" hidden>Prepare wallet trade</button>
+            <a class="terminal-live-execution-link" id="terminalSpotLiveLink" hidden>Sign in to trade</a>
+            <p id="terminalSpotLiveMessage"></p>
+          </section>
+
           <ol class="terminal-execution-rail" id="terminalSpotExecutionRail" aria-label="Trade readiness">
             <li data-terminal-step="connect"><span>1</span><strong>Funds</strong><small>Optional check</small></li>
             <li data-terminal-step="quote"><span>2</span><strong>Buy quote</strong><small>Exact token</small></li>

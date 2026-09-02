@@ -487,12 +487,14 @@
     "production_activation_completed": false
   },
   "customer_live_execution_canary": {
-    "implementation_status": "local_candidate_not_deployed",
+    "implementation_status": "owner_canary_code_ready",
     "surface": "https://app.ravenos.xyz/terminal/",
     "routes": [
       "GET /api/trade/live/session",
       "POST /api/trade/live/hyperliquid/prepare",
-      "POST /api/trade/live/hyperliquid/report"
+      "POST /api/trade/live/hyperliquid/report",
+      "POST /api/trade/live/solana/prepare",
+      "POST /api/trade/live/solana/execute"
     ],
     "authenticated_origin_only": true,
     "csrf_required_for_mutations": true,
@@ -503,7 +505,16 @@
     "maximum_default_notional_usdc": 500,
     "hyperliquid_wallet_signing_available": true,
     "hyperliquid_wallet_submission_available": true,
-    "solana_wallet_submission_available": false,
+    "solana_wallet_signing_available": true,
+    "solana_wallet_submission_available": true,
+    "solana_exact_transaction_review_required": true,
+    "solana_unsigned_simulation_required": true,
+    "solana_onchain_economic_reconciliation_required": true,
+    "solana_live_raven_fee_bps": 0,
+    "solana_fee_collection_available": false,
+    "evm_live_raven_fee_bps": 0,
+    "evm_fee_collection_available": false,
+    "evm_fee_accounting_chain_local": true,
     "raven_signing_available": false,
     "raven_private_keys_available": false,
     "custody_available": false,
@@ -525,8 +536,11 @@
       "RAVENOS_CUSTOMER_TRADE_KILL_SWITCH",
       "RAVENOS_CUSTOMER_TRADE_LIVE_USERS",
       "RAVENOS_CUSTOMER_TRADE_HYPERLIQUID_LIVE_ENABLE",
+      "RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE",
       "RAVENOS_HYPERLIQUID_BUILDER_FEE_ENABLE",
-      "RAVENOS_HYPERLIQUID_BUILDER_ADDRESS"
+      "RAVENOS_HYPERLIQUID_BUILDER_ADDRESS",
+      "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
+      "RAVENOS_EVM_FEE_COLLECTOR_ADDRESS"
     ],
     "all_activation_controls_default_off": true,
     "production_activation_completed": false

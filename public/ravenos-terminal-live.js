@@ -97,6 +97,10 @@ const state = {
   spotQuoteFollow: false,
   solanaWalletAddress: null,
   solanaWalletConnected: false,
+  spotLiveTicket: null,
+  spotLiveUnsignedTransaction: null,
+  spotLivePending: false,
+  spotLiveResult: null,
   liveAuth: null,
   liveSession: null,
   liveBuilderApproval: null,
@@ -891,12 +895,16 @@ function syncWalletControls() {
 
 function updateWalletShellCapability() {
   const hyperliquidLive = state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true;
+  const solanaLive = state.liveSession?.gate?.chains?.solana?.available_to_principal === true;
+  const spotConnected = state.solanaWalletConnected && state.solanaWalletAddress;
   window.RavenOSShell?.setCapabilities?.({
-    wallet: state.walletTransportConnected && state.walletAddress
+    wallet: state.lane === "spot" && spotConnected
+      ? `${shortSolanaAddress(state.solanaWalletAddress)} · ${solanaLive ? "wallet confirmation" : "public view"}`
+      : state.walletTransportConnected && state.walletAddress
       ? `${shortAccountAddress(state.walletAddress)} · ${hyperliquidLive ? "live confirmation" : "public view"}`
-      : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
-    signing: hyperliquidLive ? "Wallet confirms" : "Sign off",
-    broadcast: hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
+      : state.lane === "spot" ? solanaWalletProvider() ? "Wallet ready · not connected" : "No Solana wallet" : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
+    signing: state.lane === "spot" ? solanaLive ? "Wallet confirms" : "Sign off" : hyperliquidLive ? "Wallet confirms" : "Sign off",
+    broadcast: state.lane === "spot" ? solanaLive ? "Jupiter reviewed" : "Broadcast off" : hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
   });
 }
 
@@ -924,6 +932,153 @@ function clearLiveExecutionTicket(message = "") {
   state.liveExecutionResult = null;
   if (message) setText("terminalLiveExecutionMessage", message);
   renderLiveExecution();
+}
+
+function currentSpotLiveReady() {
+  if (!spotQuoteStillCurrent() || !state.solanaWalletConnected || !state.solanaWalletAddress) return false;
+  return state.spotTicketSide === "sell" || state.spotQuote?.shadow_execution?.round_trip?.exit_verified === true;
+}
+
+function spotLiveTicketMatchesCurrentTrade(ticket) {
+  const snapshot = spotTicketSnapshot();
+  const reviewed = ticket?.reviewed_order || {};
+  if (!snapshot || ticket?.schema_version !== "ravenos.solana_live_ticket.v1") return false;
+  const selectedKind = (snapshot.side === "buy" ? snapshot.funding_preference : snapshot.settlement_preference) === "native"
+    ? "native"
+    : "canonical_usdc";
+  const expectedInput = snapshot.side === "buy"
+    ? selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT
+    : snapshot.token_address;
+  const expectedOutput = snapshot.side === "buy"
+    ? snapshot.token_address
+    : selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT;
+  return ticket.wallet_address === state.solanaWalletAddress
+    && ticket.exact_market?.instrument_id === snapshot.instrument_id
+    && ticket.exact_market?.pool_address === snapshot.pool_address
+    && reviewed.side === snapshot.side
+    && sameSelectedAddress("solana", reviewed.input_mint, expectedInput)
+    && sameSelectedAddress("solana", reviewed.output_mint, expectedOutput)
+    && Date.parse(ticket.expires_at || "") > Date.now() + 500;
+}
+
+function renderSpotLiveExecution() {
+  const host = document.getElementById("terminalSpotLiveExecution");
+  const action = document.getElementById("terminalSpotLiveAction");
+  const link = document.getElementById("terminalSpotLiveLink");
+  const order = document.getElementById("terminalSpotLiveOrder");
+  const section = document.getElementById("terminalSpotTicketSection");
+  if (!host || !action || !link || !order) return;
+  const spot = state.lane === "spot" && currentProjectIdentity()?.chain === "solana" && spotTicketQualified();
+  host.hidden = !spot;
+  if (!spot) return;
+  action.hidden = true;
+  link.hidden = true;
+  order.hidden = true;
+  host.dataset.state = "unavailable";
+  const liveAvailable = state.liveSession?.gate?.chains?.solana?.available_to_principal === true;
+  if (section) section.dataset.liveEnabled = String(liveAvailable);
+  if (!authenticatedTerminalOrigin()) {
+    setText("terminalSpotLiveState", state.flags?.live_execution?.chains?.solana?.source_ready ? "Secure workspace" : "Not live");
+    link.hidden = false;
+    link.href = liveTerminalHref();
+    link.textContent = "Sign in / trade";
+    setText("terminalSpotLiveMessage", "Wallet-signed trades open in the secure workspace.");
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: currentSpotLiveReady() });
+    return;
+  }
+  if (state.liveAuth?.authenticated !== true) {
+    setText("terminalSpotLiveState", "Sign in");
+    link.hidden = false;
+    link.href = terminalSignInHref();
+    link.textContent = "Sign in to trade";
+    setText("terminalSpotLiveMessage", "Sign-in and wallet confirmation stay separate.");
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: currentSpotLiveReady() });
+    return;
+  }
+  if (!liveAvailable) {
+    const configured = state.liveSession?.gate?.configured === true;
+    setText("terminalSpotLiveState", configured ? "Canary only" : "Locked");
+    setText("terminalSpotLiveMessage", configured ? "This account is not in the live canary." : "Live Solana execution is not activated.");
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: currentSpotLiveReady() });
+    return;
+  }
+  host.dataset.state = state.spotLiveResult?.ok === false ? "error" : "ready";
+  if (state.spotLivePending) {
+    setText("terminalSpotLiveState", "Working");
+    setText("terminalSpotLiveMessage", "Keep this tab open. Confirm only the exact transaction shown by your wallet.");
+    updateSpotExecutionRail({ quoted: true, exitVerified: true });
+    return;
+  }
+  if (state.spotLiveResult?.ok === true) {
+    const confirmed = state.spotLiveResult?.reconciliation?.state === "provider_confirmed";
+    setText("terminalSpotLiveState", confirmed ? "Confirmed" : "Check pending");
+    setText("terminalSpotLiveMessage", confirmed
+      ? "Solana confirmed the exact economic result."
+      : "Submission is indeterminate. Do not retry until the wallet and chain are checked.");
+    order.hidden = false;
+    setText("terminalSpotLiveSummary", state.spotLiveResult?.reconciliation?.signature ? shortSolanaAddress(state.spotLiveResult.reconciliation.signature) : "Reconciliation required");
+    setText("terminalSpotLiveDetail", "Raven fee 0 · noncustodial wallet signature");
+    updateSpotExecutionRail({ quoted: true, exitVerified: true });
+    return;
+  }
+  if (state.spotLiveResult?.ok === false) {
+    state.spotLiveTicket = null;
+    state.spotLiveUnsignedTransaction = null;
+    setText("terminalSpotLiveState", "Not sent");
+    setText("terminalSpotLiveMessage", String(state.spotLiveResult.error || "The wallet canceled or the route expired.").replaceAll("_", " "));
+    action.hidden = false;
+    if (!state.solanaWalletConnected || !state.solanaWalletAddress) {
+      action.textContent = "Reconnect wallet";
+      action.dataset.liveAction = "connect";
+    } else if (currentSpotLiveReady()) {
+      action.textContent = "Prepare again";
+      action.dataset.liveAction = "prepare";
+    } else {
+      action.textContent = "Review again";
+      action.dataset.liveAction = "review";
+    }
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: currentSpotLiveReady() });
+    return;
+  }
+  if (!state.solanaWalletConnected || !state.solanaWalletAddress) {
+    setText("terminalSpotLiveState", "Connect wallet");
+    action.hidden = false;
+    action.textContent = "Connect trading wallet";
+    action.dataset.liveAction = "connect";
+    setText("terminalSpotLiveMessage", "The wallet signs. Raven never receives the key.");
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: false });
+    return;
+  }
+  if (!currentSpotLiveReady()) {
+    setText("terminalSpotLiveState", "Review first");
+    action.hidden = false;
+    action.textContent = "Review current route";
+    action.dataset.liveAction = "review";
+    setText("terminalSpotLiveMessage", state.spotTicketSide === "buy" ? "A current USDC exit proof is required." : "Refresh the exact sell route.");
+    updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: false });
+    return;
+  }
+  if (!spotLiveTicketMatchesCurrentTrade(state.spotLiveTicket)) {
+    state.spotLiveTicket = null;
+    state.spotLiveUnsignedTransaction = null;
+    setText("terminalSpotLiveState", "Ready");
+    action.hidden = false;
+    action.textContent = `Prepare ${state.spotTicketSide}`;
+    action.dataset.liveAction = "prepare";
+    setText("terminalSpotLiveMessage", "Raven rechecks identity, balance, route, simulation, and exit. Raven fee 0.");
+    updateSpotExecutionRail({ quoted: true, exitVerified: true });
+    return;
+  }
+  const reviewed = state.spotLiveTicket.reviewed_order || {};
+  order.hidden = false;
+  setText("terminalSpotLiveState", "Wallet confirmation");
+  setText("terminalSpotLiveSummary", `${String(reviewed.side || "").toUpperCase()} · ${Number(reviewed.notional_usdc).toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC value`);
+  setText("terminalSpotLiveDetail", `${reviewed.funding_kind} → ${reviewed.settlement_kind} · Raven fee 0`);
+  action.hidden = false;
+  action.textContent = `Sign & send ${reviewed.side}`;
+  action.dataset.liveAction = "execute";
+  setText("terminalSpotLiveMessage", `Expires ${new Intl.DateTimeFormat("en", { minute: "numeric", second: "2-digit" }).format(new Date(state.spotLiveTicket.expires_at))}.`);
+  updateSpotExecutionRail({ quoted: true, exitVerified: true });
 }
 
 function currentPerpScenarioReady() {
@@ -5733,6 +5888,9 @@ function setSpotAssetPreference(preference) {
 
 function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) {
   const connected = state.solanaWalletConnected && Boolean(state.solanaWalletAddress);
+  const liveAvailable = state.liveSession?.gate?.chains?.solana?.available_to_principal === true;
+  const ticketReady = Boolean(state.spotLiveTicket && Date.parse(state.spotLiveTicket.expires_at || "") > Date.now() + 500);
+  const submitted = state.spotLiveResult?.ok === true;
   for (const item of document.querySelectorAll("#terminalSpotExecutionRail [data-terminal-step]")) {
     const step = item.dataset.terminalStep;
     delete item.dataset.state;
@@ -5740,6 +5898,19 @@ function updateSpotExecutionRail({ quoted = false, exitVerified = false } = {}) 
     if (step === "quote" && quoted) item.dataset.state = "complete";
     if (step === "review" && exitVerified) item.dataset.state = "complete";
     else if (step === "review" && quoted) item.dataset.state = "current";
+    if (step === "sign") {
+      item.setAttribute("aria-disabled", String(!liveAvailable || !ticketReady));
+      if (ticketReady) item.dataset.state = "current";
+      if (submitted) item.dataset.state = "complete";
+      const note = item.querySelector("small");
+      if (note) note.textContent = liveAvailable ? ticketReady ? "Wallet" : "After prepare" : "Locked";
+    }
+    if (step === "send") {
+      item.setAttribute("aria-disabled", String(!liveAvailable || !submitted));
+      if (submitted) item.dataset.state = state.spotLiveResult?.reconciliation?.state === "provider_confirmed" ? "complete" : "current";
+      const note = item.querySelector("small");
+      if (note) note.textContent = liveAvailable ? submitted ? "Reconciled" : "After sign" : "Locked";
+    }
   }
 }
 
@@ -5759,6 +5930,9 @@ function clearSpotQuoteResult(message = "Select a size and review a current rout
   state.spotQuoteStatus = "idle";
   state.spotQuoteExpiresAt = 0;
   state.spotQuoteFingerprint = "";
+  state.spotLiveTicket = null;
+  state.spotLiveUnsignedTransaction = null;
+  state.spotLiveResult = null;
   clearTimeout(state.spotQuoteExpiryTimer);
   state.spotQuoteExpiryTimer = null;
   clearSpotQuoteRefresh();
@@ -5773,6 +5947,7 @@ function clearSpotQuoteResult(message = "Select a size and review a current rout
   setText("terminalSpotQuoteMessage", message);
   setSpotTicketExitSummary();
   updateSpotExecutionRail();
+  renderSpotLiveExecution();
 }
 
 function syncSpotAdvancedSummary() {
@@ -6128,6 +6303,7 @@ function syncSpotTicketControls() {
   syncSpotPlanSource();
   updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: spotQuoteStillCurrent() && state.spotQuote?.shadow_execution?.round_trip?.exit_verified === true });
   syncSpotQuoteFollowControl();
+  renderSpotLiveExecution();
 }
 
 function setSpotTicketSide(side) {
@@ -6167,6 +6343,7 @@ async function connectSolanaWalletReadOnly() {
     if (button) button.textContent = "Connect";
     syncSpotTicketControls();
     syncWalletControls();
+    updateWalletShellCapability();
     clearSpotQuoteResult("Wallet view disconnected. Existing quote review was cleared.");
     return;
   }
@@ -6178,12 +6355,15 @@ async function connectSolanaWalletReadOnly() {
     state.solanaWalletAddress = address;
     state.solanaWalletConnected = true;
     setText("terminalSpotWalletState", shortSolanaAddress(address));
-    setText("terminalSpotWalletNote", "Read-only address connected for exact-token balance sizing. No signature permission was requested.");
+    setText("terminalSpotWalletNote", state.liveSession?.gate?.chains?.solana?.available_to_principal === true
+      ? "Address connected. A signature is requested only after you prepare and confirm an exact trade."
+      : "Read-only address connected for exact-token balance sizing. No signature permission was requested.");
     setText("terminalSpotBalance", "Read on quote");
     const button = document.getElementById("terminalSpotWalletConnect");
     if (button) button.textContent = "Clear";
     syncSpotTicketControls();
     syncWalletControls();
+    updateWalletShellCapability();
     clearSpotQuoteResult("Wallet address connected. Review a current exact route.");
   } catch {
     state.solanaWalletConnected = false;
@@ -6192,6 +6372,7 @@ async function connectSolanaWalletReadOnly() {
     setText("terminalSpotWalletNote", "No address or permission was retained. Buy quotes remain available; percentage sells require a current exact-mint balance.");
     syncSpotTicketControls();
     syncWalletControls();
+    updateWalletShellCapability();
   }
 }
 
@@ -6239,6 +6420,7 @@ function scheduleSpotQuoteExpiry(payload) {
       setText("terminalSpotQuoteTiming", "Quote expired · request a new exact route");
       setSpotTicketExitSummary("expired", "Expired", "Refresh the exact route");
       updateSpotExecutionRail();
+      renderSpotLiveExecution();
       if (state.spotQuoteFollow && state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {
         void requestSpotQuote({ automatic: true, expectedFingerprint: state.spotQuoteFingerprint });
       }
@@ -6332,6 +6514,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
     setText("terminalSpotBalanceUnit", balance.amount?.symbol || document.getElementById("terminalSpotBalanceUnit")?.textContent);
   }
   updateSpotExecutionRail({ quoted: true, exitVerified: roundTrip?.exit_verified === true || state.spotTicketSide === "sell" });
+  renderSpotLiveExecution();
   scheduleSpotQuoteExpiry(payload);
 }
 
@@ -6388,6 +6571,100 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
   }
 }
 
+async function prepareSolanaLiveTrade() {
+  if (!currentSpotLiveReady()) return renderSpotLiveExecution();
+  const snapshot = spotTicketSnapshot();
+  if (!snapshot || snapshot.wallet_address !== state.solanaWalletAddress) return renderSpotLiveExecution();
+  state.spotLivePending = true;
+  state.spotLiveResult = null;
+  state.spotLiveTicket = null;
+  state.spotLiveUnsignedTransaction = null;
+  renderSpotLiveExecution();
+  try {
+    const { response, payload } = await fetchJson("/api/trade/live/solana/prepare", {
+      method: "POST",
+      headers: liveExecutionRequestHeaders(),
+      body: JSON.stringify({
+        ...snapshot,
+        review_quote_id: state.spotQuote?.quote?.quote_id || null,
+        review_expires_at: state.spotQuote?.timing?.expires_at || null,
+      }),
+    });
+    if (!response.ok || !payload?.ok || !spotLiveTicketMatchesCurrentTrade(payload.ticket)) {
+      throw new Error(payload?.error || "solana_live_ticket_mismatch");
+    }
+    if (!payload.unsigned_transaction_base64) throw new Error("solana_unsigned_transaction_unavailable");
+    state.spotLiveTicket = payload.ticket;
+    state.spotLiveUnsignedTransaction = payload.unsigned_transaction_base64;
+    const ticketId = payload.ticket.ticket_id;
+    setTimeout(() => {
+      if (state.spotLiveTicket?.ticket_id !== ticketId) return;
+      if (Date.parse(state.spotLiveTicket.expires_at || "") <= Date.now() + 500) {
+        state.spotLiveTicket = null;
+        state.spotLiveUnsignedTransaction = null;
+        renderSpotLiveExecution();
+      }
+    }, Math.max(0, Date.parse(payload.ticket.expires_at) - Date.now() - 400));
+  } catch (error) {
+    state.spotLiveResult = { ok: false, error: String(error?.code || error?.message || "solana_live_prepare_failed") };
+  } finally {
+    state.spotLivePending = false;
+    renderSpotLiveExecution();
+  }
+}
+
+async function executeSolanaLiveTrade() {
+  const ticket = state.spotLiveTicket;
+  const unsignedTransactionBase64 = state.spotLiveUnsignedTransaction;
+  if (!ticket || !unsignedTransactionBase64 || !spotLiveTicketMatchesCurrentTrade(ticket)) {
+    state.spotLiveTicket = null;
+    state.spotLiveUnsignedTransaction = null;
+    state.spotLiveResult = { ok: false, error: "solana_live_ticket_expired" };
+    renderSpotLiveExecution();
+    return;
+  }
+  state.spotLivePending = true;
+  state.spotLiveResult = null;
+  renderSpotLiveExecution();
+  let submissionStarted = false;
+  try {
+    const execution = await ensureWalletExecutionBundle();
+    const signed = await execution.signSolanaTicket({
+      ticket,
+      unsignedTransactionBase64,
+      provider: solanaWalletProvider(),
+      address: state.solanaWalletAddress,
+    });
+    state.spotLiveUnsignedTransaction = null;
+    submissionStarted = true;
+    const { response, payload } = await fetchJson("/api/trade/live/solana/execute", {
+      method: "POST",
+      headers: liveExecutionRequestHeaders(),
+      body: JSON.stringify(signed),
+    });
+    if (!response.ok && response.status !== 202) throw new Error(payload?.error || "solana_live_submission_rejected");
+    state.spotLiveResult = payload;
+    state.spotLiveTicket = null;
+  } catch (error) {
+    state.spotLiveTicket = null;
+    state.spotLiveUnsignedTransaction = null;
+    state.spotLiveResult = submissionStarted
+      ? { ok: true, reconciliation: { state: "indeterminate", signature: null }, warning: "Do not retry until wallet and chain state are checked." }
+      : { ok: false, error: String(error?.shortMessage || error?.code || error?.message || "solana_live_trade_not_sent") };
+  } finally {
+    state.spotLivePending = false;
+    renderSpotLiveExecution();
+  }
+}
+
+async function handleSpotLiveExecutionAction() {
+  const action = document.getElementById("terminalSpotLiveAction")?.dataset.liveAction;
+  if (action === "connect") return connectSolanaWalletReadOnly();
+  if (action === "review") return requestSpotQuote();
+  if (action === "prepare") return prepareSolanaLiveTrade();
+  if (action === "execute") return executeSolanaLiveTrade();
+}
+
 function updateQuoteBoundary() {
   const flags = state.flags?.flags || {};
   const customerQuoteEnabled = state.flags?.quote_only === true
@@ -6410,28 +6687,34 @@ function updateQuoteBoundary() {
   }
   const routeReviewEnabled = customerQuoteEnabled || spotRouteReviewEnabled;
   const liveHyperliquid = state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true;
-  setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : routeReviewEnabled ? "Review only" : "Read only");
-  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : routeReviewEnabled ? "Read-only route review" : "Trade preview not enabled");
+  const liveSolana = state.liveSession?.gate?.chains?.solana?.available_to_principal === true && state.lane === "spot";
+  setText("terminalQuoteState", orderPlanEnabled ? "Exact market" : liveSolana ? "Wallet trade" : routeReviewEnabled ? "Review only" : "Read only");
+  setText("terminalQuoteContract", orderPlanEnabled ? "Exact-market trade plan" : liveSolana ? "Wallet-signed exact route" : routeReviewEnabled ? "Read-only route review" : "Trade preview not enabled");
   setText("terminalQuoteNote", orderPlanEnabled
     ? liveHyperliquid ? "Review first. The connected wallet signs every live order." : "Preview only. Nothing can be signed or sent."
-    : routeReviewEnabled
-      ? "A current route may be reviewed where supported. No order can be signed or sent."
+    : liveSolana
+      ? "Review first. The connected wallet signs the exact simulated transaction."
+      : routeReviewEnabled
+        ? "A current route may be reviewed where supported. No order can be signed or sent."
       : "No transaction is prepared, signed, or sent.");
   const boundary = document.getElementById("terminalBoundary");
   if (boundary) {
     boundary.querySelector("strong").textContent = orderPlanEnabled
       ? liveHyperliquid ? "Wallet trading enabled" : "Trade preview available"
-      : routeReviewEnabled
-        ? "Route review available"
+      : liveSolana
+        ? "Wallet trading enabled"
+        : routeReviewEnabled
+          ? "Route review available"
         : "Trading coming later";
     boundary.querySelector("small").textContent = orderPlanEnabled || routeReviewEnabled
-      ? liveHyperliquid ? "Review → wallet confirm → venue reconciliation" : "Preview only. No order can be signed or sent."
+      ? (liveHyperliquid || liveSolana) ? "Review → wallet confirm → venue reconciliation" : "Preview only. No order can be signed or sent."
       : "Trading is not enabled. No order can be signed or sent.";
   }
   if (orderPlanEnabled) syncMarketPreviewControls();
   updateTerminalPaneAvailability();
   renderTradeConsequences();
   renderLiveExecution();
+  renderSpotLiveExecution();
 }
 
 function syncMarketPreviewControls() {
@@ -7869,6 +8152,7 @@ function bindControls() {
   document.getElementById("terminalSpotRiskSummary")?.addEventListener("click", inspectSpotRisk);
   document.getElementById("terminalSpotWalletConnect")?.addEventListener("click", () => void connectSolanaWalletReadOnly());
   document.getElementById("terminalSpotQuoteAction")?.addEventListener("click", () => void requestSpotQuote());
+  document.getElementById("terminalSpotLiveAction")?.addEventListener("click", () => void handleSpotLiveExecutionAction());
   document.getElementById("terminalSpotQuoteFollow")?.addEventListener("change", (event) => {
     state.spotQuoteFollow = event.currentTarget.checked === true;
     syncSpotQuoteFollowControl();
@@ -8242,11 +8526,11 @@ async function boot() {
       spotWalletConnected: state.solanaWalletConnected,
       liveExecutionConfigured: state.liveSession?.gate?.configured === true,
       liveHyperliquidAvailable: state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true,
-      liveSolanaAvailable: false,
+      liveSolanaAvailable: state.liveSession?.gate?.chains?.solana?.available_to_principal === true,
       liveExecutionTicketState: state.liveTicket?.state || "unavailable",
       liveExecutionResultState: state.liveExecutionResult?.reconciliation?.state || state.liveExecutionResult?.client_report?.state || "unavailable",
-      signingAvailable: false,
-      submissionAvailable: false,
+      signingAvailable: state.liveSession?.gate?.available_to_principal === true,
+      submissionAvailable: state.liveSession?.gate?.available_to_principal === true,
       diagnostics: state.workspace?.diagnostics?.() || null,
       dataPlane: getChartDataPlaneDiagnostics(),
     }),
