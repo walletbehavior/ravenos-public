@@ -33,7 +33,7 @@
 
     <section class="agents-layout" id="agentsWorkspace" hidden>
       <aside class="agents-list-panel">
-        <header><span>Agent fleet</span><strong id="agentsCount">0</strong></header>
+        <header><span>Agent fleet</span><div><strong id="agentsCount">0</strong><button type="button" id="agentNew">New</button></div></header>
         <div class="agents-list" id="agentsList"></div>
       </aside>
 
@@ -44,6 +44,11 @@
         </header>
 
         <dl class="agent-metrics" id="agentMetrics"></dl>
+
+        <section class="agent-section">
+          <header><span>Configuration</span><strong>Exact and versioned</strong></header>
+          <div class="agent-configuration" id="agentConfiguration"></div>
+        </section>
 
         <section class="agent-section">
           <header><span>Capital</span><strong>Venue local</strong></header>
@@ -66,6 +71,8 @@
         </section>
 
         <footer class="agent-controls">
+          <button type="button" id="agentValidate" disabled>Validate</button>
+          <button type="button" id="agentStart" disabled>Start paper</button>
           <button type="button" id="agentPause" disabled>Pause</button>
           <button type="button" id="agentKill" disabled>Kill</button>
           <span>No signing or order submission</span>
@@ -82,6 +89,27 @@
       <article class="radar-detail" id="radarDetail" hidden></article>
     </section>
   </main>
+
+  <dialog class="agent-composer" id="agentComposer">
+    <form method="dialog" id="agentComposerForm">
+      <header><div><span>Paper agent</span><h2>SOL Basis Guard</h2></div><button type="button" id="agentComposerClose" aria-label="Close">×</button></header>
+      <p>Buy SOL on Solana and hedge with SOL-PERP on Hyperliquid when the basis reaches your threshold.</p>
+      <div class="agent-form-grid">
+        <label><span>Name</span><input name="name" maxlength="80" value="SOL Basis Guard" required /></label>
+        <label><span>Per leg</span><div class="agent-input-unit"><input name="notional_usdc" inputmode="decimal" value="100" required /><em>USDC</em></div></label>
+        <label><span>Solana capital</span><div class="agent-input-unit"><input name="solana_capital_usdc" inputmode="decimal" value="500" required /><em>USDC</em></div></label>
+        <label><span>Hyperliquid capital</span><div class="agent-input-unit"><input name="hyperliquid_capital_usdc" inputmode="decimal" value="500" required /><em>USDC</em></div></label>
+        <label><span>Check every</span><select name="cadence_minutes"><option value="1">1 minute</option><option value="5" selected>5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option></select></label>
+        <label><span>Enter basis</span><div class="agent-input-unit"><input name="basis_entry_bps" inputmode="numeric" value="30" required /><em>bps</em></div></label>
+        <label><span>Exit basis</span><div class="agent-input-unit"><input name="basis_exit_bps" inputmode="numeric" value="10" required /><em>bps</em></div></label>
+        <label><span>Max slippage</span><div class="agent-input-unit"><input name="max_slippage_bps" inputmode="numeric" value="75" required /><em>bps</em></div></label>
+        <label><span>Max impact</span><div class="agent-input-unit"><input name="max_price_impact_bps" inputmode="numeric" value="100" required /><em>bps</em></div></label>
+      </div>
+      <label class="agent-adopt"><input type="checkbox" name="adopt_policy" required /><span>I adopt this paper-only policy and venue-local capital limit.</span></label>
+      <footer><button type="button" id="agentComposerCancel">Cancel</button><button type="submit" value="default">Create draft</button></footer>
+      <strong class="agent-form-error" id="agentFormError" role="alert"></strong>
+    </form>
+  </dialog>
 
   <script type="module" src="/ravenos-shell.js"></script>
   <script type="module" src="/ravenos-agents.js"></script>

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
@@ -7,6 +9,7 @@ import {
   routeAgenticTrading,
 } from "../lib/agentic_trading/routes.mjs";
 import { canonicalContractHash } from "../lib/customer_trade/contracts.mjs";
+import { PAPER_AGENT_DRAFT_REQUEST_SCHEMA } from "../lib/agentic_trading/agent_drafts.mjs";
 
 const enabledEnv = {
   RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: "1",
@@ -20,6 +23,55 @@ function authorizationRecorder() {
     return { principal: { user_id: "usr_test_owner" }, now: 1788292800, response_headers: {} };
   };
   return { authorize, calls };
+}
+
+function draftRequest(overrides = {}) {
+  return {
+    schema_version: PAPER_AGENT_DRAFT_REQUEST_SCHEMA,
+    idempotency_key: "route-draft-request-0001",
+    name: "SOL Basis Guard",
+    template: "solana_hyperliquid_sol_hedge",
+    notional_usdc: "100",
+    solana_capital_usdc: "500",
+    hyperliquid_capital_usdc: "500",
+    cadence_minutes: 5,
+    basis_entry_bps: 30,
+    basis_exit_bps: 10,
+    max_slippage_bps: 75,
+    max_price_impact_bps: 100,
+    adopt_policy: true,
+    ...overrides,
+  };
+}
+
+function sqliteD1() {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
+  sqlite.exec(readFileSync("customer-migrations/0025_agentic_trading.sql", "utf8"));
+  sqlite.exec(readFileSync("customer-migrations/0026_agentic_paper_control.sql", "utf8"));
+  sqlite.prepare(`
+    INSERT INTO ravenos_users (user_id, state, primary_email, created_at, updated_at, last_authenticated_at)
+    VALUES (?, 'active', ?, 1, 1, 1)
+  `).run("usr_test_owner", "owner@example.test");
+  return {
+    sqlite,
+    prepare(sql) {
+      return {
+        bind(...values) {
+          const statement = sqlite.prepare(sql);
+          return {
+            async first() { return statement.get(...values) || null; },
+            async all() { return { results: statement.all(...values) }; },
+            async run() {
+              const result = statement.run(...values);
+              return { meta: { changes: Number(result.changes) } };
+            },
+          };
+        },
+      };
+    },
+    async batch(statements) { return Promise.all(statements.map((statement) => statement.run())); },
+  };
 }
 
 test("all live agent, venue, bridge and compensation flags remain hard-disabled", () => {
@@ -148,6 +200,31 @@ test("pause and kill transitions require CSRF and never trigger execution", asyn
   assert.equal(payload.live_execution_enabled, false);
 });
 
+test("draft creation accepts only a CSRF-protected bounded typed request", async () => {
+  const auth = authorizationRecorder();
+  const created = [];
+  const request = new Request("https://app.ravenos.xyz/api/v1/agents/drafts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(draftRequest()),
+  });
+  const response = await routeAgenticTrading(request, enabledEnv, {
+    authorize: auth.authorize,
+    resolve_access: () => ({ available: true, state: "active" }),
+    store: {
+      createDraft: async (input) => {
+        created.push(input);
+        return { ok: true, agent_id: "agt_abcdefghijklmnop", state: "draft", live_execution_enabled: false };
+      },
+    },
+  });
+  assert.equal(response.status, 201);
+  assert.equal(auth.calls[0].require_csrf, true);
+  assert.equal(created[0].user_id, "usr_test_owner");
+  assert.equal(created[0].draft.adopt_policy, true);
+  assert.equal((await response.json()).live_execution_enabled, false);
+});
+
 test("agent routes reject parameters and request bodies before owner state access", async () => {
   const auth = authorizationRecorder();
   const parameterized = await routeAgenticTrading(new Request("https://app.ravenos.xyz/api/v1/agents/workspace?fixture=1"), enabledEnv, { authorize: auth.authorize });
@@ -166,69 +243,44 @@ test("public-host agent API is not exposed", async () => {
   assert.deepEqual(await response.json(), { ok: false, error: "not_found" });
 });
 
-test("D1 owner transitions bind the previous audit hash into the next immutable event", async () => {
-  const agentId = "agt_abcdefghijklmnop";
-  const userId = "usr_test_owner";
-  const previousHash = "a".repeat(64);
-  const state = {
-    agent: { agent_id: agentId, lifecycle_state: "paper", updated_at: 10 },
-    audit: [{ event_hash: previousHash, sequence: 1 }],
-    inserted: null,
-  };
-  const db = {
-    prepare(sql) {
-      const query = sql.replace(/\s+/g, " ").trim();
-      return {
-        bind(...values) {
-          return {
-            query,
-            values,
-            async first() {
-              if (query.includes("FROM ravenos_agents")) return { ...state.agent };
-              if (query.includes("FROM ravenos_agent_audit_events")) return { ...state.audit.at(-1) };
-              throw new Error(`unexpected_first:${query}`);
-            },
-            async run() {
-              if (query.startsWith("INSERT INTO ravenos_agent_audit_events")) {
-                state.inserted = {
-                  event_id: values[0],
-                  sequence: values[3],
-                  previous_event_hash: values[5],
-                  event_hash: values[6],
-                  event_json: values[7],
-                };
-                state.audit.push({ event_hash: values[6], sequence: values[3] });
-                return { meta: { changes: 1 } };
-              }
-              if (query.startsWith("UPDATE ravenos_agents")) {
-                state.agent.lifecycle_state = values[0];
-                state.agent.updated_at = values[1];
-                return { meta: { changes: 1 } };
-              }
-              throw new Error(`unexpected_run:${query}`);
-            },
-          };
-        },
-      };
-    },
-    async batch(statements) {
-      return Promise.all(statements.map((statement) => statement.run()));
-    },
-  };
+test("D1 draft lifecycle is immutable, owner-scoped and activates only a paper schedule", async () => {
+  const db = sqliteD1();
+  const store = createD1AgenticTradingStore(db);
+  const created = await store.createDraft({ user_id: "usr_test_owner", draft: draftRequest(), now_seconds: 1_788_292_800 });
+  assert.equal(created.ok, true);
+  assert.equal(created.state, "draft");
+  assert.equal(created.live_execution_enabled, false);
+  const replay = await store.createDraft({ user_id: "usr_test_owner", draft: draftRequest(), now_seconds: 1_788_292_800 });
+  assert.equal(replay.idempotent_replay, true);
+  const conflict = await store.createDraft({ user_id: "usr_test_owner", draft: draftRequest({ name: "Changed" }), now_seconds: 1_788_292_800 });
+  assert.equal(conflict.status, 409);
 
-  const result = await createD1AgenticTradingStore(db).transitionAgent({
-    user_id: userId,
-    agent_id: agentId,
-    action: "pause",
-    now_seconds: 20,
-  });
-  const event = JSON.parse(state.inserted.event_json);
-  assert.equal(result.state, "paper_paused");
-  assert.equal(state.inserted.sequence, 2);
-  assert.equal(state.inserted.previous_event_hash, previousHash);
-  assert.equal(event.previous_hash, previousHash);
-  const { event_hash: eventHash, ...eventCore } = event;
-  assert.equal(state.inserted.event_hash, eventHash);
-  assert.equal(eventHash, canonicalContractHash(eventCore));
-  assert.equal(event.payload.execution_triggered, false);
+  const validated = await store.transitionAgent({ user_id: "usr_test_owner", agent_id: created.agent_id, action: "validate", now_seconds: 1_788_292_801 });
+  assert.equal(validated.state, "validated");
+  const started = await store.transitionAgent({ user_id: "usr_test_owner", agent_id: created.agent_id, action: "start-paper", now_seconds: 1_788_292_802 });
+  assert.equal(started.state, "paper");
+  const schedule = db.sqlite.prepare("SELECT state, next_run_at FROM ravenos_agent_paper_schedules WHERE agent_id = ?").get(created.agent_id);
+  assert.equal(schedule.state, "active");
+  assert.equal(schedule.next_run_at, 1_788_292_802);
+  const paused = await store.transitionAgent({ user_id: "usr_test_owner", agent_id: created.agent_id, action: "pause", now_seconds: 1_788_292_803 });
+  assert.equal(paused.state, "paper_paused");
+  assert.equal(paused.live_execution_triggered, false);
+
+  const events = db.sqlite.prepare("SELECT sequence, previous_event_hash, event_hash, event_json FROM ravenos_agent_audit_events WHERE agent_id = ? ORDER BY sequence").all(created.agent_id);
+  assert.equal(events.length, 4);
+  assert.equal(events[0].previous_event_hash, "0".repeat(64));
+  for (let index = 1; index < events.length; index += 1) assert.equal(events[index].previous_event_hash, events[index - 1].event_hash);
+  for (const row of events) {
+    const event = JSON.parse(row.event_json);
+    const { event_hash: eventHash, ...eventCore } = event;
+    assert.equal(eventHash, canonicalContractHash(eventCore));
+    assert.equal(event.payload.execution_triggered ?? false, false);
+  }
+
+  const workspace = await store.workspace("usr_test_owner", { include_radar: false, now_seconds: 1_788_292_804 });
+  assert.equal(workspace.agents.length, 1);
+  assert.equal(workspace.agents[0].state, "paper_paused");
+  assert.equal(workspace.agents[0].configuration.user_policy_adopted, true);
+  assert.deepEqual(workspace.agents[0].configuration.instruments.map((row) => row.display_symbol), ["SOL/USDC", "SOL-PERP"]);
+  assert.equal(workspace.agents[0].capital.length, 2);
 });

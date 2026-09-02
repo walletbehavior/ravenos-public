@@ -63,7 +63,7 @@ const developmentFixture = Object.freeze({
   },
 });
 
-const state = { payload: null, selectedAgent: null, view: "agents", csrf: "", transitioning: false };
+const state = { payload: null, selectedAgent: null, view: "agents", csrf: "", transitioning: false, creating: false };
 
 function clean(value, fallback = "Unavailable") {
   const text = String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
@@ -89,6 +89,13 @@ function metric(label, value) {
   return row;
 }
 
+function configCard(label, value, detail = "") {
+  const card = element("div", "agent-config-card");
+  card.append(element("span", "", label), element("strong", "", value));
+  if (detail) card.append(element("small", "", detail));
+  return card;
+}
+
 function renderAgentList() {
   const list = $("agentsList");
   list.replaceChildren();
@@ -111,10 +118,13 @@ function renderAgent() {
     $("agentName").textContent = "No paper agents";
     $("agentState").textContent = "Empty";
     $("agentMetrics").replaceChildren();
+    $("agentConfiguration").replaceChildren();
     $("agentCapital").replaceChildren();
     $("agentPlan").replaceChildren();
     $("agentPolicy").replaceChildren();
     $("agentEvents").replaceChildren();
+    $("agentValidate").disabled = true;
+    $("agentStart").disabled = true;
     $("agentPause").disabled = true;
     $("agentKill").disabled = true;
     return;
@@ -129,6 +139,15 @@ function renderAgent() {
     metric("Drawdown", agent.drawdown),
     metric("Next", agent.next_run),
     metric("Warnings", agent.warnings),
+  );
+
+  const config = agent.configuration || {};
+  const instruments = Array.isArray(config.instruments) ? config.instruments : [];
+  $("agentConfiguration").replaceChildren(
+    configCard("Markets", instruments.map((row) => row.display_symbol).filter(Boolean).join(" + ") || "Unavailable", instruments.map((row) => row.venue).filter(Boolean).join(" · ")),
+    configCard("Per leg", config.notional_usdc ? `${config.notional_usdc} USDC` : "Unavailable", config.cadence || "Not scheduled"),
+    configCard("Basis", Number.isFinite(config.entry_basis_bps) ? `${config.entry_basis_bps} bps in` : "Unavailable", Number.isFinite(config.exit_basis_bps) ? `${config.exit_basis_bps} bps out` : "Exit unavailable"),
+    configCard("Policy", config.user_policy_adopted ? "Adopted" : "Unresolved", config.specification_hash ? `Spec ${config.specification_hash.slice(0, 10)}` : "No immutable spec"),
   );
 
   const capital = $("agentCapital");
@@ -171,6 +190,9 @@ function renderAgent() {
   }
   const mutable = state.payload?.demonstration_data !== true && !state.transitioning;
   const lifecycle = clean(agent.state, "draft").toLowerCase();
+  $("agentValidate").disabled = !mutable || lifecycle !== "draft";
+  $("agentStart").textContent = new Set(["paper_paused", "paused"]).has(lifecycle) ? "Resume paper" : "Start paper";
+  $("agentStart").disabled = !mutable || !new Set(["validated", "paper_paused", "paused"]).has(lifecycle);
   $("agentPause").disabled = !mutable || !new Set(["paper", "paper_accepted"]).has(lifecycle);
   $("agentKill").disabled = !mutable || new Set(["killed", "expired", "failed"]).has(lifecycle);
 }
@@ -261,7 +283,8 @@ async function transitionAgent(action) {
   if (action === "kill" && !globalThis.confirm(`Kill ${clean(agent.name)}? This cannot place an unwind.`)) return;
   state.transitioning = true;
   renderAgent();
-  setStatus("loading", action === "kill" ? "Killing" : "Pausing", "Recording owner request");
+  const labels = { kill: "Killing", pause: "Pausing", validate: "Validating", "start-paper": "Starting", "resume-paper": "Resuming" };
+  setStatus("loading", labels[action] || "Updating", "Recording owner request");
   try {
     if (!state.csrf) await loadSession();
     const response = await fetch(`/api/v1/agents/${encodeURIComponent(agent.agent_id)}/${action}`, {
@@ -275,7 +298,8 @@ async function transitionAgent(action) {
     const selectedId = agent.agent_id;
     state.payload = await loadWorkspace();
     state.selectedAgent = state.payload.agents?.find((row) => row.agent_id === selectedId) || state.payload.agents?.[0] || null;
-    setStatus("ready", "Paper ready", `${action === "kill" ? "Killed" : "Paused"} · no order submitted`);
+    const finished = { kill: "Killed", pause: "Paused", validate: "Validated", "start-paper": "Paper active", "resume-paper": "Paper resumed" };
+    setStatus("ready", "Paper ready", `${finished[action] || "Updated"} · no order submitted`);
     renderAgentList();
   } catch {
     setStatus("error", "Unavailable", "No state changed");
@@ -285,7 +309,73 @@ async function transitionAgent(action) {
   }
 }
 
+function openComposer() {
+  if (state.payload?.demonstration_data === true || state.creating) return;
+  $("agentFormError").textContent = "";
+  $("agentComposer").showModal();
+}
+
+function closeComposer() {
+  if (!state.creating) $("agentComposer").close();
+}
+
+async function createDraft(event) {
+  event.preventDefault();
+  if (state.creating || state.payload?.demonstration_data === true) return;
+  const composerForm = event.currentTarget;
+  state.creating = true;
+  $("agentFormError").textContent = "";
+  setStatus("loading", "Creating", "Sealing paper policy");
+  const form = new FormData(composerForm);
+  const idempotencyKey = globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const payload = {
+    schema_version: "ravenos.agentic.paper_agent_draft_request.v1",
+    idempotency_key: idempotencyKey,
+    name: form.get("name"),
+    template: "solana_hyperliquid_sol_hedge",
+    notional_usdc: form.get("notional_usdc"),
+    solana_capital_usdc: form.get("solana_capital_usdc"),
+    hyperliquid_capital_usdc: form.get("hyperliquid_capital_usdc"),
+    cadence_minutes: Number(form.get("cadence_minutes")),
+    basis_entry_bps: Number(form.get("basis_entry_bps")),
+    basis_exit_bps: Number(form.get("basis_exit_bps")),
+    max_slippage_bps: Number(form.get("max_slippage_bps")),
+    max_price_impact_bps: Number(form.get("max_price_impact_bps")),
+    adopt_policy: form.get("adopt_policy") === "on",
+  };
+  try {
+    if (!state.csrf) await loadSession();
+    const response = await fetch("/api/v1/agents/drafts", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { accept: "application/json", "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.ok) throw new Error(clean(result?.error, "draft_creation_failed"));
+    state.payload = await loadWorkspace();
+    state.selectedAgent = state.payload.agents?.find((row) => row.agent_id === result.agent_id) || state.payload.agents?.[0] || null;
+    $("agentComposer").close();
+    composerForm.reset();
+    setStatus("ready", "Draft ready", "Review and validate");
+    renderAgentList();
+    renderAgent();
+  } catch (error) {
+    $("agentFormError").textContent = clean(error?.message, "Draft unavailable").replaceAll("_", " ");
+    setStatus("error", "Unavailable", "Draft not created");
+  } finally {
+    state.creating = false;
+  }
+}
+
 document.querySelectorAll("[data-agent-view]").forEach((button) => button.addEventListener("click", () => selectView(button.dataset.agentView)));
+$("agentNew").addEventListener("click", openComposer);
+$("agentComposerClose").addEventListener("click", closeComposer);
+$("agentComposerCancel").addEventListener("click", closeComposer);
+$("agentComposerForm").addEventListener("submit", createDraft);
+$("agentValidate").addEventListener("click", () => transitionAgent("validate"));
+$("agentStart").addEventListener("click", () => transitionAgent(new Set(["paper_paused", "paused"]).has(clean(state.selectedAgent?.state, "").toLowerCase()) ? "resume-paper" : "start-paper"));
 $("agentPause").addEventListener("click", () => transitionAgent("pause"));
 $("agentKill").addEventListener("click", () => transitionAgent("kill"));
 

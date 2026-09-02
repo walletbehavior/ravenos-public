@@ -91,7 +91,7 @@ test("real paper agent pause uses CSRF and refreshes the append-only state", asy
   expect(pauseHeaders["content-type"]).toBe("application/json");
   expect(pauseHeaders["x-ravenos-csrf"]).toBe("csrf_agents_fixture");
   await expect(page.locator("#agentPause")).toBeDisabled();
-  await expect(page.getByText("no order submitted", { exact: false })).toBeVisible();
+  await expect(page.getByText("Paused · no order submitted", { exact: true })).toBeVisible();
 });
 
 test("draft agents expose kill but not an invalid pause transition", async ({ page }) => {
@@ -128,4 +128,117 @@ test("draft agents expose kill but not an invalid pause transition", async ({ pa
   await page.goto("/agents/");
   await expect(page.locator("#agentPause")).toBeDisabled();
   await expect(page.locator("#agentKill")).toBeEnabled();
+});
+
+test("owner creates, validates, starts, and pauses an exact two-venue paper agent", async ({ page }) => {
+  let created = false;
+  let lifecycle = "draft";
+  let createRequest = null;
+  const transitionRequests = [];
+  const paperAgent = () => ({
+    agent_id: "agt_browser_created_agent_001",
+    name: "SOL Basis Guard",
+    strategy_type: "spot_perp_basis_hedge",
+    state: lifecycle,
+    autonomy: "policy_gated",
+    data_health: "No current run",
+    venues: ["jupiter", "hyperliquid"],
+    capital: [
+      { venue: "Solana · Jupiter", available: "500 USDC", reserved: "0", gas: "0.05 SOL", state: "paper" },
+      { venue: "Hyperliquid · Perps", available: "500 USDC", reserved: "0", gas: "Venue settled", state: "paper" },
+    ],
+    configuration: {
+      specification_hash: "5b1ed0fb89648c83bec2bc26fbe01471f01913dd60cce96954fa185cb496c04f",
+      policy_hash: "f61ed0fb89648c83bec2bc26fbe01471f01913dd60cce96954fa185cb496c04f",
+      instruments: [
+        { display_symbol: "SOL/USDC", venue: "jupiter", chain_id: "solana:mainnet-beta" },
+        { display_symbol: "SOL-PERP", venue: "hyperliquid", chain_id: "hyperliquid:mainnet" },
+      ],
+      entry_basis_bps: 30,
+      exit_basis_bps: 10,
+      notional_usdc: "100",
+      cadence: "Every 5 minutes",
+      schedule_state: lifecycle === "paper" ? "active" : lifecycle === "paper_paused" ? "paused" : "draft",
+      user_policy_adopted: true,
+    },
+    plan: null,
+    policy: {
+      result: "adopted",
+      rules: [
+        { name: "Per leg", result: "Adopted", detail: "$100" },
+        { name: "Slippage", result: "Adopted", detail: "0.75% max" },
+      ],
+    },
+    events: [{ at: "now", type: `agent_${lifecycle}`, detail: "No order submitted" }],
+  });
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, authenticated: true, csrf_token: "csrf_agents_create_fixture" }),
+  }));
+  await page.route("**/api/v1/agents/workspace", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      schema_version: "ravenos.agentic.workspace.v1",
+      demonstration_data: false,
+      environment: "paper",
+      live_execution_enabled: false,
+      agents: created ? [paperAgent()] : [],
+      radar: { freshness_state: "Radar disabled", entries: [] },
+    }),
+  }));
+  await page.route("**/api/v1/agents/drafts", async (route) => {
+    createRequest = route.request();
+    created = true;
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, agent_id: "agt_browser_created_agent_001", state: "draft", live_execution_enabled: false }),
+    });
+  });
+  for (const action of ["validate", "start-paper", "pause"]) {
+    await page.route(`**/api/v1/agents/agt_browser_created_agent_001/${action}`, async (route) => {
+      transitionRequests.push(route.request());
+      lifecycle = action === "validate" ? "validated" : action === "start-paper" ? "paper" : "paper_paused";
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: lifecycle }) });
+    });
+  }
+
+  await page.goto("/agents/");
+  await page.locator("#agentNew").click();
+  await expect(page.getByRole("heading", { name: "SOL Basis Guard" })).toBeVisible();
+  await page.getByText("I adopt this paper-only policy").click();
+  await page.getByRole("button", { name: "Create draft" }).click();
+
+  await expect(page.getByRole("heading", { name: "SOL Basis Guard" })).toBeVisible();
+  await expect(page.getByText("SOL/USDC + SOL-PERP")).toBeVisible();
+  const createHeaders = await createRequest.allHeaders();
+  expect(createHeaders["x-ravenos-csrf"]).toBe("csrf_agents_create_fixture");
+  const createBody = createRequest.postDataJSON();
+  expect(createBody).toMatchObject({
+    schema_version: "ravenos.agentic.paper_agent_draft_request.v1",
+    template: "solana_hyperliquid_sol_hedge",
+    notional_usdc: "100",
+    solana_capital_usdc: "500",
+    hyperliquid_capital_usdc: "500",
+    adopt_policy: true,
+  });
+  expect(createBody).not.toHaveProperty("live_execution_enabled");
+  expect(createBody).not.toHaveProperty("calldata");
+
+  await page.locator("#agentValidate").click();
+  await expect(page.locator("#agentState")).toHaveText("validated");
+  await page.locator("#agentStart").click();
+  await expect(page.locator("#agentState")).toHaveText("paper");
+  await page.locator("#agentPause").click();
+  await expect(page.locator("#agentState")).toHaveText("paper_paused");
+  expect(transitionRequests.map((request) => request.method())).toEqual(["POST", "POST", "POST"]);
+  for (const request of transitionRequests) {
+    const requestHeaders = await request.allHeaders();
+    expect(requestHeaders["x-ravenos-csrf"]).toBe("csrf_agents_create_fixture");
+  }
+  await expect(page.getByText("Paused · no order submitted", { exact: true })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Connect signer");
 });

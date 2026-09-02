@@ -1,6 +1,6 @@
 # RavenOS multi-chain agentic trading v1
 
-Status: the typed control plane, deterministic policy path, realistic paper execution, durable multi-leg orchestration, read-only venue adapters, bounded Robinhood Chain ingestion, Agent Radar projection contract, and authenticated Agents workspace are implemented. All production and venue live-execution paths remain disabled. Migration `0025_agentic_trading.sql` is not applied by this change.
+Status: the typed control plane, deterministic policy path, realistic paper execution, durable multi-leg orchestration, read-only venue adapters, bounded Robinhood Chain ingestion, Agent Radar projection contract, and authenticated Agents workspace are implemented. An authenticated Pro user can now create, inspect, validate, schedule, pause, resume, and kill the first exact Solana + Hyperliquid paper-agent template. The scheduled evaluation runner is the next milestone and is intentionally not part of this stopping point. All production and venue live-execution paths remain disabled. Migration `0026_agentic_paper_control.sql` is introduced by this change and has not been applied to a remote database.
 
 ## Product boundary
 
@@ -126,7 +126,9 @@ The verified network identifiers are mainnet `4663`, testnet `46630`, with nativ
 
 `/agents/` is an authenticated Raven Pro workspace. The API is app-origin-only, owner-scoped, private/no-store, size-bounded, and gated by the existing entitlement system plus `RAVENOS_AGENTIC_PAPER_ENABLED`.
 
-The workspace shows paper state, venue-local capital, warnings, current plan legs, policy decisions, partial/reconciliation states, append-only activity, and Agent Radar facts/claims/unknowns. Pause and kill require CSRF and append an audit event. Kill does not place an unwind.
+The workspace shows paper state, venue-local capital, exact instruments, immutable configuration hashes, warnings, current plan legs, policy decisions, partial/reconciliation states, append-only activity, and Agent Radar facts/claims/unknowns. The first native composer accepts only the server-owned `SOL/USDC` spot plus `SOL-PERP` basis template; it does not accept arbitrary assets, destinations, calldata, or provider instructions. Create, validate, schedule, pause, resume, and kill require CSRF and append audit evidence. Kill does not place an unwind.
+
+Starting a paper agent activates its durable schedule only. It does not yet claim that an evaluation ran, a quote was requested, or a paper fill occurred. Those records begin only after the separately verified scheduled runner is added.
 
 The two-venue demonstration fixture is accepted only on localhost with `?fixture=two-venue`; production cannot select it and the API never returns fixture data.
 
@@ -169,12 +171,14 @@ Expected steady memory is dominated by bounded RPC responses and a small in-cycl
 
 Before any staging activation:
 
-1. Apply migration `0025` only in an authorized staging database and verify all migrations plus foreign keys.
+1. Apply migration `0026` only in an authorized staging database and verify all migrations plus foreign keys.
 2. Load a separately reviewed Robinhood contract registry with provenance and start blocks.
 3. Configure secrets outside source control and validate provider terms, cost, latency, finality, and fallback behavior.
 4. Exercise the exact Node 22 runtime, scheduled Worker budget, D1 growth, reorg/gap replay, and UI against non-fixture evidence.
 5. Add the evidence-derived Agent Radar projection producer. The projection schema, append-only table, authenticated reader, and explicitly labeled local fixture exist; no process currently converts indexed logs into production Radar rows.
 6. Measure chain-head growth against the ten-block provider query window and choose an activation cadence/catch-up budget that cannot accumulate structural lag.
 7. Confirm Raven's reviewed strict-source successor receipt after its activation boundary. Its reviewed schema contract and manifest are known, but the write-once live receipt digest is intentionally absent until Raven emits and validates it; RavenOS must not synthesize one.
+
+The next agentic milestone is the bounded scheduled paper runner: claim due schedules idempotently, assemble current Solana and Hyperliquid evidence, generate a typed plan or no-op, evaluate every leg and the combined portfolio, paper-preview approved legs, persist receipts/outcomes, and reconcile partial completion. It must not add signing or live placement.
 
 Live money additionally requires a separate legal/security release, noncustodial authorization design, per-venue transaction construction and simulation, settlement reconciliation, emergency controls, and explicit owner approval. None is implemented or activated here.
