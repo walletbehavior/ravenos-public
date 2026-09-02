@@ -350,7 +350,7 @@ test("a Solana pool address Raven emits resolves back to the same BITCAT exact m
     assert.equal(holderPayload.risk_screen.metrics.top_10_wallet_supply_pct, 70);
     assert.equal(holderPayload.risk_screen.interpretation.scam_or_rug_determination, false);
     assert.equal(holderPayload.risk_screen.interpretation.numeric_probability, false);
-    assert.match(holders.headers.get("cache-control"), /s-maxage=180/);
+    assert.match(holders.headers.get("cache-control"), /s-maxage=300/);
   } finally {
     globalThis.fetch = previousFetch;
   }

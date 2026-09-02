@@ -73,6 +73,7 @@ const state = {
   holderListCache: new Map(),
   holderListLoadingKey: "",
   holderListFilter: "all",
+  holderListExpandedKey: "",
   marketControlRisk: null,
   spotTradeGeneration: 0,
   spotTradeCache: new Map(),
@@ -2765,6 +2766,7 @@ async function copyProjectContract() {
 const SOLANA_DISPLAY_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_DISPLAY_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HOLDER_CHAINS = new Set(["solana", "robinhood", "base", "bsc", "ethereum"]);
+const HOLDER_INITIAL_ROW_COUNT = 20;
 const HOLDER_EXPLORERS = Object.freeze({
   solana: "https://solscan.io/account/",
   robinhood: "https://robinhoodchain.blockscout.com/address/",
@@ -3107,6 +3109,8 @@ function renderVerifiedHolderConcentration(payload) {
 function renderHolderListMessage(message) {
   const host = document.getElementById("terminalHolderListRows");
   if (!host) return;
+  const more = document.getElementById("terminalHolderListMore");
+  if (more) more.hidden = true;
   host.replaceChildren();
   const paragraph = document.createElement("p");
   paragraph.className = "terminal-holder-list-message";
@@ -3209,6 +3213,19 @@ function holderRowsForFilter(payload, filter = state.holderListFilter) {
   return rows;
 }
 
+function currentHolderListViewKey() {
+  const identity = currentHolderIdentity();
+  return identity ? `${identity.key}:${state.holderListFilter}` : "";
+}
+
+function expandCurrentHolderList() {
+  const identity = currentHolderIdentity();
+  const payload = state.holderListCache.get(identity?.key);
+  if (!identity || !payload) return;
+  state.holderListExpandedKey = currentHolderListViewKey();
+  renderHolderListProjection(payload);
+}
+
 function setHolderListFilter(filter, { reveal = false } = {}) {
   if (!["all", "wallets", "large", "active", "pool"].includes(filter)) return;
   state.holderListFilter = filter;
@@ -3235,7 +3252,9 @@ function renderHolderListProjection(payload) {
     button.setAttribute("aria-pressed", String(button.dataset.holderFilter === state.holderListFilter));
   }
   host.replaceChildren();
-  const visibleRows = holderRowsForFilter(payload);
+  const filteredRows = holderRowsForFilter(payload);
+  const expanded = state.holderListExpandedKey === currentHolderListViewKey();
+  const visibleRows = expanded ? filteredRows : filteredRows.slice(0, HOLDER_INITIAL_ROW_COUNT);
   for (const row of visibleRows) {
     const item = document.createElement("article");
     item.className = "terminal-holder-row";
@@ -3308,14 +3327,20 @@ function renderHolderListProjection(payload) {
   if (!visibleRows.length) renderHolderListMessage(state.holderListFilter === "pool"
     ? "The exact pool account is not present in the returned top-holder rows."
     : "No returned holder matches this filter.");
+  const more = document.getElementById("terminalHolderListMore");
+  const remainingRows = Math.max(0, filteredRows.length - visibleRows.length);
+  if (more) {
+    more.hidden = remainingRows === 0;
+    more.textContent = remainingRows ? `Show ${remainingRows} more` : "";
+  }
   host.scrollTop = Math.min(previousScrollTop, Math.max(0, host.scrollHeight - host.clientHeight));
   const complete = payload.coverage.complete_holder_census === true;
   const indexedOwners = Number(payload.coverage.total_owner_rows);
   const totalOwners = Number.isInteger(indexedOwners) && indexedOwners >= payload.holders.length ? indexedOwners : null;
   const filterLabel = { wallets: "wallets", large: "1%+ wallets", active: "active holders", pool: "pool accounts" }[state.holderListFilter];
   setText("terminalHolderListState", filterLabel
-    ? `${visibleRows.length} ${filterLabel}`
-    : totalOwners !== null ? `${payload.holders.length} of ${compact(totalOwners)} owners` : `${payload.holders.length} owners`);
+    ? filteredRows.length > visibleRows.length ? `${visibleRows.length} of ${filteredRows.length} ${filterLabel}` : `${visibleRows.length} ${filterLabel}`
+    : totalOwners !== null ? `${visibleRows.length} of ${compact(totalOwners)} owners` : filteredRows.length > visibleRows.length ? `${visibleRows.length} of ${filteredRows.length} indexed` : `${visibleRows.length} owners`);
   const observed = timestamp(payload.observed_at);
   const source = customerFacingText(payload?.source?.label, "On-chain source");
   setText("terminalHolderListNote", complete
@@ -3359,7 +3384,9 @@ function renderHolderListSurface() {
     renderHolderListMessage("Open to load holders.");
     renderMarketControlRisk(null, { loading: false });
   }
-  if (changed && details.open && !cached) void loadHolderList();
+  const holderPaneActive = !terminalUsesPaneNavigation()
+    || document.querySelector(".terminal-live")?.dataset.terminalPane === "holders";
+  if (changed && details.open && holderPaneActive && !cached) void loadHolderList();
 }
 
 async function loadHolderList() {
@@ -3878,6 +3905,12 @@ function setSpotActivityView(view) {
   const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
   if (payload) renderSpotTradeProjection(payload);
   else void loadSpotTrades();
+  if (view === "wallets") {
+    void loadHolderList().then(() => {
+      const currentPayload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+      if (currentPayload && state.spotActivityView === "wallets") renderActiveTraders(currentPayload);
+    });
+  }
 }
 
 function setSpotWalletFilter(filter) {
@@ -7177,6 +7210,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.spotTradeFilter = "all";
   state.spotWalletFilter = "all";
   state.holderListFilter = "all";
+  state.holderListExpandedKey = "";
   updateTerminalPaneAvailability();
   clearExternalChart();
   setWhyLabel("Why Raven noticed this");
@@ -7769,6 +7803,7 @@ function bindControls() {
   for (const button of document.querySelectorAll("[data-holder-filter]")) {
     button.addEventListener("click", () => setHolderListFilter(button.dataset.holderFilter));
   }
+  document.getElementById("terminalHolderListMore")?.addEventListener("click", expandCurrentHolderList);
   document.getElementById("terminalHolderLargeAction")?.addEventListener("click", () => setHolderListFilter("large", { reveal: true }));
   document.getElementById("terminalHolderTradesAction")?.addEventListener("click", inspectActiveWallets);
   document.getElementById("terminalHolderLinksAction")?.addEventListener("click", () => setProjectLinksOpen(true));

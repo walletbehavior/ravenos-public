@@ -125,8 +125,12 @@ import {
   buildPublicSolanaHolderProjection,
   measurePublicSolanaOwnerHolding,
   publicHolderUnavailable,
+  resolvePublicSolanaHolderRuntime,
 } from "./lib/onchain_holder_projection.mjs";
-import { buildPublicEvmHolderProjection } from "./lib/onchain_evm_holder_projection.mjs";
+import {
+  buildPublicEvmHolderProjection,
+  resolvePublicEvmHolderRuntime,
+} from "./lib/onchain_evm_holder_projection.mjs";
 import {
   ONCHAIN_TRADE_SCHEMA,
   PUBLIC_ONCHAIN_TRADE_ROUTE,
@@ -882,6 +886,55 @@ async function chartEdgeCacheWrite(cacheKey, payload, { freshTtlSeconds = 20, re
   } catch {
     // The chart cache is opportunistic; provider truth remains authoritative.
   }
+}
+
+function holderEdgeCacheRequest(cacheKey) {
+  return new Request(`https://ravenos.xyz/__holder_cache/v2/${encodeURIComponent(cacheKey)}`, { method: "GET" });
+}
+
+async function holderEdgeCacheRead(cacheKey) {
+  if (typeof caches === "undefined" || !caches?.default) return null;
+  try {
+    const response = await caches.default.match(holderEdgeCacheRequest(cacheKey));
+    if (!response?.ok) return null;
+    const payload = await response.json().catch(() => null);
+    return payload?.ok === true ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+async function holderEdgeCacheWrite(cacheKey, payload, ttlSeconds = 300) {
+  if (typeof caches === "undefined" || !caches?.default || payload?.ok !== true) return;
+  const body = JSON.stringify(payload);
+  const response = new Response(body, {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": `public, max-age=${Math.max(1, Number(ttlSeconds) || 1)}`,
+      "x-content-type-options": "nosniff",
+    },
+  });
+  try {
+    await caches.default.put(holderEdgeCacheRequest(cacheKey), response);
+  } catch {
+    // Holder evidence remains available from the provider when edge storage
+    // is unavailable; cache failure must not change the result.
+  }
+}
+
+function holderEdgePayloadMatches(payload, { chain, pairAddress, tokenAddress, quoteAddress }) {
+  const identity = payload?.identity;
+  const maximumRows = chain === "solana" ? 100 : 50;
+  return payload?.ok === true
+    && payload?.safe_public === true
+    && payload?.schema_version === ONCHAIN_HOLDER_SCHEMA
+    && Array.isArray(payload?.holders)
+    && payload.holders.length <= maximumRows
+    && identity?.chain === chain
+    && sameOnchainAddress(chain, identity?.pool_address, pairAddress)
+    && sameOnchainAddress(chain, identity?.token_address, tokenAddress)
+    && (!quoteAddress || sameOnchainAddress(chain, identity?.quote_token_address, quoteAddress))
+    && payload?.risk_screen?.schema_version === "ravenos.market_control_risk.v1";
 }
 
 function degradedChartCachePayload(payload, error) {
@@ -9291,6 +9344,29 @@ async function routeApi(request, env, executionContext = null) {
         invalid.status = 400;
         throw invalid;
       }
+      const holderRuntime = chain === "solana"
+        ? resolvePublicSolanaHolderRuntime(env)
+        : resolvePublicEvmHolderRuntime(env, chain);
+      if (!holderRuntime.enabled) {
+        const code = holderRuntime.state === "unsupported"
+          ? "holder_chain_unsupported"
+          : holderRuntime.state === "misconfigured" ? "holder_source_misconfigured" : "holder_source_disabled";
+        const unavailable = new Error(code);
+        unavailable.code = unavailable.message;
+        unavailable.status = holderRuntime.state === "unsupported" ? 400 : 503;
+        throw unavailable;
+      }
+      const cacheAddress = (value) => chain === "solana" ? value : value.toLowerCase();
+      const holderCacheKey = [chain, cacheAddress(pairAddress), cacheAddress(tokenAddress), cacheAddress(quoteAddress)].join(":");
+      const edgeCached = await holderEdgeCacheRead(holderCacheKey);
+      if (holderEdgePayloadMatches(edgeCached, { chain, pairAddress, tokenAddress, quoteAddress })) {
+        return json({ ...edgeCached, edge_cache: "hit" }, {
+          headers: {
+            "cache-control": "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
+            "x-content-type-options": "nosniff",
+          },
+        });
+      }
       const exactRows = await pairDex(chain, pairAddress, tokenAddress);
       const exact = exactRows.find((row) => (
         sameOnchainAddress(chain, row?.pairAddress, pairAddress)
@@ -9347,9 +9423,11 @@ async function routeApi(request, env, executionContext = null) {
         },
         observed_at: projection.observed_at,
       });
-      return json({ ...projection, risk_screen: riskScreen }, {
+      const publicPayload = { ...projection, risk_screen: riskScreen, edge_cache: "miss" };
+      await holderEdgeCacheWrite(holderCacheKey, publicPayload);
+      return json(publicPayload, {
         headers: {
-          "cache-control": "public, max-age=60, s-maxage=180, stale-while-revalidate=300",
+          "cache-control": "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
           "x-content-type-options": "nosniff",
         },
       });

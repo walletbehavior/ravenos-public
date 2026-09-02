@@ -1128,7 +1128,7 @@ test("token research menu routes exact-market checks without making users hunt t
 
 test("free top-holder rows have a dedicated, readable 390px Terminal pane", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 100 });
+  const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 50 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=holders");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
@@ -1141,12 +1141,17 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalHolderList > summary")).toContainText("On-chain holders");
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect.poll(() => tradeCalls.length).toBe(1);
-  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
-  await expect(page.locator("#terminalHolderListRows .terminal-holder-copy")).toHaveCount(100);
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(20);
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-copy")).toHaveCount(20);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-copy").first()).toHaveText("");
   await expect(page.locator("#terminalHolderListRows .terminal-holder-copy").first().locator(".terminal-copy-glyph")).toHaveCount(1);
   await expect(page.locator("#terminalHolderListRows .terminal-holder-copy").first()).toHaveAttribute("aria-label", "Copy holder 1 address");
-  await expect(page.locator("#terminalHolderListState")).toContainText("100 of 4.85K owners");
+  await expect(page.locator("#terminalHolderListState")).toContainText("20 of 4.85K owners");
+  await expect(page.locator("#terminalHolderListMore")).toHaveText("Show 30 more");
+  await page.locator("#terminalHolderListMore").click();
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(50);
+  await expect(page.locator("#terminalHolderListMore")).toBeHidden();
+  expect(holderCalls).toHaveLength(1);
   await expect(page.locator("#terminalHolderListNote")).toContainText("Solana on-chain accounts");
   await expect(page.locator("#terminalHolderCheck")).toBeVisible();
   await expect(page.locator("#terminalHolderCheck")).toContainText("Raven holder check");
@@ -1168,7 +1173,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await page.locator('[data-holder-filter="pool"]').click();
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(1);
   await page.locator('[data-holder-filter="all"]').click();
-  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(100);
+  await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(50);
   await expect(page.locator("#terminalHolderCheck")).not.toContainText(/smart money|whale/i);
   await expect(page.locator("#terminalHolderCheck")).toContainText("Exact pool excluded");
   await page.locator("#terminalProjectLinksTrigger").click();
@@ -1252,6 +1257,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator('[data-terminal-pane-button="holders"]')).toHaveAttribute("data-status", "Watch");
   await page.locator('[data-spot-activity-view="wallets"]').click();
+  await expect(page.locator('[data-terminal-pane-button="holders"]')).toHaveAttribute("data-status", "Watch");
   await expect(page.locator('[data-spot-activity-view="wallets"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#terminalSpotTradesView")).toBeHidden();
   await expect(page.locator("#terminalActiveTraders")).toBeVisible();

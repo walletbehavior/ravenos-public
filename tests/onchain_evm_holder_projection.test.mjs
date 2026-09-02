@@ -145,3 +145,57 @@ test("Worker resolves an exact Robinhood pool before returning its holder projec
     globalThis.fetch = previousFetch;
   }
 });
+
+test("Worker reuses one identity-bound Cache API holder response without another provider request", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousCaches = globalThis.caches;
+  const cache = new Map();
+  let providerCalls = 0;
+  globalThis.caches = {
+    default: {
+      async match(request) {
+        return cache.get(request.url)?.clone() || null;
+      },
+      async put(request, cachedResponse) {
+        cache.set(request.url, cachedResponse.clone());
+      },
+    },
+  };
+  globalThis.fetch = async (input) => {
+    providerCalls += 1;
+    const url = new URL(String(input));
+    if (url.hostname === "api.dexscreener.com" && url.pathname.includes(`/latest/dex/pairs/robinhood/${POOL}`)) {
+      return response({ pairs: [{
+        chainId: "robinhood",
+        dexId: "uniswap",
+        pairAddress: POOL,
+        baseToken: { address: TOKEN, name: "Test", symbol: "TEST" },
+        quoteToken: { address: QUOTE, name: "Wrapped ETH", symbol: "WETH" },
+        priceUsd: "2",
+        liquidity: { usd: 100_000 },
+        volume: { h24: 50_000 },
+        txns: { h24: { buys: 20, sells: 15 } },
+      }] });
+    }
+    if (url.hostname === "api.dexpaprika.com") return response({ tokens: [], pools: [] });
+    if (url.hostname === "api.blockscout.com") return providerFetchFor("robinhood")(input);
+    throw new Error(`unexpected provider request ${url.origin}${url.pathname}`);
+  };
+  const request = () => new Request(`https://ravenos.xyz/api/onchain/holders?chain=robinhood&pair_address=${POOL}&token_address=${TOKEN}&quote_address=${QUOTE}`);
+  try {
+    const first = await worker.fetch(request(), env());
+    const firstPayload = await first.json();
+    assert.equal(firstPayload.edge_cache, "miss");
+    assert.equal(cache.size, 1);
+    const callsAfterFirst = providerCalls;
+
+    const second = await worker.fetch(request(), env());
+    const secondPayload = await second.json();
+    assert.equal(secondPayload.edge_cache, "hit");
+    assert.equal(providerCalls, callsAfterFirst);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = previousCaches;
+  }
+});
