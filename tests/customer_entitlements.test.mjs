@@ -516,6 +516,16 @@ function freshArtifact(payload) {
   };
 }
 
+function staleArtifact(payload) {
+  const generatedAt = "2000-01-01T00:00:00.000Z";
+  return {
+    ...structuredClone(payload),
+    generated_at: generatedAt,
+    updated_at: generatedAt,
+    data: { ...structuredClone(payload.data), generated_at: generatedAt },
+  };
+}
+
 function intelligenceAssets({ perps = freshArtifact(PERPS_PAYLOAD), behavior = freshArtifact(PARTICIPANT_PAYLOAD) } = {}) {
   return {
     async fetch(assetRequest) {
@@ -574,7 +584,7 @@ test("partial activation cannot split either capability and stale or malformed c
   assert.equal(rawPerps.schema_version, "ravenos_perps_public_origin_v1");
   assert.equal(rawBehavior.schema_version, "ravenos_behavior_public_origin_v1");
 
-  const stale = await worker.fetch(new Request("https://ravenos.xyz/api/perps"), { ...flagsEnv(), ASSETS: intelligenceAssets({ perps: PERPS_PAYLOAD }) });
+  const stale = await worker.fetch(new Request("https://ravenos.xyz/api/perps"), { ...flagsEnv(), ASSETS: intelligenceAssets({ perps: staleArtifact(PERPS_PAYLOAD) }) });
   assert.equal(stale.status, 503);
   assert.equal((await body(stale)).state, "unavailable");
   const unsafePayload = freshArtifact(PERPS_PAYLOAD);
