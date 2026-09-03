@@ -165,6 +165,22 @@ import {
   verifySolanaSignedTransaction,
 } from "./lib/customer_trade/solana_live_execution.mjs";
 import {
+  createRobinhoodZeroXQuoteClient,
+  resolveRobinhoodZeroXCapability,
+} from "./lib/customer_trade/robinhood_zero_x_live_execution.mjs";
+import {
+  createD1RobinhoodLiveExecutionStore,
+  createRobinhoodLiveTicket,
+  normalizeRobinhoodClientExecutionReport,
+  reconcileRobinhoodExecution,
+} from "./lib/customer_trade/robinhood_live_execution.mjs";
+import { inspectRobinhoodStockToken } from "./lib/customer_trade/robinhood_stock_token_registry.mjs";
+import {
+  createRobinhoodRpcFailoverClient,
+  resolveRobinhoodChainRuntime,
+  verifyRobinhoodRpcChain,
+} from "./lib/agentic_trading/robinhood/runtime.mjs";
+import {
   CUSTOMER_RESEARCH_STATE_ROUTE,
   routeCustomerResearchState,
 } from "./lib/customer_research_state.mjs";
@@ -6333,18 +6349,22 @@ async function handleHealth(request, env = {}) {
 
 function spotQuotePreviewRuntime(env = {}) {
   const rpcUrl = publicSolanaTradeRpcUrl(env);
+  const robinhood = resolveRobinhoodZeroXCapability(env);
+  const activeChains = [];
+  if (rpcUrl) activeChains.push("solana");
+  if (robinhood.quote_review_enabled) activeChains.push("robinhood");
   return Object.freeze({
-    available: Boolean(rpcUrl),
+    available: activeChains.length > 0,
     rpc_url: rpcUrl,
-    quote_provider: "jupiter",
-    active_chains: rpcUrl ? ["solana"] : [],
+    quote_provider: "chain_adapter",
+    active_chains: Object.freeze(activeChains),
     adapter_states: Object.freeze({
       solana: rpcUrl ? "quote_review" : "unavailable",
       hyperliquid: "quote_review",
       base: "adapter_pending",
       bsc: "adapter_pending",
       ethereum: "adapter_pending",
-      robinhood: "adapter_pending",
+      robinhood: robinhood.quote_review_enabled ? "wallet_execution" : robinhood.state,
       arbitrum: "adapter_pending",
       optimism: "adapter_pending",
       polygon: "adapter_pending",
@@ -6933,6 +6953,7 @@ function handleTradeFlags(env = {}) {
   const spotRuntime = spotQuotePreviewRuntime(env);
   const freeJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
   const proJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
+  const robinhoodZeroX = resolveRobinhoodZeroXCapability(env);
   return terminalJson(context, {
     ok: true,
     quote_only: true,
@@ -6966,7 +6987,18 @@ function handleTradeFlags(env = {}) {
       enabled: false,
       disclosure_string: freeJupiterFee.disclosure_string,
     },
-    fees_enabled: false,
+    evm_fee_preview: {
+      provider: "0x",
+      chain: "robinhood",
+      free_fee_bps: robinhoodZeroX.fee_schedule.free_fee_bps,
+      pro_fee_bps: robinhoodZeroX.fee_schedule.pro_fee_bps,
+      pro_discount_pct: 30,
+      actual_fee_bps: robinhoodZeroX.fee_collection_enabled ? robinhoodZeroX.fee_schedule.free_fee_bps : 0,
+      enabled: robinhoodZeroX.fee_collection_enabled,
+      collection_method: robinhoodZeroX.fee_collection_enabled ? "zero_x_swap_integrator_fee" : "none",
+      fee_token_policy: "chain_local_accounting_asset_when_route_supports_it",
+    },
+    fees_enabled: robinhoodZeroX.fee_collection_enabled,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
 }
@@ -7007,12 +7039,247 @@ function solanaFeeCollectorStatus(env = {}) {
 
 function evmFeeCollectorStatus(env = {}) {
   const address = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim();
+  const robinhood = resolveRobinhoodZeroXCapability(env);
   return Object.freeze({
     configured: EVM_ADDRESS_RE.test(address) && !/^0x0{40}$/i.test(address),
     chain_local_accounting_required: true,
-    fee_enabled: false,
-    actual_fee_bps: 0,
-    collection_method: "none",
+    fee_enabled: robinhood.fee_collection_enabled,
+    actual_fee_bps: robinhood.fee_collection_enabled ? robinhood.fee_schedule.free_fee_bps : 0,
+    collection_method: robinhood.fee_collection_enabled ? "zero_x_swap_integrator_fee" : "none",
+    robinhood,
+  });
+}
+
+const ROBINHOOD_CHAIN_ID = 4663;
+const ROBINHOOD_NATIVE_ETH = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+const ROBINHOOD_USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
+const ROBINHOOD_WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+const EVM_DECIMALS_SELECTOR = "0x313ce567";
+const EVM_BALANCE_OF_SELECTOR = "0x70a08231";
+
+function normalizedEvmAddress(value, field) {
+  const address = String(value || "").trim().toLowerCase();
+  if (!EVM_ADDRESS_RE.test(address) || /^0x0{40}$/i.test(address)) {
+    throw Object.assign(new Error(`${field}_invalid`), { code: `${field}_invalid` });
+  }
+  return address;
+}
+
+function exactDisplayToBaseUnits(value, decimals, field) {
+  const raw = String(value ?? "").trim();
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(raw)) {
+    throw Object.assign(new Error(`${field}_invalid`), { code: `${field}_invalid` });
+  }
+  const places = Number(decimals);
+  if (!Number.isSafeInteger(places) || places < 0 || places > 18) {
+    throw Object.assign(new Error(`${field}_decimals_invalid`), { code: `${field}_decimals_invalid` });
+  }
+  const [whole, fraction = ""] = raw.split(".");
+  if (fraction.length > places) throw Object.assign(new Error(`${field}_precision_invalid`), { code: `${field}_precision_invalid` });
+  const baseUnits = BigInt(`${whole}${fraction.padEnd(places, "0")}`);
+  if (baseUnits <= 0n) throw Object.assign(new Error(`${field}_invalid`), { code: `${field}_invalid` });
+  return baseUnits.toString();
+}
+
+function evmUintResult(value, field) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{1,64}$/.test(raw)) throw Object.assign(new Error(`${field}_invalid`), { code: `${field}_invalid` });
+  return BigInt(raw);
+}
+
+async function currentRobinhoodTokenEvidence(rpcClient, tokenAddress, walletAddress = null) {
+  const token = normalizedEvmAddress(tokenAddress, "robinhood_token_address");
+  const calls = [
+    rpcClient.request("eth_getCode", [token, "latest"]),
+    rpcClient.request("eth_call", [{ to: token, data: EVM_DECIMALS_SELECTOR }, "latest"]),
+  ];
+  if (walletAddress) {
+    const wallet = normalizedEvmAddress(walletAddress, "robinhood_wallet_address");
+    calls.push(rpcClient.request("eth_call", [{
+      to: token,
+      data: `${EVM_BALANCE_OF_SELECTOR}${wallet.slice(2).padStart(64, "0")}`,
+    }, "latest"]));
+  }
+  const [codeResult, decimalsResult, balanceResult] = await Promise.all(calls);
+  const code = String(codeResult?.result || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]+$/.test(code) || code === "0x" || code === "0x0") {
+    throw Object.assign(new Error("robinhood_token_contract_unavailable"), { code: "robinhood_token_contract_unavailable" });
+  }
+  const decimals = Number(evmUintResult(decimalsResult?.result, "robinhood_token_decimals"));
+  if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 18) {
+    throw Object.assign(new Error("robinhood_token_decimals_invalid"), { code: "robinhood_token_decimals_invalid" });
+  }
+  return Object.freeze({
+    token_address: token,
+    decimals,
+    balance_base_units: balanceResult ? evmUintResult(balanceResult.result, "robinhood_token_balance").toString() : null,
+    provider_id: codeResult.provider_id,
+  });
+}
+
+function robinhoodQuoteDisplay(baseUnits, decimals, symbol) {
+  return Object.freeze({
+    base_units: String(baseUnits),
+    display: displayBaseUnits(String(baseUnits), decimals),
+    symbol,
+  });
+}
+
+async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
+  const poolAddress = normalizedEvmAddress(body?.pool_address, "robinhood_pool_address");
+  const tokenAddress = normalizedEvmAddress(body?.token_address, "robinhood_token_address");
+  const quoteAddress = normalizedEvmAddress(body?.quote_address, "robinhood_quote_address");
+  const walletAddress = normalizedEvmAddress(body?.wallet_address, "robinhood_wallet_address");
+  const instrumentId = String(body?.instrument_id || "").trim().toLowerCase();
+  if (String(body?.chain || "").trim().toLowerCase() !== "robinhood"
+    || String(body?.identity_scope || "").trim().toLowerCase() !== "exact_pool"
+    || instrumentId !== `robinhood:pool:${poolAddress}`) {
+    throw Object.assign(new Error("exact_market_identity_mismatch"), { code: "exact_market_identity_mismatch" });
+  }
+  const side = String(body?.side || "").trim().toLowerCase();
+  if (!new Set(["buy", "sell"]).has(side)) throw Object.assign(new Error("side_invalid"), { code: "side_invalid" });
+  const exactRows = await pairDex("robinhood", poolAddress, tokenAddress);
+  const exact = exactRows.find((row) => (
+    sameOnchainAddress("robinhood", row?.pairAddress, poolAddress)
+    && sameOnchainAddress("robinhood", row?.tokenAddress, tokenAddress)
+    && sameOnchainAddress("robinhood", row?.quoteTokenAddress, quoteAddress)
+  ));
+  if (!exact) throw Object.assign(new Error("exact_market_unavailable"), { code: "exact_market_unavailable" });
+
+  const stockToken = await inspectRobinhoodStockToken(tokenAddress);
+  if (stockToken.restricted_stock_token) {
+    throw Object.assign(new Error("robinhood_stock_token_trading_restricted"), {
+      code: "robinhood_stock_token_trading_restricted",
+      details: { symbol: stockToken.registry_asset?.symbol || null },
+    });
+  }
+
+  const rpcRuntime = resolveRobinhoodChainRuntime(env, { network: "mainnet" });
+  const rpcClient = createRobinhoodRpcFailoverClient(rpcRuntime);
+  const chainEvidence = await verifyRobinhoodRpcChain(rpcClient, rpcRuntime);
+  const [tokenEvidence, usdgEvidence] = await Promise.all([
+    currentRobinhoodTokenEvidence(rpcClient, tokenAddress, side === "sell" ? walletAddress : null),
+    currentRobinhoodTokenEvidence(rpcClient, ROBINHOOD_USDG),
+  ]);
+  if (usdgEvidence.decimals !== 6) throw Object.assign(new Error("robinhood_usdg_identity_unresolved"), { code: "robinhood_usdg_identity_unresolved" });
+
+  const requestedPreference = String((side === "buy" ? body?.funding_preference : body?.settlement_preference) || "auto").trim().toLowerCase();
+  if (!new Set(["auto", "canonical_usdc", "native"]).has(requestedPreference)) {
+    throw Object.assign(new Error("asset_preference_invalid"), { code: "asset_preference_invalid" });
+  }
+  const selectedPreference = side === "buy" && requestedPreference === "native" ? "native" : "canonical_usdc";
+  if (side === "sell" && requestedPreference === "native") {
+    throw Object.assign(new Error("robinhood_native_sell_settlement_not_supported"), { code: "robinhood_native_sell_settlement_not_supported" });
+  }
+  const slippageBps = Math.round(Number(body?.slippage_bps ?? 50));
+  if (!Number.isSafeInteger(slippageBps) || slippageBps < 5 || slippageBps > 500) {
+    throw Object.assign(new Error("slippage_bps_invalid"), { code: "slippage_bps_invalid" });
+  }
+
+  let sellToken;
+  let buyToken;
+  let sellAmount;
+  if (side === "buy") {
+    sellToken = selectedPreference === "native" ? ROBINHOOD_NATIVE_ETH : ROBINHOOD_USDG;
+    buyToken = tokenAddress;
+    sellAmount = exactDisplayToBaseUnits(body?.display_amount, selectedPreference === "native" ? 18 : 6, "display_amount");
+  } else {
+    const percent = Number(body?.sell_percent);
+    if (![25, 50, 75, 100].includes(percent) || tokenEvidence.balance_base_units === null) {
+      throw Object.assign(new Error("sell_percentage_invalid"), { code: "sell_percentage_invalid" });
+    }
+    sellToken = tokenAddress;
+    buyToken = ROBINHOOD_USDG;
+    sellAmount = ((BigInt(tokenEvidence.balance_base_units) * BigInt(percent)) / 100n).toString();
+    if (BigInt(sellAmount) <= 0n) throw Object.assign(new Error("insufficient_balance"), { code: "insufficient_balance" });
+  }
+
+  const quoteClient = createRobinhoodZeroXQuoteClient(env);
+  const entryQuote = await quoteClient.quote({
+    chain_id: ROBINHOOD_CHAIN_ID,
+    sell_token: sellToken,
+    buy_token: buyToken,
+    sell_amount: sellAmount,
+    taker: walletAddress,
+    slippage_bps: slippageBps,
+  }, {
+    entitlement_tier: "free",
+    fee_enabled: true,
+    fee_token_side: side === "sell" ? "buy" : "sell",
+  });
+  if (!entryQuote.wallet_handoff_eligible) {
+    const reason = entryQuote.blockers?.[0] || "robinhood_entry_quote_blocked";
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers } });
+  }
+
+  let notionalBaseUnits;
+  let sourceValuation = null;
+  if (side === "buy" && sellToken === ROBINHOOD_USDG) {
+    notionalBaseUnits = sellAmount;
+  } else if (side === "sell") {
+    const feeAmount = entryQuote.fee?.token === ROBINHOOD_USDG ? BigInt(entryQuote.fee.amount || "0") : 0n;
+    notionalBaseUnits = (BigInt(entryQuote.exact_binding.buy_amount_base_units) + feeAmount).toString();
+  } else {
+    sourceValuation = await quoteClient.quote({
+      chain_id: ROBINHOOD_CHAIN_ID,
+      sell_token: ROBINHOOD_NATIVE_ETH,
+      buy_token: ROBINHOOD_USDG,
+      sell_amount: sellAmount,
+      taker: walletAddress,
+      slippage_bps: slippageBps,
+    }, { entitlement_tier: "free", fee_enabled: false });
+    notionalBaseUnits = sourceValuation.exact_binding.buy_amount_base_units;
+  }
+  if (BigInt(notionalBaseUnits) < 1_000_000n || BigInt(notionalBaseUnits) > BigInt(Math.round(boundedLiveNotional(env) * 1_000_000))) {
+    throw Object.assign(new Error("live_notional_out_of_bounds"), { code: "live_notional_out_of_bounds" });
+  }
+
+  let exitQuote = null;
+  if (side === "buy") {
+    exitQuote = await quoteClient.quote({
+      chain_id: ROBINHOOD_CHAIN_ID,
+      sell_token: tokenAddress,
+      buy_token: ROBINHOOD_USDG,
+      sell_amount: entryQuote.exact_binding.buy_amount_base_units,
+      taker: walletAddress,
+      slippage_bps: slippageBps,
+    }, { entitlement_tier: "free", fee_enabled: true, fee_token_side: "buy" });
+  }
+
+  const prepared = createRobinhoodLiveTicket({
+    exact_market: {
+      instrument_id: instrumentId,
+      pool_address: poolAddress,
+      token_address: tokenAddress,
+      quote_address: quoteAddress,
+      symbol: String(exact.symbol || body?.symbol || "TOKEN"),
+      quote_symbol: String(exact.quoteSymbol || ""),
+      side,
+    },
+    entry_quote: entryQuote,
+    exit_quote: exitQuote,
+    wallet_address: walletAddress,
+    accounting: {
+      asset_address: ROBINHOOD_USDG,
+      symbol: "USDG",
+      decimals: 6,
+      notional_base_units: notionalBaseUnits,
+      maximum_notional_base_units: String(Math.round(boundedLiveNotional(env) * 1_000_000)),
+    },
+  });
+  return Object.freeze({
+    ...prepared,
+    provider_quote: entryQuote,
+    review: Object.freeze({
+      chain: chainEvidence,
+      stock_token: stockToken,
+      source_valuation_quote_hash: sourceValuation?.quote_hash || null,
+      token: tokenEvidence,
+      accounting_asset: usdgEvidence,
+      expected_output: robinhoodQuoteDisplay(entryQuote.exact_binding.buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : 6, side === "buy" ? String(exact.symbol || "TOKEN") : "USDG"),
+      minimum_output: robinhoodQuoteDisplay(entryQuote.exact_binding.minimum_buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : 6, side === "buy" ? String(exact.symbol || "TOKEN") : "USDG"),
+      executable_exit: prepared.ticket.exit_proof ? robinhoodQuoteDisplay(prepared.ticket.exit_proof.expected_accounting_amount_base_units, 6, "USDG") : null,
+    }),
   });
 }
 
@@ -7253,14 +7520,15 @@ async function handleTradeLiveSession(request, env = {}) {
       unavailable_reason: solanaFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
     },
     evm_fee: {
-      enabled: false,
-      configuration_ready: evmFee.configured,
-      fee_bps: 0,
-      configured_fee_bps: 0,
-      fee_token: "USDC",
-      collection_method: "none",
+      enabled: evmFee.fee_enabled,
+      configuration_ready: evmFee.configured && evmFee.robinhood.fee_configuration_ready,
+      fee_bps: evmFee.actual_fee_bps,
+      configured_fee_bps: evmFee.robinhood.fee_schedule.free_fee_bps,
+      pro_fee_bps: evmFee.robinhood.fee_schedule.pro_fee_bps,
+      fee_token: "route-bound; USDG preferred on Robinhood Chain",
+      collection_method: evmFee.collection_method,
       chain_local_accounting_required: evmFee.chain_local_accounting_required,
-      unavailable_reason: evmFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
+      unavailable_reason: evmFee.fee_enabled ? null : evmFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
     },
     execution_boundary: {
       wallet_signature_required: true,
@@ -7269,6 +7537,115 @@ async function handleTradeLiveSession(request, env = {}) {
       arbitrary_submission: false,
     },
   }, authorization);
+}
+
+async function handleTradeLiveRobinhoodPrepare(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "robinhood");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal, gate }, authorization, { status: 403 });
+  const capability = resolveRobinhoodZeroXCapability(env);
+  const configuredEvmCollector = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim().toLowerCase();
+  const configuredZeroXCollector = String(env.RAVENOS_ROBINHOOD_ZEROX_FEE_RECIPIENT || "").trim().toLowerCase();
+  if (!capability.quote_review_enabled
+    || !capability.fee_collection_enabled
+    || !configuredEvmCollector
+    || configuredEvmCollector !== configuredZeroXCollector) {
+    return liveExecutionResponse({
+      ok: false,
+      error: capability.fee_state === "misconfigured" ? "robinhood_fee_configuration_invalid" : "robinhood_zero_x_unavailable",
+      capability,
+    }, authorization, { status: 503 });
+  }
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 16 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  try {
+    const prepared = await loadCurrentRobinhoodLivePreparation(body, env);
+    await createD1RobinhoodLiveExecutionStore(env.RAVENOS_CUSTOMER_DB).createTicket({
+      prepared,
+      user_id: authorization.principal.user_id,
+      now_seconds: authorization.now,
+    });
+    return liveExecutionResponse({
+      ok: true,
+      schema_version: "ravenos.robinhood_live_prepare_response.v1",
+      ticket: prepared.ticket,
+      provider_quote: prepared.provider_quote,
+      review: prepared.review,
+      execution_boundary: prepared.ticket.execution_boundary,
+    }, authorization);
+  } catch (error) {
+    const code = String(error?.code || error?.message || "robinhood_live_prepare_unavailable");
+    const conflict = /(?:invalid|mismatch|restricted|blocked|required|insufficient|out_of_bounds|not_supported)$/.test(code)
+      || new Set(["allowance_required", "simulation_incomplete", "invalid_liquidity_sources"]).has(code);
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: conflict ? 409 : 503 });
+  }
+}
+
+async function handleTradeLiveRobinhoodReport(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "robinhood");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 8 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  const store = createD1RobinhoodLiveExecutionStore(env.RAVENOS_CUSTOMER_DB);
+  try {
+    const stored = await store.findTicket(body?.ticket_id, authorization.principal.user_id);
+    if (!stored?.prepared) return liveExecutionResponse({ ok: false, error: "execution_ticket_not_found" }, authorization, { status: 404 });
+    if (!["awaiting_wallet_signature", "client_reported", "reconciliation_pending"].includes(stored.state)) {
+      return liveExecutionResponse({ ok: false, error: "execution_ticket_terminal", state: stored.state }, authorization, { status: 409 });
+    }
+    const report = normalizeRobinhoodClientExecutionReport(body, stored.prepared);
+    if (stored.state === "awaiting_wallet_signature") {
+      await store.recordClientReport({ record: report, user_id: authorization.principal.user_id, now_seconds: authorization.now });
+    } else if (String(stored.transaction_hash || "").toLowerCase() !== report.transaction_hash) {
+      return liveExecutionResponse({ ok: false, error: "robinhood_execution_transaction_mismatch" }, authorization, { status: 409 });
+    }
+    const runtime = resolveRobinhoodChainRuntime(env, { network: "mainnet" });
+    const rpcClient = createRobinhoodRpcFailoverClient(runtime);
+    await verifyRobinhoodRpcChain(rpcClient, runtime);
+    const reconciliation = await reconcileRobinhoodExecution({ ticket: stored.prepared, client_report: report }, {
+      rpc_client: rpcClient,
+      minimum_confirmations: 1,
+    });
+    const persisted = await store.reconcile({
+      execution_id: stored.prepared.ticket_id,
+      user_id: authorization.principal.user_id,
+      reconciliation,
+      now_seconds: Math.floor(Date.now() / 1_000),
+    });
+    const confirmed = reconciliation.state === "provider_confirmed";
+    const rejected = reconciliation.state === "provider_rejected";
+    return liveExecutionResponse({
+      ok: !rejected,
+      schema_version: "ravenos.robinhood_live_execution_response.v1",
+      ticket_id: stored.prepared.ticket_id,
+      transaction_hash: report.transaction_hash,
+      reconciliation,
+      retryable_reconciliation: persisted.retryable,
+      execution_boundary: stored.prepared.execution_boundary,
+    }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
+  } catch (error) {
+    const code = String(error?.code || error?.message || "robinhood_reconciliation_unavailable");
+    return liveExecutionResponse({ ok: false, error: code }, authorization, { status: 409 });
+  }
 }
 
 async function handleTradeLiveSolanaPrepare(request, env = {}) {
@@ -9532,6 +9909,8 @@ async function routeApi(request, env, executionContext = null) {
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
   if (url.pathname === "/api/trade/live/solana/prepare" && request.method === "POST") return handleTradeLiveSolanaPrepare(request, env);
   if (url.pathname === "/api/trade/live/solana/execute" && request.method === "POST") return handleTradeLiveSolanaExecute(request, env);
+  if (url.pathname === "/api/trade/live/robinhood/prepare" && request.method === "POST") return handleTradeLiveRobinhoodPrepare(request, env);
+  if (url.pathname === "/api/trade/live/robinhood/report" && request.method === "POST") return handleTradeLiveRobinhoodReport(request, env);
   const entitlementResponse = await routeCustomerEntitlements(request, env, {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });

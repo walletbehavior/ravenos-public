@@ -21,7 +21,48 @@ test("Free uses the reviewed venue schedule and Pro is at least 30 percent lower
   assert.equal(schedule["hyperliquid:spot"].pro_fee_bps, 70);
   assert.equal(schedule["jupiter:spot"].free_fee_bps, 100);
   assert.equal(schedule["jupiter:spot"].pro_fee_bps, 70);
+  assert.deepEqual(schedule["0x:spot"], {
+    provider: "0x",
+    chain: "evm",
+    trade_type: "spot",
+    fee_kind: "integrator_fee",
+    free_fee_bps: 100,
+    pro_fee_bps: 70,
+  });
   for (const row of Object.values(schedule)) assert.ok(row.pro_fee_bps <= row.free_fee_bps * 0.7);
+});
+
+test("0x EVM spot fees are server-selected and require a nonzero collector", () => {
+  const recipient = "0xa31872140ebE5eEfB6c4dfAd1fF2489d25F1E227";
+  const free = feePolicyFor({
+    provider: "0x",
+    trade_type: "spot",
+    access_tier: "free",
+    enabled: true,
+    fee_recipient: recipient,
+  });
+  assert.equal(free.enabled, true);
+  assert.equal(free.fee_bps, 100);
+  assert.equal(free.fee_parameter_value, 100);
+  assert.equal(free.fee_recipient, recipient);
+  const pro = feePolicyFor({
+    provider: "0x",
+    trade_type: "spot",
+    access_tier: "pro",
+    enabled: true,
+    fee_recipient: recipient,
+  });
+  assert.equal(pro.enabled, true);
+  assert.equal(pro.fee_bps, 70);
+  const zero = feePolicyFor({
+    provider: "0x",
+    trade_type: "spot",
+    access_tier: "free",
+    enabled: true,
+    fee_recipient: "0x0000000000000000000000000000000000000000",
+  });
+  assert.equal(zero.enabled, false);
+  assert.equal(zero.unavailable_reason, "fee_recipient_invalid_or_missing");
 });
 
 test("the current preview never charges a fee", () => {
