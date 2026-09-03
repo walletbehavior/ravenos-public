@@ -319,6 +319,7 @@ assert.equal(config.customer_live_execution_canary.authenticated_origin_only, tr
 assert.equal(config.customer_live_execution_canary.csrf_required_for_mutations, true);
 assert.equal(config.customer_live_execution_canary.explicit_user_allowlist_required, true);
 assert.equal(config.customer_live_execution_canary.wildcard_allowlist_for_initial_canary, false);
+assert.equal(config.customer_live_execution_canary.wildcard_allowlist_for_authenticated_public_release, true);
 assert.equal(config.customer_live_execution_canary.hyperliquid_wallet_signing_available, true);
 assert.equal(config.customer_live_execution_canary.hyperliquid_wallet_submission_available, true);
 assert.equal(config.customer_live_execution_canary.solana_wallet_signing_available, true);
@@ -328,6 +329,13 @@ assert.equal(config.customer_live_execution_canary.solana_unsigned_simulation_re
 assert.equal(config.customer_live_execution_canary.solana_onchain_economic_reconciliation_required, true);
 assert.equal(config.customer_live_execution_canary.solana_live_raven_fee_bps, 0);
 assert.equal(config.customer_live_execution_canary.solana_fee_collection_available, false);
+assert.equal(config.customer_live_execution_canary.evm_live_raven_fee_bps, 100);
+assert.equal(config.customer_live_execution_canary.evm_pro_raven_fee_bps, 70);
+assert.equal(config.customer_live_execution_canary.evm_fee_collection_available, true);
+assert.equal(config.customer_live_execution_canary.evm_fee_accounting_chain_local, true);
+assert.equal(config.customer_live_execution_canary.robinhood_chain_live_execution_candidate, true);
+assert.equal(config.customer_live_execution_canary.robinhood_stock_tokens_live_execution_available, false);
+assert.equal(config.customer_live_execution_canary.robinhood_reverse_exit_proof_required_for_buys, true);
 assert.equal(config.customer_live_execution_canary.raven_signing_available, false);
 assert.equal(config.customer_live_execution_canary.raven_private_keys_available, false);
 assert.equal(config.customer_live_execution_canary.custody_available, false);

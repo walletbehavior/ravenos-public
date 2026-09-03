@@ -160,8 +160,13 @@ const packageManifest = {
     ...(customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready"
       ? [
           "RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE",
+          "RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE",
           "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
           "RAVENOS_EVM_FEE_COLLECTOR_ADDRESS",
+          "RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE",
+          "RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE",
+          "RAVENOS_ROBINHOOD_ZEROX_FEE_RECIPIENT",
+          "RAVENOS_ZEROX_API_KEY",
         ]
       : []),
   ],
