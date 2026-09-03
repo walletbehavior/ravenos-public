@@ -555,22 +555,26 @@
 }
 .discover-refine-markets { width: 100%; min-width: 0; }
 .discover-refine-markets > summary {
-  min-height: 34px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 0 10px;
-  border: 1px solid var(--ws-border);
+  border: 1px solid rgba(99, 197, 148, .34);
   border-radius: 8px;
-  background: rgba(10, 15, 23, .82);
+  background: linear-gradient(90deg, rgba(99, 197, 148, .08), rgba(10, 15, 23, .9) 26%);
   color: var(--ws-text);
   cursor: pointer;
   list-style: none;
-  font: 750 8px var(--ws-mono);
+  font: 780 10px var(--ws-mono);
 }
 .discover-refine-markets > summary::-webkit-details-marker { display: none; }
-.discover-refine-markets > summary strong { color: #8fd7b4; font: 750 8px var(--ws-mono); }
+.discover-refine-markets > summary:hover,
+.discover-refine-markets > summary:focus-visible { border-color: rgba(99, 197, 148, .7); background-color: rgba(99, 197, 148, .11); }
+.discover-filter-markets-label { display: inline-flex; align-items: center; gap: 8px; }
+.discover-filter-markets-icon { width: 16px; height: 16px; fill: none; stroke: #8fd7b4; stroke-width: 1.8; stroke-linecap: round; }
+.discover-refine-markets > summary strong { color: #8fd7b4; font: 760 9px var(--ws-mono); }
 .discover-refine-markets[open] > summary { border-color: rgba(99, 197, 148, .42); border-radius: 8px 8px 0 0; }
 .discover-refine-body {
   display: flex;
@@ -1749,7 +1753,7 @@
   .discover-market-scans > span { display: none; }
   .discover-market-scans button { min-height: 28px; padding-inline: 8px; }
   .discover-radar-filters { display: block; padding: 7px 8px; }
-  .discover-refine-markets > summary { min-height: 38px; font-size: 9px; }
+  .discover-refine-markets > summary { min-height: 42px; font-size: 10px; }
   .discover-refine-body { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: 7px; padding: 8px; }
   .discover-refine-label { flex-basis: auto; }
   .discover-opportunity-lanes { order: 0; width: 100%; padding-bottom: 1px; }

@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import {
   DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_MARKET_FACT_TARGET_SECONDS,
+  DISCOVER_REVIVAL_MAX_PRIOR_TRANSACTIONS,
   DISCOVER_REVIVAL_MIN_AGE_SECONDS,
   DISCOVER_REVIVAL_MIN_QUIET_SECONDS,
+  DISCOVER_REVIVAL_MIN_RATE_MULTIPLE,
   DISCOVER_REVIVAL_SCAN_SCHEMA,
   buildDiscoverRadarProjection,
   mergeExactRadarRows,
@@ -358,11 +360,50 @@ test("an old sub-5K market with multi-participant rate expansion qualifies for t
   assert.equal(revival.minimum_quiet_seconds, DISCOVER_REVIVAL_MIN_QUIET_SECONDS);
   assert.equal(revival.single_print_rejected, false);
   assert.equal(revival.dormancy_proven, true);
-  assert.equal(revival.preceding_1h_transactions, 0);
-  assert.equal(revival.preceding_24h_transactions, 0);
+  assert.equal(revival.quiet_baseline_proven, true);
+  assert.equal(revival.preceding_23h_transactions, 0);
+  assert.equal(revival.maximum_preceding_23h_transactions, DISCOVER_REVIVAL_MAX_PRIOR_TRANSACTIONS);
+  assert.equal(revival.minimum_reactivation_rate_multiple, DISCOVER_REVIVAL_MIN_RATE_MULTIPLE);
+  assert.equal(revival.activity_returned_from_zero, true);
   assert.ok(revival.flow_signal_count >= 2);
   assert.equal(revival.historical_series_claimed, false);
   assert.equal(revival.theme_catalyst_identified, false);
+});
+
+test("an old market can qualify after revival trades spread beyond the latest five minutes", () => {
+  const row = pool({
+    pool_address: "0x0000000000000000000000000000000000000030",
+    market: {
+      market_cap_usd: 6_200,
+      liquidity_usd: 2_100,
+      token_age_seconds: 3 * 365 * 86_400,
+      market_age_seconds: 40 * 86_400,
+      price_change_5m_pct: 0,
+      price_change_1h_pct: 8,
+      volume_usd_5m: 0,
+      volume_usd_1h: 1_900,
+      volume_usd_24h: 2_050,
+      buys_5m: 0,
+      sells_5m: 0,
+      buyers_5m: 0,
+      sellers_5m: 0,
+      buys_1h: 6,
+      sells_1h: 2,
+      buyers_1h: 5,
+      sellers_1h: 2,
+      buys_24h: 7,
+      sells_24h: 3,
+      buyers_24h: 6,
+      sellers_24h: 3,
+    },
+  });
+  const revival = build([row]).rows[0].discovery.revival_scan;
+  assert.equal(revival.qualified, true);
+  assert.equal(revival.age_basis, "token_creation");
+  assert.equal(revival.latest_transactions, 0);
+  assert.equal(revival.current_transactions, 8);
+  assert.equal(revival.preceding_23h_transactions, 2);
+  assert.ok(revival.reactivation_rate_multiple >= DISCOVER_REVIVAL_MIN_RATE_MULTIPLE);
 });
 
 test("one print cannot manufacture an old-token revival", () => {
@@ -392,7 +433,7 @@ test("one print cannot manufacture an old-token revival", () => {
   assert.equal(revival.single_print_rejected, true);
 });
 
-test("an old market with continuing prior trading is not a dormant revival", () => {
+test("an old market with continuing prior trading is not a quiet-baseline revival", () => {
   const row = pool({
     pool_address: "0x0000000000000000000000000000000000000029",
     market: {
@@ -419,10 +460,10 @@ test("an old market with continuing prior trading is not a dormant revival", () 
   });
   const revival = build([row]).rows[0].discovery.revival_scan;
   assert.equal(revival.qualified, false);
-  assert.equal(revival.reason_code, "prior_activity_present");
+  assert.equal(revival.reason_code, "baseline_not_quiet");
   assert.equal(revival.dormancy_proven, false);
-  assert.equal(revival.preceding_1h_transactions, 48);
-  assert.equal(revival.preceding_24h_transactions, 288);
+  assert.equal(revival.quiet_baseline_proven, false);
+  assert.equal(revival.preceding_23h_transactions, 240);
 });
 
 test("microcap rankings keep sub-5K and 5K-to-10K markets in distinct peer cohorts", () => {

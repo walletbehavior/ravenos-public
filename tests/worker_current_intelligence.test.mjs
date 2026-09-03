@@ -542,7 +542,7 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
     assert.ok(body.rows.every((row) => row.research_only === true && row.execution_available === false));
     assert.ok(body.rows.every((row) => row.discovery.schema_version === "ravenos.discover_market.v1"));
-    assert.ok(body.rows.every((row) => row.discovery.revival_scan.schema_version === "ravenos.discover_revival_scan.v2"));
+    assert.ok(body.rows.every((row) => row.discovery.revival_scan.schema_version === "ravenos.discover_revival_scan.v3"));
     assert.ok(body.rows.every((row) => row.discovery.revival_scan.historical_series_claimed === false));
     assert.ok(body.rows.every((row) => row.discovery.revival_scan.theme_catalyst_identified === false));
     assert.ok(body.rows.every((row) => row.discovery.raven_evidence_state.raven_signal === false));
@@ -600,6 +600,92 @@ test("Worker normalizes the Discover edge-cache key to supported contract inputs
   } finally {
     if (originalCaches === undefined) delete globalThis.caches;
     else globalThis.caches = originalCaches;
+  }
+});
+
+test("Worker supplements the primary Discover page with bounded later-page markets", async () => {
+  const providerSecret = "server-only-expanded-discover-token";
+  const pages = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
+    assert.equal(init.headers["x-cg-pro-api-key"], providerSecret);
+    const page = Number(url.searchParams.get("page"));
+    pages.push(page);
+    const suffix = (100 + page).toString(16).padStart(40, "0");
+    const tokenSuffix = (200 + page).toString(16).padStart(40, "0");
+    const quoteSuffix = (300 + page).toString(16).padStart(40, "0");
+    return jsonResponse(geckoTrendingFixture("bsc", {
+      pool: `0x${suffix}`,
+      token: `0x${tokenSuffix}`,
+      quote: `0x${quoteSuffix}`,
+      symbol: `PAGE${page}`,
+      name: `Page ${page}`,
+    }));
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=bsc&duration=1h"),
+      {
+        ...environment(),
+        RAVENOS_RELEASE_ID: "expanded-discover-test",
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(pages.sort(), [1, 2, 3]);
+    assert.deepEqual(body.rows.map((row) => row.symbol), ["PAGE1", "PAGE2", "PAGE3"]);
+    assert.equal(body.discovery_coverage.provider_page_size, 20);
+    assert.equal(body.discovery_coverage.provider_rows_per_chain_limit, 44);
+    assert.deepEqual(body.discovery_coverage.chains[0].pages_loaded, [1, 2, 3]);
+    assert.deepEqual(body.discovery_coverage.chains[0].supplemental_page_failures, []);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker keeps the primary Discover set when an optional provider page fails", async () => {
+  const providerSecret = "server-only-partial-expanded-discover-token";
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
+    const page = Number(url.searchParams.get("page"));
+    if (page === 3) return jsonResponse({ error: "temporary" }, 503);
+    const suffix = (400 + page).toString(16).padStart(40, "0");
+    return jsonResponse(geckoTrendingFixture("robinhood", {
+      pool: `0x${suffix}`,
+      token: `0x${(500 + page).toString(16).padStart(40, "0")}`,
+      quote: `0x${(600 + page).toString(16).padStart(40, "0")}`,
+      symbol: `KEEP${page}`,
+    }));
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=robinhood&duration=24h"),
+      {
+        ...environment(),
+        RAVENOS_RELEASE_ID: "partial-expanded-discover-test",
+        ONCHAIN_CHART_PROVIDER: "coingecko",
+        ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+        ONCHAIN_CHART_PROVIDER_SECRET: providerSecret,
+      },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.state, "current");
+    assert.deepEqual(body.rows.map((row) => row.symbol), ["KEEP1", "KEEP2"]);
+    assert.deepEqual(body.discovery_coverage.chains[0].pages_loaded, [1, 2]);
+    assert.deepEqual(body.discovery_coverage.chains[0].supplemental_page_failures, [3]);
+    assert.deepEqual(body.unavailable, []);
+  } finally {
+    globalThis.fetch = previousFetch;
   }
 });
 

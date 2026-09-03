@@ -25,7 +25,7 @@ const state = {
   spotTimeframe: "5m",
   spotSort: "velocity",
   spotChain: "all",
-  spotLane: "opportunities",
+  spotLane: "all",
   spotCohort: "all",
   spotAssetFilter: "all",
   spotMarketCapFilter: "all",
@@ -745,8 +745,8 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
 }
 
 const DISCOVER_MARKET_FACT_TARGET_SECONDS = 120;
-const DISCOVER_CLASSIFIER_VERSION = "2026-09-03.1";
-const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v2";
+const DISCOVER_CLASSIFIER_VERSION = "2026-09-03.2";
+const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v3";
 
 function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   const contract = row?.discovery?.facts?.freshness || {};
@@ -782,6 +782,21 @@ function hasDecisionUsefulSpotActivity(row) {
     || (buys !== null && buys > 0)
     || (sells !== null && sells > 0)
     || (traders !== null && traders > 0);
+}
+
+function hasDegenRelevantSpotActivity(row) {
+  if (!spotMarketFactFreshness(row).current) return false;
+  const market = row?.market || {};
+  return [
+    market.volume_usd_1h,
+    market.volume_usd_24h,
+    market.buys_1h,
+    market.sells_1h,
+    market.traders_1h,
+    market.buys_24h,
+    market.sells_24h,
+    market.traders_24h,
+  ].map(finite).some((value) => value !== null && value > 0);
 }
 
 function survivesCurrentSpotMarket(row = {}) {
@@ -1437,6 +1452,7 @@ function notabilityPriority(row) {
 }
 
 function spotRankedRows() {
+  const broadDegenScan = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
   const current = state.spotRows.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
     const retained = row?.discovery?.registry?.retained_after_trending === true;
@@ -1450,7 +1466,10 @@ function spotRankedRows() {
       && advancedFiltersMatch(row)
       && (state.spotLane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
-      && (retained || (survivesCurrentSpotMarket(row) && hasDecisionUsefulSpotActivity(row)));
+      && (retained || (
+        survivesCurrentSpotMarket(row)
+        && (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row))
+      ));
   });
   if (state.spotSort === "raven") {
     return current

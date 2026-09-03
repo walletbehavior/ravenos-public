@@ -1094,7 +1094,7 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("#discoverDegenToggle")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#discoverRefineMarkets")).toBeVisible();
   await expect(page.locator("#discoverRefineMarkets")).not.toHaveAttribute("open", "");
-  await expect(page.locator("#discoverRefineSummary")).toHaveText("Opportunities");
+  await expect(page.locator("#discoverRefineSummary")).toHaveText("Everything");
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator("#discoverDegenPanel")).toBeHidden();
   const ravenRead = page.locator(".discover-token-row").first().locator(".discover-token-raven");
@@ -1228,7 +1228,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   expect(terminal.submissionAvailable).toBe(false);
 });
 
-test("Discover keeps ordinary provider activity out of the default shortlist but available in Everything", async ({ page }) => {
+test("Discover shows the full ranked market set by default and keeps the high-signal shortlist available", async ({ page }) => {
   const quiet = structuredClone(robinhoodPulseRow);
   quiet.symbol = "QUIET";
   quiet.name = "Quiet market";
@@ -1239,13 +1239,16 @@ test("Discover keeps ordinary provider activity out of the default shortlist but
   await mockWorkspaceApis(page, { pulseRowsOverride: [quiet] });
   await page.goto("/discover/");
   await page.locator("[data-spot-chain='robinhood']").click();
-  await expect(page.locator(".discover-token-row")).toHaveCount(0);
-  await expect(page.locator(".discover-token-empty")).toContainText("No high-signal market now");
-  await page.getByRole("button", { name: "Open everything" }).click();
   const row = page.locator(".discover-token-row");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("QUIET");
   await expect(row).toContainText("+0.80%");
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("[data-spot-lane='opportunities']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(0);
+  await expect(page.locator(".discover-token-empty")).toContainText("No high-signal market now");
+  await page.getByRole("button", { name: "Open everything" }).click();
+  await expect(row).toHaveCount(1);
 });
 
 test("Discover scans sub-5K and sub-10K markets and rejects one-print revival noise", async ({ page }) => {
@@ -1330,6 +1333,8 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText("PRINT9");
 
   await page.locator("#discoverRefineMarkets > summary").click();
+  await expect(page.locator("#discoverRefineMarkets > summary")).toContainText("Filter markets");
+  await expect(page.locator(".discover-filter-markets-icon")).toBeVisible();
   await page.locator("#discoverHolderFilter").selectOption("under_100");
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
   await expect(page.locator(".discover-token-row")).toContainText("OLD5");
@@ -1366,6 +1371,45 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotMarketCapFilter)).toBe("5k_10k");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotRevivalOnly)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
+test("Discover keeps recently active microcaps visible when the selected five-minute window is quiet", async ({ page }) => {
+  const recentlyActive = structuredClone(evmPulseRows[0]);
+  recentlyActive.public_attention_id = "market:base:0x0000000000000000000000000000000000000081";
+  recentlyActive.instrument_id = "base:pool:0x0000000000000000000000000000000000000081";
+  recentlyActive.pool_address = "0x0000000000000000000000000000000000000081";
+  recentlyActive.token_address = "0x0000000000000000000000000000000000000181";
+  recentlyActive.symbol = "RESTIR";
+  recentlyActive.name = "Recently stirred";
+  recentlyActive.market = {
+    ...recentlyActive.market,
+    market_cap_usd: 4_600,
+    liquidity_usd: 1_900,
+    market_age_seconds: 200 * 86_400,
+    price_change_5m_pct: 0,
+    volume_usd_5m: 0,
+    buys_5m: 0,
+    sells_5m: 0,
+    buyers_5m: 0,
+    sellers_5m: 0,
+    price_change_1h_pct: 3.4,
+    volume_usd_1h: 850,
+    buys_1h: 4,
+    sells_1h: 2,
+    buyers_1h: 3,
+    sellers_1h: 2,
+    volume_usd_24h: 2_100,
+    buys_24h: 12,
+    sells_24h: 8,
+    buyers_24h: 8,
+    sellers_24h: 6,
+  };
+  await mockWorkspaceApis(page, { pulseRowsOverride: [recentlyActive] });
+  await page.goto("/discover/");
+  await page.locator("#discoverDegenToggle").click();
+  await page.locator("[data-spot-market-cap='under_5k']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("RESTIR");
 });
 
 test("Discover never presents a retained exact-market snapshot as a live opportunity", async ({ page }) => {
@@ -1445,6 +1489,8 @@ test("Discover never presents a retained exact-market snapshot as a live opportu
   }));
   await page.goto("/discover/");
 
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("[data-spot-lane='opportunities']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
   await expect(page.locator(".discover-token-empty")).toContainText("No high-signal market now");
   await page.getByRole("button", { name: "Open everything" }).click();
@@ -1578,6 +1624,8 @@ test("Discover promotes qualified Robinhood Chain flow and opens the same exact 
 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().robinhoodSpotCount)).toBe(1);
   await page.locator("[data-spot-chain='robinhood']").click();
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("[data-spot-lane='opportunities']").click();
   const row = page.locator(".discover-token-row");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("RUNNER");
@@ -1644,10 +1692,10 @@ test("Discover keeps an absent chain compact and actionable instead of showing a
   await expect(page.locator("#discoverDesk")).toBeHidden();
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await empty.getByRole("button", { name: "Scan all chains" }).click();
-  await expect(page.locator(".discover-token-row")).toHaveCount(1);
-  await page.locator("#discoverRefineMarkets > summary").click();
-  await page.locator("[data-spot-lane='all']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(2);
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("[data-spot-lane='opportunities']").click();
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
 });
 
 test("Discover omits zero-activity pools and lets available anatomy fill the row", async ({ page }) => {

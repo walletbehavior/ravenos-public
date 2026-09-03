@@ -487,6 +487,7 @@ const dexchDiscoveryProvider = new DexchDiscoveryProvider({
   fetchFn: (...args) => globalThis.fetch(...args),
 });
 const onchainPulseCache = new Map();
+const onchainPulseSupplementCache = new Map();
 const jupiterVelocityCache = new Map();
 const hyperliquidCache = new Map();
 const terminalChartCache = new Map();
@@ -503,6 +504,10 @@ const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 // a bytes32 pool id. Only pool parameters may use this wider shape; token,
 // quote, wallet and collector identities stay strict 20-byte addresses.
 const EVM_POOL_ID_RE = /^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
+const ONCHAIN_PULSE_PROVIDER_PAGES = Object.freeze([1, 2, 3]);
+const ONCHAIN_PULSE_PROVIDER_PAGE_SIZE = 20;
+const ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN = 44;
+const ONCHAIN_PULSE_SUPPLEMENT_TTL_MS = 90_000;
 const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon", "avalanche"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
@@ -3148,6 +3153,61 @@ function normalizeGeckoTrendingPool(payload, row, {
   };
 }
 
+function pulseSupplementPriority(row = {}) {
+  const market = row.market || {};
+  const marketCap = optionalFiniteNumber(market.market_cap_usd) ?? optionalFiniteNumber(market.fdv_usd);
+  const ageSeconds = optionalFiniteNumber(market.token_age_seconds) ?? optionalFiniteNumber(market.market_age_seconds);
+  const hourTransactions = [market.buys_1h, market.sells_1h]
+    .map(optionalFiniteNumber)
+    .reduce((sum, value) => sum + (value || 0), 0);
+  const dayTransactions = [market.buys_24h, market.sells_24h]
+    .map(optionalFiniteNumber)
+    .reduce((sum, value) => sum + (value || 0), 0);
+  const precedingDayTransactions = Math.max(0, dayTransactions - hourTransactions);
+  const oldQuietBurst = ageSeconds !== null
+    && ageSeconds >= 30 * 86_400
+    && hourTransactions >= 3
+    && precedingDayTransactions <= 24
+    && (precedingDayTransactions === 0 || hourTransactions / (precedingDayTransactions / 23) >= 4);
+  return (oldQuietBurst ? 3_000_000 : 0)
+    + (marketCap !== null && marketCap >= 1_000 && marketCap < 100_000 ? 2_000_000 : 0)
+    + (marketCap !== null && marketCap >= 100_000 && marketCap < 500_000 ? 1_000_000 : 0)
+    + Math.min(100_000, dayTransactions)
+    - (optionalFiniteNumber(row.provider_rank) || 0);
+}
+
+async function fetchGeckoTrendingPage({
+  env,
+  runtime,
+  network,
+  duration,
+  page,
+  fetchedAt,
+  cacheScope,
+} = {}) {
+  const useSupplementCache = page > 1 && String(env.RAVENOS_RELEASE_ENFORCE || "") === "1";
+  const cacheKey = `${cacheScope}:${network.provider_network}:${duration}:page-${page}`;
+  const cached = useSupplementCache ? cacheGet(onchainPulseSupplementCache, cacheKey) : null;
+  if (cached) return cached;
+  const pageFetchedAt = page === 1 ? fetchedAt : new Date().toISOString();
+  const payload = await runProviderOperation({
+    component: "onchain_market_pulse",
+    operation_key: `trending:${runtime.provider_tier}:${network.provider_network}:${duration}:page-${page}`,
+    fn: () => boundedProviderJson(
+      `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/trending_pools?include=base_token%2Cquote_token%2Cdex&duration=${encodeURIComponent(duration)}&page=${page}`,
+      {
+        headers: runtime.request_headers,
+        maxBytes: 384 * 1024,
+        timeoutMs: 5_000,
+        errorPrefix: "coingecko_trending",
+      },
+    ),
+  });
+  const result = Object.freeze({ payload, fetched_at: pageFetchedAt });
+  if (useSupplementCache) cacheSet(onchainPulseSupplementCache, cacheKey, result, ONCHAIN_PULSE_SUPPLEMENT_TTL_MS);
+  return result;
+}
+
 function parseOnchainPulseChains(value) {
   const requested = String(value || "solana,robinhood,base,bsc,ethereum")
     .split(",")
@@ -3929,37 +3989,46 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const fetchedAt = new Date().toISOString();
   const geckoSettledPromise = providerAvailable ? Promise.allSettled(chains.map(async (chain) => {
     const network = ONCHAIN_PULSE_NETWORKS[chain];
-    const payload = await runProviderOperation({
-      component: "onchain_market_pulse",
-      operation_key: `trending:${runtime.provider_tier}:${network.provider_network}:${duration}`,
-      fn: () => boundedProviderJson(
-        `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/trending_pools?include=base_token%2Cquote_token%2Cdex&duration=${encodeURIComponent(duration)}&page=1`,
-        {
-          headers: runtime.request_headers,
-          maxBytes: 384 * 1024,
-          timeoutMs: 5_000,
-          errorPrefix: "coingecko_trending",
-        },
-      ),
-    });
+    const pageResults = await Promise.allSettled(ONCHAIN_PULSE_PROVIDER_PAGES.map((page) => fetchGeckoTrendingPage({
+      env,
+      runtime,
+      network,
+      duration,
+      page,
+      fetchedAt,
+      cacheScope: `${env.RAVENOS_RELEASE_ID || "development"}:${runtime.provider_tier}`,
+    })));
+    if (pageResults[0].status !== "fulfilled") throw pageResults[0].reason;
     const deduped = new Set();
-    const rows = [];
-    for (const [index, row] of (Array.isArray(payload?.data) ? payload.data : []).slice(0, 20).entries()) {
-      const normalized = normalizeGeckoTrendingPool(payload, row, {
-        chain,
-        chainLabel: network.label,
-        duration,
-        providerWindow,
-        providerRank: index + 1,
-        fetchedAt,
-      });
-      if (!normalized || deduped.has(normalized.instrument_id)) continue;
-      deduped.add(normalized.instrument_id);
-      rows.push(normalized);
-      if (rows.length >= 20) break;
+    const primaryRows = [];
+    const supplementalRows = [];
+    for (const [pageIndex, result] of pageResults.entries()) {
+      if (result.status !== "fulfilled") continue;
+      const { payload, fetched_at: pageFetchedAt } = result.value;
+      for (const [index, row] of (Array.isArray(payload?.data) ? payload.data : []).slice(0, ONCHAIN_PULSE_PROVIDER_PAGE_SIZE).entries()) {
+        const normalized = normalizeGeckoTrendingPool(payload, row, {
+          chain,
+          chainLabel: network.label,
+          duration,
+          providerWindow,
+          providerRank: pageIndex * ONCHAIN_PULSE_PROVIDER_PAGE_SIZE + index + 1,
+          fetchedAt: pageFetchedAt,
+        });
+        if (!normalized || deduped.has(normalized.instrument_id)) continue;
+        deduped.add(normalized.instrument_id);
+        (pageIndex === 0 ? primaryRows : supplementalRows).push(normalized);
+      }
     }
+    supplementalRows.sort((left, right) => pulseSupplementPriority(right) - pulseSupplementPriority(left));
+    const rows = [...primaryRows, ...supplementalRows]
+      .slice(0, ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN);
     if (!rows.length) throw new Error("coingecko_trending_rows_unavailable");
-    return { chain, rows };
+    return {
+      chain,
+      rows,
+      pages_loaded: pageResults.flatMap((result, index) => result.status === "fulfilled" ? [index + 1] : []),
+      supplemental_page_failures: pageResults.flatMap((result, index) => index > 0 && result.status === "rejected" ? [index + 1] : []),
+    };
   })) : Promise.resolve(chains.map(() => ({
     status: "rejected",
     reason: new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable"),
@@ -3977,9 +4046,18 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   }));
   const [settled, jupiterRows, dexchDiscovery] = await Promise.all([geckoSettledPromise, jupiterPromise, dexchPromise]);
   const providerRows = [];
+  const providerCoverage = [];
   const failures = [];
   settled.forEach((result, index) => {
-    if (result.status === "fulfilled") providerRows.push(...result.value.rows);
+    if (result.status === "fulfilled") {
+      providerRows.push(...result.value.rows);
+      providerCoverage.push({
+        chain: result.value.chain,
+        rows: result.value.rows.length,
+        pages_loaded: result.value.pages_loaded,
+        supplemental_page_failures: result.value.supplemental_page_failures,
+      });
+    }
     else failures.push({
       chain: chains[index],
       state: "temporarily_unavailable",
@@ -4087,6 +4165,15 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       retained_exact_markets: retainedRows.length,
       hot_watch_attempted: hotWatch.attempted,
       hot_watch_refreshed: hotWatch.refreshed,
+    },
+    discovery_coverage: {
+      provider: "coingecko_onchain",
+      primary_pages_per_chain: 1,
+      supplemental_pages_requested_per_chain: ONCHAIN_PULSE_PROVIDER_PAGES.length - 1,
+      provider_page_size: ONCHAIN_PULSE_PROVIDER_PAGE_SIZE,
+      provider_rows_per_chain_limit: ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN,
+      supplemental_cache_seconds: Math.round(ONCHAIN_PULSE_SUPPLEMENT_TTL_MS / 1_000),
+      chains: providerCoverage,
     },
     provider_health: {
       dexch: dexchDiscovery.health || dexchDiscoveryProvider.healthSnapshot(),

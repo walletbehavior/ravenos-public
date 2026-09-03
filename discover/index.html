@@ -142,18 +142,26 @@
       </div>
       <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
         <details class="discover-refine-markets" id="discoverRefineMarkets">
-          <summary><span>Refine markets</span><strong id="discoverRefineSummary">Opportunities</strong></summary>
+          <summary>
+            <span class="discover-filter-markets-label">
+              <svg class="discover-filter-markets-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 6h16M7 12h10M10 18h4"></path>
+              </svg>
+              <span>Filter markets</span>
+            </span>
+            <strong id="discoverRefineSummary">Everything</strong>
+          </summary>
           <div class="discover-refine-body">
             <span class="discover-refine-label">Opportunity type</span>
             <div class="discover-opportunity-lanes" role="group" aria-label="Opportunity type">
-              <button class="active" type="button" data-spot-lane="opportunities" aria-pressed="true">Opportunities</button>
+              <button type="button" data-spot-lane="opportunities" aria-pressed="false">Opportunities</button>
               <button type="button" data-spot-lane="emerging_acceleration" aria-pressed="false">Emerging</button>
               <button type="button" data-spot-lane="breakout_continuation" aria-pressed="false">Expansion</button>
               <button type="button" data-spot-lane="absorption_accumulation" aria-pressed="false">Accumulation</button>
               <button type="button" data-spot-lane="resurrection_reclaim" aria-pressed="false">Resurrection</button>
               <button type="button" data-spot-lane="distribution_chase_risk" aria-pressed="false">Risk</button>
               <button type="button" data-spot-lane="majors_wrapped" aria-pressed="false">Majors</button>
-              <button type="button" data-spot-lane="all" aria-pressed="false">Everything</button>
+              <button class="active" type="button" data-spot-lane="all" aria-pressed="true">Everything</button>
             </div>
             <label class="discover-changed-filter discover-changed-filter-prominent"><input id="discoverChangedFilter" type="checkbox" /> Changed since last read</label>
             <span class="discover-refine-label">Lifecycle</span>

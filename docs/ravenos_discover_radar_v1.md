@@ -22,7 +22,7 @@ The registry is owned by the Raven runtime and uses its own SQLite database. It 
 
 ## Exact identity
 
-The registry key is the canonical exact-market `instrument_id`, including chain and pool address. Symbol and token name are display fields only. Identically named tokens and pools never merge, and a market that leaves a provider trending feed is retained under its original identity until the bounded retention policy expires.
+The registry key is the canonical exact-market `instrument_id`, including chain and pool address. Symbol and token name are display fields only. Exact markets never merge in evidence or storage. The customer list selects one best current exact pool per canonical chain/token so the same token is not repeated; its Terminal handoff still carries the selected pool identity. A market that leaves a provider trending feed is retained under its original identity until the bounded retention policy expires.
 
 ## State dimensions
 
@@ -60,7 +60,7 @@ Every score carries its kind, value, scale, grade, classifier version, observati
 
 Cross-cohort ordering remains server-derived. It combines behavioral strength with explicit sample maturity, evidence coverage, novelty, persistence, qualified exact-route usability, and risk penalties. Pool liquidity alone is not relabeled as route capacity, and absolute volume is never a tie-breaker. A strong move from a fragile four-transaction sample remains visibly fragile rather than being presented with the authority of a robust observation set.
 
-The default Opportunities lane is a server-qualified shortlist, not a synonym for every provider input. An exact market qualifies through at least one of: a supported activity-backed move of 5% in 5m, 10% in 1h, or 25% in 24h; a qualified participation or lifecycle transition; or exact Raven evidence. The strongest qualifying window is shown as the row trigger even when another timeframe is selected. Ordinary activity remains inspectable in Everything without being relabeled an opportunity.
+Discover defaults to the full ranked `Everything` view so current markets are visible without first discovering a hidden filter. The optional Opportunities lane is a server-qualified shortlist, not a synonym for every provider input. An exact market qualifies through at least one of: a supported activity-backed move of 5% in 5m, 10% in 1h, or 25% in 24h; a qualified participation or lifecycle transition; or exact Raven evidence. The strongest qualifying window is shown as the row trigger even when another timeframe is selected. Ordinary activity remains visible without being relabeled an opportunity.
 
 Known or reference-like majors, wrapped majors, stable assets, staking assets, and tokenized assets remain outside the primary speculative queue. Those markets remain available under Majors, asset-class filters, Everything, and universal exact-market search. Unknown assets remain `speculative_or_unclassified`; RavenOS does not assert that every unknown token is a meme. Provider rank cannot satisfy notability, and extreme or fragile moves require exact-chart verification instead of being presented as confirmed.
 
@@ -69,6 +69,10 @@ Known or reference-like majors, wrapped majors, stable assets, staking assets, a
 Admissions are deterministic and versioned. Supported lanes include Raven observations, bounded saved/monitored exact-market admissions, short-window anomalies, qualified migration evidence, breakout/continuation, pullback/absorption, capitulation/resurrection, renewed mature-market activity, and recently removed provider candidates.
 
 Provider trending is an input, not the registry. Pool age is a cohort feature, not an eligibility veto. Broad scans are bounded to five supported chains—Solana, Robinhood Chain, Base, BNB Chain, and Ethereum—and three windows, with a fixed call budget, timeout, circuit breaker, cooldown, candidate ceiling, and retention policy.
+
+The current discovery pull treats provider page 1 as the required fresh primary set and pages 2–3 as optional supplements. Supplemental rows prioritize meaningful sub-$100K markets and old pools with a low prior activity baseline. Each chain contributes at most 44 exact markets, cached supplemental evidence expires after 90 seconds, and failure of a supplemental page is reported in discovery coverage without discarding a valid primary set.
+
+The `Trading again` scan is classifier version `2026-09-03.2`. It requires a market at least 30 days old, current liquidity, at least three transactions and two observed participants in the current hour (or five transactions where participants are unavailable), no more than 24 transactions in the preceding 23 hours, and at least a four-times increase over that prior hourly rate. A zero-activity prior baseline is retained separately as exact dormancy. The latest five-minute window is disclosed but no longer has to contain the entire revival, and a lone print cannot qualify.
 
 ## Continuous publication and health
 
