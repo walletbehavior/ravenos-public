@@ -115,6 +115,8 @@ test("the exact allowlisted RH and BSC profiles prevent chain and stablecoin col
   assert.equal(BSC_EVM_CHAIN_PROFILE.chain_id, 56);
   assert.equal(BSC_EVM_CHAIN_PROFILE.wallet_chain_id_hex, "0x38");
   assert.equal(BSC_EVM_CHAIN_PROFILE.native_symbol, "BNB");
+  assert.equal(BSC_EVM_CHAIN_PROFILE.wrapped_native_token_address, "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c");
+  assert.equal(ROBINHOOD_EVM_CHAIN_PROFILE.wrapped_native_token_address, "0x0bd7d308f8e1639fab988df18a8011f41eacad73");
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.address, "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d");
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.decimals, 18);
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.representation, "binance_peg_usdc");
@@ -176,6 +178,40 @@ for (const profile of [ROBINHOOD_EVM_CHAIN_PROFILE, BSC_EVM_CHAIN_PROFILE]) {
     );
   });
 }
+
+test("native route topology accepts only the profile's verified wrapped-native identity", () => {
+  const profile = BSC_EVM_CHAIN_PROFILE;
+  const request = requestFor(profile, { sell_token: EVM_NATIVE_TOKEN_ADDRESS });
+  const providerRoute = {
+    fills: [{
+      from: profile.wrapped_native_token_address,
+      to: request.buy_token,
+      source: "PancakeSwap_V3",
+      proportionBps: 10_000,
+    }],
+    tokens: [
+      { address: profile.wrapped_native_token_address, symbol: "WBNB" },
+      { address: request.buy_token, symbol: "BUY" },
+    ],
+  };
+  const quote = normalizeEvmZeroXUnsignedQuote(payloadFor(request, { route: providerRoute }), request, {
+    profile,
+    now: NOW + 10,
+  });
+  assert.equal(quote.exact_binding.sell_token, EVM_NATIVE_TOKEN_ADDRESS);
+  assert.equal(quote.route.tokens[0].address, profile.wrapped_native_token_address);
+
+  assert.throws(
+    () => normalizeEvmZeroXUnsignedQuote(payloadFor(request, {
+      route: {
+        ...providerRoute,
+        fills: [{ ...providerRoute.fills[0], from: "0x4444444444444444444444444444444444444444" }],
+        tokens: [{ address: "0x4444444444444444444444444444444444444444", symbol: "FAKE" }, providerRoute.tokens[1]],
+      },
+    }), request, { profile, now: NOW + 10 }),
+    /zero_x_route_identity_mismatch/,
+  );
+});
 
 test("BSC configured client uses only exact 0x AllowanceHolder and keeps the API key out of capability output", async () => {
   const env = envFor(BSC_EVM_CHAIN_PROFILE);
