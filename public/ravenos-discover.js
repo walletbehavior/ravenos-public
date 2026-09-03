@@ -662,14 +662,14 @@ function mountNumericRangeFilters() {
     minSlider.max = String(config.stops.length - (config.maxOpen ? 2 : 1));
     minSlider.step = "1";
     minSlider.dataset.rangeSlider = "min";
-    minSlider.setAttribute("aria-label", `Minimum ${config.label}`);
+    minSlider.setAttribute("aria-label", `${config.label} lower slider`);
     const maxSlider = append(slider, "input", "", "");
     maxSlider.type = "range";
     maxSlider.min = "0";
     maxSlider.max = String(config.stops.length - 1);
     maxSlider.step = "1";
     maxSlider.dataset.rangeSlider = "max";
-    maxSlider.setAttribute("aria-label", `Maximum ${config.label}`);
+    maxSlider.setAttribute("aria-label", `${config.label} upper slider`);
     const scale = append(editor, "div", "discover-range-scale", "");
     append(scale, "span", "", formatNumericRangeValue(config, 0));
     append(scale, "strong", "discover-range-current", "Any value");

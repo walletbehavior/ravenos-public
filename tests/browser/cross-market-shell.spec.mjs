@@ -1458,7 +1458,7 @@ test("Discover numeric filters combine presets, sliders, and exact open-ended va
   await expect(page.locator("#discoverTokenTapeList")).toContainText("UNDER250");
   await expect(page.getByLabel("Minimum MCap")).toHaveAttribute("type", "number");
   await expect(page.getByLabel("Maximum MCap")).toHaveAttribute("type", "number");
-  await expect(page.locator('[data-range-filter="marketCap"] [data-range-slider="min"]')).toHaveCount(1);
+  await expect(page.getByRole("slider", { name: "MCap lower slider" })).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
 });
 
