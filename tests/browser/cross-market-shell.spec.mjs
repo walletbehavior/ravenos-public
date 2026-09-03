@@ -1412,6 +1412,56 @@ test("Discover keeps recently active microcaps visible when the selected five-mi
   await expect(page.locator("#discoverTokenTapeList")).toContainText("RESTIR");
 });
 
+test("Discover numeric filters combine presets, sliders, and exact open-ended values without treating unavailable as zero", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const rangeRow = (symbol, suffix, marketCap) => {
+    const row = structuredClone(evmPulseRows[0]);
+    const pool = `0x${suffix.padStart(40, "0")}`;
+    row.public_attention_id = `market:base:${pool}`;
+    row.instrument_id = `base:pool:${pool}`;
+    row.pool_address = pool;
+    row.token_address = `0x${`${Number(suffix) + 200}`.padStart(40, "0")}`;
+    row.symbol = symbol;
+    row.name = symbol;
+    row.market = { ...row.market, market_cap_usd: marketCap, fdv_usd: marketCap };
+    return row;
+  };
+  const under = rangeRow("UNDER250", "91", 249_999);
+  const over = rangeRow("OVER250", "92", 250_001);
+  const unknown = rangeRow("CAPUNKNOWN", "93", null);
+  unknown.market.market_cap_usd = null;
+  unknown.market.fdv_usd = null;
+  await mockWorkspaceApis(page, { pulseRowsOverride: [under, over, unknown] });
+  await page.goto("/discover/");
+  await expect(page.locator(".discover-token-row")).toHaveCount(3);
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await expect(page.locator(".discover-range-filter")).toHaveCount(8);
+
+  await page.getByLabel("Maximum MCap").fill("250000");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotMarketCapFilter)).toBe("custom");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotNumericRanges.marketCap.max)).toBe(250_000);
+  await expect(page.locator("#discoverMarketCapFilter")).toHaveValue("custom");
+  await expect(page.locator("#discoverRefineSummary")).toContainText("MCap ≤ $250K");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("UNDER250");
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText("OVER250");
+  await expect(page.locator("#discoverTokenTapeList")).not.toContainText("CAPUNKNOWN");
+
+  await page.getByLabel("Maximum MCap").fill("");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotMarketCapFilter)).toBe("all");
+  await expect(page.locator(".discover-token-row")).toHaveCount(3);
+
+  await page.locator("#discoverMarketCapFilter").selectOption("100k_250k");
+  await expect(page.getByLabel("Minimum MCap")).toHaveValue("100000");
+  await expect(page.getByLabel("Maximum MCap")).toHaveValue("250000");
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("UNDER250");
+  await expect(page.getByLabel("Minimum MCap")).toHaveAttribute("type", "number");
+  await expect(page.getByLabel("Maximum MCap")).toHaveAttribute("type", "number");
+  await expect(page.locator('[data-range-filter="marketCap"] [data-range-slider="min"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("Discover never presents a retained exact-market snapshot as a live opportunity", async ({ page }) => {
   const nowMs = Date.now();
   const generatedAt = new Date(nowMs).toISOString();

@@ -179,7 +179,8 @@
             </div>
             <div class="discover-advanced-filters">
               <div>
-            <label>Market cap
+            <div class="discover-range-filter" data-range-filter="marketCap">
+              <label for="discoverMarketCapFilter">Market cap</label>
               <select id="discoverMarketCapFilter">
                 <option value="all">All</option>
                 <option value="under_5k">Under $5K</option>
@@ -197,9 +198,11 @@
                 <option value="10m_plus">$10M+</option>
                 <option value="100k_plus">$100K+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label><span id="discoverVolumeFilterLabel">5m volume</span>
+            </div>
+            <div class="discover-range-filter" data-range-filter="volume">
+              <label for="discoverVolumeFilter" id="discoverVolumeFilterLabel">5m volume</label>
               <select id="discoverVolumeFilter">
                 <option value="all">All</option>
                 <option value="under_1k">Under $1K</option>
@@ -208,9 +211,11 @@
                 <option value="25k_100k">$25K–$100K</option>
                 <option value="100k_plus">$100K+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label>Liquidity
+            </div>
+            <div class="discover-range-filter" data-range-filter="liquidity">
+              <label for="discoverLiquidityFilter">Liquidity</label>
               <select id="discoverLiquidityFilter">
                 <option value="all">All</option>
                 <option value="under_1k">Under $1K</option>
@@ -220,9 +225,11 @@
                 <option value="50k_250k">$50K–$250K</option>
                 <option value="250k_plus">$250K+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label>Holders
+            </div>
+            <div class="discover-range-filter" data-range-filter="holders">
+              <label for="discoverHolderFilter">Holders</label>
               <select id="discoverHolderFilter">
                 <option value="all">All</option>
                 <option value="under_100">Under 100</option>
@@ -231,9 +238,11 @@
                 <option value="2k_10k">2K–10K</option>
                 <option value="10k_plus">10K+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label><span id="discoverTransactionFilterLabel">5m txns</span>
+            </div>
+            <div class="discover-range-filter" data-range-filter="transactions">
+              <label for="discoverTransactionFilter" id="discoverTransactionFilterLabel">5m txns</label>
               <select id="discoverTransactionFilter">
                 <option value="all">All</option>
                 <option value="under_10">Under 10</option>
@@ -241,8 +250,9 @@
                 <option value="50_250">50–250</option>
                 <option value="250_plus">250+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
+            </div>
             <label><span id="discoverFlowFilterLabel">5m flow</span>
               <select id="discoverFlowFilter">
                 <option value="all">All</option>
@@ -265,7 +275,8 @@
                 <option value="unavailable">Unavailable</option>
               </select>
             </label>
-            <label>Token age
+            <div class="discover-range-filter" data-range-filter="age">
+              <label for="discoverAgeFilter">Token age</label>
               <select id="discoverAgeFilter">
                 <option value="all">All</option>
                 <option value="under_24h">Under 24h</option>
@@ -275,9 +286,11 @@
                 <option value="90d_1y">90d–1y</option>
                 <option value="1y_plus">1y+</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label>Bonding
+            </div>
+            <div class="discover-range-filter" data-range-filter="bonding">
+              <label for="discoverBondingFilter">Bonding</label>
               <select id="discoverBondingFilter">
                 <option value="all">All</option>
                 <option value="under_25">Under 25%</option>
@@ -285,17 +298,20 @@
                 <option value="75_90">75–90%</option>
                 <option value="90_100">90–100%</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
-            <label>Bundle risk
+            </div>
+            <div class="discover-range-filter" data-range-filter="bundle">
+              <label for="discoverBundleFilter">Bundle risk</label>
               <select id="discoverBundleFilter">
                 <option value="all">All</option>
                 <option value="lower">Lower</option>
                 <option value="graduated">20%–40%</option>
                 <option value="elevated">Above 40%</option>
                 <option value="unavailable">Unavailable</option>
+                <option value="custom">Custom range</option>
               </select>
-            </label>
+            </div>
             <label>Route capacity
               <select id="discoverRouteFilter">
                 <option value="all">All</option>

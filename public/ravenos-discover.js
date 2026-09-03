@@ -14,6 +14,61 @@ const DISCOVER_IDLE_MS = 2_400;
 const CHANGE_FLASH_MS = 1_600;
 const DISCOVER_VISIT_STORAGE_KEY = "ravenos:discover-visited:v1";
 const DEGEN_MARKET_CAP_FILTERS = new Set(["under_5k", "5k_10k", "under_10k", "10k_25k", "25k_50k", "50k_100k", "10k_100k", "under_100k"]);
+const NUMERIC_FILTERS = Object.freeze({
+  marketCap: Object.freeze({
+    label: "MCap",
+    selectId: "discoverMarketCapFilter",
+    stateKey: "spotMarketCapFilter",
+    unit: "usd",
+    inputFactor: 1,
+    inputStep: 1_000,
+    maxOpen: true,
+    stops: Object.freeze([0, 1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 10_000_000, 100_000_000, 1_000_000_000, null]),
+    bands: Object.freeze({
+      under_5k: [0, 5_000], "5k_10k": [5_000, 10_000], under_10k: [0, 10_000],
+      "10k_25k": [10_000, 25_000], "25k_50k": [25_000, 50_000], "50k_100k": [50_000, 100_000],
+      "10k_100k": [10_000, 100_000], under_100k: [0, 100_000], "100k_250k": [100_000, 250_000],
+      "250k_500k": [250_000, 500_000], "100k_500k": [100_000, 500_000], "500k_1m": [500_000, 1_000_000],
+      "1m_2m": [1_000_000, 2_000_000], "500k_2m": [500_000, 2_000_000], "2m_10m": [2_000_000, 10_000_000],
+      "10m_plus": [10_000_000, Number.POSITIVE_INFINITY], "100k_plus": [100_000, Number.POSITIVE_INFINITY], "2m_plus": [2_000_000, Number.POSITIVE_INFINITY],
+    }),
+  }),
+  volume: Object.freeze({
+    label: "Volume", selectId: "discoverVolumeFilter", stateKey: "spotVolumeFilter", unit: "usd", inputFactor: 1, inputStep: 100, maxOpen: true,
+    stops: Object.freeze([0, 100, 500, 1_000, 5_000, 25_000, 100_000, 500_000, 1_000_000, 10_000_000, null]),
+    bands: Object.freeze({ under_1k: [0, 1_000], "1k_5k": [1_000, 5_000], "5k_25k": [5_000, 25_000], "25k_100k": [25_000, 100_000], "100k_plus": [100_000, Number.POSITIVE_INFINITY] }),
+  }),
+  liquidity: Object.freeze({
+    label: "Liquidity", selectId: "discoverLiquidityFilter", stateKey: "spotLiquidityFilter", unit: "usd", inputFactor: 1, inputStep: 100, maxOpen: true,
+    stops: Object.freeze([0, 100, 500, 1_000, 5_000, 10_000, 50_000, 250_000, 1_000_000, 10_000_000, null]),
+    bands: Object.freeze({ under_1k: [0, 1_000], "1k_5k": [1_000, 5_000], "5k_10k": [5_000, 10_000], under_10k: [0, 10_000], "10k_50k": [10_000, 50_000], "50k_250k": [50_000, 250_000], "250k_plus": [250_000, Number.POSITIVE_INFINITY] }),
+  }),
+  holders: Object.freeze({
+    label: "Holders", selectId: "discoverHolderFilter", stateKey: "spotHolderFilter", unit: "count", inputFactor: 1, inputStep: 1, maxOpen: true,
+    stops: Object.freeze([0, 10, 50, 100, 500, 2_000, 10_000, 100_000, null]),
+    bands: Object.freeze({ under_100: [0, 100], "100_500": [100, 500], "500_2k": [500, 2_000], "2k_10k": [2_000, 10_000], "10k_plus": [10_000, Number.POSITIVE_INFINITY] }),
+  }),
+  transactions: Object.freeze({
+    label: "Txns", selectId: "discoverTransactionFilter", stateKey: "spotTransactionFilter", unit: "count", inputFactor: 1, inputStep: 1, maxOpen: true,
+    stops: Object.freeze([0, 1, 10, 50, 250, 1_000, 10_000, null]),
+    bands: Object.freeze({ under_10: [0, 10], "10_50": [10, 50], "50_250": [50, 250], "250_plus": [250, Number.POSITIVE_INFINITY] }),
+  }),
+  age: Object.freeze({
+    label: "Age", selectId: "discoverAgeFilter", stateKey: "spotAgeFilter", unit: "days", inputFactor: 86_400, inputStep: 0.25, maxOpen: true,
+    stops: Object.freeze([0, 3_600, 6 * 3_600, 86_400, 7 * 86_400, 14 * 86_400, 30 * 86_400, 90 * 86_400, 365 * 86_400, 3 * 365 * 86_400, null]),
+    bands: Object.freeze({ under_24h: [0, 86_400], "1d_14d": [86_400, 14 * 86_400], "14d_90d": [14 * 86_400, 90 * 86_400], "30d_plus": [30 * 86_400, Number.POSITIVE_INFINITY], "90d_1y": [90 * 86_400, 365 * 86_400], "1y_plus": [365 * 86_400, Number.POSITIVE_INFINITY], "14d_plus": [14 * 86_400, Number.POSITIVE_INFINITY] }),
+  }),
+  bonding: Object.freeze({
+    label: "Bonding", selectId: "discoverBondingFilter", stateKey: "spotBondingFilter", unit: "percent", inputFactor: 100, inputStep: 1, maxOpen: false,
+    stops: Object.freeze([0, 1_000, 2_500, 5_000, 7_500, 9_000, 10_000]),
+    bands: Object.freeze({ under_25: [0, 2_500], "25_75": [2_500, 7_500], "75_90": [7_500, 9_000], "90_100": [9_000, 10_001] }),
+  }),
+  bundle: Object.freeze({
+    label: "Bundle", selectId: "discoverBundleFilter", stateKey: "spotBundleFilter", unit: "percent", inputFactor: 1, inputStep: 1, maxOpen: false,
+    stops: Object.freeze([0, 10, 20, 30, 40, 60, 80, 100]),
+    bands: Object.freeze({ lower: [0, 20], graduated: [20, 40.000000001], elevated: [40.000000001, Number.POSITIVE_INFINITY] }),
+  }),
+});
 const state = {
   rows: new Map(),
   order: [],
@@ -40,6 +95,7 @@ const state = {
   spotBondingFilter: "all",
   spotRevivalOnly: false,
   spotBundleFilter: "all",
+  spotNumericRanges: Object.fromEntries(Object.keys(NUMERIC_FILTERS).map((key) => [key, { min: null, max: null }])),
   spotRouteFilter: "all",
   spotChangedOnly: false,
   spotSessionSnapshots: new Map(),
@@ -455,6 +511,210 @@ function append(node, tag, className, value) {
   child.textContent = value;
   node.append(child);
   return child;
+}
+
+function selectedNumericRange(key) {
+  const config = NUMERIC_FILTERS[key];
+  if (!config) return { min: null, max: null };
+  const mode = state[config.stateKey];
+  if (mode === "custom") return { ...(state.spotNumericRanges[key] || { min: null, max: null }) };
+  const band = config.bands[mode];
+  if (!band) return { min: null, max: null };
+  const lastFinite = [...config.stops].reverse().find((value) => value !== null);
+  return {
+    min: Number.isFinite(band[0]) ? band[0] : null,
+    max: Number.isFinite(band[1]) ? Math.min(band[1], lastFinite) : config.maxOpen ? null : lastFinite,
+  };
+}
+
+function numericRangeValue(config, value) {
+  const result = finite(value);
+  if (result === null) return "";
+  const display = result / config.inputFactor;
+  return Number.isInteger(display) ? String(display) : String(Number(display.toFixed(4)));
+}
+
+function formatNumericRangeValue(config, value) {
+  const result = finite(value);
+  if (result === null) return "Any";
+  if (config.unit === "usd") return compact(result, { currency: true });
+  if (config.unit === "days") {
+    if (result > 0 && result < 86_400) return `${Number((result / 3_600).toFixed(1))}h`;
+    return `${compact(result / 86_400)}d`;
+  }
+  if (config.unit === "percent") return `${Number((result / config.inputFactor).toFixed(2))}%`;
+  return compact(result);
+}
+
+function numericRangeSummary(key) {
+  const config = NUMERIC_FILTERS[key];
+  if (!config) return "";
+  const mode = state[config.stateKey];
+  if (mode === "all") return `${config.label} any`;
+  if (mode === "unavailable") return `${config.label} unavailable`;
+  const range = selectedNumericRange(key);
+  const minimum = finite(range.min);
+  const maximum = finite(range.max);
+  if ((minimum === null || minimum <= 0) && maximum !== null) return `${config.label} ≤ ${formatNumericRangeValue(config, maximum)}`;
+  if (minimum !== null && maximum === null) return `${config.label} ≥ ${formatNumericRangeValue(config, minimum)}`;
+  if (minimum !== null && maximum !== null) return `${config.label} ${formatNumericRangeValue(config, minimum)}–${formatNumericRangeValue(config, maximum)}`;
+  return `${config.label} known`;
+}
+
+function nearestNumericStop(config, value, { maximum = false } = {}) {
+  if (value === null && maximum && config.maxOpen) return config.stops.length - 1;
+  const candidates = config.stops
+    .map((stop, index) => ({ stop, index }))
+    .filter(({ stop }) => stop !== null);
+  const target = Math.max(0, finite(value) ?? 0);
+  return candidates.reduce((best, candidate) => (
+    Math.abs(candidate.stop - target) < Math.abs(best.stop - target) ? candidate : best
+  )).index;
+}
+
+function syncNumericRangeControl(key) {
+  const config = NUMERIC_FILTERS[key];
+  const host = document.querySelector(`[data-range-filter="${key}"]`);
+  if (!config || !host || host.dataset.rangeMounted !== "true") return;
+  const mode = state[config.stateKey];
+  const range = selectedNumericRange(key);
+  const minInput = host.querySelector('[data-range-input="min"]');
+  const maxInput = host.querySelector('[data-range-input="max"]');
+  const minSlider = host.querySelector('[data-range-slider="min"]');
+  const maxSlider = host.querySelector('[data-range-slider="max"]');
+  const fill = host.querySelector(".discover-range-fill");
+  const summary = host.querySelector(".discover-range-current");
+  const minIndex = nearestNumericStop(config, range.min);
+  const maxIndex = nearestNumericStop(config, range.max, { maximum: true });
+  minInput.value = mode === "all" || mode === "unavailable" ? "" : numericRangeValue(config, range.min);
+  maxInput.value = mode === "all" || mode === "unavailable" ? "" : numericRangeValue(config, range.max);
+  minSlider.value = String(minIndex);
+  maxSlider.value = String(maxIndex);
+  const denominator = Math.max(1, config.stops.length - 1);
+  fill.style.left = `${(minIndex / denominator) * 100}%`;
+  fill.style.right = `${100 - ((maxIndex / denominator) * 100)}%`;
+  summary.textContent = mode === "all" ? "Any value" : mode === "unavailable" ? "Unavailable only" : numericRangeSummary(key).replace(`${config.label} `, "");
+  host.dataset.rangeActive = String(mode !== "all");
+  host.dataset.rangeMode = mode;
+}
+
+function syncNumericRangeControls() {
+  Object.keys(NUMERIC_FILTERS).forEach(syncNumericRangeControl);
+}
+
+let numericRangeRenderFrame = null;
+function queueNumericRangeRender() {
+  if (numericRangeRenderFrame !== null) return;
+  numericRangeRenderFrame = window.requestAnimationFrame(() => {
+    numericRangeRenderFrame = null;
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  });
+}
+
+function setCustomNumericRange(key, range) {
+  const config = NUMERIC_FILTERS[key];
+  if (!config) return;
+  let minimum = finite(range.min);
+  let maximum = finite(range.max);
+  if (minimum !== null) minimum = Math.max(0, minimum);
+  if (maximum !== null) maximum = Math.max(0, maximum);
+  if (minimum !== null && maximum !== null && minimum > maximum) [minimum, maximum] = [maximum, minimum];
+  if (minimum === null && maximum === null) {
+    state[config.stateKey] = "all";
+  } else {
+    state[config.stateKey] = "custom";
+    state.spotNumericRanges[key] = { min: minimum, max: maximum };
+  }
+  syncNumericRangeControl(key);
+  queueNumericRangeRender();
+}
+
+function mountNumericRangeFilters() {
+  for (const [key, config] of Object.entries(NUMERIC_FILTERS)) {
+    const host = document.querySelector(`[data-range-filter="${key}"]`);
+    const select = document.getElementById(config.selectId);
+    if (!host || !select || host.dataset.rangeMounted === "true") continue;
+    host.dataset.rangeMounted = "true";
+    const editor = append(host, "div", "discover-range-editor", "");
+    const inputs = append(editor, "div", "discover-range-inputs", "");
+    for (const bound of ["min", "max"]) {
+      const field = append(inputs, "span", "discover-range-input", "");
+      append(field, "small", "", bound === "min" ? "Min" : "Max");
+      const control = append(field, "span", "discover-range-input-control", "");
+      if (config.unit === "usd") append(control, "i", "", "$");
+      const input = append(control, "input", "", "");
+      input.type = "number";
+      input.inputMode = "decimal";
+      input.min = "0";
+      input.step = String(config.inputStep);
+      input.placeholder = "Any";
+      input.dataset.rangeInput = bound;
+      input.setAttribute("aria-label", `${bound === "min" ? "Minimum" : "Maximum"} ${config.label}`);
+      if (config.unit === "days") append(control, "i", "", "days");
+      if (config.unit === "percent") append(control, "i", "", "%");
+    }
+    const slider = append(editor, "div", "discover-dual-range", "");
+    const track = append(slider, "span", "discover-range-track", "");
+    append(track, "i", "discover-range-fill", "");
+    const minSlider = append(slider, "input", "", "");
+    minSlider.type = "range";
+    minSlider.min = "0";
+    minSlider.max = String(config.stops.length - (config.maxOpen ? 2 : 1));
+    minSlider.step = "1";
+    minSlider.dataset.rangeSlider = "min";
+    minSlider.setAttribute("aria-label", `Minimum ${config.label}`);
+    const maxSlider = append(slider, "input", "", "");
+    maxSlider.type = "range";
+    maxSlider.min = "0";
+    maxSlider.max = String(config.stops.length - 1);
+    maxSlider.step = "1";
+    maxSlider.dataset.rangeSlider = "max";
+    maxSlider.setAttribute("aria-label", `Maximum ${config.label}`);
+    const scale = append(editor, "div", "discover-range-scale", "");
+    append(scale, "span", "", formatNumericRangeValue(config, 0));
+    append(scale, "strong", "discover-range-current", "Any value");
+    append(scale, "span", "", config.maxOpen ? "Any" : formatNumericRangeValue(config, config.stops.at(-1)));
+
+    const applySliders = (changed) => {
+      let minIndex = Number(minSlider.value);
+      let maxIndex = Number(maxSlider.value);
+      if (minIndex > maxIndex) {
+        if (changed === "min") maxIndex = minIndex;
+        else minIndex = maxIndex;
+      }
+      minSlider.value = String(minIndex);
+      maxSlider.value = String(maxIndex);
+      const maximum = config.maxOpen && maxIndex === config.stops.length - 1 ? null : config.stops[maxIndex];
+      setCustomNumericRange(key, { min: config.stops[minIndex] ?? 0, max: maximum });
+    };
+    minSlider.addEventListener("input", () => applySliders("min"));
+    maxSlider.addEventListener("input", () => applySliders("max"));
+
+    let inputTimer = null;
+    const applyInputs = () => {
+      window.clearTimeout(inputTimer);
+      const minValue = finite(host.querySelector('[data-range-input="min"]').value);
+      const maxValue = finite(host.querySelector('[data-range-input="max"]').value);
+      setCustomNumericRange(key, {
+        min: minValue === null ? null : minValue * config.inputFactor,
+        max: maxValue === null ? null : maxValue * config.inputFactor,
+      });
+    };
+    host.querySelectorAll("[data-range-input]").forEach((input) => {
+      input.addEventListener("input", () => {
+        window.clearTimeout(inputTimer);
+        inputTimer = window.setTimeout(applyInputs, 220);
+      });
+      input.addEventListener("change", applyInputs);
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          applyInputs();
+        }
+      });
+    });
+    syncNumericRangeControl(key);
+  }
 }
 
 function syncSavedMonitorControl(anchor) {
@@ -1148,7 +1408,14 @@ function updateSpotRefineSummary() {
     state.spotAssetFilter !== "all",
   ].filter(Boolean).length;
   const lane = state.spotRevivalOnly ? "Trading again" : opportunityLaneLabel(state.spotLane) || "Opportunities";
-  summary.textContent = refinements ? `${lane} · ${refinements} more` : lane;
+  const numericLabels = Object.keys(NUMERIC_FILTERS)
+    .filter((key) => state[NUMERIC_FILTERS[key].stateKey] !== "all")
+    .map(numericRangeSummary);
+  summary.textContent = !refinements
+    ? lane
+    : numericLabels.length === refinements && numericLabels.length <= 2
+      ? `${lane} · ${numericLabels.join(" · ")}`
+      : `${lane} · ${refinements} filter${refinements === 1 ? "" : "s"}`;
 }
 
 function riskLabel(value) {
@@ -1328,6 +1595,19 @@ function numericBand(value, filter, bands) {
   return Boolean(range && amount >= range[0] && amount < range[1]);
 }
 
+function numericFilterMatches(value, key) {
+  const config = NUMERIC_FILTERS[key];
+  if (!config) return false;
+  const filter = state[config.stateKey];
+  if (filter !== "custom") return numericBand(value, filter, config.bands);
+  const amount = finite(value);
+  if (amount === null) return false;
+  const range = selectedNumericRange(key);
+  const minimum = finite(range.min);
+  const maximum = finite(range.max);
+  return (minimum === null || amount >= minimum) && (maximum === null || amount <= maximum);
+}
+
 function spotWindowFlow(row) {
   const buys = spotMetric(row, "buys");
   const sells = spotMetric(row, "sells");
@@ -1341,56 +1621,12 @@ function spotWindowFlow(row) {
 
 function advancedFiltersMatch(row) {
   const market = row?.market || {};
-  if (!numericBand(marketCapValue(market), state.spotMarketCapFilter, {
-    under_5k: [0, 5_000],
-    "5k_10k": [5_000, 10_000],
-    under_10k: [0, 10_000],
-    "10k_25k": [10_000, 25_000],
-    "25k_50k": [25_000, 50_000],
-    "50k_100k": [50_000, 100_000],
-    "10k_100k": [10_000, 100_000],
-    under_100k: [0, 100_000],
-    "100k_250k": [100_000, 250_000],
-    "250k_500k": [250_000, 500_000],
-    "100k_500k": [100_000, 500_000],
-    "500k_1m": [500_000, 1_000_000],
-    "1m_2m": [1_000_000, 2_000_000],
-    "500k_2m": [500_000, 2_000_000],
-    "2m_10m": [2_000_000, 10_000_000],
-    "10m_plus": [10_000_000, Number.POSITIVE_INFINITY],
-    "100k_plus": [100_000, Number.POSITIVE_INFINITY],
-    "2m_plus": [2_000_000, Number.POSITIVE_INFINITY],
-  })) return false;
-  if (!numericBand(spotMetric(row, "volume_usd"), state.spotVolumeFilter, {
-    under_1k: [0, 1_000],
-    "1k_5k": [1_000, 5_000],
-    "5k_25k": [5_000, 25_000],
-    "25k_100k": [25_000, 100_000],
-    "100k_plus": [100_000, Number.POSITIVE_INFINITY],
-  })) return false;
-  if (!numericBand(market.liquidity_usd, state.spotLiquidityFilter, {
-    under_1k: [0, 1_000],
-    "1k_5k": [1_000, 5_000],
-    "5k_10k": [5_000, 10_000],
-    under_10k: [0, 10_000],
-    "10k_50k": [10_000, 50_000],
-    "50k_250k": [50_000, 250_000],
-    "250k_plus": [250_000, Number.POSITIVE_INFINITY],
-  })) return false;
-  if (!numericBand(market.holder_count, state.spotHolderFilter, {
-    under_100: [0, 100],
-    "100_500": [100, 500],
-    "500_2k": [500, 2_000],
-    "2k_10k": [2_000, 10_000],
-    "10k_plus": [10_000, Number.POSITIVE_INFINITY],
-  })) return false;
+  if (!numericFilterMatches(marketCapValue(market), "marketCap")) return false;
+  if (!numericFilterMatches(spotMetric(row, "volume_usd"), "volume")) return false;
+  if (!numericFilterMatches(market.liquidity_usd, "liquidity")) return false;
+  if (!numericFilterMatches(market.holder_count, "holders")) return false;
   const flow = spotWindowFlow(row);
-  if (!numericBand(flow.transactions, state.spotTransactionFilter, {
-    under_10: [0, 10],
-    "10_50": [10, 50],
-    "50_250": [50, 250],
-    "250_plus": [250, Number.POSITIVE_INFINITY],
-  })) return false;
+  if (!numericFilterMatches(flow.transactions, "transactions")) return false;
   if (state.spotFlowFilter !== "all") {
     if (state.spotFlowFilter === "unavailable" && flow.buyShare !== null) return false;
     if (state.spotFlowFilter === "buy_60" && !(flow.buyShare !== null && flow.buyShare >= 0.6)) return false;
@@ -1408,29 +1644,11 @@ function advancedFiltersMatch(row) {
     if (state.spotMoveFilter === "down_5" && !(move !== null && move <= -5)) return false;
     if (state.spotMoveFilter === "down_20" && !(move !== null && move <= -20)) return false;
   }
-  if (!numericBand(market.token_age_seconds, state.spotAgeFilter, {
-    under_24h: [0, 86_400],
-    "1d_14d": [86_400, 14 * 86_400],
-    "14d_90d": [14 * 86_400, 90 * 86_400],
-    "30d_plus": [30 * 86_400, Number.POSITIVE_INFINITY],
-    "90d_1y": [90 * 86_400, 365 * 86_400],
-    "1y_plus": [365 * 86_400, Number.POSITIVE_INFINITY],
-    "14d_plus": [14 * 86_400, Number.POSITIVE_INFINITY],
-  })) return false;
-  if (!numericBand(row?.lifecycle_evidence?.progress_bps, state.spotBondingFilter, {
-    under_25: [0, 2_500],
-    "25_75": [2_500, 7_500],
-    "75_90": [7_500, 9_000],
-    "90_100": [9_000, 10_001],
-  })) return false;
+  if (!numericFilterMatches(market.token_age_seconds, "age")) return false;
+  if (!numericFilterMatches(row?.lifecycle_evidence?.progress_bps, "bonding")) return false;
   const bundle = row?.discovery?.control_intelligence?.bundled_pct;
   const bundledPct = bundle?.availability === "available" ? finite(bundle.value) : null;
-  if (state.spotBundleFilter !== "all") {
-    if (state.spotBundleFilter === "unavailable" && bundledPct !== null) return false;
-    if (state.spotBundleFilter === "lower" && !(bundledPct !== null && bundledPct < 20)) return false;
-    if (state.spotBundleFilter === "graduated" && !(bundledPct !== null && bundledPct >= 20 && bundledPct <= 40)) return false;
-    if (state.spotBundleFilter === "elevated" && !(bundledPct !== null && bundledPct > 40)) return false;
-  }
+  if (!numericFilterMatches(bundledPct, "bundle")) return false;
   const route = row?.discovery?.routeability;
   if (state.spotRouteFilter === "routeable" && !(route?.availability === "available" && finite(route.routeable_size_usd) > 0)) return false;
   if (state.spotRouteFilter === "unavailable" && route?.availability === "available") return false;
@@ -1451,8 +1669,15 @@ function notabilityPriority(row) {
   return notability?.qualified === true ? finite(notability.priority) : null;
 }
 
+function degenMarketCapFilterActive() {
+  if (DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter)) return true;
+  if (state.spotMarketCapFilter !== "custom") return false;
+  const maximum = finite(selectedNumericRange("marketCap").max);
+  return maximum !== null && maximum <= 100_000;
+}
+
 function spotRankedRows() {
-  const broadDegenScan = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
+  const broadDegenScan = degenMarketCapFilterActive() || state.spotRevivalOnly;
   const current = state.spotRows.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
     const retained = row?.discovery?.registry?.retained_after_trending === true;
@@ -2223,7 +2448,7 @@ async function hydrateSpotMetadata(rows = state.spotRows) {
 function syncDegenPanel() {
   const panel = document.getElementById("discoverDegenPanel");
   const toggle = document.getElementById("discoverDegenToggle");
-  const filterActive = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
+  const filterActive = degenMarketCapFilterActive() || state.spotRevivalOnly;
   if (panel) panel.hidden = !state.spotDegenOpen;
   if (!toggle) return;
   toggle.classList.toggle("active", state.spotDegenOpen);
@@ -2273,6 +2498,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   if (marketCapSelect && [...marketCapSelect.options].some((option) => option.value === state.spotMarketCapFilter)) {
     marketCapSelect.value = state.spotMarketCapFilter;
   }
+  syncNumericRangeControls();
   const revivalButton = document.getElementById("discoverRevivalScan");
   if (revivalButton) revivalButton.setAttribute("aria-pressed", String(state.spotRevivalOnly));
   for (const [id, metric] of [
@@ -3283,7 +3509,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
     state.spotSort = button.dataset.spotSort;
-    state.spotDegenOpen = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
+    state.spotDegenOpen = degenMarketCapFilterActive() || state.spotRevivalOnly;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
   document.getElementById("discoverDegenToggle")?.addEventListener("click", () => {
@@ -3329,7 +3555,7 @@ function bind() {
   ]) {
     document.getElementById(id)?.addEventListener("change", (event) => {
       state[key] = event.currentTarget.value;
-      if (key === "spotMarketCapFilter") state.spotDegenOpen = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter);
+      if (key === "spotMarketCapFilter") state.spotDegenOpen = degenMarketCapFilterActive();
       renderSpotPulse(state.spotRows, { forceOrder: true });
     });
   }
@@ -3372,6 +3598,7 @@ function bind() {
 
 initializeWorkspacePresentation();
 mountListedMarketTape();
+mountNumericRangeFilters();
 bind();
 refresh();
 state.timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
@@ -3405,6 +3632,8 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotMoveFilter: state.spotMoveFilter,
     spotAgeFilter: state.spotAgeFilter,
     spotBondingFilter: state.spotBondingFilter,
+    spotBundleFilter: state.spotBundleFilter,
+    spotNumericRanges: Object.fromEntries(Object.entries(state.spotNumericRanges).map(([key, range]) => [key, { ...range }])),
     spotRevivalOnly: state.spotRevivalOnly,
     spotRadarState: state.spotRadarState,
     spotRavenHealth: { ...state.spotRavenHealth },
