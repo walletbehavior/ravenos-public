@@ -2217,6 +2217,84 @@ test("mobile Raven overlay sheet closes after an available overlay is selected",
   await expect(root.locator("[data-rpw-overlays]")).toHaveAttribute("aria-expanded", "false");
 });
 
+test("exact token lifecycle markers coexist with Raven overlays and survive a Raven risk block", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await page.evaluate(() => {
+    const host = document.createElement("div");
+    host.id = "lifecycleOverlayFixture";
+    host.style.height = "520px";
+    document.querySelector(".terminal-live").append(host);
+    const candles = Array.from({ length: 48 }, (_, index) => ({
+      time: 1_784_200_000 + index * 3600,
+      open: 100 + index * .1,
+      high: 101 + index * .1,
+      low: 99 + index * .1,
+      close: 100.5 + index * .1,
+      volume: 1000 + index,
+    }));
+    const instrumentId = "eip155:4663/pool:0x1111111111111111111111111111111111111111";
+    const migration = {
+      type: "token-migration",
+      marker_text: "M",
+      event_id: "provider-qualified-migration",
+      instrument_id: instrumentId,
+      time: candles[16].time,
+    };
+    const ravenEvent = {
+      type: "raven-observation",
+      event_id: "raven-exact-observation",
+      instrument_id: instrumentId,
+      time: candles[22].time,
+    };
+    const pressure = {
+      type: "pressure-zone",
+      label: "Raven pressure",
+      start_time: candles[18].time,
+      end_time: candles[30].time,
+      low: 100,
+      high: 105,
+    };
+    const workspace = window.RavenOSPriceWorkspace.create(host, { timeframe: "1h" });
+    workspace.setState({
+      state: "live",
+      source: "Verified test provider",
+      marketIdentity: instrumentId,
+      timeframe: "1h",
+      candles,
+      returnedBars: candles.length,
+      instrument: { canonical_id: instrumentId },
+      marketEvents: {
+        role: "annotation_only",
+        identity_scope: "exact_pool",
+        instrument_id: instrumentId,
+        candle_replacement_allowed: false,
+        current_price_authority: false,
+        execution_authority: false,
+        events: [migration],
+      },
+    });
+    workspace.render({
+      events: [migration, ravenEvent],
+      overlays: [pressure],
+      visibleOverlayTypes: ["pressure"],
+      showMarketEvents: true,
+      showRavenAnnotations: true,
+    });
+    window.__RAVENOS_LIFECYCLE_OVERLAY_TEST__ = workspace;
+  });
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["pressure"]);
+
+  await page.evaluate(() => window.__RAVENOS_LIFECYCLE_OVERLAY_TEST__.render({
+    showMarketEvents: true,
+    showRavenAnnotations: false,
+  }));
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+});
+
 test("selected context survives navigation to Discover", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/");

@@ -160,6 +160,7 @@
             <div class="discover-lifecycle-filters" role="group" aria-label="Market lifecycle">
               <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
               <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
+              <button type="button" data-spot-cohort="bonding" aria-pressed="false">Bonding</button>
               <button type="button" data-spot-cohort="migrated" aria-pressed="false">Migrated</button>
               <button type="button" data-spot-cohort="mature" aria-pressed="false">Mature</button>
               <button type="button" data-spot-cohort="pullback" aria-pressed="false">Pullback</button>
@@ -256,7 +257,7 @@
                 <option value="unavailable">Unavailable</option>
               </select>
             </label>
-            <label>Pool age
+            <label>Token age
               <select id="discoverAgeFilter">
                 <option value="all">All</option>
                 <option value="under_24h">Under 24h</option>
@@ -265,6 +266,16 @@
                 <option value="30d_plus">30d+</option>
                 <option value="90d_1y">90d–1y</option>
                 <option value="1y_plus">1y+</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </label>
+            <label>Bonding
+              <select id="discoverBondingFilter">
+                <option value="all">All</option>
+                <option value="under_25">Under 25%</option>
+                <option value="25_75">25–75%</option>
+                <option value="75_90">75–90%</option>
+                <option value="90_100">90–100%</option>
                 <option value="unavailable">Unavailable</option>
               </select>
             </label>

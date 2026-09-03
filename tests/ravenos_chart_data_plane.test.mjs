@@ -1957,6 +1957,117 @@ test("Robinhood exact pools use the qualified CoinGecko network without identity
   }
 });
 
+test("Dexch lifecycle enriches a Robinhood exact-pool chart without replacing candles or Raven overlays", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const secret = "server-only-robinhood-lifecycle-secret";
+  const pairAddress = "0x712633428507bbaa848e6d0c3127cda15eeae6a9";
+  const tokenAddress = "0x730442c8133a9efb4c278b3723043444749ca08b";
+  const quoteAddress = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+  const now = Math.floor(Date.now() / 60_000) * 60;
+  const migratedAt = new Date((now - 3_600) * 1_000).toISOString();
+  const launchedAt = new Date((now - 7_200) * 1_000).toISOString();
+  const providerRows = Array.from({ length: 180 }, (_, index) => {
+    const close = 0.0003 + (179 - index) * 0.00000001;
+    return [now - index * 60, close, close * 1.002, close * 0.998, close * 1.001, index % 5 ? 15 : 0];
+  });
+  try {
+    globalThis.caches = { default: { async match() { return undefined; }, async put() {} } };
+    globalThis.fetch = async (input, init = {}) => {
+      const url = new URL(String(input?.url || input));
+      if (url.hostname === "api.dexch.art") {
+        assert.equal(url.pathname, `/api/v1/tokens/robinhood/${tokenAddress}`);
+        return new Response(JSON.stringify({ data: {
+          chain: "robinhood",
+          address: tokenAddress,
+          name: "Lifecycle",
+          symbol: "LIFE",
+          kind: "POOL",
+          status: "MIGRATED",
+          tier: "GRADUATED",
+          launchpad: "ponsV2",
+          launchTime: launchedAt,
+          migratedAt,
+          lastActivityAt: new Date(now * 1_000).toISOString(),
+          priceUsd: 999,
+          marketCapUsd: 999_000_000,
+          liquidityUsd: 1,
+          txns24h: 44,
+          holderCount: 0,
+          dexPaid: true,
+          quoteToken: quoteAddress,
+          quoteSymbol: "ETH",
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.hostname === "pro-api.coingecko.com") {
+        assert.equal(init.headers["x-cg-pro-api-key"], secret);
+        if (url.pathname.endsWith("/info")) return new Response(JSON.stringify(geckoPoolInfo({
+          network: "robinhood",
+          tokenAddress,
+          quoteAddress,
+        })), { status: 200, headers: { "content-type": "application/json" } });
+        if (!url.pathname.includes("/ohlcv/")) return new Response(JSON.stringify(geckoPoolIdentity({
+          network: "robinhood",
+          pairAddress,
+          baseAddress: tokenAddress,
+          quoteAddress,
+        })), { status: 200, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: providerRows } } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.hostname === "api.dexscreener.com") return new Response(JSON.stringify({ pairs: [{
+        chainId: "robinhood",
+        dexId: "uniswap",
+        pairAddress,
+        pairCreatedAt: (now - 5_400) * 1_000,
+        baseToken: { address: tokenAddress, symbol: "LIFE", name: "Lifecycle" },
+        quoteToken: { address: quoteAddress, symbol: "WETH", name: "Wrapped Ether" },
+        priceUsd: "0.000301",
+        liquidity: { usd: 41_000 },
+        volume: { h24: 90_000 },
+        txns: { h24: { buys: 24, sells: 20 } },
+        marketCap: 301_000,
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.hostname === "ravenos-public-origin.ravenos.xyz") {
+        return new Response(JSON.stringify({ ok: false }), { status: 503, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected test request: ${url}`);
+    };
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=LIFE%2FWETH&timeframe=1m&limit=180&chain=robinhood&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}&include_enrichment=1`), {
+      ONCHAIN_CHART_PROVIDER: "coingecko",
+      ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+      ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true",
+      ONCHAIN_CHART_PROVIDER_SECRET: secret,
+      RAVENOS_DEXCH_DISCOVERY_ENABLED: "1",
+      RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: "1",
+    });
+    const body = await response.json();
+    const payload = body.data || body;
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.candles.length, 180);
+    assert.equal(payload.candles.some((candle) => candle.close === 999), false);
+    assert.equal(payload.market_anatomy.token_created_at, launchedAt);
+    assert.equal(payload.market_anatomy.migrated_at, migratedAt);
+    assert.equal(payload.market_anatomy.token_lifecycle.dex_paid, true);
+    assert.equal(payload.market_anatomy.holder_distribution.holder_count, 4_852);
+    assert.equal(payload.market_events.role, "annotation_only");
+    assert.equal(payload.market_events.instrument_id, payload.instrument.canonical_id);
+    assert.equal(payload.market_events.current_price_authority, false);
+    assert.equal(payload.market_events.execution_authority, false);
+    assert.equal(payload.market_events.events.length, 1);
+    assert.equal(payload.market_events.events[0].type, "token-migration");
+    assert.equal(payload.market_events.events[0].marker_text, "M");
+    assert.equal(Object.hasOwn(payload.market_events.events[0], "price"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("an immutable release reports CoinGecko Basic as qualified only when the exact release gate agrees", () => {
   const base = {
     ONCHAIN_CHART_PROVIDER: "coingecko",

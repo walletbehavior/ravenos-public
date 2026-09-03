@@ -4617,6 +4617,7 @@ function renderSpotMarketProfile(anatomy = {}) {
   if (controls.honeypot === "flagged") chipRows.push(["Honeypot flag", "danger"]);
   else if (controls.honeypot === "not_flagged") chipRows.push(["No honeypot flag", "positive"]);
   if (anatomy?.market_profile?.launch?.completed === true) chipRows.push(["Launch complete", "neutral"]);
+  if (anatomy?.token_lifecycle?.dex_paid === true) chipRows.push(["DEX paid*", "neutral"]);
   for (const [label, tone] of chipRows) {
     const chip = document.createElement("span");
     chip.className = "terminal-profile-chip";
@@ -4640,6 +4641,8 @@ function renderSpotMarketProfile(anatomy = {}) {
   if (section && (distributionVisible || factsVisible)) section.hidden = false;
   const cachedHolders = state.holderListCache.get(currentHolderIdentity()?.key);
   if (cachedHolders) renderVerifiedHolderConcentration(cachedHolders);
+  const dexPaidChip = Array.from(chips?.children || []).find((chip) => chip.textContent === "DEX paid*");
+  if (dexPaidChip) dexPaidChip.title = "Dexch-reported. Payment time is unavailable.";
 }
 
 function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
@@ -4711,6 +4714,15 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
     const shortVolume = finite(activity.volume_usd_5m);
     const poolAgeMs = finite(anatomy.pool_age_ms)
       ?? (finite(activity.market_age_seconds) === null ? null : finite(activity.market_age_seconds) * 1_000);
+    const tokenCreatedAtMs = Date.parse(anatomy.token_created_at || anatomy.token_lifecycle?.created_at || "");
+    const tokenAgeMs = Number.isFinite(tokenCreatedAtMs) ? Math.max(0, Date.now() - tokenCreatedAtMs) : null;
+    const migratedAtMs = Date.parse(anatomy.migrated_at || anatomy.token_lifecycle?.migrated_at || "");
+    const migratedAgo = Number.isFinite(migratedAtMs)
+      ? durationLabel(Math.max(0, (Date.now() - migratedAtMs) / 1_000))
+      : null;
+    const ageValue = tokenAgeMs !== null
+      ? `${ageLabel(tokenAgeMs)}${migratedAgo ? ` · M ${migratedAgo}` : ""}`
+      : ageLabel(poolAgeMs ?? state.selected?.pairAgeMs);
     setAnatomyRows([
       { label: "Liquidity", value: compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }) },
       { label: marketCap !== null ? "Market cap" : "FDV", value: compact(marketCap ?? fdv, { currency: true }) },
@@ -4723,7 +4735,7 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
         value: shortFlow || dayFlow,
       },
       { label: "Holders", value: holderState },
-      { label: "Pool age", value: ageLabel(poolAgeMs ?? state.selected?.pairAgeMs) },
+      { label: tokenAgeMs !== null ? "Token age" : "Pool age", value: ageValue },
       {
         label: "Route",
         value: routeStateLabel(routeState),
@@ -5769,6 +5781,14 @@ function applySpotContextChart(payload = state.context || {}) {
     && annotations?.instrument_id === workspace.instrument?.canonical_id
     ? annotations
     : null;
+  const lifecycleAnnotations = workspace.marketEvents?.role === "annotation_only"
+    && workspace.marketEvents?.identity_scope === "exact_pool"
+    && workspace.marketEvents?.candle_replacement_allowed === false
+    && workspace.marketEvents?.current_price_authority === false
+    && workspace.marketEvents?.execution_authority === false
+    && workspace.marketEvents?.instrument_id === workspace.instrument?.canonical_id
+    ? workspace.marketEvents
+    : null;
   const planContract = payload?.chart_overlays;
   const planOverlays = planContract?.role === "annotation_only"
     && planContract?.candle_replacement_allowed === false
@@ -5786,13 +5806,17 @@ function applySpotContextChart(payload = state.context || {}) {
     venue: state.selected?.dexId || "exact_pool",
     chain: state.selected?.chainId || "",
     timeframe: state.timeframe,
-    events: riskBlocked ? [] : Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : [],
+    events: [
+      ...(Array.isArray(lifecycleAnnotations?.events) ? lifecycleAnnotations.events : []),
+      ...(riskBlocked ? [] : Array.isArray(exactAnnotations?.events) ? exactAnnotations.events : []),
+    ],
     overlays,
     visibleOverlayTypes: riskBlocked ? [] : [
       ...currentRavenOverlayTypes(),
       ...(state.planOverlayEnabled ? ["plan-entry", "plan-target", "plan-risk"] : []),
     ],
     showChartRead: !riskBlocked,
+    showMarketEvents: true,
     showRavenAnnotations: !riskBlocked,
     showVolume: true,
     chartDataSource: "terminal_chart_api",

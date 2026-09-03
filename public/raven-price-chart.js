@@ -218,14 +218,16 @@
   }
 
   function markerFor(event, index = 0) {
-    const above = event.type === "liquidity-warning" || event.type === "toxicity-risk";
+    const migration = event.type === "token-migration";
+    const above = migration || event.type === "liquidity-warning" || event.type === "toxicity-risk";
+    const markerText = String(event.marker_text || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 2);
     return {
       id: `raven-event:${String(event.event_id || event.id || `${event.type || "event"}-${event.time}-${index}`).slice(0, 180)}`,
       time: event.time,
       position: above ? "aboveBar" : "belowBar",
       color: colorFor(event),
-      shape: event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
-      text: "",
+      shape: migration ? "square" : event.type === "opportunity-marker" ? "circle" : above ? "arrowDown" : "arrowUp",
+      text: markerText,
     };
   }
 

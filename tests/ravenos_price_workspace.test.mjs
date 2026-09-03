@@ -11,6 +11,18 @@ const terminal = readFileSync(new URL("../terminal/index.html", import.meta.url)
 const terminalRuntime = readFileSync(new URL("../ravenos-terminal-live.js", import.meta.url), "utf8");
 const overlays = readFileSync(new URL("../raven-chart-overlays.js", import.meta.url), "utf8");
 const worker = readFileSync(new URL("../worker.mjs", import.meta.url), "utf8");
+const shellStyles = readFileSync(new URL("../ravenos-shell.css", import.meta.url), "utf8");
+const workspaceStyles = readFileSync(new URL("../ravenos-workspace.css", import.meta.url), "utf8");
+const landingStyles = readFileSync(new URL("../ravenos-landing.css", import.meta.url), "utf8");
+const guideStyles = readFileSync(new URL("../ravenos-guide.css", import.meta.url), "utf8");
+
+test("desktop workspaces keep support text above the prior micro-type floor", () => {
+  assert.match(shellStyles, /body\.ros-shell-active :is\(small, time, dt, th\) \{ font-size: 11px !important; \}/);
+  assert.match(workspaceStyles, /\.workspace-page th \{ font-size: 11px !important; \}/);
+  assert.match(workspaceStyles, /\.monitor-page :is\(small, time, dt, th\) \{ font-size: 11px !important; \}/);
+  assert.match(landingStyles, /body :is\(small, time, dt, th\) \{ font-size: 11px !important; \}/);
+  assert.match(guideStyles, /body :is\(small, time, dt, th\) \{ font-size: 11px !important; \}/);
+});
 
 test("PriceWorkspace declares provenance states and never generates fallback candles", () => {
   assert.match(workspace, /ravenos\.price_workspace\.v1/);
@@ -23,8 +35,13 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.match(workspace, /Short history/);
   assert.match(workspace, /payload\.instrument\?\.identity_scope/);
   assert.match(workspace, /exactRavenAnnotations\(payload\.raven_annotations, instrument\)/);
+  assert.match(workspace, /exactMarketEvents\(payload\.market_events, instrument\)/);
+  assert.match(workspace, /current_price_authority !== false/);
+  assert.match(workspace, /combinedExactEvents/);
   assert.match(workspace, /value\.instrument_id !== instrument\.canonical_id/);
-  assert.match(workspace, /events: \[\], overlays: \[\], visibleOverlayTypes: \[\]/);
+  assert.match(workspace, /showMarketEvents: true/);
+  assert.match(workspace, /combinedExactEvents\(this\.state\.marketEvents, null, \{ includeRaven: false \}\)/);
+  assert.match(workspace, /showMarketEvents === false/);
   assert.match(workspace, /new CustomEvent\("ravenos:priceworkspace", \{ detail: \{ \.\.\.this\.state \} \}\)/);
   assert.match(workspace, /acceptProviderTransition/);
   assert.match(workspace, /chart_provider_transition_pool_mismatch/);
@@ -67,6 +84,11 @@ test("Terminal uses PriceWorkspace by default and exposes no unresolved build to
   assert.match(terminalRuntime, /No earlier market state was substituted/);
   assert.match(terminalRuntime, /renderSourceDetails/);
   assert.match(terminalRuntime, /renderMarketAnatomy/);
+  assert.match(terminalRuntime, /Token age/);
+  assert.match(terminalRuntime, /DEX paid\*/);
+  assert.match(terminalRuntime, /workspace\.marketEvents/);
+  assert.match(terminalRuntime, /workspace\.marketEvents\?\.execution_authority === false/);
+  assert.match(terminalRuntime, /showMarketEvents: true/);
   assert.match(terminalRuntime, /renderMarkerDetail/);
   assert.match(terminalRuntime, /setPlanOverlayActive/);
   assert.match(terminalRuntime, /qualifiedPlanData/);
@@ -107,6 +129,8 @@ test("all native RavenOS chart surfaces use the shared price or series renderer"
   assert.match(landingRuntime, /expectedCanonicalId/);
   assert.doesNotMatch(landingRuntime, /getContext\("2d"\)|fillRect|drawChart/);
   assert.match(priceChart, /function RavenPriceChart/);
+  assert.match(priceChart, /event\.type === "token-migration"/);
+  assert.match(priceChart, /marker_text/);
   assert.match(priceChart, /function RavenSeriesChart/);
   assert.match(priceChart, /TrackingModeExitMode/);
   assert.match(priceChart, /const inspectedCandle = \(param\)/);

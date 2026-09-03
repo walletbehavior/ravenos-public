@@ -114,6 +114,38 @@ button, input { font: inherit; }
 .landing-close { min-height: 520px; display: grid; place-items: center; align-content: center; padding: 60px 20px; border-top: 1px solid var(--line); text-align: center; background: radial-gradient(circle at 50% 58%, rgba(166,177,190,.06), transparent 30%); }.landing-close > span { color: var(--acid); font: 750 9px var(--mono); text-transform: uppercase; letter-spacing: .1em; }.landing-close h2 { max-width: 1000px; margin: 20px 0 31px; font-size: clamp(46px,7vw,104px); font-weight: 560; line-height: .9; letter-spacing: -.07em; }.landing-close a { display: flex; align-items: center; gap: 34px; padding: 15px 18px; background: var(--acid); color: #07101f; font: 800 9px var(--mono); text-decoration: none; text-transform: uppercase; }
 .landing-footer { min-height: 120px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 30px; padding: 25px clamp(18px,4vw,62px); border-top: 1px solid var(--line); }.landing-footer p { color: var(--dim); font-size: 9px; }.landing-footer nav { justify-self: end; display: flex; gap: 20px; }.landing-footer nav a { color: var(--muted); font-size: 9px; text-decoration: none; }
 
+@media (min-width: 761px) {
+  body :is(small, time, dt, th) { font-size: 11px !important; }
+  .landing-brand small,
+  .landing-nav nav a,
+  .landing-launch,
+  .landing-eyebrow,
+  .landing-truth-row,
+  .landing-product-health span,
+  .landing-product-bar > a,
+  .landing-live-list header > span,
+  .landing-read header > span,
+  .landing-opportunity small,
+  .landing-opportunity > span:last-child,
+  .landing-market-preview header span,
+  .landing-market-preview header small,
+  .landing-quote span,
+  .landing-market-facts dt,
+  .landing-read-body > span,
+  .landing-read dt,
+  .landing-read > a,
+  .landing-product-foot,
+  .landing-sequence li > span,
+  .landing-sequence li a,
+  .landing-edge-metrics small,
+  .landing-edge footer,
+  .landing-footer p,
+  .landing-footer nav a { font-size: 11px; }
+
+  .landing-market-facts dd,
+  .landing-read dd { font-size: 12px; }
+}
+
 @media (max-width: 1120px) {
   .landing-product-grid { grid-template-columns: 220px minmax(390px,1fr); }.landing-read { grid-column: 1 / -1; grid-template-columns: 220px 1fr 1fr 180px; grid-template-rows: auto; border-top: 1px solid var(--line); }.landing-read > header, .landing-read-body, .landing-read dl { border-bottom: 0; border-right: 1px solid var(--line); }.landing-read-body { align-content: center; }.landing-read-body h2 { font-size: 20px; }.landing-read > a { align-self: stretch; }.landing-sequence ol, .landing-edge-metrics { grid-template-columns: 1fr 1fr; }.landing-sequence li:nth-child(2) { border-right: 0; }.landing-sequence li:nth-child(-n+2) { border-bottom: 1px solid var(--line); }.landing-atlas-band { grid-template-columns: 1fr; }.landing-atlas-band > div:first-child { border-right: 0; border-bottom: 1px solid var(--line); }.landing-edge > header { grid-template-columns: 150px 1fr; }.landing-edge header p { grid-column: 2; }
 }

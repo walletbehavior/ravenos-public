@@ -158,6 +158,9 @@ test("the quick guide and FAQ explain the customer workflow without release or e
   await expect(page.getByRole("heading", { name: "The basics, without the jargon." })).toBeVisible();
   await expect(page.locator("details").first()).toContainText(/No.*general market information and research tools/s);
   await expect(page.locator("body")).toContainText("Research only · Not financial advice");
+  await expect(page.locator("body")).toContainText("Can I choose USDC or the chain’s native asset?");
+  await expect(page.locator("body")).toContainText("USDC on Ethereum, Base, Robinhood Chain, Solana, or BNB Chain is a separate balance");
+  await expect(page.locator("body")).toContainText("Bridging and the order are not atomic");
 
   await page.goto("/");
   await expect(page.locator(".landing-footer")).toContainText("Not financial advice");

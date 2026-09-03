@@ -153,6 +153,7 @@ a { color: inherit; text-decoration: none; }
 .policy-copy p:last-child { margin-bottom: 0; }
 
 @media (min-width: 761px) {
+  body :is(small, time, dt, th) { font-size: 11px !important; }
   .guide-brand small,
   .guide-product-label,
   .guide-nav a,
@@ -169,7 +170,7 @@ a { color: inherit; text-decoration: none; }
   .guide-actions a,
   .faq-aside header span,
   .faq-aside dt,
-  .guide-footer { font-size: 10px; }
+  .guide-footer { font-size: 11px; }
   .guide-flow p,
   .guide-card p,
   .guide-card dd,
@@ -177,7 +178,7 @@ a { color: inherit; text-decoration: none; }
   .guide-adapter p,
   .guide-callout strong,
   .guide-callout p,
-  .faq-aside dd { font-size: 11px; }
+  .faq-aside dd { font-size: 12px; }
 }
 
 @media (max-width: 1040px) {

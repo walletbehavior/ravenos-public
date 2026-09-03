@@ -422,18 +422,18 @@
 body.raven-chart-focus { overflow: hidden; }
 
 @media (min-width: 821px) {
-  .rpw-provenance { font-size: 11px; }
+  .rpw-provenance { font-size: 12px; }
   .rpw-provenance button,
   .rpw-indicator-trigger,
   .rpw-indicator-popover header span,
   .rpw-indicator-popover > button span,
   .rpw-marker-index button,
   .rpw-marker-index > span,
-  .rpw-coverage-note { font-size: 10px; }
+  .rpw-coverage-note { font-size: 11px; }
   .rpw-indicator-popover header strong,
-  .rpw-indicator-popover > button strong { font-size: 11px; }
-  .rpw-crosshair small { font-size: 8px; }
-  .rpw-crosshair strong { font-size: 10px; }
+  .rpw-indicator-popover > button strong { font-size: 12px; }
+  .rpw-crosshair small { font-size: 10px; }
+  .rpw-crosshair strong { font-size: 11px; }
 }
 
 @media (min-width: 821px) and (max-width: 1350px) {

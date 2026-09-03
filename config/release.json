@@ -36,6 +36,45 @@
       "required_attribution": "Data provided by CoinGecko"
     }
   },
+  "dexch_discovery_provider": {
+    "contract_version": "ravenos.dexch_discovery_provider.v1",
+    "provider_role": "replaceable_discovery_and_lifecycle_enrichment",
+    "supported_chains": [
+      "solana",
+      "robinhood",
+      "bsc"
+    ],
+    "preview_enabled": true,
+    "production_enabled": false,
+    "commercial_use_acknowledged": false,
+    "production_promotion_eligible": false,
+    "production_blockers": [
+      "commercial_use_rights_undocumented"
+    ],
+    "empirical_evaluation": {
+      "completed_at": "2026-09-03T19:48:48.923Z",
+      "sample_size_per_chain": 25,
+      "chains": [
+        "solana",
+        "robinhood",
+        "bsc"
+      ],
+      "raw_token_addresses_emitted": false,
+      "reproducible_command": "pnpm evaluate:dexch",
+      "result": "useful_for_discovery_and_lifecycle_not_promoted_to_price_holder_or_execution_authority"
+    },
+    "websocket_probe": {
+      "completed_at": "2026-09-03",
+      "channel": "trade:new",
+      "scope": "rate_shaped_global_sample",
+      "frames_received": 12,
+      "observation_seconds": 1.444,
+      "result": "exact_asset_discovery_frames_observed_not_chain_completeness_proof"
+    },
+    "current_price_authority": false,
+    "execution_authority": false,
+    "verified_holder_authority": false
+  },
   "public_origin": {
     "base_url": "https://ravenos-public-origin.ravenos.xyz/public/ravenos",
     "contract_version": "ravenos_public_origin_v3",

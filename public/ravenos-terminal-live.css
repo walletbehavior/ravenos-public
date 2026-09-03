@@ -1574,7 +1574,7 @@ button, input, select { font: inherit; }
   .terminal-marker-grid dt,
   .terminal-fingerprint span,
   .terminal-holder-map-head span,
-  .terminal-holder-legend dt { font-size: 10px; }
+  .terminal-holder-legend dt { font-size: 11px; }
 
   .terminal-state-pair strong,
   .terminal-boundary > span,
@@ -1624,16 +1624,16 @@ button, input, select { font: inherit; }
   .terminal-profile-links a,
   .terminal-profile-credit,
   .terminal-fingerprint code,
-  .terminal-marker-detail header button { font-size: 10px; }
+  .terminal-marker-detail header button { font-size: 11px; }
 
   .terminal-book-head,
   .terminal-tape-head,
   .terminal-book-balance span,
   .terminal-market-rail header span,
-  .terminal-book-spread { font-size: 9.5px; }
+  .terminal-book-spread { font-size: 10.5px; }
   .terminal-book,
-  .terminal-tape { font-size: 10px; line-height: 1.3; }
-  .terminal-alpha-card > p { font-size: 11px !important; }
+  .terminal-tape { font-size: 11px; line-height: 1.3; }
+  .terminal-alpha-card > p { font-size: 12px !important; }
   .terminal-alpha-card > strong,
   .terminal-why strong,
   .terminal-context-grid dd,
@@ -1641,7 +1641,7 @@ button, input, select { font: inherit; }
   .terminal-plan-toggle strong,
   .terminal-preview-result dd,
   .terminal-anatomy-grid dd,
-  .terminal-marker-grid dd { font-size: 11px; }
+  .terminal-marker-grid dd { font-size: 12px; }
 }
 
 @media (max-width: 1180px) {

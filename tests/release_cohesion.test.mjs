@@ -207,6 +207,9 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED/);
+  assert.match(source, /RAVENOS_DEXCH_DISCOVERY_ENABLED/);
+  assert.match(source, /RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED/);
+  assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE/);
@@ -256,6 +259,16 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.ok(releaseConfig.onchain_chart_provider.required_intervals.includes("1m"));
   assert.equal(releaseConfig.onchain_chart_provider.one_minute_minimum_useful_bars, 120);
   assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
+  assert.equal(releaseConfig.dexch_discovery_provider.contract_version, "ravenos.dexch_discovery_provider.v1");
+  assert.deepEqual(releaseConfig.dexch_discovery_provider.supported_chains, ["solana", "robinhood", "bsc"]);
+  assert.equal(releaseConfig.dexch_discovery_provider.production_enabled, false);
+  assert.equal(releaseConfig.dexch_discovery_provider.production_promotion_eligible, false);
+  assert.deepEqual(releaseConfig.dexch_discovery_provider.production_blockers, ["commercial_use_rights_undocumented"]);
+  assert.equal(releaseConfig.dexch_discovery_provider.empirical_evaluation.sample_size_per_chain, 25);
+  assert.deepEqual(releaseConfig.dexch_discovery_provider.empirical_evaluation.chains, ["solana", "robinhood", "bsc"]);
+  assert.equal(releaseConfig.dexch_discovery_provider.empirical_evaluation.raw_token_addresses_emitted, false);
+  assert.equal(releaseConfig.dexch_discovery_provider.current_price_authority, false);
+  assert.equal(releaseConfig.dexch_discovery_provider.execution_authority, false);
   const promote = readFileSync("scripts/promote-release.mjs", "utf8");
   assert.match(promote, /Production promotion blocked by on-chain chart-provider gate/);
   assert.match(promote, /production_provider_plan === "demo"/);

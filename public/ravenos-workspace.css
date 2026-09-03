@@ -1958,9 +1958,10 @@
 }
 
 @media (min-width: 761px) {
+  .monitor-page :is(small, time, dt, th) { font-size: 11px !important; }
   .workspace-page small,
   .workspace-page dt,
-  .workspace-page th { font-size: 10px !important; }
+  .workspace-page th { font-size: 11px !important; }
 
   .workspace-page :is(
     .workspace-kicker,
@@ -2042,7 +2043,7 @@
     .atlas-insider-row a,
     .atlas-insider-head span,
     .atlas-insider-ledger strong
-  ) { font-size: 10px; }
+  ) { font-size: 11px; }
 
   .workspace-page :is(
     .discover-token-raven > strong,
@@ -2052,7 +2053,7 @@
     .atlas-decision-note p,
     .atlas-market-meaning p,
     .atlas-insider-row > p
-  ) { font-size: 11px; }
+  ) { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

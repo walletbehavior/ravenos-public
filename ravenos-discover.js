@@ -36,6 +36,7 @@ const state = {
   spotFlowFilter: "all",
   spotMoveFilter: "all",
   spotAgeFilter: "all",
+  spotBondingFilter: "all",
   spotRevivalOnly: false,
   spotBundleFilter: "all",
   spotRouteFilter: "all",
@@ -843,6 +844,17 @@ function spotMarketAge(seconds) {
   return `${Math.max(1, Math.round(value / 31_536_000))}y old`;
 }
 
+function spotTokenAge(row = {}) {
+  const age = finite(row?.market?.token_age_seconds);
+  return age === null ? "" : `Token ${spotMarketAge(age)}`;
+}
+
+function spotMigrationAge(row = {}) {
+  const value = Date.parse(row?.lifecycle_evidence?.migrated_at || "");
+  if (!Number.isFinite(value)) return "";
+  return `M ${spotMarketAge(Math.max(0, (Date.now() - value) / 1_000)).replace(/ old$/, " ago")}`;
+}
+
 function tokenPrice(value) {
   const result = finite(value);
   if (result === null) return "";
@@ -1113,6 +1125,7 @@ function updateSpotRefineSummary() {
     state.spotFlowFilter !== "all",
     state.spotMoveFilter !== "all",
     state.spotAgeFilter !== "all",
+    state.spotBondingFilter !== "all",
     state.spotRevivalOnly,
     state.spotBundleFilter !== "all",
     state.spotRouteFilter !== "all",
@@ -1259,6 +1272,7 @@ function cohortMatches(row) {
   const cohort = text(row?.discovery?.migration_cohort?.value, "");
   const behavior = text(row?.discovery?.primary_behavior_state?.value, "");
   if (filter === "new") return cohort === "initial_discovery" || behavior === "initial_discovery";
+  if (filter === "bonding") return cohort === "pre_migration";
   if (filter === "migrated") return cohort === "post_migration" || behavior === "post_migration_expansion";
   if (filter === "mature") return cohort === "mature";
   if (filter === "pullback") return ["pullback_holding", "sell_pressure_absorption"].includes(behavior);
@@ -1378,7 +1392,7 @@ function advancedFiltersMatch(row) {
     if (state.spotMoveFilter === "down_5" && !(move !== null && move <= -5)) return false;
     if (state.spotMoveFilter === "down_20" && !(move !== null && move <= -20)) return false;
   }
-  if (!numericBand(market.market_age_seconds, state.spotAgeFilter, {
+  if (!numericBand(market.token_age_seconds, state.spotAgeFilter, {
     under_24h: [0, 86_400],
     "1d_14d": [86_400, 14 * 86_400],
     "14d_90d": [14 * 86_400, 90 * 86_400],
@@ -1386,6 +1400,12 @@ function advancedFiltersMatch(row) {
     "90d_1y": [90 * 86_400, 365 * 86_400],
     "1y_plus": [365 * 86_400, Number.POSITIVE_INFINITY],
     "14d_plus": [14 * 86_400, Number.POSITIVE_INFINITY],
+  })) return false;
+  if (!numericBand(row?.lifecycle_evidence?.progress_bps, state.spotBondingFilter, {
+    under_25: [0, 2_500],
+    "25_75": [2_500, 7_500],
+    "75_90": [7_500, 9_000],
+    "90_100": [9_000, 10_001],
   })) return false;
   const bundle = row?.discovery?.control_intelligence?.bundled_pct;
   const bundledPct = bundle?.availability === "available" ? finite(bundle.value) : null;
@@ -1740,6 +1760,8 @@ function renderSpotEvidence(shell, row) {
   syncSpotInspectActions(rowAnchor);
   const overview = append(body, "dl", "discover-token-evidence-grid", "");
   overview.textContent = "";
+  appendEvidenceItem(overview, "Token age", spotMarketAge(row.market?.token_age_seconds) || "Unavailable");
+  appendEvidenceItem(overview, "Migrated", row.lifecycle_evidence?.migrated_at ? when(row.lifecycle_evidence.migrated_at) : "Not observed");
   appendEvidenceItem(overview, factFreshness.current ? "Behavior" : "Last observed behavior", title(discovery.primary_behavior_state?.value, "Forming"));
   appendEvidenceItem(overview, "Migration cohort", title(discovery.migration_cohort?.value, "Forming"));
   appendEvidenceItem(overview, "Velocity state", title(discovery.velocity_state?.value, "Forming"));
@@ -1883,7 +1905,8 @@ function updateSpotTokenRow(anchor, row, index) {
     text(row.quote_symbol, ""),
     row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
     `CA ${spotTokenFingerprint(row.token_address)}`,
-    spotMarketAge(row.market?.market_age_seconds),
+    spotTokenAge(row),
+    spotMigrationAge(row),
   ].filter(Boolean).join(" · ");
   if (marketIdentity) marketId.append(document.createTextNode(`${marketIdentity} · `));
   const marketAge = append(marketId, "time", "discover-token-quote-age", "");
@@ -1933,6 +1956,8 @@ function updateSpotTokenRow(anchor, row, index) {
     traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
   );
   renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
+  const bondingProgress = finite(row?.lifecycle_evidence?.progress_bps);
+  renderTokenStat(anatomy, "Bonding", bondingProgress === null ? "" : `${Math.min(100, Math.max(0, bondingProgress / 100)).toFixed(bondingProgress % 100 ? 1 : 0)}%`);
   const raven = append(anchor, "div", "discover-token-raven", "");
   raven.textContent = "";
   const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
@@ -3277,6 +3302,7 @@ function bind() {
     ["discoverFlowFilter", "spotFlowFilter"],
     ["discoverMoveFilter", "spotMoveFilter"],
     ["discoverAgeFilter", "spotAgeFilter"],
+    ["discoverBondingFilter", "spotBondingFilter"],
     ["discoverBundleFilter", "spotBundleFilter"],
     ["discoverRouteFilter", "spotRouteFilter"],
     ["discoverAssetFilter", "spotAssetFilter"],
@@ -3358,6 +3384,7 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotFlowFilter: state.spotFlowFilter,
     spotMoveFilter: state.spotMoveFilter,
     spotAgeFilter: state.spotAgeFilter,
+    spotBondingFilter: state.spotBondingFilter,
     spotRevivalOnly: state.spotRevivalOnly,
     spotRadarState: state.spotRadarState,
     spotRavenHealth: { ...state.spotRavenHealth },

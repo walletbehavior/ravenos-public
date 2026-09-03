@@ -233,6 +233,7 @@ const spotAttentionRows = [
       liquidity_usd: 82_000,
       holder_count: 1_240,
       market_age_seconds: 7_200,
+      token_age_seconds: 7_200,
     },
     broader_attention: {
       state: "raven_observed_first",
@@ -1105,7 +1106,7 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator(".discover-token-row").first()).toContainText("+8.50%");
   await expect(page.locator(".discover-token-row").first()).toContainText("72");
   await expect(page.locator(".discover-token-row").first()).toContainText("1.24K");
-  await expect(page.locator(".discover-token-row").first()).toContainText("2h old");
+  await expect(page.locator(".discover-token-row").first()).toContainText("Token 2h old");
   await expect(page.locator(".discover-token-row").first().locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*(?:Reacceleration|Upside Velocity)/s);
   await expect(page.locator(".discover-token-row").first()).toHaveAttribute("data-signal-score", /\d+/);
   await expect(page.locator("#discoverTokenTapeList")).not.toContainText(/\b[CDQ]\d{2}\b/);

@@ -503,8 +503,9 @@ body.ros-shell-active .terminal-live,
 body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height)); }
 
 @media (min-width: 761px) {
+  body.ros-shell-active :is(small, time, dt, th) { font-size: 11px !important; }
   .ros-workspace-nav-item,
-  .ros-context-trigger { font-size: 11px; }
+  .ros-context-trigger { font-size: 12px; }
   .ros-command-copy strong { font-size: 12px; }
   .ros-command-copy small,
   .ros-command-trigger kbd,
@@ -532,7 +533,7 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
   .ros-command-result-group,
   .ros-command-result-detail,
   .ros-command-result small,
-  .ros-command-palette > footer { font-size: 10px; }
+  .ros-command-palette > footer { font-size: 11px; }
   .ros-context-intro p,
   .ros-context-section p,
   .ros-context-section li,
@@ -542,7 +543,7 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
   .ros-utility-list strong,
   .ros-more-links strong,
   .ros-provider-panel > header p,
-  .ros-provider-row strong { font-size: 11px; }
+  .ros-provider-row strong { font-size: 12px; }
   .ros-command-result strong { font-size: 13px; }
 }
 

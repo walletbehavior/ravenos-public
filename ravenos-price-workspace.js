@@ -351,6 +351,27 @@ function exactRavenAnnotations(value, instrument) {
   return value;
 }
 
+function exactMarketEvents(value, instrument) {
+  if (!value || value.role !== "annotation_only" || value.identity_scope !== "exact_pool") return null;
+  if (
+    value.candle_replacement_allowed !== false
+    || value.current_price_authority !== false
+    || value.execution_authority !== false
+  ) return null;
+  if (!instrument?.canonical_id || value.instrument_id !== instrument.canonical_id) return null;
+  const events = (Array.isArray(value.events) ? value.events : []).filter((event) => (
+    event?.instrument_id === instrument.canonical_id
+    && event?.time
+  ));
+  return { ...value, event_count: events.length, events };
+}
+
+function combinedExactEvents(marketEvents, ravenAnnotations, { includeRaven = true } = {}) {
+  const lifecycle = Array.isArray(marketEvents?.events) ? marketEvents.events : [];
+  const raven = includeRaven && Array.isArray(ravenAnnotations?.events) ? ravenAnnotations.events : [];
+  return [...lifecycle, ...raven];
+}
+
 function sameExpectedIdentity(chain, left, right) {
   const first = String(left || "").trim();
   const second = String(right || "").trim();
@@ -495,6 +516,7 @@ export class PriceWorkspace {
       instrumentScope: "exact_pool",
       availableScopes: {},
       ravenAnnotations: null,
+      marketEvents: null,
       candleSeries: null,
       continuity: null,
       derivation: null,
@@ -1021,7 +1043,15 @@ export class PriceWorkspace {
     this.backfillArmed = false;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
-    if (!preserveChart) this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [], showChartRead: true, showRavenAnnotations: true };
+    if (!preserveChart) this.renderInput = {
+      ...this.renderInput,
+      events: [],
+      overlays: [],
+      visibleOverlayTypes: [],
+      showChartRead: true,
+      showMarketEvents: true,
+      showRavenAnnotations: true,
+    };
     this.historyBatchLimit = historyLimit(request, timeframe);
     this.historyExhausted = false;
     if (!preserveChart) this.visibleRange = null;
@@ -1051,6 +1081,7 @@ export class PriceWorkspace {
         instrumentScope: request.instrumentScope || "exact_pool",
         availableScopes: {},
         ravenAnnotations: null,
+        marketEvents: null,
         candleSeries: null,
         continuity: null,
         derivation: null,
@@ -1137,6 +1168,7 @@ export class PriceWorkspace {
         throw new Error("The chart provider returned a different exact market than the one selected.");
       }
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
+      const marketEvents = exactMarketEvents(payload.market_events, instrument);
       const effectiveRavenAnnotations = ravenAnnotations;
       this.resetExactPoolTape(instrument.canonical_id, timeframe);
       const state = this.setState({
@@ -1158,6 +1190,7 @@ export class PriceWorkspace {
         instrumentScope: payload.instrument_scope || payload.instrument?.identity_scope || request.instrumentScope || "exact_pool",
         availableScopes: payload.available_scopes || {},
         ravenAnnotations: effectiveRavenAnnotations,
+        marketEvents,
         candleSeries: payload.candle_series || null,
         continuity: payload.continuity || null,
         derivation: payload.derivation || payload.candle_series?.derivation || null,
@@ -1178,7 +1211,11 @@ export class PriceWorkspace {
       });
       this.renderInput = {
         ...this.renderInput,
-        events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(effectiveRavenAnnotations?.events) ? effectiveRavenAnnotations.events : [],
+        events: this.renderInput.showMarketEvents === false
+          ? []
+          : combinedExactEvents(marketEvents, effectiveRavenAnnotations, {
+            includeRaven: this.renderInput.showRavenAnnotations !== false,
+          }),
         overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(effectiveRavenAnnotations?.overlays) ? effectiveRavenAnnotations.overlays : [],
       };
       for (const trade of Array.isArray(payload.recent_trades) ? payload.recent_trades : []) this.tradeBuffer.append(trade);
@@ -1217,11 +1254,14 @@ export class PriceWorkspace {
       if (!validateExpectedInstrument(instrument, request.expectedIdentity)) return false;
       this.acceptProviderTransition(payload);
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
+      const marketEvents = exactMarketEvents(payload.market_events, instrument);
       const hasAnnotations = Boolean(ravenAnnotations);
+      const hasMarketEvents = Boolean(marketEvents);
       this.setState({
         marketState: { ...this.state.marketState, ...(payload.market_state || {}) },
         availableScopes: payload.available_scopes || this.state.availableScopes,
         ravenAnnotations: ravenAnnotations || this.state.ravenAnnotations,
+        marketEvents: marketEvents || this.state.marketEvents,
         marketAnatomy: payload.market_anatomy || this.state.marketAnatomy,
         alphaLayers: payload.alpha_layers || this.state.alphaLayers,
         marketHealth: payload.market_health || this.state.marketHealth,
@@ -1231,11 +1271,15 @@ export class PriceWorkspace {
         marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || this.state.marketActivityState,
         enrichmentState: payload.enrichment_state || "complete",
       });
-      if (hasAnnotations) {
+      if (hasAnnotations || hasMarketEvents) {
         this.renderInput = {
           ...this.renderInput,
-          events: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations.events) ? ravenAnnotations.events : [],
-          overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations.overlays) ? ravenAnnotations.overlays : [],
+          events: this.renderInput.showMarketEvents === false
+            ? []
+            : combinedExactEvents(marketEvents || this.state.marketEvents, ravenAnnotations || this.state.ravenAnnotations, {
+              includeRaven: this.renderInput.showRavenAnnotations !== false,
+            }),
+          overlays: this.renderInput.showRavenAnnotations === false ? [] : Array.isArray(ravenAnnotations?.overlays) ? ravenAnnotations.overlays : [],
         };
         this.render(this.renderInput);
       }
@@ -1279,6 +1323,7 @@ export class PriceWorkspace {
       instrumentScope,
       availableScopes: {},
       ravenAnnotations: null,
+      marketEvents: null,
       candleSeries: null,
       continuity: null,
       derivation: null,
@@ -1292,8 +1337,18 @@ export class PriceWorkspace {
 
   render(input = {}) {
     this.renderInput = { ...this.renderInput, ...input };
+    if (this.renderInput.showMarketEvents === false) {
+      this.renderInput = { ...this.renderInput, events: [] };
+    }
     if (this.renderInput.showRavenAnnotations === false) {
-      this.renderInput = { ...this.renderInput, events: [], overlays: [], visibleOverlayTypes: [] };
+      this.renderInput = {
+        ...this.renderInput,
+        events: this.renderInput.showMarketEvents === false
+          ? []
+          : combinedExactEvents(this.state.marketEvents, null, { includeRaven: false }),
+        overlays: [],
+        visibleOverlayTypes: [],
+      };
     }
     this.paintChartRead();
     if (this.state.state === PRICE_WORKSPACE_STATES.LOADING && this.state.candles.length && this.chartHandle) {
@@ -1547,6 +1602,7 @@ export class PriceWorkspace {
     this.state.providerSelection = payload.provider_selection || this.state.providerSelection;
     this.state.providerUsage = payload.provider_usage || this.state.providerUsage;
     this.state.marketAnatomy = payload.market_anatomy || this.state.marketAnatomy;
+    this.state.marketEvents = exactMarketEvents(payload.market_events, this.state.instrument) || this.state.marketEvents;
     if (providerChanged) this.state.providerTransitionCount = Number(this.state.providerTransitionCount || 0) + 1;
     return true;
   }

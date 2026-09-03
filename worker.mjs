@@ -120,6 +120,12 @@ import {
   validateExactCandleIdentity,
 } from "./lib/chart_continuity.mjs";
 import { classifyOnchainMarketState } from "./lib/onchain_market_state.mjs";
+import {
+  DEXCH_DISCOVERY_SCHEMA,
+  DexchDiscoveryProvider,
+  dexchLifecycleEnrichment,
+  resolveDexchDiscoveryRuntime,
+} from "./lib/dexch_discovery_provider.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import {
   ONCHAIN_HOLDER_SCHEMA,
@@ -436,6 +442,7 @@ function authenticatedAppBoundary(request) {
       "/api/trade/shadow-readiness",
       "/api/dexscreener/pair",
       "/api/dexscreener/search",
+      "/api/discovery/tokens",
       "/api/onchain/holders",
       "/api/onchain/trades",
     ]).has(url.pathname)
@@ -474,6 +481,11 @@ const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
 const geckoMarketProfileCache = new Map();
 const geckoTradeCache = new Map();
+const dexchDiscoveryProvider = new DexchDiscoveryProvider({
+  // Resolve fetch at request time so Worker tests and local harnesses can install
+  // an isolated transport without rebuilding the module singleton.
+  fetchFn: (...args) => globalThis.fetch(...args),
+});
 const onchainPulseCache = new Map();
 const jupiterVelocityCache = new Map();
 const hyperliquidCache = new Map();
@@ -882,6 +894,7 @@ function routeCacheHeaders(pathname) {
   if (pathname === "/api/atlas/sources") return { "cache-control": "public, max-age=3600, stale-while-revalidate=86400" };
   if (pathname.startsWith("/api/atlas/")) return { "cache-control": "private, no-store" };
   if (pathname === "/api/instruments/search") return { "cache-control": "public, max-age=30, stale-while-revalidate=60" };
+  if (pathname === "/api/discovery/tokens") return { "cache-control": "public, max-age=10, s-maxage=15, stale-while-revalidate=30" };
   if (pathname === "/api/brief") return { "cache-control": "public, max-age=300, stale-while-revalidate=900" };
   if (pathname === "/api/status" || pathname === "/api/claims") return { "cache-control": "public, max-age=60, stale-while-revalidate=120" };
   return { "cache-control": "public, max-age=900, stale-while-revalidate=1800" };
@@ -2073,6 +2086,74 @@ function attachRavenChartAnnotations(providerPayload, ravenPayload) {
   };
 }
 
+function dexchLifecycleChartContract(token, providerPayload, { chain = "", tokenAddress = "" } = {}) {
+  if (
+    !token
+    || !providerPayload?.ok
+    || providerPayload?.instrument?.identity_scope !== "exact_pool"
+    || token.chain !== String(chain || "").toLowerCase()
+    || !sameOnchainAddress(chain, token.address, tokenAddress)
+  ) return null;
+  const lifecycle = dexchLifecycleEnrichment(token, { nowMs: Date.now() });
+  if (!lifecycle) return null;
+  const candles = Array.isArray(providerPayload.candles) ? providerPayload.candles : [];
+  const migrationSeconds = Math.trunc(Date.parse(lifecycle.migrated_at || "") / 1_000);
+  const firstCandle = Number(candles[0]?.time);
+  const finalCandle = Number(candles.at(-1)?.time);
+  const finalBucketEnd = finalCandle + timeframeSeconds(providerPayload.timeframe || "1h");
+  const events = [];
+  if (
+    Number.isFinite(migrationSeconds)
+    && Number.isFinite(firstCandle)
+    && Number.isFinite(finalCandle)
+    && migrationSeconds >= firstCandle
+    && migrationSeconds < finalBucketEnd
+  ) {
+    const nearest = candles.reduce((best, candle) => (
+      Math.abs(Number(candle.time) - migrationSeconds) < Math.abs(Number(best.time) - migrationSeconds) ? candle : best
+    ), candles[0]);
+    events.push({
+      type: "token-migration",
+      severity: "info",
+      marker_text: "M",
+      label: "Migration",
+      time: nearest.time,
+      exact_observed_at: lifecycle.migrated_at,
+      event_id: `dexch-migration:${token.provider_token_id}:${lifecycle.migrated_at}`.slice(0, 180),
+      instrument_id: providerPayload.instrument.canonical_id,
+      evidence_class: "DEXCH_REPORTED",
+      provider: "dexch",
+      inspection: {
+        source_evidence: {
+          label: "Dexch-reported migration",
+          observed_at: lifecycle.observed_at,
+          event_at: lifecycle.migrated_at,
+          raven_verified: false,
+        },
+        support: [],
+        contradiction: lifecycle.quality?.contradictions || [],
+        evidence_maturity: "provider_reported",
+      },
+    });
+  }
+  return {
+    schema_version: "ravenos.chart_market_events.v1",
+    role: "annotation_only",
+    source: "Dexch lifecycle",
+    evidence_class: "DEXCH_REPORTED",
+    observed_at: lifecycle.observed_at,
+    identity_scope: "exact_pool",
+    instrument_id: providerPayload.instrument.canonical_id,
+    market_identity: providerPayload.market_identity || null,
+    event_count: events.length,
+    events,
+    candle_replacement_allowed: false,
+    current_price_authority: false,
+    execution_authority: false,
+    raven_verified: false,
+  };
+}
+
 async function fetchDexPaprikaPoolIdentity({ env = {}, chain = "", pairAddress = "", tokenAddress = "", quoteAddress = "" } = {}) {
   const providerId = "dexpaprika";
   const runtime = onchainProviderRuntime(providerId, env);
@@ -3076,6 +3157,295 @@ function parseOnchainPulseChains(value) {
   return [...new Set(requested)].slice(0, 5);
 }
 
+const DEXCH_DISCOVERY_CHAINS = Object.freeze(new Set(["solana", "robinhood", "bsc"]));
+const DEXCH_DISCOVERY_QUERY_FIELDS = Object.freeze(new Set([
+  "chains",
+  "preset",
+  "sort",
+  "order",
+  "search",
+  "cursor",
+  "limit",
+  "min_market_cap_usd",
+  "max_market_cap_usd",
+  "min_liquidity_usd",
+  "max_liquidity_usd",
+  "min_volume_24h_usd",
+  "max_volume_24h_usd",
+  "min_transactions_24h",
+  "max_transactions_24h",
+  "min_holders",
+  "max_holders",
+  "min_progress_bps",
+  "max_progress_bps",
+  "min_age_minutes",
+  "max_age_minutes",
+  "has_socials",
+  "dex_paid",
+  "safe_only",
+]));
+
+function dexchDiscoveryTokenKey(chain, address) {
+  const normalizedChain = String(chain || "").trim().toLowerCase();
+  const normalizedAddress = String(address || "").trim();
+  if (!normalizedChain || !normalizedAddress) return "";
+  return `${normalizedChain}:${normalizedChain === "solana" ? normalizedAddress : normalizedAddress.toLowerCase()}`;
+}
+
+function dexchBooleanQuery(value, field) {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  const error = new Error(`dexch_${field}_invalid`);
+  error.status = 400;
+  throw error;
+}
+
+function dexchDiscoveryFilters(url) {
+  if ([...url.searchParams.keys()].some((field) => !DEXCH_DISCOVERY_QUERY_FIELDS.has(field))) {
+    const error = new Error("dexch_discovery_request_invalid");
+    error.status = 400;
+    throw error;
+  }
+  const filters = {
+    chains: url.searchParams.get("chains") || "solana,robinhood,bsc",
+    preset: url.searchParams.get("preset") || undefined,
+    sort: url.searchParams.get("sort") || "trending",
+    order: url.searchParams.get("order") || "desc",
+    search: url.searchParams.get("search") || undefined,
+    cursor: url.searchParams.get("cursor") || undefined,
+    limit: url.searchParams.get("limit") || 50,
+  };
+  for (const field of [
+    "min_market_cap_usd",
+    "max_market_cap_usd",
+    "min_liquidity_usd",
+    "max_liquidity_usd",
+    "min_volume_24h_usd",
+    "max_volume_24h_usd",
+    "min_transactions_24h",
+    "max_transactions_24h",
+    "min_holders",
+    "max_holders",
+    "min_progress_bps",
+    "max_progress_bps",
+    "min_age_minutes",
+    "max_age_minutes",
+  ]) filters[field] = url.searchParams.get(field) || undefined;
+  filters.has_socials = dexchBooleanQuery(url.searchParams.get("has_socials"), "has_socials");
+  filters.dex_paid = dexchBooleanQuery(url.searchParams.get("dex_paid"), "dex_paid");
+  filters.safe_only = dexchBooleanQuery(url.searchParams.get("safe_only"), "safe_only");
+  return filters;
+}
+
+function attachDexchLifecycle(row, token, fetchedAt) {
+  const lifecycle = dexchLifecycleEnrichment(token, { nowMs: Date.parse(fetchedAt) || Date.now() });
+  if (!lifecycle) return row;
+  const previousAge = optionalFiniteNumber(row?.market?.market_age_seconds);
+  const tokenAge = optionalFiniteNumber(lifecycle.token_age_seconds);
+  return {
+    ...row,
+    market: {
+      ...(row.market || {}),
+      pool_age_seconds: previousAge,
+      token_age_seconds: tokenAge,
+      token_created_at: lifecycle.created_at,
+      age_basis: tokenAge === null ? "pool_creation_fallback" : "dexch_reported_token_creation",
+      market_age_seconds: tokenAge ?? previousAge,
+    },
+    lifecycle_evidence: lifecycle,
+    provider_enrichment: {
+      ...(row.provider_enrichment || {}),
+      dexch: {
+        provider: "dexch",
+        evidence_class: "DEXCH_REPORTED",
+        observed_at: lifecycle.observed_at,
+        lifecycle_state: lifecycle.state,
+        token_created_at: lifecycle.created_at,
+        migrated_at: lifecycle.migrated_at,
+        launchpad: lifecycle.launchpad,
+        progress_bps: lifecycle.progress_bps,
+        dex_paid: lifecycle.dex_paid,
+        dex_paid_semantics: lifecycle.dex_paid_semantics,
+        raven_verified: false,
+        execution_authority: false,
+        quality: lifecycle.quality,
+      },
+    },
+  };
+}
+
+function normalizeDexchExactPoolRow(token, pair, { duration = "5m", providerRank = 0, fetchedAt } = {}) {
+  if (!token || !pair || !pair.pairAddress || !pair.tokenAddress) return null;
+  const exactToken = sameOnchainAddress(token.chain, pair.tokenAddress, token.address);
+  if (!exactToken) return null;
+  const lifecycle = dexchLifecycleEnrichment(token, { nowMs: Date.parse(fetchedAt) || Date.now() });
+  const providerMarket = token.market || {};
+  const poolAgeMs = optionalFiniteNumber(pair.pairAgeMs);
+  const fetchedAtMs = Date.parse(fetchedAt) || Date.now();
+  const tokenAgeSeconds = optionalFiniteNumber(lifecycle?.token_age_seconds);
+  const movement = duration === "24h"
+    ? providerMarket.price_change_24h_pct
+    : duration === "1h" ? providerMarket.price_change_1h_pct : providerMarket.price_change_5m_pct;
+  const volume = duration === "24h"
+    ? providerMarket.volume_24h_usd
+    : duration === "1h" ? providerMarket.volume_1h_usd : providerMarket.volume_5m_usd;
+  const migratedRecently = lifecycle?.migrated_at
+    && Date.parse(fetchedAt) - Date.parse(lifecycle.migrated_at) <= 14 * 86_400_000;
+  const migrationCohort = lifecycle?.state === "GRADUATED"
+    ? (migratedRecently ? "post_migration" : "mature")
+    : lifecycle?.state === "BONDING" ? "pre_migration" : "initial_discovery";
+  const row = {
+    public_attention_id: `dexch:${duration}:${token.chain}:${token.address}`,
+    instrument_id: `${token.chain}:pool:${pair.pairAddress}`,
+    source_type: "launchpad_discovery",
+    discovery_source: "dexch_launchpad_cross_checked_pool",
+    market_type: "spot",
+    chain: ONCHAIN_PULSE_NETWORKS[token.chain]?.label || token.chain,
+    chain_id: token.chain,
+    venue: boundedPublicLabel(pair.dexId || token.venue?.dex_id, "On-chain pool", 60),
+    identity_scope: "exact_pool",
+    evidence_scope: "dexch_token_lifecycle_plus_dexscreener_exact_pool",
+    symbol: boundedPublicLabel(token.symbol, pair.symbol || "TOKEN", 24),
+    name: boundedPublicLabel(token.name, pair.name || token.symbol, 80),
+    token_address: token.address,
+    quote_token_address: String(pair.quoteTokenAddress || token.venue?.quote_token_address || ""),
+    quote_symbol: boundedPublicLabel(pair.quoteSymbol || token.venue?.quote_symbol, "", 20),
+    pool_address: pair.pairAddress,
+    image_url: pair.imageUrl || token.image_url || null,
+    observed_at: fetchedAt,
+    age_seconds: 0,
+    context_state: "current",
+    movement_state: movement === null || movement === undefined
+      ? "Launchpad activity"
+      : movement > 0.5 ? "Rising activity" : movement < -0.5 ? "Falling activity" : "Active and range-bound",
+    what_changed: lifecycle?.state === "GRADUATED"
+      ? "Graduated token with current market activity."
+      : lifecycle?.state === "BONDING" ? "Bonding token with current market activity." : "New launchpad activity.",
+    risk: "Lifecycle is Dexch-reported. Raven re-resolves the exact pool before charting or execution review.",
+    provider_rank: providerRank,
+    ranking_duration: duration,
+    migration_cohort: {
+      value: migrationCohort,
+      source_scope: "dexch_provider_reported_lifecycle",
+      observed_at: fetchedAt,
+      freshness: "current",
+      derivation: "provider_reported",
+    },
+    market: {
+      price_usd: optionalFiniteNumber(pair.priceUsd),
+      liquidity_usd: optionalFiniteNumber(pair.liquidityUsd),
+      market_cap_usd: optionalFiniteNumber(pair.marketCap),
+      fdv_usd: optionalFiniteNumber(pair.fdv),
+      holder_count: providerMarket.holder_count ?? null,
+      price_change_5m_pct: providerMarket.price_change_5m_pct ?? null,
+      price_change_1h_pct: providerMarket.price_change_1h_pct ?? null,
+      price_change_24h_pct: providerMarket.price_change_24h_pct ?? pair.priceChange24h ?? null,
+      volume_usd_5m: providerMarket.volume_5m_usd ?? null,
+      volume_usd_1h: providerMarket.volume_1h_usd ?? null,
+      volume_usd_24h: optionalFiniteNumber(pair.volume24h) ?? providerMarket.volume_24h_usd ?? null,
+      buys_24h: optionalFiniteNumber(pair.buys24h) ?? providerMarket.buys_24h ?? null,
+      sells_24h: optionalFiniteNumber(pair.sells24h) ?? providerMarket.sells_24h ?? null,
+      market_age_seconds: tokenAgeSeconds,
+      token_age_seconds: tokenAgeSeconds,
+      token_created_at: lifecycle?.created_at || null,
+      pool_age_seconds: poolAgeMs === null ? null : Math.max(0, Math.round(poolAgeMs / 1_000)),
+      pool_created_at: poolAgeMs === null ? null : new Date(fetchedAtMs - poolAgeMs).toISOString(),
+      age_basis: tokenAgeSeconds === null ? "unavailable" : "dexch_reported_token_creation",
+    },
+    lifecycle_evidence: lifecycle,
+    inspection: {
+      state: "exact_pool_cross_provider_ready",
+      silent_pool_selection: false,
+      pool_identity_source: "dexscreener",
+      token_lifecycle_source: "dexch",
+    },
+    registry: {
+      state: "forming",
+      first_seen_at: fetchedAt,
+      last_seen_at: fetchedAt,
+      observation_count: 1,
+      admission_lanes: ["provider_current_input"],
+      admission_reason: "Dexch launchpad discovery cross-checked against an exact current pool.",
+      retained_after_trending: false,
+      event_evidence_append_only: false,
+    },
+    research_only: true,
+    actionable: false,
+    execution_available: false,
+  };
+  return attachDexchLifecycle(row, token, fetchedAt);
+}
+
+async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fetchedAt = new Date().toISOString() } = {}) {
+  const runtime = resolveDexchDiscoveryRuntime(env);
+  const supportedChains = chains.filter((chain) => DEXCH_DISCOVERY_CHAINS.has(chain));
+  if (!runtime.runtime_allowed || !supportedChains.length) {
+    return {
+      state: runtime.state,
+      reason: runtime.reason || (supportedChains.length ? null : "requested_chains_unsupported"),
+      tokens: [],
+      rows: [],
+      failures: [],
+      health: dexchDiscoveryProvider.healthSnapshot(),
+    };
+  }
+  const discoveryRequests = [
+    { lane: "trending", sort: "trending", limit: 30 },
+    { lane: "new", preset: "new", sort: "new", limit: 18 },
+    { lane: "almost", preset: "almost", sort: "progress", limit: 18 },
+    { lane: "graduated", preset: "graduated", sort: "migratedAt", limit: 18 },
+  ];
+  const tokenSettled = await Promise.allSettled(discoveryRequests.map((request) => dexchDiscoveryProvider.tokens({
+    chains: supportedChains,
+    preset: request.preset,
+    sort: request.sort,
+    order: "desc",
+    limit: request.limit,
+  })));
+  const tokens = [];
+  const failures = [];
+  const seenTokens = new Set();
+  tokenSettled.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      for (const token of result.value.rows) {
+        const key = dexchDiscoveryTokenKey(token.chain, token.address);
+        if (seenTokens.has(key)) continue;
+        seenTokens.add(key);
+        tokens.push(token);
+      }
+    } else failures.push({ lane: discoveryRequests[index].lane, state: "temporarily_unavailable" });
+  });
+  const tokensByChain = new Map();
+  for (const token of tokens) {
+    if (!tokensByChain.has(token.chain)) tokensByChain.set(token.chain, []);
+    if (tokensByChain.get(token.chain).length < 24) tokensByChain.get(token.chain).push(token);
+  }
+  const pairSettled = await Promise.allSettled([...tokensByChain].map(async ([chain, chainTokens]) => ({
+    chain,
+    tokens: chainTokens,
+    pairs: await tokensDex(chain, chainTokens.slice(0, 24).map((token) => token.address).join(",")),
+  })));
+  const rows = [];
+  for (const result of pairSettled) {
+    if (result.status !== "fulfilled") continue;
+    const { chain, tokens: chainTokens, pairs } = result.value;
+    for (const [index, token] of chainTokens.entries()) {
+      const pair = exactTokenDexResults(pairs, token.address, { caseSensitive: chain === "solana" })[0];
+      const normalized = normalizeDexchExactPoolRow(token, pair, { duration, providerRank: index + 1, fetchedAt });
+      if (normalized) rows.push(normalized);
+    }
+  }
+  return {
+    state: tokens.length ? (failures.length ? "degraded" : "current") : "unavailable",
+    reason: tokens.length ? null : "dexch_discovery_unavailable",
+    tokens,
+    rows,
+    failures,
+    health: dexchDiscoveryProvider.healthSnapshot(),
+  };
+}
+
 function jupiterVelocityStats(token = {}, duration = "5m") {
   const key = duration === "24h" ? "stats24h" : duration === "1h" ? "stats1h" : "stats5m";
   const stats = token?.[key] || {};
@@ -3551,7 +3921,8 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const runtime = onchainProviderRuntime("coingecko_onchain", env);
   const providerAvailable = runtime.runtime_allowed && runtime.credential_present;
   const jupiterConfigured = chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim());
-  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}`;
+  const dexchRuntime = resolveDexchDiscoveryRuntime(env);
+  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
   const registryHistoryPromise = request ? discoverRegistryHistory(env, request) : Promise.resolve(new Map());
@@ -3596,7 +3967,15 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const jupiterPromise = chains.includes("solana")
     ? jupiterVelocityRows({ env, duration, fetchedAt }).catch(() => [])
     : Promise.resolve([]);
-  const [settled, jupiterRows] = await Promise.all([geckoSettledPromise, jupiterPromise]);
+  const dexchPromise = dexchPulseDiscovery({ env, chains, duration, fetchedAt }).catch(() => ({
+    state: "unavailable",
+    reason: "dexch_discovery_unavailable",
+    tokens: [],
+    rows: [],
+    failures: [],
+    health: dexchDiscoveryProvider.healthSnapshot(),
+  }));
+  const [settled, jupiterRows, dexchDiscovery] = await Promise.all([geckoSettledPromise, jupiterPromise, dexchPromise]);
   const providerRows = [];
   const failures = [];
   settled.forEach((result, index) => {
@@ -3606,9 +3985,17 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       state: "temporarily_unavailable",
     });
   });
+  const dexchByToken = new Map((dexchDiscovery.tokens || []).map((token) => [
+    dexchDiscoveryTokenKey(token.chain, token.address),
+    token,
+  ]));
+  const currentRows = [...jupiterRows, ...providerRows].map((row) => {
+    const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
+    return token ? attachDexchLifecycle(row, token, fetchedAt) : row;
+  });
   const registryHistory = await registryHistoryPromise;
   const rowsByMarket = new Map();
-  for (const row of [...jupiterRows, ...providerRows]) {
+  for (const row of [...currentRows, ...(dexchDiscovery.rows || [])]) {
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
@@ -3662,9 +4049,9 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     provenance: {
       provider: registryOnly
         ? "retained_exact_pool_registry"
-        : jupiterRows.length
-          ? "jupiter_tokens_v2 + coingecko_onchain"
-          : "coingecko_onchain",
+        : [jupiterRows.length ? "jupiter_tokens_v2" : null, providerRows.length ? "coingecko_onchain" : null, dexchDiscovery.tokens?.length ? "dexch" : null]
+          .filter(Boolean)
+          .join(" + ") || "current_market_providers",
       role: registryOnly
         ? "retained_exact_pool_registry"
         : retainedRows.length
@@ -3673,18 +4060,36 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
             ? "token_velocity_plus_exact_pool_market_activity"
             : "exact_pool_market_activity",
       raven_signal: false,
-      attribution_required: !registryOnly,
-      attribution_label: runtime.attribution_label,
-      attribution_url: runtime.attribution_url,
+      attribution_required: providerRows.length > 0 && Boolean(runtime.attribution_label),
+      attribution_label: providerRows.length > 0 ? runtime.attribution_label : null,
+      attribution_url: providerRows.length > 0 ? runtime.attribution_url : null,
+      sources: {
+        dexch: {
+          role: "replaceable_discovery_and_lifecycle_enrichment",
+          state: dexchDiscovery.state,
+          reason: dexchDiscovery.reason || null,
+          token_rows: dexchDiscovery.tokens?.length || 0,
+          exact_pool_rows: dexchDiscovery.rows?.length || 0,
+          evidence_class: "DEXCH_REPORTED",
+          attribution_requirement: "UNKNOWN",
+          current_price_authority: false,
+          execution_authority: false,
+        },
+      },
     },
     discovery_lanes: {
       raven_tracked: false,
       jupiter_velocity: jupiterRows.length > 0,
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
       robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
+      dexch_launchpads: dexchDiscovery.rows?.length || 0,
+      dexch_lifecycle_enriched: currentRows.filter((row) => row.lifecycle_evidence?.provider === "dexch").length,
       retained_exact_markets: retainedRows.length,
       hot_watch_attempted: hotWatch.attempted,
       hot_watch_refreshed: hotWatch.refreshed,
+    },
+    provider_health: {
+      dexch: dexchDiscovery.health || dexchDiscoveryProvider.healthSnapshot(),
     },
     execution_boundary: {
       research_only: true,
@@ -4769,11 +5174,19 @@ async function terminalChartPayload({
   if (cleanMarket === "crypto_spot") {
     const requestedScope = instrumentScope === "token_aggregate" ? "token_aggregate" : "exact_pool";
     const enrichmentRequested = includeEnrichment === true && requestedScope === "exact_pool" && !before;
+    const dexchRuntime = resolveDexchDiscoveryRuntime(env);
+    const normalizedSpotChain = String(chain || "").toLowerCase();
     const spotAttentionPromise = enrichmentRequested && pairAddress && tokenAddress
       ? loadCurrentSpotAttentionContext({ env, chain, pairAddress, tokenAddress }).catch(() => null)
       : Promise.resolve(null);
     const marketProfilePromise = enrichmentRequested && pairAddress && tokenAddress
       ? fetchGeckoPoolMarketProfile({ env, chain, pairAddress, tokenAddress, quoteAddress }).catch(() => null)
+      : Promise.resolve(null);
+    const dexchTokenPromise = enrichmentRequested
+      && tokenAddress
+      && DEXCH_DISCOVERY_CHAINS.has(normalizedSpotChain)
+      && dexchRuntime.runtime_allowed
+      ? dexchDiscoveryProvider.token(normalizedSpotChain, tokenAddress).catch(() => null)
       : Promise.resolve(null);
     if (requestedScope === "token_aggregate") {
       const ravenPayload = await fetchRavenSpotProjection({
@@ -4859,6 +5272,7 @@ async function terminalChartPayload({
       payload.instrument_scope = "exact_pool";
       let spotAttention = null;
       let marketProfile = null;
+      let dexchTokenEnvelope = null;
       if (!before && payload.ok) {
         const pair = (await pairDex(
           String(chain || "").toLowerCase(),
@@ -4901,6 +5315,7 @@ async function terminalChartPayload({
         spotAttention = await spotAttentionPromise.catch(() => null);
       }
       if (!before) marketProfile = await marketProfilePromise.catch(() => null);
+      if (!before) dexchTokenEnvelope = await dexchTokenPromise.catch(() => null);
       if (marketProfile && payload.provider_usage) {
         const profileRequests = Math.max(0, Math.round(optionalFiniteNumber(marketProfile.usage?.provider_request_count) || 0));
         payload.provider_usage = {
@@ -4912,6 +5327,8 @@ async function terminalChartPayload({
         };
       }
       const attentionMarket = spotAttention?.market || {};
+      const dexchToken = Array.isArray(dexchTokenEnvelope?.rows) ? dexchTokenEnvelope.rows[0] || null : null;
+      const tokenLifecycle = dexchLifecycleEnrichment(dexchToken, { nowMs: Date.now() });
       const profileHolderDistribution = marketProfile?.holder_distribution || null;
       const holderCount = profileHolderDistribution?.holder_count ?? attentionMarket.holder_count;
       payload.market_anatomy = {
@@ -4927,6 +5344,10 @@ async function terminalChartPayload({
         fully_diluted_value_usd: payload.market_state?.fully_diluted_value ?? null,
         pool_created_at: payload.market_state?.pool_created_at || null,
         pool_age_ms: payload.market_state?.pool_age_ms ?? null,
+        token_created_at: tokenLifecycle?.created_at || null,
+        token_age_seconds: tokenLifecycle?.token_age_seconds ?? null,
+        migrated_at: tokenLifecycle?.migrated_at || null,
+        token_lifecycle: tokenLifecycle,
         holder_distribution: profileHolderDistribution ? {
           ...profileHolderDistribution,
           scope: "exact_token",
@@ -4976,6 +5397,10 @@ async function terminalChartPayload({
         last_candle_age_seconds: payload.last_candle_age_seconds ?? null,
         continuity_state: payload.continuity?.state || "unavailable",
       };
+      payload.market_events = dexchLifecycleChartContract(dexchToken, payload, {
+        chain: normalizedSpotChain,
+        tokenAddress,
+      });
       payload.enrichment_state = "complete";
       return payload;
     }
@@ -6260,6 +6685,8 @@ async function handleHealth(request, env = {}) {
   const publisherHealth = publicPublisherHealth(projectionStatus, projectionState);
   const researchHealth = archivalResearchHealth(researchEndpoint);
   const claimsHealth = archivalClaimsHealth(claimsEndpoint);
+  const dexchRuntime = resolveDexchDiscoveryRuntime(env);
+  const dexchHealth = dexchDiscoveryProvider.healthSnapshot();
   const checks = {
     worker: "ok",
     assets: env.ASSETS ? "ok" : "unavailable",
@@ -6267,6 +6694,7 @@ async function handleHealth(request, env = {}) {
     accessApi: accountsEnabled ? "enabled" : "not_configured",
     hyperliquid: "configured_public_endpoint",
     dexscreener: "configured_public_endpoint",
+    dexch: dexchRuntime.runtime_allowed ? dexchHealth.state : dexchRuntime.state,
     stripe: stripeConfigured ? "configured" : "not_configured",
     tokenAccess: tokenConfigured ? "configured" : "not_configured",
     database: dbConfigured ? "configured" : "not_configured",
@@ -6348,6 +6776,17 @@ async function handleHealth(request, env = {}) {
       age_seconds: null,
       freshness_target_seconds: null,
       reason: "current_product_uses_deterministic_structured_reads",
+    },
+    discovery_enrichment_health: {
+      state: dexchRuntime.runtime_allowed ? dexchHealth.state : dexchRuntime.state,
+      blocking: false,
+      provider: "dexch",
+      role: "replaceable_discovery_and_lifecycle_enrichment",
+      runtime: dexchRuntime,
+      provider_health: dexchHealth,
+      current_price_authority: false,
+      execution_authority: false,
+      note: "Dexch enrichment may degrade independently; Terminal pricing, Raven evidence, and execution remain available through their own providers.",
     },
     projection_health: {
       state: projectionState,
@@ -10562,6 +11001,56 @@ async function routeApi(request, env, executionContext = null) {
   }
   if (url.pathname === "/api/stripe/webhook" && request.method === "POST") {
     return customerFoundationUnavailable("legacy_billing_quarantined");
+  }
+  if (url.pathname === "/api/discovery/tokens" && request.method === "GET") {
+    const runtime = resolveDexchDiscoveryRuntime(env);
+    if (!runtime.runtime_allowed) {
+      return json({
+        ok: false,
+        safe_public: true,
+        schema_version: DEXCH_DISCOVERY_SCHEMA,
+        provider: "dexch",
+        state: runtime.state,
+        error: runtime.reason,
+        rows: [],
+        execution_boundary: {
+          research_only: true,
+          transaction_construction: false,
+          signing: false,
+          order_submission: false,
+          broadcast: false,
+        },
+      }, { status: 503, headers: routeCacheHeaders(url.pathname) });
+    }
+    try {
+      const result = await dexchDiscoveryProvider.tokens(dexchDiscoveryFilters(url));
+      return json({
+        ...result,
+        provider_health: dexchDiscoveryProvider.healthSnapshot(),
+      }, { headers: routeCacheHeaders(url.pathname) });
+    } catch (error) {
+      const status = Number(error?.status) === 400 || Number(error?.status) === 422 ? Number(error.status) : 502;
+      const code = status < 500
+        ? boundedOperatorText(error?.code || error?.message, 100) || "dexch_discovery_request_invalid"
+        : "dexch_discovery_unavailable";
+      return json({
+        ok: false,
+        safe_public: true,
+        schema_version: DEXCH_DISCOVERY_SCHEMA,
+        provider: "dexch",
+        state: status < 500 ? "invalid_request" : "unavailable",
+        error: code,
+        rows: [],
+        provider_health: dexchDiscoveryProvider.healthSnapshot(),
+        execution_boundary: {
+          research_only: true,
+          transaction_construction: false,
+          signing: false,
+          order_submission: false,
+          broadcast: false,
+        },
+      }, { status, headers: routeCacheHeaders(url.pathname) });
+    }
   }
   if (url.pathname === "/api/dexscreener/search" && request.method === "GET") {
     try {

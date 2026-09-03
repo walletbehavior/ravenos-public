@@ -85,6 +85,10 @@ const productionChartProvider = chartProviderConfig.production_promotion_eligibl
 const runtimeChartProvider = productionChartProvider ? chartProviderConfig.production_provider : chartProviderConfig.preview_provider;
 const runtimeChartPlan = productionChartProvider ? chartProviderConfig.production_provider_plan : chartProviderConfig.preview_provider_plan;
 const runtimeChartCommercial = productionChartProvider ? chartProviderConfig.production_provider_commercial : chartProviderConfig.preview_provider_commercial;
+const dexchProviderConfig = releaseConfig.dexch_discovery_provider || {};
+const productionDexchProvider = dexchProviderConfig.production_promotion_eligible === true
+  && dexchProviderConfig.production_enabled === true
+  && dexchProviderConfig.commercial_use_acknowledged === true;
 
 const releaseWrangler = {
   name: baseWrangler.name,
@@ -119,6 +123,8 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER: runtimeChartProvider || "",
     ONCHAIN_CHART_PROVIDER_PLAN: runtimeChartPlan || "",
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
+    RAVENOS_DEXCH_DISCOVERY_ENABLED: productionDexchProvider ? "1" : "0",
+    RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: productionDexchProvider ? "1" : "0",
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
     RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED: publicEvmHolderListsActive ? "1" : "0",
@@ -144,6 +150,7 @@ const packageManifest = {
   artifact_content_sha256: deploy.artifact_content_sha256,
   public_origin_contract_version: release.public_origin_contract_version,
   onchain_chart_provider: releaseConfig.onchain_chart_provider,
+  dexch_discovery_provider: releaseConfig.dexch_discovery_provider,
   public_evm_holder_lists_enabled: publicEvmHolderListsActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],

@@ -31,8 +31,31 @@ function solAsset({ symbol = "USDC", mint = SOL_USDC_MINT, kind = "stablecoin", 
 test("chain identity uses exact network identifiers and Robinhood brokerage stays offchain", () => {
   assert.equal(normalizeChainIdentity("robinhood-chain").chain_id, "eip155:4663");
   assert.equal(normalizeChainIdentity("46630").chain_id, "eip155:46630");
+  assert.equal(normalizeChainIdentity("bsc").chain_id, "eip155:56");
+  assert.equal(normalizeChainIdentity("bnb").native_gas_asset_symbol, "BNB");
   assert.equal(normalizeChainIdentity("robinhood-brokerage").kind, "offchain");
   assert.notEqual(normalizeChainIdentity("robinhood-chain").chain_id, normalizeChainIdentity("robinhood-brokerage").chain_id);
+});
+
+test("an unresolved Solana token program keeps a mint identity without guessing SPL or Token-2022", () => {
+  const unresolved = normalizeAssetIdentity({
+    chain_id: "solana",
+    kind: "fungible_token",
+    standard: "solana-mint",
+    reference: SOL_TOKEN_MINT,
+    symbol: "RAVEN",
+    representation: "canonical",
+    verification_state: "provider_reported_token_program_unresolved",
+  });
+  assert.equal(unresolved.asset_id, `solana:mainnet-beta/solana-mint:${SOL_TOKEN_MINT}`);
+  assert.equal(unresolved.standard, "solana-mint");
+  assert.throws(() => normalizeAssetIdentity({
+    chain_id: "bsc",
+    kind: "fungible_token",
+    standard: "solana-mint",
+    reference: SOL_TOKEN_MINT,
+    symbol: "RAVEN",
+  }), /asset_standard_chain_mismatch/);
 });
 
 test("same ticker on different chains cannot collide", () => {
