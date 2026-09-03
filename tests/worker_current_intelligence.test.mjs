@@ -1269,6 +1269,27 @@ test("Worker health measures current product lanes without penalizing archival o
     assert.equal(body.execution_health.submission_available, false);
     assert.equal(JSON.stringify(body).includes("/srv/"), false);
 
+    const liveResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), {
+      ...env,
+      RAVENOS_CUSTOMER_TRADE_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_KILL_SWITCH: "clear",
+      RAVENOS_CUSTOMER_TRADE_LIVE_USERS: "*",
+      RAVENOS_CUSTOMER_TRADE_HYPERLIQUID_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_BSC_LIVE_ENABLE: "1",
+    });
+    assert.equal(liveResponse.status, 200);
+    const liveBody = await liveResponse.json();
+    assert.equal(liveBody.execution_health.state, "customer_wallet_execution");
+    assert.equal(liveBody.execution_health.mode, "authenticated_self_custodial_wallet");
+    assert.equal(liveBody.execution_health.customer_wallet_execution_available, true);
+    assert.deepEqual(liveBody.execution_health.active_chains, ["hyperliquid", "solana", "robinhood", "bsc"]);
+    assert.equal(liveBody.execution_health.wallet_signature_required, true);
+    assert.equal(liveBody.execution_health.server_signing, false);
+    assert.equal(liveBody.execution_health.custody, false);
+    assert.equal(liveBody.execution_health.arbitrary_submission, false);
+
     manifest.endpoints.find((row) => row.key === "claims").payload_age_seconds = 5_000;
     status.stale_endpoints = ["research", "claims"];
     const historicalClaimsResponse = await worker.fetch(new Request("https://ravenos.xyz/api/health"), env);

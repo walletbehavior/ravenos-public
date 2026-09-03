@@ -6149,6 +6149,12 @@ async function handleHealth(request, env = {}) {
     clientOperationType: "health_check",
   });
   const accountsEnabled = customerAccountsEnabled(env);
+  const customerExecution = publicCustomerLiveExecutionCapabilities(env);
+  const customerWalletExecutionChains = Object.entries(customerExecution.chains || {})
+    .filter(([, lane]) => lane?.enabled === true)
+    .map(([chain]) => chain);
+  const customerWalletExecutionAvailable = customerExecution.public_available === true
+    && customerWalletExecutionChains.length > 0;
   const billingEnabled = customerBillingEnabled(env);
   const stripeConfigured = billingEnabled && Boolean(env.STRIPE_SECRET_KEY || env.STRIPE_API_KEY);
   const tokenConfigured = accountsEnabled && Boolean(env.RAVENOS_SOLANA_MINT && env.RAVENOS_SOLANA_RPC_URL);
@@ -6349,13 +6355,22 @@ async function handleHealth(request, env = {}) {
     },
     publisher_health: publisherHealth,
     execution_health: {
-      state: "disabled",
+      state: customerWalletExecutionAvailable ? "customer_wallet_execution" : "disabled",
       blocking: false,
-      mode: "read_only_review",
-      quote_only: true,
+      mode: customerWalletExecutionAvailable ? "authenticated_self_custodial_wallet" : "read_only_review",
+      quote_only: !customerWalletExecutionAvailable,
+      customer_wallet_execution_available: customerWalletExecutionAvailable,
+      active_chains: customerWalletExecutionChains,
+      authentication_required: customerExecution.authentication_required,
+      wallet_signature_required: customerExecution.wallet_signature_required,
       signing_available: false,
       submission_available: false,
-      note: "Disabled customer execution is an intentional safety boundary, not a site-health failure.",
+      server_signing: customerExecution.server_signing,
+      custody: customerExecution.custody,
+      arbitrary_submission: customerExecution.arbitrary_submission,
+      note: customerWalletExecutionAvailable
+        ? "Customer-wallet execution is available; Raven has no signer, custody, or arbitrary submission authority."
+        : "Disabled customer execution is an intentional safety boundary, not a site-health failure.",
     },
     checks,
     terminal_diagnostics: getTerminalDiagnosticsSummary(),

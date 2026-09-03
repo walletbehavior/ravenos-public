@@ -234,6 +234,7 @@ if (
 }
 const flagsCapture = await capture("/api/trade/flags");
 const flags = JSON.parse(flagsCapture.text);
+const liveExecution = flags?.live_execution;
 if (
   flags?.quote_only !== true
   || flags?.market_preview_available !== true
@@ -252,17 +253,38 @@ if (
   || flags?.account_history_available !== true
   || !flags?.account_history_types?.includes("orders")
   || flags?.spot_quote_preview_available !== true
-  || !flags?.spot_quote_preview_chains?.includes("solana")
+  || !["solana", "robinhood", "bsc"].every((chain) => flags?.spot_quote_preview_chains?.includes(chain))
   || flags?.trade_adapter_states?.solana !== "quote_review"
   || flags?.trade_adapter_states?.hyperliquid !== "quote_review"
+  || flags?.trade_adapter_states?.robinhood !== "wallet_execution"
+  || flags?.trade_adapter_states?.bsc !== "wallet_execution"
   || flags?.trade_adapter_states?.base !== "adapter_pending"
   || flags?.spot_fee_preview?.actual_fee_bps !== 0
   || flags?.spot_fee_preview?.enabled !== false
+  || flags?.evm_fee_preview?.actual_fee_bps !== 100
+  || flags?.evm_fee_preview?.enabled !== true
+  || !["robinhood", "bsc"].every((chain) => (
+    flags?.evm_fee_preview?.chains?.[chain]?.enabled === true
+    && flags?.evm_fee_preview?.chains?.[chain]?.actual_fee_bps === 100
+  ))
   || flags?.signing_available !== false
   || flags?.submission_available !== false
-  || flags?.fees_enabled !== false
+  || flags?.fees_enabled !== true
+  || liveExecution?.configured !== true
+  || liveExecution?.kill_switch_clear !== true
+  || liveExecution?.canary_only !== false
+  || liveExecution?.public_available !== true
+  || liveExecution?.authentication_required !== true
+  || liveExecution?.wallet_signature_required !== true
+  || liveExecution?.server_signing !== false
+  || liveExecution?.custody !== false
+  || liveExecution?.arbitrary_submission !== false
+  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => (
+    liveExecution?.chains?.[chain]?.source_ready === true
+    && liveExecution?.chains?.[chain]?.enabled === true
+  ))
 ) {
-  throw new Error("Customer execution boundary is not read-only and non-signing");
+  throw new Error("Customer-wallet execution boundary or fee binding is not production-qualified");
 }
 
 const perpsUniverseCapture = await capture("/api/hyperliquid/perps");

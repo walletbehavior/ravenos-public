@@ -153,12 +153,19 @@ if (
   || healthJson?.narrator_freshness?.state !== "not_required"
   || healthJson?.projection_health?.state !== "operational"
   || healthJson?.publisher_health?.state !== "operational"
-  || healthJson?.execution_health?.state !== "disabled"
+  || healthJson?.execution_health?.state !== "customer_wallet_execution"
+  || healthJson?.execution_health?.customer_wallet_execution_available !== true
+  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => healthJson?.execution_health?.active_chains?.includes(chain))
+  || healthJson?.execution_health?.wallet_signature_required !== true
+  || healthJson?.execution_health?.server_signing !== false
+  || healthJson?.execution_health?.custody !== false
+  || healthJson?.execution_health?.arbitrary_submission !== false
   || healthJson?.execution_health?.signing_available !== false
   || healthJson?.execution_health?.submission_available !== false
-) throw new Error("/api/health does not report a complete fresh read-only production product");
+) throw new Error("/api/health does not report a complete fresh self-custodial production product");
 
 const { res: flagsRes, json: flagsJson } = await fetchJson("/api/trade/flags");
+const liveExecution = flagsJson?.live_execution;
 if (
   !flagsRes.ok
   || flagsJson?.market_preview_available !== true
@@ -177,15 +184,37 @@ if (
   || flagsJson?.account_history_available !== true
   || !flagsJson?.account_history_types?.includes("orders")
   || flagsJson?.spot_quote_preview_available !== true
-  || !flagsJson?.spot_quote_preview_chains?.includes("solana")
+  || !["solana", "robinhood", "bsc"].every((chain) => flagsJson?.spot_quote_preview_chains?.includes(chain))
   || flagsJson?.trade_adapter_states?.solana !== "quote_review"
   || flagsJson?.trade_adapter_states?.hyperliquid !== "quote_review"
+  || flagsJson?.trade_adapter_states?.robinhood !== "wallet_execution"
+  || flagsJson?.trade_adapter_states?.bsc !== "wallet_execution"
   || flagsJson?.trade_adapter_states?.base !== "adapter_pending"
   || flagsJson?.spot_fee_preview?.actual_fee_bps !== 0
   || flagsJson?.spot_fee_preview?.enabled !== false
+  || flagsJson?.evm_fee_preview?.actual_fee_bps !== 100
+  || flagsJson?.evm_fee_preview?.enabled !== true
+  || !["robinhood", "bsc"].every((chain) => (
+    flagsJson?.evm_fee_preview?.chains?.[chain]?.enabled === true
+    && flagsJson?.evm_fee_preview?.chains?.[chain]?.actual_fee_bps === 100
+  ))
   || flagsJson?.signing_available !== false
   || flagsJson?.submission_available !== false
-) throw new Error("/api/trade/flags does not advertise the non-executable Hyperliquid and Solana shadow-review boundary");
+  || flagsJson?.fees_enabled !== true
+  || liveExecution?.configured !== true
+  || liveExecution?.kill_switch_clear !== true
+  || liveExecution?.canary_only !== false
+  || liveExecution?.public_available !== true
+  || liveExecution?.authentication_required !== true
+  || liveExecution?.wallet_signature_required !== true
+  || liveExecution?.server_signing !== false
+  || liveExecution?.custody !== false
+  || liveExecution?.arbitrary_submission !== false
+  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => (
+    liveExecution?.chains?.[chain]?.source_ready === true
+    && liveExecution?.chains?.[chain]?.enabled === true
+  ))
+) throw new Error("/api/trade/flags does not advertise the qualified customer-wallet execution and fee boundary");
 
 const { res: perpsUniverseRes, json: perpsUniverseJson } = await fetchJson("/api/hyperliquid/perps");
 const { res: perpsProjectionRes, json: perpsProjectionJson } = await fetchJson("/api/perps");
