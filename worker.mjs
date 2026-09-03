@@ -174,6 +174,24 @@ import {
   normalizeRobinhoodClientExecutionReport,
   reconcileRobinhoodExecution,
 } from "./lib/customer_trade/robinhood_live_execution.mjs";
+import {
+  BSC_EVM_CHAIN_PROFILE,
+} from "./lib/customer_trade/evm_chain_profiles.mjs";
+import {
+  createEvmZeroXQuoteClient,
+  resolveEvmZeroXCapability,
+} from "./lib/customer_trade/evm_zero_x_live_execution.mjs";
+import {
+  createD1EvmLiveExecutionStore,
+  createEvmLiveTicket,
+  normalizeEvmClientExecutionReport,
+  reconcileEvmExecution,
+} from "./lib/customer_trade/evm_live_execution.mjs";
+import {
+  createReadOnlyEvmRpcClient,
+  readEvmFinalityEvidence,
+  verifyReadOnlyEvmRpcChain,
+} from "./lib/customer_trade/evm_read_only_rpc.mjs";
 import { inspectRobinhoodStockToken } from "./lib/customer_trade/robinhood_stock_token_registry.mjs";
 import {
   createRobinhoodRpcFailoverClient,
@@ -6350,9 +6368,11 @@ async function handleHealth(request, env = {}) {
 function spotQuotePreviewRuntime(env = {}) {
   const rpcUrl = publicSolanaTradeRpcUrl(env);
   const robinhood = resolveRobinhoodZeroXCapability(env);
+  const bsc = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
   const activeChains = [];
   if (rpcUrl) activeChains.push("solana");
   if (robinhood.quote_review_enabled) activeChains.push("robinhood");
+  if (bsc.quote_review_enabled) activeChains.push("bsc");
   return Object.freeze({
     available: activeChains.length > 0,
     rpc_url: rpcUrl,
@@ -6362,7 +6382,7 @@ function spotQuotePreviewRuntime(env = {}) {
       solana: rpcUrl ? "quote_review" : "unavailable",
       hyperliquid: "quote_review",
       base: "adapter_pending",
-      bsc: "adapter_pending",
+      bsc: bsc.quote_review_enabled ? "wallet_execution" : bsc.state,
       ethereum: "adapter_pending",
       robinhood: robinhood.quote_review_enabled ? "wallet_execution" : robinhood.state,
       arbitrum: "adapter_pending",
@@ -6954,6 +6974,7 @@ function handleTradeFlags(env = {}) {
   const freeJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
   const proJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
   const robinhoodZeroX = resolveRobinhoodZeroXCapability(env);
+  const bscZeroX = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
   return terminalJson(context, {
     ok: true,
     quote_only: true,
@@ -6989,7 +7010,6 @@ function handleTradeFlags(env = {}) {
     },
     evm_fee_preview: {
       provider: "0x",
-      chain: "robinhood",
       free_fee_bps: robinhoodZeroX.fee_schedule.free_fee_bps,
       pro_fee_bps: robinhoodZeroX.fee_schedule.pro_fee_bps,
       pro_discount_pct: 30,
@@ -6997,8 +7017,26 @@ function handleTradeFlags(env = {}) {
       enabled: robinhoodZeroX.fee_collection_enabled,
       collection_method: robinhoodZeroX.fee_collection_enabled ? "zero_x_swap_integrator_fee" : "none",
       fee_token_policy: "chain_local_accounting_asset_when_route_supports_it",
+      chains: {
+        robinhood: {
+          free_fee_bps: robinhoodZeroX.fee_schedule.free_fee_bps,
+          pro_fee_bps: robinhoodZeroX.fee_schedule.pro_fee_bps,
+          pro_discount_pct: 30,
+          actual_fee_bps: robinhoodZeroX.fee_collection_enabled ? robinhoodZeroX.fee_schedule.free_fee_bps : 0,
+          enabled: robinhoodZeroX.fee_collection_enabled,
+          accounting_asset: robinhoodZeroX.accounting_asset,
+        },
+        bsc: {
+          free_fee_bps: bscZeroX.fee_schedule.free_fee_bps,
+          pro_fee_bps: bscZeroX.fee_schedule.pro_fee_bps,
+          pro_discount_pct: 30,
+          actual_fee_bps: bscZeroX.fee_collection_enabled ? bscZeroX.fee_schedule.free_fee_bps : 0,
+          enabled: bscZeroX.fee_collection_enabled,
+          accounting_asset: bscZeroX.accounting_asset,
+        },
+      },
     },
-    fees_enabled: robinhoodZeroX.fee_collection_enabled,
+    fees_enabled: robinhoodZeroX.fee_collection_enabled || bscZeroX.fee_collection_enabled,
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
 }
@@ -7040,13 +7078,16 @@ function solanaFeeCollectorStatus(env = {}) {
 function evmFeeCollectorStatus(env = {}) {
   const address = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim();
   const robinhood = resolveRobinhoodZeroXCapability(env);
+  const bsc = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
+  const enabledChains = [robinhood, bsc].filter((capability) => capability.fee_collection_enabled);
   return Object.freeze({
     configured: EVM_ADDRESS_RE.test(address) && !/^0x0{40}$/i.test(address),
     chain_local_accounting_required: true,
-    fee_enabled: robinhood.fee_collection_enabled,
-    actual_fee_bps: robinhood.fee_collection_enabled ? robinhood.fee_schedule.free_fee_bps : 0,
-    collection_method: robinhood.fee_collection_enabled ? "zero_x_swap_integrator_fee" : "none",
+    fee_enabled: enabledChains.length > 0,
+    actual_fee_bps: enabledChains.length ? robinhood.fee_schedule.free_fee_bps : 0,
+    collection_method: enabledChains.length ? "zero_x_swap_integrator_fee" : "none",
     robinhood,
+    bsc,
   });
 }
 
@@ -7279,6 +7320,216 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
       expected_output: robinhoodQuoteDisplay(entryQuote.exact_binding.buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : 6, side === "buy" ? String(exact.symbol || "TOKEN") : "USDG"),
       minimum_output: robinhoodQuoteDisplay(entryQuote.exact_binding.minimum_buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : 6, side === "buy" ? String(exact.symbol || "TOKEN") : "USDG"),
       executable_exit: prepared.ticket.exit_proof ? robinhoodQuoteDisplay(prepared.ticket.exit_proof.expected_accounting_amount_base_units, 6, "USDG") : null,
+    }),
+  });
+}
+
+const BSC_PUBLIC_RPC_URL = "https://bsc-dataseed.bnbchain.org";
+
+function createBscReadOnlyRpcClient(env = {}) {
+  const urls = [env.RAVENOS_BSC_RPC_URL, env.RAVENOS_BSC_RPC_FALLBACK_URL, BSC_PUBLIC_RPC_URL]
+    .map((value) => String(value || "").trim())
+    .filter((value, index, rows) => value && rows.indexOf(value) === index)
+    .slice(0, 2);
+  return createReadOnlyEvmRpcClient({
+    chain_id: BSC_EVM_CHAIN_PROFILE.chain_id,
+    chain_namespace: BSC_EVM_CHAIN_PROFILE.chain_namespace,
+    providers: urls.map((url, index) => ({
+      provider_id: index === 0 ? "bsc_primary" : "bsc_fallback",
+      url,
+    })),
+    timeout_ms: 6_000,
+  });
+}
+
+async function currentBscTokenEvidence(rpcClient, tokenAddress, walletAddress = null) {
+  const token = normalizedEvmAddress(tokenAddress, "bsc_token_address");
+  const calls = [
+    rpcClient.request("eth_getCode", [token, "latest"]),
+    rpcClient.request("eth_call", [{ to: token, data: EVM_DECIMALS_SELECTOR }, "latest"]),
+  ];
+  if (walletAddress) {
+    const wallet = normalizedEvmAddress(walletAddress, "bsc_wallet_address");
+    calls.push(rpcClient.request("eth_call", [{
+      to: token,
+      data: `${EVM_BALANCE_OF_SELECTOR}${wallet.slice(2).padStart(64, "0")}`,
+    }, "latest"]));
+  }
+  const [codeResult, decimalsResult, balanceResult] = await Promise.all(calls);
+  const code = String(codeResult?.result || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]+$/.test(code) || code === "0x" || code === "0x0") {
+    throw Object.assign(new Error("bsc_token_contract_unavailable"), { code: "bsc_token_contract_unavailable" });
+  }
+  const decimals = Number(evmUintResult(decimalsResult?.result, "bsc_token_decimals"));
+  if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 18) {
+    throw Object.assign(new Error("bsc_token_decimals_invalid"), { code: "bsc_token_decimals_invalid" });
+  }
+  return Object.freeze({
+    token_address: token,
+    decimals,
+    balance_base_units: balanceResult ? evmUintResult(balanceResult.result, "bsc_token_balance").toString() : null,
+    provider_id: codeResult.provider_id,
+  });
+}
+
+async function loadCurrentBscLivePreparation(body = {}, env = {}) {
+  const profile = BSC_EVM_CHAIN_PROFILE;
+  const poolAddress = normalizedEvmAddress(body?.pool_address, "bsc_pool_address");
+  const tokenAddress = normalizedEvmAddress(body?.token_address, "bsc_token_address");
+  const quoteAddress = normalizedEvmAddress(body?.quote_address, "bsc_quote_address");
+  const walletAddress = normalizedEvmAddress(body?.wallet_address, "bsc_wallet_address");
+  const instrumentId = String(body?.instrument_id || "").trim().toLowerCase();
+  if (String(body?.chain || "").trim().toLowerCase() !== profile.chain_namespace
+    || String(body?.identity_scope || "").trim().toLowerCase() !== "exact_pool"
+    || instrumentId !== `${profile.exact_market_prefix}${poolAddress}`) {
+    throw Object.assign(new Error("exact_market_identity_mismatch"), { code: "exact_market_identity_mismatch" });
+  }
+  const side = String(body?.side || "").trim().toLowerCase();
+  if (!new Set(["buy", "sell"]).has(side)) throw Object.assign(new Error("side_invalid"), { code: "side_invalid" });
+  const exactRows = await pairDex(profile.chain_namespace, poolAddress, tokenAddress);
+  const exact = exactRows.find((row) => (
+    sameOnchainAddress(profile.chain_namespace, row?.pairAddress, poolAddress)
+    && sameOnchainAddress(profile.chain_namespace, row?.tokenAddress, tokenAddress)
+    && sameOnchainAddress(profile.chain_namespace, row?.quoteTokenAddress, quoteAddress)
+  ));
+  if (!exact) throw Object.assign(new Error("exact_market_unavailable"), { code: "exact_market_unavailable" });
+
+  const rpcClient = createBscReadOnlyRpcClient(env);
+  const chainEvidence = await verifyReadOnlyEvmRpcChain(rpcClient, profile.chain_id);
+  const [tokenEvidence, accountingEvidence] = await Promise.all([
+    currentBscTokenEvidence(rpcClient, tokenAddress, side === "sell" ? walletAddress : null),
+    currentBscTokenEvidence(rpcClient, profile.accounting_asset.address),
+  ]);
+  if (accountingEvidence.decimals !== profile.accounting_asset.decimals) {
+    throw Object.assign(new Error("bsc_accounting_asset_identity_unresolved"), { code: "bsc_accounting_asset_identity_unresolved" });
+  }
+
+  const requestedPreference = String((side === "buy" ? body?.funding_preference : body?.settlement_preference) || "auto").trim().toLowerCase();
+  if (!new Set(["auto", "canonical_usdc", "native"]).has(requestedPreference)) {
+    throw Object.assign(new Error("asset_preference_invalid"), { code: "asset_preference_invalid" });
+  }
+  const selectedPreference = side === "buy" && requestedPreference === "native" ? "native" : "canonical_usdc";
+  if (side === "sell" && requestedPreference === "native") {
+    throw Object.assign(new Error("evm_native_sell_settlement_not_supported"), { code: "evm_native_sell_settlement_not_supported" });
+  }
+  const slippageBps = Math.round(Number(body?.slippage_bps ?? 50));
+  if (!Number.isSafeInteger(slippageBps) || slippageBps < 5 || slippageBps > 500) {
+    throw Object.assign(new Error("slippage_bps_invalid"), { code: "slippage_bps_invalid" });
+  }
+
+  let sellToken;
+  let buyToken;
+  let sellAmount;
+  if (side === "buy") {
+    sellToken = selectedPreference === "native" ? profile.native_token_address : profile.accounting_asset.address;
+    buyToken = tokenAddress;
+    sellAmount = exactDisplayToBaseUnits(body?.display_amount, 18, "display_amount");
+  } else {
+    const percent = Number(body?.sell_percent);
+    if (![25, 50, 75, 100].includes(percent) || tokenEvidence.balance_base_units === null) {
+      throw Object.assign(new Error("sell_percentage_invalid"), { code: "sell_percentage_invalid" });
+    }
+    sellToken = tokenAddress;
+    buyToken = profile.accounting_asset.address;
+    sellAmount = ((BigInt(tokenEvidence.balance_base_units) * BigInt(percent)) / 100n).toString();
+    if (BigInt(sellAmount) <= 0n) throw Object.assign(new Error("insufficient_balance"), { code: "insufficient_balance" });
+  }
+
+  const quoteClient = createEvmZeroXQuoteClient(env, { profile });
+  const entryQuote = await quoteClient.quote({
+    profile_id: profile.profile_id,
+    chain_id: profile.chain_id,
+    sell_token: sellToken,
+    buy_token: buyToken,
+    sell_amount: sellAmount,
+    taker: walletAddress,
+    slippage_bps: slippageBps,
+  }, {
+    entitlement_tier: "free",
+    fee_enabled: true,
+    fee_token_side: side === "sell" ? "buy" : "sell",
+  });
+  if (!entryQuote.wallet_handoff_eligible) {
+    const reason = entryQuote.blockers?.[0] || "bsc_entry_quote_blocked";
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers } });
+  }
+
+  let notionalBaseUnits;
+  let sourceValuation = null;
+  if (side === "buy" && sellToken === profile.accounting_asset.address) {
+    notionalBaseUnits = sellAmount;
+  } else if (side === "sell") {
+    const feeAmount = entryQuote.fee?.token === profile.accounting_asset.address ? BigInt(entryQuote.fee.amount || "0") : 0n;
+    notionalBaseUnits = (BigInt(entryQuote.exact_binding.buy_amount_base_units) + feeAmount).toString();
+  } else {
+    sourceValuation = await quoteClient.quote({
+      profile_id: profile.profile_id,
+      chain_id: profile.chain_id,
+      sell_token: profile.native_token_address,
+      buy_token: profile.accounting_asset.address,
+      sell_amount: sellAmount,
+      taker: walletAddress,
+      slippage_bps: slippageBps,
+    }, { entitlement_tier: "free", fee_enabled: false });
+    notionalBaseUnits = sourceValuation.exact_binding.buy_amount_base_units;
+  }
+  const minimumNotional = BigInt(exactDisplayToBaseUnits("1", profile.accounting_asset.decimals, "minimum_notional"));
+  const maximumNotional = BigInt(exactDisplayToBaseUnits(String(boundedLiveNotional(env)), profile.accounting_asset.decimals, "maximum_notional"));
+  if (BigInt(notionalBaseUnits) < minimumNotional || BigInt(notionalBaseUnits) > maximumNotional) {
+    throw Object.assign(new Error("live_notional_out_of_bounds"), { code: "live_notional_out_of_bounds" });
+  }
+
+  let exitQuote = null;
+  if (side === "buy") {
+    exitQuote = await quoteClient.quote({
+      profile_id: profile.profile_id,
+      chain_id: profile.chain_id,
+      sell_token: tokenAddress,
+      buy_token: profile.accounting_asset.address,
+      sell_amount: entryQuote.exact_binding.buy_amount_base_units,
+      taker: walletAddress,
+      slippage_bps: slippageBps,
+    }, { entitlement_tier: "free", fee_enabled: true, fee_token_side: "buy" });
+  }
+
+  const prepared = createEvmLiveTicket({
+    exact_market: {
+      profile_id: profile.profile_id,
+      instrument_id: instrumentId,
+      pool_address: poolAddress,
+      token_address: tokenAddress,
+      quote_address: quoteAddress,
+      symbol: String(exact.symbol || body?.symbol || "TOKEN"),
+      quote_symbol: String(exact.quoteSymbol || ""),
+      side,
+    },
+    entry_quote: entryQuote,
+    exit_quote: exitQuote,
+    wallet_address: walletAddress,
+    accounting: {
+      asset_address: profile.accounting_asset.address,
+      symbol: profile.accounting_asset.symbol,
+      decimals: profile.accounting_asset.decimals,
+      notional_base_units: notionalBaseUnits,
+      maximum_notional_base_units: maximumNotional.toString(),
+    },
+  }, { profile });
+  return Object.freeze({
+    ...prepared,
+    provider_quote: entryQuote,
+    review: Object.freeze({
+      chain: chainEvidence,
+      source_valuation_quote_hash: sourceValuation?.quote_hash || null,
+      token: tokenEvidence,
+      accounting_asset: Object.freeze({
+        ...accountingEvidence,
+        representation: profile.accounting_asset.representation,
+        issuer: profile.accounting_asset.issuer,
+        circle_canonical_usdc: profile.accounting_asset.circle_canonical_usdc,
+      }),
+      expected_output: robinhoodQuoteDisplay(entryQuote.exact_binding.buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : profile.accounting_asset.decimals, side === "buy" ? String(exact.symbol || "TOKEN") : profile.accounting_asset.symbol),
+      minimum_output: robinhoodQuoteDisplay(entryQuote.exact_binding.minimum_buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : profile.accounting_asset.decimals, side === "buy" ? String(exact.symbol || "TOKEN") : profile.accounting_asset.symbol),
+      executable_exit: prepared.ticket.exit_proof ? robinhoodQuoteDisplay(prepared.ticket.exit_proof.expected_accounting_amount_base_units, profile.accounting_asset.decimals, profile.accounting_asset.symbol) : null,
     }),
   });
 }
@@ -7521,14 +7772,25 @@ async function handleTradeLiveSession(request, env = {}) {
     },
     evm_fee: {
       enabled: evmFee.fee_enabled,
-      configuration_ready: evmFee.configured && evmFee.robinhood.fee_configuration_ready,
+      configuration_ready: evmFee.configured
+        && (evmFee.robinhood.fee_configuration_ready || evmFee.bsc.fee_configuration_ready),
       fee_bps: evmFee.actual_fee_bps,
       configured_fee_bps: evmFee.robinhood.fee_schedule.free_fee_bps,
       pro_fee_bps: evmFee.robinhood.fee_schedule.pro_fee_bps,
-      fee_token: "route-bound; USDG preferred on Robinhood Chain",
+      fee_token: "chain-local accounting asset; USDG on Robinhood Chain, Binance-Peg USDC on BNB Chain",
       collection_method: evmFee.collection_method,
       chain_local_accounting_required: evmFee.chain_local_accounting_required,
       unavailable_reason: evmFee.fee_enabled ? null : evmFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
+      chains: {
+        robinhood: {
+          enabled: evmFee.robinhood.fee_collection_enabled,
+          accounting_asset: evmFee.robinhood.accounting_asset,
+        },
+        bsc: {
+          enabled: evmFee.bsc.fee_collection_enabled,
+          accounting_asset: evmFee.bsc.accounting_asset,
+        },
+      },
     },
     execution_boundary: {
       wallet_signature_required: true,
@@ -7644,6 +7906,153 @@ async function handleTradeLiveRobinhoodReport(request, env = {}) {
     }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
   } catch (error) {
     const code = String(error?.code || error?.message || "robinhood_reconciliation_unavailable");
+    return liveExecutionResponse({ ok: false, error: code }, authorization, { status: 409 });
+  }
+}
+
+async function handleTradeLiveBscPrepare(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "bsc");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal, gate }, authorization, { status: 403 });
+  const profile = BSC_EVM_CHAIN_PROFILE;
+  const capability = resolveEvmZeroXCapability(env, { profile });
+  const configuredEvmCollector = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim().toLowerCase();
+  const configuredZeroXCollector = String(env.RAVENOS_BSC_ZEROX_FEE_RECIPIENT || configuredEvmCollector).trim().toLowerCase();
+  if (!capability.quote_review_enabled
+    || !capability.fee_collection_enabled
+    || !configuredEvmCollector
+    || configuredEvmCollector !== configuredZeroXCollector) {
+    return liveExecutionResponse({
+      ok: false,
+      error: capability.fee_state === "misconfigured" ? "bsc_fee_configuration_invalid" : "bsc_zero_x_unavailable",
+      capability,
+    }, authorization, { status: 503 });
+  }
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 16 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  try {
+    const prepared = await loadCurrentBscLivePreparation(body, env);
+    await createD1EvmLiveExecutionStore(env.RAVENOS_CUSTOMER_DB, { profile }).createTicket({
+      prepared,
+      user_id: authorization.principal.user_id,
+      now_seconds: authorization.now,
+    });
+    return liveExecutionResponse({
+      ok: true,
+      schema_version: "ravenos.evm_live_prepare_response.v1",
+      profile_id: profile.profile_id,
+      chain_namespace: profile.chain_namespace,
+      chain_id: profile.chain_id,
+      canonical_chain_id: profile.canonical_chain_id,
+      ticket: prepared.ticket,
+      provider_quote: prepared.provider_quote,
+      review: prepared.review,
+      execution_boundary: prepared.ticket.execution_boundary,
+    }, authorization);
+  } catch (error) {
+    const code = String(error?.code || error?.message || "bsc_live_prepare_unavailable");
+    const conflict = /(?:invalid|mismatch|restricted|blocked|required|insufficient|out_of_bounds|not_supported)$/.test(code)
+      || new Set(["allowance_required", "simulation_incomplete", "invalid_liquidity_sources"]).has(code);
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: conflict ? 409 : 503 });
+  }
+}
+
+async function handleTradeLiveBscReport(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
+  const refusal = customerLiveExecutionRefusal(gate, "bsc");
+  if (refusal) return liveExecutionResponse({ ok: false, error: refusal }, authorization, { status: 403 });
+  if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
+    return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
+  }
+  let body;
+  try {
+    body = await parseBoundedJsonBody(request, { max_bytes: 8 * 1024 });
+  } catch (error) {
+    return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
+  }
+  const profile = BSC_EVM_CHAIN_PROFILE;
+  const store = createD1EvmLiveExecutionStore(env.RAVENOS_CUSTOMER_DB, { profile });
+  try {
+    const stored = await store.findTicket(body?.ticket_id, authorization.principal.user_id);
+    if (!stored?.prepared) return liveExecutionResponse({ ok: false, error: "execution_ticket_not_found" }, authorization, { status: 404 });
+    if (!["awaiting_wallet_signature", "client_reported", "reconciliation_pending"].includes(stored.state)) {
+      return liveExecutionResponse({ ok: false, error: "execution_ticket_terminal", state: stored.state }, authorization, { status: 409 });
+    }
+    const report = normalizeEvmClientExecutionReport(body, stored.prepared);
+    if (stored.state === "awaiting_wallet_signature") {
+      await store.recordClientReport({ record: report, user_id: authorization.principal.user_id, now_seconds: authorization.now });
+    } else if (String(stored.transaction_hash || "").toLowerCase() !== report.transaction_hash) {
+      return liveExecutionResponse({ ok: false, error: "evm_execution_transaction_mismatch" }, authorization, { status: 409 });
+    }
+    const rpcClient = createBscReadOnlyRpcClient(env);
+    await verifyReadOnlyEvmRpcChain(rpcClient, profile.chain_id);
+    let reconciliation = await reconcileEvmExecution({ ticket: stored.prepared, client_report: report }, {
+      rpc_client: rpcClient,
+      minimum_confirmations: 1,
+    });
+    if (reconciliation.state === "provider_confirmed") {
+      try {
+        const finality = await readEvmFinalityEvidence(rpcClient);
+        const receiptBlock = BigInt(reconciliation.evidence.block_number);
+        const finalized = receiptBlock <= BigInt(finality.finalized_block);
+        reconciliation = Object.freeze({
+          ...reconciliation,
+          state: finalized ? "provider_confirmed" : "indeterminate",
+          evidence: Object.freeze({
+            ...reconciliation.evidence,
+            reason: finalized ? null : "finality_pending",
+            finality_state: finalized ? "provider_finalized" : "included_not_finalized",
+            finalized,
+            finality_claim: "provider_finalized_tag",
+            finality,
+          }),
+        });
+      } catch {
+        reconciliation = Object.freeze({
+          ...reconciliation,
+          state: "indeterminate",
+          evidence: Object.freeze({
+            ...reconciliation.evidence,
+            reason: "provider_finality_unavailable",
+            finality_state: "unresolved",
+            finalized: false,
+            finality_claim: "unavailable",
+          }),
+        });
+      }
+    }
+    const persisted = await store.reconcile({
+      execution_id: stored.prepared.ticket_id,
+      user_id: authorization.principal.user_id,
+      reconciliation,
+      now_seconds: Math.floor(Date.now() / 1_000),
+    });
+    const confirmed = reconciliation.state === "provider_confirmed" && reconciliation.evidence?.finalized === true;
+    const rejected = reconciliation.state === "provider_rejected";
+    return liveExecutionResponse({
+      ok: !rejected,
+      schema_version: "ravenos.evm_live_execution_response.v1",
+      profile_id: profile.profile_id,
+      chain_namespace: profile.chain_namespace,
+      ticket_id: stored.prepared.ticket_id,
+      transaction_hash: report.transaction_hash,
+      reconciliation,
+      retryable_reconciliation: persisted.retryable,
+      execution_boundary: stored.prepared.execution_boundary,
+    }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
+  } catch (error) {
+    const code = String(error?.code || error?.message || "bsc_reconciliation_unavailable");
     return liveExecutionResponse({ ok: false, error: code }, authorization, { status: 409 });
   }
 }
@@ -9911,6 +10320,8 @@ async function routeApi(request, env, executionContext = null) {
   if (url.pathname === "/api/trade/live/solana/execute" && request.method === "POST") return handleTradeLiveSolanaExecute(request, env);
   if (url.pathname === "/api/trade/live/robinhood/prepare" && request.method === "POST") return handleTradeLiveRobinhoodPrepare(request, env);
   if (url.pathname === "/api/trade/live/robinhood/report" && request.method === "POST") return handleTradeLiveRobinhoodReport(request, env);
+  if (url.pathname === "/api/trade/live/bsc/prepare" && request.method === "POST") return handleTradeLiveBscPrepare(request, env);
+  if (url.pathname === "/api/trade/live/bsc/report" && request.method === "POST") return handleTradeLiveBscReport(request, env);
   const entitlementResponse = await routeCustomerEntitlements(request, env, {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });

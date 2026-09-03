@@ -31,6 +31,7 @@ test("source authority permits only implemented wallet-owned venue lanes", () =>
   assert.equal(gate.chains.hyperliquid.source_ready, true);
   assert.equal(gate.chains.solana.source_ready, true);
   assert.equal(gate.chains.robinhood.source_ready, true);
+  assert.equal(gate.chains.bsc.source_ready, true);
   assert.equal(CustomerLiveExecutionAuthorization.solana_signed_transaction_submission, true);
   assert.equal(CustomerLiveExecutionAuthorization.evm_wallet_transaction_submission, true);
   assert.equal(CustomerLiveExecutionAuthorization.raven_signing, false);
@@ -51,6 +52,7 @@ test("allowlisted recently authenticated user can reach each explicitly enabled 
   assert.equal(gate.chains.solana.available_to_principal, true);
   assert.equal(gate.chains.robinhood.enabled, false);
   assert.equal(gate.chains.robinhood.available_to_principal, false);
+  assert.equal(gate.chains.bsc.available_to_principal, false);
   assert.equal(customerLiveExecutionRefusal(gate, "hyperliquid"), null);
   assert.equal(customerLiveExecutionRefusal(gate, "solana"), null);
 });
@@ -62,6 +64,18 @@ test("Robinhood Chain is independently gated behind the wallet-signed EVM lane",
   assert.equal(gate.chains.robinhood.enabled, true);
   assert.equal(gate.chains.robinhood.available_to_principal, true);
   assert.equal(customerLiveExecutionRefusal(gate, "robinhood"), null);
+  assert.equal(gate.authority.raven_signing, false);
+  assert.equal(gate.authority.custody, false);
+});
+
+test("BNB Chain is independently gated behind the wallet-signed EVM lane", () => {
+  const gate = resolveCustomerLiveExecutionGate(enabledEnv({
+    RAVENOS_CUSTOMER_TRADE_BSC_LIVE_ENABLE: "1",
+  }), principal(), { nowSeconds: NOW });
+  assert.equal(gate.chains.bsc.enabled, true);
+  assert.equal(gate.chains.bsc.available_to_principal, true);
+  assert.equal(gate.chains.robinhood.enabled, false);
+  assert.equal(customerLiveExecutionRefusal(gate, "bsc"), null);
   assert.equal(gate.authority.raven_signing, false);
   assert.equal(gate.authority.custody, false);
 });
@@ -86,5 +100,7 @@ test("public projection exposes capability state without exposing the canary use
   assert.equal(projection.chains.solana.source_ready, true);
   assert.equal(projection.chains.robinhood.source_ready, true);
   assert.equal(projection.chains.robinhood.enabled, false);
+  assert.equal(projection.chains.bsc.source_ready, true);
+  assert.equal(projection.chains.bsc.enabled, false);
   assert.equal(JSON.stringify(projection).includes(USER), false);
 });

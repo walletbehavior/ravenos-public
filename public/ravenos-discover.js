@@ -743,8 +743,8 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
 }
 
 const DISCOVER_MARKET_FACT_TARGET_SECONDS = 120;
-const DISCOVER_CLASSIFIER_VERSION = "2026-09-01.1";
-const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v1";
+const DISCOVER_CLASSIFIER_VERSION = "2026-09-03.1";
+const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v2";
 
 function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   const contract = row?.discovery?.facts?.freshness || {};
@@ -1118,7 +1118,7 @@ function updateSpotRefineSummary() {
     state.spotRouteFilter !== "all",
     state.spotAssetFilter !== "all",
   ].filter(Boolean).length;
-  const lane = state.spotRevivalOnly ? "Old + moving" : opportunityLaneLabel(state.spotLane) || "Opportunities";
+  const lane = state.spotRevivalOnly ? "Trading again" : opportunityLaneLabel(state.spotLane) || "Opportunities";
   summary.textContent = refinements ? `${lane} · ${refinements} more` : lane;
 }
 

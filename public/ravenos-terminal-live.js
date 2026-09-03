@@ -26,6 +26,28 @@ const SOLANA_CANONICAL_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 const SOLANA_WRAPPED_NATIVE_MINT = "So11111111111111111111111111111111111111112";
 const ROBINHOOD_CANONICAL_USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
 const ROBINHOOD_NATIVE_ETH = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+const BSC_BINANCE_PEG_USDC = "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d";
+const EVM_NATIVE_ASSET = ROBINHOOD_NATIVE_ETH;
+const EVM_SPOT_PROFILES = Object.freeze({
+  robinhood: Object.freeze({
+    profile_id: "robinhood-mainnet-v1",
+    chain_namespace: "robinhood",
+    chain_id: 4663,
+    canonical_chain_id: "eip155:4663",
+    accounting_address: ROBINHOOD_CANONICAL_USDG,
+    accounting_symbol: "USDG",
+    native_symbol: "ETH",
+  }),
+  bsc: Object.freeze({
+    profile_id: "bsc-mainnet-v1",
+    chain_namespace: "bsc",
+    chain_id: 56,
+    canonical_chain_id: "eip155:56",
+    accounting_address: BSC_BINANCE_PEG_USDC,
+    accounting_symbol: "USDC",
+    native_symbol: "BNB",
+  }),
+});
 const SPOT_TRADE_REFRESH_MS = 5_000;
 const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
@@ -1004,8 +1026,12 @@ function currentSpotLiveGate() {
   return state.liveSession?.gate?.chains?.[currentSpotChain()] || null;
 }
 
+function evmSpotProfile(chain = currentSpotChain()) {
+  return EVM_SPOT_PROFILES[String(chain || "").toLowerCase()] || null;
+}
+
 function spotAccountingSymbol(chain = currentSpotChain()) {
-  return chain === "robinhood" ? "USDG" : "USDC";
+  return evmSpotProfile(chain)?.accounting_symbol || "USDC";
 }
 
 function shortSpotWalletAddress(value) {
@@ -1046,7 +1072,7 @@ function updateWalletShellCapability() {
       ? `${shortAccountAddress(state.walletAddress)} · ${hyperliquidLive ? "live confirmation" : "public view"}`
       : state.lane === "spot" ? spotWallet.provider ? "Wallet ready · not connected" : `No ${chainDisplayName(chain)} wallet` : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
     signing: state.lane === "spot" ? spotLive ? "Wallet confirms" : "Sign off" : hyperliquidLive ? "Wallet confirms" : "Sign off",
-    broadcast: state.lane === "spot" ? spotLive ? chain === "robinhood" ? "0x reviewed" : "Jupiter reviewed" : "Broadcast off" : hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
+    broadcast: state.lane === "spot" ? spotLive ? evmSpotProfile(chain) ? "0x reviewed" : "Jupiter reviewed" : "Broadcast off" : hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
   });
 }
 
@@ -1085,22 +1111,25 @@ function spotLiveTicketMatchesCurrentTrade(ticket) {
   const snapshot = spotTicketSnapshot();
   const reviewed = ticket?.reviewed_order || {};
   if (!snapshot) return false;
-  if (snapshot.chain === "robinhood") {
+  const evmProfile = evmSpotProfile(snapshot.chain);
+  if (evmProfile) {
     const selectedKind = (snapshot.side === "buy" ? snapshot.funding_preference : snapshot.settlement_preference) === "native"
       ? "native"
       : "canonical_usdc";
     const expectedInput = snapshot.side === "buy"
-      ? selectedKind === "native" ? ROBINHOOD_NATIVE_ETH : ROBINHOOD_CANONICAL_USDG
+      ? selectedKind === "native" ? EVM_NATIVE_ASSET : evmProfile.accounting_address
       : snapshot.token_address;
-    const expectedOutput = snapshot.side === "buy" ? snapshot.token_address : ROBINHOOD_CANONICAL_USDG;
-    return ticket?.schema_version === "ravenos.robinhood_live_ticket.v1"
-      && ticket.chain_id === 4663
+    const expectedOutput = snapshot.side === "buy" ? snapshot.token_address : evmProfile.accounting_address;
+    return new Set(["ravenos.evm_live_ticket.v1", "ravenos.robinhood_live_ticket.v1"]).has(ticket?.schema_version)
+      && (!ticket.profile_id || ticket.profile_id === evmProfile.profile_id)
+      && (!ticket.chain_namespace || ticket.chain_namespace === evmProfile.chain_namespace)
+      && ticket.chain_id === evmProfile.chain_id
       && ticket.wallet_address?.toLowerCase() === snapshot.wallet_address?.toLowerCase()
       && ticket.exact_market?.instrument_id === snapshot.instrument_id
       && ticket.exact_market?.pool_address?.toLowerCase() === snapshot.pool_address.toLowerCase()
       && reviewed.side === snapshot.side
-      && sameSelectedAddress("robinhood", reviewed.sell_token, expectedInput)
-      && sameSelectedAddress("robinhood", reviewed.buy_token, expectedOutput)
+      && sameSelectedAddress(snapshot.chain, reviewed.sell_token, expectedInput)
+      && sameSelectedAddress(snapshot.chain, reviewed.buy_token, expectedOutput)
       && Date.parse(ticket.expires_at || "") > Date.now() + 500;
   }
   if (snapshot.chain !== "solana" || ticket?.schema_version !== "ravenos.solana_live_ticket.v1") return false;
@@ -1130,7 +1159,7 @@ function renderSpotLiveExecution() {
   const section = document.getElementById("terminalSpotTicketSection");
   if (!host || !action || !link || !order) return;
   const chain = currentSpotChain();
-  const spot = state.lane === "spot" && new Set(["solana", "robinhood"]).has(chain) && spotTicketQualified();
+  const spot = state.lane === "spot" && (chain === "solana" || Boolean(evmSpotProfile(chain))) && spotTicketQualified();
   host.hidden = !spot;
   if (!spot) return;
   action.hidden = true;
@@ -1242,7 +1271,7 @@ function renderSpotLiveExecution() {
   }
   const reviewed = state.spotLiveTicket.reviewed_order || {};
   const notional = finite(reviewed.notional_usdc)
-    ?? (reviewed.notional_accounting_base_units ? Number(reviewed.notional_accounting_base_units) / 1_000_000 : null);
+    ?? finite(displayBaseUnitsClient(reviewed.notional_accounting_base_units, state.spotLiveTicket?.accounting?.decimals));
   const feeBps = finite(state.spotLiveTicket?.fee?.fee_bps);
   order.hidden = false;
   setText("terminalSpotLiveState", "Wallet confirmation");
@@ -1488,7 +1517,7 @@ function clearConnectedWalletView(message = "Wallet address disconnected from th
   syncWalletControls();
   updateWalletShellCapability();
   renderTradeConsequences();
-  if (state.lane === "spot" && currentSpotChain() === "robinhood") {
+  if (state.lane === "spot" && evmSpotProfile()) {
     setText("terminalSpotWalletState", "Not connected");
     setText("terminalSpotWalletNote", "Raven retained no wallet permission.");
     setText("terminalSpotBalance", "Connect wallet");
@@ -1912,7 +1941,7 @@ function initializeWalletAddressControl() {
       return;
     }
     if (state.walletTransportConnected && state.walletAddress?.toLowerCase() === address.toLowerCase()) return;
-    if (state.lane === "spot" && currentSpotChain() === "robinhood") {
+    if (state.lane === "spot" && evmSpotProfile()) {
       state.walletAddress = address;
       setText("terminalSpotWalletState", shortAccountAddress(address));
       setText("terminalSpotWalletNote", "Address updated. Review a new exact route before signing.");
@@ -6060,7 +6089,7 @@ function nativeCurrencyForChain(chain) {
 function activeSpotAssetPreference(side = state.spotTicketSide) {
   const preferences = loadSpotTicketPreferences();
   const preference = side === "sell" ? preferences.settlement_preference : preferences.funding_preference;
-  return currentSpotChain() === "robinhood" && side === "sell" && preference === "native" ? "canonical_usdc" : preference;
+  return evmSpotProfile() && side === "sell" && preference === "native" ? "canonical_usdc" : preference;
 }
 
 function selectedSpotAssetKind(side = state.spotTicketSide) {
@@ -6095,13 +6124,13 @@ function syncSpotAssetPreferenceControls() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
     button.disabled = !spotTicketQualified()
-      || (identity?.chain === "robinhood" && side === "sell" && button.dataset.spotAssetPreference === "native");
+      || (Boolean(evmSpotProfile(identity?.chain)) && side === "sell" && button.dataset.spotAssetPreference === "native");
   }
 }
 
 function setSpotAssetPreference(preference) {
   const next = spotAssetPreference(preference);
-  if (currentSpotChain() === "robinhood" && state.spotTicketSide === "sell" && next === "native") return;
+  if (evmSpotProfile() && state.spotTicketSide === "sell" && next === "native") return;
   const key = state.spotTicketSide === "sell" ? "settlement_preference" : "funding_preference";
   saveSpotTicketPreferences({ [key]: next });
   setText("terminalSpotBalance", currentSpotWallet().connected ? "Read on quote" : "Not verified");
@@ -6411,15 +6440,16 @@ function spotQuoteResponseMatches(payload, snapshot) {
     && String(payload?.intent?.side || "").toLowerCase() === snapshot.side;
   const requestedPreference = snapshot.side === "buy" ? snapshot.funding_preference : snapshot.settlement_preference;
   const selectedKind = requestedPreference === "native" ? "native" : "canonical_usdc";
+  const evmProfile = evmSpotProfile(chain);
   const preference = payload?.asset_preference || {};
   const expectedOutputMint = snapshot.side === "buy"
     ? snapshot.token_address
-    : chain === "robinhood"
-      ? ROBINHOOD_CANONICAL_USDG
+    : evmProfile
+      ? evmProfile.accounting_address
       : selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT;
   const expectedInputMint = snapshot.side === "buy"
-    ? chain === "robinhood"
-      ? selectedKind === "native" ? ROBINHOOD_NATIVE_ETH : ROBINHOOD_CANONICAL_USDG
+    ? evmProfile
+      ? selectedKind === "native" ? EVM_NATIVE_ASSET : evmProfile.accounting_address
       : selectedKind === "native" ? SOLANA_WRAPPED_NATIVE_MINT : SOLANA_CANONICAL_USDC_MINT
     : snapshot.token_address;
   const inputMint = String(payload?.quote?.input_mint || payload?.intent?.input_mint || "");
@@ -6435,7 +6465,7 @@ function spotQuoteResponseMatches(payload, snapshot) {
     && sameSelectedAddress(chain, outputMint, expectedOutputMint)
     && configuredFeeBps !== null
     && actualFeeBps !== null
-    && (chain !== "robinhood" || spotLiveTicketMatchesCurrentTrade(payload.ticket))
+    && (!evmProfile || spotLiveTicketMatchesCurrentTrade(payload.ticket))
     && Number.isFinite(expiresAt)
     && expiresAt > Date.now();
 }
@@ -6521,7 +6551,7 @@ function syncSpotTicketControls() {
   }
   const walletButton = document.getElementById("terminalSpotWalletConnect");
   if (walletButton) walletButton.disabled = !qualified;
-  const feePreview = identity?.chain === "robinhood" ? state.flags?.evm_fee_preview || {} : state.flags?.spot_fee_preview || {};
+  const feePreview = evmSpotProfile(identity?.chain) ? state.flags?.evm_fee_preview?.chains?.[identity.chain] || state.flags?.evm_fee_preview || {} : state.flags?.spot_fee_preview || {};
   if (qualified) {
     if (state.spotQuoteStatus === "idle" && !state.spotQuote) setText("terminalSpotQuoteState", "Ready to review");
     const freeFeeBps = finite(feePreview.free_fee_bps);
@@ -6690,6 +6720,10 @@ function spotQuoteReason(reason) {
     robinhood_stock_token_trading_restricted: "Stock-token trading is unavailable in this terminal.",
     robinhood_native_sell_settlement_not_supported: "RH sells currently settle to USDG.",
     robinhood_chain_switch_failed: "Open Robinhood Chain in your wallet and try again.",
+    evm_native_sell_settlement_not_supported: `Sells on ${chainDisplayName(currentSpotChain())} currently settle to ${spotAccountingSymbol()}.`,
+    evm_chain_switch_failed: `Open ${chainDisplayName(currentSpotChain())} in your wallet and try again.`,
+    bsc_live_execution_disabled: "BNB Chain trading is temporarily off.",
+    bsc_accounting_asset_identity_unresolved: "BNB Chain settlement-token identity could not be verified.",
     recent_authentication_required: "Sign in again before preparing a live route.",
     live_execution_not_configured: "Wallet trading is not active for this session.",
     robinhood_live_execution_disabled: "Robinhood Chain trading is temporarily off.",
@@ -6716,8 +6750,8 @@ function displayBaseUnitsClient(value, decimals) {
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
-function normalizeRobinhoodSpotPreparePayload(payload, snapshot) {
-  if (!payload?.ok || payload?.schema_version !== "ravenos.robinhood_live_prepare_response.v1") return payload;
+function normalizeEvmSpotPreparePayload(payload, snapshot) {
+  if (!payload?.ok || !new Set(["ravenos.evm_live_prepare_response.v1", "ravenos.robinhood_live_prepare_response.v1"]).has(payload?.schema_version)) return payload;
   const ticket = payload.ticket || {};
   const providerQuote = payload.provider_quote || {};
   const review = payload.review || {};
@@ -6840,11 +6874,12 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   state.spotQuoteExpiresAt = spotQuoteEffectiveExpiry(payload);
   const quote = payload.quote || {};
   const chain = snapshot?.chain || currentSpotChain();
+  const evmProfile = evmSpotProfile(chain);
   const outputMint = String(quote.output_mint || payload?.intent?.output_mint || "");
-  const outputSymbol = chain === "robinhood" && sameSelectedAddress(chain, outputMint, ROBINHOOD_CANONICAL_USDG)
-    ? "USDG"
-    : chain === "robinhood" && sameSelectedAddress(chain, outputMint, ROBINHOOD_NATIVE_ETH)
-      ? "ETH"
+  const outputSymbol = evmProfile && sameSelectedAddress(chain, outputMint, evmProfile.accounting_address)
+    ? evmProfile.accounting_symbol
+    : evmProfile && sameSelectedAddress(chain, outputMint, EVM_NATIVE_ASSET)
+      ? evmProfile.native_symbol
       : sameSelectedAddress("solana", outputMint, SOLANA_CANONICAL_USDC_MINT)
         ? "USDC"
         : sameSelectedAddress("solana", outputMint, SOLANA_WRAPPED_NATIVE_MINT)
@@ -6860,13 +6895,13 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
       : Array.isArray(quote.route)
         ? quote.route
         : [];
-  setText("terminalSpotQuoteRoute", labels.length ? labels.slice(0, 3).join(" → ") : chain === "robinhood" ? "0x exact-input route" : "Jupiter exact-input route");
+  setText("terminalSpotQuoteRoute", labels.length ? labels.slice(0, 3).join(" → ") : evmProfile ? "0x exact-input route" : "Jupiter exact-input route");
   const fee = payload.fee_disclosure || payload.fee_policy || quote.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
   setText("terminalSpotQuoteFee", configuredFeeBps === null || actualFeeBps === null
     ? "Unavailable"
-    : chain === "robinhood"
+    : evmProfile
       ? `${(configuredFeeBps / 100).toFixed(2)}% · ${actualFeeBps} bps charged`
       : `${(configuredFeeBps / 100).toFixed(2)}% configured · ${actualFeeBps} bps charged`);
   const providerLatency = finite(payload.timing?.provider_latency_ms ?? quote.provider_latency_ms ?? payload.provider_latency_ms);
@@ -6898,7 +6933,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   }
   setText("terminalSpotQuoteState", "Current quote");
   setText("terminalSpotQuoteMessage", roundTrip?.exit_verified
-    ? `Entry + ${spotAccountingSymbol(chain)} exit verified.${chain === "robinhood" ? " Ready for wallet confirmation." : " Review only."}`
+    ? `Entry + ${spotAccountingSymbol(chain)} exit verified.${evmProfile ? " Ready for wallet confirmation." : " Review only."}`
     : state.spotTicketSide === "buy"
       ? `${spotAccountingSymbol(chain)} exit unresolved. Buy unavailable.`
       : `Current ${outputSymbol} exit. Review only.`);
@@ -6916,19 +6951,20 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
 async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } = {}) {
   if (!spotTicketQualified()) return;
   const chain = currentSpotChain();
+  const evmProfile = evmSpotProfile(chain);
   const wallet = currentSpotWallet();
   const action = document.getElementById("terminalSpotQuoteAction");
-  if (chain === "robinhood" && (!authenticatedTerminalOrigin() || state.liveAuth?.authenticated !== true)) {
+  if (evmProfile && (!authenticatedTerminalOrigin() || state.liveAuth?.authenticated !== true)) {
     clearSpotQuoteResult("Sign in to the secure workspace before preparing a wallet route.");
     setText("terminalSpotQuoteState", "Sign in");
     return;
   }
-  if (chain === "robinhood" && currentSpotLiveGate()?.available_to_principal !== true) {
-    clearSpotQuoteResult("Robinhood Chain wallet trading is not active for this session.");
+  if (evmProfile && currentSpotLiveGate()?.available_to_principal !== true) {
+    clearSpotQuoteResult(`${chainDisplayName(chain)} wallet trading is not active for this session.`);
     setText("terminalSpotQuoteState", "Locked");
     return;
   }
-  if (chain === "robinhood" && !wallet.connected) {
+  if (evmProfile && !wallet.connected) {
     clearSpotQuoteResult("Connect an EVM wallet before requesting an exact wallet-bound route.");
     setText("terminalSpotQuoteState", "Connect wallet");
     return;
@@ -6964,18 +7000,18 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
   setText("terminalSpotQuoteMessage", automatic ? "Refreshing this unchanged exact ticket before expiry…" : "Checking the exact pool, token mints, balance sizing, and current route…");
   setSpotTicketExitSummary("loading", automatic ? "Refreshing" : "Checking", "Entry + reverse route");
   updateSpotExecutionRail();
-  const timeout = setTimeout(() => controller.abort(), chain === "robinhood" ? 12_000 : 8_000);
+  const timeout = setTimeout(() => controller.abort(), evmProfile ? 12_000 : 8_000);
   try {
-    const endpoint = chain === "robinhood" ? "/api/trade/live/robinhood/prepare" : "/api/trade/spot-quote-preview";
+    const endpoint = evmProfile ? `/api/trade/live/${chain}/prepare` : "/api/trade/spot-quote-preview";
     const { payload: rawPayload } = await fetchJson(endpoint, {
       method: "POST",
-      headers: chain === "robinhood" ? liveExecutionRequestHeaders() : { "content-type": "application/json" },
+      headers: evmProfile ? liveExecutionRequestHeaders() : { "content-type": "application/json" },
       body: JSON.stringify(snapshot),
       signal: controller.signal,
     });
-    const payload = chain === "robinhood" ? normalizeRobinhoodSpotPreparePayload(rawPayload, snapshot) : rawPayload;
+    const payload = evmProfile ? normalizeEvmSpotPreparePayload(rawPayload, snapshot) : rawPayload;
     if (generation !== state.spotQuoteGeneration || fingerprint !== state.spotQuoteFingerprint || fingerprint !== spotTicketFingerprint()) return;
-    if (chain === "robinhood" && payload?.ok) {
+    if (evmProfile && payload?.ok) {
       state.spotLiveTicket = payload.ticket;
       state.spotLiveProviderQuote = payload.provider_quote;
     }
@@ -7079,14 +7115,16 @@ async function executeSolanaLiveTrade() {
   }
 }
 
-async function executeRobinhoodLiveTrade() {
+async function executeEvmLiveTrade() {
   const ticket = state.spotLiveTicket;
   const providerQuote = state.spotLiveProviderQuote;
   const wallet = currentSpotWallet();
+  const chain = currentSpotChain();
+  const profile = evmSpotProfile(chain);
   if (!ticket || !providerQuote || !wallet.connected || !spotLiveTicketMatchesCurrentTrade(ticket)) {
     state.spotLiveTicket = null;
     state.spotLiveProviderQuote = null;
-    state.spotLiveResult = { ok: false, error: "robinhood_live_ticket_expired" };
+    state.spotLiveResult = { ok: false, error: "evm_live_ticket_expired" };
     renderSpotLiveExecution();
     return;
   }
@@ -7096,23 +7134,24 @@ async function executeRobinhoodLiveTrade() {
   let clientReport = null;
   try {
     const execution = await ensureWalletExecutionBundle();
-    clientReport = await execution.executeRobinhoodZeroXTicket({
+    clientReport = await execution.executeEvmZeroXTicket({
+      profile,
       ticket,
       quote: providerQuote,
       provider: browserWalletProvider(),
       address: wallet.address,
     });
     state.spotLiveProviderQuote = null;
-    const { response, payload } = await fetchJson("/api/trade/live/robinhood/report", {
+    const { response, payload } = await fetchJson(`/api/trade/live/${chain}/report`, {
       method: "POST",
       headers: liveExecutionRequestHeaders(),
       body: JSON.stringify(clientReport),
     });
-    if (!response.ok && response.status !== 202) throw new Error(payload?.error || "robinhood_live_report_rejected");
+    if (!response.ok && response.status !== 202) throw new Error(payload?.error || "evm_live_report_rejected");
     state.spotLiveResult = { ...payload, fee_bps: ticket.fee?.fee_bps };
     state.spotLiveTicket = null;
   } catch (error) {
-    const code = String(error?.shortMessage || error?.code || error?.message || "robinhood_live_trade_not_sent");
+    const code = String(error?.shortMessage || error?.code || error?.message || "evm_live_trade_not_sent");
     state.spotLiveTicket = null;
     state.spotLiveProviderQuote = null;
     state.spotLiveResult = clientReport
@@ -7123,7 +7162,7 @@ async function executeRobinhoodLiveTrade() {
           reconciliation: { state: "indeterminate" },
           warning: "Do not retry until the wallet and chain are checked.",
         }
-      : code === "robinhood_wallet_submission_indeterminate"
+      : new Set(["robinhood_wallet_submission_indeterminate", "evm_wallet_submission_indeterminate"]).has(code)
         ? { ok: true, fee_bps: ticket.fee?.fee_bps, reconciliation: { state: "indeterminate" }, warning: "Check the wallet before retrying." }
         : { ok: false, error: code };
   } finally {
@@ -7137,7 +7176,7 @@ async function handleSpotLiveExecutionAction() {
   if (action === "connect") return connectSpotWalletReadOnly();
   if (action === "review") return requestSpotQuote();
   if (action === "prepare") return prepareSolanaLiveTrade();
-  if (action === "execute") return currentSpotChain() === "robinhood" ? executeRobinhoodLiveTrade() : executeSolanaLiveTrade();
+  if (action === "execute") return evmSpotProfile() ? executeEvmLiveTrade() : executeSolanaLiveTrade();
 }
 
 function updateQuoteBoundary() {
@@ -9058,6 +9097,7 @@ async function boot() {
       liveHyperliquidAvailable: state.liveSession?.gate?.chains?.hyperliquid?.available_to_principal === true,
       liveSolanaAvailable: state.liveSession?.gate?.chains?.solana?.available_to_principal === true,
       liveRobinhoodAvailable: state.liveSession?.gate?.chains?.robinhood?.available_to_principal === true,
+      liveBscAvailable: state.liveSession?.gate?.chains?.bsc?.available_to_principal === true,
       liveExecutionTicketState: state.liveTicket?.state || "unavailable",
       liveExecutionResultState: state.liveExecutionResult?.reconciliation?.state || state.liveExecutionResult?.client_report?.state || "unavailable",
       signingAvailable: state.liveSession?.gate?.available_to_principal === true,

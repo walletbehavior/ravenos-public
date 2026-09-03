@@ -8,6 +8,7 @@ import {
   hyperliquidAccountSnapshotFixture,
   mockTerminalLiveApis,
   ROBINHOOD_CONTRACT,
+  ROBINHOOD_POOL,
   waitForTerminalLive,
 } from "./terminal-live-fixtures.mjs";
 
@@ -180,7 +181,7 @@ const basePulseQuote = "0x3333333333333333333333333333333333333333";
 const ethereumPulsePool = "0x4444444444444444444444444444444444444444";
 const ethereumPulseToken = "0x5555555555555555555555555555555555555555";
 const ethereumPulseQuote = "0x6666666666666666666666666666666666666666";
-const robinhoodPulsePool = "0x602633428507BBAA848E6D0c3127cda15eEAE6a9";
+const robinhoodPulsePool = ROBINHOOD_POOL;
 const robinhoodPulseQuote = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 const solanaPulsePool = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosg3Gx";
 const solanaPulseToken = "So11111111111111111111111111111111111111112";
@@ -1283,10 +1284,14 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
       sells_5m: singlePrint ? 0 : sells5m,
       buyers_5m: singlePrint ? 1 : Math.max(2, buys5m - 1),
       sellers_5m: singlePrint ? 0 : Math.max(1, sells5m - 1),
-      buys_1h: singlePrint ? 1 : 14,
-      sells_1h: singlePrint ? 0 : 8,
-      buyers_1h: singlePrint ? 1 : 10,
-      sellers_1h: singlePrint ? 0 : 6,
+      buys_1h: singlePrint ? 1 : buys5m,
+      sells_1h: singlePrint ? 0 : sells5m,
+      buyers_1h: singlePrint ? 1 : Math.max(2, buys5m - 1),
+      sellers_1h: singlePrint ? 0 : Math.max(1, sells5m - 1),
+      buys_24h: singlePrint ? 1 : buys5m,
+      sells_24h: singlePrint ? 0 : sells5m,
+      buyers_24h: singlePrint ? 1 : Math.max(2, buys5m - 1),
+      sellers_24h: singlePrint ? 0 : Math.max(1, sells5m - 1),
     };
     return row;
   };

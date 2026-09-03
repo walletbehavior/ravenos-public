@@ -542,7 +542,7 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
     assert.ok(body.rows.every((row) => row.research_only === true && row.execution_available === false));
     assert.ok(body.rows.every((row) => row.discovery.schema_version === "ravenos.discover_market.v1"));
-    assert.ok(body.rows.every((row) => row.discovery.revival_scan.schema_version === "ravenos.discover_revival_scan.v1"));
+    assert.ok(body.rows.every((row) => row.discovery.revival_scan.schema_version === "ravenos.discover_revival_scan.v2"));
     assert.ok(body.rows.every((row) => row.discovery.revival_scan.historical_series_claimed === false));
     assert.ok(body.rows.every((row) => row.discovery.revival_scan.theme_catalyst_identified === false));
     assert.ok(body.rows.every((row) => row.discovery.raven_evidence_state.raven_signal === false));

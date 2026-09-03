@@ -445,6 +445,7 @@ export async function mockTerminalLiveApis(page, {
   spotLateOlderPrice = null,
   spotChartCurrent = false,
   spotQuotePreview = false,
+  spotQuoteChains = null,
   spotQuoteTtlMs = 20_000,
   spotExitQuoteTtlMs = spotQuoteTtlMs,
   spotQuoteDelayMs = 0,
@@ -454,6 +455,9 @@ export async function mockTerminalLiveApis(page, {
   const holderCalls = [];
   const tradeCalls = [];
   const spotQuoteCalls = [];
+  const qualifiedSpotQuoteChains = Array.isArray(spotQuoteChains)
+    ? [...new Set(spotQuoteChains.map((value) => String(value || "").toLowerCase()).filter(Boolean))]
+    : spotQuotePreview ? ["solana"] : [];
   const markets = [marketRow("SOL-PERP"), marketRow("BTC-PERP")];
   const effectiveSpotTradePrice = spotTradePrice !== null && spotTradePrice !== undefined && spotTradePrice !== "" && Number.isFinite(Number(spotTradePrice))
     ? Number(spotTradePrice)
@@ -1033,12 +1037,12 @@ export async function mockTerminalLiveApis(page, {
       signing_available: false,
       submission_available: false,
       spot_quote_preview_available: spotQuotePreview,
-      spot_quote_preview_chains: spotQuotePreview ? ["solana"] : [],
+      spot_quote_preview_chains: qualifiedSpotQuoteChains,
       trade_adapter_states: {
         solana: spotQuotePreview ? "quote_review" : "unavailable",
         hyperliquid: "quote_review",
         base: "adapter_pending",
-        bsc: "adapter_pending",
+        bsc: qualifiedSpotQuoteChains.includes("bsc") ? "wallet_execution" : "adapter_pending",
         ethereum: "adapter_pending",
         robinhood: "adapter_pending",
         arbitrum: "adapter_pending",
@@ -1055,6 +1059,23 @@ export async function mockTerminalLiveApis(page, {
         pro_discount_pct: 30,
         actual_fee_bps: 0,
         enabled: false,
+      },
+      evm_fee_preview: {
+        provider: "0x",
+        free_fee_bps: 100,
+        pro_fee_bps: 70,
+        pro_discount_pct: 30,
+        actual_fee_bps: qualifiedSpotQuoteChains.includes("bsc") ? 100 : 0,
+        enabled: qualifiedSpotQuoteChains.includes("bsc"),
+        chains: {
+          bsc: {
+            free_fee_bps: 100,
+            pro_fee_bps: 70,
+            pro_discount_pct: 30,
+            actual_fee_bps: qualifiedSpotQuoteChains.includes("bsc") ? 100 : 0,
+            enabled: qualifiedSpotQuoteChains.includes("bsc"),
+          },
+        },
       },
       flags: {
         RAVENOS_CUSTOMER_TRADE_UI_ENABLE: flagsEnabled,

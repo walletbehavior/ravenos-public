@@ -186,6 +186,77 @@ const ROBINHOOD_TRANSACTION_KEYS = new Set([
   "unsigned",
   "value",
 ]);
+const EVM_TRANSACTION_KEYS = new Set([
+  ...ROBINHOOD_TRANSACTION_KEYS,
+  "canonical_chain_id",
+  "chain_namespace",
+  "profile_id",
+]);
+
+const EVM_ZERO_X_QUOTE_SCHEMA = "ravenos.evm_zero_x_unsigned_quote.v1";
+const EVM_LIVE_TICKET_SCHEMA = "ravenos.evm_live_ticket.v1";
+const ZERO_X_ALLOWANCE_HOLDER = "0x0000000000001ff3684f28c67538d4d072c22734";
+const EVM_ZERO_X_PROFILES = Object.freeze({
+  robinhood: Object.freeze({
+    profile_id: "robinhood-mainnet-v1",
+    chain_namespace: "robinhood",
+    chain_id: ROBINHOOD_CHAIN_ID,
+    canonical_chain_id: "eip155:4663",
+    wallet_chain_hex: ROBINHOOD_CHAIN_HEX,
+    native_symbol: "ETH",
+    accounting_asset: Object.freeze({
+      address: "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      symbol: "USDG",
+      decimals: 6,
+      representation: "paxos_usdg",
+      issuer: "Paxos",
+      circle_canonical_usdc: false,
+    }),
+  }),
+  bsc: Object.freeze({
+    profile_id: "bsc-mainnet-v1",
+    chain_namespace: "bsc",
+    chain_id: 56,
+    canonical_chain_id: "eip155:56",
+    wallet_chain_hex: "0x38",
+    native_symbol: "BNB",
+    accounting_asset: Object.freeze({
+      address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      symbol: "USDC",
+      decimals: 18,
+      representation: "binance_peg_usdc",
+      issuer: "Binance-Peg",
+      circle_canonical_usdc: false,
+    }),
+  }),
+});
+const EVM_ZERO_X_PROFILE_ALIASES = Object.freeze({
+  robinhood: "robinhood",
+  "robinhood-mainnet-v1": "robinhood",
+  bsc: "bsc",
+  "bsc-mainnet-v1": "bsc",
+});
+
+function exactEvmZeroXProfile(value) {
+  const requested = typeof value === "string"
+    ? value
+    : value?.profile_id || value?.chain_namespace;
+  const key = EVM_ZERO_X_PROFILE_ALIASES[String(requested || "").trim().toLowerCase()];
+  const profile = key ? EVM_ZERO_X_PROFILES[key] : null;
+  if (!profile) throw executionError("evm_zero_x_profile_not_supported");
+  if (value && typeof value === "object") assertEvmProfileIdentity(value, profile, "evm_requested");
+  return profile;
+}
+
+function assertEvmProfileIdentity(value, profile, field) {
+  if (!value || typeof value !== "object"
+    || value.profile_id !== profile.profile_id
+    || value.chain_namespace !== profile.chain_namespace
+    || value.chain_id !== profile.chain_id
+    || value.canonical_chain_id !== profile.canonical_chain_id) {
+    throw executionError(`${field}_profile_mismatch`);
+  }
+}
 
 function exactEvmAddress(value, field, { allowNative = false } = {}) {
   try {
@@ -548,8 +619,392 @@ async function executeRobinhoodZeroXTicket({ ticket, quote, provider, address })
   });
 }
 
+function exactEvmTransactionData(value) {
+  const data = String(value || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]+$/.test(data) || data.length < 10 || data.length % 2 !== 0 || data.length > 131_074) {
+    throw executionError("evm_transaction_data_invalid");
+  }
+  return data;
+}
+
+function exactEvmTransactionHash(value) {
+  const hash = String(value || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(hash)) throw executionError("evm_transaction_hash_invalid");
+  return hash;
+}
+
+function exactEvmZeroXTransaction(value, profile, binding) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw executionError("evm_reviewed_transaction_invalid");
+  }
+  for (const key of Object.keys(value)) {
+    if (!EVM_TRANSACTION_KEYS.has(key)) throw executionError(`evm_transaction_field_forbidden:${key}`);
+  }
+  assertEvmProfileIdentity(value, profile, "evm_transaction");
+  if (value.unsigned !== true) {
+    throw executionError("evm_reviewed_transaction_invalid");
+  }
+  const transaction = {
+    profile_id: profile.profile_id,
+    chain_namespace: profile.chain_namespace,
+    chain_id: profile.chain_id,
+    canonical_chain_id: profile.canonical_chain_id,
+    from: exactEvmAddress(value.from, "evm_transaction_from"),
+    to: exactEvmAddress(value.to, "evm_transaction_to"),
+    data: exactEvmTransactionData(value.data),
+    value: exactDecimalQuantity(value.value, "evm_transaction_value"),
+    gas: exactDecimalQuantity(value.gas, "evm_transaction_gas", { positive: true }),
+    unsigned: true,
+  };
+  const hasLegacyFee = value.gas_price !== undefined;
+  const hasMaxFee = value.max_fee_per_gas !== undefined;
+  const hasPriorityFee = value.max_priority_fee_per_gas !== undefined;
+  if (hasLegacyFee === (hasMaxFee || hasPriorityFee) || hasMaxFee !== hasPriorityFee) {
+    throw executionError("evm_transaction_fee_fields_invalid");
+  }
+  if (hasLegacyFee) {
+    transaction.gas_price = exactDecimalQuantity(value.gas_price, "evm_transaction_gas_price");
+  } else {
+    transaction.max_fee_per_gas = exactDecimalQuantity(value.max_fee_per_gas, "evm_transaction_max_fee_per_gas");
+    transaction.max_priority_fee_per_gas = exactDecimalQuantity(
+      value.max_priority_fee_per_gas,
+      "evm_transaction_max_priority_fee_per_gas",
+    );
+    if (BigInt(transaction.max_priority_fee_per_gas) > BigInt(transaction.max_fee_per_gas)) {
+      throw executionError("evm_transaction_fee_fields_invalid");
+    }
+  }
+  if (binding.sell_token === EVM_NATIVE_ASSET) {
+    if (transaction.value !== binding.sell_amount_base_units) throw executionError("evm_native_transaction_value_mismatch");
+  } else {
+    if (transaction.value !== "0") throw executionError("evm_erc20_transaction_value_mismatch");
+    if (transaction.to !== ZERO_X_ALLOWANCE_HOLDER) throw executionError("evm_zero_x_transaction_target_mismatch");
+  }
+  return Object.freeze(transaction);
+}
+
+function exactGenericQuoteFee(value, binding) {
+  if (!value || typeof value !== "object" || typeof value.enabled !== "boolean") {
+    throw executionError("evm_quote_fee_invalid");
+  }
+  const feeBps = Number(value.fee_bps);
+  const configuredFeeBps = Number(value.configured_fee_bps);
+  if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps > 1_000
+    || !Number.isSafeInteger(configuredFeeBps) || configuredFeeBps < 0 || configuredFeeBps > 1_000) {
+    throw executionError("evm_quote_fee_invalid");
+  }
+  if (value.enabled !== true) {
+    if (feeBps !== 0
+      || String(value.amount) !== "0"
+      || value.token !== null
+      || value.type !== null
+      || value.recipient !== null
+      || value.state !== "disabled"
+      || value.collection_state !== "disabled"
+      || value.amount_verification !== "not_applicable"
+      || value.amount_independently_verified !== true) {
+      throw executionError("evm_quote_fee_invalid");
+    }
+    return Object.freeze({
+      enabled: false,
+      fee_bps: 0,
+      configured_fee_bps: configuredFeeBps,
+      amount: "0",
+      token: null,
+      recipient: null,
+    });
+  }
+  const amount = exactDecimalQuantity(value.amount, "evm_quote_fee_amount", { positive: true });
+  const token = exactEvmAddress(value.token, "evm_quote_fee_token", { allowNative: true });
+  const recipient = exactEvmAddress(value.recipient, "evm_quote_fee_recipient");
+  if (feeBps < 1
+    || value.state !== "enabled"
+    || value.type !== "volume"
+    || value.collection_state !== "provider_quote_bound"
+    || !new Set(["independently_computed_from_sell_amount", "provider_quoted_buy_token_amount"]).has(value.amount_verification)
+    || typeof value.amount_independently_verified !== "boolean"
+    || (token !== binding.sell_token && token !== binding.buy_token)) {
+    throw executionError("evm_quote_fee_invalid");
+  }
+  return Object.freeze({
+    enabled: true,
+    fee_bps: feeBps,
+    configured_fee_bps: configuredFeeBps,
+    amount,
+    token,
+    recipient,
+  });
+}
+
+function exactEvmMarket(value, profile) {
+  assertEvmProfileIdentity(value, profile, "evm_exact_market");
+  const poolAddress = exactEvmAddress(value.pool_address, "evm_exact_market_pool");
+  const tokenAddress = exactEvmAddress(value.token_address, "evm_exact_market_token");
+  const quoteAddress = exactEvmAddress(value.quote_address, "evm_exact_market_quote");
+  const side = String(value.side || "").trim().toLowerCase();
+  if (value.instrument_id !== `${profile.chain_namespace}:pool:${poolAddress}`
+    || !new Set(["buy", "sell"]).has(side)) {
+    throw executionError("evm_exact_market_identity_mismatch");
+  }
+  return Object.freeze({ poolAddress, tokenAddress, quoteAddress, side });
+}
+
+async function reviewedEvmZeroXTransaction(quote, address, profile) {
+  if (!globalThis.crypto?.subtle?.digest) throw executionError("browser_crypto_unavailable");
+  assertEvmProfileIdentity(quote, profile, "evm_quote");
+  if (quote.schema_version !== EVM_ZERO_X_QUOTE_SCHEMA
+    || quote.ok !== true
+    || quote.provider !== "0x_swap_api_v2"
+    || quote.state !== "awaiting_wallet_signature"
+    || quote.wallet_handoff_eligible !== true
+    || !Array.isArray(quote.blockers)
+    || quote.blockers.length !== 0) {
+    throw executionError("evm_ticket_not_wallet_handoff_eligible");
+  }
+  const observedAt = Date.parse(String(quote.observed_at || ""));
+  const expiresAt = Date.parse(String(quote.expires_at || ""));
+  const checkedAt = Date.now();
+  if (!Number.isFinite(observedAt)
+    || !Number.isFinite(expiresAt)
+    || expiresAt <= observedAt
+    || expiresAt - observedAt > 15_000
+    || expiresAt <= checkedAt + 500
+    || expiresAt > checkedAt + 15_000) {
+    throw executionError("evm_ticket_expired");
+  }
+  const requestHash = exactHash(quote.request_hash, "evm_request_hash");
+  if (String(quote.request_id || "") !== `zxr_${requestHash.slice(0, 32)}`) {
+    throw executionError("evm_ticket_id_invalid");
+  }
+  const expectedAddress = exactEvmAddress(address, "wallet_address");
+  const binding = quote.exact_binding;
+  assertEvmProfileIdentity(binding, profile, "evm_quote_binding");
+  if (exactEvmAddress(binding.taker, "evm_ticket_taker") !== expectedAddress
+    || exactEvmAddress(binding.recipient, "evm_ticket_recipient") !== expectedAddress) {
+    throw executionError("wallet_account_identity_mismatch");
+  }
+  const exactBinding = Object.freeze({
+    sell_token: exactEvmAddress(binding.sell_token, "evm_ticket_sell_token", { allowNative: true }),
+    buy_token: exactEvmAddress(binding.buy_token, "evm_ticket_buy_token", { allowNative: true }),
+    sell_amount_base_units: exactDecimalQuantity(binding.sell_amount_base_units, "evm_ticket_sell_amount", { positive: true }),
+    buy_amount_base_units: exactDecimalQuantity(binding.buy_amount_base_units, "evm_ticket_buy_amount", { positive: true }),
+    minimum_buy_amount_base_units: exactDecimalQuantity(binding.minimum_buy_amount_base_units, "evm_ticket_minimum_buy_amount", { positive: true }),
+  });
+  if (exactBinding.sell_token === exactBinding.buy_token
+    || BigInt(exactBinding.minimum_buy_amount_base_units) > BigInt(exactBinding.buy_amount_base_units)) {
+    throw executionError("evm_ticket_token_pair_invalid");
+  }
+  const boundary = quote.execution_boundary;
+  if (boundary?.self_custodial !== true
+    || boundary?.signing_location !== "connected_customer_wallet"
+    || boundary?.provider_constructed_calldata !== true
+    || boundary?.exact_taker_bound !== true
+    || boundary?.exact_recipient_bound !== true
+    || boundary?.exact_tokens_bound !== true
+    || boundary?.fee_policy_bound !== true
+    || boundary?.customer_wallet_signature_required !== true
+    || boundary?.raven_signing !== false
+    || boundary?.private_key_received !== false
+    || boundary?.custody !== false
+    || boundary?.approval_transaction_included !== false
+    || boundary?.transaction_submission !== false
+    || boundary?.broadcasting !== false
+    || boundary?.autonomous_execution !== false) {
+    throw executionError("evm_ticket_boundary_invalid");
+  }
+  const expectedAllowanceState = exactBinding.sell_token === EVM_NATIVE_ASSET
+    ? "not_applicable_native_asset"
+    : "sufficient";
+  if (quote.allowance?.state !== expectedAllowanceState
+    || quote.allowance?.approval_transaction_included !== false
+    || quote.provider_issues?.balance !== null
+    || quote.provider_issues?.simulation_incomplete !== false
+    || !Array.isArray(quote.provider_issues?.invalid_sources)
+    || quote.provider_issues.invalid_sources.length !== 0) {
+    throw executionError("evm_ticket_provider_issue");
+  }
+  const fee = exactGenericQuoteFee(quote.fee, exactBinding);
+  const transaction = exactEvmZeroXTransaction(quote.unsigned_transaction, profile, exactBinding);
+  if (transaction.from !== expectedAddress) throw executionError("wallet_account_identity_mismatch");
+  const transactionHash = await sha256(transaction);
+  if (transactionHash !== exactHash(quote.reviewed_transaction_hash, "evm_reviewed_transaction_hash")) {
+    throw executionError("evm_reviewed_transaction_hash_mismatch");
+  }
+  exactHash(quote.quote_hash, "evm_quote_hash");
+  exactDecimalQuantity(quote.block_number, "evm_ticket_block_number", { positive: true });
+  return Object.freeze({ transaction, binding: exactBinding, fee, expiresAt });
+}
+
+async function validateEvmLiveTicket(ticket, quote, reviewed, address, profile) {
+  assertEvmProfileIdentity(ticket, profile, "evm_live_ticket");
+  if (ticket.schema_version !== EVM_LIVE_TICKET_SCHEMA
+    || ticket.ok !== true
+    || ticket.state !== "awaiting_wallet_signature"
+    || ticket.wallet_chain_id_hex !== profile.wallet_chain_hex
+    || ticket.native_symbol !== profile.native_symbol
+    || !/^lex_[A-Za-z0-9_-]{20,96}$/.test(String(ticket.ticket_id || ""))) {
+    throw executionError("evm_live_ticket_invalid");
+  }
+  const expectedAddress = exactEvmAddress(address, "wallet_address");
+  if (exactEvmAddress(ticket.wallet_address, "evm_live_wallet") !== expectedAddress) {
+    throw executionError("wallet_account_identity_mismatch");
+  }
+  const expiresAt = Date.parse(String(ticket.expires_at || ""));
+  const createdAt = Date.parse(String(ticket.created_at || ""));
+  const checkedAt = Date.now();
+  if (!Number.isFinite(createdAt)
+    || !Number.isFinite(expiresAt)
+    || expiresAt <= createdAt
+    || expiresAt - createdAt > 10_000
+    || expiresAt <= checkedAt + 500
+    || expiresAt > checkedAt + 10_000
+    || expiresAt > reviewed.expiresAt) {
+    throw executionError("evm_live_ticket_expired");
+  }
+  const boundary = ticket.execution_boundary;
+  if (boundary?.wallet_signature_required !== true
+    || boundary?.signing_location !== "connected_customer_wallet"
+    || boundary?.submission_path !== "wallet_direct_to_evm_chain"
+    || boundary?.server_signing !== false
+    || boundary?.private_key_received !== false
+    || boundary?.custody !== false
+    || boundary?.arbitrary_transaction_submission !== false
+    || boundary?.exact_reviewed_transaction_only !== true
+    || boundary?.autonomous_execution !== false) {
+    throw executionError("evm_live_ticket_boundary_invalid");
+  }
+  const market = exactEvmMarket(ticket.exact_market, profile);
+  const order = ticket.reviewed_order || {};
+  const quoteBinding = reviewed.binding;
+  const transaction = reviewed.transaction;
+  if (ticket.provider?.venue !== "zero_x"
+    || String(ticket.provider?.quote_id || "") !== String(quote.provider_quote_id || "")
+    || exactHash(ticket.provider?.quote_hash, "evm_live_quote_hash") !== exactHash(quote.quote_hash, "evm_quote_hash")
+    || String(ticket.provider?.block_number || "") !== String(quote.block_number || "")
+    || exactHash(ticket.transaction?.reviewed_transaction_hash, "evm_live_transaction_hash") !== exactHash(quote.reviewed_transaction_hash, "evm_reviewed_transaction_hash")
+    || exactEvmAddress(ticket.transaction?.to, "evm_live_transaction_to") !== transaction.to
+    || exactDecimalQuantity(ticket.transaction?.maximum_gas, "evm_live_maximum_gas", { positive: true }) !== transaction.gas
+    || exactDecimalQuantity(ticket.transaction?.value, "evm_live_value") !== transaction.value
+    || (transaction.gas_price !== undefined
+      ? exactDecimalQuantity(ticket.transaction?.quoted_gas_price, "evm_live_gas_price") !== transaction.gas_price
+        || ticket.transaction?.quoted_maximum_fee_per_gas !== null
+        || ticket.transaction?.quoted_maximum_priority_fee_per_gas !== null
+      : ticket.transaction?.quoted_gas_price !== null
+        || exactDecimalQuantity(ticket.transaction?.quoted_maximum_fee_per_gas, "evm_live_maximum_fee") !== transaction.max_fee_per_gas
+        || exactDecimalQuantity(ticket.transaction?.quoted_maximum_priority_fee_per_gas, "evm_live_priority_fee") !== transaction.max_priority_fee_per_gas)
+    || await sha256Text(transaction.data) !== exactHash(ticket.transaction?.input_data_sha256, "evm_live_input_data")
+    || String(order.side || "").toLowerCase() !== market.side
+    || order.order_type !== "market"
+    || exactEvmAddress(order.sell_token, "evm_live_sell_token", { allowNative: true }) !== quoteBinding.sell_token
+    || exactEvmAddress(order.buy_token, "evm_live_buy_token", { allowNative: true }) !== quoteBinding.buy_token
+    || exactDecimalQuantity(order.sell_amount_base_units, "evm_live_sell_amount", { positive: true }) !== quoteBinding.sell_amount_base_units
+    || exactDecimalQuantity(order.expected_buy_amount_base_units, "evm_live_buy_amount", { positive: true }) !== quoteBinding.buy_amount_base_units
+    || exactDecimalQuantity(order.minimum_buy_amount_base_units, "evm_live_minimum_buy", { positive: true }) !== quoteBinding.minimum_buy_amount_base_units
+    || (market.side === "buy" ? quoteBinding.buy_token : quoteBinding.sell_token) !== market.tokenAddress) {
+    throw executionError("evm_live_ticket_quote_mismatch");
+  }
+  const accounting = ticket.accounting || {};
+  const accountingAsset = exactEvmAddress(accounting.asset_address, "evm_live_accounting_asset", { allowNative: true });
+  const accountingDecimals = Number(accounting.decimals);
+  if (!Number.isSafeInteger(accountingDecimals) || accountingDecimals < 0 || accountingDecimals > 255
+    || !String(accounting.symbol || "").trim()
+    || accountingAsset !== profile.accounting_asset.address
+    || String(accounting.symbol || "") !== profile.accounting_asset.symbol
+    || accountingDecimals !== profile.accounting_asset.decimals
+    || accounting.representation !== profile.accounting_asset.representation
+    || accounting.issuer !== profile.accounting_asset.issuer
+    || accounting.circle_canonical_usdc !== profile.accounting_asset.circle_canonical_usdc
+    || BigInt(exactDecimalQuantity(accounting.notional_base_units, "evm_live_accounting_notional", { positive: true }))
+      > BigInt(exactDecimalQuantity(accounting.maximum_notional_base_units, "evm_live_accounting_maximum", { positive: true }))
+    || exactEvmAddress(order.accounting_asset_address, "evm_live_order_accounting_asset", { allowNative: true }) !== accountingAsset
+    || String(order.accounting_asset_symbol || "") !== String(accounting.symbol || "")
+    || exactDecimalQuantity(order.notional_accounting_base_units, "evm_live_order_accounting_notional", { positive: true })
+      !== exactDecimalQuantity(accounting.notional_base_units, "evm_live_accounting_notional", { positive: true })) {
+    throw executionError("evm_live_ticket_accounting_mismatch");
+  }
+  const ticketFee = ticket.fee || {};
+  const quoteFee = reviewed.fee;
+  if (ticketFee.enabled !== quoteFee.enabled
+    || Number(ticketFee.fee_bps) !== quoteFee.fee_bps
+    || String(ticketFee.expected_amount_base_units) !== quoteFee.amount
+    || (quoteFee.enabled
+      ? exactEvmAddress(ticketFee.token, "evm_live_fee_token", { allowNative: true }) !== quoteFee.token
+        || exactEvmAddress(ticketFee.recipient, "evm_live_fee_recipient") !== quoteFee.recipient
+        || ticketFee.collection_method !== "zero_x_integrator_fee"
+      : ticketFee.token !== null
+        || ticketFee.recipient !== null
+        || ticketFee.collection_method !== "none")) {
+    throw executionError("evm_live_ticket_fee_mismatch");
+  }
+  exactHash(ticket.binding_hash, "evm_live_binding_hash");
+  return true;
+}
+
+async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote, provider, address }) {
+  if (!provider?.request) throw executionError("evm_wallet_unavailable");
+  const profile = exactEvmZeroXProfile(requestedProfile);
+  const expectedAddress = exactEvmAddress(address, "wallet_address");
+  const reviewed = await reviewedEvmZeroXTransaction(quote, expectedAddress, profile);
+  await validateEvmLiveTicket(ticket, quote, reviewed, expectedAddress, profile);
+  let chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
+  if (chainId !== profile.wallet_chain_hex) {
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: profile.wallet_chain_hex }],
+      });
+    } catch {
+      throw executionError("evm_chain_switch_failed");
+    }
+    chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
+  }
+  if (chainId !== profile.wallet_chain_hex) throw executionError("evm_chain_identity_mismatch");
+  await connectedRobinhoodAccount(provider, expectedAddress);
+  const transaction = reviewed.transaction;
+  const walletTransaction = {
+    from: transaction.from,
+    to: transaction.to,
+    data: transaction.data,
+    value: rpcQuantity(transaction.value),
+    gas: rpcQuantity(transaction.gas),
+  };
+  if (transaction.gas_price !== undefined) {
+    walletTransaction.gasPrice = rpcQuantity(transaction.gas_price);
+  } else {
+    walletTransaction.maxFeePerGas = rpcQuantity(transaction.max_fee_per_gas);
+    walletTransaction.maxPriorityFeePerGas = rpcQuantity(transaction.max_priority_fee_per_gas);
+  }
+  if (Date.parse(ticket.expires_at || "") <= Date.now() + 250) throw executionError("evm_ticket_expired");
+  await connectedRobinhoodAccount(provider, expectedAddress);
+  if (String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase() !== profile.wallet_chain_hex) {
+    throw executionError("evm_chain_identity_mismatch");
+  }
+  let submittedHash;
+  try {
+    submittedHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [walletTransaction],
+    });
+  } catch (error) {
+    const code = String(error?.code || "");
+    const message = String(error?.message || "").toLowerCase();
+    if (code === "4001" || /user (?:rejected|denied)|request rejected/.test(message)) throw executionError("user_rejected_request");
+    throw executionError("evm_wallet_submission_indeterminate");
+  }
+  return Object.freeze({
+    ticket_id: ticket.ticket_id,
+    profile_id: profile.profile_id,
+    chain_namespace: profile.chain_namespace,
+    chain_id: profile.chain_id,
+    wallet_address: expectedAddress,
+    reviewed_transaction_hash: ticket.transaction.reviewed_transaction_hash,
+    transaction_hash: exactEvmTransactionHash(submittedHash),
+  });
+}
+
 globalThis.RavenOSWalletExecution = Object.freeze({
   approveHyperliquidBuilderFee,
+  executeEvmZeroXTicket,
   executeRobinhoodZeroXTicket,
   executeHyperliquidTicket,
   signSolanaTicket,

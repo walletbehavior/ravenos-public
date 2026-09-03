@@ -210,11 +210,17 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE/);
+  assert.match(source, /RAVENOS_CUSTOMER_TRADE_BSC_LIVE_ENABLE/);
   assert.match(source, /RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /RAVENOS_EVM_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_FEE_RECIPIENT/);
+  assert.match(source, /RAVENOS_BSC_ZEROX_QUOTE_ENABLE/);
+  assert.match(source, /RAVENOS_BSC_ZEROX_FEE_ENABLE/);
+  assert.match(source, /RAVENOS_BSC_ZEROX_FEE_RECIPIENT/);
+  assert.match(source, /RAVENOS_BSC_RPC_URL/);
+  assert.match(source, /RAVENOS_BSC_RPC_FALLBACK_URL/);
   assert.match(source, /RAVENOS_ZEROX_API_KEY/);
   assert.match(source, /triggers: baseWrangler\.triggers/);
   assert.match(source, /cron_schedules/);

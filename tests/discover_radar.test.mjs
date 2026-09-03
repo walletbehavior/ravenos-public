@@ -5,6 +5,7 @@ import {
   DISCOVER_CLASSIFIER_VERSION,
   DISCOVER_MARKET_FACT_TARGET_SECONDS,
   DISCOVER_REVIVAL_MIN_AGE_SECONDS,
+  DISCOVER_REVIVAL_MIN_QUIET_SECONDS,
   DISCOVER_REVIVAL_SCAN_SCHEMA,
   buildDiscoverRadarProjection,
   mergeExactRadarRows,
@@ -338,10 +339,14 @@ test("an old sub-5K market with multi-participant rate expansion qualifies for t
       sells_5m: 4,
       buyers_5m: 6,
       sellers_5m: 3,
-      buys_1h: 14,
-      sells_1h: 8,
-      buyers_1h: 10,
-      sellers_1h: 6,
+      buys_1h: 8,
+      sells_1h: 4,
+      buyers_1h: 6,
+      sellers_1h: 3,
+      buys_24h: 8,
+      sells_24h: 4,
+      buyers_24h: 6,
+      sellers_24h: 3,
     },
     registry: { observation_count: 1, first_seen_market_cap_usd: 4_000 },
   });
@@ -350,7 +355,11 @@ test("an old sub-5K market with multi-participant rate expansion qualifies for t
   assert.equal(revival.qualified, true);
   assert.equal(revival.reason_code, "qualified");
   assert.equal(revival.minimum_market_age_seconds, DISCOVER_REVIVAL_MIN_AGE_SECONDS);
+  assert.equal(revival.minimum_quiet_seconds, DISCOVER_REVIVAL_MIN_QUIET_SECONDS);
   assert.equal(revival.single_print_rejected, false);
+  assert.equal(revival.dormancy_proven, true);
+  assert.equal(revival.preceding_1h_transactions, 0);
+  assert.equal(revival.preceding_24h_transactions, 0);
   assert.ok(revival.flow_signal_count >= 2);
   assert.equal(revival.historical_series_claimed, false);
   assert.equal(revival.theme_catalyst_identified, false);
@@ -381,6 +390,39 @@ test("one print cannot manufacture an old-token revival", () => {
   assert.equal(revival.qualified, false);
   assert.equal(revival.reason_code, "activity_too_thin");
   assert.equal(revival.single_print_rejected, true);
+});
+
+test("an old market with continuing prior trading is not a dormant revival", () => {
+  const row = pool({
+    pool_address: "0x0000000000000000000000000000000000000029",
+    market: {
+      market_cap_usd: 4_200,
+      liquidity_usd: 1_800,
+      market_age_seconds: 2 * 365 * 86_400,
+      price_change_5m_pct: 8,
+      price_change_1h_pct: 12,
+      volume_usd_5m: 900,
+      volume_usd_1h: 5_000,
+      buys_5m: 8,
+      sells_5m: 4,
+      buyers_5m: 6,
+      sellers_5m: 3,
+      buys_1h: 40,
+      sells_1h: 20,
+      buyers_1h: 25,
+      sellers_1h: 14,
+      buys_24h: 200,
+      sells_24h: 100,
+      buyers_24h: 120,
+      sellers_24h: 70,
+    },
+  });
+  const revival = build([row]).rows[0].discovery.revival_scan;
+  assert.equal(revival.qualified, false);
+  assert.equal(revival.reason_code, "prior_activity_present");
+  assert.equal(revival.dormancy_proven, false);
+  assert.equal(revival.preceding_1h_transactions, 48);
+  assert.equal(revival.preceding_24h_transactions, 288);
 });
 
 test("microcap rankings keep sub-5K and 5K-to-10K markets in distinct peer cohorts", () => {

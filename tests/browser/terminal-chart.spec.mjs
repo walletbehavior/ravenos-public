@@ -1756,6 +1756,34 @@ test("all-chain spot ticket fails closed with an honest adapter state instead of
   });
 });
 
+test("BNB Chain opens the native wallet route only when its reviewed adapter is qualified", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, {
+    spotQuotePreview: true,
+    spotQuoteChains: ["solana", "bsc"],
+  });
+  await page.goto(`/terminal/?instrument_id=bsc%3Apool%3A${encodeURIComponent("0x7bdc9582aca6ca25e5db1f2c8e59003b880672cb")}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${encodeURIComponent("0x6ff45323817d1d53bbb8a8dfba9245ae74057777")}&quote_address=${encodeURIComponent("0x46ceefda28dd7207059ed19b0acdc026955bb15c")}&panel=trade`);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().lane)).toBe("spot");
+  await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
+  await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "active");
+  await expect(page.locator("#terminalSpotTicketEyebrow")).toContainText("BNB Chain · route review");
+  await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("Buy MEMESTOCK with Auto");
+  await expect(page.locator("#terminalSpotNativeAssetLabel")).toHaveText("BNB");
+  await expect(page.locator("#terminalSpotActiveFee")).toHaveText("Free · 1.00%");
+  await expect(page.locator("#terminalSpotFeeCompact")).toHaveText("1.00%");
+  await expect(page.locator("#terminalSpotQuoteAction")).toBeVisible();
+  await expect(page.locator("#terminalSpotQuoteAction")).toBeEnabled();
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Review buy + exit");
+  await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
+  await expect(page.locator("#terminalSpotTicketSection")).not.toContainText("Trading is not");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
+    spotQuoteState: "ready",
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
+});
+
 test("Velocity launch opens the exact pool with an automatic Raven overlay and token-specific TP strategy", async ({ page }) => {
   await mockTerminalLiveApis(page, { bullishSpotPlan: true, spotControls: false, velocitySpotContext: true });
   await page.goto("/terminal/?asset=JUP%2FUSDC&instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&timeframe=1m&launch=velocity&raven_overlays=auto");
