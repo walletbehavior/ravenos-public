@@ -32,6 +32,8 @@ test("source authority permits only implemented wallet-owned venue lanes", () =>
   assert.equal(gate.chains.solana.source_ready, true);
   assert.equal(gate.chains.robinhood.source_ready, true);
   assert.equal(gate.chains.bsc.source_ready, true);
+  assert.equal(gate.chains.base.source_ready, true);
+  assert.equal(gate.chains.ethereum.source_ready, true);
   assert.equal(CustomerLiveExecutionAuthorization.solana_signed_transaction_submission, true);
   assert.equal(CustomerLiveExecutionAuthorization.evm_wallet_transaction_submission, true);
   assert.equal(CustomerLiveExecutionAuthorization.raven_signing, false);
@@ -53,6 +55,8 @@ test("allowlisted recently authenticated user can reach each explicitly enabled 
   assert.equal(gate.chains.robinhood.enabled, false);
   assert.equal(gate.chains.robinhood.available_to_principal, false);
   assert.equal(gate.chains.bsc.available_to_principal, false);
+  assert.equal(gate.chains.base.available_to_principal, false);
+  assert.equal(gate.chains.ethereum.available_to_principal, false);
   assert.equal(customerLiveExecutionRefusal(gate, "hyperliquid"), null);
   assert.equal(customerLiveExecutionRefusal(gate, "solana"), null);
 });
@@ -80,6 +84,20 @@ test("BNB Chain is independently gated behind the wallet-signed EVM lane", () =>
   assert.equal(gate.authority.custody, false);
 });
 
+for (const [chain, variable] of [
+  ["base", "RAVENOS_CUSTOMER_TRADE_BASE_LIVE_ENABLE"],
+  ["ethereum", "RAVENOS_CUSTOMER_TRADE_ETHEREUM_LIVE_ENABLE"],
+]) {
+  test(`${chain} is independently gated behind the wallet-signed EVM lane`, () => {
+    const gate = resolveCustomerLiveExecutionGate(enabledEnv({ [variable]: "1" }), principal(), { nowSeconds: NOW });
+    assert.equal(gate.chains[chain].enabled, true);
+    assert.equal(gate.chains[chain].available_to_principal, true);
+    assert.equal(customerLiveExecutionRefusal(gate, chain), null);
+    assert.equal(gate.authority.raven_signing, false);
+    assert.equal(gate.authority.custody, false);
+  });
+}
+
 test("kill switch, allowlist, and recent authentication independently fail closed", () => {
   const killed = resolveCustomerLiveExecutionGate(enabledEnv({ RAVENOS_CUSTOMER_TRADE_KILL_SWITCH: "halt" }), principal(), { nowSeconds: NOW });
   assert.equal(customerLiveExecutionRefusal(killed, "hyperliquid"), "live_execution_kill_switch_active");
@@ -102,5 +120,9 @@ test("public projection exposes capability state without exposing the canary use
   assert.equal(projection.chains.robinhood.enabled, false);
   assert.equal(projection.chains.bsc.source_ready, true);
   assert.equal(projection.chains.bsc.enabled, false);
+  assert.equal(projection.chains.base.source_ready, true);
+  assert.equal(projection.chains.base.enabled, false);
+  assert.equal(projection.chains.ethereum.source_ready, true);
+  assert.equal(projection.chains.ethereum.enabled, false);
   assert.equal(JSON.stringify(projection).includes(USER), false);
 });

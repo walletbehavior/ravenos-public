@@ -168,6 +168,12 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.bnb_chain_live_execution_candidate, true);
   assert.match(security.customer_live_execution_canary.bnb_chain_accounting_asset, /not Circle-native USDC/);
   assert.equal(security.customer_live_execution_canary.bnb_chain_reverse_exit_proof_required_for_buys, true);
+  assert.equal(security.customer_live_execution_canary.base_live_execution_candidate, true);
+  assert.match(security.customer_live_execution_canary.base_accounting_asset, /Circle-native USDC/);
+  assert.equal(security.customer_live_execution_canary.base_reverse_exit_proof_required_for_buys, true);
+  assert.equal(security.customer_live_execution_canary.ethereum_live_execution_candidate, true);
+  assert.match(security.customer_live_execution_canary.ethereum_accounting_asset, /Circle-native USDC/);
+  assert.equal(security.customer_live_execution_canary.ethereum_reverse_exit_proof_required_for_buys, true);
   assert.equal(security.customer_live_execution_canary.raven_signing_available, false);
   assert.equal(security.customer_live_execution_canary.raven_private_keys_available, false);
   assert.equal(security.customer_live_execution_canary.custody_available, false);

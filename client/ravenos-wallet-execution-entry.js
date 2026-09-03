@@ -229,12 +229,48 @@ const EVM_ZERO_X_PROFILES = Object.freeze({
       circle_canonical_usdc: false,
     }),
   }),
+  base: Object.freeze({
+    profile_id: "base-mainnet-v1",
+    chain_namespace: "base",
+    chain_id: 8453,
+    canonical_chain_id: "eip155:8453",
+    wallet_chain_hex: "0x2105",
+    native_symbol: "ETH",
+    accounting_asset: Object.freeze({
+      address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      symbol: "USDC",
+      decimals: 6,
+      representation: "circle_native_usdc",
+      issuer: "Circle",
+      circle_canonical_usdc: true,
+    }),
+  }),
+  ethereum: Object.freeze({
+    profile_id: "ethereum-mainnet-v1",
+    chain_namespace: "ethereum",
+    chain_id: 1,
+    canonical_chain_id: "eip155:1",
+    wallet_chain_hex: "0x1",
+    native_symbol: "ETH",
+    accounting_asset: Object.freeze({
+      address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      symbol: "USDC",
+      decimals: 6,
+      representation: "circle_native_usdc",
+      issuer: "Circle",
+      circle_canonical_usdc: true,
+    }),
+  }),
 });
 const EVM_ZERO_X_PROFILE_ALIASES = Object.freeze({
   robinhood: "robinhood",
   "robinhood-mainnet-v1": "robinhood",
   bsc: "bsc",
   "bsc-mainnet-v1": "bsc",
+  base: "base",
+  "base-mainnet-v1": "base",
+  ethereum: "ethereum",
+  "ethereum-mainnet-v1": "ethereum",
 });
 
 function exactEvmZeroXProfile(value) {

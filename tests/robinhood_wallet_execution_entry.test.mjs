@@ -25,6 +25,23 @@ const BSC_PROFILE = Object.freeze({
   chain_id: 56,
   canonical_chain_id: "eip155:56",
 });
+const BASE_PROFILE = Object.freeze({
+  profile_id: "base-mainnet-v1",
+  chain_namespace: "base",
+  chain_id: 8453,
+  canonical_chain_id: "eip155:8453",
+});
+const ETHEREUM_PROFILE = Object.freeze({
+  profile_id: "ethereum-mainnet-v1",
+  chain_namespace: "ethereum",
+  chain_id: 1,
+  canonical_chain_id: "eip155:1",
+});
+const GENERIC_PROFILE_CONFIG = new Map([
+  [BSC_PROFILE, Object.freeze({ wallet_chain_id_hex: "0x38", native_symbol: "BNB", accounting_asset: BSC_ACCOUNTING_ASSET, accounting_symbol: "USDC", accounting_decimals: 18, representation: "binance_peg_usdc", issuer: "Binance-Peg", circle_canonical_usdc: false })],
+  [BASE_PROFILE, Object.freeze({ wallet_chain_id_hex: "0x2105", native_symbol: "ETH", accounting_asset: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", accounting_symbol: "USDC", accounting_decimals: 6, representation: "circle_native_usdc", issuer: "Circle", circle_canonical_usdc: true })],
+  [ETHEREUM_PROFILE, Object.freeze({ wallet_chain_id_hex: "0x1", native_symbol: "ETH", accounting_asset: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", accounting_symbol: "USDC", accounting_decimals: 6, representation: "circle_native_usdc", issuer: "Circle", circle_canonical_usdc: true })],
+]);
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -180,17 +197,19 @@ function providerMock({
   };
 }
 
-function genericBscPrepared({ nativeSell = false } = {}) {
+function genericBscPrepared({ nativeSell = false, profile = BSC_PROFILE } = {}) {
+  const config = GENERIC_PROFILE_CONFIG.get(profile);
+  assert.ok(config, "test profile must be configured");
   const quote = reviewedQuote();
   const oldTicket = preparedTicket(quote).ticket;
   const sellToken = nativeSell ? NATIVE_ASSET : SELL_TOKEN;
   const sellAmount = nativeSell ? "1000000000000000" : "1000000";
   const marketSide = nativeSell ? "buy" : "sell";
   quote.schema_version = "ravenos.evm_zero_x_unsigned_quote.v1";
-  Object.assign(quote, BSC_PROFILE);
+  Object.assign(quote, profile);
   quote.exact_binding = {
     ...quote.exact_binding,
-    ...BSC_PROFILE,
+    ...profile,
     sell_token: sellToken,
     buy_token: BUY_TOKEN,
     sell_amount_base_units: sellAmount,
@@ -206,8 +225,8 @@ function genericBscPrepared({ nativeSell = false } = {}) {
     : { ...quote.allowance, approval_transaction_included: false };
   quote.unsigned_transaction = {
     ...quote.unsigned_transaction,
-    ...BSC_PROFILE,
-    chain_id: 56,
+    ...profile,
+    chain_id: profile.chain_id,
     value: nativeSell ? sellAmount : "0",
   };
   quote.reviewed_transaction_hash = digest(quote.unsigned_transaction);
@@ -215,20 +234,20 @@ function genericBscPrepared({ nativeSell = false } = {}) {
 
   const exactMarket = {
     ...oldTicket.exact_market,
-    ...BSC_PROFILE,
-    instrument_id: `bsc:pool:${oldTicket.exact_market.pool_address}`,
+    ...profile,
+    instrument_id: `${profile.chain_namespace}:pool:${oldTicket.exact_market.pool_address}`,
     token_address: nativeSell ? BUY_TOKEN : SELL_TOKEN,
     quote_address: BUY_TOKEN,
     side: marketSide,
   };
   const accounting = {
     ...oldTicket.accounting,
-    asset_address: BSC_ACCOUNTING_ASSET,
-    symbol: "USDC",
-    decimals: 18,
-    representation: "binance_peg_usdc",
-    issuer: "Binance-Peg",
-    circle_canonical_usdc: false,
+    asset_address: config.accounting_asset,
+    symbol: config.accounting_symbol,
+    decimals: config.accounting_decimals,
+    representation: config.representation,
+    issuer: config.issuer,
+    circle_canonical_usdc: config.circle_canonical_usdc,
   };
   const reviewedOrder = {
     ...oldTicket.reviewed_order,
@@ -245,9 +264,9 @@ function genericBscPrepared({ nativeSell = false } = {}) {
   const ticket = {
     ...oldTicket,
     schema_version: "ravenos.evm_live_ticket.v1",
-    ...BSC_PROFILE,
-    wallet_chain_id_hex: "0x38",
-    native_symbol: "BNB",
+    ...profile,
+    wallet_chain_id_hex: config.wallet_chain_id_hex,
+    native_symbol: config.native_symbol,
     exact_market: exactMarket,
     reviewed_order: reviewedOrder,
     provider: {
@@ -472,6 +491,27 @@ test("generic EVM handoff preserves the exact native BNB value", async () => {
   assert.equal(provider.calls.at(-1).params[0].value, "0x38d7ea4c68000");
 });
 
+for (const profile of [BASE_PROFILE, ETHEREUM_PROFILE]) {
+  test(`${profile.chain_namespace} handoff switches to its exact chain and submits only the reviewed transaction`, async () => {
+    const config = GENERIC_PROFILE_CONFIG.get(profile);
+    const prepared = genericBscPrepared({ profile });
+    const provider = providerMock({ chainId: "0x1237", expectedSwitchChainId: config.wallet_chain_id_hex });
+    const result = await executeEvmZeroXTicket({
+      profile: profile.chain_namespace,
+      ticket: prepared.ticket,
+      quote: prepared.quote,
+      provider,
+      address: WALLET,
+    });
+    assert.equal(result.profile_id, profile.profile_id);
+    assert.equal(result.chain_id, profile.chain_id);
+    assert.deepEqual(provider.calls.find((call) => call.method === "wallet_switchEthereumChain")?.params, [
+      { chainId: config.wallet_chain_id_hex },
+    ]);
+    assert.equal(provider.calls.filter((call) => call.method === "eth_sendTransaction").length, 1);
+  });
+}
+
 test("generic EVM handoff rejects cross-profile material, approvals, fee drift, and arbitrary transaction fields", async (t) => {
   await t.test("profile mismatch", async () => {
     const prepared = genericBscPrepared();
@@ -536,7 +576,7 @@ test("generic BSC handoff rechecks account and chain immediately before submissi
     const prepared = genericBscPrepared();
     const provider = providerMock({ chainId: "0x38", expectedSwitchChainId: "0x38" });
     await assert.rejects(
-      executeEvmZeroXTicket({ profile: "ethereum", ticket: prepared.ticket, quote: prepared.quote, provider, address: WALLET }),
+      executeEvmZeroXTicket({ profile: "arbitrum", ticket: prepared.ticket, quote: prepared.quote, provider, address: WALLET }),
       /evm_zero_x_profile_not_supported/,
     );
     assert.equal(provider.calls.length, 0);

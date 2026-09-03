@@ -1278,13 +1278,15 @@ test("Worker health measures current product lanes without penalizing archival o
       RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE: "1",
       RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE: "1",
       RAVENOS_CUSTOMER_TRADE_BSC_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_BASE_LIVE_ENABLE: "1",
+      RAVENOS_CUSTOMER_TRADE_ETHEREUM_LIVE_ENABLE: "1",
     });
     assert.equal(liveResponse.status, 200);
     const liveBody = await liveResponse.json();
     assert.equal(liveBody.execution_health.state, "customer_wallet_execution");
     assert.equal(liveBody.execution_health.mode, "authenticated_self_custodial_wallet");
     assert.equal(liveBody.execution_health.customer_wallet_execution_available, true);
-    assert.deepEqual(liveBody.execution_health.active_chains, ["hyperliquid", "solana", "robinhood", "bsc"]);
+    assert.deepEqual(liveBody.execution_health.active_chains, ["hyperliquid", "solana", "robinhood", "bsc", "base", "ethereum"]);
     assert.equal(liveBody.execution_health.wallet_signature_required, true);
     assert.equal(liveBody.execution_health.server_signing, false);
     assert.equal(liveBody.execution_health.custody, false);

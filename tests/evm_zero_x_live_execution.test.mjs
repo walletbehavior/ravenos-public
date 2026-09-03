@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  BASE_EVM_CHAIN_PROFILE,
   BSC_EVM_CHAIN_PROFILE,
   EVM_NATIVE_TOKEN_ADDRESS,
   EVM_ZERO_X_ALLOWANCE_HOLDER,
+  ETHEREUM_EVM_CHAIN_PROFILE,
   ROBINHOOD_EVM_CHAIN_PROFILE,
   evmChainProfileForOrder,
   resolveEvmChainProfile,
@@ -109,9 +111,11 @@ function payloadFor(request, overrides = {}) {
   };
 }
 
-test("the exact allowlisted RH and BSC profiles prevent chain and stablecoin collisions", () => {
+test("the exact allowlisted EVM profiles prevent chain and stablecoin collisions", () => {
   assert.equal(resolveEvmChainProfile("robinhood"), ROBINHOOD_EVM_CHAIN_PROFILE);
   assert.equal(resolveEvmChainProfile("eip155:56"), BSC_EVM_CHAIN_PROFILE);
+  assert.equal(resolveEvmChainProfile("base"), BASE_EVM_CHAIN_PROFILE);
+  assert.equal(resolveEvmChainProfile("eip155:1"), ETHEREUM_EVM_CHAIN_PROFILE);
   assert.equal(BSC_EVM_CHAIN_PROFILE.chain_id, 56);
   assert.equal(BSC_EVM_CHAIN_PROFILE.wallet_chain_id_hex, "0x38");
   assert.equal(BSC_EVM_CHAIN_PROFILE.native_symbol, "BNB");
@@ -121,6 +125,12 @@ test("the exact allowlisted RH and BSC profiles prevent chain and stablecoin col
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.decimals, 18);
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.representation, "binance_peg_usdc");
   assert.equal(BSC_EVM_CHAIN_PROFILE.accounting_asset.circle_canonical_usdc, false);
+  assert.equal(BASE_EVM_CHAIN_PROFILE.accounting_asset.address, "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(BASE_EVM_CHAIN_PROFILE.accounting_asset.decimals, 6);
+  assert.equal(BASE_EVM_CHAIN_PROFILE.accounting_asset.circle_canonical_usdc, true);
+  assert.equal(ETHEREUM_EVM_CHAIN_PROFILE.accounting_asset.address, "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+  assert.equal(ETHEREUM_EVM_CHAIN_PROFILE.accounting_asset.decimals, 6);
+  assert.equal(ETHEREUM_EVM_CHAIN_PROFILE.accounting_asset.circle_canonical_usdc, true);
   assert.throws(
     () => evmChainProfileForOrder({ chain_id: 56, canonical_chain_id: "eip155:4663" }),
     /evm_chain_profile_mismatch/,
@@ -128,7 +138,12 @@ test("the exact allowlisted RH and BSC profiles prevent chain and stablecoin col
   assert.throws(() => resolveEvmChainProfile({ profile_id: "attacker-profile" }), /evm_chain_profile_not_supported/);
 });
 
-for (const profile of [ROBINHOOD_EVM_CHAIN_PROFILE, BSC_EVM_CHAIN_PROFILE]) {
+for (const profile of [
+  ROBINHOOD_EVM_CHAIN_PROFILE,
+  BSC_EVM_CHAIN_PROFILE,
+  BASE_EVM_CHAIN_PROFILE,
+  ETHEREUM_EVM_CHAIN_PROFILE,
+]) {
   test(`${profile.chain_namespace} capability and request are profile-bound with no execution authority`, () => {
     const capability = resolveEvmZeroXCapability(envFor(profile), { profile });
     assert.equal(capability.schema_version, EVM_ZERO_X_CAPABILITY_SCHEMA);
@@ -137,7 +152,7 @@ for (const profile of [ROBINHOOD_EVM_CHAIN_PROFILE, BSC_EVM_CHAIN_PROFILE]) {
     assert.equal(capability.chain_id, profile.chain_id);
     assert.equal(capability.canonical_chain_id, profile.canonical_chain_id);
     assert.equal(capability.wallet_chain_id_hex, profile.wallet_chain_id_hex);
-    assert.equal(capability.accounting_asset.circle_canonical_usdc, false);
+    assert.equal(capability.accounting_asset.circle_canonical_usdc, profile.accounting_asset.circle_canonical_usdc);
     assert.equal(capability.quote_review_enabled, true);
     assert.equal(capability.fee_collection_enabled, true);
     assert.equal(capability.execution_boundary.raven_signing, false);

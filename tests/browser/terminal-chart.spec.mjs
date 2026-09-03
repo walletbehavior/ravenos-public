@@ -252,6 +252,7 @@ test("Terminal connects and locally disconnects a browser-wallet address without
       for (const listener of listeners.get(event) || []) listener(payload);
     };
     globalThis.ethereum = {
+      isMetaMask: true,
       request: async ({ method }) => method === "eth_requestAccounts" ? [address] : [],
       on: (event, listener) => listeners.set(event, [...(listeners.get(event) || []), listener]),
     };
@@ -265,6 +266,11 @@ test("Terminal connects and locally disconnects a browser-wallet address without
   await page.evaluate((address) => globalThis.__emitTestWalletEvent("accountsChanged", [address]), HYPERLIQUID_ACCOUNT_ADDRESS);
   await expect(page.locator("#terminalAccountAddress")).toHaveValue("");
   await page.locator("#terminalWalletConnect").click();
+  await expect(page.locator("#terminalWalletChooser")).toBeVisible();
+  await expect(page.locator("#terminalWalletChooserTitle")).toHaveText("Choose wallet");
+  await expect(page.locator("#terminalWalletChooser")).toContainText("Sign in with email");
+  await expect(page.locator("#terminalWalletChooser").getByText("MetaMask", { exact: true })).toBeVisible();
+  await page.locator("#terminalWalletChooser").getByRole("button", { name: /MetaMask/ }).click();
   await expect(page.locator("#terminalAccountAddress")).toHaveValue(HYPERLIQUID_ACCOUNT_ADDRESS);
   await expect(page.locator("#terminalAccountStatus")).toContainText("wallet connected · public Hyperliquid account loaded · no signature requested");
   await expect(page.locator("#terminalWalletConnect")).toHaveText("Disconnect view");
@@ -288,6 +294,39 @@ test("Terminal connects and locally disconnects a browser-wallet address without
   expect(disconnected.walletTransportConnected).toBe(false);
   expect(disconnected.walletAddressConnected).toBe(false);
   expect(disconnected.publicAccountObserved).toBe(false);
+});
+
+test("normal browser wallet chooser surfaces popular external wallets without claiming a connection", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await page.locator("#terminalWalletConnect").click();
+  const chooser = page.locator("#terminalWalletChooser");
+  await expect(chooser).toBeVisible();
+  await expect(chooser).toContainText("RavenOS reads your public address");
+  await expect(chooser).toContainText("Sign in with email");
+  await expect(chooser.locator(".terminal-wallet-choice strong")).toHaveText([
+    "MetaMask",
+    "Coinbase Wallet",
+    "Rabby",
+    "Rainbow",
+    "Phantom",
+    "Trust Wallet",
+  ]);
+  await expect(chooser.locator(".terminal-wallet-choice-state")).toHaveText([
+    "Open app",
+    "Open app",
+    "Open app",
+    "Open app",
+    "Open app",
+    "Open app",
+  ]);
+  await chooser.getByRole("button", { name: "Close" }).click();
+  await expect(page.locator("#terminalAccountAddress")).toHaveValue("");
+  const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
+  expect(state.walletTransportConnected).toBe(false);
+  expect(state.walletAddressConnected).toBe(false);
 });
 
 test("mobile Terminal keeps the Txns label across perp pane changes without horizontal overflow", async ({ page }) => {
@@ -1557,6 +1596,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Choose sell size");
   await page.locator("#terminalSpotWalletConnect").click();
+  await page.locator("#terminalWalletChooser").getByRole("button", { name: /Phantom/ }).click();
   await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
   await expect(page.locator("#terminalWalletConnect")).toHaveText("Disconnect view");
   await page.locator('[data-spot-sell-pct="25"]').click();
@@ -1626,6 +1666,7 @@ test("Solana spot ticket binds Auto, USDC, and native SOL preferences to the exa
   await expect(page.locator("#terminalSpotAssetPreferenceLabel")).toHaveText("Receive");
   await page.locator('[data-spot-asset-preference="native"]').click();
   await page.locator("#terminalSpotWalletConnect").click();
+  await page.locator("#terminalWalletChooser").getByRole("button", { name: /Phantom/ }).click();
   await page.locator('[data-spot-sell-pct="25"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 SOL");
@@ -1661,6 +1702,7 @@ test("spot chart exposes the top-level read-only wallet connection before openin
   const connect = page.locator("#terminalWalletConnect");
   await expect(connect).toBeVisible();
   await connect.click();
+  await page.locator("#terminalWalletChooser").getByRole("button", { name: /Phantom/ }).click();
   await expect(page.locator("#terminalSpotWalletState")).toContainText("Stake1");
   await expect(connect).toHaveText("Disconnect view");
   expect(await page.evaluate(() => window.__SOLANA_CONNECT_CALLS__)).toBe(1);

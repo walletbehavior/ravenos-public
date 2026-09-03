@@ -4,8 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
+  BASE_EVM_CHAIN_PROFILE,
   BSC_EVM_CHAIN_PROFILE,
   EVM_ZERO_X_ALLOWANCE_HOLDER,
+  ETHEREUM_EVM_CHAIN_PROFILE,
   ROBINHOOD_EVM_CHAIN_PROFILE,
 } from "../lib/customer_trade/evm_chain_profiles.mjs";
 import {
@@ -189,7 +191,12 @@ function sqliteD1() {
   };
 }
 
-for (const profile of [ROBINHOOD_EVM_CHAIN_PROFILE, BSC_EVM_CHAIN_PROFILE]) {
+for (const profile of [
+  ROBINHOOD_EVM_CHAIN_PROFILE,
+  BSC_EVM_CHAIN_PROFILE,
+  BASE_EVM_CHAIN_PROFILE,
+  ETHEREUM_EVM_CHAIN_PROFILE,
+]) {
   test(`${profile.chain_namespace} live ticket binds its profile, accounting representation, exit proof, and no calldata`, () => {
     const prepared = preparedBuy(profile);
     assert.equal(prepared.ticket.schema_version, EVM_LIVE_TICKET_SCHEMA);
@@ -201,7 +208,7 @@ for (const profile of [ROBINHOOD_EVM_CHAIN_PROFILE, BSC_EVM_CHAIN_PROFILE]) {
     assert.equal(prepared.ticket.exact_market.instrument_id, `${profile.chain_namespace}:pool:${POOL}`);
     assert.equal(prepared.ticket.accounting.asset_address, profile.accounting_asset.address);
     assert.equal(prepared.ticket.accounting.representation, profile.accounting_asset.representation);
-    assert.equal(prepared.ticket.accounting.circle_canonical_usdc, false);
+    assert.equal(prepared.ticket.accounting.circle_canonical_usdc, profile.accounting_asset.circle_canonical_usdc);
     assert.equal(prepared.ticket.fee.fee_bps, 100);
     assert.equal(prepared.ticket.exit_proof.verified, true);
     assert.equal(prepared.ticket.execution_boundary.submission_path, "wallet_direct_to_evm_chain");

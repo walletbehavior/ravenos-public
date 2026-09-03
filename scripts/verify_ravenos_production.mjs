@@ -155,7 +155,7 @@ if (
   || healthJson?.publisher_health?.state !== "operational"
   || healthJson?.execution_health?.state !== "customer_wallet_execution"
   || healthJson?.execution_health?.customer_wallet_execution_available !== true
-  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => healthJson?.execution_health?.active_chains?.includes(chain))
+  || !["hyperliquid", "solana", "robinhood", "bsc", "base", "ethereum"].every((chain) => healthJson?.execution_health?.active_chains?.includes(chain))
   || healthJson?.execution_health?.wallet_signature_required !== true
   || healthJson?.execution_health?.server_signing !== false
   || healthJson?.execution_health?.custody !== false
@@ -184,17 +184,18 @@ if (
   || flagsJson?.account_history_available !== true
   || !flagsJson?.account_history_types?.includes("orders")
   || flagsJson?.spot_quote_preview_available !== true
-  || !["solana", "robinhood", "bsc"].every((chain) => flagsJson?.spot_quote_preview_chains?.includes(chain))
+  || !["solana", "robinhood", "bsc", "base", "ethereum"].every((chain) => flagsJson?.spot_quote_preview_chains?.includes(chain))
   || flagsJson?.trade_adapter_states?.solana !== "quote_review"
   || flagsJson?.trade_adapter_states?.hyperliquid !== "quote_review"
   || flagsJson?.trade_adapter_states?.robinhood !== "wallet_execution"
   || flagsJson?.trade_adapter_states?.bsc !== "wallet_execution"
-  || flagsJson?.trade_adapter_states?.base !== "adapter_pending"
+  || flagsJson?.trade_adapter_states?.base !== "wallet_execution"
+  || flagsJson?.trade_adapter_states?.ethereum !== "wallet_execution"
   || flagsJson?.spot_fee_preview?.actual_fee_bps !== 0
   || flagsJson?.spot_fee_preview?.enabled !== false
   || flagsJson?.evm_fee_preview?.actual_fee_bps !== 100
   || flagsJson?.evm_fee_preview?.enabled !== true
-  || !["robinhood", "bsc"].every((chain) => (
+  || !["robinhood", "bsc", "base", "ethereum"].every((chain) => (
     flagsJson?.evm_fee_preview?.chains?.[chain]?.enabled === true
     && flagsJson?.evm_fee_preview?.chains?.[chain]?.actual_fee_bps === 100
   ))
@@ -210,7 +211,7 @@ if (
   || liveExecution?.server_signing !== false
   || liveExecution?.custody !== false
   || liveExecution?.arbitrary_submission !== false
-  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => (
+  || !["hyperliquid", "solana", "robinhood", "bsc", "base", "ethereum"].every((chain) => (
     liveExecution?.chains?.[chain]?.source_ready === true
     && liveExecution?.chains?.[chain]?.enabled === true
   ))

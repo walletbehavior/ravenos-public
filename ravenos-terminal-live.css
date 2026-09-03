@@ -30,6 +30,37 @@ html { background: var(--terminal-bg); }
 body { margin: 0; min-width: 0; background: var(--terminal-bg); color: var(--terminal-text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 button, input, select { font: inherit; }
 
+.terminal-wallet-chooser {
+  width: min(430px, calc(100vw - 24px));
+  max-height: min(720px, calc(100dvh - 24px));
+  margin: auto;
+  overflow: auto;
+  border: 1px solid var(--terminal-line-strong);
+  border-radius: 16px;
+  background: #0b1017;
+  color: var(--terminal-text);
+  padding: 0;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .72);
+}
+.terminal-wallet-chooser::backdrop { background: rgba(2, 5, 9, .78); backdrop-filter: blur(8px); }
+.terminal-wallet-chooser > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 20px 14px; border-bottom: 1px solid var(--terminal-line); }
+.terminal-wallet-chooser > header span { display: block; color: var(--terminal-positive); font: 800 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.terminal-wallet-chooser > header h2 { margin: 4px 0 0; font-size: 21px; letter-spacing: -.02em; }
+.terminal-wallet-chooser > header button { border: 1px solid var(--terminal-line); border-radius: 8px; background: transparent; color: var(--terminal-muted); padding: 8px 10px; font-size: 11px; }
+.terminal-wallet-chooser > p { margin: 0; padding: 14px 20px 8px; color: var(--terminal-muted); font-size: 12px; line-height: 1.5; }
+.terminal-wallet-choice-list { display: grid; gap: 7px; padding: 10px 14px 14px; }
+.terminal-wallet-choice { width: 100%; min-height: 58px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--terminal-line); border-radius: 11px; background: #101720; color: var(--terminal-text); padding: 9px 11px; text-align: left; text-decoration: none; }
+.terminal-wallet-choice:hover, .terminal-wallet-choice:focus-visible { border-color: rgba(63, 185, 130, .58); background: #141d27; outline: none; }
+.terminal-wallet-choice-mark { width: 34px; height: 34px; display: grid; place-content: center; border-radius: 10px; background: rgba(143, 164, 186, .12); color: var(--terminal-accent); font: 800 14px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-wallet-choice > span:nth-child(2) { min-width: 0; }
+.terminal-wallet-choice strong, .terminal-wallet-choice small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-wallet-choice strong { font-size: 13px; }
+.terminal-wallet-choice small { margin-top: 3px; color: var(--terminal-muted); font-size: 10px; }
+.terminal-wallet-choice-state { color: var(--terminal-positive); font: 750 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; }
+.terminal-wallet-choice[href] .terminal-wallet-choice-state { color: var(--terminal-accent); }
+.terminal-wallet-sign-in { display: block; margin: 0 14px 14px; border: 1px solid var(--terminal-line-strong); border-radius: 10px; color: var(--terminal-text); padding: 12px; text-align: center; text-decoration: none; font-size: 12px; font-weight: 750; }
+.terminal-wallet-sign-in:hover { background: var(--terminal-raised); }
+
 .terminal-live { min-width: 0; padding: 6px 8px 24px; }
 .terminal-state-pair span,
 .terminal-market-head span,

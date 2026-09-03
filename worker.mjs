@@ -73,6 +73,8 @@ import {
   normalizeUniversalRouteCandidate,
   selectUniversalRouteCandidate,
 } from "./lib/customer_trade/universal_shadow_execution.mjs";
+import { unifiedUsdcLimitCapability } from "./lib/customer_trade/unified_usdc_limit_orders.mjs";
+import { unifiedUsdcLimitProviderCapabilities } from "./lib/customer_trade/unified_usdc_limit_providers.mjs";
 import {
   SHADOW_ROUTE_READINESS_SCHEMA,
   createD1ShadowExecutionLedgerStore,
@@ -175,7 +177,9 @@ import {
   reconcileRobinhoodExecution,
 } from "./lib/customer_trade/robinhood_live_execution.mjs";
 import {
+  BASE_EVM_CHAIN_PROFILE,
   BSC_EVM_CHAIN_PROFILE,
+  ETHEREUM_EVM_CHAIN_PROFILE,
 } from "./lib/customer_trade/evm_chain_profiles.mjs";
 import {
   createEvmZeroXQuoteClient,
@@ -6384,10 +6388,14 @@ function spotQuotePreviewRuntime(env = {}) {
   const rpcUrl = publicSolanaTradeRpcUrl(env);
   const robinhood = resolveRobinhoodZeroXCapability(env);
   const bsc = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
+  const base = resolveEvmZeroXCapability(env, { profile: BASE_EVM_CHAIN_PROFILE });
+  const ethereum = resolveEvmZeroXCapability(env, { profile: ETHEREUM_EVM_CHAIN_PROFILE });
   const activeChains = [];
   if (rpcUrl) activeChains.push("solana");
   if (robinhood.quote_review_enabled) activeChains.push("robinhood");
   if (bsc.quote_review_enabled) activeChains.push("bsc");
+  if (base.quote_review_enabled) activeChains.push("base");
+  if (ethereum.quote_review_enabled) activeChains.push("ethereum");
   return Object.freeze({
     available: activeChains.length > 0,
     rpc_url: rpcUrl,
@@ -6396,9 +6404,9 @@ function spotQuotePreviewRuntime(env = {}) {
     adapter_states: Object.freeze({
       solana: rpcUrl ? "quote_review" : "unavailable",
       hyperliquid: "quote_review",
-      base: "adapter_pending",
+      base: base.quote_review_enabled ? "wallet_execution" : base.state,
       bsc: bsc.quote_review_enabled ? "wallet_execution" : bsc.state,
-      ethereum: "adapter_pending",
+      ethereum: ethereum.quote_review_enabled ? "wallet_execution" : ethereum.state,
       robinhood: robinhood.quote_review_enabled ? "wallet_execution" : robinhood.state,
       arbitrum: "adapter_pending",
       optimism: "adapter_pending",
@@ -6990,6 +6998,8 @@ function handleTradeFlags(env = {}) {
   const proJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
   const robinhoodZeroX = resolveRobinhoodZeroXCapability(env);
   const bscZeroX = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
+  const baseZeroX = resolveEvmZeroXCapability(env, { profile: BASE_EVM_CHAIN_PROFILE });
+  const ethereumZeroX = resolveEvmZeroXCapability(env, { profile: ETHEREUM_EVM_CHAIN_PROFILE });
   return terminalJson(context, {
     ok: true,
     quote_only: true,
@@ -7049,9 +7059,32 @@ function handleTradeFlags(env = {}) {
           enabled: bscZeroX.fee_collection_enabled,
           accounting_asset: bscZeroX.accounting_asset,
         },
+        base: {
+          free_fee_bps: baseZeroX.fee_schedule.free_fee_bps,
+          pro_fee_bps: baseZeroX.fee_schedule.pro_fee_bps,
+          pro_discount_pct: 30,
+          actual_fee_bps: baseZeroX.fee_collection_enabled ? baseZeroX.fee_schedule.free_fee_bps : 0,
+          enabled: baseZeroX.fee_collection_enabled,
+          accounting_asset: baseZeroX.accounting_asset,
+        },
+        ethereum: {
+          free_fee_bps: ethereumZeroX.fee_schedule.free_fee_bps,
+          pro_fee_bps: ethereumZeroX.fee_schedule.pro_fee_bps,
+          pro_discount_pct: 30,
+          actual_fee_bps: ethereumZeroX.fee_collection_enabled ? ethereumZeroX.fee_schedule.free_fee_bps : 0,
+          enabled: ethereumZeroX.fee_collection_enabled,
+          accounting_asset: ethereumZeroX.accounting_asset,
+        },
       },
     },
-    fees_enabled: robinhoodZeroX.fee_collection_enabled || bscZeroX.fee_collection_enabled,
+    fees_enabled: robinhoodZeroX.fee_collection_enabled
+      || bscZeroX.fee_collection_enabled
+      || baseZeroX.fee_collection_enabled
+      || ethereumZeroX.fee_collection_enabled,
+    unified_usdc_limits: {
+      ...unifiedUsdcLimitCapability(),
+      provider_capabilities: unifiedUsdcLimitProviderCapabilities(),
+    },
     flags,
   }, { status: 200 }, { resultCategory: "ok" });
 }
@@ -7094,7 +7127,9 @@ function evmFeeCollectorStatus(env = {}) {
   const address = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim();
   const robinhood = resolveRobinhoodZeroXCapability(env);
   const bsc = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
-  const enabledChains = [robinhood, bsc].filter((capability) => capability.fee_collection_enabled);
+  const base = resolveEvmZeroXCapability(env, { profile: BASE_EVM_CHAIN_PROFILE });
+  const ethereum = resolveEvmZeroXCapability(env, { profile: ETHEREUM_EVM_CHAIN_PROFILE });
+  const enabledChains = [robinhood, bsc, base, ethereum].filter((capability) => capability.fee_collection_enabled);
   return Object.freeze({
     configured: EVM_ADDRESS_RE.test(address) && !/^0x0{40}$/i.test(address),
     chain_local_accounting_required: true,
@@ -7103,6 +7138,8 @@ function evmFeeCollectorStatus(env = {}) {
     collection_method: enabledChains.length ? "zero_x_swap_integrator_fee" : "none",
     robinhood,
     bsc,
+    base,
+    ethereum,
   });
 }
 
@@ -7339,32 +7376,37 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
   });
 }
 
-const BSC_PUBLIC_RPC_URL = "https://bsc-dataseed.bnbchain.org";
+const EVM_PUBLIC_RPC_URLS = Object.freeze({
+  bsc: "https://bsc-dataseed.bnbchain.org",
+  base: "https://mainnet.base.org",
+  ethereum: "https://cloudflare-eth.com",
+});
 
-function createBscReadOnlyRpcClient(env = {}) {
-  const urls = [env.RAVENOS_BSC_RPC_URL, env.RAVENOS_BSC_RPC_FALLBACK_URL, BSC_PUBLIC_RPC_URL]
+function createProfileReadOnlyRpcClient(env = {}, profile) {
+  const prefix = `RAVENOS_${profile.chain_namespace.toUpperCase()}_RPC`;
+  const urls = [env[`${prefix}_URL`], env[`${prefix}_FALLBACK_URL`], EVM_PUBLIC_RPC_URLS[profile.chain_namespace]]
     .map((value) => String(value || "").trim())
     .filter((value, index, rows) => value && rows.indexOf(value) === index)
     .slice(0, 2);
   return createReadOnlyEvmRpcClient({
-    chain_id: BSC_EVM_CHAIN_PROFILE.chain_id,
-    chain_namespace: BSC_EVM_CHAIN_PROFILE.chain_namespace,
+    chain_id: profile.chain_id,
+    chain_namespace: profile.chain_namespace,
     providers: urls.map((url, index) => ({
-      provider_id: index === 0 ? "bsc_primary" : "bsc_fallback",
+      provider_id: `${profile.chain_namespace}_${index === 0 ? "primary" : "fallback"}`,
       url,
     })),
     timeout_ms: 6_000,
   });
 }
 
-async function currentBscTokenEvidence(rpcClient, tokenAddress, walletAddress = null) {
-  const token = normalizedEvmAddress(tokenAddress, "bsc_token_address");
+async function currentProfileTokenEvidence(rpcClient, profile, tokenAddress, walletAddress = null) {
+  const token = normalizedEvmAddress(tokenAddress, `${profile.chain_namespace}_token_address`);
   const calls = [
     rpcClient.request("eth_getCode", [token, "latest"]),
     rpcClient.request("eth_call", [{ to: token, data: EVM_DECIMALS_SELECTOR }, "latest"]),
   ];
   if (walletAddress) {
-    const wallet = normalizedEvmAddress(walletAddress, "bsc_wallet_address");
+    const wallet = normalizedEvmAddress(walletAddress, `${profile.chain_namespace}_wallet_address`);
     calls.push(rpcClient.request("eth_call", [{
       to: token,
       data: `${EVM_BALANCE_OF_SELECTOR}${wallet.slice(2).padStart(64, "0")}`,
@@ -7373,26 +7415,66 @@ async function currentBscTokenEvidence(rpcClient, tokenAddress, walletAddress = 
   const [codeResult, decimalsResult, balanceResult] = await Promise.all(calls);
   const code = String(codeResult?.result || "").trim().toLowerCase();
   if (!/^0x[0-9a-f]+$/.test(code) || code === "0x" || code === "0x0") {
-    throw Object.assign(new Error("bsc_token_contract_unavailable"), { code: "bsc_token_contract_unavailable" });
+    const error = `${profile.chain_namespace}_token_contract_unavailable`;
+    throw Object.assign(new Error(error), { code: error });
   }
-  const decimals = Number(evmUintResult(decimalsResult?.result, "bsc_token_decimals"));
+  const decimals = Number(evmUintResult(decimalsResult?.result, `${profile.chain_namespace}_token_decimals`));
   if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 18) {
-    throw Object.assign(new Error("bsc_token_decimals_invalid"), { code: "bsc_token_decimals_invalid" });
+    const error = `${profile.chain_namespace}_token_decimals_invalid`;
+    throw Object.assign(new Error(error), { code: error });
   }
   return Object.freeze({
     token_address: token,
     decimals,
-    balance_base_units: balanceResult ? evmUintResult(balanceResult.result, "bsc_token_balance").toString() : null,
+    balance_base_units: balanceResult ? evmUintResult(balanceResult.result, `${profile.chain_namespace}_token_balance`).toString() : null,
     provider_id: codeResult.provider_id,
   });
 }
 
-async function loadCurrentBscLivePreparation(body = {}, env = {}) {
-  const profile = BSC_EVM_CHAIN_PROFILE;
-  const poolAddress = normalizedEvmAddress(body?.pool_address, "bsc_pool_address");
-  const tokenAddress = normalizedEvmAddress(body?.token_address, "bsc_token_address");
-  const quoteAddress = normalizedEvmAddress(body?.quote_address, "bsc_quote_address");
-  const walletAddress = normalizedEvmAddress(body?.wallet_address, "bsc_wallet_address");
+async function currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote) {
+  const wallet = normalizedEvmAddress(walletAddress, `${profile.chain_namespace}_wallet_address`);
+  const balanceResult = await rpcClient.request("eth_getBalance", [wallet, "latest"]);
+  const balance = evmUintResult(balanceResult?.result, `${profile.chain_namespace}_native_balance`);
+  const transaction = entryQuote?.unsigned_transaction || {};
+  const gas = BigInt(String(transaction.gas || "0"));
+  const gasPrice = BigInt(String(transaction.gas_price ?? transaction.max_fee_per_gas ?? "0"));
+  const maximumNetworkFee = gas * gasPrice;
+  const nativeSpend = entryQuote?.exact_binding?.sell_token === profile.native_token_address
+    ? BigInt(entryQuote.exact_binding.sell_amount_base_units)
+    : 0n;
+  const required = maximumNetworkFee + nativeSpend;
+  if (maximumNetworkFee <= 0n) {
+    throw Object.assign(new Error("evm_network_fee_unresolved"), { code: "evm_network_fee_unresolved" });
+  }
+  if (balance < required) {
+    throw Object.assign(new Error("insufficient_native_gas_balance"), {
+      code: "insufficient_native_gas_balance",
+      details: {
+        chain: profile.chain_namespace,
+        native_symbol: profile.native_symbol,
+        balance_base_units: balance.toString(),
+        required_base_units: required.toString(),
+        maximum_network_fee_base_units: maximumNetworkFee.toString(),
+      },
+    });
+  }
+  return Object.freeze({
+    native_symbol: profile.native_symbol,
+    balance_base_units: balance.toString(),
+    maximum_network_fee_base_units: maximumNetworkFee.toString(),
+    native_spend_base_units: nativeSpend.toString(),
+    required_base_units: required.toString(),
+    sufficient: true,
+    provider_id: balanceResult.provider_id,
+  });
+}
+
+async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
+  const fieldPrefix = profile.chain_namespace;
+  const poolAddress = normalizedEvmAddress(body?.pool_address, `${fieldPrefix}_pool_address`);
+  const tokenAddress = normalizedEvmAddress(body?.token_address, `${fieldPrefix}_token_address`);
+  const quoteAddress = normalizedEvmAddress(body?.quote_address, `${fieldPrefix}_quote_address`);
+  const walletAddress = normalizedEvmAddress(body?.wallet_address, `${fieldPrefix}_wallet_address`);
   const instrumentId = String(body?.instrument_id || "").trim().toLowerCase();
   if (String(body?.chain || "").trim().toLowerCase() !== profile.chain_namespace
     || String(body?.identity_scope || "").trim().toLowerCase() !== "exact_pool"
@@ -7409,14 +7491,15 @@ async function loadCurrentBscLivePreparation(body = {}, env = {}) {
   ));
   if (!exact) throw Object.assign(new Error("exact_market_unavailable"), { code: "exact_market_unavailable" });
 
-  const rpcClient = createBscReadOnlyRpcClient(env);
+  const rpcClient = createProfileReadOnlyRpcClient(env, profile);
   const chainEvidence = await verifyReadOnlyEvmRpcChain(rpcClient, profile.chain_id);
   const [tokenEvidence, accountingEvidence] = await Promise.all([
-    currentBscTokenEvidence(rpcClient, tokenAddress, side === "sell" ? walletAddress : null),
-    currentBscTokenEvidence(rpcClient, profile.accounting_asset.address),
+    currentProfileTokenEvidence(rpcClient, profile, tokenAddress, side === "sell" ? walletAddress : null),
+    currentProfileTokenEvidence(rpcClient, profile, profile.accounting_asset.address),
   ]);
   if (accountingEvidence.decimals !== profile.accounting_asset.decimals) {
-    throw Object.assign(new Error("bsc_accounting_asset_identity_unresolved"), { code: "bsc_accounting_asset_identity_unresolved" });
+    const error = `${profile.chain_namespace}_accounting_asset_identity_unresolved`;
+    throw Object.assign(new Error(error), { code: error });
   }
 
   const requestedPreference = String((side === "buy" ? body?.funding_preference : body?.settlement_preference) || "auto").trim().toLowerCase();
@@ -7438,7 +7521,8 @@ async function loadCurrentBscLivePreparation(body = {}, env = {}) {
   if (side === "buy") {
     sellToken = selectedPreference === "native" ? profile.native_token_address : profile.accounting_asset.address;
     buyToken = tokenAddress;
-    sellAmount = exactDisplayToBaseUnits(body?.display_amount, 18, "display_amount");
+    const inputDecimals = selectedPreference === "native" ? 18 : profile.accounting_asset.decimals;
+    sellAmount = exactDisplayToBaseUnits(body?.display_amount, inputDecimals, "display_amount");
   } else {
     const percent = Number(body?.sell_percent);
     if (![25, 50, 75, 100].includes(percent) || tokenEvidence.balance_base_units === null) {
@@ -7465,9 +7549,10 @@ async function loadCurrentBscLivePreparation(body = {}, env = {}) {
     fee_token_side: side === "sell" ? "buy" : "sell",
   });
   if (!entryQuote.wallet_handoff_eligible) {
-    const reason = entryQuote.blockers?.[0] || "bsc_entry_quote_blocked";
+    const reason = entryQuote.blockers?.[0] || `${profile.chain_namespace}_entry_quote_blocked`;
     throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers } });
   }
+  const gasEvidence = await currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote);
 
   let notionalBaseUnits;
   let sourceValuation = null;
@@ -7534,6 +7619,7 @@ async function loadCurrentBscLivePreparation(body = {}, env = {}) {
     provider_quote: entryQuote,
     review: Object.freeze({
       chain: chainEvidence,
+      gas: gasEvidence,
       source_valuation_quote_hash: sourceValuation?.quote_hash || null,
       token: tokenEvidence,
       accounting_asset: Object.freeze({
@@ -7547,6 +7633,10 @@ async function loadCurrentBscLivePreparation(body = {}, env = {}) {
       executable_exit: prepared.ticket.exit_proof ? robinhoodQuoteDisplay(prepared.ticket.exit_proof.expected_accounting_amount_base_units, profile.accounting_asset.decimals, profile.accounting_asset.symbol) : null,
     }),
   });
+}
+
+async function loadCurrentBscLivePreparation(body = {}, env = {}) {
+  return loadCurrentEvmLivePreparation(body, env, BSC_EVM_CHAIN_PROFILE);
 }
 
 function exactSolanaTerminalUrl({ poolAddress, tokenAddress, quoteAddress }) {
@@ -7788,11 +7878,14 @@ async function handleTradeLiveSession(request, env = {}) {
     evm_fee: {
       enabled: evmFee.fee_enabled,
       configuration_ready: evmFee.configured
-        && (evmFee.robinhood.fee_configuration_ready || evmFee.bsc.fee_configuration_ready),
+        && (evmFee.robinhood.fee_configuration_ready
+          || evmFee.bsc.fee_configuration_ready
+          || evmFee.base.fee_configuration_ready
+          || evmFee.ethereum.fee_configuration_ready),
       fee_bps: evmFee.actual_fee_bps,
       configured_fee_bps: evmFee.robinhood.fee_schedule.free_fee_bps,
       pro_fee_bps: evmFee.robinhood.fee_schedule.pro_fee_bps,
-      fee_token: "chain-local accounting asset; USDG on Robinhood Chain, Binance-Peg USDC on BNB Chain",
+      fee_token: "chain-local accounting asset; USDG on Robinhood Chain, Binance-Peg USDC on BNB Chain, Circle-native USDC on Base and Ethereum",
       collection_method: evmFee.collection_method,
       chain_local_accounting_required: evmFee.chain_local_accounting_required,
       unavailable_reason: evmFee.fee_enabled ? null : evmFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
@@ -7804,6 +7897,14 @@ async function handleTradeLiveSession(request, env = {}) {
         bsc: {
           enabled: evmFee.bsc.fee_collection_enabled,
           accounting_asset: evmFee.bsc.accounting_asset,
+        },
+        base: {
+          enabled: evmFee.base.fee_collection_enabled,
+          accounting_asset: evmFee.base.accounting_asset,
+        },
+        ethereum: {
+          enabled: evmFee.ethereum.fee_collection_enabled,
+          accounting_asset: evmFee.ethereum.accounting_asset,
         },
       },
     },
@@ -7925,23 +8026,24 @@ async function handleTradeLiveRobinhoodReport(request, env = {}) {
   }
 }
 
-async function handleTradeLiveBscPrepare(request, env = {}) {
+async function handleTradeLiveEvmPrepare(request, env = {}, profile) {
   const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
   if (authorization.response) return authorization.response;
   const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
-  const refusal = customerLiveExecutionRefusal(gate, "bsc");
+  const refusal = customerLiveExecutionRefusal(gate, profile.chain_namespace);
   if (refusal) return liveExecutionResponse({ ok: false, error: refusal, gate }, authorization, { status: 403 });
-  const profile = BSC_EVM_CHAIN_PROFILE;
   const capability = resolveEvmZeroXCapability(env, { profile });
   const configuredEvmCollector = String(env.RAVENOS_EVM_FEE_COLLECTOR_ADDRESS || "").trim().toLowerCase();
-  const configuredZeroXCollector = String(env.RAVENOS_BSC_ZEROX_FEE_RECIPIENT || configuredEvmCollector).trim().toLowerCase();
+  const configuredZeroXCollector = String(env[`${profile.environment_prefix}_FEE_RECIPIENT`] || configuredEvmCollector).trim().toLowerCase();
   if (!capability.quote_review_enabled
     || !capability.fee_collection_enabled
     || !configuredEvmCollector
     || configuredEvmCollector !== configuredZeroXCollector) {
     return liveExecutionResponse({
       ok: false,
-      error: capability.fee_state === "misconfigured" ? "bsc_fee_configuration_invalid" : "bsc_zero_x_unavailable",
+      error: capability.fee_state === "misconfigured"
+        ? `${profile.chain_namespace}_fee_configuration_invalid`
+        : `${profile.chain_namespace}_zero_x_unavailable`,
       capability,
     }, authorization, { status: 503 });
   }
@@ -7955,7 +8057,7 @@ async function handleTradeLiveBscPrepare(request, env = {}) {
     return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
   }
   try {
-    const prepared = await loadCurrentBscLivePreparation(body, env);
+    const prepared = await loadCurrentEvmLivePreparation(body, env, profile);
     await createD1EvmLiveExecutionStore(env.RAVENOS_CUSTOMER_DB, { profile }).createTicket({
       prepared,
       user_id: authorization.principal.user_id,
@@ -7974,18 +8076,18 @@ async function handleTradeLiveBscPrepare(request, env = {}) {
       execution_boundary: prepared.ticket.execution_boundary,
     }, authorization);
   } catch (error) {
-    const code = String(error?.code || error?.message || "bsc_live_prepare_unavailable");
+    const code = String(error?.code || error?.message || `${profile.chain_namespace}_live_prepare_unavailable`);
     const conflict = /(?:invalid|mismatch|restricted|blocked|required|insufficient|out_of_bounds|not_supported)$/.test(code)
       || new Set(["allowance_required", "simulation_incomplete", "invalid_liquidity_sources"]).has(code);
     return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: conflict ? 409 : 503 });
   }
 }
 
-async function handleTradeLiveBscReport(request, env = {}) {
+async function handleTradeLiveEvmReport(request, env = {}, profile) {
   const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
   if (authorization.response) return authorization.response;
   const gate = resolveCustomerLiveExecutionGate(env, authorization.principal, { nowSeconds: authorization.now });
-  const refusal = customerLiveExecutionRefusal(gate, "bsc");
+  const refusal = customerLiveExecutionRefusal(gate, profile.chain_namespace);
   if (refusal) return liveExecutionResponse({ ok: false, error: refusal }, authorization, { status: 403 });
   if (!env.RAVENOS_CUSTOMER_DB?.prepare) {
     return liveExecutionResponse({ ok: false, error: "live_execution_store_unavailable" }, authorization, { status: 503 });
@@ -7996,7 +8098,6 @@ async function handleTradeLiveBscReport(request, env = {}) {
   } catch (error) {
     return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
   }
-  const profile = BSC_EVM_CHAIN_PROFILE;
   const store = createD1EvmLiveExecutionStore(env.RAVENOS_CUSTOMER_DB, { profile });
   try {
     const stored = await store.findTicket(body?.ticket_id, authorization.principal.user_id);
@@ -8010,7 +8111,7 @@ async function handleTradeLiveBscReport(request, env = {}) {
     } else if (String(stored.transaction_hash || "").toLowerCase() !== report.transaction_hash) {
       return liveExecutionResponse({ ok: false, error: "evm_execution_transaction_mismatch" }, authorization, { status: 409 });
     }
-    const rpcClient = createBscReadOnlyRpcClient(env);
+    const rpcClient = createProfileReadOnlyRpcClient(env, profile);
     await verifyReadOnlyEvmRpcChain(rpcClient, profile.chain_id);
     let reconciliation = await reconcileEvmExecution({ ticket: stored.prepared, client_report: report }, {
       rpc_client: rpcClient,
@@ -8067,9 +8168,33 @@ async function handleTradeLiveBscReport(request, env = {}) {
       execution_boundary: stored.prepared.execution_boundary,
     }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
   } catch (error) {
-    const code = String(error?.code || error?.message || "bsc_reconciliation_unavailable");
+    const code = String(error?.code || error?.message || `${profile.chain_namespace}_reconciliation_unavailable`);
     return liveExecutionResponse({ ok: false, error: code }, authorization, { status: 409 });
   }
+}
+
+async function handleTradeLiveBscPrepare(request, env = {}) {
+  return handleTradeLiveEvmPrepare(request, env, BSC_EVM_CHAIN_PROFILE);
+}
+
+async function handleTradeLiveBscReport(request, env = {}) {
+  return handleTradeLiveEvmReport(request, env, BSC_EVM_CHAIN_PROFILE);
+}
+
+async function handleTradeLiveBasePrepare(request, env = {}) {
+  return handleTradeLiveEvmPrepare(request, env, BASE_EVM_CHAIN_PROFILE);
+}
+
+async function handleTradeLiveBaseReport(request, env = {}) {
+  return handleTradeLiveEvmReport(request, env, BASE_EVM_CHAIN_PROFILE);
+}
+
+async function handleTradeLiveEthereumPrepare(request, env = {}) {
+  return handleTradeLiveEvmPrepare(request, env, ETHEREUM_EVM_CHAIN_PROFILE);
+}
+
+async function handleTradeLiveEthereumReport(request, env = {}) {
+  return handleTradeLiveEvmReport(request, env, ETHEREUM_EVM_CHAIN_PROFILE);
 }
 
 async function handleTradeLiveSolanaPrepare(request, env = {}) {
@@ -10337,6 +10462,10 @@ async function routeApi(request, env, executionContext = null) {
   if (url.pathname === "/api/trade/live/robinhood/report" && request.method === "POST") return handleTradeLiveRobinhoodReport(request, env);
   if (url.pathname === "/api/trade/live/bsc/prepare" && request.method === "POST") return handleTradeLiveBscPrepare(request, env);
   if (url.pathname === "/api/trade/live/bsc/report" && request.method === "POST") return handleTradeLiveBscReport(request, env);
+  if (url.pathname === "/api/trade/live/base/prepare" && request.method === "POST") return handleTradeLiveBasePrepare(request, env);
+  if (url.pathname === "/api/trade/live/base/report" && request.method === "POST") return handleTradeLiveBaseReport(request, env);
+  if (url.pathname === "/api/trade/live/ethereum/prepare" && request.method === "POST") return handleTradeLiveEthereumPrepare(request, env);
+  if (url.pathname === "/api/trade/live/ethereum/report" && request.method === "POST") return handleTradeLiveEthereumReport(request, env);
   const entitlementResponse = await routeCustomerEntitlements(request, env, {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });

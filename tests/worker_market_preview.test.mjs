@@ -362,7 +362,15 @@ test("public trade flags distinguish market preview from disabled customer execu
   assert.equal(body.submission_available, false);
   assert.deepEqual(body.spot_quote_preview_chains, []);
   assert.equal(body.trade_adapter_states.hyperliquid, "quote_review");
-  assert.equal(body.trade_adapter_states.base, "adapter_pending");
+  assert.equal(body.trade_adapter_states.base, "disabled");
+  assert.equal(body.trade_adapter_states.ethereum, "disabled");
+  assert.equal(body.unified_usdc_limits.status, "paper_and_review");
+  assert.equal(body.unified_usdc_limits.all_in_executable_price_trigger, true);
+  assert.equal(body.unified_usdc_limits.marked_price_trigger, false);
+  assert.equal(body.unified_usdc_limits.execution_boundary.autonomous_bridging, false);
+  assert.equal(body.unified_usdc_limits.provider_capabilities.providers.lifi_intents_v1.status, "quote_evidence_ready_submission_disabled");
+  assert.equal(body.unified_usdc_limits.provider_capabilities.providers.lifi_intents_v1.order_submission, false);
+  assert.equal(body.unified_usdc_limits.provider_capabilities.providers.jupiter_trigger_v2.status, "not_selected");
   assert.equal(body.flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE, false);
 });
 

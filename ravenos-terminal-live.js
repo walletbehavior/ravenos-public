@@ -27,6 +27,8 @@ const SOLANA_WRAPPED_NATIVE_MINT = "So11111111111111111111111111111111111111112"
 const ROBINHOOD_CANONICAL_USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
 const ROBINHOOD_NATIVE_ETH = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const BSC_BINANCE_PEG_USDC = "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d";
+const BASE_CIRCLE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bdA02913";
+const ETHEREUM_CIRCLE_USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const EVM_NATIVE_ASSET = ROBINHOOD_NATIVE_ETH;
 const EVM_SPOT_PROFILES = Object.freeze({
   robinhood: Object.freeze({
@@ -47,7 +49,37 @@ const EVM_SPOT_PROFILES = Object.freeze({
     accounting_symbol: "USDC",
     native_symbol: "BNB",
   }),
+  base: Object.freeze({
+    profile_id: "base-mainnet-v1",
+    chain_namespace: "base",
+    chain_id: 8453,
+    canonical_chain_id: "eip155:8453",
+    accounting_address: BASE_CIRCLE_USDC,
+    accounting_symbol: "USDC",
+    native_symbol: "ETH",
+  }),
+  ethereum: Object.freeze({
+    profile_id: "ethereum-mainnet-v1",
+    chain_namespace: "ethereum",
+    chain_id: 1,
+    canonical_chain_id: "eip155:1",
+    accounting_address: ETHEREUM_CIRCLE_USDC,
+    accounting_symbol: "USDC",
+    native_symbol: "ETH",
+  }),
 });
+const announcedEvmWallets = new Map();
+const boundEvmWalletProviders = new WeakSet();
+function rememberAnnouncedEvmWallet(event) {
+  const detail = event?.detail;
+  const provider = detail?.provider;
+  const uuid = String(detail?.info?.uuid || "").trim();
+  const name = String(detail?.info?.name || "Wallet").trim().slice(0, 80);
+  if (!provider?.request || !uuid || announcedEvmWallets.has(uuid)) return;
+  announcedEvmWallets.set(uuid, Object.freeze({ provider, name, uuid }));
+}
+globalThis.addEventListener?.("eip6963:announceProvider", rememberAnnouncedEvmWallet);
+globalThis.dispatchEvent?.(new Event("eip6963:requestProvider"));
 const SPOT_TRADE_REFRESH_MS = 5_000;
 const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
@@ -90,6 +122,8 @@ const state = {
   walletTransportConnected: false,
   walletAddress: null,
   walletListenersBound: false,
+  selectedEvmWalletProvider: null,
+  selectedSolanaWalletProvider: null,
   paneScrollPositions: {},
   selectedMarker: null,
   planQualificationIssue: "unavailable",
@@ -993,8 +1027,186 @@ function shortAccountAddress(value) {
   return address.length > 16 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
 }
 
+function evmWalletName(provider, fallback = "Browser wallet") {
+  if (provider?.isMetaMask && !provider?.isRabby) return "MetaMask";
+  if (provider?.isCoinbaseWallet || provider?.isWalletLink) return "Coinbase Wallet";
+  if (provider?.isRabby) return "Rabby";
+  if (provider?.isRainbow) return "Rainbow";
+  if (provider?.isPhantom) return "Phantom";
+  if (provider?.isTrust || provider?.isTrustWallet) return "Trust Wallet";
+  if (provider?.isBraveWallet) return "Brave Wallet";
+  return String(fallback || "Browser wallet").slice(0, 80);
+}
+
+function detectedEvmWallets() {
+  const rows = [];
+  const seen = new Set();
+  const add = (provider, name) => {
+    if (!provider?.request || seen.has(provider)) return;
+    seen.add(provider);
+    rows.push({ provider, name: evmWalletName(provider, name) });
+  };
+  for (const announced of announcedEvmWallets.values()) add(announced.provider, announced.name);
+  for (const provider of Array.isArray(globalThis.ethereum?.providers) ? globalThis.ethereum.providers : []) add(provider);
+  add(globalThis.ethereum);
+  const rank = ["MetaMask", "Coinbase Wallet", "Rabby", "Rainbow", "Phantom", "Trust Wallet", "Brave Wallet"];
+  rows.sort((left, right) => {
+    const leftRank = rank.indexOf(left.name);
+    const rightRank = rank.indexOf(right.name);
+    return (leftRank < 0 ? 99 : leftRank) - (rightRank < 0 ? 99 : rightRank) || left.name.localeCompare(right.name);
+  });
+  return rows;
+}
+
+function detectedSolanaWallets() {
+  const rows = [];
+  const seen = new Set();
+  const add = (provider, name) => {
+    if (!provider?.connect || provider?.publicKey === undefined || seen.has(provider)) return;
+    seen.add(provider);
+    rows.push({ provider, name });
+  };
+  add(globalThis.phantom?.solana, "Phantom");
+  add(globalThis.solflare, "Solflare");
+  add(globalThis.backpack?.solana || globalThis.backpack, "Backpack");
+  add(globalThis.glowSolana, "Glow");
+  add(globalThis.solana, globalThis.solana?.isPhantom ? "Phantom" : globalThis.solana?.isSolflare ? "Solflare" : "Solana wallet");
+  return rows;
+}
+
 function browserWalletProvider() {
-  return globalThis.ethereum?.request ? globalThis.ethereum : null;
+  return state.selectedEvmWalletProvider || detectedEvmWallets()[0]?.provider || null;
+}
+
+function walletLaunchHref(wallet, chainType) {
+  const current = location.href;
+  const encoded = encodeURIComponent(current);
+  const ref = encodeURIComponent(location.origin);
+  if (chainType === "solana") {
+    if (wallet === "Phantom") return `https://phantom.app/ul/browse/${encoded}?ref=${ref}`;
+    if (wallet === "Solflare") return `https://solflare.com/ul/v1/browse/${encoded}?ref=${ref}`;
+    if (wallet === "Backpack") return "https://backpack.app/";
+    if (wallet === "Glow") return "https://glow.app/";
+    return null;
+  }
+  if (wallet === "MetaMask") return `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}`;
+  if (wallet === "Coinbase Wallet") return `https://go.cb-w.com/dapp?cb_url=${encoded}`;
+  if (wallet === "Trust Wallet") return `https://link.trustwallet.com/open_url?coin_id=60&url=${encoded}`;
+  if (wallet === "Rabby") return "https://rabby.io/";
+  if (wallet === "Rainbow") return "https://rainbow.me/";
+  if (wallet === "Phantom") return "https://phantom.app/";
+  return null;
+}
+
+function walletChoiceButton({ name, detail, detected, onChoose, href = null }) {
+  const row = href ? document.createElement("a") : document.createElement("button");
+  row.className = "terminal-wallet-choice";
+  if (href) {
+    row.href = href;
+    row.rel = "noopener noreferrer";
+  } else {
+    row.type = "button";
+    row.addEventListener("click", onChoose);
+  }
+  const mark = document.createElement("span");
+  mark.className = "terminal-wallet-choice-mark";
+  mark.textContent = name.slice(0, 1).toUpperCase();
+  const copy = document.createElement("span");
+  const title = document.createElement("strong");
+  title.textContent = name;
+  const note = document.createElement("small");
+  note.textContent = detail;
+  copy.append(title, note);
+  const stateLabel = document.createElement("span");
+  stateLabel.className = "terminal-wallet-choice-state";
+  stateLabel.textContent = detected ? "Detected" : "Open app";
+  row.append(mark, copy, stateLabel);
+  return row;
+}
+
+function chooseExternalWallet(chainType = "evm") {
+  const dialog = document.getElementById("terminalWalletChooser") || document.createElement("dialog");
+  dialog.id = "terminalWalletChooser";
+  dialog.className = "terminal-wallet-chooser";
+  dialog.setAttribute("aria-labelledby", "terminalWalletChooserTitle");
+  if (!dialog.isConnected) document.body.append(dialog);
+  const detected = chainType === "solana" ? detectedSolanaWallets() : detectedEvmWallets();
+  const popular = chainType === "solana"
+    ? ["Phantom", "Solflare", "Backpack", "Glow"]
+    : ["MetaMask", "Coinbase Wallet", "Rabby", "Rainbow", "Phantom", "Trust Wallet"];
+  dialog.replaceChildren();
+  const header = document.createElement("header");
+  const heading = document.createElement("div");
+  const eyebrow = document.createElement("span");
+  eyebrow.textContent = chainType === "solana" ? "Solana" : "EVM";
+  const title = document.createElement("h2");
+  title.id = "terminalWalletChooserTitle";
+  title.textContent = "Choose wallet";
+  heading.append(eyebrow, title);
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "Close";
+  close.addEventListener("click", () => dialog.close());
+  header.append(heading, close);
+  const intro = document.createElement("p");
+  intro.textContent = "RavenOS reads your public address. Your wallet confirms every transaction.";
+  const list = document.createElement("div");
+  list.className = "terminal-wallet-choice-list";
+  dialog.append(header, intro, list);
+  if (state.liveAuth?.authenticated !== true) {
+    const signIn = document.createElement("a");
+    signIn.className = "terminal-wallet-sign-in";
+    signIn.href = terminalSignInHref();
+    signIn.textContent = "Sign in with email";
+    dialog.append(signIn);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (provider = null) => {
+      if (settled) return;
+      settled = true;
+      resolve(provider);
+    };
+    const closeHandler = () => finish(null);
+    dialog.addEventListener("close", closeHandler, { once: true });
+    const rendered = new Set();
+    for (const name of popular) {
+      const candidate = detected.find((row) => row.name === name);
+      rendered.add(candidate?.provider);
+      const href = candidate ? null : walletLaunchHref(name, chainType);
+      if (!candidate && !href) continue;
+      const row = walletChoiceButton({
+        name,
+        detected: Boolean(candidate),
+        detail: candidate ? "Connect in this browser" : "Open RavenOS in this wallet",
+        href,
+        onChoose: () => {
+          finish(candidate.provider);
+          dialog.close();
+        },
+      });
+      if (href) row.addEventListener("click", () => {
+        finish(null);
+        dialog.close();
+      });
+      list.append(row);
+    }
+    for (const candidate of detected) {
+      if (rendered.has(candidate.provider)) continue;
+      list.append(walletChoiceButton({
+        name: candidate.name,
+        detected: true,
+        detail: "Connect in this browser",
+        onChoose: () => {
+          finish(candidate.provider);
+          dialog.close();
+        },
+      }));
+    }
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+  });
 }
 
 function browserWalletAddress(accounts = []) {
@@ -1039,7 +1251,6 @@ function shortSpotWalletAddress(value) {
 }
 
 function syncWalletControls() {
-  const evmAvailable = Boolean(browserWalletProvider());
   const evmConnected = state.walletTransportConnected && Boolean(state.walletAddress);
   const spotWallet = currentSpotWallet();
   for (const id of ["terminalWalletConnect", "terminalUseWallet"]) {
@@ -1047,16 +1258,14 @@ function syncWalletControls() {
     if (!button) continue;
     const topLevel = id === "terminalWalletConnect";
     const connected = topLevel && state.lane === "spot" ? spotWallet.connected : evmConnected;
-    button.hidden = topLevel
-      ? state.flags?.browser_wallet_connection_available === false
-      : !evmAvailable;
+    button.hidden = state.flags?.browser_wallet_connection_available === false;
     button.textContent = connected ? "Disconnect view" : "Connect wallet";
     button.dataset.connected = String(connected);
     button.setAttribute("aria-label", connected
       ? "Clear the wallet address from this tab"
       : state.lane === "spot"
-        ? `Connect a ${chainDisplayName(currentSpotChain())} wallet address`
-        : "Connect an EVM wallet address read only");
+        ? `Choose a ${chainDisplayName(currentSpotChain())} wallet`
+        : "Choose an EVM wallet");
   }
 }
 
@@ -1070,7 +1279,7 @@ function updateWalletShellCapability() {
       ? `${shortSpotWalletAddress(spotWallet.address)} · ${spotLive ? "wallet confirmation" : "public view"}`
       : state.walletTransportConnected && state.walletAddress
       ? `${shortAccountAddress(state.walletAddress)} · ${hyperliquidLive ? "live confirmation" : "public view"}`
-      : state.lane === "spot" ? spotWallet.provider ? "Wallet ready · not connected" : `No ${chainDisplayName(chain)} wallet` : browserWalletProvider() ? "Wallet ready · not connected" : "No wallet provider",
+      : state.lane === "spot" ? spotWallet.provider ? "Wallet ready · not connected" : "Choose wallet" : browserWalletProvider() ? "Wallet ready · not connected" : "Choose wallet",
     signing: state.lane === "spot" ? spotLive ? "Wallet confirms" : "Sign off" : hyperliquidLive ? "Wallet confirms" : "Sign off",
     broadcast: state.lane === "spot" ? spotLive ? evmSpotProfile(chain) ? "0x reviewed" : "Jupiter reviewed" : "Broadcast off" : hyperliquidLive ? "Hyperliquid direct" : "Broadcast off",
   });
@@ -1882,18 +2091,14 @@ async function loadTerminalAccount(addressInput, { walletTransport = false } = {
 
 async function useBrowserWalletAddress() {
   const status = document.getElementById("terminalAccountStatus");
-  const wallet = browserWalletProvider();
-  if (!wallet) {
-    if (status) {
-      status.dataset.tone = "error";
-      status.textContent = "EVM wallet not detected.";
-    }
-    return;
-  }
   if (state.walletTransportConnected) {
     clearConnectedWalletView();
     return;
   }
+  const wallet = await chooseExternalWallet("evm");
+  if (!wallet) return;
+  state.selectedEvmWalletProvider = wallet;
+  initializeWalletAddressControl();
   if (status) {
     status.dataset.tone = "";
     status.textContent = "Requesting a public address from the browser wallet…";
@@ -1931,8 +2136,8 @@ function initializeWalletAddressControl() {
   const wallet = browserWalletProvider();
   syncWalletControls();
   updateWalletShellCapability();
-  if (!wallet?.on || state.walletListenersBound) return;
-  state.walletListenersBound = true;
+  if (!wallet?.on || boundEvmWalletProviders.has(wallet)) return;
+  boundEvmWalletProviders.add(wallet);
   wallet.on("accountsChanged", (accounts) => {
     if (!state.walletTransportConnected) return;
     const address = browserWalletAddress(accounts);
@@ -6042,7 +6247,7 @@ function updateShell({ subject, marketLabel, thesis, setup, supporting = [], con
 }
 
 function solanaWalletProvider() {
-  const provider = globalThis.phantom?.solana || globalThis.solana;
+  const provider = state.selectedSolanaWalletProvider || detectedSolanaWallets()[0]?.provider;
   return provider?.connect && provider?.publicKey !== undefined ? provider : null;
 }
 
@@ -6601,14 +6806,6 @@ function setSpotTicketSide(side) {
 }
 
 async function connectSolanaWalletReadOnly() {
-  const provider = solanaWalletProvider();
-  const note = document.getElementById("terminalSpotWalletNote");
-  if (!provider) {
-    setText("terminalSpotWalletState", "Wallet unavailable");
-    if (note) note.textContent = "Install or open a Solana browser wallet. Buy quotes remain available; percentage sells require a current exact-mint balance.";
-    syncWalletControls();
-    return;
-  }
   if (state.solanaWalletConnected) {
     state.solanaWalletConnected = false;
     state.solanaWalletAddress = null;
@@ -6623,6 +6820,9 @@ async function connectSolanaWalletReadOnly() {
     clearSpotQuoteResult("Wallet view disconnected. Existing quote review was cleared.");
     return;
   }
+  const provider = await chooseExternalWallet("solana");
+  if (!provider) return;
+  state.selectedSolanaWalletProvider = provider;
   setText("terminalSpotWalletState", "Requesting address…");
   try {
     const result = await provider.connect();
@@ -6653,14 +6853,6 @@ async function connectSolanaWalletReadOnly() {
 }
 
 async function connectEvmSpotWalletReadOnly() {
-  const provider = browserWalletProvider();
-  const note = document.getElementById("terminalSpotWalletNote");
-  if (!provider) {
-    setText("terminalSpotWalletState", "Wallet unavailable");
-    if (note) note.textContent = "Open an EVM browser wallet to trade this market.";
-    syncWalletControls();
-    return;
-  }
   if (state.walletTransportConnected) {
     clearConnectedWalletView("Wallet address cleared from this tab.");
     setText("terminalSpotWalletState", "Not connected");
@@ -6669,6 +6861,10 @@ async function connectEvmSpotWalletReadOnly() {
     clearSpotQuoteResult("Wallet disconnected. Review was cleared.");
     return;
   }
+  const provider = await chooseExternalWallet("evm");
+  if (!provider) return;
+  state.selectedEvmWalletProvider = provider;
+  initializeWalletAddressControl();
   setText("terminalSpotWalletState", "Requesting address…");
   try {
     const accounts = await provider.request({ method: "eth_requestAccounts" });
@@ -6724,6 +6920,11 @@ function spotQuoteReason(reason) {
     evm_chain_switch_failed: `Open ${chainDisplayName(currentSpotChain())} in your wallet and try again.`,
     bsc_live_execution_disabled: "BNB Chain trading is temporarily off.",
     bsc_accounting_asset_identity_unresolved: "BNB Chain settlement-token identity could not be verified.",
+    base_live_execution_disabled: "Base trading is temporarily off.",
+    base_accounting_asset_identity_unresolved: "Base USDC identity could not be verified.",
+    ethereum_live_execution_disabled: "Ethereum trading is temporarily off.",
+    ethereum_accounting_asset_identity_unresolved: "Ethereum USDC identity could not be verified.",
+    insufficient_native_gas_balance: `Add ${nativeCurrencyForChain(currentSpotChain())} for this trade and its maximum network fee.`,
     recent_authentication_required: "Sign in again before preparing a live route.",
     live_execution_not_configured: "Wallet trading is not active for this session.",
     robinhood_live_execution_disabled: "Robinhood Chain trading is temporarily off.",
@@ -9098,6 +9299,8 @@ async function boot() {
       liveSolanaAvailable: state.liveSession?.gate?.chains?.solana?.available_to_principal === true,
       liveRobinhoodAvailable: state.liveSession?.gate?.chains?.robinhood?.available_to_principal === true,
       liveBscAvailable: state.liveSession?.gate?.chains?.bsc?.available_to_principal === true,
+      liveBaseAvailable: state.liveSession?.gate?.chains?.base?.available_to_principal === true,
+      liveEthereumAvailable: state.liveSession?.gate?.chains?.ethereum?.available_to_principal === true,
       liveExecutionTicketState: state.liveTicket?.state || "unavailable",
       liveExecutionResultState: state.liveExecutionResult?.reconciliation?.state || state.liveExecutionResult?.client_report?.state || "unavailable",
       signingAvailable: state.liveSession?.gate?.available_to_principal === true,
