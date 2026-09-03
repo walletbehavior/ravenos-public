@@ -31,18 +31,19 @@
         <p>Use your RavenOS account to continue. Signing in does not connect a wallet or allow trades.</p>
       </div>
       <div class="pro-intelligence-signin-actions" id="proWorkspaceSignInActions">
-        <form method="post" action="/api/v1/auth/start">
+        <form method="get" action="/account/" data-auth-start>
           <input type="hidden" name="intent" value="sign_in" />
           <input type="hidden" name="provider" value="google" />
           <input type="hidden" name="return_to" value="/account/intelligence/" data-pro-return-to />
           <button type="submit">Continue with Google <span aria-hidden="true">→</span></button>
         </form>
-        <form method="post" action="/api/v1/auth/start">
+        <form method="get" action="/account/" data-auth-start>
           <input type="hidden" name="intent" value="sign_in" />
           <input type="hidden" name="provider" value="managed" />
           <input type="hidden" name="return_to" value="/account/intelligence/" data-pro-return-to />
           <button type="submit">Email, password, or code <span aria-hidden="true">→</span></button>
         </form>
+        <p class="pro-auth-status" id="proAuthStatus" aria-live="polite">Choose a sign-in method.</p>
         <a href="/account/">Create or manage an account</a>
       </div>
     </section>

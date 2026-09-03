@@ -195,6 +195,14 @@ test("signed-out Pro workspace canonicalizes return context and never requests p
   await routeAuth(page, baseURL, { authenticated: false });
   let entitlementRequests = 0;
   let projectionRequests = 0;
+  const authRequests = [];
+  let downloaded = false;
+  page.on("download", () => { downloaded = true; });
+  await page.route("**/api/v1/auth/start", async (route) => {
+    authRequests.push({ method: route.request().method(), body: route.request().postDataJSON() });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, authorization_url: "https://api.workos.com/user_management/authorize?client_id=client_test" }) });
+  });
+  await page.route("https://api.workos.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Secure sign-in</title>" }));
   await page.route("**/api/v1/entitlements", (route) => { entitlementRequests += 1; return route.fulfill({ status: 500, body: "must not request" }); });
   await page.route("**/api/v1/intelligence/**", (route) => { projectionRequests += 1; return route.fulfill({ status: 500, body: "must not request" }); });
 
@@ -210,6 +218,17 @@ test("signed-out Pro workspace canonicalizes return context and never requests p
   expect(entitlementRequests).toBe(0);
   expect(projectionRequests).toBe(0);
   await expect(page.locator('input[name="token"], input[name="owner"], input[name="capability"]')).toHaveCount(0);
+  await page.getByRole("button", { name: /Continue with Google/ }).click();
+  await page.waitForURL(/^https:\/\/api\.workos\.com\/user_management\/authorize/);
+  expect(downloaded).toBe(false);
+  expect(authRequests).toEqual([{
+    method: "POST",
+    body: {
+      intent: "sign_in",
+      provider: "google",
+      return_to: "/account/intelligence/?view=participants&instrument_id=hyperliquid%3Aperp%3ASOL",
+    },
+  }]);
 });
 
 test("active owner-resolved capabilities render bounded private Perps and Participant views", async ({ page, baseURL }) => {

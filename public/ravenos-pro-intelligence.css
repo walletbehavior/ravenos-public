@@ -38,6 +38,9 @@ button, input, select { font: inherit; }
 .pro-intelligence-signin p { margin: 0; color: var(--pro-muted); font-size: 11px; line-height: 1.6; }
 .pro-intelligence-signin-actions form { margin: 0; }
 .pro-intelligence-signin-actions button, .pro-intelligence-signin-actions > a { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--pro-line-strong); padding: 0 13px; background: #0b131e; color: var(--pro-text); cursor: pointer; font-size: 10px; font-weight: 750; text-decoration: none; }
+.pro-intelligence-signin-actions button:disabled { cursor: wait; opacity: .64; }
+.pro-intelligence-signin-actions .pro-auth-status { min-height: 18px; color: var(--pro-soft); font: 750 8px/1.45 var(--pro-mono); }
+.pro-intelligence-signin-actions .pro-auth-status[data-tone="error"] { color: var(--pro-red); }
 .pro-intelligence-signin-actions button:hover, .pro-intelligence-signin-actions button:focus-visible, .pro-intelligence-signin-actions > a:hover, .pro-intelligence-signin-actions > a:focus-visible { border-color: var(--pro-green); color: var(--pro-green); }
 
 .pro-intelligence-workspace { min-width: 0; margin: 0 clamp(0px, 3vw, 42px); border-inline: 1px solid var(--pro-line-strong); }

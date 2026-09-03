@@ -44,6 +44,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-signin p, .copy-unavailable p { margin: 0; color: var(--copy-muted); font-size: 11px; line-height: 1.6; }
 .copy-signin-actions form { margin: 0; }
 .copy-signin-actions button, .copy-signin-actions > a, .copy-unavailable a { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--copy-line-strong); padding: 0 13px; background: #0b141e; color: var(--copy-text); cursor: pointer; font-size: 10px; font-weight: 750; text-decoration: none; }
+.copy-signin-actions button:disabled { cursor: wait; opacity: .64; }
+.copy-signin-actions .copy-auth-status { min-height: 18px; color: var(--copy-soft); font: 750 8px/1.45 var(--copy-mono); }
+.copy-signin-actions .copy-auth-status[data-tone="error"] { color: var(--copy-red); }
 .copy-unavailable { display: grid; gap: 13px; }
 .copy-unavailable > div { display: flex; gap: 8px; padding: 8px 0 0; }
 .copy-unavailable a { width: auto; min-width: 150px; }

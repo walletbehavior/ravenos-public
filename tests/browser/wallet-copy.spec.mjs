@@ -556,10 +556,30 @@ async function install(page, shared, { authenticated = true, entitled = true } =
 test("signed-out and unentitled visitors receive an honest private-workspace boundary", async ({ page }) => {
   const signedOut = { watch: null, decision: null, position: null, requests: [] };
   await install(page, signedOut, { authenticated: false });
+  const authRequests = [];
+  let downloaded = false;
+  page.on("download", () => { downloaded = true; });
+  await page.route("**/api/v1/auth/start", async (route) => {
+    authRequests.push({ method: route.request().method(), body: route.request().postDataJSON() });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, authorization_url: "https://api.workos.com/user_management/authorize?client_id=client_test" }),
+    });
+  });
+  await page.route("https://api.workos.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Secure sign-in</title>" }));
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/account/copy/");
   await expect(page.locator(".copy-page")).toHaveAttribute("data-copy-state", "signed-out");
   await expect(page.getByRole("heading", { name: "Sign in to inspect and shadow wallets." })).toBeVisible();
   expect(signedOut.requests).toHaveLength(0);
+  await page.getByRole("button", { name: /Email, password, or code/ }).click();
+  await page.waitForURL(/^https:\/\/api\.workos\.com\/user_management\/authorize/);
+  expect(downloaded).toBe(false);
+  expect(authRequests).toEqual([{
+    method: "POST",
+    body: { intent: "sign_in", provider: "managed", return_to: "/account/copy/" },
+  }]);
 
   const privatePage = await page.context().newPage();
   const denied = { watch: null, decision: null, position: null, requests: [] };

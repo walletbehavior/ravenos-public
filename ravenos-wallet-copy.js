@@ -170,6 +170,43 @@ async function api(url, init = {}) {
   return { response, payload: await response.json().catch(() => null) };
 }
 
+async function submitAuthStart(form) {
+  const button = form.querySelector('button[type="submit"]');
+  const status = document.getElementById("copyAuthStatus");
+  if (button) button.disabled = true;
+  if (status) {
+    status.dataset.tone = "";
+    status.textContent = "Opening secure sign-in…";
+  }
+  try {
+    const values = Object.fromEntries(new FormData(form));
+    const response = await fetch("/api/v1/auth/start", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    const payload = await response.json().catch(() => null);
+    const target = new URL(payload?.authorization_url || "");
+    if (!response.ok || target.protocol !== "https:" || target.hostname !== "api.workos.com") throw new Error("authorization_unavailable");
+    window.location.assign(target.toString());
+  } catch {
+    if (button) button.disabled = false;
+    if (status) {
+      status.dataset.tone = "error";
+      status.textContent = "Secure sign-in could not be opened. Try again.";
+    }
+  }
+}
+
+function bindAuthStartForms() {
+  document.querySelectorAll("[data-auth-start]").forEach((form) => form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitAuthStart(form);
+  }));
+}
+
 function fact(label, value) {
   const row = document.createElement("div");
   const key = document.createElement("dt");
@@ -1347,6 +1384,7 @@ async function boot() {
   }
 }
 
+bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copySaveProfile").addEventListener("click", (event) => saveResearchWallet(state.source_wallet_id, shortAddress(state.address), event.currentTarget));
