@@ -39,6 +39,19 @@
     "hosted_authentication_domain": "provider_managed",
     "mfa_policy": "optional_user_enrollment"
   },
+  "customer_username": {
+    "implementation_status": "local_candidate_not_deployed",
+    "route": "PUT /api/v1/account/username",
+    "migration": "customer-migrations/0028_customer_username.sql",
+    "provider_name_used_as_public_identity": false,
+    "provider_family_name_exposed": false,
+    "user_selected": true,
+    "normalized_lowercase_ascii": true,
+    "globally_unique_case_insensitive": true,
+    "csrf_required_for_mutations": true,
+    "maximum_changes_per_day": 5,
+    "raw_username_logged_in_security_events": false
+  },
   "session_policy": {
     "kind": "opaque_revocable_server_side",
     "cookie_name": "__Host-ravenos_session",
@@ -657,6 +670,7 @@
     { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs" },
     { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs" },
     { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary" },
+    { "id": "SEC-ID-001", "name": "user-selected username replaces identity-provider first and family names on customer-facing surfaces", "gate": "customer_username_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs; privacy/index.html" },
     { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "verified_current", "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs" },
     { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
     { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },

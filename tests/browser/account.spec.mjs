@@ -82,6 +82,7 @@ test("account actions create state on the authenticated origin before navigating
 });
 
 test("authenticated account desk renders profile and revocable session inventory", async ({ page, baseURL }) => {
+  let usernameRequest = null;
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     status: 200,
@@ -89,7 +90,7 @@ test("authenticated account desk renders profile and revocable session inventory
     body: JSON.stringify({
       ok: true,
       authenticated: true,
-      account: { display_name: "Raven Trader", email: "raven@example.com", member_since: "2026-08-26T15:00:00.000Z" },
+      account: { username: null, username_required: true, display_name: "Raven Trader", email: "raven@example.com", member_since: "2026-08-26T15:00:00.000Z" },
       session: { session_public_id: "sespub_current", current: true, authentication_strength: "phishing_resistant" },
       csrf_token: "csrf_browser_fixture",
       wallet_links: [],
@@ -109,10 +110,27 @@ test("authenticated account desk renders profile and revocable session inventory
       ],
     }),
   }));
+  await page.route("**/api/v1/account/username", async (route) => {
+    usernameRequest = {
+      method: route.request().method(),
+      csrf: route.request().headers()["x-ravenos-csrf"],
+      body: route.request().postDataJSON(),
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        account: { username: "chart_witch7", username_required: false, display_name: "@chart_witch7", email: "raven@example.com" },
+      }),
+    });
+  });
   await page.goto("/account/");
 
   await expect(page.locator(".account-page")).toHaveAttribute("data-account-state", "authenticated");
-  await expect(page.locator("#accountDisplayName")).toHaveText("Raven Trader");
+  await expect(page.locator("#accountDisplayName")).toHaveText("Raven user");
+  await expect(page.locator("#accountUsernameState")).toHaveText("Required");
+  await expect(page.locator("body")).not.toContainText("Raven Trader");
   await expect(page.locator("#accountEmail")).toHaveText("raven@example.com");
   await expect(page.locator("#accountSessionCount")).toHaveText("2 sessions");
   await expect(page.locator(".account-session-row")).toHaveCount(2);
@@ -122,6 +140,14 @@ test("authenticated account desk renders profile and revocable session inventory
   await expect(page.locator(".account-dashboard-rail")).toContainText(/Signing[\s\S]*Disabled/);
   await expect(page.locator("#rosProfileTrigger")).toHaveText("R");
   await expect(page.locator("#rosProfileTrigger")).toHaveAttribute("data-account-state", "authenticated");
+
+  await page.locator("#accountUsername").fill("Chart_Witch7");
+  await page.locator("#accountUsernameSave").click();
+  await expect(page.locator("#accountDisplayName")).toHaveText("@chart_witch7");
+  await expect(page.locator("#accountUsernameState")).toHaveText("Active");
+  await expect(page.locator("#accountUsernameStatus")).toHaveText("Username saved.");
+  await expect(page.locator("#rosProfileTrigger")).toHaveText("C");
+  expect(usernameRequest).toEqual({ method: "PUT", csrf: "csrf_browser_fixture", body: { username: "chart_witch7" } });
 });
 
 test("portfolio holdings stay compact and preserve unavailable cost basis and supply data", async ({ page, baseURL }) => {
@@ -274,7 +300,7 @@ test("account page has strict CSP and no cacheable authenticated HTML", async ({
   expect(headers["x-frame-options"]).toBe("DENY");
 });
 
-test("provider profile text cannot become executable account markup", async ({ page, baseURL }) => {
+test("provider profile names are ignored rather than becoming RavenOS identity", async ({ page, baseURL }) => {
   const hostileName = '<img src=x onerror="window.__profileExecuted=true">Raven';
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
@@ -294,7 +320,8 @@ test("provider profile text cannot become executable account markup", async ({ p
   await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, csrf_token: "csrf_browser_fixture", sessions: [] }) }));
   await page.goto("/account/");
 
-  await expect(page.locator("#accountDisplayName")).toHaveText(hostileName);
+  await expect(page.locator("#accountDisplayName")).toHaveText("Raven user");
+  await expect(page.locator("body")).not.toContainText(hostileName);
   await expect(page.locator("#accountDisplayName img")).toHaveCount(0);
   expect(await page.evaluate(() => window.__profileExecuted === true)).toBe(false);
 });

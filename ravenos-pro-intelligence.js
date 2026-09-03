@@ -576,7 +576,8 @@ async function boot() {
 
   document.getElementById("proWorkspace").hidden = false;
   setText("proWorkspaceState", "Resolving capabilities");
-  setText("proWorkspaceIdentity", text(session.account?.email, "Authenticated RavenOS account"));
+  const username = String(session.account?.username || "").trim().toLowerCase();
+  setText("proWorkspaceIdentity", /^[a-z][a-z0-9_]{2,23}$/.test(username) ? `@${username}` : "Authenticated RavenOS account");
   document.querySelector(".pro-intelligence-page").dataset.workspaceState = "authenticated";
   await loadEntitlements();
 }

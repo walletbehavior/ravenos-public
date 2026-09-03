@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
   CustomerIdentityContract,
   customerIdentityConfigured,
+  normalizeRavenUsername,
   publicCustomerIdentityConfig,
   routeCustomerIdentity,
   sha256,
@@ -63,7 +66,8 @@ class MemoryIdentityStore {
         credential_id: `crd_${"b".repeat(24)}`,
         state: "active",
         primary_email: identity.email,
-        display_name: identity.display_name,
+        username: null,
+        display_name: null,
         user_created_at: identity.now,
         created: true,
       };
@@ -73,7 +77,16 @@ class MemoryIdentityStore {
   }
 
   async createSession(record) {
-    this.sessions.set(record.session_verifier, { ...record, user_state: "active", primary_email: "raven@example.com", display_name: "Raven Trader", user_created_at: record.created_at, revoked_at: null });
+    const identity = [...this.identities.values()].find((candidate) => candidate.user_id === record.user_id);
+    this.sessions.set(record.session_verifier, {
+      ...record,
+      user_state: "active",
+      primary_email: identity?.primary_email || "raven@example.com",
+      username: identity?.username || null,
+      display_name: null,
+      user_created_at: identity?.user_created_at || record.created_at,
+      revoked_at: null,
+    });
   }
 
   async findSession(verifier) {
@@ -99,6 +112,21 @@ class MemoryIdentityStore {
 
   async listSessions(userId, now) {
     return [...this.sessions.values()].filter((row) => row.user_id === userId && !row.revoked_at && row.idle_expires_at > now && row.absolute_expires_at > now).map((row) => ({ ...row }));
+  }
+
+  async updateUsername(userId, username, now) {
+    if ([...this.identities.values()].some((row) => row.user_id !== userId && row.username === username)) throw new Error("username_unavailable");
+    const identity = [...this.identities.values()].find((row) => row.user_id === userId);
+    if (!identity) throw new Error("account_unavailable");
+    identity.username = username;
+    identity.display_name = null;
+    for (const session of this.sessions.values()) {
+      if (session.user_id === userId) {
+        session.username = username;
+        session.display_name = null;
+      }
+    }
+    return { ...identity, updated_at: now };
   }
 
   async recordEvent(event) {
@@ -189,6 +217,33 @@ test("managed account configuration is fail closed and keeps wallets separate", 
   assert.equal(CustomerIdentityContract.idle_timeout_seconds, 1800);
   assert.equal(CustomerIdentityContract.absolute_timeout_seconds, 43200);
   assert.equal(CustomerIdentityContract.wallet_connection_is_authentication, false);
+});
+
+test("Raven usernames are normalized, bounded, and reserve trusted labels", () => {
+  assert.equal(normalizeRavenUsername("@Chart_Witch7"), "chart_witch7");
+  assert.throws(() => normalizeRavenUsername("ab"), /username_invalid/);
+  assert.throws(() => normalizeRavenUsername("7raven"), /username_invalid/);
+  assert.throws(() => normalizeRavenUsername("raven-user"), /username_invalid/);
+  assert.throws(() => normalizeRavenUsername("support"), /username_reserved/);
+});
+
+test("username migration enforces case-insensitive uniqueness without rewriting account identity", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
+  database.exec(readFileSync("customer-migrations/0028_customer_username.sql", "utf8"));
+  const insert = database.prepare(`
+    INSERT INTO ravenos_users (user_id, state, primary_email, display_name, created_at, updated_at, last_authenticated_at)
+    VALUES (?, 'active', ?, ?, 1, 1, 1)
+  `);
+  insert.run("usr_one", "one@example.com", "Provider Familyname");
+  insert.run("usr_two", "two@example.com", "Second Familyname");
+  database.prepare("UPDATE ravenos_users SET username = ? WHERE user_id = ?").run("chart_witch", "usr_one");
+  assert.throws(
+    () => database.prepare("UPDATE ravenos_users SET username = ? WHERE user_id = ?").run("Chart_Witch", "usr_two"),
+    /UNIQUE constraint failed/,
+  );
+  assert.equal(database.prepare("SELECT display_name FROM ravenos_users WHERE user_id = ?").get("usr_one").display_name, "Provider Familyname");
+  database.close();
 });
 
 test("managed account configuration rejects malformed provider credentials", () => {
@@ -314,11 +369,51 @@ test("verified provider callback creates an opaque Raven account and revocable s
   const payload = await session.json();
   assert.equal(payload.authenticated, true);
   assert.equal(payload.account.email, "raven@example.com");
+  assert.equal(payload.account.username, null);
+  assert.equal(payload.account.username_required, true);
+  assert.equal(payload.account.display_name, "Raven user");
   assert.equal(payload.session.authentication_strength, "federated");
   assert.equal(payload.wallet_linking_available, false);
   assert.equal(payload.execution_boundary.signing_available, false);
   assert(!JSON.stringify(payload).includes("usr_"));
   assert(!JSON.stringify(payload).includes("ses_"));
+  assert(!JSON.stringify(payload).includes("Trader"));
+});
+
+test("an authenticated user chooses a unique public username without exposing provider names", async () => {
+  const store = new MemoryIdentityStore();
+  const callback = await finishFlow(store, await startFlow(store));
+  const cookies = sessionCookies(callback);
+  const headers = {
+    cookie: `__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}`,
+    origin: ORIGIN,
+    "sec-fetch-site": "same-origin",
+    "content-type": "application/json",
+    "x-ravenos-csrf": cookies.csrf,
+  };
+  const response = await routeCustomerIdentity(request("/api/v1/account/username", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ username: "@Chart_Witch7" }),
+  }), configuredEnv(), { store, nowMs: NOW_MS + 3_000 });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.deepEqual(payload.account, {
+    username: "chart_witch7",
+    username_required: false,
+    display_name: "@chart_witch7",
+    email: "raven@example.com",
+    member_since: new Date((NOW_MS / 1000 + 1) * 1000).toISOString(),
+  });
+  assert.equal(store.events.at(-1).event_type, "username_updated");
+  assert(!JSON.stringify(store.events.at(-1)).includes("chart_witch7"));
+
+  const session = await routeCustomerIdentity(request("/api/v1/auth/session", {
+    headers: { cookie: headers.cookie },
+  }), configuredEnv(), { store, nowMs: NOW_MS + 4_000 });
+  const refreshed = await session.json();
+  assert.equal(refreshed.account.display_name, "@chart_witch7");
+  assert(!JSON.stringify(refreshed).includes("Trader"));
 });
 
 test("a completed authentication rotates an existing browser session instead of promoting or retaining it", async () => {

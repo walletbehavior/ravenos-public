@@ -40,6 +40,32 @@ function initial(value) {
   return String(value || "R").trim().charAt(0).toUpperCase() || "R";
 }
 
+function normalizedUsername(account = {}) {
+  const username = String(account?.username || "").trim().toLowerCase();
+  return /^[a-z][a-z0-9_]{2,23}$/.test(username) ? username : "";
+}
+
+function renderAccountIdentity(account = {}) {
+  const username = normalizedUsername(account);
+  const label = username ? `@${username}` : "Raven user";
+  const panel = document.getElementById("accountUsernamePanel");
+  const input = document.getElementById("accountUsername");
+  const status = document.getElementById("accountUsernameStatus");
+  document.getElementById("accountDisplayName").textContent = label;
+  document.getElementById("accountEmail").textContent = account?.email || "";
+  document.getElementById("accountProfileMark").textContent = initial(username || "R");
+  document.getElementById("accountUsernameTitle").textContent = username ? `@${username}` : "Choose a username";
+  document.getElementById("accountUsernameState").textContent = username ? "Active" : "Required";
+  document.getElementById("accountUsernameSave").textContent = username ? "Update username" : "Save username";
+  panel.dataset.state = username ? "active" : "required";
+  input.value = username;
+  status.dataset.tone = "";
+  status.textContent = username ? "This is the name RavenOS shows." : "Choose the name other RavenOS users will see.";
+  window.dispatchEvent(new CustomEvent("ravenos:accountstate", {
+    detail: { authenticated: true, username, display_name: label },
+  }));
+}
+
 function formatSeen(value) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "Active session";
@@ -728,15 +754,53 @@ function renderAuthenticated(payload) {
   serviceState.textContent = "Signed in securely";
   authWorkspace.hidden = true;
   dashboard.hidden = false;
-  const name = payload.account?.display_name || "RavenOS account";
-  document.getElementById("accountDisplayName").textContent = name;
-  document.getElementById("accountEmail").textContent = payload.account?.email || "";
-  document.getElementById("accountProfileMark").textContent = initial(name);
+  renderAccountIdentity(payload.account || {});
   renderBrowserWallet();
-  window.dispatchEvent(new CustomEvent("ravenos:accountstate", { detail: { authenticated: true, display_name: name } }));
   loadSessions();
   loadProIntelligenceCapabilities();
   loadPortfolioPreviewCapability();
+}
+
+async function saveUsername(event) {
+  event.preventDefault();
+  const input = document.getElementById("accountUsername");
+  const button = document.getElementById("accountUsernameSave");
+  const status = document.getElementById("accountUsernameStatus");
+  const username = String(input.value || "").trim().replace(/^@/, "").toLowerCase();
+  if (!/^[a-z][a-z0-9_]{2,23}$/.test(username)) {
+    status.dataset.tone = "error";
+    status.textContent = "Use 3–24 characters, starting with a letter.";
+    input.focus();
+    return;
+  }
+  if (!state.csrf) {
+    status.dataset.tone = "error";
+    status.textContent = "Refresh and sign in again.";
+    return;
+  }
+  button.disabled = true;
+  status.dataset.tone = "";
+  status.textContent = "Saving…";
+  const { response, payload } = await getJson("/api/v1/account/username", {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+    body: JSON.stringify({ username }),
+  });
+  button.disabled = false;
+  if (!response.ok || !payload?.account) {
+    status.dataset.tone = "error";
+    status.textContent = payload?.error === "username_reserved"
+      ? "That username is reserved."
+      : payload?.error === "username_unavailable"
+        ? "That username is already taken."
+        : payload?.error === "username_update_rate_limited"
+          ? "Too many changes today. Try again later."
+          : "Username could not be saved.";
+    return;
+  }
+  state.session = { ...(state.session || {}), account: payload.account };
+  renderAccountIdentity(payload.account);
+  status.textContent = "Username saved.";
 }
 
 async function revokeSession(sessionPublicId) {
@@ -815,6 +879,7 @@ async function initialize() {
   document.querySelectorAll('.account-auth-actions input[name="return_to"]').forEach((input) => { input.value = safeReturnTo; });
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
+  document.getElementById("accountUsernameForm").addEventListener("submit", saveUsername);
   document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));
   document.getElementById("accountConnectEvm").addEventListener("click", () => connectBrowserWallet("EVM"));
   document.getElementById("accountDisconnectWallet").addEventListener("click", () => clearBrowserWallet());

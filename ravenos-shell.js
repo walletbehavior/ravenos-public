@@ -36,7 +36,7 @@ let customerAccountState = Object.freeze({
   available: false,
   authenticated: false,
   canonicalOrigin: "",
-  displayName: "",
+  username: "",
 });
 
 function spotChartRequestSupported(row = {}, timeframe = "1h") {
@@ -612,7 +612,7 @@ function utilityMarkup(kind, context) {
     : "/account/";
   const accountLabel = customerAccountState.authenticated ? "Account & security" : "Create account or sign in";
   const accountDetail = customerAccountState.authenticated
-    ? `Signed in${customerAccountState.displayName ? ` · ${escapeHtml(customerAccountState.displayName)}` : ""}`
+    ? `Signed in${customerAccountState.username ? ` · @${escapeHtml(customerAccountState.username)}` : " · choose a username"}`
     : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
   const copyHref = customerAccountState.available && customerAccountState.canonicalOrigin
     ? `${customerAccountState.canonicalOrigin}/account/copy/`
@@ -768,15 +768,17 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function renderCustomerAccountState(next = {}) {
+    const candidateUsername = String(next.username || "").trim().toLowerCase();
+    const username = /^[a-z][a-z0-9_]{2,23}$/.test(candidateUsername) ? candidateUsername : "";
     customerAccountState = Object.freeze({
       available: next.available === true,
       authenticated: next.authenticated === true,
       canonicalOrigin: String(next.canonicalOrigin || ""),
-      displayName: String(next.displayName || "").slice(0, 120),
+      username,
     });
     const trigger = document.getElementById("rosProfileTrigger");
     trigger.textContent = customerAccountState.authenticated
-      ? (customerAccountState.displayName.trim().charAt(0).toUpperCase() || "R")
+      ? (customerAccountState.username.charAt(0).toUpperCase() || "R")
       : "R";
     trigger.dataset.accountState = customerAccountState.authenticated ? "authenticated" : customerAccountState.available ? "available" : "pending";
     trigger.setAttribute("aria-label", customerAccountState.authenticated ? "Open account and security" : "Open account");
@@ -790,13 +792,13 @@ export function mountRavenOSShell(options = {}) {
         available: config.available === true,
         authenticated: false,
         canonicalOrigin: config.canonical_origin || "",
-        displayName: "",
+        username: "",
       };
       if (config.available === true && config.on_authenticated_origin === true) {
         const sessionResult = await fetchJson("/api/v1/auth/session");
         if (sessionResult.payload?.authenticated === true) {
           next.authenticated = true;
-          next.displayName = sessionResult.payload.account?.display_name || "";
+          next.username = sessionResult.payload.account?.username || "";
         }
       }
       renderCustomerAccountState(next);
@@ -1219,7 +1221,7 @@ export function mountRavenOSShell(options = {}) {
   window.addEventListener("ravenos:accountstate", (event) => renderCustomerAccountState({
     ...customerAccountState,
     authenticated: event.detail?.authenticated === true,
-    displayName: event.detail?.display_name || "",
+    username: event.detail?.username || "",
   }));
   document.querySelectorAll("[data-ros-utility]").forEach((button) => button.addEventListener("click", () => openUtility(button.dataset.rosUtility)));
   document.getElementById("rosUtilityContent").addEventListener("click", (event) => {

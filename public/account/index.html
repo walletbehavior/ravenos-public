@@ -79,9 +79,23 @@
       <div class="account-dashboard-main">
         <header class="account-profile-head">
           <span class="account-profile-mark" id="accountProfileMark">R</span>
-          <div><span class="workspace-label">Signed in</span><h2 id="accountDisplayName">RavenOS account</h2><p id="accountEmail"></p></div>
+          <div><span class="workspace-label">Signed in</span><h2 id="accountDisplayName">Raven user</h2><p id="accountEmail"></p></div>
           <button id="accountLogout" type="button">Sign out</button>
         </header>
+
+        <section class="account-username-panel" id="accountUsernamePanel" data-state="required">
+          <header>
+            <div><span class="workspace-label">RavenOS identity</span><h3 id="accountUsernameTitle">Choose a username</h3></div>
+            <strong id="accountUsernameState">Required</strong>
+          </header>
+          <form id="accountUsernameForm" novalidate>
+            <label for="accountUsername">Username</label>
+            <div class="account-username-entry"><span aria-hidden="true">@</span><input id="accountUsername" name="username" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="24" pattern="[A-Za-z][A-Za-z0-9_]{2,23}" placeholder="your_username" required /></div>
+            <button id="accountUsernameSave" type="submit">Save username</button>
+          </form>
+          <p>3–24 characters. Start with a letter; use letters, numbers, or underscores. Your sign-in name is never displayed.</p>
+          <span class="account-username-status" id="accountUsernameStatus" aria-live="polite"></span>
+        </section>
 
         <section class="account-security-panel">
           <header><div><span class="workspace-label">Security</span><h3>Active sessions</h3></div><strong id="accountSessionCount">1 session</strong></header>

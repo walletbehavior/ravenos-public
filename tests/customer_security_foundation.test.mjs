@@ -22,6 +22,11 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.identity_provider.provider_tokens_retained_by_ravenos, false);
   assert.equal(security.identity_provider.google_oauth_tokens_returned_to_ravenos, false);
   assert.equal(security.identity_provider.passkeys_enabled, false);
+  assert.equal(security.customer_username.provider_name_used_as_public_identity, false);
+  assert.equal(security.customer_username.provider_family_name_exposed, false);
+  assert.equal(security.customer_username.user_selected, true);
+  assert.equal(security.customer_username.globally_unique_case_insensitive, true);
+  assert.equal(security.customer_username.csrf_required_for_mutations, true);
   for (const capability of ["account_creation", "customer_authentication", "customer_sessions"]) {
     assert(security.active_capabilities.includes(capability));
     assert(!security.blocked_capabilities.includes(capability));
@@ -219,7 +224,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 40);
+  assert.equal(rows.length, 41);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -228,7 +233,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-ID", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });

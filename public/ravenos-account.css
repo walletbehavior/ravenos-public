@@ -64,6 +64,23 @@
 .account-profile-head p { overflow: hidden; color: var(--ws-muted); font: 9px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
 .account-profile-head button { min-height: 36px; border: 1px solid var(--ws-border); border-radius: 7px; background: transparent; color: var(--ws-muted); padding: 0 12px; cursor: pointer; font-size: 9px; }
 .account-profile-head button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.account-username-panel { margin-top: 24px; border: 1px solid var(--ws-border-strong); background: rgba(9, 14, 22, .76); }
+.account-username-panel > header { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 14px; border-bottom: 1px solid var(--ws-border); }
+.account-username-panel > header > div { display: grid; gap: 4px; }
+.account-username-panel h3 { font-size: 16px; }
+.account-username-panel > header > strong { color: var(--ws-warning); font: 700 8px var(--ws-mono); text-transform: uppercase; }
+.account-username-panel[data-state="active"] > header > strong { color: var(--ws-positive); }
+.account-username-panel form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; padding: 15px 14px 9px; }
+.account-username-panel label { grid-column: 1 / -1; color: var(--ws-dim); font: 720 8px var(--ws-mono); letter-spacing: .05em; text-transform: uppercase; }
+.account-username-entry { min-height: 40px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border: 1px solid var(--ws-border-strong); border-radius: 6px; background: #0a1019; }
+.account-username-entry:focus-within { border-color: rgba(63, 166, 117, .56); }
+.account-username-entry > span { padding-left: 11px; color: var(--ws-accent); font: 750 11px var(--ws-mono); }
+.account-username-entry input { min-width: 0; height: 38px; border: 0; outline: 0; background: transparent; color: var(--ws-text); padding: 0 10px 0 3px; font: 650 11px var(--ws-mono); }
+.account-username-panel button { min-height: 40px; border: 1px solid rgba(63, 166, 117, .48); border-radius: 6px; background: rgba(63, 166, 117, .1); color: #80d3aa; padding: 0 14px; cursor: pointer; font: 720 9px var(--ws-mono); }
+.account-username-panel button:disabled { cursor: wait; opacity: .55; }
+.account-username-panel > p { margin: 0; padding: 0 14px 5px; color: var(--ws-muted); font-size: 9px; line-height: 1.5; }
+.account-username-status { min-height: 25px; display: block; padding: 0 14px 10px; color: var(--ws-dim); font: 8px/1.45 var(--ws-mono); }
+.account-username-status[data-tone="error"] { color: #e18491; }
 .account-security-panel { margin-top: 24px; border: 1px solid var(--ws-border-strong); background: rgba(9, 14, 22, .76); }
 .account-security-panel > header { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 14px; border-bottom: 1px solid var(--ws-border); }
 .account-security-panel > header > div { display: grid; gap: 4px; }
@@ -199,12 +216,17 @@
   .account-separation-note > span,
   .account-profile-head p,
   .account-profile-head button,
+  .account-username-panel > header > strong,
+  .account-username-panel label,
+  .account-username-panel button,
+  .account-username-panel > p,
+  .account-username-status,
   .account-security-panel > header > strong,
   .account-session-row span,
   .account-session-row button,
   .account-connection-stage > span:last-child,
   .account-dashboard-rail dt,
-  .account-dashboard-rail dd { font-size: 10px; }
+  .account-dashboard-rail dd { font-size: 11px; }
   .account-head-status strong,
   .account-activation p,
   .account-capability-list p,
@@ -240,6 +262,7 @@
   .account-dashboard-rail { border-top: 1px solid var(--ws-border); padding: 24px 15px 88px; }
   .account-profile-head { grid-template-columns: 44px minmax(0, 1fr); }
   .account-profile-head button { grid-column: 1 / -1; width: 100%; }
+  .account-username-panel form { grid-template-columns: 1fr; }
   .account-connection-stage { grid-template-columns: 34px minmax(0, 1fr); }
   .account-connection-stage > span:last-child { grid-column: 2; }
   .account-pro-capabilities { grid-template-columns: 1fr; }

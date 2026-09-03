@@ -402,6 +402,7 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/auth/callback"
     || url.pathname === "/api/v1/auth/session"
     || url.pathname === "/api/v1/auth/logout"
+    || url.pathname === "/api/v1/account/username"
     || url.pathname === "/api/v1/sessions"
     || url.pathname.startsWith("/api/v1/sessions/");
   const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE;

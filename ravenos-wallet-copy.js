@@ -1317,7 +1317,8 @@ async function boot() {
     return;
   }
   state.csrf = session.payload.csrf_token || "";
-  setText("copyWorkspaceIdentity", session.payload.account?.email || session.payload.account?.display_name || "Signed in");
+  const username = String(session.payload.account?.username || "").trim().toLowerCase();
+  setText("copyWorkspaceIdentity", /^[a-z][a-z0-9_]{2,23}$/.test(username) ? `@${username}` : "Signed in");
   const summary = await api(API);
   if (!summary.response.ok) {
     page.dataset.copyState = "unavailable";

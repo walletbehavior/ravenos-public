@@ -18,6 +18,12 @@ assert.equal(config.identity_provider.production_tenant_configured, true);
 assert.equal(config.identity_provider.provider_tokens_retained_by_ravenos, false);
 assert.equal(config.identity_provider.google_oauth_tokens_returned_to_ravenos, false);
 assert.equal(config.identity_provider.passkeys_enabled, false);
+assert.equal(config.customer_username.provider_name_used_as_public_identity, false);
+assert.equal(config.customer_username.provider_family_name_exposed, false);
+assert.equal(config.customer_username.user_selected, true);
+assert.equal(config.customer_username.normalized_lowercase_ascii, true);
+assert.equal(config.customer_username.globally_unique_case_insensitive, true);
+assert.equal(config.customer_username.csrf_required_for_mutations, true);
 for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
   assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);
 }
