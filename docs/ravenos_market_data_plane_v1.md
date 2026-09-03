@@ -175,7 +175,7 @@ Moralis may supply supported wallet balances, swaps/history, P&L/net worth, top 
 
 ## Attribution
 
-RavenOS now exposes a collapsed global provider ledger with persistent `Data by DexPaprika + CoinGecko` text and the official unmodified DexPaprika symbol. It identifies the bounded roles of DexPaprika, DexScreener, CoinGecko, Hyperliquid, Tradier/Atlas, Moralis, Constant-K/Raven, Cloudflare, and the TradingView Lightweight Charts renderer and explicitly avoids implying endorsement or partnership. The exact chart response and Terminal source detail carry the active provider, freshness, derivation, and required CoinGecko attribution.
+RavenOS now exposes a collapsed global provider ledger with persistent `Data by DexPaprika, CoinGecko + Dexch` text and the official unmodified DexPaprika symbol. It identifies the bounded roles of DexPaprika, DexScreener, CoinGecko, Dexch, Hyperliquid, Tradier/Atlas, Moralis, Constant-K/Raven, Cloudflare, and the TradingView Lightweight Charts renderer and explicitly avoids implying endorsement or partnership. The exact chart response and Terminal source detail carry the active provider, freshness, derivation, and required CoinGecko attribution.
 
 Attribution does not establish commercial permission. It satisfies a presentation requirement while the release gate independently blocks production use of an unqualified plan.
 

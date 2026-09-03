@@ -2663,13 +2663,13 @@ test("provider attribution stays visible and opens a bounded source ledger", asy
   await page.goto("/discover/");
   await expect(page.locator(".ros-provider-credit")).toHaveCount(1);
   const credit = page.locator(".ros-provider-credit > summary");
-  await expect(credit).toContainText("Data by DexPaprika + CoinGecko");
+  await expect(credit).toContainText("Data by DexPaprika, CoinGecko + Dexch");
   const fontSize = await credit.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   expect(fontSize).toBeGreaterThanOrEqual(10);
   await credit.click();
   const panel = page.locator(".ros-provider-panel");
   await expect(panel).toBeVisible();
-  for (const provider of ["DexPaprika", "DexScreener", "CoinGecko", "Hyperliquid", "SEC + Atlas", "Moralis", "Constant-K + Raven", "Cloudflare", "TradingView"]) {
+  for (const provider of ["DexPaprika", "DexScreener", "CoinGecko", "Dexch", "Hyperliquid", "SEC + Atlas", "Moralis", "Constant-K + Raven", "Cloudflare", "TradingView"]) {
     await expect(panel).toContainText(provider);
   }
   await expect(panel).toContainText(/not endorsement or partnership/i);
