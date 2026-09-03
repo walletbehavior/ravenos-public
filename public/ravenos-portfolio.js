@@ -41,6 +41,34 @@ function formatPercent(value) {
   return `${number >= 0 ? "+" : ""}${(number * 100).toFixed(2)}%`;
 }
 
+function holdingValue(value, fallback = "Unavailable") {
+  return value === "—" || value === "" ? fallback : value;
+}
+
+function positionMarkPrice(position) {
+  for (const candidate of [position.mark_price, position.current_price, position.live_price]) {
+    const price = finite(candidate);
+    if (price !== null) return price;
+  }
+  const notional = finite(position.mark_notional_usdc);
+  const size = finite(position.size);
+  return notional !== null && size !== null && Math.abs(size) > 0 ? notional / Math.abs(size) : null;
+}
+
+function positionCell(label, value, detail, { tone = "", state = "available" } = {}) {
+  const cell = document.createElement("span");
+  cell.className = "portfolio-position-cell";
+  cell.dataset.label = label;
+  cell.dataset.state = state;
+  if (tone) cell.dataset.tone = tone;
+  const primary = document.createElement("strong");
+  primary.textContent = value;
+  const secondary = document.createElement("small");
+  secondary.textContent = detail;
+  cell.append(primary, secondary);
+  return cell;
+}
+
 function shortAddress(address) {
   const value = String(address || "");
   return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
@@ -85,19 +113,29 @@ function positionNode(position) {
   const asset = `${market}-PERP`;
   row.href = `/terminal/?asset=${encodeURIComponent(asset)}&instrument_id=${encodeURIComponent(`hyperliquid:perp:${market}`)}`;
   row.setAttribute("aria-label", `Open ${market} perpetual in Terminal`);
-  const side = document.createElement("strong");
-  side.textContent = `${position.market} · ${publicLabel(position.side, "Position")}`;
-  const size = document.createElement("span");
-  size.textContent = `${formatNumber(position.size)}${finite(position.leverage) !== null ? ` · ${formatNumber(position.leverage)}×` : ""}`;
-  const entry = document.createElement("span");
-  entry.textContent = formatMoney(position.entry_price);
-  const pnl = document.createElement("span");
-  pnl.textContent = `${formatMoney(position.unrealized_pnl_usdc)} ${formatPercent(position.return_on_equity)}`.trim();
+  const identity = document.createElement("span");
+  identity.className = "portfolio-position-identity";
+  const symbol = document.createElement("strong");
+  symbol.textContent = `${position.market || "Unresolved"} · ${publicLabel(position.side, "Position")}`;
+  const side = document.createElement("small");
+  side.textContent = "Hyperliquid perpetual";
+  identity.append(symbol, side);
+
+  const amount = finite(position.size);
+  const leverage = finite(position.leverage);
+  const markPrice = positionMarkPrice(position);
+  const entryPrice = finite(position.entry_price);
   const pnlValue = finite(position.unrealized_pnl_usdc);
-  if (pnlValue !== null) pnl.className = pnlValue >= 0 ? "portfolio-positive" : "portfolio-negative";
-  const liquidation = document.createElement("span");
-  liquidation.textContent = finite(position.liquidation_price) === null ? "No liq. price" : formatMoney(position.liquidation_price);
-  row.append(side, size, entry, pnl, liquidation);
+  const returnValue = finite(position.return_on_equity);
+
+  row.append(
+    identity,
+    positionCell("Amount", amount === null ? "Unavailable" : formatNumber(Math.abs(amount)), leverage === null ? "Position size" : `${formatNumber(leverage)}× leverage`, { state: amount === null ? "unavailable" : "available" }),
+    positionCell("Supply", "N/A", "Perpetual contract", { state: "not-applicable" }),
+    positionCell("Current price", holdingValue(formatMoney(markPrice)), markPrice === null ? "No current mark" : "Marked", { state: markPrice === null ? "unavailable" : "marked" }),
+    positionCell("Avg entry", holdingValue(formatMoney(entryPrice)), entryPrice === null ? "Cost basis unavailable" : "Average entry", { state: entryPrice === null ? "unavailable" : "available" }),
+    positionCell("Current P&L", pnlValue === null ? "Unavailable" : formatMoney(pnlValue), returnValue === null ? "Unrealized" : `${formatPercent(returnValue)} unrealized`, { tone: pnlValue === null ? "" : pnlValue >= 0 ? "positive" : "negative", state: pnlValue === null ? "unavailable" : "marked" }),
+  );
   return row;
 }
 
@@ -134,7 +172,7 @@ function renderAccount(snapshot) {
   }
   const columns = document.createElement("div");
   columns.className = "portfolio-position-columns";
-  ["Market", "Size / leverage", "Entry", "Unrealized P&L", "Liquidation"].forEach((label) => {
+  ["Token", "Amount", "% supply", "Current price", "Avg entry", "Current P&L"].forEach((label) => {
     const span = document.createElement("span");
     span.textContent = label;
     columns.append(span);

@@ -85,6 +85,32 @@ function formatBps(value) {
   return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 }
 
+function integerString(value) {
+  const raw = String(value ?? "");
+  return /^-?\d+$/.test(raw) ? raw : null;
+}
+
+function formatUnitPriceFromMinor(valueMinor, amountBaseUnits, decimals) {
+  const valueRaw = integerString(valueMinor);
+  const amountRaw = integerString(amountBaseUnits);
+  const places = Number(decimals);
+  if (valueRaw === null || amountRaw === null || !Number.isSafeInteger(places) || places < 0 || places > 30) return "Unavailable";
+  const amount = BigInt(amountRaw);
+  if (amount <= 0n) return "Unavailable";
+  const value = BigInt(valueRaw);
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const displayScale = 100_000_000n;
+  const scaled = (absolute * (10n ** BigInt(places)) * displayScale) / (amount * 1_000_000n);
+  if (scaled === 0n && absolute > 0n) return `${negative ? "−" : ""}<$0.00000001`;
+  const whole = scaled / displayScale;
+  const rawFraction = (scaled % displayScale).toString().padStart(8, "0");
+  const maximumDecimals = whole >= 1_000n ? 2 : whole >= 1n ? 4 : 8;
+  const fraction = rawFraction.slice(0, maximumDecimals).replace(/0+$/, "");
+  const suffix = fraction ? `.${fraction}` : ".00";
+  return `${negative ? "−" : ""}$${whole.toLocaleString("en-US")}${suffix}`;
+}
+
 function readableState(value) {
   return String(value || "unknown").replaceAll("_", " ");
 }
@@ -377,21 +403,66 @@ function renderGovernorHoldings(holdings = {}) {
   const rows = Array.isArray(holdings.rows) ? holdings.rows : [];
   setText("accountGovernorHoldingCount", `${holdings.returned_position_count || 0} shown`);
   if (!rows.length) return container.replaceChildren(governorEmpty("No material visible positions were returned."));
-  container.replaceChildren(...rows.map((row) => {
-    const instrument = row.instrument || {};
-    const title = instrument.symbol || instrument.label || "Unresolved instrument";
-    const protocol = row.protocol ? ` · ${row.protocol}` : "";
-    const states = [row.resolution_state, row.marked_value_state, row.executable_value_state, ...(row.evidence_state || [])];
-    return governorRow({
-      title,
-      detail: `${formatAmount(row.amount_base_units, row.decimals)}${protocol}`,
-      values: [
-        { label: "Marked", value: formatUsdMinor(row.marked_value_minor ?? row.liability_value_minor) },
-        { label: "Executable", value: formatUsdMinor(row.executable_value_minor) },
-      ],
-      states: [...new Set(states.filter(Boolean))],
-    });
-  }));
+  container.replaceChildren(...rows.map(governorHoldingRow));
+}
+
+function holdingMetric(label, value, detail, state = "available") {
+  const metric = document.createElement("div");
+  metric.className = "account-holding-metric";
+  metric.dataset.label = label;
+  metric.dataset.state = state;
+  const primary = document.createElement("strong");
+  primary.textContent = value;
+  const secondary = document.createElement("span");
+  secondary.textContent = detail;
+  metric.append(primary, secondary);
+  return metric;
+}
+
+function governorHoldingRow(row) {
+  const instrument = row.instrument || {};
+  const holding = document.createElement("article");
+  holding.className = "account-holding-row";
+  const identity = document.createElement("div");
+  identity.className = "account-holding-identity";
+  const name = document.createElement("strong");
+  name.textContent = instrument.symbol || instrument.label || "Unresolved instrument";
+  const detail = document.createElement("span");
+  const identityDetail = instrument.label && instrument.label !== name.textContent
+    ? instrument.label
+    : instrument.mint ? shortWalletAddress(instrument.mint) : "Token holding";
+  detail.textContent = [identityDetail, row.protocol, row.resolution_state ? readableState(row.resolution_state) : null].filter(Boolean).join(" · ");
+  identity.append(name, detail);
+
+  const formattedAmount = formatAmount(row.amount_base_units, row.decimals);
+  const amountAvailable = formattedAmount !== "Amount unavailable";
+  const supplyShareRaw = row.supply_share_bps;
+  const supplyShare = supplyShareRaw !== null && supplyShareRaw !== undefined && supplyShareRaw !== "" && Number.isFinite(Number(supplyShareRaw))
+    ? formatBps(supplyShareRaw)
+    : "Unavailable";
+  const markedPrice = formatUnitPriceFromMinor(row.marked_value_minor ?? row.liability_value_minor, row.amount_base_units, row.decimals);
+  const executablePrice = formatUnitPriceFromMinor(row.executable_value_minor, row.amount_base_units, row.decimals);
+  const hasMarkedPrice = markedPrice !== "Unavailable";
+  const hasExecutablePrice = executablePrice !== "Unavailable";
+  const currentPrice = hasMarkedPrice ? markedPrice : executablePrice;
+  const currentState = hasMarkedPrice ? "marked" : hasExecutablePrice ? "executable" : "unavailable";
+  const currentDetail = hasMarkedPrice
+    ? hasExecutablePrice ? `Marked · executable ${executablePrice}` : "Marked"
+    : hasExecutablePrice ? "Executable estimate" : "No current valuation";
+  const averageEntry = integerString(row.average_entry_price_minor) === null ? "Unavailable" : formatUsdMinor(row.average_entry_price_minor);
+  const pnlMinor = row.current_pnl_minor ?? row.unrealized_pnl_minor;
+  const pnlAvailable = integerString(pnlMinor) !== null;
+  const pnl = pnlAvailable ? formatUsdMinor(pnlMinor) : "Unavailable";
+
+  holding.append(
+    identity,
+    holdingMetric("Amount", amountAvailable ? formattedAmount : "Unavailable", amountAvailable ? "Current balance" : "Balance unavailable", amountAvailable ? "available" : "unavailable"),
+    holdingMetric("Supply", supplyShare, supplyShare === "Unavailable" ? "Supply denominator unavailable" : "Of circulating supply", supplyShare === "Unavailable" ? "unavailable" : "available"),
+    holdingMetric("Current price", currentPrice, currentDetail, currentState),
+    holdingMetric("Avg entry", averageEntry, averageEntry === "Unavailable" ? "Cost basis unavailable" : "Average bought", averageEntry === "Unavailable" ? "unavailable" : "available"),
+    holdingMetric("Current P&L", pnl, pnlAvailable ? "Current position" : "Cost basis unavailable", pnlAvailable ? BigInt(String(pnlMinor)) >= 0n ? "positive" : "negative" : "unavailable"),
+  );
+  return holding;
 }
 
 function exposureTitle(identity) {

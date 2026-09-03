@@ -12,6 +12,7 @@ const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
 const DISCOVER_IDLE_MS = 2_400;
 const CHANGE_FLASH_MS = 1_600;
 const DISCOVER_VISIT_STORAGE_KEY = "ravenos:discover-visited:v1";
+const DEGEN_MARKET_CAP_FILTERS = new Set(["under_5k", "5k_10k", "under_10k", "10k_25k", "25k_50k", "50k_100k", "10k_100k", "under_100k"]);
 const state = {
   rows: new Map(),
   order: [],
@@ -27,6 +28,7 @@ const state = {
   spotCohort: "all",
   spotAssetFilter: "all",
   spotMarketCapFilter: "all",
+  spotDegenOpen: false,
   spotVolumeFilter: "all",
   spotLiquidityFilter: "all",
   spotHolderFilter: "all",
@@ -2173,6 +2175,18 @@ async function hydrateSpotMetadata(rows = state.spotRows) {
   return state.spotMetadataPending;
 }
 
+function syncDegenPanel() {
+  const panel = document.getElementById("discoverDegenPanel");
+  const toggle = document.getElementById("discoverDegenToggle");
+  const filterActive = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
+  if (panel) panel.hidden = !state.spotDegenOpen;
+  if (!toggle) return;
+  toggle.classList.toggle("active", state.spotDegenOpen);
+  toggle.classList.toggle("has-filter", filterActive);
+  toggle.dataset.filterActive = String(filterActive);
+  toggle.setAttribute("aria-expanded", String(state.spotDegenOpen));
+}
+
 function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
   state.spotRows = Array.isArray(rows) ? rows : [];
@@ -2209,6 +2223,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  syncDegenPanel();
   const marketCapSelect = document.getElementById("discoverMarketCapFilter");
   if (marketCapSelect && [...marketCapSelect.options].some((option) => option.value === state.spotMarketCapFilter)) {
     marketCapSelect.value = state.spotMarketCapFilter;
@@ -2237,7 +2252,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
       column: "Raven evidence",
     },
     activity: {
-      title: "Activity acceleration",
+      title: "Trending now",
       summary: "Participation + flow rank.",
       column: "Flow-quality ranking",
     },
@@ -3223,8 +3238,13 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
     state.spotSort = button.dataset.spotSort;
+    state.spotDegenOpen = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter) || state.spotRevivalOnly;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
+  document.getElementById("discoverDegenToggle")?.addEventListener("click", () => {
+    state.spotDegenOpen = !state.spotDegenOpen;
+    syncDegenPanel();
+  });
   document.querySelectorAll("[data-spot-chain]").forEach((button) => button.addEventListener("click", () => {
     state.spotChain = button.dataset.spotChain;
     renderSpotPulse(state.spotRows, { forceOrder: true });
@@ -3239,6 +3259,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-market-cap]").forEach((button) => button.addEventListener("click", () => {
     state.spotMarketCapFilter = button.dataset.spotMarketCap;
+    state.spotDegenOpen = true;
     if (state.spotMarketCapFilter !== "all") state.spotLane = "all";
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
@@ -3262,6 +3283,7 @@ function bind() {
   ]) {
     document.getElementById(id)?.addEventListener("change", (event) => {
       state[key] = event.currentTarget.value;
+      if (key === "spotMarketCapFilter") state.spotDegenOpen = DEGEN_MARKET_CAP_FILTERS.has(state.spotMarketCapFilter);
       renderSpotPulse(state.spotRows, { forceOrder: true });
     });
   }
@@ -3328,6 +3350,7 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     spotCohort: state.spotCohort,
     spotAssetFilter: state.spotAssetFilter,
     spotMarketCapFilter: state.spotMarketCapFilter,
+    spotDegenOpen: state.spotDegenOpen,
     spotVolumeFilter: state.spotVolumeFilter,
     spotLiquidityFilter: state.spotLiquidityFilter,
     spotHolderFilter: state.spotHolderFilter,

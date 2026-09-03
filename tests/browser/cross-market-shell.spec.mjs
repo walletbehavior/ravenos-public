@@ -1080,11 +1080,21 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator("[data-spot-chain='bsc']")).toHaveAttribute("aria-label", "BNB Chain");
   await expect(page.locator("[data-spot-chain='ethereum']")).toHaveAttribute("aria-label", "Ethereum");
   await expect(page.locator("[data-spot-timeframe]")).toHaveText(["5m", "1h", "24h"]);
-  await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Activity"]);
+  await expect(page.locator("[data-spot-sort]")).toHaveText(["Velocity", "Raven", "Trending"]);
+  await expect(page.locator("#discoverDegenToggle")).toHaveText("Degen");
+  await expect(page.locator("#discoverDegenPanel")).toBeHidden();
+  await page.locator("#discoverDegenToggle").click();
+  await expect(page.locator("#discoverDegenPanel")).toBeVisible();
+  await expect(page.locator("#discoverDegenToggle")).toHaveAttribute("aria-expanded", "true");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotSort)).toBe("velocity");
+  await page.locator("#discoverDegenToggle").click();
+  await expect(page.locator("#discoverDegenPanel")).toBeHidden();
+  await expect(page.locator("#discoverDegenToggle")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#discoverRefineMarkets")).toBeVisible();
   await expect(page.locator("#discoverRefineMarkets")).not.toHaveAttribute("open", "");
   await expect(page.locator("#discoverRefineSummary")).toHaveText("Opportunities");
   await page.locator("[data-spot-sort='raven']").click();
+  await expect(page.locator("#discoverDegenPanel")).toBeHidden();
   const ravenRead = page.locator(".discover-token-row").first().locator(".discover-token-raven");
   await expect(ravenRead).toContainText("Read · Current");
   await expect(ravenRead).not.toContainText("Raven spotted a 5m upside move backed by active trading.");
@@ -1289,11 +1299,19 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
   await mockWorkspaceApis(page, { pulseRowsOverride: rows });
   await page.goto("/discover/");
 
+  await expect(page.locator("#discoverDegenPanel")).toBeHidden();
+  await expect(page.locator("[data-spot-market-cap='under_5k']")).toBeHidden();
+  await page.locator("#discoverDegenToggle").click();
+  await expect(page.locator("#discoverDegenPanel")).toBeVisible();
   await page.locator("[data-spot-market-cap='under_5k']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotLane)).toBe("all");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotSort)).toBe("velocity");
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotDegenOpen)).toBe(true);
+  await expect(page.locator("#discoverDegenPanel")).toBeVisible();
   await expect(page.locator(".discover-token-row")).toHaveCount(2);
   await expect(page.locator("#discoverTokenTapeList")).toContainText("OLD5");
   await expect(page.locator("#discoverTokenTapeList")).toContainText("YOUNG4");
+  await expect(page.locator(".discover-token-row").first()).toHaveAttribute("href", /launch=velocity/);
 
   await page.locator("[data-spot-market-cap='under_10k']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(4);

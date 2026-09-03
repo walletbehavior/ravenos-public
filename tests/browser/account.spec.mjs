@@ -124,6 +124,74 @@ test("authenticated account desk renders profile and revocable session inventory
   await expect(page.locator("#rosProfileTrigger")).toHaveAttribute("data-account-state", "authenticated");
 });
 
+test("portfolio holdings stay compact and preserve unavailable cost basis and supply data", async ({ page, baseURL }) => {
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      authenticated: true,
+      account: { display_name: "Raven Trader", email: "raven@example.com" },
+      session: { session_public_id: "sespub_current", current: true, authentication_strength: "managed" },
+      csrf_token: "csrf_browser_fixture",
+      wallet_links: [],
+      wallet_linking_available: false,
+      execution_boundary: { signing_available: false, submission_available: false },
+    }),
+  }));
+  await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, csrf_token: "csrf_browser_fixture", sessions: [] }) }));
+  await page.route("**/api/v1/entitlements", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+  await page.route("**/api/v1/portfolio/preview", (route) => {
+    if (route.request().method() === "GET") return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, wallets: [{ wallet_reference: "wallet_fixture", label: "Primary" }] }),
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        state: "partial",
+        boundaries: { read_only: true, customer_assets_can_move: false, transaction_material_created: false, signing_requested: false },
+        provenance: { raw_wallet_address_in_records: false },
+        summary: {},
+        holdings: {
+          returned_position_count: 2,
+          rows: [
+            { instrument: { symbol: "USDC", label: "USD Coin", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" }, amount_base_units: "250000000", decimals: 6, supply_share_bps: null, marked_value_minor: "249500000", marked_value_state: "current", executable_value_minor: "248000000", executable_value_state: "current", resolution_state: "resolved", protocol: "wallet", evidence_state: ["current"] },
+            { instrument: { symbol: "BONK", label: "Bonk", mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6TVCdYaB1pPB263" }, amount_base_units: "1000000000000", decimals: 5, marked_value_minor: "12340000", marked_value_state: "current", executable_value_minor: null, executable_value_state: "unavailable", resolution_state: "partial", protocol: "wallet", evidence_state: ["exit_unavailable"] },
+          ],
+        },
+        economic_exposure: { assets: [] },
+        protocol_exposure: [],
+        stablecoin_exposure: { issuers: [], dependencies: [] },
+        unresolved_and_unsupported: { positions: [], unsupported_capabilities: [] },
+        policy: { state: "not_configured", findings: [] },
+        freshness: {},
+        diagnostics: { provider_call_counts: {}, exposure_rows: {}, conservation: { passed: true } },
+      }),
+    });
+  });
+
+  await page.goto("/account/");
+  await page.locator("#accountGovernorAnalyze").click();
+  await expect(page.locator(".account-holding-row")).toHaveCount(2);
+  await expect(page.locator(".account-holding-columns")).toContainText("% supply");
+  const usdc = page.locator(".account-holding-row").first();
+  await expect(usdc).toContainText("USDC");
+  await expect(usdc).toContainText("250");
+  await expect(usdc).toContainText("$0.998");
+  await expect(usdc).toContainText("executable $0.992");
+  await expect(usdc.locator('[data-label="Supply"] strong')).toHaveText("Unavailable");
+  await expect(usdc.locator('[data-label="Avg entry"] strong')).toHaveText("Unavailable");
+  await expect(usdc.locator('[data-label="Current P&L"] strong')).toHaveText("Unavailable");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
 test("signed-in users can connect Solana or EVM addresses read only without signatures or persistence", async ({ page, baseURL }) => {
   const solanaAddress = "Stake11111111111111111111111111111111111111";
   const evmAddress = "0x1111111111111111111111111111111111111111";

@@ -145,8 +145,13 @@
           <div class="account-governor-results" id="accountGovernorResults" hidden>
             <div class="account-governor-summary" id="accountGovernorSummary"></div>
             <section class="account-governor-block">
-              <header><div><span class="workspace-label">Visible instruments</span><h4>Material holdings</h4></div><strong id="accountGovernorHoldingCount"></strong></header>
-              <div class="account-governor-table" id="accountGovernorHoldings"></div>
+              <header><div><span class="workspace-label">Current portfolio</span><h4>Holdings</h4></div><strong id="accountGovernorHoldingCount"></strong></header>
+              <div class="account-holdings-table">
+                <div class="account-holding-columns" aria-hidden="true">
+                  <span>Token</span><span>Amount</span><span>% supply</span><span>Current price</span><span>Avg entry</span><span>Current P&amp;L</span>
+                </div>
+                <div class="account-holding-list" id="accountGovernorHoldings"></div>
+              </div>
             </section>
             <section class="account-governor-block">
               <header><div><span class="workspace-label">Look-through view</span><h4>Economic exposure</h4></div><strong>Calculated</strong></header>

@@ -147,6 +147,24 @@
 .account-governor-block > header > strong { color: var(--ws-dim); font: 700 8px var(--ws-mono); text-transform: uppercase; }
 .account-governor-attention > header { background: rgba(229, 184, 92, .035); }
 .account-governor-table { display: grid; }
+.account-holdings-table { overflow-x: auto; }
+.account-holding-columns,
+.account-holding-row { min-width: 760px; display: grid; grid-template-columns: minmax(145px, 1.2fr) repeat(5, minmax(94px, .8fr)); align-items: center; gap: 10px; padding: 0 14px; }
+.account-holding-columns { min-height: 32px; color: var(--ws-dim); font: 720 7px var(--ws-mono); letter-spacing: .04em; text-transform: uppercase; }
+.account-holding-columns span:not(:first-child) { text-align: right; }
+.account-holding-list { display: grid; }
+.account-holding-row { min-height: 58px; border-top: 1px solid var(--ws-border); }
+.account-holding-row > div { min-width: 0; display: grid; gap: 3px; }
+.account-holding-identity strong,
+.account-holding-metric strong { overflow: hidden; color: var(--ws-text); font: 680 10px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.account-holding-identity span,
+.account-holding-metric span { overflow: hidden; color: var(--ws-dim); font: 650 7px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.account-holding-metric { text-align: right; }
+.account-holding-metric[data-state="marked"] span { color: #94acc6; }
+.account-holding-metric[data-state="executable"] span { color: #80d3aa; }
+.account-holding-metric[data-state="unavailable"] strong { color: var(--ws-dim); font-weight: 580; }
+.account-holding-metric[data-state="positive"] strong { color: var(--ws-positive); }
+.account-holding-metric[data-state="negative"] strong { color: var(--ws-negative); }
 .account-governor-row { min-height: 76px; display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(2, minmax(90px, .7fr)) minmax(110px, .8fr); align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--ws-border); }
 .account-governor-row:first-child { border-top: 0; }
 .account-governor-row > div { min-width: 0; display: grid; gap: 4px; }
@@ -230,6 +248,13 @@
   .account-pro-boundary p { text-align: left; }
   .account-governor-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-governor-controls > div { grid-template-columns: 1fr; }
+  .account-holdings-table { overflow-x: visible; }
+  .account-holding-columns { display: none; }
+  .account-holding-row { min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 0; }
+  .account-holding-identity { grid-column: 1 / -1; min-height: 54px; align-content: center; padding: 9px 14px; }
+  .account-holding-metric { min-height: 58px; align-content: center; padding: 8px 14px; border-top: 1px solid var(--ws-border); text-align: left; }
+  .account-holding-metric:nth-child(even) { border-right: 1px solid var(--ws-border); }
+  .account-holding-metric::before { content: attr(data-label); color: var(--ws-dim); font: 720 6px var(--ws-mono); letter-spacing: .05em; text-transform: uppercase; }
   .account-governor-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .account-governor-row > div:first-child,
   .account-governor-row-state { grid-column: 1 / -1; }

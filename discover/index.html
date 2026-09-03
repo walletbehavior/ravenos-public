@@ -116,10 +116,11 @@
             <button type="button" data-spot-chain="bsc" aria-label="BNB Chain" title="BNB Chain" aria-pressed="false">BNB</button>
             <button type="button" data-spot-chain="ethereum" aria-label="Ethereum" title="Ethereum" aria-pressed="false">ETH</button>
           </div>
-          <div class="discover-token-sort" role="group" aria-label="Token ranking">
+          <div class="discover-token-sort" role="group" aria-label="Token views">
             <button class="active" type="button" data-spot-sort="velocity" aria-pressed="true">Velocity</button>
             <button type="button" data-spot-sort="raven" aria-pressed="false">Raven</button>
-            <button type="button" data-spot-sort="activity" aria-pressed="false">Activity</button>
+            <button type="button" data-spot-sort="activity" aria-pressed="false">Trending</button>
+            <button type="button" id="discoverDegenToggle" aria-expanded="false" aria-controls="discoverDegenPanel">Degen</button>
           </div>
           <div class="discover-timeframes" role="group" aria-label="Spot pulse timeframe">
             <button class="active" type="button" data-spot-timeframe="5m" aria-pressed="true">5m</button>
@@ -128,7 +129,7 @@
           </div>
         </div>
       </header>
-      <div class="discover-market-scans" aria-label="Quick market scans">
+      <div class="discover-market-scans" id="discoverDegenPanel" role="region" aria-label="Degen market cap filters" hidden>
         <span>Cap</span>
         <div role="group" aria-label="Market cap quick filter">
           <button class="active" type="button" data-spot-market-cap="all" aria-pressed="true">All</button>

@@ -510,6 +510,9 @@
 .discover-token-chains button.active,
 .discover-token-sort button.active,
 .discover-timeframes button.active { background: rgba(166, 177, 190, .11); color: var(--ws-text); }
+#discoverDegenToggle.active { background: rgba(229, 184, 92, .12); color: #dfbf7a; }
+#discoverDegenToggle.has-filter:not(.active) { color: #dfbf7a; }
+#discoverDegenToggle.has-filter::after { content: " •"; color: var(--ws-warning); }
 .discover-market-scans {
   min-width: 0;
   min-height: 39px;
@@ -521,6 +524,7 @@
   border-bottom: 1px solid var(--ws-border);
   background: rgba(7, 11, 17, .58);
 }
+.discover-market-scans[hidden] { display: none; }
 .discover-market-scans > span { color: var(--ws-dim); font: 750 7px var(--ws-mono); letter-spacing: .08em; text-transform: uppercase; }
 .discover-market-scans > div { min-width: 0; display: flex; align-items: center; gap: 3px; overflow-x: auto; scrollbar-width: none; }
 .discover-market-scans > div::-webkit-scrollbar { display: none; }
@@ -1179,16 +1183,26 @@
 .portfolio-position-head strong { font: 650 9px var(--ws-mono); }
 .portfolio-position-list { overflow-x: auto; }
 .portfolio-position-columns,
-.portfolio-position-row { min-width: 620px; display: grid; grid-template-columns: minmax(110px, 1fr) minmax(90px, .8fr) minmax(90px, .8fr) minmax(110px, .9fr) minmax(110px, .9fr); gap: 8px; align-items: center; padding: 8px 11px; }
+.portfolio-position-row { min-width: 760px; display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(5, minmax(92px, .8fr)); gap: 9px; align-items: center; padding: 7px 11px; }
 .portfolio-position-columns { color: var(--ws-dim); font: 750 7px var(--ws-mono); text-transform: uppercase; }
-.portfolio-position-row { min-height: 43px; border-top: 1px solid rgba(172, 191, 218, .07); color: inherit; font: 650 9px var(--ws-mono); text-decoration: none; }
+.portfolio-position-row { min-height: 51px; border-top: 1px solid rgba(172, 191, 218, .07); color: inherit; font: 650 9px var(--ws-mono); text-decoration: none; }
 .portfolio-position-row:hover { background: rgba(166, 177, 190, .045); }
-.portfolio-position-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.portfolio-position-row span:not(:first-child),
+.portfolio-position-row > span { min-width: 0; }
+.portfolio-position-row > span:not(:first-child),
 .portfolio-position-columns span:not(:first-child) { text-align: right; }
-.portfolio-position-row strong { color: var(--ws-text); }
-.portfolio-position-row[data-side="long"] strong { color: #75d9aa; }
-.portfolio-position-row[data-side="short"] strong { color: #f08b99; }
+.portfolio-position-identity,
+.portfolio-position-cell { display: grid; gap: 3px; }
+.portfolio-position-identity strong,
+.portfolio-position-cell strong { overflow: hidden; color: var(--ws-text); font: 680 9px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-position-identity small,
+.portfolio-position-cell small { overflow: hidden; color: var(--ws-dim); font: 650 7px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-position-row[data-side="long"] .portfolio-position-identity strong { color: #75d9aa; }
+.portfolio-position-row[data-side="short"] .portfolio-position-identity strong { color: #f08b99; }
+.portfolio-position-cell[data-state="marked"] small { color: #94acc6; }
+.portfolio-position-cell[data-state="unavailable"] strong { color: var(--ws-dim); font-weight: 580; }
+.portfolio-position-cell[data-state="not-applicable"] strong { color: var(--ws-muted); }
+.portfolio-position-cell[data-tone="positive"] strong { color: var(--ws-positive); }
+.portfolio-position-cell[data-tone="negative"] strong { color: var(--ws-negative); }
 .portfolio-position-empty { min-height: 74px; display: grid; place-content: center; padding: 14px; color: var(--ws-muted); font-size: 10px; text-align: center; }
 .portfolio-empty-workspace { min-height: calc(100vh - var(--ros-topbar-height) - 112px); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(340px, .8fr); background: repeating-linear-gradient(90deg, transparent 0 119px, rgba(255, 255, 255, .012) 120px); }
 .portfolio-empty-primary { min-height: 500px; display: grid; place-content: center; justify-items: start; gap: 11px; padding: clamp(36px, 7vw, 96px); border-right: 1px solid var(--ws-border); text-align: left; }
@@ -1728,8 +1742,8 @@
   .discover-token-tape-controls { width: 100%; justify-content: space-between; gap: 6px; }
   .discover-token-chains { width: 100%; }
   .discover-token-chains button { min-width: 0; flex: 1; padding-inline: 5px; }
-  .discover-token-sort { min-width: 0; }
-  .discover-token-sort button { min-width: 0; padding-inline: 9px; }
+  .discover-token-sort { min-width: 0; flex: 1 1 210px; }
+  .discover-token-sort button { min-width: 0; flex: 1; padding-inline: 6px; }
   .discover-timeframes button { min-width: 30px; min-height: 22px; padding-inline: 5px; }
   .discover-market-scans { min-height: 38px; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 5px 8px; }
   .discover-market-scans > span { display: none; }
@@ -1861,6 +1875,13 @@
   .portfolio-account-summary > div:nth-child(2n) { border-right: 0; }
   .portfolio-account-summary > div:not(:nth-last-child(-n + 2)) { border-bottom: 1px solid var(--ws-border); }
   .portfolio-position-head > span { display: none; }
+  .portfolio-position-list { overflow-x: visible; }
+  .portfolio-position-columns { display: none; }
+  .portfolio-position-row { min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 0; }
+  .portfolio-position-identity { grid-column: 1 / -1; padding: 11px 12px 9px; }
+  .portfolio-position-cell { min-height: 54px; align-content: center; padding: 8px 12px; border-top: 1px solid rgba(172, 191, 218, .07); text-align: left !important; }
+  .portfolio-position-cell:nth-child(even) { border-right: 1px solid rgba(172, 191, 218, .07); }
+  .portfolio-position-cell::before { content: attr(data-label); color: var(--ws-dim); font: 720 6px var(--ws-mono); letter-spacing: .05em; text-transform: uppercase; }
   .portfolio-selection { min-height: 200px; padding: 22px 15px; }
   .connection-row { grid-template-columns: 38px minmax(0, 1fr); }
   .connection-row > small { grid-column: 2; }
