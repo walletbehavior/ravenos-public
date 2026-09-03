@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  bestExactSpotMarketPerToken,
   buildDeskFrame,
   opportunityLifecycle,
   spotFlowRead,
@@ -54,6 +55,69 @@ function pool(overrides = {}) {
     ...overrides,
   };
 }
+
+function exactPool(overrides = {}) {
+  const chain = overrides.chain_id || "base";
+  const poolAddress = overrides.pool_address || "0x0000000000000000000000000000000000000011";
+  return {
+    chain_id: chain,
+    token_address: overrides.token_address || "0x0000000000000000000000000000000000000001",
+    pool_address: poolAddress,
+    instrument_id: `${chain}:pool:${poolAddress}`,
+    symbol: overrides.symbol || "SAME",
+    context_state: overrides.context_state || "current",
+    observed_at: overrides.observed_at || "2026-08-26T01:00:00Z",
+    market: {
+      liquidity_usd: overrides.liquidity_usd ?? 100_000,
+      volume_usd_5m: overrides.volume_usd_5m ?? 10_000,
+    },
+    discovery: {
+      facts: { freshness: { state: overrides.freshness || "current" } },
+      routeability: overrides.routeability || { availability: "unavailable", freshness: "unavailable", routeable_size_usd: null },
+    },
+  };
+}
+
+test("Discover keeps one best exact pool per canonical chain/token", () => {
+  const shallower = exactPool({
+    pool_address: "0x0000000000000000000000000000000000000012",
+    token_address: "0xAbCd000000000000000000000000000000000001",
+    liquidity_usd: 80_000,
+  });
+  const deeper = exactPool({
+    pool_address: "0x0000000000000000000000000000000000000013",
+    token_address: "0xabcd000000000000000000000000000000000001",
+    liquidity_usd: 240_000,
+  });
+  const selected = bestExactSpotMarketPerToken([shallower, deeper]);
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].instrument_id, deeper.instrument_id);
+  assert.equal(selected[0].market.liquidity_usd, 240_000);
+});
+
+test("Discover prefers a current executable route without merging exact-pool evidence", () => {
+  const deepButUnrouteable = exactPool({
+    pool_address: "0x0000000000000000000000000000000000000014",
+    liquidity_usd: 500_000,
+  });
+  const routeable = exactPool({
+    pool_address: "0x0000000000000000000000000000000000000015",
+    liquidity_usd: 120_000,
+    routeability: { availability: "available", freshness: "current", routeable_size_usd: 5_000 },
+  });
+  const selected = bestExactSpotMarketPerToken([deepButUnrouteable, routeable]);
+  assert.deepEqual(selected, [routeable]);
+  assert.equal(selected[0].market.liquidity_usd, 120_000);
+});
+
+test("Discover never collapses same-symbol contracts or cross-chain assets", () => {
+  const rows = [
+    exactPool({ token_address: "0x0000000000000000000000000000000000000001", symbol: "PONS" }),
+    exactPool({ token_address: "0x0000000000000000000000000000000000000002", pool_address: "0x0000000000000000000000000000000000000022", symbol: "PONS" }),
+    exactPool({ chain_id: "ethereum", token_address: "0x0000000000000000000000000000000000000001", pool_address: "0x0000000000000000000000000000000000000033", symbol: "PONS" }),
+  ];
+  assert.equal(bestExactSpotMarketPerToken(rows).length, 3);
+});
 
 function benchmark(overrides = {}) {
   const generatedAt = "2026-08-26T21:25:20Z";

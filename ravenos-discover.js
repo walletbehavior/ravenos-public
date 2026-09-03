@@ -1,6 +1,7 @@
 import { ravenOSContext, savedMonitorHandoffFromTerminalHref } from "/ravenos-context-store.js";
 import { customerFacingText } from "/ravenos-intelligence-contract.js";
 import {
+  bestExactSpotMarketPerToken,
   buildDeskFrame,
   opportunityLifecycle,
   validateAttentionBenchmark,
@@ -2894,7 +2895,7 @@ function mergeSpotRadarRows(registryRows = [], currentRows = []) {
       },
     });
   }
-  return [...merged.values()];
+  return bestExactSpotMarketPerToken([...merged.values()], { timeframe: state.spotTimeframe });
 }
 
 function currentAtlasPayload(payload) {

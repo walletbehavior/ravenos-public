@@ -1475,6 +1475,29 @@ test("Discover never presents a retained exact-market snapshot as a live opportu
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
+test("Discover renders one best exact market when the same token has multiple pools", async ({ page }) => {
+  const shallow = structuredClone(evmPulseRows[0]);
+  shallow.pool_address = "0x1111111111111111111111111111111111111111";
+  shallow.instrument_id = `base:pool:${shallow.pool_address}`;
+  shallow.market.liquidity_usd = 80_000;
+  const deep = structuredClone(evmPulseRows[0]);
+  deep.pool_address = "0x2222222222222222222222222222222222222222";
+  deep.instrument_id = `base:pool:${deep.pool_address}`;
+  deep.market.liquidity_usd = 320_000;
+
+  await mockWorkspaceApis(page, { pulseRowsOverride: [shallow, deep] });
+  await page.goto("/discover/");
+  await page.locator("#discoverRefineMarkets > summary").click();
+  await page.locator("[data-spot-lane='all']").click();
+  await page.locator("[data-spot-chain='base']").click();
+
+  const rows = page.locator(".discover-token-row");
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText("AERO");
+  await expect(rows).toHaveAttribute("href", new RegExp(`instrument_id=base%3Apool%3A${deep.pool_address}`));
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotCount)).toBe(1);
+});
+
 test("Discover adds live Base and Ethereum exact pools without presenting them as Raven signals", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await mockWorkspaceApis(page, { withSpot: true, withEvmPulse: true });

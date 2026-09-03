@@ -6,6 +6,59 @@ function finite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+const EVM_DISCOVER_CHAINS = new Set(["robinhood", "base", "bsc", "ethereum"]);
+
+function canonicalSpotTokenKey(row = {}, fallbackIndex = 0) {
+  const rawChain = String(row?.chain_id || row?.chain || "").trim().toLowerCase();
+  const chain = rawChain === "robinhood chain" ? "robinhood"
+    : ["bnb", "bnb chain", "binance smart chain"].includes(rawChain) ? "bsc"
+      : rawChain.replace(/\s+chain$/, "");
+  const address = String(row?.token_address || "").trim();
+  if (!chain || !address) return `unresolved:${fallbackIndex}:${String(row?.instrument_id || "")}`;
+  return `${chain}:${EVM_DISCOVER_CHAINS.has(chain) ? address.toLowerCase() : address}`;
+}
+
+function exactPoolPreference(row = {}, timeframe = "5m") {
+  const factState = row?.discovery?.facts?.freshness?.state;
+  const factsCurrent = factState ? factState === "current" : row?.context_state === "current";
+  const route = row?.discovery?.routeability || row?.routeability || {};
+  const routeCurrent = route.availability === "available" && route.freshness !== "stale";
+  const observedAt = Date.parse(String(row?.observed_at || route?.observed_at || ""));
+  return Object.freeze({
+    factsCurrent: factsCurrent ? 1 : 0,
+    routeCurrent: routeCurrent ? 1 : 0,
+    routeableSize: routeCurrent ? finite(route.routeable_size_usd) ?? -1 : -1,
+    liquidity: finite(row?.market?.liquidity_usd) ?? -1,
+    volume: finite(row?.market?.[`volume_usd_${timeframe}`]) ?? -1,
+    observedAt: Number.isFinite(observedAt) ? observedAt : -1,
+    instrumentId: String(row?.instrument_id || ""),
+  });
+}
+
+function preferExactPool(candidate, selected, timeframe) {
+  const left = exactPoolPreference(candidate, timeframe);
+  const right = exactPoolPreference(selected, timeframe);
+  for (const field of ["factsCurrent", "routeCurrent", "routeableSize", "liquidity", "volume", "observedAt"]) {
+    if (left[field] !== right[field]) return left[field] > right[field];
+  }
+  return left.instrumentId.localeCompare(right.instrumentId) < 0;
+}
+
+/**
+ * Discover is token-oriented even though every row retains exact-pool identity.
+ * Keep one independently usable exact market for each chain/token and never
+ * collapse same-symbol contracts or cross-chain representations together.
+ */
+export function bestExactSpotMarketPerToken(rows = [], { timeframe = "5m" } = {}) {
+  const selected = new Map();
+  for (const [index, row] of (Array.isArray(rows) ? rows : []).entries()) {
+    const key = canonicalSpotTokenKey(row, index);
+    const prior = selected.get(key);
+    if (!prior || preferExactPool(row, prior, timeframe)) selected.set(key, row);
+  }
+  return [...selected.values()];
+}
+
 const ATTENTION_BENCHMARK_SCHEMA = "ravenos_market_attention_benchmark_public_v1";
 const ATTENTION_SAFETY_FLAGS = Object.freeze([
   "market_addresses_exposed",
