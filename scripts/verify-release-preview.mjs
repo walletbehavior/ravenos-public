@@ -209,10 +209,16 @@ if (health.publisher_health?.state !== "operational") throw new Error("/api/heal
 if (health.projection_health?.source_status !== "current_public_origin") throw new Error("/api/health is not reading current-origin status");
 if (health.projection_health?.manifest_status !== "current_public_origin") throw new Error("/api/health is not reading the current-origin manifest");
 if (
-  health.execution_health?.state !== "disabled"
+  health.execution_health?.state !== "customer_wallet_execution"
+  || health.execution_health?.customer_wallet_execution_available !== true
+  || !["hyperliquid", "solana", "robinhood", "bsc"].every((chain) => health.execution_health?.active_chains?.includes(chain))
+  || health.execution_health?.wallet_signature_required !== true
+  || health.execution_health?.server_signing !== false
+  || health.execution_health?.custody !== false
+  || health.execution_health?.arbitrary_submission !== false
   || health.execution_health?.signing_available !== false
   || health.execution_health?.submission_available !== false
-) throw new Error("/api/health does not preserve the disabled execution boundary");
+) throw new Error("/api/health does not preserve the self-custodial customer-wallet boundary");
 const opportunityCapture = await capture("/api/opportunity");
 const opportunity = JSON.parse(opportunityCapture.text);
 if (opportunity?.delivery?.fallback !== false || opportunity?.delivery?.source !== "current_public_origin") {
