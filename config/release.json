@@ -45,12 +45,18 @@
       "bsc"
     ],
     "preview_enabled": true,
-    "production_enabled": false,
-    "commercial_use_acknowledged": false,
-    "production_promotion_eligible": false,
-    "production_blockers": [
-      "commercial_use_rights_undocumented"
-    ],
+    "production_enabled": true,
+    "commercial_use_acknowledged": true,
+    "production_promotion_eligible": true,
+    "production_blockers": [],
+    "production_qualification": {
+      "qualified_at": "2026-09-03T22:20:00Z",
+      "qualification_basis": "owner_authorized_activation_after_public_docs_described_api_access_for_developers_and_other_platforms",
+      "documentation_url": "https://docs.dexch.art/",
+      "api_documentation_url": "https://dexch.art/api-docs",
+      "authentication_required": false,
+      "provider_role_limited_to_discovery_and_lifecycle_enrichment": true
+    },
     "empirical_evaluation": {
       "completed_at": "2026-09-03T19:48:48.923Z",
       "sample_size_per_chain": 25,

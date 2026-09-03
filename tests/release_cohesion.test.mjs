@@ -261,9 +261,14 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
   assert.equal(releaseConfig.dexch_discovery_provider.contract_version, "ravenos.dexch_discovery_provider.v1");
   assert.deepEqual(releaseConfig.dexch_discovery_provider.supported_chains, ["solana", "robinhood", "bsc"]);
-  assert.equal(releaseConfig.dexch_discovery_provider.production_enabled, false);
-  assert.equal(releaseConfig.dexch_discovery_provider.production_promotion_eligible, false);
-  assert.deepEqual(releaseConfig.dexch_discovery_provider.production_blockers, ["commercial_use_rights_undocumented"]);
+  assert.equal(releaseConfig.dexch_discovery_provider.production_enabled, true);
+  assert.equal(releaseConfig.dexch_discovery_provider.commercial_use_acknowledged, true);
+  assert.equal(releaseConfig.dexch_discovery_provider.production_promotion_eligible, true);
+  assert.deepEqual(releaseConfig.dexch_discovery_provider.production_blockers, []);
+  assert.equal(
+    releaseConfig.dexch_discovery_provider.production_qualification.provider_role_limited_to_discovery_and_lifecycle_enrichment,
+    true,
+  );
   assert.equal(releaseConfig.dexch_discovery_provider.empirical_evaluation.sample_size_per_chain, 25);
   assert.deepEqual(releaseConfig.dexch_discovery_provider.empirical_evaluation.chains, ["solana", "robinhood", "bsc"]);
   assert.equal(releaseConfig.dexch_discovery_provider.empirical_evaluation.raw_token_addresses_emitted, false);

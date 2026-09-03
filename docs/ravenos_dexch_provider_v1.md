@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 
-Status: implemented and tested in preview; production activation remains blocked until commercial-use rights are explicitly acknowledged.
+Status: implemented, tested, and approved for production discovery and lifecycle enrichment on 2026-09-03. Dexch remains a replaceable, non-authoritative provider.
 
 ## Role
 
@@ -136,7 +136,7 @@ A release-enforced runtime also requires:
 
 - `RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED=1`
 
-Release packaging forces both values off until the release contract marks the provider eligible. Production remains disabled and promotion-ineligible while commercial use is unresolved.
+Release packaging enables both values only when the release contract marks the provider eligible. The owner authorized production activation on 2026-09-03 after the current public Dexch documentation described API access for developers and other platforms. Dexch remains excluded from price, holder, execution, and safety authority.
 
 ## Resource bounds
 
@@ -152,8 +152,7 @@ No full-node storage, raw-block retention, or unbounded wallet graph is introduc
 
 ## Remaining work
 
-1. Obtain and record explicit commercial-use approval before production activation.
-2. Run the durable WebSocket receiver in staging and measure event delay against Raven's direct Robinhood and Nexus observations.
-3. Accumulate contemporaneous lifecycle snapshots before publishing historical wallet-entry metrics.
-4. Keep holder lists on Raven's independently verified Solana/EVM paths; use Dexch holder data only as visibly provider-reported enrichment if later exposed.
-5. Re-run the empirical sample periodically because provider behavior is not a stable contract.
+1. Run the durable WebSocket receiver in staging and measure event delay against Raven's direct Robinhood and Nexus observations.
+2. Accumulate contemporaneous lifecycle snapshots before publishing historical wallet-entry metrics.
+3. Keep holder lists on Raven's independently verified Solana/EVM paths; use Dexch holder data only as visibly provider-reported enrichment if later exposed.
+4. Re-run the empirical sample periodically because provider behavior is not a stable contract.
