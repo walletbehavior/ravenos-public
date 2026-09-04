@@ -22,9 +22,116 @@ const state = {
   previewWallets: [],
   entitlements: null,
   referral: null,
+  privy: { config: null, client: null, wallets: [] },
   pendingReferral: "",
   browserWallet: { chain: null, address: null, provider: null, listenersBound: false },
 };
+
+function renderPrivyWallets(wallets = []) {
+  const stage = document.getElementById("accountPrivyWallets");
+  const rows = Array.isArray(wallets) ? wallets : [];
+  stage.hidden = rows.length === 0;
+  stage.replaceChildren(...rows.map((wallet) => {
+    const row = document.createElement("article");
+    row.className = "account-privy-wallet";
+    const label = document.createElement("span");
+    const address = document.createElement("strong");
+    const detail = document.createElement("small");
+    label.textContent = wallet.ecosystem === "solana" ? "Solana" : "EVM · shared across supported EVM chains";
+    address.textContent = wallet.address;
+    address.title = wallet.address;
+    detail.textContent = "Embedded · user controlled";
+    row.append(label, address, detail);
+    return row;
+  }));
+}
+
+function renderPrivyState(payload) {
+  const panel = document.getElementById("accountPrivyPanel");
+  const button = document.getElementById("accountPrivyCreate");
+  if (!payload?.available) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const wallets = Array.isArray(payload.wallets) ? payload.wallets : [];
+  state.privy.wallets = wallets;
+  panel.dataset.state = payload.linked ? "linked" : "available";
+  setText("accountPrivyState", payload.linked ? "Ready" : "Optional");
+  setText("accountPrivyTitle", payload.linked ? "Your Raven Wallet" : "Create wallets when you want to trade.");
+  setText("accountPrivyStatus", payload.linked
+    ? "One Solana wallet and one EVM wallet. Raven login remains separate."
+    : "Creates separate Solana and EVM wallets without changing your login.");
+  button.hidden = payload.linked;
+  renderPrivyWallets(wallets);
+}
+
+async function loadPrivyFactory() {
+  if (globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
+  const { response, payload } = await getJson("/ravenos_asset_manifest.json");
+  const assetUrl = String(payload?.assets?.["ravenos-privy-wallet.js"]?.url || "");
+  if (!response.ok || !/^\/assets\/ravenos-privy-wallet\.[0-9a-f]{16}\.js$/.test(assetUrl)) {
+    throw new Error("privy_sdk_unavailable");
+  }
+  await import(assetUrl);
+  if (!globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) throw new Error("privy_sdk_unavailable");
+  return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
+}
+
+async function loadPrivyWallets() {
+  try {
+    const { response, payload } = await getJson("/api/v1/wallets/privy");
+    if (!response.ok) return renderPrivyState(null);
+    state.privy.config = payload;
+    renderPrivyState(payload);
+  } catch {
+    renderPrivyState(null);
+  }
+}
+
+async function createPrivyWallets() {
+  const button = document.getElementById("accountPrivyCreate");
+  const status = document.getElementById("accountPrivyStatus");
+  if (!state.csrf || !state.privy.config?.available) return;
+  button.disabled = true;
+  status.dataset.tone = "";
+  status.textContent = "Creating secure wallets…";
+  try {
+    const factory = await loadPrivyFactory();
+    const session = await getJson("/api/v1/wallets/privy/session", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+      body: "{}",
+    });
+    if (!session.response.ok || !session.payload?.token) throw new Error(session.payload?.error || "privy_session_unavailable");
+    const client = state.privy.client || factory.create({
+      appId: state.privy.config.app_id,
+      clientId: state.privy.config.client_id,
+    });
+    state.privy.client = client;
+    await client.sync(session.payload.token);
+    await client.provision(session.payload.wallets || {});
+    const identityToken = await client.identityToken();
+    const linked = await getJson("/api/v1/wallets/privy/link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ravenos-csrf": state.csrf,
+        "privy-id-token": identityToken,
+      },
+      body: "{}",
+    });
+    if (!linked.response.ok || !linked.payload?.linked) throw new Error(linked.payload?.error || "privy_link_failed");
+    renderPrivyState({ ...state.privy.config, ...linked.payload, available: true });
+  } catch (error) {
+    status.dataset.tone = "error";
+    status.textContent = error?.message === "privy_identity_conflict"
+      ? "This wallet identity is already linked to another Raven account."
+      : "Wallet setup could not finish. Your Raven login is unchanged.";
+  } finally {
+    button.disabled = false;
+  }
+}
 
 const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
@@ -881,6 +988,7 @@ function renderAuthenticated(payload) {
   loadProIntelligenceCapabilities();
   loadPortfolioPreviewCapability();
   loadReferralProgram();
+  loadPrivyWallets();
 }
 
 async function saveUsername(event) {
@@ -945,6 +1053,7 @@ async function logout() {
   if (!state.csrf) return;
   const button = document.getElementById("accountLogout");
   button.disabled = true;
+  try { await state.privy.client?.logout(); } catch { /* Raven logout must still complete. */ }
   const { response } = await getJson("/api/v1/auth/logout", {
     method: "POST",
     headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
@@ -1011,6 +1120,7 @@ async function initialize() {
   document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));
   document.getElementById("accountConnectEvm").addEventListener("click", () => connectBrowserWallet("EVM"));
   document.getElementById("accountDisconnectWallet").addEventListener("click", () => clearBrowserWallet());
+  document.getElementById("accountPrivyCreate").addEventListener("click", createPrivyWallets);
   document.getElementById("accountReferralCreate").addEventListener("click", createReferralLink);
   document.getElementById("accountReferralCopy").addEventListener("click", copyReferralLink);
   document.getElementById("accountReferralClaimForm").addEventListener("submit", claimReferral);
@@ -1050,6 +1160,7 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
   walletConnectionIsAuthentication: false,
   walletLinkingAvailable: false,
   browserWalletConnectionAvailable: true,
+  privyEmbeddedWalletsOptional: true,
   walletConnectionScope: "public_address_observation_only",
   walletConnectionPersisted: false,
   portfolioPreviewReadOnly: true,

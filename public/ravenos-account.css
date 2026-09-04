@@ -106,6 +106,21 @@
 .account-wallet-actions button[data-connected="true"] { border-color: rgba(72, 194, 137, .55); background: rgba(44, 139, 91, .14); color: #80d3aa; }
 .account-wallet-status { min-height: 1em; color: var(--ws-dim); font: 7px/1.4 var(--ws-mono); }
 .account-wallet-status[data-tone="error"] { color: #e18491; }
+.account-privy-panel[data-state="linked"] > header > strong { color: var(--ws-positive); }
+.account-privy-panel[data-state="available"] > header > strong { color: var(--ws-warning); }
+.account-privy-intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 14px; }
+.account-privy-intro > div { min-width: 0; display: grid; gap: 6px; }
+.account-privy-intro strong { font-size: 12px; }
+.account-privy-intro p { color: var(--ws-muted); font-size: 10px; line-height: 1.5; }
+.account-privy-intro button { min-height: 40px; flex: 0 0 auto; border: 1px solid rgba(63, 166, 117, .48); border-radius: 6px; padding: 0 14px; background: rgba(63, 166, 117, .1); color: #80d3aa; cursor: pointer; font: 720 9px var(--ws-mono); }
+.account-privy-intro button:disabled { cursor: wait; opacity: .55; }
+.account-privy-wallets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; border-top: 1px solid var(--ws-border); background: var(--ws-border); }
+.account-privy-wallets[hidden] { display: none; }
+.account-privy-wallet { min-width: 0; display: grid; gap: 6px; padding: 14px; background: #090e16; }
+.account-privy-wallet span { color: var(--ws-dim); font: 720 8px var(--ws-mono); text-transform: uppercase; }
+.account-privy-wallet strong { overflow: hidden; font: 680 11px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.account-privy-wallet small { color: var(--ws-muted); font: 8px/1.45 var(--ws-mono); }
+.account-privy-panel > footer { padding: 11px 14px; border-top: 1px solid var(--ws-border); color: var(--ws-dim); font: 8px/1.5 var(--ws-mono); text-transform: uppercase; }
 .account-referral-panel[data-referral-state="active"] > header > strong { color: var(--ws-positive); }
 .account-referral-panel[data-referral-state="not_created"] > header > strong,
 .account-referral-panel[data-referral-state="recorded"] > header > strong { color: var(--ws-warning); }
@@ -311,6 +326,9 @@
   .account-username-panel form { grid-template-columns: 1fr; }
   .account-connection-stage { grid-template-columns: 34px minmax(0, 1fr); }
   .account-connection-stage > span:last-child { grid-column: 2; }
+  .account-privy-intro { align-items: stretch; flex-direction: column; }
+  .account-privy-intro button { width: 100%; }
+  .account-privy-wallets { grid-template-columns: 1fr; }
   .account-pro-capabilities { grid-template-columns: 1fr; }
   .account-pro-capability { min-height: 118px; }
   .account-pro-boundary { grid-template-columns: 1fr; }
