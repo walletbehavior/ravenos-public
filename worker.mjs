@@ -158,6 +158,10 @@ import {
   routeCustomerCommunity,
 } from "./lib/customer_community.mjs";
 import {
+  CUSTOMER_REFERRAL_ROUTE,
+  routeCustomerReferrals,
+} from "./lib/customer_referrals.mjs";
+import {
   customerLiveExecutionRefusal,
   publicCustomerLiveExecutionCapabilities,
   resolveCustomerLiveExecutionGate,
@@ -442,6 +446,8 @@ function authenticatedAppBoundary(request) {
     || url.pathname.startsWith(`${AGENTIC_ROUTE_PREFIX}/`);
   const communityApi = url.pathname === CUSTOMER_COMMUNITY_ROUTE
     || url.pathname.startsWith(`${CUSTOMER_COMMUNITY_ROUTE}/`);
+  const referralApi = url.pathname === CUSTOMER_REFERRAL_ROUTE
+    || url.pathname.startsWith(`${CUSTOMER_REFERRAL_ROUTE}/`);
   const terminalReadApi = readRequest && (
     new Set([
       "/api/atlas",
@@ -472,7 +478,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -11006,6 +11012,8 @@ async function routeApi(request, env, executionContext = null) {
   if (identityResponse) return identityResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
   if (communityResponse) return communityResponse;
+  const referralResponse = await routeCustomerReferrals(request, env);
+  if (referralResponse) return referralResponse;
   if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);

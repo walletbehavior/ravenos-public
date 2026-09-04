@@ -44,6 +44,26 @@ assert.equal(config.community.direct_messages_available, false);
 assert.equal(config.community.csrf_required_for_mutations, true);
 assert.equal(config.community.execution_authority, false);
 assert.equal(config.community.production_activation_completed, false);
+assert.equal(config.referrals.implementation_status, "local_dormant_candidate_not_deployed");
+assert.equal(config.referrals.activation_default_off, true);
+assert.equal(config.referrals.opaque_code_entropy_bits, 60);
+assert.equal(config.referrals.code_contains_username, false);
+assert.equal(config.referrals.attribution_requires_authenticated_user_action, true);
+assert.equal(config.referrals.browser_storage_state_permitted, false);
+assert.equal(config.referrals.attribution_append_only, true);
+assert.equal(config.referrals.self_referral_allowed, false);
+assert.equal(config.referrals.customer_claim_can_create_entitlement, false);
+assert.equal(config.referrals.customer_claim_can_create_credit, false);
+assert.equal(config.referrals.authoritative_subscription_evidence_required, true);
+assert.equal(config.referrals.subscription_evidence_append_only, true);
+assert.equal(config.referrals.reward_policy_configured, false);
+assert.equal(config.referrals.payouts_available, false);
+assert.equal(config.referrals.trade_volume_affects_reward, false);
+assert.equal(config.referrals.trading_performance_affects_reward, false);
+assert.equal(config.referrals.referral_is_investment_endorsement, false);
+assert.equal(config.referrals.csrf_required_for_mutations, true);
+assert.equal(config.referrals.execution_authority, false);
+assert.equal(config.referrals.production_activation_completed, false);
 for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
   assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);
 }
@@ -70,6 +90,9 @@ const requiredBlockedCapabilities = new Set([
   "customer_position_monitoring",
   "saved_monitor_production_activation",
   "community_production_activation",
+  "referral_production_activation",
+  "referral_reward_credit",
+  "referral_payouts",
 ]);
 const blockedCapabilities = new Set(config.blocked_capabilities || []);
 for (const capability of requiredBlockedCapabilities) {
@@ -418,6 +441,7 @@ assert(worker.includes('from "./lib/customer_entitlements.mjs"'), "server-owned 
 assert(worker.includes('from "./lib/customer_monitor_alerts.mjs"'), "Raven Monitor router and evaluator are missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_wallet_copy.mjs"'), "Raven Copy authenticated router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_community.mjs"'), "Raven Community router is missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_referrals.mjs"'), "Raven referrals router is missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
 assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
@@ -425,6 +449,7 @@ assert(worker.includes("routeCustomerEntitlements(request, env"), "entitlement r
 assert(worker.includes("routeCustomerMonitorAlerts(request, env"), "Raven Monitor routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerWalletCopy(request, env"), "Raven Copy routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerCommunity(request, env"), "Raven Community routes are not wired through the Worker boundary");
+assert(worker.includes("routeCustomerReferrals(request, env"), "Raven referral routes are not wired through the Worker boundary");
 assert(worker.includes("runCustomerMonitorEvaluator(env"), "Raven Monitor evaluator is not wired through the dormant scheduled boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
@@ -490,6 +515,7 @@ for (const activationFlag of [
   ...config.wallet_copy.activation_controls,
   ...config.customer_live_execution_canary.activation_controls,
   config.community.activation_control,
+  ...config.referrals.activation_controls,
 ]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }
@@ -499,6 +525,8 @@ assert.match(packageJson.scripts["validate:security"] || "", /validate-security-
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
 assert.match(packageJson.scripts["test:community"] || "", /customer_community\.test\.mjs/);
 assert.match(packageJson.scripts["pretest:contracts"] || "", /test:community/);
+assert.match(packageJson.scripts["test:referrals"] || "", /customer_referrals\.test\.mjs/);
+assert.match(packageJson.scripts["pretest:contracts"] || "", /test:referrals/);
 assert.match(packageJson.scripts["pretest:contracts"] || "", /test:agentic/);
 assert.match(packageJson.scripts["test:agentic"] || "", /agentic_\*\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);

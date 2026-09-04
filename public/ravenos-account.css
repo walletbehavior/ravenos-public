@@ -106,6 +106,39 @@
 .account-wallet-actions button[data-connected="true"] { border-color: rgba(72, 194, 137, .55); background: rgba(44, 139, 91, .14); color: #80d3aa; }
 .account-wallet-status { min-height: 1em; color: var(--ws-dim); font: 7px/1.4 var(--ws-mono); }
 .account-wallet-status[data-tone="error"] { color: #e18491; }
+.account-referral-panel[data-referral-state="active"] > header > strong { color: var(--ws-positive); }
+.account-referral-panel[data-referral-state="not_created"] > header > strong,
+.account-referral-panel[data-referral-state="recorded"] > header > strong { color: var(--ws-warning); }
+.account-referral-intro { display: grid; gap: 6px; padding: 16px 14px; border-bottom: 1px solid var(--ws-border); }
+.account-referral-intro strong { font-size: 12px; }
+.account-referral-intro p { color: var(--ws-muted); font-size: 10px; line-height: 1.55; }
+.account-referral-controls { display: grid; gap: 14px; padding: 15px 14px; }
+.account-referral-controls[hidden] { display: none; }
+.account-referral-link,
+.account-referral-claim { display: grid; gap: 7px; margin: 0; }
+.account-referral-claim[hidden] { display: none; }
+.account-referral-link label,
+.account-referral-claim label { color: var(--ws-dim); font: 720 9px var(--ws-mono); letter-spacing: .04em; text-transform: uppercase; }
+.account-referral-link > div,
+.account-referral-claim > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; }
+.account-referral-claim > div { grid-template-columns: minmax(0, 1fr) auto; }
+.account-referral-link input,
+.account-referral-claim input,
+.account-referral-link button,
+.account-referral-claim button { min-height: 40px; border: 1px solid var(--ws-border-strong); border-radius: 6px; background: #0a1019; color: var(--ws-text); font: 650 10px var(--ws-mono); }
+.account-referral-link input,
+.account-referral-claim input { min-width: 0; padding: 0 10px; }
+.account-referral-link button,
+.account-referral-claim button { padding: 0 13px; cursor: pointer; color: #80d3aa; font-weight: 750; }
+.account-referral-link button:hover,
+.account-referral-claim button:hover { border-color: rgba(63, 166, 117, .48); }
+.account-referral-link button:disabled,
+.account-referral-claim button:disabled { cursor: wait; opacity: .5; }
+.account-referral-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--ws-border); }
+.account-referral-metrics article { min-width: 0; min-height: 70px; display: grid; align-content: center; gap: 5px; padding: 11px; background: #090e16; }
+.account-referral-metrics span { color: var(--ws-dim); font: 700 8px var(--ws-mono); text-transform: uppercase; }
+.account-referral-metrics strong { overflow: hidden; font: 680 12px var(--ws-mono); text-overflow: ellipsis; white-space: nowrap; }
+.account-referral-boundary { padding: 11px 14px; border-top: 1px solid var(--ws-border); color: var(--ws-dim); font: 8px/1.5 var(--ws-mono); }
 .account-pro-panel[data-pro-state="available"] > header > strong { color: var(--ws-positive); }
 .account-pro-panel[data-pro-state="unavailable"] > header > strong { color: var(--ws-warning); }
 .account-pro-intro { display: grid; gap: 6px; padding: 16px 14px; border-bottom: 1px solid var(--ws-border); }
@@ -222,6 +255,10 @@
   .account-username-panel > p,
   .account-username-status,
   .account-security-panel > header > strong,
+  .account-referral-link label,
+  .account-referral-claim label,
+  .account-referral-metrics span,
+  .account-referral-boundary,
   .account-session-row span,
   .account-session-row button,
   .account-connection-stage > span:last-child,
@@ -234,6 +271,12 @@
   .account-session-row strong,
   .account-connection-stage strong,
   .account-connection-stage p,
+  .account-referral-intro p,
+  .account-referral-link input,
+  .account-referral-claim input,
+  .account-referral-link button,
+  .account-referral-claim button,
+  .account-referral-metrics strong,
   .account-pro-intro p,
   .account-pro-capability p,
   .account-governor-gate p,
@@ -258,6 +301,9 @@
   .account-auth-primary,
   .account-dashboard-main { padding: 30px 15px; border-right: 0; }
   .account-auth-copy h2 { font-size: 44px; }
+  .account-referral-link > div { grid-template-columns: minmax(0, 1fr) auto; }
+  .account-referral-link input { grid-column: 1 / -1; }
+  .account-referral-metrics { grid-template-columns: 1fr; }
   .account-trust-rail,
   .account-dashboard-rail { border-top: 1px solid var(--ws-border); padding: 24px 15px 88px; }
   .account-profile-head { grid-template-columns: 44px minmax(0, 1fr); }

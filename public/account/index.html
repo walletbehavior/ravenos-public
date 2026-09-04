@@ -97,6 +97,40 @@
           <span class="account-username-status" id="accountUsernameStatus" aria-live="polite"></span>
         </section>
 
+        <section class="account-security-panel account-referral-panel" id="accountReferralPanel" data-referral-state="loading">
+          <header>
+            <div><span class="workspace-label">Raven referrals</span><h3>Invite traders to Raven Pro</h3></div>
+            <strong id="accountReferralState">Checking</strong>
+          </header>
+          <div class="account-referral-intro">
+            <strong>One accountable growth loop.</strong>
+            <p id="accountReferralStatus" aria-live="polite">Checking referral access…</p>
+          </div>
+          <div class="account-referral-controls" id="accountReferralControls" hidden>
+            <div class="account-referral-link" id="accountReferralLinkStage">
+              <label for="accountReferralLink">Your referral link</label>
+              <div>
+                <input id="accountReferralLink" type="text" readonly value="Not created" />
+                <button id="accountReferralCreate" type="button">Create link</button>
+                <button id="accountReferralCopy" type="button" hidden>Copy</button>
+              </div>
+            </div>
+            <form class="account-referral-claim" id="accountReferralClaimForm" novalidate>
+              <label for="accountReferralClaimCode">Have a referral code?</label>
+              <div>
+                <input id="accountReferralClaimCode" type="text" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="15" placeholder="RVN…" />
+                <button id="accountReferralClaim" type="submit">Apply code</button>
+              </div>
+            </form>
+            <div class="account-referral-metrics" aria-label="Referral status">
+              <article><span>Referred accounts</span><strong id="accountReferralAccounts">0</strong></article>
+              <article><span>Qualified Pro</span><strong id="accountReferralQualified">0</strong></article>
+              <article><span>Rewards</span><strong id="accountReferralRewards">Not configured</strong></article>
+            </div>
+          </div>
+          <footer class="account-referral-boundary">Subscription attribution only. A referral is not an investment endorsement.</footer>
+        </section>
+
         <section class="account-security-panel">
           <header><div><span class="workspace-label">Security</span><h3>Active sessions</h3></div><strong id="accountSessionCount">1 session</strong></header>
           <div class="account-session-list" id="accountSessionList"></div>

@@ -93,6 +93,38 @@
     "execution_authority": false,
     "production_activation_completed": false
   },
+  "referrals": {
+    "implementation_status": "local_dormant_candidate_not_deployed",
+    "authenticated_surface": "https://app.ravenos.xyz/account/",
+    "routes": [
+      "GET /api/v1/referrals/me",
+      "PUT /api/v1/referrals/code",
+      "PUT /api/v1/referrals/claim"
+    ],
+    "activation_controls": [
+      "RAVENOS_REFERRALS_ENABLED",
+      "RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED"
+    ],
+    "activation_default_off": true,
+    "opaque_code_entropy_bits": 60,
+    "code_contains_username": false,
+    "attribution_requires_authenticated_user_action": true,
+    "browser_storage_state_permitted": false,
+    "attribution_append_only": true,
+    "self_referral_allowed": false,
+    "customer_claim_can_create_entitlement": false,
+    "customer_claim_can_create_credit": false,
+    "authoritative_subscription_evidence_required": true,
+    "subscription_evidence_append_only": true,
+    "reward_policy_configured": false,
+    "payouts_available": false,
+    "trade_volume_affects_reward": false,
+    "trading_performance_affects_reward": false,
+    "referral_is_investment_endorsement": false,
+    "csrf_required_for_mutations": true,
+    "execution_authority": false,
+    "production_activation_completed": false
+  },
   "session_policy": {
     "kind": "opaque_revocable_server_side",
     "cookie_name": "__Host-ravenos_session",
@@ -674,7 +706,10 @@
     "customer_position_monitoring",
     "live_wallet_copy",
     "copy_fee_collection",
-    "community_production_activation"
+    "community_production_activation",
+    "referral_production_activation",
+    "referral_reward_credit",
+    "referral_payouts"
   ],
   "legacy_quarantine": {
     "routes": [
@@ -706,7 +741,8 @@
     "docs/ravenos_operator_solana_canary_v1.md",
     "docs/ravenos_wallet_copy_v1.md",
     "docs/ravenos_shared_wallet_observer_v1.md",
-    "docs/ravenos_community_v1.md"
+    "docs/ravenos_community_v1.md",
+    "docs/ravenos_referrals_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -716,6 +752,8 @@
     { "id": "SEC-ID-001", "name": "user-selected username replaces identity-provider first and family names on customer-facing surfaces", "gate": "customer_username_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs; privacy/index.html" },
     { "id": "SEC-COM-001", "name": "community identity remains private until explicit username-backed profile opt-in", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; customer-migrations/0029_customer_community.sql" },
     { "id": "SEC-COM-002", "name": "community disclosures, following, and recognition remain owner-controlled, CSRF-bound, and public-safe", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; public no-leak validation" },
+    { "id": "SEC-REF-001", "name": "referral code and attribution remain opaque, deliberate, one-time, self-referral-safe, and CSRF-bound", "gate": "referral_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_referrals.test.mjs; tests/browser/referrals.spec.mjs; customer-migrations/0030_customer_referrals.sql" },
+    { "id": "SEC-REF-002", "name": "customer referral actions cannot create entitlement, subscription truth, earnings, credit, payout, or execution authority", "gate": "referral_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_referrals.test.mjs; docs/ravenos_referrals_v1.md; public no-leak validation" },
     { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "verified_current", "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs" },
     { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
     { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },

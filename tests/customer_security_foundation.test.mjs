@@ -45,6 +45,24 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.community.direct_messages_available, false);
   assert.equal(security.community.execution_authority, false);
   assert.equal(security.community.production_activation_completed, false);
+  assert.equal(security.referrals.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.referrals.activation_default_off, true);
+  assert.equal(security.referrals.opaque_code_entropy_bits, 60);
+  assert.equal(security.referrals.code_contains_username, false);
+  assert.equal(security.referrals.attribution_requires_authenticated_user_action, true);
+  assert.equal(security.referrals.browser_storage_state_permitted, false);
+  assert.equal(security.referrals.attribution_append_only, true);
+  assert.equal(security.referrals.self_referral_allowed, false);
+  assert.equal(security.referrals.customer_claim_can_create_entitlement, false);
+  assert.equal(security.referrals.customer_claim_can_create_credit, false);
+  assert.equal(security.referrals.authoritative_subscription_evidence_required, true);
+  assert.equal(security.referrals.reward_policy_configured, false);
+  assert.equal(security.referrals.payouts_available, false);
+  assert.equal(security.referrals.trade_volume_affects_reward, false);
+  assert.equal(security.referrals.trading_performance_affects_reward, false);
+  assert.equal(security.referrals.referral_is_investment_endorsement, false);
+  assert.equal(security.referrals.execution_authority, false);
+  assert.equal(security.referrals.production_activation_completed, false);
   for (const capability of ["account_creation", "customer_authentication", "customer_sessions"]) {
     assert(security.active_capabilities.includes(capability));
     assert(!security.blocked_capabilities.includes(capability));
@@ -212,6 +230,9 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("operator_canary_submission"));
   assert(security.blocked_capabilities.includes("community_production_activation"));
+  assert(security.blocked_capabilities.includes("referral_production_activation"));
+  assert(security.blocked_capabilities.includes("referral_reward_credit"));
+  assert(security.blocked_capabilities.includes("referral_payouts"));
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -243,7 +264,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 43);
+  assert.equal(rows.length, 45);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -252,7 +273,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-ID", "SEC-COM", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-ID", "SEC-COM", "SEC-REF", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -432,6 +453,9 @@ test("the authenticated hostname exposes only approved account and reviewed dorm
   const communityApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/community/boards"), env);
   assert.equal(communityApi.status, 503);
   assert.equal(JSON.parse(await communityApi.text()).error, "community_disabled");
+  const referralApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/referrals/me"), env);
+  assert.equal(referralApi.status, 503);
+  assert.equal(JSON.parse(await referralApi.text()).error, "referrals_disabled");
   const publicProfile = await worker.fetch(new Request("https://ravenos.xyz/@chart_witch"), env);
   assert.equal(publicProfile.status, 200);
   assert.match(publicProfile.headers.get("content-security-policy") || "", /default-src 'self'/);
@@ -513,6 +537,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 16);
+  assert.equal(security.required_documents.length, 17);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

@@ -12,6 +12,8 @@ const governorAnalyze = document.getElementById("accountGovernorAnalyze");
 const governorResults = document.getElementById("accountGovernorResults");
 const proPanel = document.getElementById("accountProPanel");
 const proCapabilities = document.getElementById("accountProCapabilities");
+const referralPanel = document.getElementById("accountReferralPanel");
+const referralControls = document.getElementById("accountReferralControls");
 const state = {
   config: null,
   session: null,
@@ -19,6 +21,8 @@ const state = {
   intent: "sign_up",
   previewWallets: [],
   entitlements: null,
+  referral: null,
+  pendingReferral: "",
   browserWallet: { chain: null, address: null, provider: null, listenersBound: false },
 };
 
@@ -139,6 +143,11 @@ function formatUnitPriceFromMinor(valueMinor, amountBaseUnits, decimals) {
 
 function readableState(value) {
   return String(value || "unknown").replaceAll("_", " ");
+}
+
+function referralCode(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return /^RVN[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{12}$/.test(normalized) ? normalized : "";
 }
 
 function setText(id, value) {
@@ -348,6 +357,120 @@ async function loadProIntelligenceCapabilities() {
     setText("accountProState", "Unavailable");
     setText("accountProStatus", "We couldn’t verify Pro access. Public Intelligence remains available.");
     proCapabilities.replaceChildren(...unavailableProCapabilities("unavailable").map((capability) => proCapabilityNode(capability)));
+  }
+}
+
+function renderReferralProgram(referral = {}) {
+  state.referral = referral;
+  const code = referralCode(referral.referral_code);
+  const attributionRecorded = referral.attribution?.state === "recorded";
+  referralPanel.dataset.referralState = attributionRecorded ? "recorded" : code ? "active" : "not_created";
+  setText("accountReferralState", attributionRecorded ? "Attributed" : code ? "Active" : "Ready");
+  setText("accountReferralStatus", attributionRecorded
+    ? "Your referral is recorded. Qualification still requires verified Raven Pro subscription evidence."
+    : code
+      ? "Your private link is ready. Rewards remain unavailable until billing and a reward policy are approved."
+      : "Create an opaque link. Raven never uses trade volume, returns, or follower losses to calculate a referral.");
+  setText("accountReferralAccounts", Number(referral.referred_accounts || 0).toLocaleString());
+  setText("accountReferralQualified", Number(referral.qualified_pro_subscriptions || 0).toLocaleString());
+  setText("accountReferralRewards", referral.economics?.reward_policy_state === "configured" ? "Configured" : "Not configured");
+  const link = document.getElementById("accountReferralLink");
+  const create = document.getElementById("accountReferralCreate");
+  const copy = document.getElementById("accountReferralCopy");
+  const claim = document.getElementById("accountReferralClaimForm");
+  link.value = code && referral.referral_url ? String(referral.referral_url) : "Not created";
+  create.hidden = Boolean(code);
+  copy.hidden = !code;
+  claim.hidden = attributionRecorded;
+  const pending = referralCode(state.pendingReferral);
+  const claimInput = document.getElementById("accountReferralClaimCode");
+  if (!claimInput.value && pending) claimInput.value = pending;
+  referralControls.hidden = false;
+}
+
+function renderReferralUnavailable(message = "Referrals are not open yet.") {
+  referralPanel.dataset.referralState = "unavailable";
+  setText("accountReferralState", "Not available");
+  setText("accountReferralStatus", message);
+  referralControls.hidden = true;
+}
+
+async function loadReferralProgram() {
+  if (!referralPanel || !referralControls) return;
+  try {
+    const { response, payload } = await getJson("/api/v1/referrals/me");
+    if (!response.ok || !payload?.referral) return renderReferralUnavailable();
+    renderReferralProgram(payload.referral);
+  } catch {
+    renderReferralUnavailable("Referral access could not be checked. Nothing was attributed.");
+  }
+}
+
+async function createReferralLink() {
+  if (!state.csrf) return renderReferralUnavailable("Refresh and sign in again before creating a link.");
+  const button = document.getElementById("accountReferralCreate");
+  button.disabled = true;
+  setText("accountReferralStatus", "Creating your private link…");
+  try {
+    const { response, payload } = await getJson("/api/v1/referrals/code", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+      body: "{}",
+    });
+    if (!response.ok || !payload?.referral) {
+      setText("accountReferralStatus", payload?.error === "username_required" ? "Choose a Raven username first." : "A referral link could not be created.");
+      return;
+    }
+    renderReferralProgram(payload.referral);
+  } catch {
+    setText("accountReferralStatus", "A referral link could not be created.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function claimReferral(event) {
+  event.preventDefault();
+  const input = document.getElementById("accountReferralClaimCode");
+  const button = document.getElementById("accountReferralClaim");
+  const code = referralCode(input.value);
+  if (!code) return setText("accountReferralStatus", "Enter a valid Raven referral code.");
+  if (!state.csrf) return setText("accountReferralStatus", "Refresh and sign in again before applying a code.");
+  button.disabled = true;
+  setText("accountReferralStatus", "Recording attribution…");
+  try {
+    const { response, payload } = await getJson("/api/v1/referrals/claim", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
+      body: JSON.stringify({ referral_code: code }),
+    });
+    if (!response.ok || !payload?.referral) {
+      const message = payload?.error === "self_referral_not_allowed" ? "You cannot use your own referral code."
+        : payload?.error === "referral_already_attributed" ? "This account already has a different referral."
+          : payload?.error === "referral_code_not_found" ? "That referral code is not active."
+            : "The referral could not be recorded.";
+      setText("accountReferralStatus", message);
+      return;
+    }
+    state.pendingReferral = "";
+    renderReferralProgram(payload.referral);
+  } catch {
+    setText("accountReferralStatus", "The referral could not be recorded.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyReferralLink() {
+  const link = document.getElementById("accountReferralLink");
+  if (!state.referral?.referral_url) return;
+  try {
+    await navigator.clipboard.writeText(state.referral.referral_url);
+    setText("accountReferralStatus", "Referral link copied.");
+  } catch {
+    link.focus();
+    link.select();
+    setText("accountReferralStatus", "Link selected. Copy it from the field.");
   }
 }
 
@@ -759,6 +882,7 @@ function renderAuthenticated(payload) {
   loadSessions();
   loadProIntelligenceCapabilities();
   loadPortfolioPreviewCapability();
+  loadReferralProgram();
 }
 
 async function saveUsername(event) {
@@ -872,12 +996,16 @@ function bindAuthForms() {
 
 async function initialize() {
   const query = new URLSearchParams(location.search);
+  const suppliedReferral = referralCode(query.get("ref"));
+  state.pendingReferral = suppliedReferral;
   const requestedIntent = query.get("intent");
   if (requestedIntent === "sign_in") state.intent = "sign_in";
   const requestedReturnTo = String(query.get("return_to") || "");
-  const safeReturnTo = /^(?:\/terminal\/|\/account\/copy\/|\/account\/intelligence\/)(?:\?[^#]*)?$/.test(requestedReturnTo)
-    ? requestedReturnTo
-    : "/account/";
+  const safeReturnTo = suppliedReferral
+    ? `/account/?ref=${encodeURIComponent(suppliedReferral)}`
+    : /^(?:\/terminal\/|\/account\/copy\/|\/account\/intelligence\/)(?:\?[^#]*)?$/.test(requestedReturnTo)
+      ? requestedReturnTo
+      : "/account/";
   document.querySelectorAll('.account-auth-actions input[name="return_to"]').forEach((input) => { input.value = safeReturnTo; });
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
@@ -885,6 +1013,9 @@ async function initialize() {
   document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));
   document.getElementById("accountConnectEvm").addEventListener("click", () => connectBrowserWallet("EVM"));
   document.getElementById("accountDisconnectWallet").addEventListener("click", () => clearBrowserWallet());
+  document.getElementById("accountReferralCreate").addEventListener("click", createReferralLink);
+  document.getElementById("accountReferralCopy").addEventListener("click", copyReferralLink);
+  document.getElementById("accountReferralClaimForm").addEventListener("submit", claimReferral);
   governorAnalyze.addEventListener("click", analyzePortfolioPreview);
   bindAuthForms();
   setIntent(state.intent);
@@ -907,7 +1038,13 @@ async function initialize() {
   if (!payload.on_authenticated_origin) return;
 
   const session = await getJson("/api/v1/auth/session");
-  if (session.response.ok && session.payload?.authenticated) renderAuthenticated(session.payload);
+  if (session.response.ok && session.payload?.authenticated) {
+    renderAuthenticated(session.payload);
+    if (query.has("ref")) {
+      query.delete("ref");
+      history.replaceState({}, "", `${location.pathname}${query.toString() ? `?${query}` : ""}`);
+    }
+  }
 }
 
 window.__RAVENOS_ACCOUNT__ = Object.freeze({
@@ -922,6 +1059,9 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
   portfolioHistoryPersisted: false,
   proEntitlementsDormantByDefault: true,
   proCheckoutAvailable: false,
+  referralAttributionRequiresUserAction: true,
+  referralClaimCreatesEntitlement: false,
+  referralRewardsAvailable: false,
   atlasDisplayRightsOverrideAvailable: false,
   signingAvailable: false,
   submissionAvailable: false,
