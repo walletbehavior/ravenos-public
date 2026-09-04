@@ -27,8 +27,9 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_username.user_selected, true);
   assert.equal(security.customer_username.globally_unique_case_insensitive, true);
   assert.equal(security.customer_username.csrf_required_for_mutations, true);
-  assert.equal(security.community.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.community.implementation_status, "production_release_authorized_pending_promotion");
   assert.equal(security.community.activation_default_off, true);
+  assert.equal(security.community.release_activation_enabled, true);
   assert.equal(security.community.public_participation_opt_in, true);
   assert.equal(security.community.username_creation_publishes_profile, false);
   assert.equal(security.community.all_disclosures_default_private, true);
@@ -45,8 +46,10 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.community.direct_messages_available, false);
   assert.equal(security.community.execution_authority, false);
   assert.equal(security.community.production_activation_completed, false);
-  assert.equal(security.referrals.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.referrals.implementation_status, "production_release_authorized_pending_promotion");
   assert.equal(security.referrals.activation_default_off, true);
+  assert.equal(security.referrals.release_activation_enabled, true);
+  assert.equal(security.referrals.billing_reconciliation_release_enabled, false);
   assert.equal(security.referrals.opaque_code_entropy_bits, 60);
   assert.equal(security.referrals.code_contains_username, false);
   assert.equal(security.referrals.attribution_requires_authenticated_user_action, true);
@@ -229,8 +232,9 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.all_activation_controls_default_off, true);
   assert.equal(security.customer_live_execution_canary.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("operator_canary_submission"));
-  assert(security.blocked_capabilities.includes("community_production_activation"));
-  assert(security.blocked_capabilities.includes("referral_production_activation"));
+  assert(security.active_capabilities.includes("community_opt_in_profiles"));
+  assert(security.active_capabilities.includes("referral_attribution"));
+  assert(security.active_capabilities.includes("wallet_screener_read_only"));
   assert(security.blocked_capabilities.includes("referral_reward_credit"));
   assert(security.blocked_capabilities.includes("referral_payouts"));
 });

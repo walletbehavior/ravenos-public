@@ -1,12 +1,12 @@
 # RavenOS Pro Wallet Intelligence and Raven Copy v1
 
-Status: local, dormant, migration-safe vertical slice
-Reviewed: 2026-09-01
-Production activation: not approved
+Status: read-only intelligence and screener release authorized; copy execution remains dormant
+Reviewed: 2026-09-04
+Production activation: Solana + Robinhood intelligence/screener only
 
 ## Product boundary
 
-Wallet Intelligence and Raven Copy are part of the existing RavenOS Pro entitlement. They do not introduce a second subscription, custody, a copy-bot wallet, or a live execution path. The first implementation supports public Solana source wallets, a bounded Raven-indexed screener, and two customer modes: Watch and Shadow. Live Raven Copy is source-level disabled.
+Wallet Intelligence and Raven Copy are part of the existing RavenOS Pro entitlement. They do not introduce a second subscription, custody, a copy-bot wallet, or a live execution path. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Watch, Shadow, live Raven Copy, background observers, and copy execution remain disabled.
 
 Raven keeps these statements distinct:
 

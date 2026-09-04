@@ -24,6 +24,12 @@ const customerSecurity = JSON.parse(readFileSync(join(repoRoot, "config/customer
 const publicHolderListsActive = customerSecurity.public_holder_lists?.production_activation_completed === true;
 const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_candidate_ready_for_activation === true
   && customerSecurity.public_holder_lists?.evm_release_activation_enabled === true;
+const communityActive = customerSecurity.community?.release_activation_enabled === true;
+const referralsActive = customerSecurity.referrals?.release_activation_enabled === true;
+const entitlementResolutionActive = customerSecurity.entitlement_foundation?.resolution_release_enabled === true;
+const walletIntelligenceActive = customerSecurity.wallet_copy?.read_only_intelligence_release_enabled === true;
+const walletScreenerActive = walletIntelligenceActive
+  && customerSecurity.wallet_copy?.read_only_screener_release_enabled === true;
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -126,6 +132,18 @@ const releaseWrangler = {
     RAVENOS_DEXCH_DISCOVERY_ENABLED: productionDexchProvider ? "1" : "0",
     RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: productionDexchProvider ? "1" : "0",
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
+    RAVENOS_COMMUNITY_ENABLED: communityActive ? "1" : "0",
+    RAVENOS_REFERRALS_ENABLED: referralsActive ? "1" : "0",
+    RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0",
+    RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: entitlementResolutionActive ? "1" : "0",
+    RAVENOS_WALLET_INTELLIGENCE_ENABLED: walletIntelligenceActive ? "1" : "0",
+    RAVENOS_WALLET_COPY_ROUTES_ENABLED: walletIntelligenceActive ? "1" : "0",
+    RAVENOS_WALLET_SCREENER_ENABLED: walletScreenerActive ? "1" : "0",
+    RAVENOS_SHADOW_COPY_ENABLED: "0",
+    RAVENOS_WALLET_OBSERVER_ENABLED: "0",
+    RAVENOS_WALLET_BACKFILL_ENABLED: "0",
+    RAVENOS_LIVE_COPY_ENABLED: "0",
+    RAVENOS_COPY_FEE_COLLECTION_ENABLED: "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
     RAVENOS_PUBLIC_EVM_HOLDERS_ENABLED: publicEvmHolderListsActive ? "1" : "0",
     RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED: baseWrangler.vars?.RAVENOS_PUBLIC_ROUTE_RESPONSE_CACHE_ENABLED === "1" ? "1" : "0",

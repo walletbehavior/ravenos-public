@@ -18,7 +18,11 @@
   "active_capabilities": [
     "account_creation",
     "customer_authentication",
-    "customer_sessions"
+    "customer_sessions",
+    "community_opt_in_profiles",
+    "referral_attribution",
+    "wallet_intelligence_read_only",
+    "wallet_screener_read_only"
   ],
   "origins": {
     "public": "https://ravenos.xyz",
@@ -53,7 +57,7 @@
     "raw_username_logged_in_security_events": false
   },
   "community": {
-    "implementation_status": "local_dormant_candidate_not_deployed",
+    "implementation_status": "production_release_authorized_pending_promotion",
     "public_surface": "https://ravenos.xyz/community/",
     "authenticated_surface": "https://app.ravenos.xyz/community/",
     "public_profile_route": "https://ravenos.xyz/@username",
@@ -70,6 +74,7 @@
     ],
     "activation_control": "RAVENOS_COMMUNITY_ENABLED",
     "activation_default_off": true,
+    "release_activation_enabled": true,
     "public_participation_opt_in": true,
     "username_creation_publishes_profile": false,
     "all_disclosures_default_private": true,
@@ -94,7 +99,7 @@
     "production_activation_completed": false
   },
   "referrals": {
-    "implementation_status": "local_dormant_candidate_not_deployed",
+    "implementation_status": "production_release_authorized_pending_promotion",
     "authenticated_surface": "https://app.ravenos.xyz/account/",
     "routes": [
       "GET /api/v1/referrals/me",
@@ -106,6 +111,8 @@
       "RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED"
     ],
     "activation_default_off": true,
+    "release_activation_enabled": true,
+    "billing_reconciliation_release_enabled": false,
     "opaque_code_entropy_bits": 60,
     "code_contains_username": false,
     "attribution_requires_authenticated_user_action": true,
@@ -239,6 +246,7 @@
       "GET /api/v1/intelligence/participants"
     ],
     "all_activation_controls_default_off": true,
+    "resolution_release_enabled": true,
     "coordinated_projection_split_required": true,
     "free_projection_limits": {
       "perps_markets": 6,
@@ -266,7 +274,7 @@
     "production_activation_completed": false
   },
   "wallet_copy": {
-    "implementation_status": "staging_dormant_shared_observer_candidate",
+    "implementation_status": "production_read_only_screener_authorized_pending_promotion",
     "surface": "https://app.ravenos.xyz/account/copy/",
     "capability": "wallet.copy",
     "routes": [
@@ -286,14 +294,17 @@
     "authenticated_origin_only": true,
     "csrf_required_for_mutations": true,
     "server_owned_pro_entitlement_required": true,
-    "supported_chains": ["solana"],
+    "supported_chains": ["solana", "robinhood"],
     "maximum_watches_per_account": 25,
     "maximum_history_transactions_per_refresh": 24,
     "maximum_new_signals_per_refresh": 3,
     "maximum_screener_page_size": 30,
     "maximum_screener_pages": 25,
-    "screener_scope": "bounded_raven_indexed_solana_wallets",
+    "screener_scope": "bounded_raven_indexed_solana_and_robinhood_wallets",
     "screener_claims_all_solana_wallets": false,
+    "read_only_intelligence_release_enabled": true,
+    "read_only_screener_release_enabled": true,
+    "shadow_copy_release_enabled": false,
     "shared_source_observation": true,
     "shared_observer_queue_implemented": true,
     "shared_observer_transport_contracts": ["rpc_poll", "geyser_grpc", "shredstream", "replay"],
@@ -706,8 +717,6 @@
     "customer_position_monitoring",
     "live_wallet_copy",
     "copy_fee_collection",
-    "community_production_activation",
-    "referral_production_activation",
     "referral_reward_credit",
     "referral_payouts"
   ],

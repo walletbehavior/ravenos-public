@@ -1,6 +1,6 @@
 # RavenOS Community v1
 
-Status: local dormant candidate. Production activation is not complete.
+Status: production release authorized; migration and promotion pending.
 
 ## Purpose
 
@@ -44,7 +44,7 @@ All profile-setting, following, and recognition mutations require an authenticat
 
 ## Activation and authority
 
-The feature requires both the customer database migration and `RAVENOS_COMMUNITY_ENABLED=1`. The flag defaults off and is intentionally absent from committed deployment configuration. Missing storage or a disabled flag fails closed. Applying the migration and activating the flag require a separate reviewed release decision.
+The feature requires both the customer database migration and `RAVENOS_COMMUNITY_ENABLED=1`. The base deployment configuration remains default-off. The immutable release packager may enable the flag only when `config/customer_security.json` contains the reviewed release authorization. Missing storage or a disabled flag fails closed.
 
 Community records grant no trading, signing, submission, policy, custody, copy-allocation, or capital authority. Allowing Raven Copy on a profile is only a public availability preference; it cannot activate Raven Copy or weaken the existing execution and policy gates.
 

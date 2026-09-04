@@ -1,6 +1,6 @@
 # RavenOS Referrals v1
 
-Status: local dormant candidate. No checkout, reward policy, credit, payout, or production activation is created by this milestone.
+Status: attribution-only production release authorized; migration and promotion pending. No checkout, reward policy, credit, payout, or billing reconciliation is enabled.
 
 ## Purpose
 
@@ -35,9 +35,9 @@ No payment credential, provider token, raw billing object, wallet address, trade
 
 ## Activation and boundaries
 
-`RAVENOS_REFERRALS_ENABLED=1` is required for the authenticated customer routes. It is absent from committed deployment configuration and defaults off. `RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED=1` is a separate future control; it does not configure reward economics or payouts.
+`RAVENOS_REFERRALS_ENABLED=1` is required for the authenticated customer routes. The base deployment configuration remains default-off; only an immutable release carrying the reviewed authorization may enable it. `RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED` remains hard-off in this release and is a separate future control.
 
-Before production activation RavenOS still needs an approved referral policy, authoritative billing integration and reconciliation, tax/payout/vendor review, abuse controls, terms and disclosure review, staged migration proof, and production acceptance. Until then the account panel says referrals are unavailable and never displays invented earnings.
+Attribution may run without a reward program. Before rewards or payouts RavenOS still needs an approved referral policy, authoritative billing reconciliation, tax/payout/vendor review, abuse controls, and terms and disclosure review. Until then the account panel never displays invented earnings.
 
 ## Security and privacy
 

@@ -209,6 +209,14 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED/);
   assert.match(source, /RAVENOS_DEXCH_DISCOVERY_ENABLED/);
   assert.match(source, /RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED/);
+  assert.match(source, /RAVENOS_COMMUNITY_ENABLED/);
+  assert.match(source, /RAVENOS_REFERRALS_ENABLED/);
+  assert.match(source, /RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE/);
+  assert.match(source, /RAVENOS_WALLET_INTELLIGENCE_ENABLED/);
+  assert.match(source, /RAVENOS_WALLET_SCREENER_ENABLED/);
+  assert.match(source, /RAVENOS_SHADOW_COPY_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_LIVE_COPY_ENABLED: "0"/);
   assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE/);

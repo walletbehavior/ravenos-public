@@ -24,8 +24,9 @@ assert.equal(config.customer_username.user_selected, true);
 assert.equal(config.customer_username.normalized_lowercase_ascii, true);
 assert.equal(config.customer_username.globally_unique_case_insensitive, true);
 assert.equal(config.customer_username.csrf_required_for_mutations, true);
-assert.equal(config.community.implementation_status, "local_dormant_candidate_not_deployed");
+assert.equal(config.community.implementation_status, "production_release_authorized_pending_promotion");
 assert.equal(config.community.activation_default_off, true);
+assert.equal(config.community.release_activation_enabled, true);
 assert.equal(config.community.public_participation_opt_in, true);
 assert.equal(config.community.username_creation_publishes_profile, false);
 assert.equal(config.community.all_disclosures_default_private, true);
@@ -44,8 +45,10 @@ assert.equal(config.community.direct_messages_available, false);
 assert.equal(config.community.csrf_required_for_mutations, true);
 assert.equal(config.community.execution_authority, false);
 assert.equal(config.community.production_activation_completed, false);
-assert.equal(config.referrals.implementation_status, "local_dormant_candidate_not_deployed");
+assert.equal(config.referrals.implementation_status, "production_release_authorized_pending_promotion");
 assert.equal(config.referrals.activation_default_off, true);
+assert.equal(config.referrals.release_activation_enabled, true);
+assert.equal(config.referrals.billing_reconciliation_release_enabled, false);
 assert.equal(config.referrals.opaque_code_entropy_bits, 60);
 assert.equal(config.referrals.code_contains_username, false);
 assert.equal(config.referrals.attribution_requires_authenticated_user_action, true);
@@ -89,8 +92,6 @@ const requiredBlockedCapabilities = new Set([
   "transaction_submission",
   "customer_position_monitoring",
   "saved_monitor_production_activation",
-  "community_production_activation",
-  "referral_production_activation",
   "referral_reward_credit",
   "referral_payouts",
 ]);
@@ -169,13 +170,18 @@ assert.equal(config.entitlement_foundation.billing_available, false);
 assert.equal(config.entitlement_foundation.shared_cache_allowed, false);
 assert.equal(config.entitlement_foundation.atlas_display_rights_override_available, false);
 assert.equal(config.entitlement_foundation.production_activation_completed, false);
-assert.equal(config.wallet_copy.implementation_status, "staging_dormant_shared_observer_candidate");
+assert.equal(config.entitlement_foundation.resolution_release_enabled, true);
+assert.equal(config.wallet_copy.implementation_status, "production_read_only_screener_authorized_pending_promotion");
 assert.equal(config.wallet_copy.surface, "https://app.ravenos.xyz/account/copy/");
 assert.equal(config.wallet_copy.capability, "wallet.copy");
 assert.equal(config.wallet_copy.authenticated_origin_only, true);
 assert.equal(config.wallet_copy.csrf_required_for_mutations, true);
 assert.equal(config.wallet_copy.server_owned_pro_entitlement_required, true);
-assert.deepEqual(config.wallet_copy.supported_chains, ["solana"]);
+assert.deepEqual(config.wallet_copy.supported_chains, ["solana", "robinhood"]);
+assert.equal(config.wallet_copy.screener_scope, "bounded_raven_indexed_solana_and_robinhood_wallets");
+assert.equal(config.wallet_copy.read_only_intelligence_release_enabled, true);
+assert.equal(config.wallet_copy.read_only_screener_release_enabled, true);
+assert.equal(config.wallet_copy.shadow_copy_release_enabled, false);
 assert.equal(config.wallet_copy.maximum_watches_per_account, 25);
 assert.equal(config.wallet_copy.maximum_history_transactions_per_refresh, 24);
 assert.equal(config.wallet_copy.maximum_new_signals_per_refresh, 3);
