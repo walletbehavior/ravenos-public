@@ -7,6 +7,7 @@ const WATCH_ID = "wcw_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
 const EVM_WALLET = `0x${"12".repeat(20)}`;
 const EVM_TOKEN = `0x${"56".repeat(20)}`;
+const EVM_TOKEN_TWO = `0x${"ab".repeat(20)}`;
 const EVM_SOURCE_ID = `sw_evm_bsc_${"b".repeat(40)}`;
 
 function researchThesis() {
@@ -108,18 +109,18 @@ function profile() {
 
 function evmProfile() {
   return {
-    schema_version: "ravenos.evm_wallet_basic_profile.v1",
+    schema_version: "ravenos.evm_wallet_basic_profile.v2",
     source_wallet: { chain: "bsc", network: "mainnet", chain_id: 56, vm_family: "evm", address: EVM_WALLET },
     coverage: { first_observed_at: "2026-09-04T12:00:00.000Z", last_observed_at: "2026-09-04T12:00:00.000Z", transactions_observed: 0, transactions_reported_by_provider: 123, normalized_events: 1, token_transfers_observed: 1, token_transfers_reported_by_provider: 456, trade_events: null, known_cost_basis_pct: null, provider_history_exhausted: false },
     source_performance: { state: "insufficient_evidence", realized_pnl_usdc: null, realized_pnl_sol: null, roi_pct: null, win_rate_pct: null, closed_lots: null, closed_observations: null, profit_factor: null, windows: null, limitations: ["Recent transfers are not classified as trades."] },
     behavior: { active_days: 1, trade_count: null, first_trade_at: null, last_trade_at: null, tokens_traded: null, token_assets_observed: 1, buy_count: null, sell_count: null, median_hold_seconds: null, trade_rate_per_active_day: null, classifications: { TRANSFER_IN: 1 } },
-    provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true, route_decode_candidate_transactions: 0, route_decode_candidate_definition: "opposing_different_token_transfers_in_one_transaction", route_decode_candidate_is_trade_claimed: false },
+    provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true, route_decode_candidate_transactions: 1, route_decode_candidate_definition: "opposing_different_token_transfers_in_one_transaction", route_decode_candidate_is_trade_claimed: false, transaction_context_candidate_limit: 3, transaction_context_candidates_requested: 1, transaction_context_candidates_available: 1, transaction_context_candidates_unavailable: 0, raven_decoded_trade_transactions: 0, copy_eligible_transactions: 0 },
     provider_balance_summary: { visible_balance_rows: 1, visible_priced_rows: 1, visible_unpriced_rows: 0, visible_provider_mark_value_usd: 2.5025, largest_visible_provider_mark_symbol: "USDC", largest_visible_provider_mark_weight_pct: 100, visible_rows_only: true, all_assets_enumerated: null, executable_value_claimed: false, portfolio_value_claimed: false },
     research_thesis: null,
     profit_quality: { state: "insufficient_evidence" },
     positions: { known_cost_open_positions: [], known_cost_open_position_count: 0, unresolved_cost_basis_event_count: 1, provider_reported_token_balances: [{ contract: EVM_TOKEN, symbol: "USDC", balance_display: "2.5", provider_mark_price_usd: 1.001, provider_mark_value_usd: 2.5025, executable_value_usd: null, cost_basis_usd: null, pnl_usd: null }] },
     capital_observations: { scope: "blockscout_indexed_snapshot", current_balance_claimed: false, native: { symbol: "BNB", amount: "1.25", observed_at: "2026-09-04T12:01:00.000Z", state: "provider_indexed" }, canonical_usdc: { amount: null, observed_at: null, state: "not_aggregated" }, provider_reported_token_count: 1 },
-    data_quality: { history_scope: "bounded_current_balances_and_recent_transfers", history_complete: false, provider_history_exhausted: false, provider: "blockscout_pro_v2", trade_decode_coverage_pct: null, classification_coverage_pct: null, cost_basis_coverage_pct: null, reconstruction_confidence_pct: null, full_data_confidence_pct: null, analysis_events: 1, analysis_scope: "recent_erc20_transfers_only" },
+    data_quality: { history_scope: "bounded_current_balances_and_recent_transfers", history_complete: false, provider_history_exhausted: false, provider: "blockscout_pro_v2", trade_decode_coverage_pct: null, transaction_context_coverage_pct: 100, classification_coverage_pct: null, cost_basis_coverage_pct: null, reconstruction_confidence_pct: null, full_data_confidence_pct: null, analysis_events: 1, analysis_scope: "recent_erc20_transfers_only" },
   };
 }
 
@@ -134,6 +135,24 @@ function evmTransfer() {
     economic: { source_asset: null, destination_asset: { contract: EVM_TOKEN, symbol: "USDC", amount_base_units: "2500000", decimals: 6 }, transaction_fee_lamports: null, cost_basis_state: "unresolved_transfer_context" },
     route_evidence: { program_ids: [], swap_route_observed: false, route_shape: "not_proven_from_transfer_index" },
     copy_signal: { eligible_buy_signal: false, eligible_sell_signal: false, reason: "erc20_transfer_is_not_a_copy_trade_signal" },
+  };
+}
+
+function evmTransactionContext() {
+  return {
+    schema_version: "ravenos.evm_transaction_context_candidate.v1",
+    transaction_reference: `0x${"78".repeat(32)}`,
+    state: "swap_shaped_context_unverified",
+    context_available: true,
+    provider_transaction: { status: "ok", method: "swapExactTokensForTokens", from: EVM_WALLET, to: `0x${"34".repeat(20)}`, wallet_is_sender: true, block_number: 1234, timestamp: "2026-09-04T12:00:00.000Z", confirmations: 24, transaction_types: ["contract_call", "token_transfer"], action_labels: [], token_transfers_overflow: false },
+    wallet_transfer_shape: {
+      inbound_assets: [{ asset_id: `eip155:56/erc20:${EVM_TOKEN}`, contract: EVM_TOKEN, symbol: "USDC", decimals: 6, amount_base_units: "2500000", amount_display: "2.5", canonical_usdc: false }],
+      outbound_assets: [{ asset_id: `eip155:56/erc20:${EVM_TOKEN_TWO}`, contract: EVM_TOKEN_TWO, symbol: "TOKEN", decimals: 18, amount_base_units: "1000000000000000000", amount_display: "1", canonical_usdc: false }],
+      inbound_asset_count: 1,
+      outbound_asset_count: 1,
+      opposing_different_assets_observed: true,
+    },
+    interpretation: { raven_trade_classification: "unresolved", provider_method_is_trade_proof: false, recognized_router_proven: false, complete_wallet_economic_delta_proven: false, trade_claimed: false, copy_signal_created: false },
   };
 }
 
@@ -578,7 +597,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       if (inspectBody.chain && inspectBody.chain !== "solana") {
         const transfer = evmTransfer();
         const activity = { ...activityPage([transfer]), scope: { on_demand_only: true, evidence_mode: "bounded_blockscout_index", provider_request_performed: true, history_complete_claimed: false, current_balance_claimed: false } };
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: EVM_SOURCE_ID, profile: evmProfile(), recent_events: [transfer], activity, prospective_copyability: null, deep_history: { state: "not_enabled", history_complete_claimed: false }, persistence: { state: "on_demand_only", saved_to_raven_index: false, copy_eligible: false } }) });
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: EVM_SOURCE_ID, profile: evmProfile(), recent_events: [transfer], activity, transaction_decode_candidates: [evmTransactionContext()], prospective_copyability: null, deep_history: { state: "not_enabled", history_complete_claimed: false }, persistence: { state: "on_demand_only", saved_to_raven_index: false, copy_eligible: false } }) });
       }
       const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory() }) });
@@ -711,6 +730,12 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Trade interpretation");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Not decoded");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Route-decode candidates");
+  await expect(page.locator("#copyEvmTransactionContext")).toBeVisible();
+  await expect(page.locator("#copyEvmContextCount")).toHaveText("1 of 1 inspected");
+  await expect(page.locator("#copyEvmContextRows")).toContainText("Provider method: swapExactTokensForTokens");
+  await expect(page.locator("#copyEvmContextRows")).toContainText("Raven trade verdict");
+  await expect(page.locator("#copyEvmContextRows")).toContainText("Unresolved");
+  await expect(page.getByRole("button", { name: "No copy signal" })).toBeDisabled();
   await expect(page.locator("#copyCapitalMetrics")).toContainText("Visible provider mark");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("$2.50");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("100.00% · USDC");
@@ -721,7 +746,7 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copySearchStatus")).toContainText("On-demand evidence ready");
   await expect(page.locator("#copyOpenPositions")).toContainText("2.5 held · $1.00 provider mark · basis unavailable");
   await expect(page.getByText("Transfer In", { exact: true })).toBeVisible();
-  await expect(page.getByText("2.5 USDC", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyRecentEvents").getByText("2.5 USDC", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Route proof pending" })).toBeDisabled();
   const inspectRequest = shared.requests.find((row) => row.path.endsWith("/inspect"));
   expect(JSON.parse(inspectRequest.body)).toEqual({ address: EVM_WALLET, chain: "bsc" });

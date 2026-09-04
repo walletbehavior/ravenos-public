@@ -112,6 +112,12 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
     route_decode_candidate_transactions: 0,
     route_decode_candidate_definition: "opposing_different_token_transfers_in_one_transaction",
     route_decode_candidate_is_trade_claimed: false,
+    transaction_context_candidate_limit: 3,
+    transaction_context_candidates_requested: 0,
+    transaction_context_candidates_available: 0,
+    transaction_context_candidates_unavailable: 0,
+    raven_decoded_trade_transactions: 0,
+    copy_eligible_transactions: 0,
   });
   assert.equal(result.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(result.profile.source_performance.roi_pct, null);
@@ -146,6 +152,19 @@ test("opposing token transfers only create a route-decode candidate, never a tra
   const source = provider();
   const original = source.fetch;
   source.fetch = async (url) => {
+    if (url.includes(`/transactions/${TX}`)) return json({
+      hash: TX,
+      status: "ok",
+      from: { hash: ADDRESS },
+      to: { hash: OTHER },
+      block_number: 1234,
+      timestamp: "2026-09-04T12:00:00.000Z",
+      confirmations: 24,
+      method: "swapExactTokensForTokens",
+      transaction_types: ["contract_call", "token_transfer"],
+      actions: [{ type: "swap", protocol: "provider-label-only" }],
+      token_transfers_overflow: false,
+    });
     if (!url.includes("/token-transfers?")) return original(url);
     return json({ items: [{
       block_hash: BLOCK,
@@ -178,8 +197,65 @@ test("opposing token transfers only create a route-decode candidate, never a tra
   });
   assert.equal(result.profile.provider_activity.route_decode_candidate_transactions, 1);
   assert.equal(result.profile.provider_activity.route_decode_candidate_is_trade_claimed, false);
+  assert.equal(result.profile.provider_activity.transaction_context_candidates_available, 1);
+  assert.equal(result.profile.provider_activity.raven_decoded_trade_transactions, 0);
+  assert.equal(result.profile.data_quality.trade_decode_coverage_pct, null);
+  assert.equal(result.profile.data_quality.transaction_context_coverage_pct, 100);
   assert.equal(result.profile.behavior.trade_count, null);
+  assert.equal(result.transaction_decode_candidates.length, 1);
+  assert.equal(result.transaction_decode_candidates[0].state, "swap_shaped_context_unverified");
+  assert.equal(result.transaction_decode_candidates[0].provider_transaction.method, "swapExactTokensForTokens");
+  assert.equal(result.transaction_decode_candidates[0].provider_transaction.wallet_is_sender, true);
+  assert.equal(result.transaction_decode_candidates[0].wallet_transfer_shape.inbound_assets[0].contract, TOKEN);
+  assert.equal(result.transaction_decode_candidates[0].wallet_transfer_shape.outbound_assets[0].contract, TOKEN_TWO);
+  assert.equal(result.transaction_decode_candidates[0].interpretation.trade_claimed, false);
+  assert.equal(result.transaction_decode_candidates[0].interpretation.copy_signal_created, false);
+  assert.equal(result.source.request_count, 5);
   assert(result.activity.events.every((event) => event.copy_signal.eligible_buy_signal === false));
+});
+
+test("transaction context failure leaves the wallet scan available and the trade unresolved", async () => {
+  const source = provider();
+  const original = source.fetch;
+  source.fetch = async (url) => {
+    if (url.includes(`/transactions/${TX}`)) return json({ error: "temporarily unavailable" }, 503);
+    if (!url.includes("/token-transfers?")) return original(url);
+    return json({ items: [{
+      block_hash: BLOCK,
+      block_number: 1234,
+      from: { hash: ADDRESS },
+      to: { hash: OTHER },
+      log_index: 7,
+      timestamp: "2026-09-04T12:00:00.000Z",
+      token: { address_hash: TOKEN, type: "ERC-20", decimals: "6", symbol: "USDC" },
+      total: { decimals: "6", value: "2500000" },
+      transaction_hash: TX,
+    }, {
+      block_hash: BLOCK,
+      block_number: 1234,
+      from: { hash: OTHER },
+      to: { hash: ADDRESS },
+      log_index: 8,
+      timestamp: "2026-09-04T12:00:00.000Z",
+      token: { address_hash: TOKEN_TWO, type: "ERC-20", decimals: "18", symbol: "TOKEN" },
+      total: { decimals: "18", value: "1000000000000000000" },
+      transaction_hash: TX,
+    }], next_page_params: null });
+  };
+  const result = await inspectEvmWallet({
+    chain: "ethereum",
+    address: ADDRESS,
+    env: { RAVENOS_EVM_WALLET_LOOKUP_ENABLED: "1", BLOCKSCOUT_API_KEY: KEY },
+    fetchImpl: source.fetch,
+    now: "2026-09-04T12:01:00.000Z",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.transaction_decode_candidates[0].state, "provider_context_unavailable");
+  assert.equal(result.transaction_decode_candidates[0].context_available, false);
+  assert.equal(result.transaction_decode_candidates[0].interpretation.raven_trade_classification, "unresolved");
+  assert.equal(result.profile.provider_activity.transaction_context_candidates_unavailable, 1);
+  assert.equal(result.profile.provider_activity.raven_decoded_trade_transactions, 0);
+  assert.equal(result.profile.behavior.trade_count, null);
 });
 
 test("lookup refuses a provider response for another wallet", async () => {

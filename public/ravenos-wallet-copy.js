@@ -348,6 +348,57 @@ function eventCard(event) {
   return card;
 }
 
+function transactionContextAssetList(rows) {
+  const assets = Array.isArray(rows) ? rows.slice(0, 4) : [];
+  return assets.length ? assets.map(exactAssetAmount).join(" · ") : "Unavailable";
+}
+
+function transactionContextCard(candidate) {
+  const card = document.createElement("article");
+  card.className = "copy-card";
+  card.dataset.transactionContextState = candidate?.state || "provider_context_unavailable";
+  const main = document.createElement("div");
+  main.className = "copy-card-main";
+  const label = document.createElement("span");
+  const title = document.createElement("strong");
+  const detail = document.createElement("p");
+  label.textContent = candidate?.context_available ? "Context loaded · trade unresolved" : "Context unavailable";
+  title.textContent = shortAddress(candidate?.transaction_reference);
+  detail.textContent = candidate?.provider_transaction?.method
+    ? `Provider method: ${candidate.provider_transaction.method}`
+    : readable(candidate?.state || "provider_context_unavailable");
+  main.append(label, title, detail);
+  const shape = candidate?.wallet_transfer_shape || {};
+  const provider = candidate?.provider_transaction || {};
+  const facts = document.createElement("dl");
+  facts.append(
+    fact("Paid shape", transactionContextAssetList(shape.outbound_assets)),
+    fact("Received shape", transactionContextAssetList(shape.inbound_assets)),
+    fact("Transaction status", readable(provider.status || "unavailable")),
+    fact("Wallet sent txn", provider.wallet_is_sender === true ? "Yes" : provider.wallet_is_sender === false ? "No" : "Unavailable"),
+    fact("Confirmations", provider.confirmations ?? "Unavailable"),
+    fact("Raven trade verdict", "Unresolved"),
+  );
+  const boundary = document.createElement("div");
+  boundary.className = "copy-watch-actions";
+  const warning = document.createElement("button");
+  warning.type = "button";
+  warning.disabled = true;
+  warning.textContent = "No copy signal";
+  warning.title = "Router or trace evidence and complete wallet net deltas are still required.";
+  boundary.append(warning);
+  card.append(main, facts, boundary);
+  return card;
+}
+
+function renderEvmTransactionContexts(profileChain, candidates) {
+  const section = document.getElementById("copyEvmTransactionContext");
+  const rows = Array.isArray(candidates) ? candidates.slice(0, 3) : [];
+  section.hidden = profileChain === "solana" || rows.length === 0;
+  setText("copyEvmContextCount", `${rows.filter((row) => row?.context_available).length} of ${rows.length} inspected`);
+  document.getElementById("copyEvmContextRows").replaceChildren(...rows.map(transactionContextCard));
+}
+
 function renderWalletActivity(activity, { append = false } = {}) {
   const incoming = Array.isArray(activity?.events) ? activity.events : [];
   const filter = String(activity?.filter || state.activity.filter || "all");
@@ -758,6 +809,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Last trade", when(profile.behavior.last_trade_at)),
   ] : [
     fact("Trades", "Not decoded"),
+    fact("Txn context", profile.provider_activity?.transaction_context_candidates_available ?? "Unavailable"),
     fact("Recent transfers", profile.coverage.token_transfers_observed ?? "Unavailable"),
     fact("Provider tx count", profile.coverage.transactions_reported_by_provider ?? "Unavailable"),
     fact("Tokens held", profile.behavior.token_assets_observed ?? "Unavailable"),
@@ -816,6 +868,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Internal movements", providerActivity.internal_movement_rows ?? "Unavailable"),
     fact("Token contracts", providerActivity.unique_token_contracts ?? "Unavailable"),
     fact("Route-decode candidates", providerActivity.route_decode_candidate_transactions ?? "Unavailable"),
+    fact("Txn context available", providerActivity.transaction_context_candidates_available ?? "Unavailable"),
     fact("Most recent", when(providerActivity.most_recent_transfer_at)),
     fact("Trade interpretation", "Not decoded"),
     fact("Economic flow", "Not claimed"),
@@ -827,6 +880,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Provider window", quality.provider_history_exhausted ? "Exhausted" : "More history may exist"),
     fact("Cost basis", pct(quality.cost_basis_coverage_pct ?? profile.coverage?.known_cost_basis_pct)),
     fact("Transaction decode", pct(quality.trade_decode_coverage_pct)),
+    fact("Txn context coverage", pct(quality.transaction_context_coverage_pct)),
     fact("Classification", pct(quality.classification_coverage_pct)),
     fact("Reconstruction", pct(quality.reconstruction_confidence_pct)),
     fact("Profile events", quality.analysis_events === null || quality.analysis_events === undefined ? "Unavailable" : compactNumber(quality.analysis_events)),
@@ -876,6 +930,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     return row;
   }) : [empty("No known-cost open positions", "Unknown inventory excluded.")]));
   renderFollowerReality();
+  renderEvmTransactionContexts(profileChain, payload.transaction_decode_candidates);
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
   if (!fromPoll || !state.events.length) {
     renderWalletActivity(payload.activity || {
