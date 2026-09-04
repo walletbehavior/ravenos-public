@@ -200,8 +200,11 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.solana_exact_transaction_review_required, true);
   assert.equal(security.customer_live_execution_canary.solana_unsigned_simulation_required, true);
   assert.equal(security.customer_live_execution_canary.solana_onchain_economic_reconciliation_required, true);
-  assert.equal(security.customer_live_execution_canary.solana_live_raven_fee_bps, 0);
-  assert.equal(security.customer_live_execution_canary.solana_fee_collection_available, false);
+  assert.equal(security.customer_live_execution_canary.solana_live_raven_fee_bps, 100);
+  assert.equal(security.customer_live_execution_canary.solana_pro_raven_fee_bps, 70);
+  assert.equal(security.customer_live_execution_canary.solana_fee_collection_available, true);
+  assert.equal(security.customer_live_execution_canary.solana_fee_quote_and_simulation_evidence_required, true);
+  assert.equal(security.customer_live_execution_canary.solana_fee_onchain_reconciliation_required, true);
   assert.equal(security.customer_live_execution_canary.evm_live_raven_fee_bps, 100);
   assert.equal(security.customer_live_execution_canary.evm_pro_raven_fee_bps, 70);
   assert.equal(security.customer_live_execution_canary.evm_fee_collection_available, true);

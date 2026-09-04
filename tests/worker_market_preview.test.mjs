@@ -374,6 +374,23 @@ test("public trade flags distinguish market preview from disabled customer execu
   assert.equal(body.flags.RAVENOS_CUSTOMER_TRADE_UI_ENABLE, false);
 });
 
+test("public trade flags expose Solana fees only when collector, referral account, and activation agree", async () => {
+  const collector = "NFDReixLdyRD5rYyVeqLWfCRwr75hhiBuKz6e3XnBRX";
+  const referral = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/flags"), {
+    RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS: collector,
+    RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT: referral,
+    RAVENOS_SOLANA_JUPITER_FEE_ENABLE: "1",
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.spot_fee_preview.enabled, true);
+  assert.equal(body.spot_fee_preview.actual_fee_bps, 100);
+  assert.equal(body.spot_fee_preview.pro_fee_bps, 70);
+  assert.equal(body.spot_fee_preview.collection_method, "jupiter_referral_program");
+  assert.equal(body.spot_fee_preview.provider_share_pct, 20);
+});
+
 test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without transaction material", async () => {
   const previousFetch = globalThis.fetch;
   const pool = "11111111111111111111111111111111";

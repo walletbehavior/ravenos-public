@@ -630,8 +630,13 @@
     "solana_exact_transaction_review_required": true,
     "solana_unsigned_simulation_required": true,
     "solana_onchain_economic_reconciliation_required": true,
-    "solana_live_raven_fee_bps": 0,
-    "solana_fee_collection_available": false,
+    "solana_live_raven_fee_bps": 100,
+    "solana_pro_raven_fee_bps": 70,
+    "solana_fee_collection_available": true,
+    "solana_fee_provider": "Jupiter Referral Program",
+    "solana_fee_provider_share_pct": 20,
+    "solana_fee_quote_and_simulation_evidence_required": true,
+    "solana_fee_onchain_reconciliation_required": true,
     "evm_live_raven_fee_bps": 100,
     "evm_pro_raven_fee_bps": 70,
     "evm_fee_collection_available": true,
@@ -665,7 +670,8 @@
     "append_only_execution_evidence": true,
     "migrations": [
       "customer-migrations/0024_customer_live_execution.sql",
-      "customer-migrations/0027_customer_evm_live_execution.sql"
+      "customer-migrations/0027_customer_evm_live_execution.sql",
+      "customer-migrations/0031_solana_jupiter_referral_fees.sql"
     ],
     "activation_controls": [
       "RAVENOS_CUSTOMER_TRADE_LIVE_ENABLE",
@@ -680,6 +686,8 @@
       "RAVENOS_HYPERLIQUID_BUILDER_FEE_ENABLE",
       "RAVENOS_HYPERLIQUID_BUILDER_ADDRESS",
       "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
+      "RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT",
+      "RAVENOS_SOLANA_JUPITER_FEE_ENABLE",
       "RAVENOS_EVM_FEE_COLLECTOR_ADDRESS",
       "RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE",
       "RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE",

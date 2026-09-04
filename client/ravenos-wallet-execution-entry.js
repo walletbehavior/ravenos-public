@@ -1,5 +1,5 @@
 import { ExchangeClient, HttpTransport } from "@nktkas/hyperliquid";
-import { VersionedTransaction } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { createWalletClient, custom, getAddress } from "viem";
 
 function executionError(code) {
@@ -44,6 +44,23 @@ function bytesBase64(value) {
   let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+function exactSolanaPublicKey(value, field) {
+  try {
+    const raw = String(value || "").trim();
+    const key = new PublicKey(raw);
+    if (key.toBase58() !== raw) throw new Error("non_canonical");
+    return raw;
+  } catch {
+    throw executionError(`${field}_invalid`);
+  }
+}
+
+function exactPositiveInteger(value, field) {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/.test(raw)) throw executionError(`${field}_invalid`);
+  return BigInt(raw);
 }
 
 async function validatedHyperliquidWallet(provider, expectedAddress) {
@@ -141,6 +158,25 @@ async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, a
     || ticket.execution_boundary?.exact_reviewed_transaction_only !== true) {
     throw executionError("live_ticket_boundary_invalid");
   }
+  const fee = ticket.fee || {};
+  const feeBps = Number(fee.fee_bps);
+  const grossFee = exactPositiveInteger(fee.gross_fee_amount_base_units, "solana_fee_gross_amount");
+  const expectedFee = exactPositiveInteger(fee.expected_amount_base_units, "solana_fee_expected_amount");
+  if (fee.enabled !== true
+    || fee.raven_fee_enabled !== true
+    || !Number.isSafeInteger(feeBps)
+    || feeBps < 50
+    || feeBps > 100
+    || Number(fee.raven_fee_bps) !== feeBps
+    || fee.collection_method !== "jupiter_referral_program"
+    || Number(fee.provider_share_bps) !== 2_000
+    || fee.reconciliation_required !== true
+    || expectedFee > grossFee) {
+    throw executionError("solana_live_ticket_fee_invalid");
+  }
+  exactSolanaPublicKey(fee.fee_token, "solana_fee_token");
+  exactSolanaPublicKey(fee.referral_account, "solana_fee_referral_account");
+  exactSolanaPublicKey(fee.collector_address, "solana_fee_collector_address");
   if (!provider?.signTransaction || !provider?.publicKey) throw executionError("solana_wallet_signing_unavailable");
   if (String(provider.publicKey) !== String(address)) throw executionError("wallet_account_identity_mismatch");
   const transaction = VersionedTransaction.deserialize(base64Bytes(unsignedTransactionBase64));

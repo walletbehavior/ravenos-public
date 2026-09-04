@@ -230,6 +230,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_BASE_LIVE_ENABLE/);
   assert.match(source, /RAVENOS_CUSTOMER_TRADE_ETHEREUM_LIVE_ENABLE/);
   assert.match(source, /RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS/);
+  assert.match(source, /RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT/);
+  assert.match(source, /RAVENOS_SOLANA_JUPITER_FEE_ENABLE/);
   assert.match(source, /RAVENOS_EVM_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE/);

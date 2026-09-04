@@ -52,6 +52,8 @@ function fixture({ now = Date.now() } = {}) {
   const walletAddress = bs58.encode(wallet.publicKey);
   const poolAddress = bs58.encode(key(8));
   const tokenAddress = bs58.encode(key(9));
+  const referralAccount = bs58.encode(key(12));
+  const collectorAddress = bs58.encode(key(13));
   const transaction = unsignedV0Transaction(Buffer.from(wallet.publicKey));
   const decoded = decodeSolanaTransaction(transaction);
   const preflight = {
@@ -81,32 +83,75 @@ function fixture({ now = Date.now() } = {}) {
       provider_request_id: "jupiter_live_fixture_1",
       router: "metis",
       message_hash: decoded.message_hash,
+      referral_account: referralAccount,
+      referral_fee_bps: 100,
+      fee_mint: SOLANA_USDC_MINT,
+      platform_fee_amount_base_units: "10000",
     },
     quote: {
       expires_at: new Date(now + 9_000).toISOString(),
       last_valid_block_height: "1000",
       total_estimated_fee_lamports: "6000",
+      fee_bps: 100,
+      platform_fee_bps: 100,
+      platform_fee_amount_base_units: "10000",
+      fee_mint: SOLANA_USDC_MINT,
+      referral_account: referralAccount,
+      referral_fee_bps: 100,
     },
     simulation: {
       native_balance_evidence: { maximum_allowed_debit_lamports: "6000" },
+      referral_fee_balance_evidence: {
+        independently_simulated: true,
+        referral_account: referralAccount,
+        fee_mint: SOLANA_USDC_MINT,
+        fee_bps: 100,
+        gross_fee_amount_base_units: "10000",
+        minimum_collector_credit_base_units: "8000",
+        observed_credit_base_units: "8000",
+      },
     },
+  };
+  const exitProof = {
+    verified: true,
+    settlement_mint: SOLANA_USDC_MINT,
+    expected_usdc_base_units: "990000",
+    minimum_usdc_base_units: "980000",
+    observed_at: new Date(now).toISOString(),
+    expires_at: new Date(now + 8_000).toISOString(),
+    provider: "jupiter",
+  };
+  const feePolicy = {
+    enabled: true,
+    provider: "jupiter",
+    fee_kind: "integrator_fee",
+    access_tier: "free",
+    fee_bps: 100,
+    fee_recipient: referralAccount,
   };
   const prepared = createSolanaLiveTicket({
     preflight,
     notional_usdc: 1,
     maximum_notional_usdc: 500,
-    fee_collector_configured: true,
-    exit_proof: {
-      verified: true,
-      settlement_mint: SOLANA_USDC_MINT,
-      expected_usdc_base_units: "990000",
-      minimum_usdc_base_units: "980000",
-      observed_at: new Date(now).toISOString(),
-      expires_at: new Date(now + 8_000).toISOString(),
-      provider: "jupiter",
-    },
+    fee_policy: feePolicy,
+    fee_collector_address: collectorAddress,
+    exit_proof: exitProof,
   }, { now, ttl_ms: 8_000 });
-  return { now, wallet, walletAddress, poolAddress, tokenAddress, transaction, decoded, prepared };
+  return {
+    now,
+    wallet,
+    walletAddress,
+    poolAddress,
+    tokenAddress,
+    referralAccount,
+    collectorAddress,
+    transaction,
+    decoded,
+    preflight,
+    exitProof,
+    feePolicy,
+    prepared,
+  };
 }
 
 function signFixture(value) {
@@ -125,6 +170,8 @@ function sqliteD1() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
   sqlite.exec(readFileSync("customer-migrations/0024_customer_live_execution.sql", "utf8"));
+  sqlite.exec(readFileSync("customer-migrations/0027_customer_evm_live_execution.sql", "utf8"));
+  sqlite.exec(readFileSync("customer-migrations/0031_solana_jupiter_referral_fees.sql", "utf8"));
   sqlite.prepare(`
     INSERT INTO ravenos_users
       (user_id, state, primary_email, created_at, updated_at, last_authenticated_at)
@@ -157,8 +204,12 @@ test("ticket exposes the exact unsigned transaction once without persisting tran
   assert.equal(value.prepared.ticket.wallet_address, value.walletAddress);
   assert.equal(value.prepared.ticket.transaction.message_hash, value.decoded.message_hash);
   assert.equal(value.prepared.unsigned_transaction_base64, value.transaction);
-  assert.equal(value.prepared.ticket.fee.raven_fee_enabled, false);
-  assert.equal(value.prepared.ticket.fee.raven_fee_bps, 0);
+  assert.equal(value.prepared.ticket.fee.raven_fee_enabled, true);
+  assert.equal(value.prepared.ticket.fee.raven_fee_bps, 100);
+  assert.equal(value.prepared.ticket.fee.expected_amount_base_units, "8000");
+  assert.equal(value.prepared.ticket.fee.estimated_raven_fee_usdc, 0.008);
+  assert.equal(value.prepared.ticket.fee.referral_account, value.referralAccount);
+  assert.equal(value.prepared.ticket.fee.collection_method, "jupiter_referral_program");
   assert.equal(value.prepared.ticket.fee.collector_configured, true);
   assert.equal(value.prepared.ticket.execution_boundary.server_signing, false);
   assert.equal(value.prepared.ticket.execution_boundary.custody, false);
@@ -234,10 +285,12 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
             preTokenBalances: [
               { owner: value.walletAddress, mint: value.tokenAddress, uiTokenAmount: { amount: "0" } },
               { owner: value.walletAddress, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "2000000" } },
+              { owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "0" } },
             ],
             postTokenBalances: [
               { owner: value.walletAddress, mint: value.tokenAddress, uiTokenAmount: { amount: "420000" } },
               { owner: value.walletAddress, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "1000000" } },
+              { owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "8000" } },
             ],
           },
         } });
@@ -251,6 +304,29 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
   assert.equal(reconciled.evidence.selected_token_delta_base_units, "420000");
   assert.equal(reconciled.evidence.usdc_delta_base_units, "-1000000");
   assert.equal(reconciled.evidence.native_debit_lamports, "6000");
+  assert.equal(reconciled.evidence.raven_fee.verified, true);
+  assert.equal(reconciled.evidence.raven_fee.observed_collector_credit_base_units, "8000");
+});
+
+test("missing or mismatched Solana fee evidence cannot create a signable ticket", () => {
+  const value = fixture();
+  assert.throws(() => createSolanaLiveTicket({
+    preflight: value.preflight,
+    notional_usdc: 1,
+    maximum_notional_usdc: 500,
+    exit_proof: value.exitProof,
+  }), /solana_live_fee_policy_required/);
+
+  const brokenPreflight = structuredClone(value.preflight);
+  brokenPreflight.simulation.referral_fee_balance_evidence.observed_credit_base_units = "7999";
+  assert.throws(() => createSolanaLiveTicket({
+    preflight: brokenPreflight,
+    notional_usdc: 1,
+    maximum_notional_usdc: 500,
+    fee_policy: value.feePolicy,
+    fee_collector_address: value.collectorAddress,
+    exit_proof: value.exitProof,
+  }), /solana_live_fee_evidence_mismatch/);
 });
 
 test("the D1 ticket is one-shot and its append-only evidence contains no transaction bytes", async () => {

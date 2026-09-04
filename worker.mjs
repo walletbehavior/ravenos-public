@@ -7586,6 +7586,7 @@ function handleTradeFlags(env = {}) {
   const spotRuntime = spotQuotePreviewRuntime(env);
   const freeJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false });
   const proJupiterFee = feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false });
+  const solanaFee = solanaFeeCollectorStatus(env);
   const robinhoodZeroX = resolveRobinhoodZeroXCapability(env);
   const bscZeroX = resolveEvmZeroXCapability(env, { profile: BSC_EVM_CHAIN_PROFILE });
   const baseZeroX = resolveEvmZeroXCapability(env, { profile: BASE_EVM_CHAIN_PROFILE });
@@ -7619,9 +7620,14 @@ function handleTradeFlags(env = {}) {
       free_fee_bps: freeJupiterFee.configured_fee_bps,
       pro_fee_bps: proJupiterFee.configured_fee_bps,
       pro_discount_pct: proJupiterFee.discount_from_free_pct,
-      actual_fee_bps: 0,
-      enabled: false,
-      disclosure_string: freeJupiterFee.disclosure_string,
+      actual_fee_bps: solanaFee.actual_fee_bps,
+      enabled: solanaFee.fee_enabled,
+      collection_method: solanaFee.collection_method,
+      provider_share_pct: 20,
+      fee_token_policy: "Jupiter-selected input or output mint",
+      disclosure_string: solanaFee.fee_enabled
+        ? "Free Raven fee: 1.00% · Pro: 0.70%. Included in the signed Jupiter order."
+        : freeJupiterFee.disclosure_string,
     },
     evm_fee_preview: {
       provider: "0x",
@@ -7704,12 +7710,35 @@ function hyperliquidBuilderFeePolicy(env = {}) {
 }
 
 function solanaFeeCollectorStatus(env = {}) {
-  const address = String(env.RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS || "").trim();
+  const collectorAddress = String(env.RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS || "").trim();
+  const referralAccount = String(env.RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT || "").trim();
+  const requested = String(env.RAVENOS_SOLANA_JUPITER_FEE_ENABLE || "") === "1";
+  const collectorConfigured = SOLANA_ADDRESS_RE.test(collectorAddress);
+  const referralConfigured = SOLANA_ADDRESS_RE.test(referralAccount);
+  const configured = collectorConfigured && referralConfigured;
   return Object.freeze({
-    configured: SOLANA_ADDRESS_RE.test(address),
-    fee_enabled: false,
-    actual_fee_bps: 0,
-    collection_method: "none",
+    configured,
+    collector_configured: collectorConfigured,
+    referral_configured: referralConfigured,
+    collector_address: collectorConfigured ? collectorAddress : null,
+    referral_account: referralConfigured ? referralAccount : null,
+    fee_enabled: requested && configured,
+    actual_fee_bps: requested && configured ? 100 : 0,
+    collection_method: requested && configured ? "jupiter_referral_program" : "none",
+    unavailable_reason: requested
+      ? configured ? null : !collectorConfigured ? "collector_not_configured" : "jupiter_referral_account_not_configured"
+      : "fee_collection_not_activated",
+  });
+}
+
+function solanaLiveFeePolicy(env = {}, accessTier = "free") {
+  const status = solanaFeeCollectorStatus(env);
+  return feePolicyFor({
+    provider: "jupiter",
+    trade_type: "spot",
+    access_tier: accessTier === "pro" ? "pro" : "free",
+    fee_recipient: status.referral_account || "",
+    enabled: status.fee_enabled,
   });
 }
 
@@ -8241,7 +8270,7 @@ function exactSolanaTerminalUrl({ poolAddress, tokenAddress, quoteAddress }) {
   return url.toString();
 }
 
-async function loadCurrentSolanaLivePreparation(body = {}, env = {}) {
+async function loadCurrentSolanaLivePreparation(body = {}, env = {}, { access_tier: accessTier = "free" } = {}) {
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available) throw Object.assign(new Error("solana_live_rpc_unavailable"), { code: "solana_live_rpc_unavailable" });
   const poolAddress = String(body?.pool_address || "").trim();
@@ -8260,6 +8289,14 @@ async function loadCurrentSolanaLivePreparation(body = {}, env = {}) {
   }
   const side = String(body?.side || "").trim().toLowerCase();
   if (!new Set(["buy", "sell"]).has(side)) throw Object.assign(new Error("side_invalid"), { code: "side_invalid" });
+  const feeStatus = solanaFeeCollectorStatus(env);
+  const feePolicy = solanaLiveFeePolicy(env, accessTier);
+  if (!feeStatus.fee_enabled || !feePolicy.enabled) {
+    throw Object.assign(new Error("solana_live_fee_configuration_required"), {
+      code: "solana_live_fee_configuration_required",
+      details: { reason: feeStatus.unavailable_reason || feePolicy.unavailable_reason },
+    });
+  }
   const exactRows = await pairDex("solana", poolAddress, tokenAddress);
   const exact = exactRows.find((row) => (
     sameOnchainAddress("solana", row?.pairAddress, poolAddress)
@@ -8346,6 +8383,8 @@ async function loadCurrentSolanaLivePreparation(body = {}, env = {}) {
     amount_base_units: intent.amount.exact_input_amount_base_units,
     slippage_bps: controls.slippage_bps,
     priority_fee_lamports: controls.priority.requested_max_lamports ?? controls.priority.enforced_max_lamports,
+    referral_account: feePolicy.fee_recipient,
+    referral_fee_bps: feePolicy.fee_bps,
   }, {
     rpc_url: runtime.rpc_url,
     jupiter_api_key: String(env.JUPITER_API_KEY || ""),
@@ -8381,7 +8420,8 @@ async function loadCurrentSolanaLivePreparation(body = {}, env = {}) {
     notional_usdc: notionalUsdc,
     maximum_notional_usdc: boundedLiveNotional(env),
     exit_proof: exitProof,
-    fee_collector_configured: solanaFeeCollectorStatus(env).configured,
+    fee_policy: feePolicy,
+    fee_collector_address: feeStatus.collector_address,
   });
 }
 
@@ -8457,13 +8497,15 @@ async function handleTradeLiveSession(request, env = {}) {
       unavailable_reason: feePolicy.unavailable_reason,
     },
     solana_fee: {
-      enabled: false,
+      enabled: solanaFee.fee_enabled,
       configuration_ready: solanaFee.configured,
-      fee_bps: 0,
+      fee_bps: solanaFee.actual_fee_bps,
       configured_fee_bps: feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "free", enabled: false }).configured_fee_bps,
-      fee_token: "USDC",
-      collection_method: "none",
-      unavailable_reason: solanaFee.configured ? "fee_collection_not_activated" : "collector_not_configured",
+      pro_fee_bps: feePolicyFor({ provider: "jupiter", trade_type: "spot", access_tier: "pro", enabled: false }).configured_fee_bps,
+      fee_token: "Jupiter-selected input or output mint",
+      collection_method: solanaFee.collection_method,
+      provider_share_pct: 20,
+      unavailable_reason: solanaFee.unavailable_reason,
     },
     evm_fee: {
       enabled: evmFee.fee_enabled,
@@ -8803,7 +8845,7 @@ async function handleTradeLiveSolanaPrepare(request, env = {}) {
     return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
   }
   try {
-    const prepared = await loadCurrentSolanaLivePreparation(body, env);
+    const prepared = await loadCurrentSolanaLivePreparation(body, env, { access_tier: "free" });
     await createD1SolanaLiveExecutionStore(env.RAVENOS_CUSTOMER_DB).createTicket({
       ticket: prepared.ticket,
       user_id: authorization.principal.user_id,

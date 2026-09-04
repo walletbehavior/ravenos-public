@@ -167,12 +167,20 @@ function runtime({
   simulationFee = 6_000,
   dynamicCount = 1,
   routePlan = null,
+  referralAccount = null,
+  referralFeeBps = 100,
+  providerReferralAccount = referralAccount,
+  providerReferralFeeBps = referralFeeBps,
+  platformFeeAmount = "10000",
+  referralPreBalance = 0,
+  referralPostBalance = 8_000,
 } = {}) {
   const wallet = bs58.encode(key(11));
   const context = exactContext();
   const hasWrappedState = preWrappedBalance !== null || postWrappedBalance !== null;
   const usesUsdc = (side === "buy" ? fundingKind : settlementKind) === "canonical_usdc";
-  const resolvedDynamicCount = Math.max(dynamicCount, 1 + Number(hasWrappedState) + Number(usesUsdc));
+  const hasReferral = Boolean(referralAccount);
+  const resolvedDynamicCount = Math.max(dynamicCount, 1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral));
   const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount);
   const inputMint = side === "buy"
     ? fundingKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT
@@ -222,6 +230,8 @@ function runtime({
       assert.equal(target.searchParams.get("broadcastFeeType"), "maxCap");
       assert.equal(target.searchParams.get("excludeRouters"), "jupiterz,dflow,okx");
       assert.equal(target.searchParams.get("excludeDexes"), "Hadron,ZeroFi");
+      assert.equal(target.searchParams.get("referralAccount"), referralAccount);
+      assert.equal(target.searchParams.get("referralFee"), hasReferral ? String(referralFeeBps) : null);
       return response({
         requestId: "canary_request_1",
         inputMint,
@@ -235,9 +245,14 @@ function runtime({
         slippageBps: 50,
         gasless: false,
         taker: wallet,
-        feeBps: 10,
-        platformFee: { feeBps: 10, feeMint: inputMint },
+        feeBps: hasReferral ? providerReferralFeeBps : 10,
+        platformFee: {
+          feeBps: hasReferral ? providerReferralFeeBps : 10,
+          feeMint: inputMint,
+          amount: hasReferral ? platformFeeAmount : "0",
+        },
         feeMint: inputMint,
+        ...(providerReferralAccount ? { referralAccount: providerReferralAccount } : {}),
         priceImpact,
         priceImpactPct: String(priceImpact / 100),
         signatureFeeLamports: signatureFee,
@@ -309,7 +324,8 @@ function runtime({
             ? [preWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, preWrappedBalance, preWrappedAccountLamports)]
             : []),
           ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, authoritativePreUsdcBalance)] : []),
-          ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc)).map(() => null),
+          ...(hasReferral ? [tokenAccount(inputMint, referralAccount, referralPreBalance)] : []),
+          ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
         ],
       } });
     }
@@ -341,7 +357,8 @@ function runtime({
               ? [postWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, postWrappedBalance, postWrappedAccountLamports)]
               : []),
             ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, simulatedPostUsdcBalance)] : []),
-            ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc)).map(() => null),
+            ...(hasReferral ? [tokenAccount(inputMint, referralAccount, referralPostBalance)] : []),
+            ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
           ],
           innerInstructions: [{ index: 0, instructions: [] }],
           replacementBlockhash: null,
@@ -452,6 +469,49 @@ test("customer preflight returns only the exact reviewed unsigned transaction an
   assert.equal(usdcResult.simulation.canonical_usdc_balance_evidence.direction, "debit");
   assert.equal(usdcResult.simulation.canonical_usdc_balance_evidence.delta_amount_base_units, "1000000");
   assert.equal(usdcResult.simulation.native_balance_evidence.direction, "network_fee_only");
+});
+
+test("customer preflight binds and independently simulates the exact Jupiter referral fee", async () => {
+  const referralAccount = bs58.encode(key(44));
+  const value = runtime({
+    fundingKind: "canonical_usdc",
+    referralAccount,
+  });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, {
+    wallet_role: "customer",
+    funding_kind: "canonical_usdc",
+    settlement_kind: "canonical_usdc",
+    referral_account: referralAccount,
+    referral_fee_bps: 100,
+  }), {
+    rpc_url: "https://rpc.example",
+    jupiter_api_key: "fixture-key",
+    fetch_impl: value.fetchImpl,
+    now: () => Date.parse("2026-08-27T15:00:00Z"),
+  });
+  assert.equal(result.quote.referral_account, referralAccount);
+  assert.equal(result.quote.referral_fee_bps, 100);
+  assert.equal(result.quote.platform_fee_amount_base_units, "10000");
+  assert.equal(result.simulation.referral_fee_balance_evidence.independently_simulated, true);
+  assert.equal(result.simulation.referral_fee_balance_evidence.minimum_collector_credit_base_units, "8000");
+  assert.equal(result.simulation.referral_fee_balance_evidence.observed_credit_base_units, "8000");
+
+  const mismatch = runtime({
+    fundingKind: "canonical_usdc",
+    referralAccount,
+    providerReferralFeeBps: 70,
+  });
+  await assert.rejects(() => runCustomerSolanaLivePreflight(requestFor(mismatch, {
+    wallet_role: "customer",
+    funding_kind: "canonical_usdc",
+    settlement_kind: "canonical_usdc",
+    referral_account: referralAccount,
+    referral_fee_bps: 100,
+  }), {
+    rpc_url: "https://rpc.example",
+    jupiter_api_key: "fixture-key",
+    fetch_impl: mismatch.fetchImpl,
+  }), /jupiter_referral_fee_not_applied/);
 });
 
 test("unknown programs and failed simulations fail closed while signing material is rejected before network access", async () => {

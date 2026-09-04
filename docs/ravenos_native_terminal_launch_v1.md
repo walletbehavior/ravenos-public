@@ -1,6 +1,6 @@
 # RavenOS native terminal launch v1
 
-Status: market review is public; wallet-signed Hyperliquid and Solana execution is restricted to an authenticated owner canary. Raven signing, custody, arbitrary submission, and agentic live execution remain disabled.
+Status: market review and authenticated wallet-signed manual execution are public on the enabled venue lanes. Raven signing, custody, arbitrary submission, and agentic live execution remain disabled.
 
 ## Owner-canary execution boundary
 
@@ -10,7 +10,7 @@ Hyperliquid uses a short-lived, exact-market order ticket and direct wallet subm
 
 The Solana canary supports native SOL or canonical Solana USDC funding and native SOL or canonical USDC settlement. Autonomous bridging is not included. A balance on another chain is not available Solana capital.
 
-Raven's live Solana execution fee is 0 bps. A public chain-local collector may be configured for readiness, but no fee instruction or transfer is inserted until a separately reviewed provider-native collection method is activated.
+Raven's Solana execution fee uses Jupiter's provider-native Referral Program: 1.00% for Free and 0.70% for Pro. Jupiter currently retains 20% of the configured integrator fee. RavenOS requires the exact referral account, basis points, fee mint, nonzero platform fee, independently simulated referral-account credit, and post-transaction onchain credit before reporting collection. If that evidence is absent or differs, the order is not signable or is reconciled as indeterminate.
 
 One public EVM collector may be configured across supported EVM networks because the address format is shared, while each network's receipts and balances remain separately reconciled. EVM trading and fee collection are not activated by configuring that address.
 
@@ -21,8 +21,10 @@ Activation is controlled by:
 - `RAVENOS_CUSTOMER_TRADE_LIVE_USERS`
 - `RAVENOS_CUSTOMER_TRADE_HYPERLIQUID_LIVE_ENABLE`
 - `RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE`
-- `RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS` (public address only; collection remains disabled)
-- `RAVENOS_EVM_FEE_COLLECTOR_ADDRESS` (public address only; chain-local accounting; collection remains disabled)
+- `RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS` (public withdrawal destination only)
+- `RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT` (public Jupiter referral-account address)
+- `RAVENOS_SOLANA_JUPITER_FEE_ENABLE`
+- `RAVENOS_EVM_FEE_COLLECTOR_ADDRESS` (public address only; chain-local accounting)
 
 The initial canary must not use a wildcard user allowlist.
 
