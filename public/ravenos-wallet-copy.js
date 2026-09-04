@@ -45,7 +45,7 @@ function shortAddress(value) {
 }
 
 function chainLabel(chain) {
-  return chain === "robinhood" ? "Robinhood Chain" : "Solana";
+  return chain === "all" ? "All indexed chains" : chain === "robinhood" ? "Robinhood Chain" : "Solana";
 }
 
 function money(value) {
@@ -1048,7 +1048,7 @@ function syncScreenerUrl() {
 function hydrateScreenerFromUrl() {
   const params = new URL(location.href).searchParams;
   const chain = params.get("chain");
-  if (new Set(["solana", "robinhood"]).has(chain)) state.screener.chain = chain;
+  if (new Set(["all", "solana", "robinhood"]).has(chain)) state.screener.chain = chain;
   const preset = params.get("screen");
   if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
   const mappings = {
@@ -1233,13 +1233,17 @@ function renderScreener(payload) {
   setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
   setText("copyScreenerStatus", wallets.length
     ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · source ≠ follower`
-    : state.screener.chain === "robinhood"
+    : state.screener.chain === "all"
+      ? "No indexed match on a supported chain."
+      : state.screener.chain === "robinhood"
       ? "No indexed Robinhood match."
       : "No indexed Solana match.");
   const host = document.getElementById("copyScreenerResults");
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "robinhood"
-    ? "Index forming. Unavailable ≠ zero."
-    : "Adjust filters or inspect an address.")]));
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "all"
+    ? "Both supported indexes were checked. Unavailable ≠ zero."
+    : state.screener.chain === "robinhood"
+      ? "Index forming. Unavailable ≠ zero."
+      : "Adjust filters or inspect an address.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1415,7 +1419,7 @@ document.querySelectorAll("[data-screen-preset]").forEach((button) => button.add
 }));
 document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addEventListener("click", async () => {
   const chain = button.dataset.screenChain;
-  if (!new Set(["solana", "robinhood"]).has(chain) || chain === state.screener.chain) return;
+  if (!new Set(["all", "solana", "robinhood"]).has(chain) || chain === state.screener.chain) return;
   state.screener.chain = chain;
   state.screener.page = 1;
   document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));

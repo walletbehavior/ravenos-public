@@ -84,6 +84,8 @@ Every field maps to a fixed server-owned SQL column. Client input cannot provide
 
 The URL stores bounded filter state for reload/share continuity. The server remains authoritative.
 
+The chain rail also supports `ALL`, which runs one deterministic query across the currently supported Raven wallet indexes: Solana and Robinhood Chain. It does not imply broader chain coverage, link the same address across chains, or combine incompatible settlement bases. Every returned row retains its exact chain, network, chain ID, VM family, and address.
+
 Prospective follower evidence also supports filters and deterministic sorts for entry availability, reverse-exit availability, policy-pass rate, round-trip friction, detected market cap, detected liquidity, selected-pair age, source trade size as a share of detected liquidity, +1h route persistence, net follower return, and alpha retained. These market dimensions come from one exact-token observation per source signal, not one observation per follower-size quote. They are labeled “At Raven detection” in the interface. Raven does not claim the selected market was the source wallet's route, does not relabel pair age as token age, and does not reconstruct a historical fill from current state.
 
 Migration `0018_source_wallet_detection_market_context.sql` extends only the rebuildable current copyability projection. Append-only prospective observations remain the evidence source; missing observations stay unavailable rather than becoming zero. The projection is bound to the same exact fee and policy-matrix reference as the current $100 follower comparison.

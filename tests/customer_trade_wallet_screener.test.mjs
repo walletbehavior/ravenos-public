@@ -5,6 +5,7 @@ import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs
 
 import {
   WALLET_SCREENER_SCHEMA,
+  WalletScreenerChainScopes,
   WalletScreenerLimits,
   WalletScreenerOperators,
   WalletScreenerPerformanceStates,
@@ -124,6 +125,34 @@ test("all supported filters, sort, and pagination normalize for deterministic D1
   assert.equal(query.sort, "roi_desc");
   assert.equal(query.offset, 90);
   assert.equal(query.page_size, 30);
+});
+
+test("all-chain scope combines only currently supported wallet indexes", async () => {
+  assert.deepEqual(WalletScreenerChainScopes, ["all", "solana", "robinhood"]);
+  const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
+  const query = normalizeWalletScreenerRequest({ chain: "all", page_size: 12 }, { now: NOW, copyability_reference: reference });
+  assert.equal(query.scope, "raven_indexed_supported_wallets");
+  const calls = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...bindings) {
+          calls.push({ sql, bindings });
+          return {
+            async first() { return { count: 0 }; },
+            async all() { return { results: [] }; },
+          };
+        },
+      };
+    },
+  };
+  await createD1CustomerWalletCopyStore(db).screenSourceWallets(query);
+  assert.match(calls[0].sql, /s\.chain IN \('solana', 'robinhood'\)/);
+  assert.doesNotMatch(calls[0].sql, /s\.chain = \?/);
+  assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, "mainnet"]);
+  const response = buildWalletScreenerResponse({ query, rows: [], total: 0, now: NOW });
+  assert.deepEqual(response.scope.chains, ["solana", "robinhood"]);
+  assert.match(response.limitations[0], /not every wallet on either chain/i);
 });
 
 test("composable clauses and transparent presets normalize without accepting SQL-shaped input", () => {
@@ -321,6 +350,7 @@ test("Robinhood Chain uses the same bounded filter engine without inheriting Sol
     closed_lots: 0,
   })], total: 1, now: NOW });
   assert.equal(response.scope.chain, "robinhood");
+  assert.deepEqual(response.scope.chains, ["robinhood"]);
   assert.match(response.limitations[0], /Robinhood Chain/);
 });
 

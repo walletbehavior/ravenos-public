@@ -481,7 +481,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         ok: true,
         state: robinhood ? "empty" : "available",
-        scope: { chain: robinhood ? "robinhood" : "solana", claim: "bounded_raven_index_only", comprehensive_chain_index: false },
+        scope: { chain: screenerBody.chain || "solana", chains: screenerBody.chain === "all" ? ["solana", "robinhood"] : [screenerBody.chain || "solana"], claim: "bounded_raven_index_only", comprehensive_chain_index: false },
         rows: robinhood ? [] : [screenedWallet()],
         pagination: { page: 1, page_size: 12, total_matching_rows: robinhood ? 0 : 1, total_pages: robinhood ? 0 : 1, has_previous: false, has_next: false },
       }) });
@@ -718,6 +718,18 @@ test("wallet screener switches to a bounded Robinhood index without turning unav
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "robinhood", network: "mainnet" });
   expect(new URL(page.url()).searchParams.get("chain")).toBe("robinhood");
+});
+
+test("wallet screener can query all supported indexes without merging wallet identity", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.goto("/account/copy/");
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  await expect(page.locator("#copyScreenerStatus")).toContainText("All indexed chains");
+  await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
+  const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
+  expect(JSON.parse(request.body)).toMatchObject({ chain: "all", network: "mainnet" });
+  expect(new URL(page.url()).searchParams.get("chain")).toBe("all");
 });
 
 test("mobile wallet screener keeps filters, source evidence, and analysis controls contained", async ({ page }) => {
