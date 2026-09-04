@@ -155,6 +155,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-screener-card-actions button:first-child { border-color: var(--copy-line-strong); background: transparent; color: var(--copy-muted); }
 .copy-screener-pages { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid var(--copy-line); }
 .copy-screener-pages span { color: var(--copy-muted); font: 800 8px var(--copy-mono); text-transform: uppercase; }
+.copy-rh-intelligence { border-top: 1px solid var(--copy-line); border-bottom: 1px solid var(--copy-line); background: var(--copy-panel); }
+.copy-rh-intelligence > header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; }
+.copy-rh-intelligence > header > div { display: grid; gap: 4px; }
+.copy-rh-intelligence > header span, .copy-rh-grid article > header span { color: var(--copy-green); font: 800 8px var(--copy-mono); letter-spacing: .05em; text-transform: uppercase; }
+.copy-rh-intelligence > header strong, .copy-rh-grid article > header strong { color: var(--copy-text); font-size: 13px; }
+.copy-rh-intelligence > header p { margin: 0; color: var(--copy-muted); font: 8px var(--copy-mono); }
+.copy-rh-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--copy-line); }
+.copy-rh-grid > article { min-width: 0; padding: 14px 18px; background: var(--copy-panel-2); }
+.copy-rh-grid article > header { display: grid; gap: 4px; margin-bottom: 12px; }
+.copy-rh-list { display: grid; gap: 1px; background: var(--copy-line); }
+.copy-rh-row { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; background: #060b11; }
+.copy-rh-row > span { color: var(--copy-soft); font: 800 7px var(--copy-mono); text-transform: uppercase; }
+.copy-rh-row[data-action="buy"] > span { color: var(--copy-green); }
+.copy-rh-row[data-action="sell"] > span { color: var(--copy-red); }
+.copy-rh-row > div { min-width: 0; display: grid; gap: 2px; }
+.copy-rh-row strong { overflow: hidden; color: var(--copy-text); font: 750 9px var(--copy-mono); text-overflow: ellipsis; white-space: nowrap; }
+.copy-rh-row small { overflow: hidden; color: var(--copy-muted); font: 7px var(--copy-mono); text-overflow: ellipsis; white-space: nowrap; }
+.copy-rh-row button, .copy-rh-row a { border: 0; padding: 0; background: transparent; color: var(--copy-green); cursor: pointer; font: 800 7px var(--copy-mono); text-decoration: none; text-transform: uppercase; }
+.copy-rh-intelligence > footer { padding: 9px 18px; color: var(--copy-soft); font: 7px var(--copy-mono); }
 
 .copy-profile, .copy-policy { border-top: 1px solid var(--copy-line-strong); }
 .copy-profile > header, .copy-policy > header, .copy-section-head { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 20px; border-bottom: 1px solid var(--copy-line); background: linear-gradient(100deg, rgba(111, 218, 166, .04), transparent 50%), var(--copy-panel); }
@@ -346,6 +365,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-screener-card { grid-template-columns: minmax(200px, .7fr) minmax(0, 1.3fr); }
   .copy-screener-why { border-left: 0; padding-left: 0; }
   .copy-screener-card > .copy-screener-card-actions { grid-column: 1 / -1; flex-direction: row; }
+  .copy-rh-grid { grid-template-columns: 1fr; }
   #copyRecentEvents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .copy-card { grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr); }
   .copy-research-grid dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -391,6 +411,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-screener-card dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .copy-screener-card dl > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .copy-screener-card > .copy-screener-card-actions { grid-column: auto; }
+  .copy-rh-intelligence > header { align-items: flex-start; flex-direction: column; }
   .copy-profile > header, .copy-policy > header, .copy-section-head { align-items: flex-start; flex-direction: column; gap: 11px; padding: 14px; }
   .copy-profile > header > .copy-profile-actions { width: 100%; }
   .copy-history-state { grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; }

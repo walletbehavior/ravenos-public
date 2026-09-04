@@ -28,6 +28,7 @@ const state = {
   copyability: [],
   saved: [],
   screener: { chain: "solana", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
+  robinhood_intelligence: { activity: [], clusters: [], relationships: [] },
 };
 
 const FREE_SCREENER_SORTS = new Set(["last_trade_desc", "trade_count_desc", "active_days_desc"]);
@@ -73,6 +74,18 @@ function shortAddress(value) {
 
 function chainLabel(chain) {
   return chain === "all" ? "All indexed chains" : chain === "robinhood" ? "Robinhood Chain" : "Solana";
+}
+
+function robinhoodTerminalHref(tokenAddress) {
+  const address = String(tokenAddress || "").trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(address)) return null;
+  const url = new URL("/terminal/", location.origin);
+  url.searchParams.set("chain", "robinhood");
+  url.searchParams.set("chain_id", "4663");
+  url.searchParams.set("market", "spot");
+  url.searchParams.set("token_address", address);
+  url.searchParams.set("asset", address);
+  return `${url.pathname}${url.search}`;
 }
 
 function money(value) {
@@ -1198,6 +1211,125 @@ async function saveResearchWallet(sourceWalletId, label, button) {
   if (result.response.ok) await loadSavedResearch();
 }
 
+function robinhoodActivityRow(event) {
+  const row = document.createElement("div");
+  row.className = "copy-rh-row";
+  row.dataset.action = event.action || "swap";
+  const action = document.createElement("span");
+  const identity = document.createElement("div");
+  const token = document.createElement("strong");
+  const detail = document.createElement("small");
+  const save = document.createElement("button");
+  action.textContent = String(event.action || "swap").toUpperCase();
+  token.textContent = event.token?.symbol || shortAddress(event.token?.contract || event.token?.asset_id);
+  const confirmed = event.chain_evidence?.independently_confirmed ? "confirmed" : "single source";
+  detail.textContent = `${shortAddress(event.trader?.address)} · ${when(event.observed_at)} · ${confirmed}`;
+  save.type = "button";
+  save.textContent = "Watch";
+  save.addEventListener("click", () => saveResearchWallet(event.trader?.source_wallet_id, shortAddress(event.trader?.address), save));
+  identity.append(token, detail);
+  row.append(action, identity, save);
+  return row;
+}
+
+function robinhoodClusterRow(cluster) {
+  const row = document.createElement("div");
+  row.className = "copy-rh-row";
+  row.dataset.action = "buy";
+  const count = document.createElement("span");
+  const identity = document.createElement("div");
+  const token = document.createElement("strong");
+  const detail = document.createElement("small");
+  count.textContent = `${cluster.qualifying_wallet_count || 0} wallets`;
+  token.textContent = cluster.token?.symbol || shortAddress(cluster.token?.contract || cluster.token?.asset_id);
+  detail.textContent = `Latest ${when(cluster.latest_entry_at)} · coordination not claimed`;
+  identity.append(token, detail);
+  const href = robinhoodTerminalHref(cluster.token?.contract);
+  const action = href ? document.createElement("a") : document.createElement("span");
+  if (href) {
+    action.href = href;
+    action.textContent = "Terminal";
+  } else action.textContent = "No route";
+  row.append(count, identity, action);
+  return row;
+}
+
+function robinhoodRelationshipRow(relationship) {
+  const row = document.createElement("div");
+  row.className = "copy-rh-row";
+  const rate = document.createElement("span");
+  const identity = document.createElement("div");
+  const wallets = document.createElement("strong");
+  const detail = document.createElement("small");
+  const save = document.createElement("button");
+  rate.textContent = `${Number(relationship.lead_rate_pct || 0).toFixed(0)}%`;
+  wallets.textContent = `${shortAddress(relationship.leading_wallet)} → ${shortAddress(relationship.following_wallet)}`;
+  detail.textContent = `${relationship.independent_token_sample || 0} tokens · median ${humanDuration(relationship.median_lead_seconds)}`;
+  save.type = "button";
+  save.textContent = "Research";
+  save.addEventListener("click", () => {
+    const input = document.getElementById("copyWalletAddress");
+    input.value = relationship.leading_wallet || "";
+    input.focus();
+  });
+  identity.append(wallets, detail);
+  row.append(rate, identity, save);
+  return row;
+}
+
+function renderRobinhoodIntelligence() {
+  const section = document.getElementById("copyRobinhoodIntelligence");
+  const visible = state.screener.chain === "robinhood";
+  section.hidden = !visible;
+  if (!visible) return;
+  const activity = state.robinhood_intelligence.activity;
+  const clusters = state.robinhood_intelligence.clusters;
+  const relationships = state.robinhood_intelligence.relationships;
+  const render = (id, rows, mapper, headline, detail) => {
+    const host = document.getElementById(id);
+    if (!rows.length) {
+      host.replaceChildren(empty(headline, detail));
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "copy-rh-list";
+    list.append(...rows.map(mapper));
+    host.replaceChildren(list);
+  };
+  render("copyRhActivity", activity, robinhoodActivityRow, "No qualifying activity", "The bounded RH index has no matching event in this window.");
+  render("copyRhClusters", clusters, robinhoodClusterRow, "No cluster yet", "Distinct-wallet entries will appear here.");
+  if (state.access.advanced_wallet_intelligence) {
+    render("copyRhRelationships", relationships, robinhoodRelationshipRow, "Not enough repeated ordering", "Lead / lag needs at least two independent shared tokens.");
+  }
+  setText("copyRhStatus", activity.length
+    ? `${activity.length} recent normalized events · indexed wallets only`
+    : "RH index is available; qualifying activity is forming.");
+}
+
+async function loadRobinhoodIntelligence() {
+  const section = document.getElementById("copyRobinhoodIntelligence");
+  if (state.screener.chain !== "robinhood") {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  setText("copyRhStatus", "Loading indexed RH activity…");
+  const requests = [
+    api(`${API}/robinhood/activity?hours=24&limit=12&action=all`),
+    api(`${API}/robinhood/clusters?hours=24&limit=100&min_wallets=2`),
+    state.access.advanced_wallet_intelligence
+      ? api(`${API}/robinhood/relationships?hours=720&limit=100&min_shared_entries=2&maximum_lag_seconds=3600`)
+      : Promise.resolve({ response: { ok: false }, payload: {} }),
+  ];
+  const [activity, clusters, relationships] = await Promise.all(requests);
+  state.robinhood_intelligence = {
+    activity: activity.response.ok && Array.isArray(activity.payload?.events) ? activity.payload.events : [],
+    clusters: clusters.response.ok && Array.isArray(clusters.payload?.clusters) ? clusters.payload.clusters : [],
+    relationships: relationships.response.ok && Array.isArray(relationships.payload?.relationships) ? relationships.payload.relationships : [],
+  };
+  renderRobinhoodIntelligence();
+}
+
 function screenerCard(wallet) {
   const card = document.createElement("article");
   card.className = "copy-screener-card";
@@ -1438,7 +1570,7 @@ async function boot() {
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;
     hydrateScreenerFromUrl();
-    await Promise.all([loadScreener(), loadSavedResearch()]);
+    await Promise.all([loadScreener(), loadSavedResearch(), loadRobinhoodIntelligence()]);
   }
   if (requestedWallet) {
     const button = document.querySelector('#copyWalletSearch button[type="submit"]');
@@ -1473,7 +1605,7 @@ document.querySelectorAll("[data-screen-preset]").forEach((button) => button.add
   if (state.screener.preset === "active_swing") document.getElementById("copyScreenActive").value = "168";
   state.screener.page = 1;
   syncScreenerUrl();
-  await loadScreener();
+  await Promise.all([loadScreener(), loadRobinhoodIntelligence()]);
 }));
 document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addEventListener("click", async () => {
   const chain = button.dataset.screenChain;
@@ -1482,7 +1614,7 @@ document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addE
   state.screener.page = 1;
   document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));
   syncScreenerUrl();
-  await loadScreener();
+  await Promise.all([loadScreener(), loadRobinhoodIntelligence()]);
 }));
 document.getElementById("copyScreenPrevious").addEventListener("click", async () => {
   state.screener.page = Math.max(1, state.screener.page - 1);
