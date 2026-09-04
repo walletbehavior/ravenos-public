@@ -20,7 +20,7 @@ telegram*
 .releases/
 playwright-report/
 test-results/
-node_modules/
+/node_modules
 .netlify/
 scripts/__pycache__/
 ravenos_build.json
