@@ -154,6 +154,10 @@ import {
 } from "./lib/discover_radar.mjs";
 import { authorizeCustomerApiRequest, routeCustomerIdentity } from "./lib/customer_identity.mjs";
 import {
+  CUSTOMER_COMMUNITY_ROUTE,
+  routeCustomerCommunity,
+} from "./lib/customer_community.mjs";
+import {
   customerLiveExecutionRefusal,
   publicCustomerLiveExecutionCapabilities,
   resolveCustomerLiveExecutionGate,
@@ -310,6 +314,8 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-wallet-copy.js",
   "/ravenos-agents.css",
   "/ravenos-agents.js",
+  "/ravenos-community.css",
+  "/ravenos-community.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
   "/ravenos-workspace.css",
@@ -396,6 +402,12 @@ function authenticatedAppBoundary(request) {
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
   const terminalPath = url.pathname === "/terminal" || url.pathname === "/terminal/" || url.pathname === "/terminal/index.html";
   const agentsPath = url.pathname === "/agents" || url.pathname === "/agents/" || url.pathname === "/agents/index.html";
+  const communityPath = url.pathname === "/community"
+    || url.pathname === "/community/"
+    || url.pathname === "/community/index.html"
+    || url.pathname === "/community/profile"
+    || url.pathname === "/community/profile/"
+    || url.pathname === "/community/profile/index.html";
   const proIntelligencePath = url.pathname === "/account/intelligence"
     || url.pathname === "/account/intelligence/"
     || url.pathname === "/account/intelligence/index.html";
@@ -428,6 +440,8 @@ function authenticatedAppBoundary(request) {
     || url.pathname.startsWith("/api/trade/live/");
   const agenticApi = url.pathname === AGENTIC_WORKSPACE_ROUTE
     || url.pathname.startsWith(`${AGENTIC_ROUTE_PREFIX}/`);
+  const communityApi = url.pathname === CUSTOMER_COMMUNITY_ROUTE
+    || url.pathname.startsWith(`${CUSTOMER_COMMUNITY_ROUTE}/`);
   const terminalReadApi = readRequest && (
     new Set([
       "/api/atlas",
@@ -458,12 +472,16 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
     const target = new URL("/terminal/", PUBLIC_ORIGIN);
     target.search = url.search;
+    return { allowed: false, response: Response.redirect(target, 308) };
+  }
+  if (readRequest && /^@[a-z][a-z0-9_]{2,23}$/.test(firstSegment)) {
+    const target = new URL(url.pathname, PUBLIC_ORIGIN);
     return { allowed: false, response: Response.redirect(target, 308) };
   }
   if (readRequest && PUBLIC_APP_REDIRECT_ROUTES.has(firstSegment)) {
@@ -646,6 +664,12 @@ function attachReleaseHeaders(response, releaseState, pathname = "") {
     || pathname === "/monitor/"
     || pathname === "/monitor"
     || pathname.endsWith("/monitor/index.html")
+    || pathname === "/community/"
+    || pathname === "/community"
+    || pathname.endsWith("/community/index.html")
+    || pathname === "/community/profile/"
+    || pathname === "/community/profile"
+    || pathname.endsWith("/community/profile/index.html")
   ) {
     headers.set("cache-control", "no-store, max-age=0");
   } else if (String(headers.get("content-type") || "").toLowerCase().includes("text/html")) {
@@ -10980,6 +11004,8 @@ async function routeApi(request, env, executionContext = null) {
   }
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const communityResponse = await routeCustomerCommunity(request, env);
+  if (communityResponse) return communityResponse;
   if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
@@ -11843,6 +11869,11 @@ export default {
           releaseState,
           url.pathname,
         );
+      }
+      if (/^\/@[a-z][a-z0-9_]{2,23}\/?$/.test(url.pathname)) {
+        const profileAssetUrl = new URL("/community/profile/index.html", request.url);
+        const profileAssetResponse = await env.ASSETS.fetch(new Request(profileAssetUrl, { method: request.method }));
+        return attachReleaseHeaders(applyAssetSecurityHeaders(profileAssetResponse, url.pathname), releaseState, url.pathname);
       }
     }
     const assetResponse = await env.ASSETS.fetch(request);

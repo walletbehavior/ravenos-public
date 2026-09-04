@@ -52,6 +52,47 @@
     "maximum_changes_per_day": 5,
     "raw_username_logged_in_security_events": false
   },
+  "community": {
+    "implementation_status": "local_dormant_candidate_not_deployed",
+    "public_surface": "https://ravenos.xyz/community/",
+    "authenticated_surface": "https://app.ravenos.xyz/community/",
+    "public_profile_route": "https://ravenos.xyz/@username",
+    "routes": [
+      "GET /api/v1/community/boards",
+      "GET /api/v1/community/profiles/:username",
+      "GET /api/v1/community/me",
+      "PUT /api/v1/community/me",
+      "GET /api/v1/community/following",
+      "PUT /api/v1/community/profiles/:username/follow",
+      "DELETE /api/v1/community/profiles/:username/follow",
+      "PUT /api/v1/community/profiles/:username/recognitions/useful",
+      "DELETE /api/v1/community/profiles/:username/recognitions/useful"
+    ],
+    "activation_control": "RAVENOS_COMMUNITY_ENABLED",
+    "activation_default_off": true,
+    "public_participation_opt_in": true,
+    "username_creation_publishes_profile": false,
+    "all_disclosures_default_private": true,
+    "wallet_addresses_default_private": true,
+    "account_balance_public": false,
+    "email_public": false,
+    "legal_name_public": false,
+    "connected_account_identifiers_public": false,
+    "copy_allocation_public": false,
+    "performance_observation_classification_required": true,
+    "user_reported_performance_board_eligible": false,
+    "simulated_performance_board_eligible": false,
+    "popularity_affects_performance_rank": false,
+    "positive_recognition_kinds": ["useful"],
+    "negative_recognition_available": false,
+    "comments_available": false,
+    "direct_messages_available": false,
+    "csrf_required_for_mutations": true,
+    "authenticated_mutations_origin_only": true,
+    "append_only_performance_evidence": true,
+    "execution_authority": false,
+    "production_activation_completed": false
+  },
   "session_policy": {
     "kind": "opaque_revocable_server_side",
     "cookie_name": "__Host-ravenos_session",
@@ -632,7 +673,8 @@
     "transaction_submission",
     "customer_position_monitoring",
     "live_wallet_copy",
-    "copy_fee_collection"
+    "copy_fee_collection",
+    "community_production_activation"
   ],
   "legacy_quarantine": {
     "routes": [
@@ -663,7 +705,8 @@
     "docs/ravenos_shadow_route_truth_loop_v1.md",
     "docs/ravenos_operator_solana_canary_v1.md",
     "docs/ravenos_wallet_copy_v1.md",
-    "docs/ravenos_shared_wallet_observer_v1.md"
+    "docs/ravenos_shared_wallet_observer_v1.md",
+    "docs/ravenos_community_v1.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -671,6 +714,8 @@
     { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs" },
     { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary" },
     { "id": "SEC-ID-001", "name": "user-selected username replaces identity-provider first and family names on customer-facing surfaces", "gate": "customer_username_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs; privacy/index.html" },
+    { "id": "SEC-COM-001", "name": "community identity remains private until explicit username-backed profile opt-in", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; customer-migrations/0029_customer_community.sql" },
+    { "id": "SEC-COM-002", "name": "community disclosures, following, and recognition remain owner-controlled, CSRF-bound, and public-safe", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; public no-leak validation" },
     { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "verified_current", "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs" },
     { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
     { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },

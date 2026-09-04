@@ -76,6 +76,21 @@
       "next_route": "/portfolio/"
     },
     {
+      "route": "/community/",
+      "slug": "community",
+      "title": "Community",
+      "question": "Who demonstrates repeatable process?",
+      "funnel_stage": "discover",
+      "evidence_role": "opt_in_public_reputation",
+      "api_endpoint": "/api/v1/community/boards",
+      "fallback_artifact": null,
+      "template": "existing",
+      "source_path": "community/index.html",
+      "public": true,
+      "nav_group": "primary",
+      "next_route": "/account/copy/"
+    },
+    {
       "route": "/portfolio/",
       "slug": "portfolio",
       "title": "Portfolio",

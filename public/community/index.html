@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Community · RavenOS</title>
+  <meta name="description" content="Evidence-qualified traders and useful process, without the casino leaderboard." />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-community.css" />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+</head>
+<body>
+  <main class="community-shell" id="communityWorkspace">
+    <header class="community-hero">
+      <div><span>Raven Community</span><h1>Good process travels.</h1></div>
+      <p>Evidence-qualified traders. No return-only leaderboard.</p>
+    </header>
+
+    <nav class="community-modes" aria-label="Community views">
+      <button type="button" class="active" data-community-view="boards">Boards</button>
+      <button type="button" data-community-view="following">Following</button>
+      <button type="button" data-community-view="profile">Your profile</button>
+    </nav>
+
+    <section class="community-view active" data-community-panel="boards">
+      <header class="community-section-head">
+        <div><span>Qualified boards</span><h2>Process over popularity</h2></div>
+        <label>Board
+          <select id="communityBoardSelect">
+            <option value="most_consistent">Most consistent</option>
+            <option value="lowest_drawdown">Lowest drawdown</option>
+            <option value="most_copyable">Most copyable</option>
+            <option value="evidence_complete">Evidence complete</option>
+            <option value="most_followed">Most followed</option>
+          </select>
+        </label>
+      </header>
+      <div class="community-gate" id="communityBoardGate">Checking qualification rules</div>
+      <div class="community-list" id="communityBoardRows" aria-live="polite"></div>
+    </section>
+
+    <section class="community-view" data-community-panel="following" hidden>
+      <header class="community-section-head"><div><span>Your watchlist</span><h2>Following</h2></div></header>
+      <div class="community-list" id="communityFollowingRows" aria-live="polite"></div>
+    </section>
+
+    <section class="community-view" data-community-panel="profile" hidden>
+      <header class="community-section-head">
+        <div><span>Private by default</span><h2>Public profile controls</h2></div>
+        <a id="communityPublicProfileLink" href="/account/" hidden>View profile</a>
+      </header>
+      <div class="community-account-state" id="communityAccountState">Checking account</div>
+      <form class="community-settings" id="communitySettingsForm" hidden>
+        <label class="community-master-setting"><input type="checkbox" name="public_profile_enabled" /> <span><strong>Public profile</strong><small>Off until you opt in.</small></span></label>
+        <fieldset>
+          <legend>Share</legend>
+          <label><input type="checkbox" name="performance_visible" /> Performance</label>
+          <label><input type="checkbox" name="positions_visible" /> Positions</label>
+          <label><input type="checkbox" name="trade_history_visible" /> Trade history</label>
+          <label><input type="checkbox" name="strategy_breakdown_visible" /> Strategy breakdown</label>
+          <label><input type="checkbox" name="wallet_addresses_visible" /> Wallet addresses</label>
+          <label><input type="checkbox" name="followers_visible" /> Follower count</label>
+        </fieldset>
+        <fieldset>
+          <legend>Allow</legend>
+          <label><input type="checkbox" name="allow_following" /> Following</label>
+          <label><input type="checkbox" name="allow_shadowing" /> Shadowing</label>
+          <label><input type="checkbox" name="allow_raven_copy" /> Raven Copy</label>
+          <label><input type="checkbox" name="referral_link_public" /> Public referral link</label>
+        </fieldset>
+        <div class="community-privacy-note">Email, legal name, balances, connected accounts, and copy allocations stay private.</div>
+        <button type="submit" id="communitySettingsSave">Save controls</button>
+        <span id="communitySettingsStatus" role="status"></span>
+      </form>
+    </section>
+  </main>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/community/","slug":"community","title":"Community","question":"Who demonstrates repeatable process?","template":"existing","public":true}</script>
+  <script type="module" src="/ravenos-community.js"></script>
+  <script type="module" src="/ravenos-shell.js"></script>
+</body>
+</html>

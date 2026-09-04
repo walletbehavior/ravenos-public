@@ -27,6 +27,24 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_username.user_selected, true);
   assert.equal(security.customer_username.globally_unique_case_insensitive, true);
   assert.equal(security.customer_username.csrf_required_for_mutations, true);
+  assert.equal(security.community.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.community.activation_default_off, true);
+  assert.equal(security.community.public_participation_opt_in, true);
+  assert.equal(security.community.username_creation_publishes_profile, false);
+  assert.equal(security.community.all_disclosures_default_private, true);
+  assert.equal(security.community.wallet_addresses_default_private, true);
+  assert.equal(security.community.account_balance_public, false);
+  assert.equal(security.community.email_public, false);
+  assert.equal(security.community.legal_name_public, false);
+  assert.equal(security.community.user_reported_performance_board_eligible, false);
+  assert.equal(security.community.simulated_performance_board_eligible, false);
+  assert.equal(security.community.popularity_affects_performance_rank, false);
+  assert.deepEqual(security.community.positive_recognition_kinds, ["useful"]);
+  assert.equal(security.community.negative_recognition_available, false);
+  assert.equal(security.community.comments_available, false);
+  assert.equal(security.community.direct_messages_available, false);
+  assert.equal(security.community.execution_authority, false);
+  assert.equal(security.community.production_activation_completed, false);
   for (const capability of ["account_creation", "customer_authentication", "customer_sessions"]) {
     assert(security.active_capabilities.includes(capability));
     assert(!security.blocked_capabilities.includes(capability));
@@ -193,6 +211,7 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.all_activation_controls_default_off, true);
   assert.equal(security.customer_live_execution_canary.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("operator_canary_submission"));
+  assert(security.blocked_capabilities.includes("community_production_activation"));
 });
 
 test("account session wallet entitlement and transaction authority remain separate contracts", () => {
@@ -224,7 +243,7 @@ test("opaque host-only session contract cannot move into browser storage", () =>
 
 test("all required security scenarios are explicit and future stages stay unverified", () => {
   const rows = security.verification_scenarios;
-  assert.equal(rows.length, 41);
+  assert.equal(rows.length, 43);
   assert.equal(new Set(rows.map((row) => row.id)).size, rows.length);
   const future = rows.filter((row) => ["stage_b", "stage_c", "stage_d", "stage_e"].includes(row.gate));
   assert(future.length >= 15);
@@ -233,7 +252,7 @@ test("all required security scenarios are explicit and future stages stay unveri
   assert(stageA.length > 0);
   assert(stageA.every((row) => !["blocked", "required_not_implemented"].includes(row.status)));
   assert(stageA.some((row) => row.status === "external_review_required"));
-  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-ID", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
+  for (const prefix of ["SEC-SES", "SEC-CSRF", "SEC-ID", "SEC-COM", "SEC-AUTHZ", "SEC-RSCH", "SEC-ENT", "SEC-ALT", "SEC-WAL", "SEC-WOBS", "SEC-COPY", "SEC-BIL", "SEC-ENUM", "SEC-EDGE", "SEC-XSS", "SEC-CSP", "SEC-TX"]) {
     assert(rows.some((row) => row.id.startsWith(prefix)), `missing scenario family: ${prefix}`);
   }
 });
@@ -357,9 +376,11 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(api.headers.get("permissions-policy") || "", /camera=\(\)/);
 });
 
-test("the authenticated hostname exposes only approved account, Saved Monitor, and dormant entitlement candidates", async () => {
+test("the authenticated hostname exposes only approved account and reviewed dormant workspaces", async () => {
   const accountHtml = readFileSync("account/index.html", "utf8");
   const intelligenceHtml = readFileSync("account/intelligence/index.html", "utf8");
+  const communityHtml = readFileSync("community/index.html", "utf8");
+  const communityProfileHtml = readFileSync("community/profile/index.html", "utf8");
   const monitorHtml = readFileSync("monitor/index.html", "utf8");
   const env = {
     ASSETS: {
@@ -367,8 +388,10 @@ test("the authenticated hostname exposes only approved account, Saved Monitor, a
         const pathname = new URL(request.url).pathname;
         if (pathname === "/account/") return new Response(accountHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
         if (pathname === "/account/intelligence/") return new Response(intelligenceHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname === "/community/" || pathname === "/community/index.html") return new Response(communityHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+        if (pathname === "/community/profile/index.html") return new Response(communityProfileHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
         if (pathname === "/monitor/") return new Response(monitorHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
-        if (pathname.startsWith("/assets/") || ["/ravenos-account.js", "/ravenos-monitor.js", "/ravenos-monitor.css", "/ravenos-pro-intelligence.js", "/ravenos-pro-intelligence.css", "/ravenos-workspace.css"].includes(pathname)) return new Response("asset", { headers: { "content-type": pathname.endsWith(".css") ? "text/css" : "application/javascript" } });
+        if (pathname.startsWith("/assets/") || ["/ravenos-account.js", "/ravenos-community.js", "/ravenos-community.css", "/ravenos-monitor.js", "/ravenos-monitor.css", "/ravenos-pro-intelligence.js", "/ravenos-pro-intelligence.css", "/ravenos-workspace.css"].includes(pathname)) return new Response("asset", { headers: { "content-type": pathname.endsWith(".css") ? "text/css" : "application/javascript" } });
         return new Response("public surface", { headers: { "content-type": "text/html; charset=utf-8" } });
       },
     },
@@ -401,6 +424,21 @@ test("the authenticated hostname exposes only approved account, Saved Monitor, a
   const researchState = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/research-state"), env);
   assert.equal(researchState.status, 503);
   assert.equal(JSON.parse(await researchState.text()).error, "account_activation_pending");
+
+  const community = await worker.fetch(new Request("https://app.ravenos.xyz/community/"), env);
+  assert.equal(community.status, 200);
+  assert.match(community.headers.get("cache-control") || "", /no-store/);
+  assert.match(community.headers.get("content-security-policy") || "", /default-src 'self'/);
+  const communityApi = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/community/boards"), env);
+  assert.equal(communityApi.status, 503);
+  assert.equal(JSON.parse(await communityApi.text()).error, "community_disabled");
+  const publicProfile = await worker.fetch(new Request("https://ravenos.xyz/@chart_witch"), env);
+  assert.equal(publicProfile.status, 200);
+  assert.match(publicProfile.headers.get("content-security-policy") || "", /default-src 'self'/);
+  assert.match(await publicProfile.text(), /Public Raven profile|Loading profile/);
+  const appProfile = await worker.fetch(new Request("https://app.ravenos.xyz/@chart_witch?secret=must-not-stay-on-app"), env);
+  assert.equal(appProfile.status, 308);
+  assert.equal(appProfile.headers.get("location"), "https://ravenos.xyz/@chart_witch");
 
   const entitlements = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/entitlements", {
     headers: { origin: "https://app.ravenos.xyz", "sec-fetch-site": "same-origin" },
@@ -475,6 +513,6 @@ test("authenticated Pro workspace keeps authorization server-owned and renders w
 });
 
 test("all required customer security documents exist as substantial architecture contracts", () => {
-  assert.equal(security.required_documents.length, 15);
+  assert.equal(security.required_documents.length, 16);
   for (const path of security.required_documents) assert(statSync(path).size > 1000, path);
 });

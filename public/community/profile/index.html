@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raven profile · RavenOS</title>
+  <meta name="description" content="An opt-in RavenOS public profile with evidence-qualified performance." />
+  <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-community.css" />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
+</head>
+<body>
+  <main class="community-shell community-profile-shell">
+    <a class="community-back" href="/community/">← Community</a>
+    <section class="community-public-profile" id="communityPublicProfile" aria-live="polite">
+      <div class="community-empty"><strong>Loading profile</strong></div>
+    </section>
+  </main>
+  <script id="ravenosRouteConfig" type="application/json">{"route":"/community/profile/","slug":"community","title":"Community profile","question":"What does the evidence support?","template":"existing","public":true}</script>
+  <script type="module" src="/ravenos-community.js"></script>
+  <script type="module" src="/ravenos-shell.js"></script>
+</body>
+</html>

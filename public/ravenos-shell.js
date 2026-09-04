@@ -20,6 +20,7 @@ const NAV_ITEMS = Object.freeze([
   },
   { key: "terminal", label: "Terminal", href: "/terminal/", glyph: "T", match: ["terminal", "perps"] },
   { key: "agents", label: "Agents", href: "/agents/", glyph: "G", mobile: false, match: ["agents"] },
+  { key: "community", label: "Community", href: "/community/", glyph: "C", mobile: false, match: ["community"] },
   {
     key: "intelligence",
     label: "Raven Lab",
@@ -622,6 +623,7 @@ function utilityMarkup(kind, context) {
     <section>
       <span>Research workspaces</span>
       <nav class="ros-more-links" aria-label="Research workspaces">
+        <a href="/community/"><strong>Community</strong><span>Evidence-qualified public profiles</span></a>
         <a href="/intelligence/"><strong>Raven Lab</strong><span>Behavior and perps context</span></a>
         <a href="/atlas/"><strong>Atlas</strong><span>Market breadth, filings, and listed-market context</span></a>
       </nav>

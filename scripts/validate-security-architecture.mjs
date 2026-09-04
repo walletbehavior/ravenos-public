@@ -24,6 +24,26 @@ assert.equal(config.customer_username.user_selected, true);
 assert.equal(config.customer_username.normalized_lowercase_ascii, true);
 assert.equal(config.customer_username.globally_unique_case_insensitive, true);
 assert.equal(config.customer_username.csrf_required_for_mutations, true);
+assert.equal(config.community.implementation_status, "local_dormant_candidate_not_deployed");
+assert.equal(config.community.activation_default_off, true);
+assert.equal(config.community.public_participation_opt_in, true);
+assert.equal(config.community.username_creation_publishes_profile, false);
+assert.equal(config.community.all_disclosures_default_private, true);
+assert.equal(config.community.wallet_addresses_default_private, true);
+assert.equal(config.community.account_balance_public, false);
+assert.equal(config.community.email_public, false);
+assert.equal(config.community.legal_name_public, false);
+assert.equal(config.community.performance_observation_classification_required, true);
+assert.equal(config.community.user_reported_performance_board_eligible, false);
+assert.equal(config.community.simulated_performance_board_eligible, false);
+assert.equal(config.community.popularity_affects_performance_rank, false);
+assert.deepEqual(config.community.positive_recognition_kinds, ["useful"]);
+assert.equal(config.community.negative_recognition_available, false);
+assert.equal(config.community.comments_available, false);
+assert.equal(config.community.direct_messages_available, false);
+assert.equal(config.community.csrf_required_for_mutations, true);
+assert.equal(config.community.execution_authority, false);
+assert.equal(config.community.production_activation_completed, false);
 for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
   assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);
 }
@@ -49,6 +69,7 @@ const requiredBlockedCapabilities = new Set([
   "transaction_submission",
   "customer_position_monitoring",
   "saved_monitor_production_activation",
+  "community_production_activation",
 ]);
 const blockedCapabilities = new Set(config.blocked_capabilities || []);
 for (const capability of requiredBlockedCapabilities) {
@@ -366,6 +387,7 @@ const requiredScenarios = [
   "SEC-SES-001", "SEC-SES-002", "SEC-SES-003", "SEC-CSRF-001",
   "SEC-AUTHZ-001", "SEC-AUTHZ-002", "SEC-WAL-001", "SEC-WAL-002",
   "SEC-RSCH-001", "SEC-RSCH-002",
+  "SEC-COM-001", "SEC-COM-002",
   "SEC-ENT-001", "SEC-ENT-002",
   "SEC-ALT-001", "SEC-ALT-002",
   "SEC-WOBS-003", "SEC-COPY-001", "SEC-COPY-002",
@@ -395,12 +417,14 @@ assert(worker.includes('from "./lib/customer_research_state.mjs"'), "Saved Monit
 assert(worker.includes('from "./lib/customer_entitlements.mjs"'), "server-owned entitlement router is missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_monitor_alerts.mjs"'), "Raven Monitor router and evaluator are missing from the Worker graph");
 assert(worker.includes('from "./lib/customer_wallet_copy.mjs"'), "Raven Copy authenticated router is missing from the Worker graph");
+assert(worker.includes('from "./lib/customer_community.mjs"'), "Raven Community router is missing from the Worker graph");
 assert(worker.includes('const AUTHENTICATED_APP_HOST = "app.ravenos.xyz"'), "authenticated application origin boundary is missing");
 assert(worker.includes("authenticatedAppBoundary(request)"), "authenticated application origin is not enforced in the Worker");
 assert(worker.includes("routeCustomerResearchState(request, env"), "Saved Monitor route is not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerEntitlements(request, env"), "entitlement routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerMonitorAlerts(request, env"), "Raven Monitor routes are not wired through the authenticated Worker boundary");
 assert(worker.includes("routeCustomerWalletCopy(request, env"), "Raven Copy routes are not wired through the authenticated Worker boundary");
+assert(worker.includes("routeCustomerCommunity(request, env"), "Raven Community routes are not wired through the Worker boundary");
 assert(worker.includes("runCustomerMonitorEvaluator(env"), "Raven Monitor evaluator is not wired through the dormant scheduled boundary");
 for (const importName of ["ravenos_access.mjs", "ravenos_subscriptions.mjs", "ravenos_stripe_webhooks.mjs", "solana_wallet_auth.mjs"]) {
   assert(!worker.includes(`from \"./lib/${importName}\"`), `legacy customer module remains in the Worker graph: ${importName}`);
@@ -465,6 +489,7 @@ for (const activationFlag of [
   ...config.raven_monitor.activation_controls,
   ...config.wallet_copy.activation_controls,
   ...config.customer_live_execution_canary.activation_controls,
+  config.community.activation_control,
 ]) {
   assert(!wrangler.includes(activationFlag), `customer activation flag must not be configured in Wrangler: ${activationFlag}`);
 }
@@ -472,6 +497,8 @@ for (const activationFlag of [
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 assert.match(packageJson.scripts["validate:security"] || "", /validate-security-architecture\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_security_foundation\.test\.mjs/);
+assert.match(packageJson.scripts["test:community"] || "", /customer_community\.test\.mjs/);
+assert.match(packageJson.scripts["pretest:contracts"] || "", /test:community/);
 assert.match(packageJson.scripts["pretest:contracts"] || "", /test:agentic/);
 assert.match(packageJson.scripts["test:agentic"] || "", /agentic_\*\.test\.mjs/);
 assert.match(packageJson.scripts["test:contracts"] || "", /customer_entitlements\.test\.mjs/);
