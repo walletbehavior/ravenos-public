@@ -222,6 +222,14 @@ function boundedSpotBuySize(value) {
     : null;
 }
 
+function requestedCopyReview(params) {
+  if (params.get("copy_review") !== "1") return null;
+  const decisionId = String(params.get("copy_decision_id") || "");
+  const amountUsdc = boundedSpotBuySize(params.get("copy_amount_usdc"));
+  if (!/^scd_[a-f0-9]{40}$/.test(decisionId) || amountUsdc === null) return null;
+  return Object.freeze({ decision_id: decisionId, amount_usdc: amountUsdc });
+}
+
 function boundedSpotNativeBuySize(value) {
   const amount = finite(value);
   return amount !== null && amount >= 0.001 && amount <= 50
@@ -9145,6 +9153,7 @@ async function loadBuildIdentity() {
 async function boot() {
   renderChainCoverage();
   const params = new URLSearchParams(location.search);
+  const copyReview = requestedCopyReview(params);
   const requestedLaunch = String(params.get("launch") || "").toLowerCase();
   state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
   state.autoRavenOverlays = Boolean(state.launchSource && params.get("raven_overlays") === "auto");
@@ -9206,6 +9215,14 @@ async function boot() {
         document.getElementById("terminalSpotSearch").value = query;
         await searchSpot(query);
       }
+    }
+    if (copyReview && poolIdentity && currentProjectIdentity()?.chain === "solana") {
+      setSpotTicketSide("buy");
+      setSpotAssetPreference("canonical_usdc");
+      const amountInput = document.getElementById("terminalSpotAmount");
+      if (amountInput) amountInput.value = String(copyReview.amount_usdc);
+      state.requestedPanel = "trade";
+      clearSpotQuoteResult(`Raven Copy review loaded · ${copyReview.amount_usdc.toLocaleString("en-US")} USDC. Request a fresh route before signing.`);
     }
   } else if (requestedLane === "equity") {
     let atlasRequest = null;

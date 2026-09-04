@@ -154,7 +154,7 @@
         <section class="copy-profile" id="copyProfile" hidden>
           <header>
             <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
-            <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Shadow this wallet</button></div>
+            <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Copy this wallet</button></div>
           </header>
           <section class="copy-profile-pro-gate" id="copyProfileProGate" hidden>
             <div><span>Raven Pro</span><strong>Unlock the full wallet record</strong></div>
@@ -249,7 +249,7 @@
         </section>
 
         <form class="copy-policy" id="copyPolicy" hidden>
-          <header><div><span>Start shadowing</span><h2>Set the test order.</h2><p>Simulation only.</p></div><strong>Raven Copy</strong></header>
+          <header><div><span>Start Raven Copy</span><h2>Set your policy.</h2><p>You sign.</p></div><strong>Manual beta</strong></header>
           <div class="copy-policy-grid">
             <label><span>Wallet label</span><input id="copyPolicyLabel" maxlength="80" value="Wallet strategy" /></label>
             <label><span>Order size</span><div class="copy-input-unit"><input id="copyPolicySize" type="number" min="1" max="100000" step="1" value="100" /><small>USDC</small></div></label>
@@ -263,12 +263,12 @@
             <label><input type="checkbox" id="copySkipFailedSell" checked /><span>Skip when sell simulation explicitly fails</span></label>
             <label><input type="checkbox" id="copySkipFreeze" checked /><span>Skip when freeze authority is evidenced</span></label>
           </div>
-          <footer><button type="button" id="copyCancelSetup">Cancel</button><button type="submit">Start shadowing</button><p id="copyPolicyStatus" aria-live="polite"></p></footer>
+          <footer><button type="button" id="copyCancelSetup">Cancel</button><button type="submit">Start Raven Copy</button><p id="copyPolicyStatus" aria-live="polite"></p></footer>
         </form>
       </section>
 
       <section class="copy-panel" data-copy-panel="watching" hidden>
-        <header class="copy-section-head"><div><span>Public source · private rules</span><h2>Shadowed wallets</h2><p id="copyWatchingDescription">Manual checks in preview.</p></div><strong id="copyWatchingBadge">Live copy off</strong></header>
+        <header class="copy-section-head"><div><span>Public source · private rules</span><h2>Copied wallets</h2><p id="copyWatchingDescription">Review in Terminal.</p></div><strong id="copyWatchingBadge">Manual copy live</strong></header>
         <div class="copy-card-list" id="copyWatches"></div>
       </section>
 
@@ -286,7 +286,7 @@
     <footer class="copy-boundary">
       <div><span>Watch</span><strong>Wallet history</strong></div>
       <div><span>Shadow</span><strong>Follower reality</strong></div>
-      <div><span>Live</span><strong>Disabled</strong></div>
+      <div><span>Execute</span><strong>User confirms</strong></div>
     </footer>
   </main>
   <script type="module" src="/ravenos-shell.js"></script>
