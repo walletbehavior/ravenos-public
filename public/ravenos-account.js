@@ -29,7 +29,7 @@ const state = {
 const PRO_CAPABILITY_DISPLAY = Object.freeze({
   "intelligence.perps_advanced": Object.freeze({ label: "Advanced Perps Intelligence", route: "/api/v1/intelligence/perps" }),
   "intelligence.participant_advanced": Object.freeze({ label: "Behavior Lab", route: "/api/v1/intelligence/participants" }),
-  "wallet.copy": Object.freeze({ label: "Wallet Intelligence & Raven Copy", route: "/api/v1/wallet-copy" }),
+  "wallet.copy": Object.freeze({ label: "Advanced Wallet Intelligence", route: "/api/v1/wallet-copy" }),
   "agents.paper": Object.freeze({ label: "Agent Workspace", route: "/api/v1/agents/workspace" }),
 });
 
@@ -291,9 +291,7 @@ function proCapabilityNode(capability, projectionPayload = null) {
           ? "Pro access paused."
           : "Not enabled for this account.";
   } else if (capability.capability === "wallet.copy") {
-    detail.textContent = projectionPayload.activation?.shadow_copy
-      ? "Inspect public Solana wallets, keep source returns separate from follower reality, and record prospective shadow decisions."
-      : "Wallet inspection is ready; prospective shadow decisions are still closed.";
+    detail.textContent = "Cohorts, behavior, profit quality, deep history, and copyability evidence.";
   } else if (capability.capability === "agents.paper") {
     const agents = Array.isArray(projectionPayload.agents) ? projectionPayload.agents : [];
     detail.textContent = `${agents.length} paper agent${agents.length === 1 ? "" : "s"} · policy and reconciliation ready`;
@@ -310,7 +308,7 @@ function proCapabilityNode(capability, projectionPayload = null) {
   const boundary = document.createElement("small");
   boundary.textContent = capability.available && projectionPayload?.ok
     ? capability.capability === "wallet.copy"
-      ? "Private policies · no live trades"
+      ? "Deep analysis · Raven Copy remains free"
       : capability.capability === "agents.paper"
         ? "Paper only · live automation off"
         : "Private · read only"

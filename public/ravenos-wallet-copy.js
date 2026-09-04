@@ -11,6 +11,7 @@ const SOLANA_WRAPPED_NATIVE = "So11111111111111111111111111111111111111112";
 const state = {
   csrf: "",
   activation: {},
+  access: { tier: "free", advanced_wallet_intelligence: false },
   address: "",
   source_wallet_id: null,
   profile: null,
@@ -28,6 +29,32 @@ const state = {
   saved: [],
   screener: { chain: "solana", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
 };
+
+const FREE_SCREENER_SORTS = new Set(["last_trade_desc", "trade_count_desc", "active_days_desc"]);
+
+function applyAccess(access = {}) {
+  state.access = {
+    tier: access.advanced_wallet_intelligence === true ? "pro" : "free",
+    advanced_wallet_intelligence: access.advanced_wallet_intelligence === true,
+  };
+  page.dataset.accessTier = state.access.tier;
+  const pro = state.access.advanced_wallet_intelligence;
+  setText("copyAccessLabel", pro ? "Raven Pro active" : "Included with every account");
+  setText("copyAccessHeadline", pro ? "Full Wallet Intelligence + Raven Copy" : "Wallet lookup + Raven Copy");
+  setText("copyAccessDetail", pro
+    ? "Cohorts, behavior, profit quality, deep history, and copyability are unlocked."
+    : "Headline wallet screening and Raven Copy are free. Advanced cohorts and behavior require Pro.");
+  setText("copyScreenerHeadline", pro ? "Find reconstructable edge." : "Find active wallets.");
+  if (!pro) {
+    state.screener.preset = null;
+    document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", "false"));
+    const sort = document.getElementById("copyScreenSort");
+    [...sort.options].forEach((option) => { option.hidden = !FREE_SCREENER_SORTS.has(option.value); });
+    if (!FREE_SCREENER_SORTS.has(sort.value)) sort.value = "last_trade_desc";
+    document.getElementById("copyScreenBasis").value = "";
+    document.getElementById("copyScreenEvidence").value = "any";
+  }
+}
 
 function text(value, fallback = "—") {
   const output = String(value ?? "").trim();
@@ -633,11 +660,13 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   profileNode.hidden = false;
   policyNode.hidden = true;
   const shadowButton = document.getElementById("copyStartSetup");
-  shadowButton.disabled = profileChain !== "solana";
-  shadowButton.textContent = profileChain === "solana" ? "Shadow this wallet" : "Route proof pending";
-  shadowButton.title = profileChain === "solana"
+  const shadowAvailable = state.activation.shadow_copy === true && profileChain === "solana";
+  shadowButton.disabled = !shadowAvailable;
+  shadowButton.textContent = shadowAvailable ? "Shadow this wallet" : state.activation.shadow_copy ? "Route proof pending" : "Raven Copy opening soon";
+  shadowButton.title = shadowAvailable
     ? "Create a Raven Copy policy"
-    : "Exact entry + exit routing required.";
+    : state.activation.shadow_copy ? "Exact entry + exit routing required." : "Copy is free; live shadow activation remains safety-gated.";
+  document.getElementById("copyProfileProGate").hidden = state.access.advanced_wallet_intelligence;
   renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
@@ -657,21 +686,24 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const performance = profile.source_performance;
   setText("copySourcePnl", realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
-  sourceMetrics.replaceChildren(
+  const basicMetrics = [
     fact("ROI", pct(performance.roi_pct)),
     fact("Win rate", pct(performance.win_rate_pct)),
-    fact("Profit factor", decimal(performance.profit_factor)),
     fact("Closed observations", performance.closed_observations ?? performance.closed_lots),
-    fact("Median hold", humanDuration(profile.behavior.median_hold_seconds)),
     fact("Trades", profile.behavior.trade_count),
     fact("Tokens", profile.behavior.tokens_traded ?? "Unavailable"),
     fact("Active days", profile.behavior.active_days),
+    fact("Last trade", when(profile.behavior.last_trade_at)),
+  ];
+  const advancedMetrics = [
+    fact("Profit factor", decimal(performance.profit_factor)),
+    fact("Median hold", humanDuration(profile.behavior.median_hold_seconds)),
     fact("Known basis", pct(profile.coverage.known_cost_basis_pct)),
     fact("Avg buy", basisNotional(profile.behavior, "average")),
     fact("Total buys", basisNotional(profile.behavior, "total")),
     fact("Trade rate", profile.behavior.trade_rate_per_active_day === null || profile.behavior.trade_rate_per_active_day === undefined ? "Unavailable" : `${profile.behavior.trade_rate_per_active_day}/day`),
-    fact("Last trade", when(profile.behavior.last_trade_at)),
-  );
+  ];
+  sourceMetrics.replaceChildren(...basicMetrics, ...(state.access.advanced_wallet_intelligence ? advancedMetrics : []));
   const windows = document.getElementById("copyPerformanceWindows");
   const windowRows = [["24H", performance.windows?.h24], ["7D", performance.windows?.d7], ["30D", performance.windows?.d30], ["90D", performance.windows?.d90], ["All observed", performance.windows?.all_available]];
   windows.replaceChildren(...windowRows.map(([label, row]) => {
@@ -1166,20 +1198,24 @@ function screenerCard(wallet) {
       ? `${follower.copyability_score}/100 · ${follower.prospective_sample_size || 0} tests`
       : `${follower.prospective_sample_size || 0} tests · ${follower.policy_pass_rate_pct === null || follower.policy_pass_rate_pct === undefined ? "pass forming" : `${pct(follower.policy_pass_rate_pct)} pass`}`;
   const metrics = document.createElement("dl");
-  metrics.append(
+  const basicMetrics = [
     fact("Realized", realizedPerformance({
       realized_pnl_usdc: wallet.source_performance?.realized_pnl?.usdc,
       realized_pnl_sol: wallet.source_performance?.realized_pnl?.sol,
     })),
+    fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
+    fact("Trades", wallet.behavior?.trade_count ?? 0),
+    fact("Active days", wallet.behavior?.active_days ?? "Unavailable"),
+  ];
+  const advancedMetrics = [
     fact("Profit factor", decimal(wallet.source_performance?.profit_factor)),
     fact("Top-1 profit", pct(wallet.profit_quality?.top_1_profit_concentration_pct)),
     fact("Reconstruction", pct(wallet.coverage?.reconstruction_confidence_pct)),
-    fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
-    fact("Trades", wallet.behavior?.trade_count ?? 0),
     fact("Median hold", humanDuration(wallet.behavior?.median_hold_seconds)),
     fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
     fact("Follower $100", followerLabel),
-  );
+  ];
+  metrics.append(...basicMetrics, ...(state.access.advanced_wallet_intelligence ? advancedMetrics : []));
   if (Number(follower.follower_capture_sample_count || 0) > 0) {
     metrics.append(fact("Alpha retained · +1h", `${pct(follower.follower_capture_ratio_pct)} · ${follower.follower_capture_sample_count} positive-source sample${follower.follower_capture_sample_count === 1 ? "" : "s"}`));
   }
@@ -1364,19 +1400,20 @@ async function boot() {
   if (!summary.response.ok) {
     page.dataset.copyState = "unavailable";
     unavailable.hidden = false;
-    setText("copyWorkspaceState", "Private beta");
-    setText("copyUnavailableReason", summary.response.status === 403 ? "Raven Copy requires Pro access." : "Wallet intelligence unavailable.");
+    setText("copyWorkspaceState", "Unavailable");
+    setText("copyUnavailableReason", "Wallet Intelligence is temporarily unavailable.");
     return;
   }
+  applyAccess(summary.payload.access || {});
   state.activation = summary.payload.activation || {};
   page.dataset.copyState = "active";
   workspace.hidden = false;
-  setText("copyWorkspaceState", state.activation.continuous_observer ? "Nexus Shadow ready" : "Shadow workspace ready");
+  setText("copyWorkspaceState", state.access.advanced_wallet_intelligence ? "Pro intelligence ready" : "Wallet tools ready");
   setText("copyWatchingDescription", state.activation.continuous_observer
     ? "Nexus observer active."
-    : "Manual checks in preview.");
-  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : "Live copy off");
-  await loadWorkspace();
+    : state.activation.shadow_copy ? "Manual checks in preview." : "Free access · activation pending.");
+  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : state.activation.shadow_copy ? "Live copy off" : "Opening soon");
+  if (state.activation.shadow_copy) await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;
     hydrateScreenerFromUrl();
@@ -1444,4 +1481,11 @@ boot().catch(() => {
   setText("copyUnavailableReason", "Raven Copy could not verify this session. No wallet data was loaded.");
 });
 
-window.RavenOSWalletCopy = Object.freeze({ schemaVersion: "ravenos.wallet_copy_surface.v1", liveCopy: false, signing: false, broadcasting: false, feeCollection: false });
+window.RavenOSWalletCopy = Object.freeze({
+  schemaVersion: "ravenos.wallet_copy_surface.v1",
+  accessModel: Object.freeze({ authenticatedBasics: true, copySubscriptionRequired: false, advancedIntelligence: "raven_pro" }),
+  liveCopy: false,
+  signing: false,
+  broadcasting: false,
+  feeCollection: false,
+});
