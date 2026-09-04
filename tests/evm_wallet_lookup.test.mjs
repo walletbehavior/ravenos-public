@@ -97,6 +97,18 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
   assert.equal(result.profile.coverage.transactions_reported_by_provider, 123);
   assert.equal(result.profile.coverage.token_transfers_reported_by_provider, 456);
   assert.equal(result.profile.behavior.trade_count, null);
+  assert.deepEqual(result.profile.provider_activity, {
+    state: "transfer_activity_observed",
+    observed_transfer_rows: 1,
+    inbound_transfer_rows: 1,
+    outbound_transfer_rows: 0,
+    internal_movement_rows: 0,
+    unique_token_contracts: 1,
+    most_recent_transfer_at: "2026-09-04T12:00:00.000Z",
+    trade_activity_claimed: false,
+    economic_flow_claimed: false,
+    direction_is_transfer_direction_only: true,
+  });
   assert.equal(result.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(result.profile.source_performance.roi_pct, null);
   assert.equal(result.profile.capital_observations.native.amount, "1.25");

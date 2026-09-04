@@ -743,7 +743,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const performance = profile.source_performance;
   setText("copySourcePnl", realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
-  const basicMetrics = [
+  const basicMetrics = profileChain === "solana" ? [
     fact("ROI", pct(performance.roi_pct)),
     fact("Win rate", pct(performance.win_rate_pct)),
     fact("Closed observations", performance.closed_observations ?? performance.closed_lots),
@@ -751,6 +751,13 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Tokens", profile.behavior.tokens_traded ?? "Unavailable"),
     fact("Active days", profile.behavior.active_days),
     fact("Last trade", when(profile.behavior.last_trade_at)),
+  ] : [
+    fact("Trades", "Not decoded"),
+    fact("Recent transfers", profile.coverage.token_transfers_observed ?? "Unavailable"),
+    fact("Provider tx count", profile.coverage.transactions_reported_by_provider ?? "Unavailable"),
+    fact("Tokens held", profile.behavior.token_assets_observed ?? "Unavailable"),
+    fact("Active days in window", profile.behavior.active_days),
+    fact("Last transfer", when(profile.coverage.last_observed_at)),
   ];
   const advancedMetrics = [
     fact("Profit factor", decimal(performance.profit_factor)),
@@ -787,7 +794,8 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Profitable weeks · SOL", pct(solQuality.weekly_consistency?.profitable_period_pct)),
   );
   const patterns = profile.behavior?.mechanical_pattern_evidence || {};
-  document.getElementById("copyBehaviorMetrics").replaceChildren(
+  const providerActivity = profile.provider_activity || {};
+  const behaviorMetrics = profileChain === "solana" ? [
     fact("Median hold", humanDuration(profile.behavior?.median_hold_seconds)),
     fact("Trade rate", profile.behavior?.trade_rate_per_active_day === null || profile.behavior?.trade_rate_per_active_day === undefined ? "Unavailable" : `${decimal(profile.behavior.trade_rate_per_active_day)}/day`),
     fact("Repeat-token rate", pct(profile.behavior?.repeat_token_rate_pct)),
@@ -796,7 +804,17 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Scaled out", pct(profile.behavior?.scaled_out_token_pct)),
     fact("Mechanical patterns", readable(patterns.state || "insufficient_evidence")),
     fact("Rapid intervals", pct(patterns.rapid_under_30_seconds_pct)),
-  );
+  ] : [
+    fact("Observed transfers", providerActivity.observed_transfer_rows ?? "Unavailable"),
+    fact("Inbound transfers", providerActivity.inbound_transfer_rows ?? "Unavailable"),
+    fact("Outbound transfers", providerActivity.outbound_transfer_rows ?? "Unavailable"),
+    fact("Internal movements", providerActivity.internal_movement_rows ?? "Unavailable"),
+    fact("Token contracts", providerActivity.unique_token_contracts ?? "Unavailable"),
+    fact("Most recent", when(providerActivity.most_recent_transfer_at)),
+    fact("Trade interpretation", "Not decoded"),
+    fact("Economic flow", "Not claimed"),
+  ];
+  document.getElementById("copyBehaviorMetrics").replaceChildren(...behaviorMetrics);
   const quality = profile.data_quality || {};
   document.getElementById("copyEvidenceMetrics").replaceChildren(
     fact("History scope", readable(quality.history_scope || "bounded_partial_history")),

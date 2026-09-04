@@ -110,9 +110,10 @@ function evmProfile() {
   return {
     schema_version: "ravenos.evm_wallet_basic_profile.v1",
     source_wallet: { chain: "bsc", network: "mainnet", chain_id: 56, vm_family: "evm", address: EVM_WALLET },
-    coverage: { transactions_observed: 0, transactions_reported_by_provider: 123, normalized_events: 1, token_transfers_observed: 1, token_transfers_reported_by_provider: 456, trade_events: null, known_cost_basis_pct: null, provider_history_exhausted: false },
+    coverage: { first_observed_at: "2026-09-04T12:00:00.000Z", last_observed_at: "2026-09-04T12:00:00.000Z", transactions_observed: 0, transactions_reported_by_provider: 123, normalized_events: 1, token_transfers_observed: 1, token_transfers_reported_by_provider: 456, trade_events: null, known_cost_basis_pct: null, provider_history_exhausted: false },
     source_performance: { state: "insufficient_evidence", realized_pnl_usdc: null, realized_pnl_sol: null, roi_pct: null, win_rate_pct: null, closed_lots: null, closed_observations: null, profit_factor: null, windows: null, limitations: ["Recent transfers are not classified as trades."] },
     behavior: { active_days: 1, trade_count: null, first_trade_at: null, last_trade_at: null, tokens_traded: null, token_assets_observed: 1, buy_count: null, sell_count: null, median_hold_seconds: null, trade_rate_per_active_day: null, classifications: { TRANSFER_IN: 1 } },
+    provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true },
     research_thesis: null,
     profit_quality: { state: "insufficient_evidence" },
     positions: { known_cost_open_positions: [], known_cost_open_position_count: 0, unresolved_cost_basis_event_count: 1, provider_reported_token_balances: [{ contract: EVM_TOKEN, symbol: "USDC", balance_display: "2.5", provider_mark_price_usd: 1.001, provider_mark_value_usd: 2.5025, executable_value_usd: null, cost_basis_usd: null, pnl_usd: null }] },
@@ -703,6 +704,11 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await page.getByRole("button", { name: "Analyze wallet" }).click();
   await expect(page.locator("#copySourcePnl")).toHaveText("Insufficient evidence");
   await expect(page.locator("#copyProfileCoverage")).toContainText("123 tx reported · trades not decoded");
+  await expect(page.locator("#copySourceMetrics")).toContainText("Recent transfers");
+  await expect(page.locator("#copySourceMetrics")).toContainText("Provider tx count");
+  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Inbound transfers");
+  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Trade interpretation");
+  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Not decoded");
   await expect(page.locator("#copyOpenPositions")).toContainText("2.5 held · $1.00 provider mark · basis unavailable");
   await expect(page.getByText("Transfer In", { exact: true })).toBeVisible();
   await expect(page.getByText("2.5 USDC", { exact: true })).toBeVisible();
