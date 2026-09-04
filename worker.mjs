@@ -253,6 +253,10 @@ import {
   runSourceWalletObserverBatch,
 } from "./lib/customer_trade/source_wallet_observer.mjs";
 import {
+  resolveSourceWalletRpcPollActivation,
+  runScheduledSourceWalletRpcPoll,
+} from "./lib/customer_trade/source_wallet_rpc_poll_scheduler.mjs";
+import {
   createSourceWalletCopyabilityPolicyReference,
   evaluateSourceWalletCopyabilityMatrix,
   resolveSourceWalletCopyabilityActivation,
@@ -11528,8 +11532,21 @@ export default {
         })
       : Promise.resolve({ state: "disabled" });
     const observerActivation = resolveSourceWalletObserverActivation(env || {});
+    const rpcPollActivation = resolveSourceWalletRpcPollActivation(env || {});
     const copyabilityActivation = resolveSourceWalletCopyabilityActivation(env || {});
     const crowdingActivation = resolveSourceWalletCopyCrowdingActivation(env || {});
+    const observerTransportWork = rpcPollActivation.active && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (() => {
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const observerStore = createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB);
+          return runScheduledSourceWalletRpcPoll({
+            store: walletStore,
+            fetch_signatures: (input) => fetchSourceWalletBackfillSignatures(env, input),
+            ingest_delivery: (delivery) => observerStore.ingestDelivery(delivery),
+            env,
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
     const observerWork = observerActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
       ? (() => {
           const observerStore = createD1SourceWalletObserverStore(env.RAVENOS_CUSTOMER_DB);
@@ -11548,7 +11565,7 @@ export default {
             },
             quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
           };
-          return runSourceWalletObserverBatch(observerStore, {
+          return observerTransportWork.then(() => runSourceWalletObserverBatch(observerStore, {
             hydrateDelivery: (delivery) => hydrateSourceWalletObserverDelivery(env, delivery),
             recordSharedEvent: async ({ event, delivery }) => {
               const now = Math.floor(Date.now() / 1_000);
@@ -11623,7 +11640,7 @@ export default {
             worker_id: `observer_worker_${Date.now().toString(36)}`,
             batch_size: 10,
             concurrency: 2,
-          });
+          }));
         })()
       : Promise.resolve({ state: "disabled" });
     const copyabilityCheckpointActivation = resolveSourceWalletCopyabilityCheckpointActivation(env || {});
@@ -11794,6 +11811,7 @@ export default {
     const scheduledWorkNames = [
       "monitor",
       "shadow_route_sampling",
+      "source_wallet_rpc_poll",
       "source_wallet_observer",
       "copyability_checkpoints",
       "source_wallet_backfill",
@@ -11803,6 +11821,7 @@ export default {
     const work = Promise.allSettled([
       monitorWork,
       shadowWork,
+      observerTransportWork,
       observerWork,
       copyabilityCheckpointWork,
       backfillWork,

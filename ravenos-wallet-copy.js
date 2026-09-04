@@ -1431,9 +1431,9 @@ async function boot() {
   workspace.hidden = false;
   setText("copyWorkspaceState", state.access.advanced_wallet_intelligence ? "Pro intelligence ready" : "Wallet tools ready");
   setText("copyWatchingDescription", state.activation.continuous_observer
-    ? "Nexus observer active."
+    ? "Watched wallets update automatically."
     : state.activation.shadow_copy ? "Check wallets, then review approved copies in Terminal." : "Free access · activation pending.");
-  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : state.activation.shadow_copy ? "Manual copy live" : "Opening soon");
+  setText("copyWatchingBadge", state.activation.continuous_observer ? "Monitoring" : state.activation.shadow_copy ? "Manual copy live" : "Opening soon");
   if (state.activation.shadow_copy) await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;

@@ -62,18 +62,23 @@ The activity explorer reads only Raven's retained normalized-event ledger. Each 
 
 ## Activation and authority
 
-The controls remain independent. The production release enables intelligence, screener, and bounded manual Raven Copy watches; continuous observation, automatic copy execution, and copy-specific fee collection remain off:
+The controls remain independent. The production release enables intelligence, screening, shared deep-history jobs, bounded five-minute Solana watch polling, prospective copyability, follower outcome checkpoints, and user-reviewed Raven Copy. Automatic execution and copy-specific fee collection remain off:
 
 - `RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE`
 - `RAVENOS_WALLET_INTELLIGENCE_ENABLED`
 - `RAVENOS_WALLET_COPY_ROUTES_ENABLED`
 - `RAVENOS_WALLET_SCREENER_ENABLED`
 - `RAVENOS_SHADOW_COPY_ENABLED`
+- `RAVENOS_WALLET_OBSERVER_ENABLED`
+- `RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED`
+- `RAVENOS_WALLET_RPC_POLL_ENABLED`
+- `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`
+- `RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED`
 - `RAVENOS_WALLET_BACKFILL_ENABLED`
 - `RAVENOS_LIVE_COPY_ENABLED`
 - `RAVENOS_COPY_FEE_COLLECTION_ENABLED`
 
-The production beta enables bounded, account-private Raven Copy watches and manual refresh. An approved Solana decision can hand its exact pool, token, quote asset, side, and policy size to the native Terminal. The Terminal always obtains a new quote and requires the user's connected wallet to review and sign. Raven Copy does not construct a reusable authorization, sign, broadcast, retry, or execute unattended.
+The production beta observes only active, manually baselined Solana watches, at most 50 wallets per five-minute run. One source wallet is polled once regardless of subscriber count. Catch-up is bounded to four 100-signature pages and refuses to advance across a gap. Manual refresh remains available. An approved decision can hand its exact pool, token, quote asset, side, and policy size to the native Terminal. The Terminal always obtains a new quote and requires the user's connected wallet to review and sign. Raven Copy does not construct a reusable authorization, sign, broadcast, retry, or execute unattended.
 
 The shadow control exposes policy-bound watches, manual refresh, retained approvals/refusals, and the Terminal handoff. It cannot enable unattended authority: live automatic copy, server signing, custody, automatic transaction submission, and copy-specific fee collection remain hard false in source code.
 
@@ -93,11 +98,11 @@ Raven’s intended advantage is not a larger headline P&L. It is the explicit sp
 
 The versioned `ravenos.source_wallet_copy_playbook.v1` projection condenses those separate observations into one deterministic trader-facing read: the contiguous tested-size window that still clears majority policy checks, the first tested breakdown size, the strongest evidence-qualified detected-market segment, +1h exact-quantity reverse-route persistence, and the leading retained refusal. It publishes no opaque score, financial advice, position-size recommendation, or live action. When any component lacks the required prospective sample, that component remains forming or unavailable instead of being inferred from source-wallet returns.
 
-## Migration gate
+## Nexus upgrade gate
 
-Before activating continuous observation on the new RavenOS machine, validate D1 migration and backup retention, staged-origin authorization, provider subrequest budgets, queue backpressure, event lag, RPC costs, storage growth, and restart recovery. Measure p50, p90, p95, and p99 from chain event through receipt, decode, entry quote, reverse-exit proof, and decision.
+The bounded RPC observer is the production transport baseline, not a Nexus-latency claim. Before replacing it with the Constant-K stream, validate exact watch-manifest application, provider acknowledgement, restart recovery, queue backpressure, event lag, storage growth, and confirmed-RPC catch-up. Measure p50, p90, p95, and p99 from chain event through receipt, decode, entry quote, reverse-exit proof, and decision.
 
-The migrated RS2000 host carries the dormant shared-observer contract and durable queue described in `ravenos_shared_wallet_observer_v1.md`, while Constant-K Nexus supplies the Solana transport foundation. The authenticated manifest/delivery boundary, restart-safe dual-sink receiver, candidate intake, and independent hydration gate are implemented but remain off. Manual refresh remains the only active customer workflow until migrations `0010`–`0014`, the dedicated ingress hosts and Access policies, exact provider-manifest acknowledgement, private transport telemetry, queue behavior, and a controlled cohort are explicitly activated and verified. No public scheduler or stream is activated by this code.
+RS2000 carries the shared queue, evaluator, bounded polling scheduler, and all applied D1 migrations. Constant-K remains the planned low-latency transport. Its authenticated boundary and receiver are implemented but remain off because the live provider has not acknowledged RavenOS's exact wallet manifest. The current polling path uses the configured paid Solana RPC, persists only reduced evidence, and makes zero calls when no baselined watch is active.
 
 The wider discovery lane additionally requires the reviewed-program coverage contract in `ravenos_constant_k_discovery_coverage_v1.md`. The active 208-identity Constant-K filter cannot satisfy it. RavenOS will not call that feed broad wallet coverage until the upgraded provider applies the exact 11-program transaction filter, emits a current acknowledgement, and passes bounded load and freshness validation.
 

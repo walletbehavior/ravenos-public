@@ -87,14 +87,15 @@ Summaries expose p50, p90, p95, and p99 for detection, provider, ingress, decode
 
 ## Activation
 
-Both controls default off:
+Production activates the shared evaluator with a bounded RPC transport:
 
 - `RAVENOS_WALLET_OBSERVER_ENABLED`
 - `RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED`
+- `RAVENOS_WALLET_RPC_POLL_ENABLED`
 
-The evaluator also requires wallet intelligence and Shadow Copy activation. Enabling either observer control never enables live copy, signing, broadcasting, custody, or fee collection.
+The evaluator also requires wallet intelligence and Shadow Copy activation. The RPC transport polls only active watches with an exact established cursor, once every five minutes, and is capped at 50 source wallets per scheduled run. An unbaselined watch is reported as `baseline_required` and causes no provider request. Enabling observation never enables automatic copy, signing, broadcasting, custody, or fee collection.
 
-The current staging milestone supplies the domain contract, D1/SQLite-compatible queue store, migration, bounded evaluator, a default-off hook in the existing scheduled Worker boundary, latency summary, provider-neutral transport adapters, and deterministic tests. It does not configure a new cron, public ingest route, gRPC credential, or ShredStream connection.
+The existing Worker cron drives the provider-neutral transport, durable queue, evaluator, five-size copyability probes, outcome checkpoints, and bounded deep-history jobs. The fast gRPC/ShredStream receiver and its private ingress remain separately dormant pending exact Constant-K watch-manifest acknowledgement.
 
 ## Provider adapters and catch-up integrity
 
@@ -276,7 +277,7 @@ Migration `0019_source_wallet_copyability_checkpoints.sql` adds the prospective 
 
 The current screener reference is the $100 follower at +1 hour. It exposes route persistence, median net follower return, follower win rate, alpha retained when the source counterfactual return is positive, and the follower-minus-source return gap. The source comparison is a same-horizon counterfactual liquidation, not the source wallet's actual exit or realized P&L. Every follower value is an expected read-only quote, not a fill. Alpha retained is intentionally uncapped so negative capture and values above 100% remain visible instead of being cosmetically normalized.
 
-The entry evaluator is independently dormant behind `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`; the outcome evaluator has the additional independent gate `RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED`. Both require the coordinated wallet-intelligence, Shadow, and shared-observer evaluator gates. No Wrangler binding or production flag is added. Migrations `0015`, `0017`, `0018`, and `0019`, observer activation, live copying, signing, broadcasting, custody, and fee collection remain outside this milestone.
+The entry evaluator remains independently gated by `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`; the outcome evaluator has the additional `RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED` gate. Production enables both over the bounded shared observer. All required migrations are applied. Automatic copying, signing, broadcasting, custody, and copy-specific fee collection remain unavailable.
 
 ## Nexus research-cohort milestone
 

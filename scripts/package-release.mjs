@@ -30,6 +30,16 @@ const entitlementResolutionActive = customerSecurity.entitlement_foundation?.res
 const walletIntelligenceActive = customerSecurity.wallet_copy?.read_only_intelligence_release_enabled === true;
 const walletScreenerActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.read_only_screener_release_enabled === true;
+const walletObserverActive = walletIntelligenceActive
+  && customerSecurity.wallet_copy?.continuous_observer_active === true;
+const walletRpcPollActive = walletObserverActive
+  && customerSecurity.wallet_copy?.continuous_observer_transport === "bounded_rpc_poll";
+const walletCopyabilityActive = walletObserverActive
+  && customerSecurity.wallet_copy?.shared_prospective_copyability_matrix_active === true;
+const walletCopyabilityCheckpointsActive = walletCopyabilityActive
+  && customerSecurity.wallet_copy?.shared_prospective_follower_outcome_checkpoints_active === true;
+const walletBackfillActive = walletIntelligenceActive
+  && customerSecurity.wallet_copy?.deep_history_backfill_active === true;
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -140,8 +150,13 @@ const releaseWrangler = {
     RAVENOS_WALLET_COPY_ROUTES_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_SCREENER_ENABLED: walletScreenerActive ? "1" : "0",
     RAVENOS_SHADOW_COPY_ENABLED: customerSecurity.wallet_copy?.shadow_copy_release_enabled === true ? "1" : "0",
-    RAVENOS_WALLET_OBSERVER_ENABLED: "0",
-    RAVENOS_WALLET_BACKFILL_ENABLED: "0",
+    RAVENOS_WALLET_OBSERVER_ENABLED: walletObserverActive ? "1" : "0",
+    RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED: walletObserverActive ? "1" : "0",
+    RAVENOS_WALLET_RPC_POLL_ENABLED: walletRpcPollActive ? "1" : "0",
+    RAVENOS_WALLET_RPC_POLL_MAXIMUM_WALLETS: String(customerSecurity.wallet_copy?.continuous_observer_maximum_wallets_per_run || 50),
+    RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED: walletCopyabilityActive ? "1" : "0",
+    RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED: walletCopyabilityCheckpointsActive ? "1" : "0",
+    RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive ? "1" : "0",
     RAVENOS_LIVE_COPY_ENABLED: "0",
     RAVENOS_COPY_FEE_COLLECTION_ENABLED: "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",

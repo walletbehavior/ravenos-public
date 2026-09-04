@@ -303,11 +303,14 @@ test("wallet-copy activation is entitlement-coordinated and source-level live au
   const observer = resolveWalletCopyActivation(env({
     RAVENOS_WALLET_OBSERVER_ENABLED: "1",
     RAVENOS_WALLET_OBSERVER_EVALUATOR_ENABLED: "1",
+    RAVENOS_WALLET_RPC_POLL_ENABLED: "1",
   }));
   assert.equal(observer.continuous_observer, true);
   assert.equal(observer.observer_ingest, true);
   assert.equal(observer.scheduler, true);
-  assert.equal(observer.monitoring_mode, "shared_observer");
+  assert.equal(observer.monitoring_mode, "bounded_rpc_poll");
+  assert.equal(observer.observer_transport, "bounded_rpc_poll");
+  assert.equal(observer.observer_interval_seconds, 300);
   assert.equal(observer.live_copy, false);
   assert.equal(observer.fee_collection, false);
 });
