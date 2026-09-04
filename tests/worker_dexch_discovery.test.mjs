@@ -41,6 +41,7 @@ function tokenFixture(overrides = {}) {
     risk: "unknown",
     riskWarnings: 0,
     dexPaid: false,
+    imageUrl: "https://gmgn.ai/external-res/provider-branded.webp",
     quoteToken: QUOTE,
     quoteSymbol: "ETH",
     ...overrides,
@@ -125,6 +126,7 @@ test("public Dexch discovery route is normalized, bounded and authority-free", a
     assert.equal(body.rows[0].chain_id, "eip155:4663");
     assert.equal(body.rows[0].canonical_identity.asset_id, `eip155:4663/erc20:${TOKEN}`);
     assert.equal(body.rows[0].evidence_class, "DEXCH_REPORTED");
+    assert.equal(body.rows[0].image_url, null);
     assert.equal(body.rows[0].provenance.current_price_authority, false);
     assert.equal(body.execution_boundary.transaction_construction, false);
     assert.equal(body.execution_boundary.signing, false);

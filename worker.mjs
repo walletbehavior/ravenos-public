@@ -1215,7 +1215,7 @@ async function solanaTokenMetadata(addresses = []) {
       token_address: row.tokenAddress,
       symbol: row.symbol,
       name: row.name,
-      image_url: row.imageUrl,
+      image_url: safePublicImageUrl(row.imageUrl),
       pair_address: row.pairAddress,
       venue: row.dexId,
       observed_at: row.lastUpdated,
@@ -2703,6 +2703,23 @@ function safeGeckoImageUrl(value) {
   }
 }
 
+function safePublicImageUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    const hostname = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:"
+      || url.username
+      || url.password
+      || hostname === "gmgn.ai"
+      || hostname.endsWith(".gmgn.ai")
+    ) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function safePublicLink(value, kind = "website") {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -3402,7 +3419,7 @@ function normalizeDexchExactPoolRow(token, pair, { duration = "5m", providerRank
     quote_token_address: String(pair.quoteTokenAddress || token.venue?.quote_token_address || ""),
     quote_symbol: boundedPublicLabel(pair.quoteSymbol || token.venue?.quote_symbol, "", 20),
     pool_address: pair.pairAddress,
-    image_url: pair.imageUrl || token.image_url || null,
+    image_url: safePublicImageUrl(pair.imageUrl || token.image_url),
     observed_at: fetchedAt,
     age_seconds: 0,
     context_state: "current",
@@ -3597,7 +3614,7 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
     quote_token_address: String(pair.quoteTokenAddress || ""),
     quote_symbol: boundedPublicLabel(pair.quoteSymbol, "", 20),
     pool_address: poolAddress,
-    image_url: pair.imageUrl || null,
+    image_url: safePublicImageUrl(pair.imageUrl),
     observed_at: fetchedAt,
     age_seconds: 0,
     context_state: "current",
